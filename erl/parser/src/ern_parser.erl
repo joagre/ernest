@@ -21,7 +21,9 @@
 parse(Tokens) ->
     try
         {ModuleDoc, Tokens1} = module_doc(Tokens),
-        Declarations = program(placed_docs(Tokens1), []),
+        Placed = placed_docs(Tokens1),
+        Declarations = program(Placed, []),
+        doc_headings(ModuleDoc, Placed),
         {ok, case ModuleDoc of undefined -> Declarations; _ -> [ModuleDoc | Declarations] end}
     catch
         throw:{parse_error, #diagnostic{} = Diagnostic} ->
@@ -108,6 +110,76 @@ module_doc([{doc, Position, Text}, Next | Rest]) ->
     end;
 module_doc(Tokens) ->
     {undefined, Tokens}.
+
+%% Report §11.4: a heading in the module's doc block is of level two or
+%% deeper, and one in a declaration's, a constructor's or a field's of
+%% level three or deeper, the levels above being the page's own; one above
+%% is an error at its `///` line. A heading in fenced code is code.
+doc_headings(ModuleDoc, Tokens) ->
+    case ModuleDoc of
+        #module_doc{span = {Line, Column, _}, text = Text} -> headings(Line, Column, Text, 2);
+        undefined -> ok
+    end,
+    lists:foreach(fun({doc, {Line, Column, _, _}, Text}) -> headings(Line, Column, Text, 3);
+                     (_) -> ok
+                  end, Tokens).
+
+headings(Line, Column, Text, Lowest) ->
+    lists:foldl(fun(DocLine, {Index, Fence}) ->
+                    Unindented = unindented(binary_to_list(DocLine), 3),
+                    case {Fence, fence_of(Unindented)} of
+                        {none, {_, _} = Opened} ->
+                            {Index + 1, Opened};
+                        {{Char, Length}, {Char, Closing}} when Closing >= Length ->
+                            {Index + 1, none};
+                        {none, none} ->
+                            Level = heading_level(Unindented),
+                            Level =:= 0 orelse Level >= Lowest
+                                orelse throw({parse_error,
+                                              heading_too_high(Line + Index, Column, Level,
+                                                               Lowest)}),
+                            {Index + 1, none};
+                        _ ->
+                            {Index + 1, Fence}
+                    end
+                end, {0, none}, binary:split(Text, <<"\n">>, [global])),
+    ok.
+
+%% A line without up to that many spaces before it.
+unindented([$\s | Rest], Count) when Count > 0 -> unindented(Rest, Count - 1);
+unindented(Line, _) -> Line.
+
+%% CommonMark's code fence: a run of three or more backticks or tildes, its
+%% character and its length; none for a line that is no fence.
+fence_of([Char | _] = Line) when Char =:= $`; Char =:= $~ ->
+    case length(lists:takewhile(fun(Next) -> Next =:= Char end, Line)) of
+        Length when Length >= 3 -> {Char, Length};
+        _ -> none
+    end;
+fence_of(_) ->
+    none.
+
+%% CommonMark's ATX heading: one to six `#`, then a space, a tab or the
+%% line's end; 0 for a line that is no heading.
+heading_level(Line) ->
+    {Marks, Rest} = lists:splitwith(fun(Char) -> Char =:= $# end, Line),
+    case {length(Marks), Rest} of
+        {Level, []} when Level >= 1, Level =< 6 -> Level;
+        {Level, [Next | _]} when Level >= 1, Level =< 6, Next =:= $\s orelse Next =:= $\t -> Level;
+        _ -> 0
+    end.
+
+heading_too_high(Line, Column, Level, 2) ->
+    #diagnostic{span = {Line, Column, {Line, Column + 3}},
+                message = lists:flatten(io_lib:format("a heading of level ~B in the module's doc "
+                                                      "block, which the page's title is", [Level])),
+                help = "write it `##` or deeper: the module's page has its title at level 1"};
+heading_too_high(Line, Column, Level, 3) ->
+    #diagnostic{span = {Line, Column, {Line, Column + 3}},
+                message = lists:flatten(io_lib:format("a heading of level ~B in a declaration's "
+                                                      "doc block, which the page's sections are",
+                                                      [Level])),
+                help = "write it `###` or deeper: each declaration is a section of level 2"}.
 
 doc_end({Line, _, _, _}, Text) ->
     Line + length([Char || <<Char>> <= Text, Char =:= $\n]).
@@ -380,7 +452,7 @@ member([{ident, _, Variable}, Token | _]) ->
                           ++ describe(Token),
          "a requirement names a member of a type variable, as needs a.compare");
 member([Token | _]) ->
-    fail(position(Token), "expected a type variable instead of " ++ describe(Token),
+    fail(position(Token), instead("expected a type variable", Token),
          "a requirement names a member of a type variable, as needs a.compare").
 
 %% Appendix A, report §3.5, §4.9: in a declaration with a requirement,
@@ -434,7 +506,7 @@ declaration_name([{typename, _, _} = Token | _]) ->
     fail(position(Token), "expected a name instead of " ++ describe(Token),
          "a function's name begins with a lowercase letter");
 declaration_name([Token | _]) ->
-    fail(position(Token), "expected a name instead of " ++ describe(Token)).
+    fail(position(Token), instead("expected a name", Token)).
 
 %% Report §4.5, §4.6, Appendix A's LetDecl: a `let` declares no member.
 let_name([{ident, _, Name} | Rest]) ->
@@ -453,7 +525,7 @@ let_name([{typename, _, _} = Token | _]) ->
     fail(position(Token), "expected a name instead of " ++ describe(Token),
          "a value's name begins with a lowercase letter");
 let_name([Token | _]) ->
-    fail(position(Token), "expected a name instead of " ++ describe(Token)).
+    fail(position(Token), instead("expected a name", Token)).
 
 params(Tokens) ->
     Rest = expect(Tokens, '('),
@@ -617,7 +689,7 @@ type([{typename, Position, _} | _] = Tokens) ->
 type([{ident, Position, Name} | Rest]) ->
     spanned({#t_var{span = Position, name = Name}, Rest});
 type([Token | _]) ->
-    wanted(typename, position(Token), "expected a type instead of " ++ describe(Token)).
+    wanted(typename, position(Token), instead("expected a type", Token)).
 
 %% Appendix A's FnType and ParenType: the types in parentheses are a
 %% function type's parameters where `->` follows them, else the one type
@@ -661,7 +733,7 @@ qualified([{'.', _}, {Operator, _} | Rest], Namespace, Current)
        Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
     {{value, Namespace ++ [Current], Operator}, Rest};
 qualified([{'.', _}, Token | _], _Namespace, _Current) ->
-    fail(position(Token), "expected a name after `.` instead of " ++ describe(Token));
+    fail(position(Token), instead("expected a name after `.`", Token));
 qualified(Rest, Namespace, Current) ->
     {{con, Namespace, Current}, Rest}.
 
@@ -843,6 +915,12 @@ calls(Expr, [{'.', _}, {ident, FieldPosition, Field} | Rest]) ->
                              field_span = ern_diagnostic:span(FieldPosition)},
     {Selection, Rest1} = spanned({Unspanned, Rest}),
     calls(Selection, Rest1);
+calls(Expr, [{'.', _}, Token | _] = Tokens) ->
+    %% report §2.4: a reserved word where a field's name stands names nothing
+    case reserved_word(Token) of
+        {ok, _} -> fail(position(Token), instead("expected a field's name", Token));
+        none -> {Expr, Tokens}
+    end;
 calls(Expr, Tokens) ->
     {Expr, Tokens}.
 
@@ -1098,7 +1176,7 @@ pattern(Tokens) ->
             spanned({#p_as{span = ern_ast:span(Pattern), pattern = Pattern, name = Name,
                            name_span = ern_diagnostic:span(NamePosition)}, Rest1});
         [{as, _}, Token | _] ->
-            fail(position(Token), "expected a name after `as` instead of " ++ describe(Token));
+            fail(position(Token), instead("expected a name after `as`", Token));
         _ ->
             {Pattern, Rest}
     end.
@@ -1145,7 +1223,7 @@ atompat([{'<<', Position} | Rest]) ->
     {Segments, Rest1} = bit_segments(Rest, fun pattern/1),
     spanned({#p_bitstring{span = Position, segments = Segments}, Rest1});
 atompat([Token | _]) ->
-    wanted(pattern, position(Token), "expected a pattern instead of " ++ describe(Token)).
+    wanted(pattern, position(Token), instead("expected a pattern", Token)).
 
 constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
     case Rest of
@@ -1293,7 +1371,7 @@ expected_instead(Expected, Token) ->
 expect_ident_position([{ident, Position, Name} | Rest]) ->
     {Name, Position, Rest};
 expect_ident_position([Token | _]) ->
-    fail(position(Token), "expected a name instead of " ++ describe(Token)).
+    fail(position(Token), instead("expected a name", Token)).
 
 expect_typename(Tokens) ->
     {Name, _, Rest} = expect_typename_position(Tokens),
@@ -1309,7 +1387,7 @@ expect_typename_position([{ident, IdentPosition, Name} = Token | _]) ->
                             Help),
     throw({parse_error, Diagnostic#diagnostic{expected = typename}});
 expect_typename_position([Token | _]) ->
-    wanted(typename, position(Token), "expected a type name instead of " ++ describe(Token)).
+    wanted(typename, position(Token), instead("expected a type name", Token)).
 
 %% The type name an identifier was meant as, its leading `_` gone and its
 %% first letter uppercase, or none where no letter begins what is left.
@@ -1343,6 +1421,30 @@ spanned({Node, [Next | _] = Rest}) ->
 spanned({Node, []}) ->
     {setelement(2, Node, ern_diagnostic:span(ern_ast:span(Node))), []}.
 
+%% Report §2.4, §11.5: what was expected where a token stood instead; a
+%% reserved word where a name, a type or a pattern stands names nothing,
+%% and is said to be reserved.
+instead(Expected, Token) ->
+    case reserved_word(Token) of
+        {ok, Word} -> "`" ++ Word ++ "` is a reserved word, and names nothing";
+        none -> Expected ++ " instead of " ++ describe(Token)
+    end.
+
+%% Report §2.4: a word the lexer gives as a token of its own, `true` and
+%% `false` among them, is a reserved word.
+reserved_word({bool, _, Value}) ->
+    {ok, atom_to_list(Value)};
+reserved_word({eof, _}) ->
+    none;
+reserved_word({Symbol, _}) ->
+    Text = atom_to_list(Symbol),
+    case lists:all(fun(Char) -> Char >= $a andalso Char =< $z end, Text) of
+        true -> {ok, Text};
+        false -> none
+    end;
+reserved_word(_) ->
+    none.
+
 describe({ident, _, Name}) -> "identifier `" ++ atom_to_list(Name) ++ "`";
 describe({typename, _, Name}) -> "type name `" ++ atom_to_list(Name) ++ "`";
 describe({int, _, Value}) -> "integer " ++ integer_to_list(Value);
@@ -1352,13 +1454,10 @@ describe({string, _, _}) -> "string literal";
 describe({bool, _, Value}) -> "the reserved word `" ++ atom_to_list(Value) ++ "`";
 describe({doc, _, _}) -> "doc block";
 describe({eof, _}) -> "end of input";
-describe({Symbol, _}) ->
-    %% report §2.4: a word the lexer gives as a token of its own is a
-    %% reserved word, which names nothing
-    Text = atom_to_list(Symbol),
-    case lists:all(fun(Char) -> Char >= $a andalso Char =< $z end, Text) of
-        true -> "the reserved word `" ++ Text ++ "`";
-        false -> "`" ++ Text ++ "`"
+describe({Symbol, _} = Token) ->
+    case reserved_word(Token) of
+        {ok, Word} -> "the reserved word `" ++ Word ++ "`";
+        none -> "`" ++ atom_to_list(Symbol) ++ "`"
     end.
 
 %% Report §3.2: a tuple has two components or more, as a type, a value

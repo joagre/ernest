@@ -92,6 +92,7 @@ Examples
     String.trim("\u{a0}a\u{3000}")
     // => "a"
 > no command :zz; :help lists them
+> no command :help\tme; :help lists them
 > :b is :bindings or :browse
 > :f is :faults or :forget
 > :type takes an expression
@@ -121,7 +122,7 @@ zero : () -> Int
   :faults         the faults reported since the session began
   :forget name    a name the session declared, forgotten, or every one for *
   :help           this text
-  :load Module    the module by its namespace, compiled from its source
+  :load Module    the module by its namespace, from its source or its compiled form
   :output path    what programs write, appended to path, or back in the region for -
   :processes      the live processes of the session, by spawn site
   :quit           the session ended, as C-d on an empty line ends it

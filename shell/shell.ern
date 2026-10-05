@@ -225,11 +225,16 @@ let colourAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 
 // Report §11.2: the inputs of the sessions before this one, and whether
 // the history file takes what is typed; a history that cannot be read is
-// said once, and not written.
+// said once, and not written, and so is a `HOME` that names no place for
+// it, unset or relative.
 fn history(screen : Address(ScreenMsg)) : #(List(String), Bool) with m =
     match Shell.History.file {
         None -> {
-            say(screen, "the history is not kept, since HOME is no absolute path");
+            let why = match Os.environment("HOME") {
+                None -> "HOME is not set"
+              | Some(_) -> "HOME is no absolute path"
+            };
+            say(screen, "the history is not kept, since " <> why);
             #([], false)
         }
       | Some(path) -> match Shell.History.read() {
@@ -390,12 +395,12 @@ fn output(screen : Address(ScreenMsg), argument : String) : Either(String, Strin
         }
     }
 
-// Report §11.2: a path that names neither a terminal nor a file, a pipe
-// among them, is refused, as the file system refuses it (Appendix E.17);
+// Report §11.2: a path that names no terminal, other device or file, a
+// named pipe among them, is refused, as the file system refuses it (Appendix E.17);
 // a file that is not there is created, so one not found is its directory.
 fn cannotWrite(path : Path, error : Io.Error) : String = {
     let why = match error {
-        Io.NotAFile -> "it is no terminal and no file"
+        Io.NotAFile -> "it is neither a device nor a file"
       | Io.NotFound -> "its directory is not there"
       | _ -> trouble(error)
     };
@@ -719,9 +724,11 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit with m =
 // commands are `Shell.Command`'s table, and the session carries out the
 // action a command line selects.
 
+// Report §11.2: a refusal names what was typed, each control character
+// written as its escape, as a fault's cause is.
 fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg =
     match Shell.Command.parse(input) {
-        Left(text) -> refused(state, screen, text)
+        Left(text) -> refused(state, screen, escaped(text))
       | Right(#(action, argument)) -> obey(state, screen, action, argument, argumentColumn(input))
     }
 
@@ -1263,10 +1270,10 @@ fn documenting(shell : Address(ShellMsg),
     else
         0;
     let rows = match page {
-        Some(text) -> if last == Documented then
+        Some(#(text, version)) -> if last == Documented then
             rendered(text, screenWidth(), colour)
         else
-            brief(text, screenWidth(), colour)
+            brief(text, version, screenWidth(), colour)
       | None -> match signature(String.slice(line, skipped, cursor - skipped)) {
             Some(#(head, marked, rest)) -> [head <> Shell.Style.emphasis(marked, colour) <> rest]
           | None -> []
@@ -1278,9 +1285,12 @@ fn documenting(shell : Address(ShellMsg),
 
 // The declaration, the first sentence, and the version a page's
 // declaration appeared in: the first line of its first code block, the
-// first sentence of its first paragraph (report §11.4), and its `Since`
-// paragraph, the name bold.
-fn brief(text : String, width : Int, colour : Markdown.Output) : List(String) = {
+// first sentence of its first paragraph past its `Since` line (report
+// §11.4), and the version, the name bold.
+fn brief(text : String,
+         version : Optional(String),
+         width : Int,
+         colour : Markdown.Output) : List(String) = {
     let blocks = Markdown.parse(text);
     let declarations = List.flatMap(blocks, fn(block) = match block {
         Markdown.Code(lines = lines) -> List.take(lines, 1)
@@ -1290,14 +1300,21 @@ fn brief(text : String, width : Int, colour : Markdown.Output) : List(String) = 
         Markdown.Paragraph(_) -> true
       | _ -> false
     });
-    let #(versions, prose) = List.partition(paragraphs, isVersion);
+    let prose = List.filter(paragraphs, fn(block) = !isVersion(block));
     let sentence = match Markdown.firstSentence(prose) {
         [] -> []
       | inlines -> [Markdown.Paragraph(inlines)]
     };
+    let since = match version {
+        Some(appeared) -> {
+            let line = Markdown.Text("Since " <> appeared <> ".");
+            [Markdown.Paragraph([Markdown.Emphasis([line])])]
+        }
+      | None -> []
+    };
     List.map(List.take(declarations, 1), fn(declaration) = Shell.Style.named(declaration, colour))
         <> Markdown.render(sentence, width, colour)
-        <> Markdown.render(List.take(versions, 1), width, colour)
+        <> Markdown.render(since, width, colour)
 }
 
 // The line §11.4 writes for the version a declaration appeared in.
@@ -1373,8 +1390,9 @@ foreign fn needsMore(input : String) : Bool =
     "ern_shell:needs_more/1"
 
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
-// sentence of and then the whole of.
-foreign fn documentation(name : String) : Optional(String) with m =
+// sentence of and then the whole of, as `:doc` shows it, and the version
+// the name appeared in.
+foreign fn documentation(name : String) : Optional(#(String, Optional(String))) with m =
     "ern_shell:documentation/1"
 
 // Report §11.2: the signature of the call the input stops inside, with the

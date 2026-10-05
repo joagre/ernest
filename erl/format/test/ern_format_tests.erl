@@ -61,6 +61,18 @@ written_whole_test() ->
     fixed(["fn f(x) =", "    x |> (g(1)) |> ((h)(2))"]),
     fixed(["foreign type T(a, a=, a)"]).
 
+%% report §11.6, §11.5: an operand in parentheses stays in them before the
+%% same operator, a call's, a pipe's and a selection's as an operator's.
+%% A regression test, of a crash the programs generated from Appendix A
+%% found: the operand's start was taken from its first operand, inside the
+%% parenthesis, so the chain ran through it
+parenthesized_operand_test() ->
+    fixed(["fn f(d, e) =", "    (d - 1) - e"]),
+    fixed(["fn f(d, e) =", "    a || (d() - 1) - e"]),
+    fixed(["fn f(a, b, e) =", "    ((a |> g(b)) - 1) - e"]),
+    fixed(["fn f(a, e) =", "    (a.b - 1) - e"]),
+    fixed(["fn f(a) =", "    (a) - (a - 1) - a"]).
+
 %% report §11.6: a function's head ends at `=` and its body begins on the
 %% next line, one step in; a block's brace ends the head's line
 head_test() ->

@@ -100,10 +100,12 @@ underscore_signature() ->
 
 %% report §11.2, Appendix E.0 shape rule 6: the brief of a declaration without a
 %% `since` of its own shows its module's version, a member of a module's
-%% type among them, whatever its text says. A regression test: a member
+%% type among them, whatever its text says, and its page pressed again is
+%% the one `:doc` shows, with no version added. A regression test: a member
 %% `Shape.Point.compare` showed none, its module sought one segment back,
-%% and a declaration whose text held `*Since ` showed none, the page
-%% searched for the words
+%% a declaration whose text held `*Since ` showed none, the page searched
+%% for the words, and the page pressed again had the module's version
+%% appended
 brief_module_version_test_() ->
     {timeout, 90, fun brief_module_version/0}.
 
@@ -128,11 +130,16 @@ brief_module_version() ->
                  {send, "03"},
                  {send, hex("Shape.quoted") ++ ShiftTab},
                  {expect, "in its text."},
+                 {send, ShiftTab},                        % again: the page
+                 {expect, "    Shape.quoted() : Int"},
                  {send, "03"},
                  {send, "04"}],
                 30, " --size 60x90"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Orders points by their x.\r\nSince 0.4.0.">>)),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"in its text.\r\nSince 0.4.0.">>)).
+    ?assertMatch({_, _}, binary:match(Bytes, <<"in its text.\r\nSince 0.4.0.">>)),
+    [_, Page] = binary:split(Bytes, <<"    Shape.quoted() : Int">>),
+    ?assertMatch({_, _}, binary:match(Page, <<"in its text.">>)),
+    ?assertEqual(nomatch, binary:match(Page, <<"Since 0.4.0.">>)).
 
 %% report §11.2: `:doc` shows a module's value with the type `:type`
 %% prints, its module's types qualified, and a type with its declaration as
@@ -1667,15 +1674,18 @@ load_unreadable() ->
 
 %% report §11.8, §8.2: a line of standard input that is not UTF-8 faults
 %% the shell, which reads it, and the shell ends with status 1, as a run
-%% does whose entry process faults. A regression test of the status, the
-%% shell's own faults now being failures of ern: that a fault by a defect
+%% does whose entry process faults, saying so as its end. A regression
+%% test of the status, the shell's own faults now being failures of ern,
+%% and of the line, which was an input's `fault:`: that a fault by a defect
 %% exits with status 70 is not covered, since no input gives the shell one
 input_fault_status_test_() ->
     {timeout, 60, fun input_fault_status/0}.
 
 input_fault_status() ->
     {1, Output} = ern_pty:sh("printf \"1 + 1\\n\\377\\n2 + 2\\n\" | ../bin/ern shell"),
-    ?assertMatch({_, _}, binary:match(Output, <<"fault: the standard input is not UTF-8">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the shell ends: its standard input is not"
+                                                " UTF-8">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"fault:">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"4 : Int">>)).
 
 %% report §11.2: `:load` refuses a module whose dependency has no source
@@ -1693,8 +1703,27 @@ load_unreadable_dependency() ->
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load Top\n1\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"compile Dep first: ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"compile Dep first, which Top uses: ">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"dep.erc: not a compiled module">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
+
+%% report §11.2: `:load` of a module whose dependency does not compile
+%% gives the dependency's diagnostic and says the module is not loaded. A
+%% regression test: it gave the build's advice, "compile Dep first", with
+%% an absolute path, which does not apply in the shell
+load_failed_dependency_test_() ->
+    {timeout, 60, fun load_failed_dependency/0}.
+
+load_failed_dependency() ->
+    Dir = scratch("ern_dep_"),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
+    ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() : Int = \"x\"\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Top\n1\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"expected Int, found String">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Top is not loaded, since Dep does not compile">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"first">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
 %% report §11.2: a binding and a function may take the names the host gives
@@ -1883,6 +1912,26 @@ declarations_kept_while_reached() ->
     ?assertMatch({match, _}, re:run(Output, "A\\(7\\) : \\$Input[0-9]+\\.T")),
     ?assertMatch({_, _}, binary:match(Output, <<"> 100 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"old code ran">>)).
+
+%% report §11.2: a session type a later input shadows prints under the
+%% input that declared it, by the count its diagnostics give it, a command
+%% counted as an input is, and a startup input's by its place among the
+%% inputs checked from the startup files. A regression test: the type
+%% printed under its module's own name, a slot that counts neither
+shadowed_type_by_input_test_() ->
+    {timeout, 60, fun shadowed_type_by_input/0}.
+
+shadowed_type_by_input() ->
+    Home = scratch("ern_home_"),
+    ok = filelib:ensure_path(filename:join(Home, ".ernest")),
+    ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
+                         "1 + 1\ntype S = P\nlet s = P\n"),
+    InputFile = filename:join(Home, "session.in"),
+    ok = file:write_file(InputFile, ":bindings\n:bindings\ntype T = A\nlet x = A\n"
+                                    "type T = B\ntype S = Q\nx\ns\n"),
+    {0, Output} = ern_pty:sh("HOME=" ++ Home ++ " ../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> A : $Input3.T\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> P : $Startup2.S\n">>)).
 
 %% report §11.2: a module the session reaches by a constructor alone is
 %% kept, the constructors of a type declared again staying in scope for the
@@ -2292,8 +2341,9 @@ reload_ends() ->
                                      write_source(Dir, "counter.ern", Counter(3)), ":reload\n",
                                      "1 + 1\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Counter: ended Counter.service:5, a process in the"
-                                                " previous version">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Counter: the previous version is unloaded; the"
+                                                " reload ended the process spawned at"
+                                                " Counter.service:5">>)),
     ?assertMatch({_, _},
                  binary:match(Output, <<"Counter.service:5 faulted: its code was unloaded">>)).
 
@@ -2512,10 +2562,11 @@ typing_makes_no_names() ->
     {0, Output} = ern_pty:sh("escript " ++ Script),
     ?assertEqual(<<"0 ['Expression','Expression','None','None',[],true]">>, Output).
 
-%% report §11.2: `:output` takes a terminal or a file, and a path that
-%% names neither is refused, the session going on. A regression test: a
-%% pipe with no reader held the session where it was opened; a command
-%% given a name of no module answers as before
+%% report §11.2: `:output` takes a terminal, another device or a file, and
+%% a path that names none of them is refused, the session going on. A
+%% regression test: a pipe with no reader held the session where it was
+%% opened, and the refusal named no device; a command given a name of no
+%% module answers as before
 output_to_a_pipe_test_() ->
     {timeout, 60, fun output_to_a_pipe/0}.
 
@@ -2525,16 +2576,42 @@ output_to_a_pipe() ->
     {0, _} = ern_pty:sh("mkfifo " ++ Pipe),
     InputFile = filename:join(Home, "session.in"),
     ok = file:write_file(InputFile, [":output ", Pipe, "\n:output ", Home, "\n",
+                                     ":output /dev/null\n:output -\n",
                                      ":browse Zqxunmet\n:load Zqxunmet\n1 + 1\n"]),
     {0, Output} = ern_pty:sh("HOME=" ++ Home ++ " ../bin/ern shell < " ++ InputFile),
     Refusal = fun(Path) -> list_to_binary(["cannot write to ", Path,
-                                           ": it is no terminal and no file"]) end,
+                                           ": it is neither a device nor a file"]) end,
     ?assertMatch({_, _}, binary:match(Output, Refusal(Pipe))),
     ?assertMatch({_, _}, binary:match(Output, Refusal(Home))),
+    ?assertMatch({_, _}, binary:match(Output, <<"output goes to /dev/null">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet is in scope">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet under the source root or on"
                                                 " the load path">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)).
+
+%% report §11.2: a qualified name of a module the session has not loaded
+%% but the source root holds, in an input and given to `:browse` and
+%% `:doc`, is answered with the `:load` that puts it in scope, and a name
+%% of no module there, or of one loaded, is answered without one. A
+%% regression test: the answer said the name was unknown and no more
+load_help_test_() ->
+    {timeout, 60, fun load_help/0}.
+
+load_help() ->
+    Dir = scratch("ern_load_help_"),
+    ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Greet.hello()\n:browse Greet\n:doc Greet.hello\n"
+                                    "let x : Greet.T = 1\nZz.f()\n:load Greet\nGreet.nope()\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Help = <<":load Greet puts it in scope">>,
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Greet.hello\n1 | Greet.hello()\n"
+                                                "  | ^^^^^^^^^^^\n  | = help: ", Help/binary>>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no module Greet is in scope; ", Help/binary>>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no documentation for Greet.hello; ",
+                                                Help/binary>>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown type Greet.T">>)),
+    ?assertEqual(4, length(binary:matches(Output, Help))).
 
 %% report §11.2, Appendix E.17: what programs write goes to the file
 %% `:output` names, appended as the live region would show it, and not to
@@ -2606,8 +2683,8 @@ front_end_test_() ->
 %% front end. Inside a call, the callee's signature with its parameters as
 %% declared, in three parts around the one at the cursor, which the shell
 %% colours; the prelude's too, its parameters named for their roles;
-%% nothing outside a call. On a name, its page
-%% with the version it appeared in, its own or its module's
+%% nothing outside a call. On a name, its page and beside it the version
+%% it appeared in, its own or its module's
 signature() ->
     ?assertEqual({'Some', {<<"List.map(list : List(a), ">>, <<"f : (a) -> b with e">>,
                            <<") : List(b) with e">>}},
@@ -2619,10 +2696,10 @@ signature() ->
     %% a callee that is no function has no signature; a regression test,
     %% where a system reference's showed its type glued to its name
     ?assertEqual('None', ern_shell:signature(<<"Map.empty(">>)),
-    {'Some', MapPage} = ern_shell:documentation(<<"List.map">>),
-    ?assertMatch({_, _}, binary:match(MapPage, <<"*Since 0.1.0.*">>)),
-    {'Some', SendPage} = ern_shell:documentation(<<"send">>),
-    ?assertMatch({_, _}, binary:match(SendPage, <<"*Since 0.1.0.*">>)).
+    {'Some', {MapPage, MapVersion}} = ern_shell:documentation(<<"List.map">>),
+    ?assertMatch({_, _}, binary:match(MapPage, <<"## List.map">>)),
+    ?assertEqual({'Some', <<"0.1.0">>}, MapVersion),
+    ?assertMatch({'Some', {_, {'Some', <<"0.1.0">>}}}, ern_shell:documentation(<<"send">>)).
 
 %% report §11.2: an input entered while another runs waits, and runs after
 %% it, in the order entered. A regression test: the session took such an
@@ -2675,15 +2752,19 @@ reload() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled from demo.ern">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)),
     %% the first reload names what is still in the version it replaced
-    ?assertMatch({_, _}, binary:match(Output, <<"input 4:1, a process, g, a binding in the previous"
-                                                " version; a further reload of it ends them">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Demo: the previous version is held by the process"
+                                                " spawned at input 4:1 and by the binding g; the"
+                                                " next reload of Demo ends the process and forgets"
+                                                " the binding">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
     %% a binding holding a function of the module keeps the version it was
     %% taken from, a regression test for a finding of the shell's review,
     %% where it ran the new code: the new answer, then the old one
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int\n> 1 : Int">>)),
     %% the second ends it, and says so
-    ?assertMatch({_, _}, binary:match(Output, <<"ended ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Demo: the previous version is unloaded; the reload"
+                                                " ended the process spawned at input 4:1 and forgot"
+                                                " the binding g">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process of the session's is running">>)).
 
@@ -2769,17 +2850,20 @@ reload_bindings() ->
     {0, Output} = ern_pty:sh(
         alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path " ++ Dir)
         ++ " < " ++ InputFile),
-    Listed = fun(Line) -> binary:match(Line, <<"in the previous version">>) =/= nomatch end,
+    Listed = fun(Line) -> binary:match(Line, <<"the previous version">>) =/= nomatch end,
     [First, Second, Third] = [Line || Line <- binary:split(Output, <<"\n">>, [global]),
                                       Listed(Line)],
-    [?assertMatch({_, _}, binary:match(First, <<Name/binary, ", a binding">>))
-     || Name <- [<<"g">>, <<"captures">>, <<"calls">>]],
-    ?assertMatch({_, _}, binary:match(First, <<"a further reload of it ends them">>)),
-    ?assertMatch({_, _}, binary:match(Second, <<"Demo: ended ">>)),
-    [?assertMatch({_, _}, binary:match(Second, <<Name/binary, ", a binding">>))
-     || Name <- [<<"g">>, <<"captures">>, <<"calls">>]],
-    ?assertEqual(nomatch, binary:match(Second, <<"h, a binding">>)),
-    ?assertMatch({_, _}, binary:match(Third, <<"Demo: h, a binding in the previous version">>)),
+    Named = fun(Line, Name) -> re:run(Line, <<"\\b", Name/binary, "\\b">>) =/= nomatch end,
+    [?assert(Named(First, Name)) || Name <- [<<"g">>, <<"captures">>, <<"calls">>]],
+    ?assertMatch({_, _}, binary:match(First, <<"Demo: the previous version is held by the"
+                                               " bindings ">>)),
+    ?assertMatch({_, _}, binary:match(First, <<"; the next reload of Demo forgets them">>)),
+    ?assertMatch({_, _}, binary:match(Second, <<"Demo: the previous version is unloaded; the"
+                                                " reload forgot the bindings ">>)),
+    [?assert(Named(Second, Name)) || Name <- [<<"g">>, <<"captures">>, <<"calls">>]],
+    ?assertNot(Named(Second, <<"h">>)),
+    ?assertMatch({_, _}, binary:match(Third, <<"Demo: the previous version is held by the binding"
+                                               " h; the next reload of Demo forgets it">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 2 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name calls">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"badfun">>)).
@@ -3240,22 +3324,30 @@ terminal() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)).
 
 %% report §11.2: the start line names the toolchain's version, the one
-%% `VERSION` holds, and a session at a terminal without `HOME` says once
-%% that it keeps no history. A regression test: the version was written
-%% into the shell by hand, and a missing home was passed over in silence
+%% `VERSION` holds, and a session at a terminal without `HOME`, or with one
+%% that is no absolute path, says once that it keeps no history, and which
+%% of the two. A regression test: the version was written into the shell
+%% by hand, a missing home was passed over in silence, and then an unset
+%% one was called no absolute path
 no_home_test_() ->
     {timeout, 60, fun no_home/0}.
 
 no_home() ->
     {ok, Version} = file:read_file("../VERSION"),
     Screen = pty("env -u HOME ../bin/ern shell",
-                 [{expect, "HOME is no absolute path"},
+                 [{expect, "HOME is not set"},
                   {send, hex("1 + 1\r")},
                   {expect, "2 : Int"},
                   {send, "04"}],
                  20),
     ?assertMatch({_, _}, binary:match(Screen, <<"Ernest ", (string:trim(Version))/binary, ".">>)),
-    ?assertEqual(1, length(binary:matches(Screen, <<"the history is not kept">>))).
+    ?assertEqual(1, length(binary:matches(Screen, <<"the history is not kept">>))),
+    Relative = pty("HOME=relative ../bin/ern shell",
+                   [{expect, "HOME is no absolute path"},
+                    {send, "04"}],
+                   20),
+    ?assertMatch({_, _}, binary:match(Relative, <<"the history is not kept, since HOME is no"
+                                                  " absolute path">>)).
 
 %% A terminal session with a home of its own, so that a test neither
 %% reads nor writes the person's startup files or history (report §11.2).

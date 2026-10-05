@@ -9,8 +9,8 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1,
-         module_of/2, module_of/3, shape/2, segment/1, module_path/1, compile_order/2,
+-export([compile/4, compile_in_memory/4, report_errors/4, shown/1, sources/1, compiled_under/1,
+         bytes_text/1, module_of/2, module_of/3, shape/2, segment/1, module_path/1, compile_order/2,
          compile_order/3, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, compiler_modules/0,
          sweep_pages/5, compile_source/4, absolute/1, relative/2, write_whole/2,
@@ -29,7 +29,19 @@ compile(Job, Options, Path, ErrorDevice) ->
                true -> erl;
                false -> erc
            end,
-    filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
+    {Status, _} = compile(Job, Options, Path, ErrorDevice, Emit),
+    Status.
+
+%% Report §11.4: the same, writing nothing and removing nothing: every
+%% module is compiled, and the compiled modules are answered with the
+%% status, for `ern doc` to read its pages from.
+-spec compile_in_memory(string(), [term()], file:filename(), io:device()) ->
+          {0 | 1, #{[atom()] => binary()}}.
+compile_in_memory(Job, Options, Path, ErrorDevice) ->
+    compile(Job, Options, Path, ErrorDevice, memory).
+
+compile(Job, Options, Path, ErrorDevice, Emit) ->
+    filelib:is_file(Path) orelse fail(Path ++ ": no such file or directory"),
     IsDirectory = filelib:is_dir(Path),
     SourceRoot = source_root(Options, Path, case IsDirectory of true -> Path; false -> "." end),
     BuildRoot = build_root(Options, SourceRoot),
@@ -41,7 +53,9 @@ compile(Job, Options, Path, ErrorDevice) ->
                true -> tree;
                false -> file
            end,
-    Modules = [module_of(absolute(Source), SourceRoot, Mode) || Source <- Files],
+    %% report §11.1: a path that is no module's fails that file alone, and
+    %% the rest are built
+    {Modules, Misnamed} = modules_of(Files, SourceRoot, Mode),
     %% report §11.1: the roots a dependency is found under, the build root
     %% and then each root of the load path
     DependencyRoots = [BuildRoot | load_path(Options)],
@@ -49,7 +63,8 @@ compile(Job, Options, Path, ErrorDevice) ->
     try
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
-        {Parsed, Unparsed} = parse_all(Modules, SourceRoot, DependencyRoots),
+        {Parsed, Unparsed1} = parse_all(Modules, SourceRoot, DependencyRoots),
+        Unparsed = Misnamed ++ Unparsed1,
         %% report §11.1: the library's own modules depend on each other as
         %% ordinary modules do, and record no hash of it
         StdlibHash = case is_stdlib_root(SourceRoot) of
@@ -59,55 +74,76 @@ compile(Job, Options, Path, ErrorDevice) ->
         BuildModule = fun(Module, Interfaces) ->
                           build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, StdlibHash)
                       end,
-        Failed = failures(order(Parsed), Unparsed, BuildModule),
-        case [{Failure, Diagnostics} || {_, Failure, Diagnostics} <- Failed, Failure =/= none] of
+        {Failed, Compiled} = failures(order(Parsed), Unparsed, BuildModule),
+        case [{Failure, Diagnostics} || {_, Failure, Diagnostics} <- Failed] of
             [] ->
                 IsDirectory andalso Emit =:= erc
                     andalso sweep(absolute(Path), SourceRoot, BuildRoot),
-                0;
+                {0, Compiled};
             Reported ->
                 [report_failure(Job, Options, Failure, Diagnostics, ErrorDevice)
                  || {Failure, Diagnostics} <- Reported],
-                1
+                {1, Compiled}
         end
     after
         code:add_pathsa(SetAside)
     end.
 
+%% The modules the files are, and a failure for each file whose path is
+%% none's, keyed by the file, since it has no namespace.
+modules_of(Files, SourceRoot, Mode) ->
+    lists:foldr(fun(Source, {Modules, Misnamed}) ->
+                    try module_of(absolute(Source), SourceRoot, Mode) of
+                        Module -> {[Module | Modules], Misnamed}
+                    catch
+                        throw:{cli_error, Refusal} ->
+                            {Modules, [{{file, Source}, {refused, Refusal}, []} | Misnamed]}
+                    end
+                end, {[], []}, Files).
+
 %% Report §11.1, §11.5: a module's failure, its errors or the refusal of
 %% something it needs, as a refusal of the job is said.
 report_failure(Job, _Options, {refused, Refusal}, [], ErrorDevice) ->
     io:format(ErrorDevice, "~s: ~ts~n", [Job, Refusal]);
+%% report §11.1: a module left uncompiled is named, with the module it uses
+%% that failed
+report_failure(Job, _Options, {skipped, Namespace, Dependency}, [], ErrorDevice) ->
+    io:format(ErrorDevice, "~s: ~ts is not compiled, since it uses ~ts, which failed~n",
+              [Job, ern_namespace:text(Namespace), ern_namespace:text(Dependency)]);
 report_failure(_Job, Options, File, Diagnostics, ErrorDevice) ->
     report_errors(Options, File, Diagnostics, ErrorDevice).
 
 %% Report §11.1, §11.5: every module built, in order, but one that uses a
 %% module that failed, whose errors would follow from that one's. The
 %% modules that failed, each with its file and its errors, with
-%% `{refused, Refusal}` where something it needs was refused, or with none
-%% where a module it uses failed; Unparsed begins them.
+%% `{refused, Refusal}` where something it needs was refused, or with
+%% `{skipped, Namespace, Dependency}` where a module it uses failed;
+%% Unparsed begins them. Beside them, the modules compiled in memory, by
+%% namespace.
 failures(Order, Unparsed, BuildModule) ->
-    {_, Failed} = lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule) end,
-                              {#{}, Unparsed}, Order),
-    Failed.
+    {_, Failed, Compiled} =
+        lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule) end,
+                    {#{}, Unparsed, #{}}, Order),
+    {Failed, Compiled}.
 
 build_step(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
-           {Interfaces, Failed}, BuildModule) ->
+           {Interfaces, Failed, Compiled}, BuildModule) ->
     case [Dependency || Dependency <- Dependencies, lists:keymember(Dependency, 1, Failed)] of
         [] ->
             try BuildModule(Module, Interfaces) of
-                Interfaces1 -> {Interfaces1, Failed}
+                {Interfaces1, none} -> {Interfaces1, Failed, Compiled};
+                {Interfaces1, Beam} -> {Interfaces1, Failed, Compiled#{Namespace => Beam}}
             catch
                 throw:{errors, File, Diagnostics} ->
-                    {Interfaces, Failed ++ [{Namespace, File, Diagnostics}]};
+                    {Interfaces, Failed ++ [{Namespace, File, Diagnostics}], Compiled};
                 %% report §11.1: a dependency that is stale or not built, or
                 %% a compiled file that holds another module, fails this
                 %% module alone
                 throw:{cli_error, Refusal} ->
-                    {Interfaces, Failed ++ [{Namespace, {refused, Refusal}, []}]}
+                    {Interfaces, Failed ++ [{Namespace, {refused, Refusal}, []}], Compiled}
             end;
-        _ ->
-            {Interfaces, Failed ++ [{Namespace, none, []}]}
+        [Dependency | _] ->
+            {Interfaces, Failed ++ [{Namespace, {skipped, Namespace, Dependency}, []}], Compiled}
     end.
 
 %% Report §11.5: each error as ern_diagnostic renders it, the first line alone
@@ -210,23 +246,25 @@ module_of(File, SourceRoot) ->
 %% with the root that leaves it out (report §11.1).
 -spec module_of(file:filename(), file:filename(), file | tree) -> #build_module{}.
 module_of(File, SourceRoot, Mode) ->
+    %% report §11.5: a refusal names the file from the working directory
+    Shown = shown(File),
     Relative = relative(File, SourceRoot),
-    Relative =/= outside orelse fail(File ++ " is not under the source root " ++ SourceRoot
+    Relative =/= outside orelse fail(Shown ++ " is not under the source root " ++ SourceRoot
                                      ++ "; --source-root names another"),
     %% report §4.2: a file of the standard library's own source root is
     %% compiled with that root only
     case is_stdlib_root(SourceRoot) orelse relative(File, stdlib_root()) =:= outside of
         true -> ok;
-        false -> fail(Relative ++ " is in the standard library's source root; omit --source-root")
+        false -> fail(Shown ++ " is in the standard library's source root; omit --source-root")
     end,
-    filename:extension(Relative) =:= ".ern" orelse fail(Relative ++ " does not end in .ern"),
+    filename:extension(Relative) =:= ".ern" orelse fail(Shown ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Relative)),
-    shaped(Relative, Components, SourceRoot, Mode),
+    shaped(Shown, Components, SourceRoot, Mode),
     Namespace = ern_namespace:namespace(Components),
     %% report §11.1: the host holds the module's Erlang name
     ErlangModule = ern_namespace:erlang_module_text(Namespace),
     length(ErlangModule) =< ern_namespace:host_name_limit()
-        orelse fail(Relative ++ ": " ++ ern_namespace:host_name_text(
+        orelse fail(Shown ++ ": " ++ ern_namespace:host_name_text(
                                             "the module's Erlang name, `ern@` and its path,",
                                             ErlangModule)),
     %% report §4.2: a module namespace is never a namespace of the prelude
@@ -239,9 +277,9 @@ module_of(File, SourceRoot, Mode) ->
                 case {lists:member(Single, prelude_namespaces()),
                       lists:member(Single, stdlib_namespaces())} of
                     {true, _} ->
-                        fail(Relative ++ " takes the prelude namespace " ++ atom_to_list(Single));
+                        fail(Shown ++ " takes the prelude namespace " ++ atom_to_list(Single));
                     {false, true} ->
-                        fail(Relative ++ " takes the standard library namespace "
+                        fail(Shown ++ " takes the standard library namespace "
                              ++ atom_to_list(Single));
                     {false, false} ->
                         ok
@@ -254,11 +292,11 @@ module_of(File, SourceRoot, Mode) ->
 %% alone has its own name checked first, and then the deepest directory
 %% that breaks the shape is refused with the source root that leaves it
 %% out of the namespace.
-shaped(Relative, Components, _, tree) ->
-    lists:foreach(fun(Component) -> shape(Relative, Component) end, Components);
-shaped(Relative, Components, SourceRoot, file) ->
+shaped(Shown, Components, _, tree) ->
+    lists:foreach(fun(Component) -> shape(Shown, Component) end, Components);
+shaped(Shown, Components, SourceRoot, file) ->
     {Directories, [Name]} = lists:split(length(Components) - 1, Components),
-    shape(Relative, Name),
+    shape(Shown, Name),
     Broken = [Index || {Index, Directory} <- lists:enumerate(Directories),
                        not ern_namespace:is_component(Directory)],
     case lists:reverse(Broken) of
@@ -266,7 +304,7 @@ shaped(Relative, Components, SourceRoot, file) ->
             ok;
         [Deepest | _] ->
             Root = shown(filename:join([SourceRoot | lists:sublist(Directories, Deepest)])),
-            shape(Relative, lists:nth(Deepest, Directories),
+            shape(Shown, lists:nth(Deepest, Directories),
                   "; --source-root " ++ Root ++ " leaves it out of the namespace")
     end.
 
@@ -386,19 +424,23 @@ namespace_clash(#build_module{namespace = Namespace, relative = Relative,
             ParentRelative = module_path(Parent) ++ ".ern",
             lists:member(lists:last(Namespace),
                          source_types(filename:join(SourceRoot, ParentRelative)))
-                andalso clash(Relative, lists:last(Namespace), ParentRelative, Namespace);
+                andalso clash(SourceRoot, Relative, lists:last(Namespace), ParentRelative,
+                              Namespace);
         _ ->
             ok
     end,
     lists:foreach(fun(Type) ->
                       ChildRelative = module_path(Namespace ++ [Type]) ++ ".ern",
                       filelib:is_regular(filename:join(SourceRoot, ChildRelative))
-                          andalso clash(ChildRelative, Type, Relative, Namespace ++ [Type])
+                          andalso clash(SourceRoot, ChildRelative, Type, Relative,
+                                        Namespace ++ [Type])
                   end, local_types(Declarations)).
 
--spec clash(string(), atom(), string(), [atom()]) -> no_return().
-clash(ChildRelative, Type, ParentRelative, Namespace) ->
-    fail(ChildRelative ++ " and type " ++ atom_to_list(Type) ++ " in " ++ ParentRelative
+%% Report §11.5: the two files named from the working directory.
+-spec clash(file:filename(), string(), atom(), string(), [atom()]) -> no_return().
+clash(SourceRoot, ChildRelative, Type, ParentRelative, Namespace) ->
+    fail(shown(filename:join(SourceRoot, ChildRelative)) ++ " and type " ++ atom_to_list(Type)
+         ++ " in " ++ shown(filename:join(SourceRoot, ParentRelative))
          ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (§4.2)").
 
 %% The types a parsed source declares; none when it is absent or does not parse.
@@ -560,35 +602,43 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
     Erc = OutputBase ++ ".erc",
     case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash) of
         {true, Interface} ->
-            Interfaces#{Namespace => Interface};
+            {Interfaces#{Namespace => Interface}, none};
         false ->
             Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
             case ern_typecheck:check(Namespace, Declarations, Given) of
                 {ok, Typed, Interface, Env} ->
-                    ok = make_dirs(Erc),
-                    case Emit of
-                        erl ->
-                            Build = #{standard => is_stdlib_root(SourceRoot)},
-                            Source = ern_emitter:erl_source(Namespace, Typed, Env, Build),
-                            ErlangSource = ["%% Generated by ern build from ", Relative, "\n",
-                                            Source],
-                            ok = write_output(OutputBase ++ ".erl",
-                                              unicode:characters_to_binary(ErlangSource));
-                        erc ->
-                            held_by_another(Erc, Namespace),
-                            Build = #{source_hash => SourceHash, source_path => SourcePath,
-                                      deps => DependencyHashes, compiler => compiler_build(),
-                                      stdlib => StdlibHash, standard => is_stdlib_root(SourceRoot),
-                                      source => list_to_binary(filename:basename(Relative))},
-                            {ok, _, Beam} =
-                                ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
-                            ok = write_output(Erc, Beam)
-                    end,
-                    Interfaces#{Namespace => Interface};
+                    Build = #{source_hash => SourceHash, source_path => SourcePath,
+                              deps => DependencyHashes, compiler => compiler_build(),
+                              stdlib => StdlibHash, standard => is_stdlib_root(SourceRoot),
+                              source => list_to_binary(filename:basename(Relative))},
+                    Kept = emitted(Emit, Namespace, {Typed, Interface, Env}, Build, OutputBase,
+                                   Relative),
+                    {Interfaces#{Namespace => Interface}, Kept};
                 {error, Diagnostics} ->
                     throw({errors, File, Diagnostics})
             end
     end.
+
+%% A checked module written as Erlang source, written as a .erc, or kept in
+%% memory for `ern doc`, which writes no .erc (report §11.4); the compiled
+%% module where it is kept, and none where it is written.
+emitted(erl, Namespace, {Typed, _, Env}, Build, OutputBase, Relative) ->
+    Erl = OutputBase ++ ".erl",
+    ok = make_dirs(Erl),
+    Source = ern_emitter:erl_source(Namespace, Typed, Env, maps:with([standard], Build)),
+    ok = write_output(Erl, unicode:characters_to_binary(["%% Generated by ern build from ",
+                                                         Relative, "\n", Source])),
+    none;
+emitted(erc, Namespace, {Typed, Interface, Env}, Build, OutputBase, _) ->
+    Erc = OutputBase ++ ".erc",
+    ok = make_dirs(Erc),
+    held_by_another(Erc, Namespace),
+    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    ok = write_output(Erc, Beam),
+    none;
+emitted(memory, Namespace, {Typed, Interface, Env}, Build, _, _) ->
+    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    Beam.
 
 %% Report §11.1: a .erc that holds another namespace is not written over, as
 %% a single-file build from another source root would: the file is another
@@ -634,11 +684,12 @@ dependency_interfaces(Namespace, Dependencies, Interfaces, DependencyRoots, Sour
                true -> [Namespace];
                false -> [Namespace | [[Name] || Name <- stdlib_namespaces()]]
            end,
-    reached([dependency_interface(Dependency, Interfaces, DependencyRoots, SourceRoot)
+    reached(Namespace,
+            [dependency_interface(Namespace, Dependency, Interfaces, DependencyRoots, SourceRoot)
              || Dependency <- lists:usort(Dependencies)], Skip, Interfaces, DependencyRoots,
             SourceRoot).
 
-reached(Found, Skip, Interfaces, DependencyRoots, SourceRoot) ->
+reached(User, Found, Skip, Interfaces, DependencyRoots, SourceRoot) ->
     Have = [Dependency || {Dependency, _} <- Found],
     Named = lists:usort([Namespace || {_, Interface} <- Found, Namespace <- type_modules(Interface),
                                       not lists:member(Namespace, Skip),
@@ -646,8 +697,10 @@ reached(Found, Skip, Interfaces, DependencyRoots, SourceRoot) ->
     case Named of
         [] -> Found;
         _ ->
-            reached(Found
-                    ++ [dependency_interface(Namespace, Interfaces, DependencyRoots, SourceRoot)
+            reached(User,
+                    Found
+                    ++ [dependency_interface(User, Namespace, Interfaces, DependencyRoots,
+                                             SourceRoot)
                         || Namespace <- Named],
                     Skip, Interfaces, DependencyRoots, SourceRoot)
     end.
@@ -672,11 +725,13 @@ type_names(_, Acc) ->
 
 %% Report §11.1: a module outside the source root is found by its namespace
 %% under the build directory, then under each --load-path root in order. A
-%% stale .erc is no module.
--spec dependency_interface([atom()], #{[atom()] => #interface{}}, [file:filename(), ...],
-                           file:filename()) ->
+%% stale .erc is no module. User is the module that uses it, which a
+%% refusal names.
+-spec dependency_interface([atom()], [atom()], #{[atom()] => #interface{}},
+                           [file:filename(), ...], file:filename()) ->
           {[atom()], #interface{}}.
-dependency_interface(Dependency, Interfaces, [BuildRoot | _] = DependencyRoots, SourceRoot) ->
+dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyRoots,
+                     SourceRoot) ->
     case Interfaces of
         #{Dependency := Interface} -> {Dependency, Interface};
         _ ->
@@ -697,9 +752,11 @@ dependency_interface(Dependency, Interfaces, [BuildRoot | _] = DependencyRoots, 
                                  ++ shown(Erc) ++ " was compiled from " ++ shown(Source)
                                  ++ ", which no longer exists")
                     end;
+                %% report §11.5: the path from the working directory, and
+                %% the module that needs the one not compiled
                 {error, Error} ->
-                    fail("compile " ++ ern_namespace:text(Dependency) ++ " first: " ++ Erc ++ ": "
-                         ++ Error)
+                    fail("compile " ++ ern_namespace:text(Dependency) ++ " first, which "
+                         ++ ern_namespace:text(User) ++ " uses: " ++ shown(Erc) ++ ": " ++ Error)
             end
     end.
 
@@ -828,9 +885,12 @@ page_of(Kind, Page, BuildRoot) ->
         _ ->
             Segments = string:split(Title, ".", all),
             Path = ern_namespace:path(Segments),
-            Place = case Kind of
-                        markdown -> Path ++ ".md";
-                        man -> filename:join(filename:dirname(Path), "Ernest." ++ Title ++ ".3ern")
+            %% a top-level module's page stands in the root itself, with no
+            %% `./` before it, which the page's own path has none of
+            Place = case {Kind, filename:dirname(Path)} of
+                        {markdown, _} -> Path ++ ".md";
+                        {man, "."} -> "Ernest." ++ Title ++ ".3ern";
+                        {man, Directory} -> filename:join(Directory, "Ernest." ++ Title ++ ".3ern")
                     end,
             case relative(Page, BuildRoot) =:= Place of
                 true -> {ok, Segments};
@@ -959,7 +1019,7 @@ write_at(File, Place, Data, Mode) ->
     %% report §11: a file its owner may not write is refused, not replaced
     case Info of
         {ok, #file_info{access = Access}} when Access =:= read; Access =:= none ->
-            fail(File ++ ": " ++ file:format_error(eacces));
+            fail(shown(File) ++ ": " ++ file:format_error(eacces));
         _ ->
             ok
     end,
@@ -980,7 +1040,7 @@ write_at(File, Place, Data, Mode) ->
         {error, Error} ->
             _ = file:close(Device),
             _ = file:delete(New),
-            fail(File ++ ": " ++ file:format_error(Error))
+            fail(shown(File) ++ ": " ++ file:format_error(Error))
     end.
 
 %% A file of this writer's own beside Place, open, under a name of its own,
@@ -996,7 +1056,7 @@ made_beside(File, Place, Tries) ->
     case file:open(New, [write, exclusive, raw]) of
         {ok, Device} -> {New, Device};
         {error, eexist} when Tries < 16 -> made_beside(File, Place, Tries + 1);
-        {error, Error} -> fail(File ++ ": " ++ file:format_error(Error))
+        {error, Error} -> fail(shown(File) ++ ": " ++ file:format_error(Error))
     end.
 
 %% Report §11.8: a file a job cannot read, a directory it cannot make, and
@@ -1024,7 +1084,11 @@ delete(File) ->
         {error, Error} -> refused(File, Error)
     end.
 
+%% Report §11.5: a file named from the working directory, and a name the
+%% host gives as bytes as its bytes.
 -spec refused(file:filename_all(), term()) -> no_return().
+refused(File, Error) when is_list(File) ->
+    fail(shown(File) ++ ": " ++ file:format_error(Error));
 refused(File, Error) ->
     fail(bytes_text(File) ++ ": " ++ file:format_error(Error)).
 

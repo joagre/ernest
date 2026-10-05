@@ -551,6 +551,57 @@ refused_dependency_fails_its_module_alone_test() ->
                                                 " type">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern build: no module Util: ">>)).
 
+%% report §11.1, §11.6: in a directory build or format a path that breaks
+%% the path shape fails its file alone, named from the working directory,
+%% and the other modules are built or laid out. A regression test: the
+%% first such path stopped the job, and nothing was compiled or laid out
+misnamed_path_fails_its_file_alone_test() ->
+    Dir = tmp(),
+    write(Dir, "src/Sub/ok.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/Bad.ern", "export fn h() : Int = 3\n"),
+    write(Dir, "src/good.ern", "export fn g() : Int = 2\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assert(filelib:is_regular(Dir ++ "/build/good.erc")),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"src/Bad.ern: path component `Bad`">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"src/Sub/ok.ern: path component `Sub`">>)),
+    write(Dir, "loose/Bad.ern", "fn h() = 3\n"),
+    Loose = write(Dir, "loose/good.ern", "fn g( x) = x\n"),
+    ?assertEqual(1, ern_err(["format", Dir ++ "/loose"])),
+    ?assertEqual({ok, <<"fn g(x) =\n    x\n">>}, file:read_file(Loose)).
+
+%% report §11.7: a `--load-path`, `--source-root` or `--config-dir` that
+%% names no directory is refused, naming it, and `ern config`'s
+%% `--config-dir` names the one it makes. A regression test: each was
+%% taken without a word
+missing_directory_refused_test() ->
+    Dir = tmp(),
+    Source = write(Dir, "main.ern", "export fn main() : Unit with Never = Unit\n"),
+    Missing = filename:join(Dir, "nowhere"),
+    [begin
+         ?assertEqual(1, ern_err(Job ++ [Option, Missing] ++ Rest)),
+         ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                           list_to_binary(Missing ++ ": no such directory, which "
+                                                          ++ Option ++ " names")))
+     end || {Job, Option, Rest} <- [{["build"], "--load-path", [Source]},
+                                    {["build"], "--source-root", [Source]},
+                                    {["run"], "--config-dir", [Source]}]],
+    ?assertEqual(0, ern_err(["config", "--config-dir", Missing])),
+    ?assert(filelib:is_dir(Missing)).
+
+%% report §11.1: a module left uncompiled because a module it uses failed
+%% is said in a line of its own. A regression test: it was passed over in
+%% silence, and only the dependency's error was shown
+uncompiled_dependent_is_said_test() ->
+    Dir = tmp(),
+    write(Dir, "src/util.ern", "export fn f() : Int = \"x\"\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit with Never = Io.println(Int.toString(Util.f()))\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"Main is not compiled, since it uses Util, which"
+                                        " failed">>)).
+
 %% report §11: each job's `--help` begins with its synopsis as §11 writes
 %% it, and no line of it ends in a space. A regression test: getopt's
 %% showed the options' keys as metavariables, `<source_root>`, hid
@@ -854,13 +905,16 @@ type_name_shares_a_module_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"8\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §4.2: a module may not take a prelude namespace
+%% report §4.2, §11.1: a module may not take a prelude namespace, and the
+%% file that does fails alone: main.ern, which names the standard
+%% library's `Io`, is built
 prelude_namespace_test() ->
     Dir = tmp(),
     write(Dir, "src/io.ern", "export fn println(s : String) : Unit with m = Unit\n"),
     write(Dir, "src/main.ern", hello()),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/io.erc")),
+    ?assert(filelib:is_regular(Dir ++ "/build/main.erc")),
     %% nor the name of the prelude itself, which `Prelude.X` reaches
     PreludeDir = tmp(),
     write(PreludeDir, "src/prelude.ern", "export fn f() : Int = 1\n"),
@@ -932,8 +986,9 @@ prelude_value_runs_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"1\ntwo\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §4.2: a module namespace may not coincide with a type namespace
-%% of its parent module, found from either file and in either mode
+%% report §4.2, §11.5: a module namespace may not coincide with a type
+%% namespace of its parent module, found from either file and in either
+%% mode, the files named from the working directory
 namespace_clash_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", "type Stack = Stack(Int)\n" ++ hello()),
@@ -941,8 +996,8 @@ namespace_clash_test() ->
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
-                        "main/stack.ern and type Stack in main.ern share the namespace"
-                        " Main.Stack")),
+                        "src/main/stack.ern and type Stack in \\S*src/main.ern share the"
+                        " namespace Main.Stack")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
     Single = ["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/build"],
     ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main.ern"])),
@@ -1273,6 +1328,21 @@ run_arguments_test() ->
     ?assertEqual(<<"[\"--main\", \"x\", \"a b\"]\nern run: argument 2 is not UTF-8\n">>,
                  iolist_to_binary(?capturedOutput)).
 
+%% report §11, §11.2: `--` ends a job's options, and after `ern run`'s
+%% file a `--` is the program's as every word there is. A regression test,
+%% written after the code
+double_dash_test() ->
+    Dir = tmp(),
+    write(Dir, "src/args.ern",
+          "export fn main() : Unit with Never = {\n"
+          "    Io.println(Io.show(Os.arguments));\n"
+          "    Os.exit(List.size(Os.arguments))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", "--",
+                                 Dir ++ "/src"])),
+    ?assertEqual(2, ern_cli:ern(["run", "--", Dir ++ "/build/args.erc", "--", "--main"])),
+    ?assertEqual(<<"[\"--\", \"--main\"]\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest
 stdlib_namespace_test() ->
@@ -1451,6 +1521,8 @@ sources_follow_no_link_test() ->
 stale_erc_is_no_module_test() ->
     Dir = pair(tmp()),
     BuildRoot = Dir ++ "/build",
+    %% a load path names a directory that is there (§11.7)
+    ok = filelib:ensure_path(BuildRoot),
     Args = ["--build-root", BuildRoot, "--load-path", BuildRoot, Dir ++ "/src"],
     ?assertEqual(0, build_err(Args)),
     ok = file:delete(Dir ++ "/src/net/http.ern"),
@@ -1661,6 +1733,16 @@ doc_from_compiled_test() ->
     ?assertEqual(<<FromSource/binary, FromSource/binary>>, iolist_to_binary(?capturedOutput)),
     ?assertMatch({_, _}, binary:match(FromSource, <<"## Shapes.twice">>)).
 
+%% report §11.4: a file that is neither a source nor a compiled module is
+%% refused for both. A regression test: the refusal named .ern alone
+doc_neither_test() ->
+    Dir = tmp(),
+    Notes = write(Dir, "notes.txt", "notes\n"),
+    ?assertEqual(1, ern_err(["doc", Notes])),
+    ?assertEqual(<<"ern doc: ", (list_to_binary(ern_build:shown(Notes)))/binary,
+                   " ends in neither .ern nor .erc\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §11.4: `ern doc --man` writes the page as a manual page: the
 %% page's last line a comment at the head of the source, the header, the
 %% NAME line of the module's first sentence without its `since` line, the
@@ -1750,23 +1832,34 @@ doc_man_dir_test() ->
 
 %% report §11.4: a page `ern doc` wrote of a module whose source is gone is
 %% removed, as the build removes its .erc, and a file it did not write is
-%% kept. A regression test: the page stayed, out of the index
+%% kept. A regression test: the page stayed, out of the index; and the
+%% manual page of a module at the root stayed, its place compared as
+%% `./Ernest.Top.3ern`
 doc_sweeps_pages_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
     BuildRoot = filename:join(Dir, "build"),
     Extra = write(Dir, "src/net/extra.ern", "export fn two() : Int =\n    2\n"),
+    Top = write(Dir, "src/top.ern", "/// A module at the root.\n///\n/// since 0.1.0\n\n"
+                                     "export fn three() : Int =\n    3\n"),
     Document = fun(Args) ->
                    ?assertEqual(0, ern_cli:ern(["doc" | Args]
                                                ++ ["--build-root", BuildRoot, SourceRoot]))
                end,
     Document([]),
     Document(["--man"]),
+    %% report §11.4: `ern doc` writes pages and nothing else; a regression
+    %% test, a directory's pages wrote and swept the build's .erc
+    ?assertEqual([], filelib:wildcard(filename:join(BuildRoot, "**/*.erc"))),
     Notes = write(BuildRoot, "net/notes.md", "# Ernest module Net.Gone\n"),
     ?assert(filelib:is_regular(filename:join(BuildRoot, "net/extra.md"))),
+    ?assert(filelib:is_regular(filename:join(BuildRoot, "Ernest.Top.3ern"))),
     ok = file:delete(Extra),
+    ok = file:delete(Top),
     Document([]),
     Document(["--man"]),
+    ?assertNot(filelib:is_regular(filename:join(BuildRoot, "Ernest.Top.3ern"))),
+    ?assertNot(filelib:is_regular(filename:join(BuildRoot, "top.md"))),
     ?assertNot(filelib:is_regular(filename:join(BuildRoot, "net/extra.md"))),
     ?assertNot(filelib:is_regular(filename:join(BuildRoot, "net/Ernest.Net.Extra.3ern"))),
     ?assert(filelib:is_regular(filename:join(BuildRoot, "net/http.md"))),
@@ -2158,7 +2251,8 @@ load_path_test() ->
     ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/lib", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"GET /\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §11.2: --main picks another exported entry point; one that takes
+%% report §11.2: --main picks another exported entry point of the module
+%% given, and one of another module is refused with both; one that takes
 %% arguments is refused (§8.1)
 main_option_test() ->
     Dir = pair(tmp()),
@@ -2166,10 +2260,14 @@ main_option_test() ->
           "export fn check() : Unit with Never = Io.println(\"checked\")\n"
           "export fn twice(n : Int) : Int = 2 * n\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern(["run", "--main", "Tools.check", Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["run", "--main", "Tools.check", Dir ++ "/build/tools.erc"])),
     ?assertEqual(<<"checked\n">>, iolist_to_binary(?capturedOutput)),
-    ?assertEqual(1, ern_cli:ern(["run", "--main", "Tools.twice", Dir ++ "/build/main.erc"])),
-    ?assertEqual(1, ern_cli:ern(["run", "--main", "check", Dir ++ "/build/main.erc"])).
+    ?assertEqual(1, ern_cli:ern(["run", "--main", "Tools.twice", Dir ++ "/build/tools.erc"])),
+    ?assertEqual(1, ern_cli:ern(["run", "--main", "check", Dir ++ "/build/tools.erc"])),
+    ?assertEqual(1, ern_err(["run", "--main", "Tools.check", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"checked\nern run: --main Tools.check names a function of Tools, and the"
+                   " file given is the module Main\n">>,
+                 iolist_to_binary(?capturedOutput)).
 
 %% report §11.2, Appendix A: --main is a qualified name, typenames and then
 %% an ident, and anything else is refused as a usage error before any

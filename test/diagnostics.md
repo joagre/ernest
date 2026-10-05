@@ -445,6 +445,19 @@ example.ern:1:4: expected a name instead of integer 1
   |    ^
 ```
 
+### A reserved word where a name stands (§2.4)
+
+```ernest-rejected
+let after = 1
+```
+
+```console
+$ ern build example.ern
+example.ern:1:5: `after` is a reserved word, and names nothing
+1 | let after = 1
+  |     ^^^^^
+```
+
 ### `<-` in a top-level `let` (§4.6)
 
 ```ernest-rejected

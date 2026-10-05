@@ -278,12 +278,15 @@ position(Token) -> element(2, Token).
 next_token(#cursor{index = Index}, Code) -> element(Index, Code#code.tokens).
 
 %% Where a node's first token is: a call, an operator and a selection
-%% begin with what they apply to.
-start(#e_call{pipe = true, args = [Piped | _]}) -> start(Piped);
-start(#e_call{callee = Callee}) -> start(Callee);
-start(#e_binop{left = Left}) -> start(Left);
-start(#e_selection{expr = Expr}) -> start(Expr);
-start(Node) ->
+%% begin with what they apply to, or with their own parenthesis where they
+%% stand in one, which their span then begins at (report §11.5).
+start(#e_call{pipe = true, args = [Piped | _]} = Node) -> min(own_start(Node), start(Piped));
+start(#e_call{callee = Callee} = Node) -> min(own_start(Node), start(Callee));
+start(#e_binop{left = Left} = Node) -> min(own_start(Node), start(Left));
+start(#e_selection{expr = Expr} = Node) -> min(own_start(Node), start(Expr));
+start(Node) -> own_start(Node).
+
+own_start(Node) ->
     {Line, Column, _} = ern_ast:span(Node),
     {Line, Column}.
 

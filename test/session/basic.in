@@ -49,6 +49,7 @@ x
 :browse Optional
 :doc String.trim
 :zz
+:help	me
 :b
 :f
 :t

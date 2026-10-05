@@ -62,7 +62,7 @@ The front end's values reach the shell as handles of three foreign types, `Sessi
 
 ### An input as a module
 
-Each input is compiled as a module of its own and loaded. Its namespace is `$Input<n>`; the module that holds what a `let` bound is `$Bindings<n>`; and the ones a text is checked in for `fields` and `signature` are `$Fields` and `$Signature`. No identifier holds a `$` (§2.3), so no input can name one. The number of an input or a holder the session has let go is given again, so an input's own module costs no new atom.
+Each input is compiled as a module of its own and loaded. Its namespace is `$Input<n>`; the module that holds what a `let` bound is `$Bindings<n>`; and the ones a text is checked in for `fields` and `signature` are `$Fields` and `$Signature`. No identifier holds a `$` (§2.3), so no input can name one. The number of an input or a holder the session has let go is given again, so an input's own module costs no new atom. Its number is therefore no input's count, and a type a later input shadows prints under the count instead, as §11.2 *Scope* says.
 
 Text that is read and not run makes no name either, since the host keeps a name for ever. `slot` and `within`, which read the line being typed, lex it with `no_new_names`: a name the host has not met is the stand-in `'$unmet'`, which names nothing, and `stdlib_met/0` reads the standard library's interfaces once before, so that every name a completion offers has been met. A command's name, `:doc`'s, `:forget`'s, `:browse`'s and `:load`'s, is made a name only where it can name something (`segments/2`): each segment met before, or a module there is a file of; any other answers what a name that names nothing answers.
 

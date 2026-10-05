@@ -9,7 +9,7 @@
          monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          replace_variables/2,
          mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
-         args_in_value/3, effect_variables/1, set_scope/4, set_effect_params/2,
+         args_in_value/3, effect_variables/1, set_scope/5, set_effect_params/2,
          format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
@@ -25,11 +25,13 @@
               | {tfn, [type()], effect(), type()}.
 
 -record(type_state, {next = 1, level = 0, substitution = #{}, variables = #{}, namespace = [],
-                     session_types = [], shadows = [], effect_params = #{}}).
+                     session_types = [], shadows = [], input_names = #{}, effect_params = #{}}).
 %% namespace, session_types, shadows: the module being checked, whose
 %% types print unqualified; the session's types that print so too, each
 %% the latest declaration of its name (report §11.2); and the module's
 %% type names that shadow prelude names, which print qualified (§11.5)
+%% input_names: the name each module of the session's inputs prints
+%% with, `$Input4` for the fourth input's (report §11.2)
 %% effect_params: for each type with a parameter that is no value position
 %% (report §3.9), whether each of its arguments is one
 -opaque type_state() :: #type_state{}.
@@ -489,11 +491,14 @@ value_positions_list(Types, EffectParams, Acc) ->
     lists:foldl(fun(Type, TypeAcc) -> value_positions(Type, EffectParams, TypeAcc) end, Acc,
                 Types).
 
-%% The module being checked, the session's types, and the type names that
-%% shadow prelude names, which print qualified (report §11.5).
--spec set_scope(qualified_name(), [qualified_name()], [atom()], type_state()) -> type_state().
-set_scope(Namespace, SessionTypes, Shadows, TypeState) ->
-    TypeState#type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows}.
+%% The module being checked, the session's types, the type names that
+%% shadow prelude names, which print qualified (report §11.5), and the
+%% names the session's inputs print with (§11.2).
+-spec set_scope(qualified_name(), [qualified_name()], [atom()], #{qualified_name() => string()},
+                type_state()) -> type_state().
+set_scope(Namespace, SessionTypes, Shadows, InputNames, TypeState) ->
+    TypeState#type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows,
+                         input_names = InputNames}.
 
 %% Report §3.9: the types with a parameter that occurs in no value position
 %% of their fields, each with whether each of its arguments is a value
@@ -506,13 +511,17 @@ set_effect_params(EffectParams, TypeState) ->
 type_name([Name], _TypeState) ->
     atom_to_list(Name);
 type_name(QualifiedName, #type_state{namespace = Namespace, session_types = SessionTypes,
-                                     shadows = Shadows}) ->
+                                     shadows = Shadows, input_names = InputNames}) ->
     Name = lists:last(QualifiedName),
     IsOwn = lists:droplast(QualifiedName) =:= Namespace
         orelse lists:member(QualifiedName, SessionTypes),
-    case IsOwn andalso not lists:member(Name, Shadows) of
-        true -> atom_to_list(Name);
-        false -> ern_namespace:text(QualifiedName)
+    case {IsOwn andalso not lists:member(Name, Shadows),
+          maps:find(lists:droplast(QualifiedName), InputNames)} of
+        {true, _} -> atom_to_list(Name);
+        %% report §11.2: a session type a later input shadowed prints under
+        %% the input that declared it
+        {false, {ok, InputName}} -> InputName ++ "." ++ atom_to_list(Name);
+        {false, error} -> ern_namespace:text(QualifiedName)
     end.
 
 %% The scheme's own restrictions apply, whatever state it is printed under.

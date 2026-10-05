@@ -79,7 +79,7 @@ export let commands =
              action = Load,
              placeholder = "Module",
              takes = Needs(what = "a module", completes = SourceModules),
-             about = "the module by its namespace, compiled from its source"),
+             about = "the module by its namespace, from its source or its compiled form"),
      Command(name = "output",
              action = Output,
              placeholder = "path",

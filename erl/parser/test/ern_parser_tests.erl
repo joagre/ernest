@@ -291,15 +291,23 @@ result_annotation_test() ->
     ?assertEqual("a second `with` after a function type's own",
                  refusal("fn f(g : () -> (Int) -> Int with M with N) = g")).
 
-%% report §2.4: a reserved word where a name stands is called one, `true`
-%% and `false` among them. A regression test: the message named the word
-%% alone, and a reader took it for a name
+%% report §2.4, §11.5: a reserved word where a name, a type or a pattern
+%% stands is said to be reserved and to name nothing, `true` and `false`
+%% among them; elsewhere it is called one. A regression test: the message
+%% named the word alone, and a reader took it for a name, and then said
+%% what was expected but not that the word names nothing
 reserved_word_named_test() ->
-    ?assertEqual("expected a name instead of the reserved word `match`",
-                 refusal("let match = 1")),
-    ?assertEqual("expected a pattern instead of the reserved word `type`",
-                 refusal("fn f(type : Int) = 1")),
-    ?assertEqual("expected a name instead of the reserved word `true`", refusal("let true = 1")).
+    Reserved = fun(Word) -> "`" ++ Word ++ "` is a reserved word, and names nothing" end,
+    ?assertEqual(Reserved("match"), refusal("let match = 1")),
+    ?assertEqual(Reserved("type"), refusal("fn f(type : Int) = 1")),
+    ?assertEqual(Reserved("true"), refusal("let true = 1")),
+    ?assertEqual(Reserved("when"), refusal("type T = T(when : Int)")),
+    ?assertEqual(Reserved("after"), refusal("fn f(x : Int) : Int = match x { y as after -> 1 }")),
+    ?assertEqual(Reserved("after"), refusal("fn f() : Int = List.after")),
+    ?assertEqual(Reserved("foreign"), refusal("type foreign = A")),
+    ?assertEqual(Reserved("after"), refusal("fn f(p : Int) : Int = p.after")),
+    ?assertEqual("expected `type` or `fn` after `foreign` instead of the reserved word `let`",
+                 refusal("foreign let x = 1")).
 
 %% report §5.3
 lambda_test() ->
@@ -352,6 +360,22 @@ doc_attachment_test() ->
                  Declarations),
     ?assertMatch({error, #diagnostic{message = "a doc block documents nothing here"}},
                  ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
+
+%% report §11.4: a heading in the module's doc block is of level two or
+%% deeper, and in a declaration's, a constructor's or a field's of level
+%% three or deeper; one above is an error at its `///` line, and a heading
+%% in fenced code is code. A regression test: a declaration's `#` became a
+%% section of the manual page
+doc_heading_level_test() ->
+    Module = "/// The module.\n///\n/// # Wrong\n\nfn f() = 1\n",
+    ?assertMatch({error, #diagnostic{span = {3, 1, _}, help = "write it `##`" ++ _}},
+                 ern_parser:parse_string(list_to_binary(Module))),
+    Declaration = "/// F.\n///\n/// ## Wrong\nfn f() = 1\n",
+    ?assertMatch({error, #diagnostic{span = {3, 1, _}, help = "write it `###`" ++ _}},
+                 ern_parser:parse_string(list_to_binary(Declaration))),
+    Fine = "/// The module.\n///\n/// ## Examples\n///\n/// ```\n/// # a comment\n/// ```\n\n"
+           "/// F.\n///\n/// ### Errors\nfn f() = 1\n",
+    ?assertMatch({ok, _}, ern_parser:parse_string(list_to_binary(Fine))).
 
 %% report §5.9: a clause lists one or more patterns separated by `or`
 or_pattern_test() ->

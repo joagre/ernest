@@ -138,9 +138,14 @@ clean:
 
 # ERL_LIBS lets -include_lib("app/include/x.hrl") find the applications
 # under erl/; it is the compiler's alone, so that no program a test runs
-# finds the toolchain's modules through it.
+# finds the toolchain's modules through it. erlc's -MMD records the headers
+# each module includes, so that a changed record rebuilds the tests that
+# match it, as erl/app.mk does for the applications.
 $(EBIN)/%.beam: %.erl | $(EBIN)
-	ERL_LIBS=$(abspath ../erl) erlc $(ERLC_FLAGS) -o $(EBIN) $<
+	ERL_LIBS=$(abspath ../erl) erlc $(ERLC_FLAGS) -MMD -MP -MF $(EBIN)/$*.Pbeam -MT $@ \
+	  -o $(EBIN) $<
+
+-include $(wildcard $(EBIN)/*.Pbeam)
 
 $(EBIN):
 	mkdir -p $(EBIN)

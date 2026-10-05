@@ -50,11 +50,13 @@
 %% the declarations it was checked as, the module's interface, the
 %% checker's environment, its type, what it binds, and its site, the name
 %% and the line offset its spawn sites are written with (site/1).
--record(checked, {namespace, typed, declarations, interface, env, type, binds, site}).
+-record(checked, {namespace, typed, declarations, interface, env, type, binds, site,
+                  printed_name}).
 %% binds: `{name, Name}` for the name a `let` binds, `{lambda, Name,
 %% Scheme}` for a `let` of a lambda, generalized, `{names, Names}` for the
 %% names a `let` with a pattern binds, `it` for an expression, or
-%% `declarations`; a name is tagged, so that no name stands for a tag
+%% `declarations`; a name is tagged, so that no name stands for a tag.
+%% printed_name: the name the input's module prints with (input_names/0).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -199,16 +201,35 @@ checked_input(#session{last_input = LastInput} = Session, Origin, Input) ->
                                   none -> {input_namespace(LastInput + 1), LastInput + 1}
                               end,
     Numbered = Session#session{last_input = LastInput1},
+    PrintedName = printed_name(Origin),
     case input(Input) of
         {ok, Binds, Expr} ->
             checked(check_module(Numbered, Namespace, InputOrigin, Input, input_entry(Expr),
-                                 Binds));
+                                 Binds), PrintedName);
         {declarations, Declarations} ->
             checked(check_module(Numbered, Namespace, InputOrigin, Input, Declarations,
-                                 declarations));
+                                 declarations), PrintedName);
         {error, Diagnostic} ->
             {'Left', diagnostic(InputOrigin, Input, [Diagnostic])}
     end.
+
+%% Report §11.2: the name a session type a later input shadows prints
+%% under, the input that declared it: `$Input4` for the fourth input typed,
+%% as its diagnostics count it, and `$Startup2` for the second input
+%% checked from the startup files, which the session does not count. The
+%% module's own name is another, a slot a later input reuses (§2.3).
+printed_name({'Prompt', Number}) ->
+    "$Input" ++ integer_to_list(Number);
+printed_name({'Startup', _, _, _}) ->
+    "$Startup" ++ integer_to_list(keep(startup_inputs, kept(startup_inputs, 0) + 1)).
+
+%% The name each module of the session's inputs prints with, of those the
+%% session still holds.
+input_names() ->
+    maps:from_list([{Namespace, PrintedName}
+                    || {ErlangModule, {Namespace, _, _}} <- maps:to_list(uses()),
+                       PrintedName <- [kept({printed_name, ErlangModule}, none)],
+                       PrintedName =/= none]).
 
 %% Report §2.3: the modules the session makes are named as no Ernest name
 %% is spelled, since an identifier holds no `$`: the module an input
@@ -219,9 +240,9 @@ checked_input(#session{last_input = LastInput} = Session, Origin, Input) ->
 input_namespace(Number) ->
     [list_to_atom("$Input" ++ integer_to_list(Number))].
 
-checked({'Right', {Session, Checked}}) ->
-    {'Right', {keep_session(Session), Checked}};
-checked(Other) ->
+checked({'Right', {Session, Checked}}, PrintedName) ->
+    {'Right', {keep_session(Session), Checked#checked{printed_name = PrintedName}}};
+checked(Other, _PrintedName) ->
     Other.
 
 %% Report §11.2: an input is an expression, whose value is `it`; a `let`,
@@ -354,7 +375,8 @@ input_entry(Expr) ->
 
 check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, InputOrigin,
              Input, Declarations, Binds) ->
-    case ern_typecheck:check(Namespace, Declarations, Interfaces, Scope) of
+    case ern_typecheck:check(Namespace, Declarations, Interfaces,
+                             Scope#{input_names => input_names()}) of
         {ok, Typed, Interface, Env} ->
             Type = input_type(Typed, Binds),
             Binds1 = generalized(Binds, Typed, Env),
@@ -369,7 +391,8 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
                     {'Left', diagnostic(InputOrigin, Input, [Diagnostic])}
             end;
         {error, Diagnostics} ->
-            {'Left', diagnostic(InputOrigin, Input, Diagnostics)}
+            {'Left', diagnostic(InputOrigin, Input,
+                                [load_hinted(Session, Diagnostic) || Diagnostic <- Diagnostics])}
     end.
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
@@ -555,7 +578,8 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
 %% declares, those whose types its declarations name; and the name its
 %% spawn sites are written with. It stores no value (declarations/1).
 record_uses(ErlangModule, Beam, #checked{namespace = Namespace, interface = Interface,
-                                         binds = Binds, site = {InputName, _}}) ->
+                                         binds = Binds, site = {InputName, _},
+                                         printed_name = PrintedName}) ->
     {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
     Calls = [Imported || {Imported, _, _} <- Imports, is_session_module(Imported),
                          Imported =/= ErlangModule],
@@ -565,6 +589,7 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, interface = Inte
             end,
     set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), []}, uses())),
     keep({input_name, ErlangModule}, InputName),
+    keep({printed_name, ErlangModule}, PrintedName),
     ok.
 
 %% An input that declares nothing, an expression or a `let`, is done with
@@ -967,7 +992,8 @@ scheme(QualifiedName, #session{interfaces = Interfaces}) ->
 %% print unqualified, as they do in an input (report §11.2).
 session_type_state(#session{scope = Scope, interfaces = Interfaces, prelude = Prelude}) ->
     TypeState = ern_typecheck:scope_state(Interfaces, Prelude),
-    ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [], TypeState).
+    ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [], input_names(),
+                        TypeState).
 
 %% Report §11.2: `:forget` removes a name the session declared, and `*`
 %% every one of them. A type is forgotten with its constructors. A module
@@ -1015,7 +1041,8 @@ browse(Session, Text) ->
     case module_name(Session, Text) of
         {ok, ['Prelude']} -> {'Right', prelude_listing(Session)};
         {ok, Namespace} -> browse(Text, Namespace, Session);
-        unmet -> {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope">>};
+        unmet -> {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope",
+                            (load_suffix(Session, Text))/binary>>};
         {error, Refusal} -> {'Left', Refusal}
     end.
 
@@ -1040,16 +1067,18 @@ prelude_listing(#session{prelude = Env}) ->
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
-browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope, prelude = Prelude}) ->
+browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
+                                 prelude = Prelude} = Session) ->
     InScope = Interfaces ++ ern_prelude:stdlib_interfaces(),
     case [Interface || #interface{namespace = Found} = Interface <- InScope, Found =:= Namespace] of
         [] ->
-            {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope">>};
+            {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope",
+                       (load_suffix(Session, Text))/binary>>};
         Found ->
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
             ScopeState = ern_typecheck:scope_state(Interfaces ++ [Last], Prelude),
             TypeState = ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [],
-                                            ScopeState),
+                                            input_names(), ScopeState),
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
@@ -1170,8 +1199,44 @@ not_module(Text) ->
 doc(Session, Text) ->
     case page(Session, Text) of
         {ok, Page, _} -> {'Right', unicode:characters_to_binary(Page)};
-        none -> {'Left', <<"no documentation for ", Text/binary>>}
+        none ->
+            {'Left', <<"no documentation for ", Text/binary, (load_suffix(Session, Text))/binary>>}
     end.
+
+%% Report §11.2: a name of a module the session has not loaded, but the
+%% source root or the load path holds, is answered with the `:load` that
+%% puts it in scope: the module the name is, or the longest that begins it.
+load_suffix(Session, Text) ->
+    Parts = [binary_to_list(Part) || Part <- binary:split(without_dot(Text), <<".">>, [global])],
+    case load_help(Session, Parts) of
+        {ok, Help} -> unicode:characters_to_binary(["; ", Help]);
+        none -> <<>>
+    end.
+
+load_help(Session, Segments) ->
+    Modules = [lists:sublist(Segments, Length) || Length <- lists:seq(length(Segments), 1, -1)],
+    case lists:search(fun(Module) -> is_loadable(Session, Module) end, Modules) of
+        {value, Module} -> {ok, [":load ", lists:join(".", Module), " puts it in scope"]};
+        false -> none
+    end.
+
+%% Whether a module of these segments is not loaded and could be: its
+%% source under the source root, or its compiled form on the load path.
+is_loadable(#session{source_root = SourceRoot, interfaces = Interfaces} = Session, Segments) ->
+    Name = lists:flatten(lists:join(".", Segments)),
+    Loaded = [ern_namespace:text(Namespace)
+              || #interface{namespace = Namespace} <- Interfaces
+                     ++ ern_prelude:stdlib_interfaces()],
+    lists:all(fun(Segment) -> ern_namespace:component(Segment) =/= error end, Segments)
+        andalso not lists:member(Name, Loaded)
+        andalso begin
+                    Relative = ern_namespace:path(Segments),
+                    filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
+                        orelse lists:any(fun(Root) ->
+                                             filelib:is_regular(filename:join(Root,
+                                                                              Relative ++ ".erc"))
+                                         end, load_path(Session))
+                end.
 
 %% The documentation of a name as it is written, with its segments; none
 %% for text that is no name.
@@ -1187,32 +1252,32 @@ page(Session, Text) ->
     end.
 
 %% Report §11.2: the page for a name, as the session stands, for
-%% `Shift-Tab`. The reader asks while an input runs, so it reads the
-%% session the front end keeps rather than asking the session.
--spec documentation(binary()) -> 'None' | {'Some', binary()}.
+%% `Shift-Tab`, the one `:doc` shows, and the version the name appeared in,
+%% which the brief shows. The reader asks while an input runs, so it reads
+%% the session the front end keeps rather than asking the session.
+-spec documentation(binary()) -> 'None' | {'Some', {binary(), 'None' | {'Some', binary()}}}.
 documentation(Text) ->
     Session = kept_session(),
     case page(Session, Text) of
         {ok, Page, Segments} ->
-            {'Some', unicode:characters_to_binary([Page, module_since(Session, Segments)])};
+            {'Some', {unicode:characters_to_binary(Page), appeared(Session, Segments)}};
         none ->
             'None'
     end.
 
-%% Appendix E.0 shape rule 6, report §11.2: a declaration without a `since` of
-%% its own has its module's, which the brief shows after the page; its own
-%% the page shows. Whether it has one is its documentation entry's to say.
-module_since(Session, Segments) ->
+%% Appendix E.0 shape rule 6, report §11.2: the version a declaration
+%% appeared in, its own `since` or, without one, its module's. Whether it
+%% has one is its documentation entry's to say, not its text's.
+appeared(Session, Segments) ->
     case declaring(Session, Segments) of
         {Declaring, Name} ->
             case {ern_page:declared_since(Declaring, Name), ern_page:since(Declaring)} of
-                {undefined, Version} when Version =/= undefined ->
-                    ["*Since ", Version, ".*\n"];
-                _ ->
-                    []
+                {undefined, undefined} -> 'None';
+                {undefined, Version} -> {'Some', unicode:characters_to_binary(Version)};
+                {Version, _} -> {'Some', unicode:characters_to_binary(Version)}
             end;
         none ->
-            []
+            'None'
     end.
 
 %% The compiled module, or the prelude, whose documentation entry a
@@ -1682,6 +1747,17 @@ beam_on_path(Namespace, IsLoaded) ->
 entry(none, _, _) -> none;
 entry(Beam, Name, Signature) -> ern_page:declaration(Beam, Name, Signature).
 
+%% Report §11.2: a qualified name that names nothing in scope, of a module
+%% the session could load, has the `:load` that puts it there as its help.
+load_hinted(Session, #diagnostic{unknown_namespace = [_ | _] = Namespace,
+                                 help = undefined} = Diagnostic) ->
+    case load_help(Session, [atom_to_list(Segment) || Segment <- Namespace]) of
+        {ok, Help} -> Diagnostic#diagnostic{help = lists:flatten(Help)};
+        none -> Diagnostic
+    end;
+load_hinted(_Session, Diagnostic) ->
+    Diagnostic.
+
 %% Report §11.2: a typed input is the file `input`; an input from a startup
 %% file is named by the file, its positions moved to the line it stands on
 %% there and, on its first line, to the column it begins in, and its lines
@@ -2105,16 +2181,10 @@ compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
     try ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
                                  || {_, File} <- Set], SourceRoot, load_path(Session)) of
         Ordered ->
-            Compile = fun(#build_module{namespace = Namespace, file = File}, Interfaces) ->
-                          case compile_source(Session, File, Interfaces) of
-                              {ok, _, Beam, _} = Ok ->
-                                  {ok, #{interface := Interface}} = ern_interface:read(Beam),
-                                  {{Namespace, Ok}, Interfaces#{Namespace => Interface}};
-                              Error ->
-                                  {{Namespace, Error}, Interfaces}
-                          end
+            Compile = fun(Module, {Interfaces, Failed}) ->
+                          compiled_in_order(Session, Module, Interfaces, Failed)
                       end,
-            {Compiled, _} = lists:mapfoldl(Compile, loaded_interfaces(Session), Ordered),
+            {Compiled, _} = lists:mapfoldl(Compile, {loaded_interfaces(Session), []}, Ordered),
             case [Text || {_, {error, Text}} <- Compiled] of
                 [] ->
                     {ok, [{Namespace, Beam, Hash} || {Namespace, {ok, _, Beam, Hash}} <- Compiled]};
@@ -2128,6 +2198,28 @@ compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
             {error, [unicode:characters_to_binary(
                        [ern_diagnostic:format(ern_build:shown(FailedFile), SourceText, Diagnostic)
                         || Diagnostic <- Diagnostics])]}
+    end.
+
+%% Report §11.2: one module of a `:load`, compiled where every module it
+%% uses did, and said not to be loaded where one did not; the build's
+%% advice to compile that one first does not apply in the shell.
+compiled_in_order(Session, #build_module{namespace = Namespace, file = File,
+                                         dependencies = Dependencies}, Interfaces, Failed) ->
+    case [Dependency || Dependency <- Dependencies, lists:member(Dependency, Failed)] of
+        [Dependency | _] ->
+            Text = unicode:characters_to_binary([ern_namespace:text(Namespace),
+                                                 " is not loaded, since ",
+                                                 ern_namespace:text(Dependency),
+                                                 " does not compile\n"]),
+            {{Namespace, {error, Text}}, {Interfaces, [Namespace | Failed]}};
+        [] ->
+            case compile_source(Session, File, Interfaces) of
+                {ok, _, Beam, _} = Ok ->
+                    {ok, #{interface := Interface}} = ern_interface:read(Beam),
+                    {{Namespace, Ok}, {Interfaces#{Namespace => Interface}, Failed}};
+                Error ->
+                    {{Namespace, Error}, {Interfaces, [Namespace | Failed]}}
+            end
     end.
 
 %% The loaded modules, outside those compiled, that use a compiled module
@@ -2180,7 +2272,7 @@ reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
     Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
     {Ended, Session1} = case erlang:check_old_code(ErlangModule) of
                             true -> end_previous(Session, ErlangModule);
-                            false -> {[], Session}
+                            false -> {{[], []}, Session}
                         end,
     code:purge(ErlangModule),
     dropped_lets(Session1, Namespace, Beam),
@@ -2203,27 +2295,54 @@ dropped_lets(#session{interfaces = Interfaces}, Namespace, Beam) ->
     keep({dropped_lets, ErlangModule},
          let_keys(ErlangModule, Replaced) -- let_keys(ErlangModule, New)).
 
-ended_lines(_, []) ->
+%% Report §11.2: what the reload that purged the previous version did,
+%% `Geo.Shape: the previous version is unloaded; the reload ended the
+%% process spawned at input 4:1 and forgot the binding f`.
+ended_lines(_, {[], []}) ->
     [];
-ended_lines(Name, Ended) ->
-    [<<Name/binary, ": ended ", (listed(Ended))/binary, " in the previous version">>].
+ended_lines(Name, {Processes, Bindings}) ->
+    Done = [["ended ", processes_at(Processes)] || Processes =/= []]
+        ++ [["forgot ", bindings_named(Bindings)] || Bindings =/= []],
+    [unicode:characters_to_binary([Name, ": the previous version is unloaded; the reload ",
+                                   lists:join(" and ", Done)])].
 
-waiting_line(_, []) ->
+%% Report §11.2: what holds the version a reload replaced, and what the
+%% next reload does to it, `Geo.Shape: the previous version is held by the
+%% binding f; the next reload of Geo.Shape forgets it`.
+waiting_line(_, {[], []}) ->
     [];
-waiting_line(Name, Waiting) ->
-    [<<Name/binary, ": ", (listed(Waiting))/binary, " in the previous version; a further reload"
-       " of it ends them">>].
+waiting_line(Name, {Processes, Bindings}) ->
+    Holders = lists:join(" and by ", [processes_at(Processes) || Processes =/= []]
+                                     ++ [bindings_named(Bindings) || Bindings =/= []]),
+    It = counted(Processes ++ Bindings, "it", "them"),
+    Fate = case {Processes, Bindings} of
+               {_, []} -> ["ends ", It];
+               {[], _} -> ["forgets ", It];
+               _ -> ["ends ", counted(Processes, "the process", "the processes"),
+                     " and forgets ", counted(Bindings, "the binding", "the bindings")]
+           end,
+    [unicode:characters_to_binary([Name, ": the previous version is held by ", Holders,
+                                   "; the next reload of ", Name, " ", Fate])].
 
-listed(Items) ->
-    unicode:characters_to_binary(lists:join(", ", Items)).
+%% Processes by their spawn sites (§6.9) and bindings by their names, the
+%% last two of a list joined by `and`.
+processes_at(Sites) ->
+    [counted(Sites, "the process", "the processes"), " spawned at ", listed(Sites)].
 
-%% Report §11.2: what is left in the version a reload replaced, a process
-%% by its spawn site (§6.9) and a binding by its name.
+bindings_named(Names) ->
+    [counted(Names, "the binding", "the bindings"), " ", listed(Names)].
+
+counted([_], One, _) -> One;
+counted(_, _, Many) -> Many.
+
+listed([Item]) -> Item;
+listed(Items) -> [lists:join(", ", lists:droplast(Items)), " and ", lists:last(Items)].
+
+%% Report §11.2: what is left in the version a reload replaced, the spawn
+%% sites (§6.9) of its processes and the names of its bindings.
 in_previous(Session, ErlangModule) ->
-    [<<Site/binary, ", a process">> || {Pid, Site} <- ern_rt:live(),
-                                       erlang:check_process_code(Pid, ErlangModule)]
-        ++ [<<(atom_to_binary(Name))/binary, ", a binding">>
-            || {Name, _} <- bindings_of(Session, ErlangModule)].
+    {[Site || {Pid, Site} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)],
+     [atom_to_binary(Name) || {Name, _} <- bindings_of(Session, ErlangModule)]}.
 
 %% Report §7.3, §11.2: the processes still in it end with the cause the
 %% report gives them, a fault reported as every fault is, and the bindings
@@ -2234,8 +2353,7 @@ end_previous(#session{scope = Scope} = Session, ErlangModule) ->
     end_unloaded([Pid || {Pid, _} <- Processes]),
     Bindings = bindings_of(Session, ErlangModule),
     Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, Scope, #{})),
-    {[<<Site/binary, ", a process">> || {_, Site} <- Processes]
-     ++ [<<(atom_to_binary(Name))/binary, ", a binding">> || {Name, _} <- Bindings],
+    {{[Site || {_, Site} <- Processes], [atom_to_binary(Name) || {Name, _} <- Bindings]},
      Session#session{scope = Scope#{values => Values}}}.
 
 %% Report §11.2: the session's bindings that run a version of the module
@@ -2588,8 +2706,10 @@ set_uses(Uses) ->
 %% with its uses.
 forget_uses(ErlangModules) ->
     set_uses(maps:without(ErlangModules, uses())),
-    lists:foreach(fun(ErlangModule) -> ets:delete(?MODULE, {input_name, ErlangModule}) end,
-                  ErlangModules).
+    lists:foreach(fun(ErlangModule) ->
+                      ets:delete(?MODULE, {input_name, ErlangModule}),
+                      ets:delete(?MODULE, {printed_name, ErlangModule})
+                  end, ErlangModules).
 
 %% Report §6.9, §11.2: the site of a spawn an input's expression makes, the
 %% input's name as its diagnostics give it, `input 3`, and the line. The

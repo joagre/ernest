@@ -1148,8 +1148,11 @@ in_order(Bytes) ->
 
 %% report §11.6: `ern format -` lays out standard input onto standard
 %% output; with --check it names `-` if the module is not laid out; a
-%% module that does not parse gives its diagnostic under the name `-`, the
-%% status 1, and nothing else. A regression test, written after the code.
+%% module that does not parse gives its diagnostic under the name `-` on
+%% standard error, itself as it came on standard output, and the status 1;
+%% and `-` stands alone. A regression test, written after the code, and of
+%% the module that did not parse, which wrote nothing to standard output,
+%% and of `- x.ern`, which was refused as a missing file `-`.
 format_input_test_() ->
     {timeout, 60, fun format_input/0}.
 
@@ -1157,8 +1160,12 @@ format_input() ->
     Loose = "sh -c 'printf \"fn f(x) = x+1\\n\" | ../bin/ern format ",
     ?assertEqual({0, <<"fn f(x) =\n    x + 1\n">>}, sh(Loose ++ "-'")),
     ?assertEqual({1, <<"-\n">>}, sh(Loose ++ "--check -'")),
+    Broken = "sh -c 'printf \"fn h( = 1\\n\" | ../bin/ern format --short-errors -",
     ?assertEqual({1, <<"-:1:7: expected a pattern instead of `=`\n">>},
-                 sh("sh -c 'printf \"fn h( = 1\\n\" | ../bin/ern format --short-errors -'")).
+                 sh(Broken ++ " >/dev/null'")),
+    ?assertEqual({1, <<"fn h( = 1\n">>}, sh(Broken ++ " 2>/dev/null'")),
+    {_, Alone} = sh("../bin/ern format - ../examples/hello.ern"),
+    ?assertMatch({_, _}, binary:match(Alone, <<"- stands alone, for standard input">>)).
 
 %% report §11.6, §11.5: what the toolchain writes is UTF-8 whatever the
 %% host's locale. A regression test: under the C locale a laid-out module

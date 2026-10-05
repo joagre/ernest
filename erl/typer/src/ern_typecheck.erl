@@ -121,7 +121,8 @@
 
 -type key() :: atom() | {atom(), atom()}.
 -type session_scope() :: #{values => #{key() => [atom()]}, types => #{atom() => [atom()]},
-                           constructors => #{atom() => [atom()]}}.
+                           constructors => #{atom() => [atom()]},
+                           input_names => #{[atom()] => string()}}.
 
 -define(INT, {tcon, ['Int'], []}).
 -define(FLOAT, {tcon, ['Float'], []}).
@@ -170,6 +171,7 @@ check(Namespace, Parsed, Interfaces, SessionScope) ->
         %% later input has shadowed, which prints as the input that declared it
         SessionTypes = maps:values(maps:get(types, SessionScope, #{})),
         TypeState1 = ern_types:set_scope(Namespace, SessionTypes, Shadows,
+                                         maps:get(input_names, SessionScope, #{}),
                                          effect_param_state(Env1)),
         Env2 = mark_abstract(Declarations, Env1#env{type_state = TypeState1}),
         %% report §3.5: a type that derives compare gains the member
@@ -637,7 +639,7 @@ lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = T
     QualifiedName = Namespace ++ [Name],
     case Types of
         #{QualifiedName := #type_info{params = Params}} -> {QualifiedName, length(Params)};
-        _ -> fail(Span, "unknown type " ++ ern_namespace:text(QualifiedName))
+        _ -> unknown(Span, "type", QualifiedName)
     end.
 
 -spec lookup_type([atom()], env()) -> #type_info{} | undefined.
@@ -5617,7 +5619,7 @@ lookup_global(Span, Namespace, Name, #env{globals = Globals} = Env) ->
                                " arrives in MVP 3.0")
             end;
         _ ->
-            fail(Span, "unknown name " ++ ern_namespace:text(QualifiedName))
+            unknown(Span, "name", QualifiedName)
     end.
 
 %% Report §4.2: the declaration a qualified name names, Namespace the
@@ -5683,7 +5685,7 @@ lookup_constructor(Span, Namespace, Name,
                                " outside its module");
                 _ -> ConstructorInfo
             end;
-        _ -> fail(Span, "unknown constructor " ++ ern_namespace:text(QualifiedName))
+        _ -> unknown(Span, "constructor", QualifiedName)
     end.
 
 %% A constructor by its qualified name, one a checked pattern or a type's
@@ -5969,6 +5971,15 @@ plural(_) -> "s".
 
 fail(Span, Message) ->
     throw({type_error, Span, lists:flatten(Message)}).
+
+%% Report §11.2: a qualified name that names nothing in scope, its
+%% namespace kept for the shell, which names the `:load` that would put
+%% its module in scope.
+unknown(Span, What, QualifiedName) ->
+    throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
+                                   message = "unknown " ++ What ++ " "
+                                             ++ ern_namespace:text(QualifiedName),
+                                   unknown_namespace = lists:droplast(QualifiedName)}}).
 
 fail(Span, Message, Labels, Help) ->
     throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
