@@ -1166,7 +1166,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **precedence** — the binding tightness of a binary operator. §2.6.
 - **prelude** — the small set of names the language requires to exist. §9.
 - **`Prelude`** — the prelude's own namespace, `Prelude.Some`, for a name a module has shadowed, and the way past a member of the module's own to a name of the prelude's or the standard library's namespaces, `Prelude.List.<>`. §4.2.
-- **primitive** — an operation beneath what Ernest writes: the language's, a built-in function of §9; a standard library module's, one that reaches a representation the runtime owns or a syntax the host owns, the rest of the module being Ernest over its primitives. §0, Appendix E.0.
+- **primitive** — an operation beneath what Ernest writes: the language's, a built-in function of §9; a standard library module's, one that reaches a representation the runtime owns or a syntax the host owns, or one a function of the host does exactly, the rest of the module being Ernest over its primitives. §0, Appendix E.0.
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
 - **process-only** — a function whose effect variable cannot be pure. §3.9.

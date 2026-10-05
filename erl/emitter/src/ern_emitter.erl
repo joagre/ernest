@@ -361,7 +361,7 @@ foreign_body({HostModule, HostFunction}, {tfn, ParamTypes, Effect, ResultType}, 
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                                   Exposed ++ Members),
     {Try, Context2} = foreign_call(Call, HostModule, HostFunction, length(Exposed ++ Members),
-                                   Effect, Context1),
+                                   {Effect, ParamTypes}, Context1),
     foreign_return(Try, ParamTypes, ResultType, Context2).
 
 %% Report §4.9: the members a requirement names, each a parameter after the
@@ -377,10 +377,14 @@ members_taken(Requirement, Context) ->
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: a foreign call in progress can still deliver, so
-%% it is counted while it runs; a standard library function without a
-%% mailbox type waits on no process, and is not.
-foreign_call(Call, HostModule, HostFunction, Arity, Effect, Context) ->
-    Counted = case Context#emit_context.standard andalso Effect =:= pure of
+%% it is counted while it runs. A standard library function with no
+%% mailbox type of its own waits on no process, and is not: one that is
+%% pure, and one whose effect is only a function's it is given, which runs
+%% as Ernest and is counted as Ernest is, so that a deadlock in it is found
+%% (Appendix E.0 rule 1).
+foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes}, Context) ->
+    Counted = case Context#emit_context.standard andalso waits_on_nothing(Effect, ParamTypes,
+                                                                          Context) of
                   true -> Call;
                   false -> call_remote(ern_rt, in_foreign,
                                        [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
@@ -395,6 +399,14 @@ foreign_call(Call, HostModule, HostFunction, Arity, Effect, Context) ->
                                                             erl_syntax:variable(Trace))],
                                 none, [Raised]),
     {erl_syntax:try_expr([Counted], [Handler]), Context1}.
+
+waits_on_nothing(Effect, ParamTypes, Context) ->
+    case resolved(Effect, Context) of
+        pure -> true;
+        {tvar, _} = Variable ->
+            lists:member(Variable, type_variables([resolved(Type, Context) || Type <- ParamTypes]));
+        _ -> false
+    end.
 
 %% Report §8.4: the foreign call's return checked. The standard library's
 %% is the runtime's own, and not checked; a type variable of the result

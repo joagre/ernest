@@ -195,6 +195,25 @@ validator_refusal_compiled_again_test() ->
                  compile:noenv_forms(Forms, [return_errors])),
     ?assertEqual({ok, <<"-79\n">>}, run(Text)).
 
+%% report §8.6, Appendix E.0 rule 1: a standard library function whose
+%% effect is only a function's it is given is not counted as foreign code
+%% while it runs, so that a deadlock in the function it was given is found.
+%% Written with the rule that has the library stand on the host (MVP
+%% 2.99d's item 12): such a primitive was counted, and a callback waiting
+%% for what no one sends hid the deadlock, the program never ending
+standard_shim_callback_deadlock_test_() ->
+    {timeout, 30, fun standard_shim_callback_deadlock/0}.
+
+standard_shim_callback_deadlock() ->
+    Text = "foreign fn applied(f : (Int) -> Int with e, args : List(Int)) : Int with e =\n"
+           "    \"erlang:apply/2\"\n"
+           "\n"
+           "export fn main() : Unit with Int =\n"
+           "    Io.println(Int.toString(applied(fn(x : Int) : Int with Int = receive {\n"
+           "        n -> n + x\n"
+           "    }, [1])))\n",
+    ?assertMatch({{fault, <<"deadlock">>}, _}, run(['M'], Text, #{standard => true})).
+
 %% report §8.1, §8.4, Appendix B
 hello_golden_test() ->
     ?assertEqual(target_forms("hello.erl"), example_forms("hello")).
