@@ -2,15 +2,22 @@
 
 *Since 0.1.0.*
 
-The operations of the prelude's `Process`, the identity of a process
-(report Appendix E.21). A `Process` has equality and no ordering, so it
-is sound as a key of a `Map` and an element of a `Set`, and nothing can
-be sent to it: an address is what a process is reached by, and a
-`Process` only says which one. What the runtime knows of a live process
-is read as a snapshot, which may have changed by the time it is read;
-the runtime keeps nothing of a process that has ended.
+Processes as values: telling them apart, and seeing what the runtime runs.
+
+A `Process` is the identity of a process. It has equality, so it keys a
+`Map` and is an element of a `Set`, and it has no order. Nothing can be sent
+to it: an address is what a process is reached by, and a `Process` only says
+which one. `fromAddress` gives the process behind an address, and `monitor`
+watches one.
+
+`info`, `live` and `faults` show what runs, for a program that watches
+itself. What they say of a live process is a snapshot, which may have
+changed by the time it is read, and the runtime keeps nothing of a process
+that has ended (report Appendix E.21).
 
 ## Examples
+
+The caller is among the processes the runtime runs:
 
 ```ernest
 {
@@ -31,8 +38,8 @@ prints a process by the number the runtime gives it.
 type Info = Info(site : String, queued : Int, activity : Activity)
 ```
 
-What the runtime knows of a live process: where it was spawned (report
-§6.9), how many messages wait in its mailbox, and what it is doing.
+What the runtime knows of a live process: where it was spawned, as `Down`'s
+site names it, how many messages wait in its mailbox, and what it is doing.
 
 ### Examples
 
@@ -47,8 +54,8 @@ Optional.map(Process.info(Process.fromAddress(self())), fn(info) = info.activity
 type Activity = Running | Receiving | Calling
 ```
 
-What a live process is doing: running, waiting in a `receive`, or
-waiting for the answer to a call (report §6.6).
+What a live process is doing: running, waiting in a `receive`, or waiting
+for the answer to a call.
 
 ### Examples
 
@@ -64,10 +71,10 @@ type FaultReport =
     FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
 ```
 
-A fault of a process the runtime started: the process, its spawn site,
-the cause, whether the process restarts after it (report §6.9), and the
-host's stack beneath a failure in the runtime or a foreign function's
-raise, a function to a line, empty beneath a cause of report §7.4.
+A fault of a process the runtime started: the process, where it was spawned,
+the cause, whether it restarts after the fault, and the host's stack, one
+function to a line, beneath a failure in the runtime or a foreign function's
+raise. The stack is empty beneath the language's own causes.
 
 ### Examples
 
@@ -86,8 +93,8 @@ Process.FaultReport(process = Process.fromAddress(self()),
 Process.fromAddress(address : Address(m)) : Process
 ```
 
-The process behind the address, through every `via`. Addresses have no
-equality; the processes behind them have (report §3.10).
+The process behind the address, through every `via`. Two addresses of one
+process give equal processes, though addresses have no equality.
 
 ### Examples
 
@@ -102,8 +109,8 @@ Process.fromAddress(self()) == Process.fromAddress(via(self(), fn(x) = x))
 Process.info(process : Process) : Optional(Info) with m+
 ```
 
-A snapshot of the process, or `None` once it has ended, and for a
-process on another node.
+A snapshot of the process, or `None` once it has ended, and for a process on
+another node.
 
 ### Examples
 
@@ -118,9 +125,9 @@ Optional.isSome(Process.info(Process.fromAddress(self())))
 Process.live() : List(Process) with m+
 ```
 
-The processes the runtime started that have not ended, the system
-processes excepted, in unspecified order: those a program spawned, and a
-listener, a socket or a running program a system module opened.
+The processes the runtime started that have not ended, in unspecified order:
+those the program spawned, and each listener, socket or running program a
+system module opened. The runtime's system processes are left out.
 
 ### Examples
 
@@ -135,12 +142,11 @@ List.isEmpty(Process.live())
 Process.faults(wrap : (FaultReport) -> m) : Unit with m
 ```
 
-Every fault of every process the runtime started, from now on, wrapped,
-in the caller's mailbox, the system processes' excepted. A process holds
-one subscription: a second call replaces the first, and its wrap is the
-one used from then on. A subscription ends when its process dies or
-restarts (report §6.9), and does not keep a deadlock from being detected
-(report §8.6).
+Puts `wrap(report)` in the caller's mailbox for every fault of every process
+the runtime started, from now on, the system processes' left out. A process
+holds one subscription: a second call replaces the first, and its `wrap` is
+used from then on. A subscription ends when its process dies or restarts
+(report §6.9), and keeps no deadlock from being found (report §8.6).
 
 ### Examples
 
@@ -150,4 +156,4 @@ Process.faults(fn(report) = report)
 
 ---
 
-Generated by ern 0.3.0 from process.ern.
+Generated by ern 0.3.1 from process.ern.

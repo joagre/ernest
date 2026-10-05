@@ -2,13 +2,20 @@
 
 *Since 0.1.0.*
 
-The names every module has without writing a module's name: the built-in
-types, the types the language's rules name and those whose module is named
-after them, the process functions, and `fault` (report §9). An
-operation in a type's namespace, `Int.compare`, is documented by that
-type's module.
+The names every module has without writing a module's name.
+
+The prelude holds the types every program meets, `Int`, `String`, `List`,
+`Optional`, `Either` and the rest; the types the language's own rules
+name, `Down`, `Reason` and `RestartLimit`; the functions that start
+processes and talk to them, `spawn`, `send`, `Address.call` and the rest;
+and `fault` (report §9).
+
+An operation in a type's namespace, `Int.compare` or `String.<>`, belongs to
+that type's module, and is documented on its page.
 
 ## Examples
+
+A process started, and a number sent to it:
 
 ```ernest
 {
@@ -28,8 +35,8 @@ An integer of any size, on which arithmetic is exact (report §3.1).
 ### Examples
 
 ```ernest
-1_000_000 * 1_000_000
-// => 1000000000000
+1_000_000_000_000 * 1_000_000_000_000
+// => 1000000000000000000000000
 ```
 
 ## Float
@@ -38,8 +45,10 @@ An integer of any size, on which arithmetic is exact (report §3.1).
 type Float
 ```
 
-A finite IEEE 754 double. An operation whose result would not be finite
-faults (report §3.1).
+A double-precision floating-point number, always finite. An operation
+whose result would not be, an overflow or a division by zero, faults with
+the cause `float arithmetic error`. There is no infinity, no NaN and no
+negative zero (report §3.1).
 
 ### Examples
 
@@ -54,7 +63,9 @@ faults (report §3.1).
 type Char
 ```
 
-One Unicode scalar value, written `'a'`.
+One Unicode scalar value, written `'a'`. A letter as a reader sees it may
+be several, a letter and its accent; `String.graphemes` gives those
+whole.
 
 ### Examples
 
@@ -69,7 +80,9 @@ Char.toUpper('a')
 type String
 ```
 
-Unicode text, whose unit is the grapheme (report Appendix E.5).
+Unicode text, held as UTF-8. Its length and positions count graphemes,
+what a reader sees as one letter, so `"é"` has size 1 however its accent
+is encoded (report Appendix E.5).
 
 ### Examples
 
@@ -84,7 +97,9 @@ Unicode text, whose unit is the grapheme (report Appendix E.5).
 type Bytes
 ```
 
-A sequence of octets, built and matched with bitstrings (report §5.11).
+A sequence of bytes, as a file or a socket holds them. Bitstrings build
+it and take it apart: `<<1, 2, 3>>`, and `<<length:size(16), rest:bytes>>`
+in a pattern (report §5.11).
 
 ### Examples
 
@@ -114,9 +129,10 @@ type Bool
 type Address(m)
 ```
 
-Where messages of type `m` are sent: a process, or one seen through a
-function with `via`. Addresses have no equality; the process behind
-one has, `Process.fromAddress(a)`.
+Where messages of type `m` are sent: a process, or a process seen through
+a function with `via`. Holding an address is the permission to send to
+the process and to kill it. Addresses have no equality; the process
+behind one has, `Process.fromAddress(a)`.
 
 ### Examples
 
@@ -133,8 +149,10 @@ one has, `Process.fromAddress(a)`.
 type Reply(a)
 ```
 
-The address a request carries for its answer, answered exactly once on
-every path by `answer` (report §6.6).
+Where the answer to a request goes. `Address.call` makes one and puts it
+in the request, and the process that receives the request answers it with
+`answer`. A reply is answered exactly once on every path, or handed on,
+and the compiler checks it (report §6.6).
 
 ### Examples
 
@@ -151,8 +169,8 @@ every path by `answer` (report §6.6).
 type Never
 ```
 
-The type with no values: a process whose mailbox is `Never` receives
-nothing.
+The type with no values. A process whose mailbox type is `Never`
+receives nothing, and nothing can be sent to its address.
 
 ### Examples
 
@@ -198,7 +216,9 @@ A list of values of type `a`: `[]`, or `x :: rest`.
 type Map(k=, v)
 ```
 
-A map from keys of type `k`, which need equality, to values of type `v`.
+A map from keys of type `k` to values of type `v`. The `=` in `k=` says
+that the key type needs equality. A map is a value, and the module `Map`
+holds its operations.
 
 ### Examples
 
@@ -213,7 +233,9 @@ Map.get(Map.fromList([#("a", 1)]), "a")
 type Set(a=)
 ```
 
-A set of values of type `a`, which need equality.
+A set of values of type `a`. The `=` in `a=` says that the element type
+needs equality. A set is a value, and the module `Set` holds its
+operations.
 
 ### Examples
 
@@ -244,9 +266,11 @@ Unit
 type Optional(a) = None | Some(a)
 ```
 
-A value that may be absent, `None`, or present, `Some(v)`: the result of
-a partial operation (report Appendix E.0 rule 4), and a chain of `<-`
-(report §5.5).
+A value that may be absent, `None`, or present, `Some(v)`. A function
+that may have no answer answers one, `List.get` past the end among them
+(report Appendix E.0 rule 4). In a block, `let x <- e` takes the value
+out of a `Some`, and the block answers `None` at the first `None` (report
+§5.5).
 
 ### Examples
 
@@ -261,8 +285,10 @@ List.get([1, 2], 5)
 type Either(e, a) = Left(e) | Right(a)
 ```
 
-A result, `Right(v)`, or the reason there is none, `Left(e)`: the result
-of an operation that fails for a cause, and a chain of `<-` (report §5.5).
+A result, `Right(v)`, or the reason there is none, `Left(e)`. An
+operation that can fail for a cause answers one. In a block, `let x <- e`
+takes the value out of a `Right`, and the block answers the first `Left`
+(report §5.5).
 
 ### Examples
 
@@ -313,8 +339,19 @@ the line of the spawn, `Counter.main:19` (report §6.9).
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
-How a process ended: its function returned, `kill` ended it, the program
-ended while it ran, or it faulted with a cause. Only `Fault` is a fault.
+How a process ended, as `Down` says it.
+
+- `Returned`: its function returned, or, for a socket or a listener, the
+  program closed it.
+- `Killed`: `kill` ended it, or its owner's death, for a socket, a
+  listener or a running program.
+- `ProgramEnd`: the program ended while it ran.
+- `Fault(cause)`: it faulted, with that cause.
+- `Unknown`: it had ended before `monitor` was called, and how is not
+  known.
+
+Only `Fault` counts as a fault: `ern run` reports it, and `restarting`
+restarts after it.
 
 ### Examples
 
@@ -332,10 +369,11 @@ match Fault("division by zero") {
 type RestartLimit = RestartLimit(restarts : Int, within : Int) | Unlimited
 ```
 
-How often `restarting` restarts: at most `restarts` times within
-`within` milliseconds, the next fault ending the process, or after
-every fault where it is `Unlimited` (report §6.9). A count below 0 is
-0, and a time below 1 is 1.
+How often a process restarts, which `restarting` and `Supervisor.group`
+take (report §6.9). `RestartLimit(restarts, within)` restarts at most
+`restarts` times within `within` milliseconds, and the next fault then
+ends the process. `Unlimited` restarts after every fault. A count below 0
+is 0, and a time below 1 is 1.
 
 ### Examples
 
@@ -349,8 +387,8 @@ RestartLimit(restarts = 3, within = 5000)
 type Path = Path(String)
 ```
 
-A file system path, in the runtime's syntax; the `Path` module takes it
-apart (report Appendix E.14).
+A file system path, as the operating system writes it, `/tmp/a.txt`. The
+`Path` module joins paths and takes them apart (report Appendix E.14).
 
 ### Examples
 
@@ -365,7 +403,9 @@ Path.name(Path("/tmp/a.txt"))
 self() : Address(m) with m
 ```
 
-The address of the calling process.
+The address of the calling process. A process gives it to another that
+is to answer or tell it something: `let me = self()`, then
+`spawn(fn() = worker(me))`.
 
 ### Examples
 
@@ -383,9 +423,12 @@ The address of the calling process.
 send(address : Address(a), message : a) : Unit with m+
 ```
 
-Puts `message` in the mailbox of the process at `address`, and returns
-at once. Messages from one sender arrive in the order they were sent
-(report §6.4).
+Puts `message` in the mailbox of the process at `address`, and returns at
+once, without waiting for it to be received.
+
+Messages from one sender arrive in the order they were sent; between two
+senders there is no order (report §6.4). Sending to a process that has
+ended does nothing.
 
 ### Examples
 
@@ -399,10 +442,18 @@ send(self(), 42)
 spawn(f : () -> Unit with n) : Address(n) with m+
 ```
 
-Starts a process on this node that runs `f`, and answers its address.
-The function's mailbox type is the address's (report §6.2).
+Starts a process that runs `f`, and answers its address. The process
+runs beside the caller, on this node, and `spawn` returns at once.
+
+The address takes the messages `f`'s mailbox type names. A process that
+receives nothing says so with `with Never` on its function: `spawn(fn() :
+Unit with Never = Io.println("hi"))` (report §6.2). The process ends when
+`f` returns, faults, or is killed.
 
 ### Examples
+
+A process that receives an `Int`, so that its address is an
+`Address(Int)`:
 
 ```ernest
 spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
@@ -414,9 +465,10 @@ spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
 spawnMonitored(f : () -> Unit with n, wrap : (Down) -> m) : Address(n) with m
 ```
 
-Starts a process as `spawn` does, monitored by the caller from its
-start: `wrap` of its `Down` is put in the caller's mailbox when it ends,
-with its reason, however soon that is (report §6.2, §6.9).
+Starts a process as `spawn` does, and watches it from its first moment:
+`wrap(d)` is put in the caller's mailbox when it ends, `d` the `Down`
+that says how. Unlike `spawn` followed by `monitor`, no end of the
+process can come before the watch (report §6.2, §6.9).
 
 ### Examples
 
@@ -430,9 +482,13 @@ spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d)
 via(target : Address(b), wrap : (a) -> b) : Address(a)
 ```
 
-An address that delivers what is sent to it to `target`, turned by
-`wrap`. It is not a process. A fault in `wrap` ends the process behind
-`target`, not the sender (report §6.5).
+An address that turns each message with `wrap` and delivers it to
+`target`. It is no process of its own.
+
+A process whose mailbox takes `Msg` hands out `via(self(), Wrap)` to take
+a message of another type as one of its own, wrapped in its constructor
+`Wrap`. A fault in `wrap` ends the process behind `target`, not the
+sender (report §6.5).
 
 ### Examples
 
@@ -449,10 +505,19 @@ An address that delivers what is sent to it to `target`, turned by
 Address.call(address : Address(m), request : (Reply(a)) -> m, ms : Int) : Optional(a) with n+
 ```
 
-Sends `request` of a fresh reply to the process at `address`, and waits
-up to `ms` milliseconds for the answer: `Some` of it, or `None` when
-none came. An answer that comes late is dropped, and the recipient's
-work is not cancelled (report §6.6).
+Asks the process at `address` and waits for its answer: `Some(answer)`,
+or `None` where none came within `ms` milliseconds.
+
+`request` is given a fresh `Reply` and builds the message that carries
+it, `fn(reply) = Get(reply = reply)`. The process that receives the
+message answers it with `answer`.
+
+`None` does not cancel the work: the process asked may still do it, and
+an answer that comes late is dropped. Where that process has ended, or
+ends or restarts before it answers, the call answers `None` at once.
+The clock starts at the call. The request is made and sent whatever the
+time, and `ms` bounds only the wait for the answer, which ends at once
+where the time has already passed (report §6.6).
 
 ### Examples
 
@@ -469,8 +534,22 @@ work is not cancelled (report §6.6).
 Address.callForever(address : Address(m), request : (Reply(a)) -> m) : a with n+
 ```
 
-As `Address.call`, but waits without a deadline and answers the answer
-itself; if none comes, the caller waits for ever.
+Asks as `Address.call` does, and waits for the answer without a deadline,
+answering the answer itself. A process asked that lives and never
+answers keeps the caller waiting for ever.
+
+### Errors
+
+Faults where the process asked has ended, or ends or restarts before it
+answers (report §6.6):
+
+- with that process's own cause, where it faulted;
+- `callee was killed`, where `kill` or its owner's death ended it;
+- `callee returned without answering`, where its function returned;
+- `callee was closed`, where the program closed it, a socket or a
+  listener;
+- `callee was restarted`, where a supervisor asked it to restart;
+- `callee had ended`, where it had ended before the call.
 
 ### Examples
 
@@ -487,8 +566,12 @@ itself; if none comes, the caller waits for ever.
 answer(reply : Reply(a), value : a) : Unit with m+
 ```
 
-Puts `value` in `reply`, which consumes it. A second answer to one reply
-is dropped (report §6.6).
+Answers a request: sends `value` to the caller waiting on `reply`.
+
+A reply is answered exactly once on every path, or handed on, and the
+compiler checks it (report §6.6). A caller that has stopped waiting,
+after its deadline or its end, never sees the answer, and the process
+that answers is not told.
 
 ### Examples
 
@@ -502,22 +585,34 @@ spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
 restarting(limit : RestartLimit, f : () -> Unit with n+) : () -> Unit with n+
 ```
 
-A function that runs `f()` and, when `f` faults, runs it again in the
-same process: the process keeps its address, its mailbox is emptied,
-every call waiting for its answer ends, and what the process asked the
-runtime for, its alarms, monitors and subscriptions, is cancelled
-(report §6.9). A restart is not a death; no `monitor` is told. With
-`Unlimited`, `f` runs again after every fault.
+A function that runs `f`, and runs it again in the same process each time
+it faults. A program spawns what it answers: `spawn(restarting(limit, f))`.
+
+The process keeps its address across a restart, so whoever holds it keeps
+it. Everything else starts afresh: the mailbox is emptied, every call
+waiting for the process's answer ends, and what the process asked the
+runtime for, its alarms, monitors and subscriptions, is cancelled. What
+`f` held is gone (report §6.9).
+
+A restart is not a death: no `monitor` is told, and the process's `Down`
+comes only when it ends for good. `RestartLimit(restarts = n, within = t)`
+allows `n` restarts within `t` milliseconds, and `Unlimited` restarts
+after every fault.
 
 ### Errors
 
-Under `RestartLimit`, the fault of `f` after the limit's restarts within
-its time, with that fault's cause.
+Under `RestartLimit`, the fault past the limit ends the process, with
+that fault's cause.
 
 ### Examples
 
+A worker that faults on `0`, and runs again, at most three times in five
+seconds:
+
 ```ernest
-spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Never = Unit))
+spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Int = receive {
+    n -> Io.println(Int.toString(100 / n))
+}))
 ```
 
 ## monitor
@@ -526,10 +621,13 @@ spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Nev
 monitor(process : Process, wrap : (Down) -> m) : Unit with m
 ```
 
-Puts `wrap` of a `Down` in the caller's mailbox when `process` ends, or
-at once, with the reason `Unknown`, if it has ended. Each call gives one
-message (report §6.9). `Process.fromAddress` gives the process behind an
-address, and a process one starts is watched from its start with
+Watches a process: `wrap(d)` is put in the caller's mailbox when
+`process` ends, `d` the `Down` that says how.
+
+A process that has already ended is reported at once, with the reason
+`Unknown`. Each call watches once and gives one message (report §6.9).
+`Process.fromAddress(a)` gives the process behind an address, and a
+process the caller starts itself is watched from its start with
 `spawnMonitored`.
 
 ### Examples
@@ -547,8 +645,10 @@ address, and a process one starts is watched from its start with
 kill(address : Address(a)) : Unit with m+
 ```
 
-Ends the process at `address`, which its monitors see as `Killed`. The
-process may run a little before it stops (report §6.9).
+Ends the process at `address`. Its monitors see the reason `Killed`.
+
+`kill` returns at once, and the process may run a little before it stops.
+Killing a process that has ended does nothing (report §6.9).
 
 ### Examples
 
@@ -562,14 +662,17 @@ kill(spawn(fn() = receive { _ -> Unit }))
 fault(cause : String) : a
 ```
 
-Ends the process with `cause`: it has every type, and nothing
-catches the fault (report §7.3, §7.4). It is for an invariant broken
-beyond recovery; a failure the caller can handle is an `Optional` or an
-`Either`. Code not written yet is `fault("todo: ...")`.
+Ends the calling process with `cause`. It has every type, so it stands
+wherever a value is expected, and nothing catches the fault (report
+§7.3).
+
+Use it for an invariant broken beyond recovery. A failure the caller can
+handle is an `Optional` or an `Either`. Code not written yet is
+`fault("todo: ...")`.
 
 ### Errors
 
-`Fault(cause)`.
+Always faults, with `cause` as the cause.
 
 ### Examples
 
@@ -579,4 +682,4 @@ fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty her
 
 ---
 
-Generated by ern 0.3.0 from the prelude, report §9.
+Generated by ern 0.3.1 from the prelude, report §9.

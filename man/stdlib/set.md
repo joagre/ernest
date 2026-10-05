@@ -2,21 +2,33 @@
 
 *Since 0.1.0.*
 
-Operations on `Set(a=)`, a finite set of elements (report §9.2). The
-element type needs equality, which the type itself requires (report
-§3.10). A set has no `get`: membership is `contains`. The order of
-`toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is
-the order in which `map`, `filter`, `filterMap`, `any`, and `all` meet
-the elements. The primitives are `empty`, `size`, `contains`, `put`,
-`remove`, and `toList`, the runtime's; the rest is written over them
-(report Appendix E.0 rule 1).
+Finite sets: each element once, in no order.
+
+Use a set to ask whether a value is among others, and to keep each value
+once. For values in an order use a `List`, for elements in their own order
+an `OrderedSet`, and for values looked up by a key a `Map`. A set is a
+value: `put` and `remove` answer a new set and leave the one given as it
+was.
+
+The element type needs equality, which the `=` in `Set(a=)` says: a set of
+functions or addresses is a type error.
+
+A set has no order. `toList`, `foldLeft`, `foreach` and `find` give the
+elements in an order that is not specified, and `map`, `filter`,
+`filterMap`, `any` and `all` call their function for the elements in such an
+order.
 
 ## Examples
+
+An element put in a set is in it:
 
 ```ernest
 Set.contains(Set.put(Set.empty, "a"), "a")
 // => true
 ```
+
+The elements of one set that are not in another; a set has no order, so the
+list is sorted to compare it:
 
 ```ernest
 List.sort(Set.toList(Set.difference(Set.fromList([1, 2, 3]), Set.fromList([2]))), Int.compare)
@@ -64,7 +76,7 @@ Set.isEmpty(set : Set(a=!)) : Bool
 Set.contains(set : Set(a=!), element : a=!) : Bool
 ```
 
-`true` when the element is in the set.
+`true` when `element` is in the set.
 
 ## Set.put
 
@@ -72,7 +84,8 @@ Set.contains(set : Set(a=!), element : a=!) : Bool
 Set.put(set : Set(a=!), element : a=!) : Set(a=!)
 ```
 
-The set with that element, which may already be there.
+The set with `element` in it. A set that already holds it is answered as it
+is.
 
 ## Set.remove
 
@@ -80,7 +93,7 @@ The set with that element, which may already be there.
 Set.remove(set : Set(a=!), element : a=!) : Set(a=!)
 ```
 
-The set without that element, which need not be there.
+The set without `element`. A set that does not hold it is answered as it is.
 
 ### Examples
 
@@ -95,8 +108,8 @@ Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 Set.map(set : Set(a=!), f : (a=!) -> b=! with e) : Set(b=!) with e
 ```
 
-The function applied to each element; two elements it maps together
-become one, so the result may be smaller.
+The set of `f(x)` for each element `x`. Two elements `f` maps to equal
+values become one, so the result may be smaller.
 
 ### Examples
 
@@ -111,7 +124,7 @@ List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)), Int.compare
 Set.filter(set : Set(a=!), keep : (a=!) -> Bool with e) : Set(a=!) with e
 ```
 
-The elements the predicate holds for.
+The set of the elements `keep` answers `true` for.
 
 ### Examples
 
@@ -126,7 +139,8 @@ Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 Set.filterMap(set : Set(a=!), f : (a=!) -> Optional(b=!) with e) : Set(b=!) with e
 ```
 
-The values of the `Some` results.
+The set of the values `f` answers `Some` for; an element `f` answers `None`
+for is left out.
 
 ### Examples
 
@@ -141,8 +155,10 @@ Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
 Set.foldLeft(set : Set(a=!), acc : b, step : (b, a=!) -> b with e) : b with e
 ```
 
-The accumulator after the function has seen each element, the
-accumulator first.
+The elements folded into one value. `step(acc, x)` is called with the given
+`acc` for the first element met, and with what `step` answered before for
+the rest. The order is unspecified, so `step` should give the same result in
+any order.
 
 ### Examples
 
@@ -157,7 +173,7 @@ Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
 Set.foreach(set : Set(a=!), f : (a=!) -> Unit with e) : Unit with e
 ```
 
-The function applied to each element for its effect.
+Calls `f` for each element, for its effect, in unspecified order.
 
 ### Examples
 
@@ -172,7 +188,8 @@ Set.foreach(Set.fromList(["a"]), Io.println)
 Set.any(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
 ```
 
-`true` when the predicate holds for some element.
+`true` when `test` holds for at least one element, and `false` for the empty
+set.
 
 ### Examples
 
@@ -187,8 +204,7 @@ Set.any(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
 Set.all(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
 ```
 
-`true` when the predicate holds for every element, and for the set with
-no elements.
+`true` when `test` holds for every element, and for the empty set.
 
 ## Set.find
 
@@ -196,7 +212,8 @@ no elements.
 Set.find(set : Set(a=!), test : (a=!) -> Bool with e) : Optional(a=!) with e
 ```
 
-Some element the predicate holds for.
+An element `test` holds for, or `None` where there is none. Where it holds
+for several, which one is answered is unspecified.
 
 ### Examples
 
@@ -211,7 +228,7 @@ Set.find(Set.fromList([1, 2]), fn(n) = n > 1)
 Set.fromList(list : List(a=!)) : Set(a=!)
 ```
 
-The set of those elements, each once.
+The set of the list's elements, each once.
 
 ## Set.toList
 
@@ -227,7 +244,7 @@ The elements, in unspecified order.
 Set.union(set : Set(a=!), other : Set(a=!)) : Set(a=!)
 ```
 
-The elements of both.
+The set of the elements in either set.
 
 ### Examples
 
@@ -242,7 +259,7 @@ List.sort(Set.toList(Set.union(Set.fromList([1]), Set.fromList([2]))), Int.compa
 Set.intersection(set : Set(a=!), other : Set(a=!)) : Set(a=!)
 ```
 
-The elements in both.
+The set of the elements in both sets.
 
 ### Examples
 
@@ -257,7 +274,7 @@ Set.toList(Set.intersection(Set.fromList([1, 2]), Set.fromList([2, 3])))
 Set.difference(set : Set(a=!), other : Set(a=!)) : Set(a=!)
 ```
 
-The elements of the first that are not in the second.
+The elements of `set` that are not in `other`.
 
 ## Set.isSubset
 
@@ -265,7 +282,8 @@ The elements of the first that are not in the second.
 Set.isSubset(set : Set(a=!), other : Set(a=!)) : Bool
 ```
 
-`true` when every element of the first is in the second.
+`true` when every element of `set` is in `other`. The empty set is a subset
+of every set.
 
 ### Examples
 
@@ -276,4 +294,4 @@ Set.isSubset(Set.fromList([1]), Set.fromList([1, 2]))
 
 ---
 
-Generated by ern 0.3.0 from set.ern.
+Generated by ern 0.3.1 from set.ern.

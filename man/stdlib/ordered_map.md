@@ -2,21 +2,34 @@
 
 *Since 0.3.0.*
 
-Operations on `Map(k, v)`, a finite map from keys to values in the
-order of the keys' type's `compare` (report §3.10). A function that
-needs the order says so, `needs k.compare` (report §4.9): `contains`,
-`get`, `put`, `remove`, `update`, `merge`, `mergeWith` and `fromList`;
-the rest keep the keys and need none. A map is data: `==` is
-structural, a map keys a `Map`, and a map is sent to another node.
-The order of `keys`, `values`, `toList`, `foldLeft`, `foreach` and
-`find`, and the order in which `map`, `filter`, `filterMap`, `any`,
-`all` and `mergeWith` meet the entries, is the keys'. The map is a
-sorted list of pairs: `get`, `put` and `remove` are linear in the
-size, `fromList` is a sort, `n log n`, and `merge` is linear in the
-two sizes. Nothing is a primitive:
-the module is written over `List`.
+Maps whose entries are kept in the order of their keys, the order of the key
+type's `compare`.
+
+Use an ordered map where the entries must come out in the order of their
+keys. Where the order does not matter, the prelude's `Map` serves. An
+ordered map is a value: `put` and `remove` answer a new map and leave the
+one given as it was.
+
+**The order.** A function that needs the order says so, `needs k.compare`
+(report §4.9). A call writes nothing for it: the compiler supplies the key
+type's `compare` where the type is known. `fromList`, `contains`, `get`,
+`put`, `remove`, `update`, `merge` and `mergeWith` need it; the rest keep
+the keys and need none.
+
+**Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `foreach`
+and `find` go in the keys' order, and `map`, `filter`, `filterMap`, `any`,
+`all` and `mergeWith` meet the entries in it.
+
+**What it costs.** The map is a sorted list of pairs, written over `List`
+with no primitive. `get`, `put` and `remove` take time linear in the size,
+`fromList` is a sort, `n log n`, and `merge` is linear in the two sizes.
+
+A map is data: `==` is structural, a map keys a `Map`, and a map can be sent
+to another node (report §3.10).
 
 ## Examples
+
+The keys come out in order, whatever order the pairs were given in:
 
 ```ernest
 OrderedMap.keys(OrderedMap.fromList([#("b", 2), #("a", 1)]))
@@ -49,7 +62,8 @@ The map with no entries.
 OrderedMap.fromList(pairs : List(#(k!, v!))) : OrderedMap.Map(k!, v!) needs k.compare
 ```
 
-The map of those pairs; at one key, the last pair's value.
+The map of `pairs`. Where two pairs have one key, the last one's value is
+kept.
 
 ### Examples
 
@@ -87,7 +101,7 @@ OrderedMap.isEmpty(OrderedMap.Map(k!, v!)) : Bool
 OrderedMap.contains(map : OrderedMap.Map(k!, v!), key : k!) : Bool needs k.compare
 ```
 
-`true` when a key the order calls `Equal` to it has a value.
+`true` when a key the order calls `Equal` to `key` has a value.
 
 ### Examples
 
@@ -103,7 +117,7 @@ OrderedMap.contains(map : OrderedMap.Map(k!, v!), key : k!) : Bool needs k.compa
 OrderedMap.get(OrderedMap.Map(k!, v!), key : k!) : Optional(v!) needs k.compare
 ```
 
-The value at the key the order calls `Equal` to it, if any.
+The value at the key the order calls `Equal` to `key`, or `None`.
 
 ### Examples
 
@@ -118,7 +132,7 @@ OrderedMap.get(OrderedMap.fromList([#("a", 1)]), "a")
 OrderedMap.put(OrderedMap.Map(k!, v!), key : k!, value : v!) : OrderedMap.Map(k!, v!) needs k.compare
 ```
 
-The map with that value at that key, replacing one already there.
+The map with `value` at `key`, replacing a value already there.
 
 ### Examples
 
@@ -133,7 +147,7 @@ OrderedMap.toList(OrderedMap.put(OrderedMap.fromList([#(2, "b")]), 1, "a"))
 OrderedMap.remove(OrderedMap.Map(k!, v!), key : k!) : OrderedMap.Map(k!, v!) needs k.compare
 ```
 
-The map without the entry at that key, which need not be there.
+The map without the entry at `key`, which need not be there.
 
 ### Examples
 
@@ -148,8 +162,7 @@ OrderedMap.keys(OrderedMap.remove(OrderedMap.fromList([#(1, "a"), #(2, "b")]), 1
 OrderedMap.update(map : OrderedMap.Map(k!, v!), key : k!, f : (Optional(v!)) -> v! with e) : OrderedMap.Map(k!, v!) with e needs k.compare
 ```
 
-The map with the function's value at that key, the function given the
-value there, if any.
+The map with `f`'s value at `key`, `f` given the value there, or `None`.
 
 ### Examples
 
@@ -165,7 +178,8 @@ OrderedMap.get(OrderedMap.update(OrderedMap.empty, "n", fn(o) = Optional.withDef
 OrderedMap.map(OrderedMap.Map(k!, v), f : (k!, v) -> w with e) : OrderedMap.Map(k!, w) with e
 ```
 
-Each value replaced by the function's, the key beside it, in order.
+The map with each value replaced by `f`'s, `f` given the key beside it, in
+order.
 
 ### Examples
 
@@ -180,7 +194,7 @@ OrderedMap.values(OrderedMap.map(OrderedMap.fromList([#(1, 10)]), fn(key, value)
 OrderedMap.filter(OrderedMap.Map(k!, v!), keep : (k!, v!) -> Bool with e) : OrderedMap.Map(k!, v!) with e
 ```
 
-The entries the predicate holds for, in order.
+The entries `keep` holds for, in order.
 
 ### Examples
 
@@ -196,7 +210,7 @@ OrderedMap.keys(OrderedMap.filter(OrderedMap.fromList([#(1, "a"), #(2, "b")]),
 OrderedMap.filterMap(OrderedMap.Map(k!, v), f : (k!, v) -> Optional(w) with e) : OrderedMap.Map(k!, w) with e
 ```
 
-The entries whose value the function maps to `Some`, with that value.
+The entries whose value `f` maps to `Some`, with that value.
 
 ### Examples
 
@@ -212,8 +226,8 @@ OrderedMap.toList(OrderedMap.filterMap(OrderedMap.fromList([#(1, "1"), #(2, "x")
 OrderedMap.foldLeft(OrderedMap.Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e
 ```
 
-The accumulator after the function has seen each entry in order, the
-accumulator first.
+The accumulator after `step` has seen each entry in order, the accumulator
+first.
 
 ### Examples
 
@@ -230,7 +244,7 @@ OrderedMap.foldLeft(OrderedMap.fromList([#(1, 2), #(3, 4)]),
 OrderedMap.foreach(OrderedMap.Map(k, v), f : (k, v) -> Unit with e) : Unit with e
 ```
 
-The function applied to each entry in order for its effect.
+Applies `f` to each entry in order, for its effect.
 
 ### Examples
 
@@ -245,7 +259,7 @@ OrderedMap.foreach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(v
 OrderedMap.any(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool with e
 ```
 
-`true` when the predicate holds for some entry.
+`true` when `test` holds for some entry.
 
 ### Examples
 
@@ -261,8 +275,7 @@ OrderedMap.any(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool wi
 OrderedMap.all(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool with e
 ```
 
-`true` when the predicate holds for every entry, and for the map with
-no entries.
+`true` when `test` holds for every entry, and for the map with no entries.
 
 ## OrderedMap.find
 
@@ -270,7 +283,7 @@ no entries.
 OrderedMap.find(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Optional(#(k!, v!)) with e
 ```
 
-The first entry in order the predicate holds for.
+The first entry in order that `test` holds for.
 
 ### Examples
 
@@ -285,7 +298,8 @@ OrderedMap.find(OrderedMap.fromList([#(2, "b"), #(1, "a")]), fn(key, _) = key > 
 OrderedMap.merge(map : OrderedMap.Map(k!, v!), other : OrderedMap.Map(k!, v!)) : OrderedMap.Map(k!, v!) needs k.compare
 ```
 
-The entries of both; at one key, the second's value.
+The entries of both maps. Where both have a key, the value of `other` is
+kept.
 
 ### Examples
 
@@ -301,7 +315,8 @@ OrderedMap.toList(OrderedMap.merge(OrderedMap.fromList([#(1, "a")]),
 OrderedMap.mergeWith(OrderedMap.Map(k!, v!), OrderedMap.Map(k!, v!), f : (k!, v!, v!) -> v! with e) : OrderedMap.Map(k!, v!) with e needs k.compare
 ```
 
-The entries of both; at one key, the function's value from the two.
+The entries of both maps. Where both have a key, the value is `f`'s, given
+the key and the two values, the first map's first.
 
 ### Examples
 
@@ -338,4 +353,4 @@ The values, in the keys' order.
 
 ---
 
-Generated by ern 0.3.0 from ordered_map.ern.
+Generated by ern 0.3.1 from ordered_map.ern.

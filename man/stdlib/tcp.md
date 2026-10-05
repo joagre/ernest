@@ -2,18 +2,37 @@
 
 *Since 0.1.0.*
 
-TCP over its system process, which opens sockets (report §8.2).
-A socket is a process: its address can be sent, monitored, killed, and
-adapted with `via` like any other. It is owned by the process that
-opened it, the caller of `accept` or `connect`, until `Tcp.give` gives
-it another, and it lives until `Tcp.close` or until its owner dies,
-which kills it; a read after its end faults. Once its connection has closed from the far
-end, each read and each write answers `Left(Closed)`.
-A listener lives until `Tcp.closeListener`. A read, an accept, or a
-connect that times out has taken nothing, so bytes that arrive later
-wait for the next read. There are no socket options; framing is
-bitstrings (report §5.11). The last argument of a function that waits
-is the milliseconds.
+TCP connections: listening for them, making them, and moving their bytes.
+
+Use `listen` and `accept` to serve connections, and `connect` to make one.
+`read` and `write` move bytes over a connection, and `close` ends it. A
+connection carries bytes, and a program frames its messages with bitstrings
+(report §5.11); there are no socket options.
+
+**A socket is a process.** `accept` and `connect` answer a socket's address.
+It can be sent in a message and killed like any other, and
+`monitor(Process.fromAddress(socket), wrap)` tells when it ends. A listener
+is a process too.
+
+**Ownership.** A socket belongs to the process that opened it, and is killed
+when its owner dies. Ownership decides only that: any process that holds the
+address may read, write and close it. `give` hands a socket to another
+process, so that it dies with that one instead, as an accepting loop gives
+each socket to the process that serves it. A listener belongs to the process
+that called `listen`.
+
+**A connection that closes, and a socket that ends.** When the far end
+closes the connection, or the network fails, the socket lives on: each read
+answers `Left(Closed)` once what came before is read, and each write answers
+`Left(Closed)`. The socket ends only with `close` or its owner's death, and
+a listener with `closeListener` or its owner's death. A read waiting when
+`close` ends the socket answers `Left(Closed)`, and a call after the end
+faults.
+
+**A wait that times out takes nothing.** The last argument of a function
+that waits is the milliseconds it waits. A read, an accept or a connect that
+times out has taken nothing, so bytes that arrive later wait for the next
+read (report Appendix E.18).
 
 ## Examples
 
@@ -41,12 +60,13 @@ and a connection to it, one message each way:
     Tcp.closeListener(listener);
     received
 }
+// => Right(<<112, 105, 110, 103>>)
 ```
 
 ## See also
 
-`Bytes` for what a socket carries, `monitor` for learning that a
-socket was closed.
+`Bytes` for what a socket carries, `monitor` for learning that a socket
+has ended.
 
 ## Tcp.ListenerMsg
 
@@ -54,10 +74,13 @@ socket was closed.
 abstract type ListenerMsg
 ```
 
-What a listener takes; a program uses `Tcp.accept`, `Tcp.port`, and
-`Tcp.closeListener` (report Appendix E.18).
+What a listener's process takes. Its constructors are hidden, so a program
+uses `Tcp.accept`, `Tcp.port` and `Tcp.closeListener` on it (report Appendix
+E.18).
 
 ### Examples
+
+A listener's address, which `accept`, `port` and `closeListener` take:
 
 ```ernest
 {
@@ -75,11 +98,14 @@ abstract type SocketMsg
 
 *Since 0.2.0.*
 
-What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
-`Tcp.close`, `Tcp.give`, `Tcp.remote`, and `Tcp.local` (report Appendix
-E.18).
+What a connected socket's process takes. Its constructors are hidden, so a
+program uses `Tcp.read`, `Tcp.write`, `Tcp.close`, `Tcp.give`, `Tcp.remote`
+and `Tcp.local` on it (report Appendix E.18).
 
 ### Examples
+
+A socket's address, which `read`, `write`, `close`, `give`, `remote` and
+`local` take:
 
 ```ernest
 Tcp.connect("127.0.0.1", 7000, 1000)
@@ -91,7 +117,7 @@ Tcp.connect("127.0.0.1", 7000, 1000)
 type Endpoint = Endpoint(host : String, port : Int)
 ```
 
-An end of a connection: the host's address as text, and the port.
+One end of a connection: the host's address as text, and the port.
 
 ### Examples
 
@@ -106,11 +132,19 @@ Tcp.Endpoint(host = "127.0.0.1", port = 7000).port
 Tcp.listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m+
 ```
 
-A listener on the port of the host's interface that the name or the
-address names: `"127.0.0.1"` is the loopback alone, `"0.0.0.0"` every
-interface of IPv4, and `"::"` every interface of IPv6. Port 0 asks the
-system for a free one, which `Tcp.port` tells. The listener is owned
-by the process that calls `listen`, and is killed when it dies.
+Listens for connections on `port` of the interface `host` names, and answers
+the listener's address.
+
+`host` is an address or a name: `"127.0.0.1"` is the loopback alone,
+`"0.0.0.0"` every interface of IPv4, and `"::"` every interface of IPv6. A
+name is looked up, its IPv4 address before its IPv6 one. Port 0 asks the
+host for a free port, which `port` tells. The listener belongs to the
+process that calls `listen`, and is killed when that process dies.
+
+It answers `Left(Invalid)` for a port outside 0 to 65535 or a host that
+holds U+0000, and `Left(Other(text))` where the host refuses, in the host's
+words: `Left(Other("address already in use"))` for a port another listener
+holds, `Left(Other("non-existing domain"))` for a name not found.
 
 ## Tcp.port
 
@@ -118,12 +152,14 @@ by the process that calls `listen`, and is killed when it dies.
 Tcp.port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m+
 ```
 
-The port the listener listens on.
+The port the listener listens on: the one `listen` was given, or the one the
+host chose for port 0. While the listener lives it answers a `Right`.
 
 ### Errors
 
-On a listener that has ended, closed or killed, faults as
-`Address.callForever` does on an ended process.
+Faults where the listener has ended, as `Address.callForever` does: with the
+cause `callee had ended`, or `callee was closed` where `closeListener` ended
+it as the call was made.
 
 ### Examples
 
@@ -143,16 +179,20 @@ On a listener that has ended, closed or killed, faults as
 Tcp.accept(listener : Address(ListenerMsg), ms : Int) : Either(Io.Error, Address(SocketMsg)) with m+
 ```
 
-The next connection to the listener, owned by the caller, or
-`Left(Io.Timeout)` when none comes in time, having taken none;
-`Left(Io.Closed)` when the listener is closed while it waits.
+Waits at most `ms` milliseconds for the next connection to the listener, and
+answers its socket, which belongs to the caller. It answers `Left(Timeout)`
+where none comes in time, having taken none, and `Left(Closed)` where the
+listener is closed while it waits.
 
 ### Errors
 
-On a listener that has ended, closed or killed, faults as
-`Address.callForever` does on an ended process.
+Faults where the listener has ended, as `Address.callForever` does: with the
+cause `callee had ended`, or `callee was closed` where `closeListener` ended
+it as the call was made.
 
 ### Examples
+
+No connection comes within 10 milliseconds:
 
 ```ernest
 {
@@ -161,6 +201,7 @@ On a listener that has ended, closed or killed, faults as
     Tcp.closeListener(listener);
     accepted
 }
+// => Left(Timeout)
 ```
 
 ## Tcp.connect
@@ -169,9 +210,15 @@ On a listener that has ended, closed or killed, faults as
 Tcp.connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SocketMsg)) with m+
 ```
 
-A connection to that host and port, owned by the caller, or
-`Left(Io.Timeout)` when it is not made in time; one made later is
-closed.
+Connects to `port` on `host`, within `ms` milliseconds, and answers the
+socket, which belongs to the caller. `host` is an address or a name, as
+`listen` takes it.
+
+It answers `Left(Timeout)` where the connection is not made in time, and
+closes one made later. It answers `Left(Refused)` where nothing listens
+there, `Left(Invalid)` for a port outside 0 to 65535 or a host that holds
+U+0000, and `Left(Other(text))` for the host's other reasons,
+`Left(Other("non-existing domain"))` for a name not found.
 
 ## Tcp.read
 
@@ -179,14 +226,16 @@ closed.
 Tcp.read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) with m+
 ```
 
-What has arrived, at least one byte, or `Left(Io.Closed)` once the
-connection has closed and what came before is read, or
-`Left(Io.Timeout)` when nothing comes in time, having taken nothing.
+Waits at most `ms` milliseconds for bytes from the connection, and answers
+what has arrived, at least one byte. It answers `Left(Closed)` once the
+connection has closed and all that came before is read, and `Left(Timeout)`
+where nothing comes in time, having taken nothing.
 
 ### Errors
 
-On a socket that has ended, closed or killed, faults as
-`Address.callForever` does on an ended process.
+Faults where the socket has ended, as `Address.callForever` does: with the
+cause `callee had ended`, or `callee was closed` where `close` ended it as
+the call was made.
 
 ## Tcp.write
 
@@ -194,19 +243,22 @@ On a socket that has ended, closed or killed, faults as
 Tcp.write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Writes the bytes to the socket, and answers `Right(Unit)` once the
-socket has taken them, waiting while the connection is behind, at most
-`ms` milliseconds. That the socket took them does not mean that the far
-end has them. It answers `Left(Io.Timeout)` when `ms` milliseconds pass
-first, which does not undo the write: the bytes may still be sent, after
-those written before. It answers `Left(Io.Closed)` once the connection
-has closed, from either end or by a failure, and `Left(Io.Other(text))`,
-the host's reason, when the host refuses the bytes for another.
+Writes `bytes` to the connection, and answers `Right(Unit)` once the socket
+has taken them, waiting while the connection is behind, at most `ms`
+milliseconds. That the socket took them does not mean that the far end has
+them.
+
+It answers `Left(Timeout)` where the milliseconds pass first, which does not
+undo the write: the bytes may still be sent, after those written before. It
+answers `Left(Closed)` once the connection has closed, from either end or by
+a failure, and `Left(Other(text))` where the host refuses the bytes for
+another reason, in its words.
 
 ### Errors
 
-On a socket that has ended, closed or killed, faults as
-`Address.callForever` does on an ended process.
+Faults where the socket has ended, as `Address.callForever` does: with the
+cause `callee had ended`, or `callee was closed` where `close` ended it as
+the call was made.
 
 ## Tcp.close
 
@@ -214,7 +266,8 @@ On a socket that has ended, closed or killed, faults as
 Tcp.close(socket : Address(SocketMsg)) : Unit with m+
 ```
 
-Closes the socket, which ends its process.
+Closes the connection and ends the socket's process. On a socket that has
+ended already it does nothing.
 
 ## Tcp.give
 
@@ -222,26 +275,33 @@ Closes the socket, which ends its process.
 Tcp.give(socket : Address(SocketMsg), owner : Process) : Unit with m+
 ```
 
-Makes the process the socket's owner, so that the socket is killed when
-that process dies and no longer when the one before did; a process that
-has ended already takes it with it at once. Nothing happens on a socket
-that has ended.
+Makes `owner` the socket's owner, so that the socket is killed when `owner`
+dies, and no longer when the owner before did. Where `owner` has ended
+already the socket is killed at once. On a socket that has ended it does
+nothing.
 
 ### Examples
+
+A connection given to the process that serves it, so that the socket dies
+with its session; the session greets the client and closes:
 
 ```ernest
 {
     let listener <- Tcp.listen("127.0.0.1", 0);
     let port <- Tcp.port(listener);
     let client <- Tcp.connect("127.0.0.1", port, 1000);
-    let keeper = spawn(fn() : Unit with Never = receive {
-        after 1000 -> Unit
+    let socket <- Tcp.accept(listener, 1000);
+    let session = spawn(fn() : Unit with Never = {
+        let _ = Tcp.write(socket, String.toUtf8("hello"), 1000);
+        Tcp.close(socket)
     });
-    Tcp.give(client, Process.fromAddress(keeper));
+    Tcp.give(socket, Process.fromAddress(session));
+    let greeting = Tcp.read(client, 1000);
     Tcp.close(client);
     Tcp.closeListener(listener);
-    Right(Unit)
+    greeting
 }
+// => Right(<<104, 101, 108, 108, 111>>)
 ```
 
 ## Tcp.closeListener
@@ -250,8 +310,8 @@ that has ended.
 Tcp.closeListener(listener : Address(ListenerMsg)) : Unit with m+
 ```
 
-Stops the listener, which ends its process; an accept waiting on it
-answers `Left(Io.Closed)`.
+Stops the listener and ends its process. An `accept` waiting on it answers
+`Left(Closed)`. On a listener that has ended already it does nothing.
 
 ## Tcp.remote
 
@@ -261,13 +321,14 @@ Tcp.remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with m+
 
 *Since 0.2.0.*
 
-The connection's far end, or `Left(Io.Closed)` once the connection has
+The far end of the connection, or `Left(Closed)` once the connection has
 closed.
 
 ### Errors
 
-On a socket that has ended, closed or killed, faults as
-`Address.callForever` does on an ended process.
+Faults where the socket has ended, as `Address.callForever` does: with the
+cause `callee had ended`, or `callee was closed` where `close` ended it as
+the call was made.
 
 ### Examples
 
@@ -290,13 +351,14 @@ On a socket that has ended, closed or killed, faults as
 Tcp.local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with m+
 ```
 
-The connection's near end, or `Left(Io.Closed)` once the connection has
+The near end of the connection, or `Left(Closed)` once the connection has
 closed.
 
 ### Errors
 
-On a socket that has ended, closed or killed, faults as
-`Address.callForever` does on an ended process.
+Faults where the socket has ended, as `Address.callForever` does: with the
+cause `callee had ended`, or `callee was closed` where `close` ended it as
+the call was made.
 
 ### Examples
 
@@ -315,4 +377,4 @@ On a socket that has ended, closed or killed, faults as
 
 ---
 
-Generated by ern 0.3.0 from tcp.ern.
+Generated by ern 0.3.1 from tcp.ern.

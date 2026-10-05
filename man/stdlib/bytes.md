@@ -2,19 +2,31 @@
 
 *Since 0.1.0.*
 
-Operations on `Bytes`, a sequence of octets (report §3.1). A `Bytes` is
-a container read through `toList`, which gives its octets, each an `Int`
-from 0 to 255, and `<<...>>` builds and matches one at the bit level
-(report §5.11), so there is no constructor here. The primitive is
-`size`, the runtime's; the rest is written over it and with the bit
-syntax (report Appendix E.0 rule 1).
+Sequences of bytes, as a file or a socket holds them.
+
+Use `Bytes` for data that is not text: what `Fs.read` and `Tcp.read` answer,
+and what a binary format is made of. For text use a `String`, and convert
+with `String.toUtf8` and `String.fromUtf8`.
+
+A `Bytes` is built and taken apart with bitstrings, which the language
+provides: `<<1, 2, 3>>`, and in a pattern `<<length:size(16), rest:bytes>>`
+reads a 16-bit number and the bytes after it (report §5.11). This module
+holds the operations bitstrings do not: searching, splitting and the
+conversions. A `Bytes` is a value, which no function here changes.
+
+`toList` gives the bytes as `Int`s, each from 0 to 255, and `fromList`
+builds a `Bytes` from them.
 
 ## Examples
+
+Two byte sequences joined with `<>`, and the bytes as numbers:
 
 ```ernest
 Bytes.toList(<<104, 105>> <> <<33>>)
 // => [104, 105, 33]
 ```
+
+Bytes made from numbers, each from 0 to 255:
 
 ```ernest
 Bytes.fromList([104, 105])
@@ -31,7 +43,7 @@ Bytes.fromList([104, 105])
 Bytes.<>(left : Bytes, right : Bytes) : Bytes
 ```
 
-The octets of the first, then those of the second.
+The bytes of the first, then those of the second.
 
 ## Bytes.size
 
@@ -39,7 +51,7 @@ The octets of the first, then those of the second.
 Bytes.size(bytes : Bytes) : Int
 ```
 
-The number of octets.
+The number of bytes.
 
 ### Examples
 
@@ -54,7 +66,7 @@ The number of octets.
 Bytes.isEmpty(bytes : Bytes) : Bool
 ```
 
-`true` for the empty `Bytes`.
+`true` for the empty `Bytes`, `<<>>`.
 
 ## Bytes.get
 
@@ -62,7 +74,8 @@ Bytes.isEmpty(bytes : Bytes) : Bool
 Bytes.get(bytes : Bytes, index : Int) : Optional(Int)
 ```
 
-The octet at the index, counting from 0, or `None` beyond either end.
+The byte at `index`, counting from 0, as an `Int` from 0 to 255, or `None`
+where there is no byte there: past the end, or at an index below 0.
 
 ### Examples
 
@@ -77,8 +90,8 @@ The octet at the index, counting from 0, or `None` beyond either end.
 Bytes.slice(bytes : Bytes, index : Int, count : Int) : Bytes
 ```
 
-The octets from the index, that many of them, clipped to what is there;
-a negative index or count is 0.
+The `count` bytes from `index`, or as many as there are. An `index` or a
+`count` below 0 counts as 0.
 
 ### Examples
 
@@ -93,7 +106,7 @@ a negative index or count is 0.
 Bytes.toList(bytes : Bytes) : List(Int)
 ```
 
-The octets, each from 0 to 255.
+The bytes in order, each an `Int` from 0 to 255.
 
 ## Bytes.fromList
 
@@ -101,7 +114,7 @@ The octets, each from 0 to 255.
 Bytes.fromList(octets : List(Int)) : Optional(Bytes)
 ```
 
-The `Bytes` of those octets, or `None` when one is outside 0 to 255.
+The `Bytes` of those numbers, or `None` where one is outside 0 to 255.
 
 ### Examples
 
@@ -116,7 +129,7 @@ Bytes.fromList([256])
 Bytes.contains(bytes : Bytes, part : Bytes) : Bool
 ```
 
-`true` when the second occurs in the first; an empty second always does.
+`true` when `part` occurs somewhere in `bytes`. An empty `part` always does.
 
 ### Examples
 
@@ -131,8 +144,8 @@ Bytes.contains(bytes : Bytes, part : Bytes) : Bool
 Bytes.indexOf(bytes : Bytes, part : Bytes) : Optional(Int)
 ```
 
-Where the second begins in the first, the first place it does, and
-`None` where it is not there. An empty second is at 0.
+The index at which `part` first begins in `bytes`, or `None` where it is not
+there. An empty `part` is at 0.
 
 ### Examples
 
@@ -147,8 +160,8 @@ Where the second begins in the first, the first place it does, and
 Bytes.lastIndexOf(bytes : Bytes, part : Bytes) : Optional(Int)
 ```
 
-Where the second begins in the first, the last place it does, and
-`None` where it is not there. An empty second is at the end.
+The index at which `part` last begins in `bytes`, or `None` where it is not
+there. An empty `part` is at the end, the size of `bytes`.
 
 ### Examples
 
@@ -163,7 +176,7 @@ Where the second begins in the first, the last place it does, and
 Bytes.startsWith(bytes : Bytes, prefix : Bytes) : Bool
 ```
 
-`true` when the first begins with the second, and for an empty second.
+`true` when `bytes` begins with `prefix`, and always for an empty `prefix`.
 
 ### Examples
 
@@ -178,7 +191,7 @@ Bytes.startsWith(bytes : Bytes, prefix : Bytes) : Bool
 Bytes.endsWith(bytes : Bytes, suffix : Bytes) : Bool
 ```
 
-`true` when the first ends with the second, and for an empty second.
+`true` when `bytes` ends with `suffix`, and always for an empty `suffix`.
 
 ### Examples
 
@@ -193,8 +206,8 @@ Bytes.endsWith(<<1, 2, 3>>, <<3>>)
 Bytes.split(bytes : Bytes, separator : Bytes) : List(Bytes)
 ```
 
-The parts between the occurrences of the second, the empty parts
-included; an empty second gives the first alone.
+The parts of `bytes` between the occurrences of `separator`, empty parts
+included. An empty `separator` gives `[bytes]`.
 
 ### Examples
 
@@ -209,8 +222,8 @@ Bytes.split(<<1, 0, 0, 2>>, <<0>>)
 Bytes.replace(bytes : Bytes, old : Bytes, new : Bytes) : Bytes
 ```
 
-Every occurrence of the second replaced by the third, the first
-occurrence first; an empty second changes nothing.
+`bytes` with each occurrence of `old` replaced by `new`, found from the left
+without overlaps. An empty `old` changes nothing.
 
 ### Examples
 
@@ -225,7 +238,7 @@ Bytes.replace(<<1, 0, 2, 0>>, <<0>>, <<9, 9>>)
 Bytes.join(parts : List(Bytes), separator : Bytes) : Bytes
 ```
 
-The parts with the second between them.
+The parts joined, with `separator` between each two.
 
 ### Examples
 
@@ -240,7 +253,7 @@ Bytes.join([<<1>>, <<2>>], <<0>>)
 Bytes.repeat(bytes : Bytes, count : Int) : Bytes
 ```
 
-The octets `count` times; `count` below 0 gives the empty `Bytes`.
+`bytes` repeated `count` times. A `count` below 1 gives the empty `Bytes`.
 
 ### Examples
 
@@ -255,8 +268,8 @@ Bytes.repeat(<<1, 2>>, 2)
 Bytes.toHex(bytes : Bytes) : String
 ```
 
-Each octet as two hexadecimal digits, with upper-case letters as
-`Int.toStringBase` writes them.
+Each byte as two hexadecimal digits, letters in upper case: `<<255, 1>>` is
+`"FF01"`.
 
 ### Examples
 
@@ -271,8 +284,8 @@ Bytes.toHex(<<0, 171, 255>>)
 Bytes.fromHex(text : String) : Optional(Bytes)
 ```
 
-The octets two hexadecimal digits write each, in either case, or `None`
-for an odd number of digits or a character that is none.
+The bytes that `text` writes two hexadecimal digits each, letters in either
+case, or `None` for an odd number of digits or a character that is no digit.
 
 ### Examples
 
@@ -283,4 +296,4 @@ for an odd number of digits or a character that is none.
 
 ---
 
-Generated by ern 0.3.0 from bytes.ern.
+Generated by ern 0.3.1 from bytes.ern.

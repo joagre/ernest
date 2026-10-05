@@ -2,34 +2,47 @@
 
 *Since 0.3.0.*
 
-Operations on `Set(a)`, a finite set of elements in the order of their
-type's `compare` (report §3.10). A function that needs the order says
-so, `needs a.compare` (report §4.9): a call writes nothing for it,
-the compiler supplies the element type's `compare` where it is
-known, and a generic function that calls one declares the
-requirement itself.
-`fromList`, `contains`, `put`, `remove`, `union`, `intersection`,
-`difference` and `isSubset` need it, and `map` and `filterMap` need
-their result's; the rest need none. Two elements the order calls
-`Equal` are one element, and `put` keeps the one already there. A
-set is data: `==` is structural, a set keys a `Map`, and a set is
-sent to another node. The order of `toList`, `foldLeft`, `foreach`,
-`find`, `min` and `max`, and the order in which `map`, `filter`,
-`filterMap`, `any` and `all` meet the elements, is the set's. A set
-in another order is a set of another type, `type Descending =
-Descending(Int)` with its own `compare`, and the two cannot meet. The
-set is a sorted list: `put`, `contains` and `remove` are linear in
-the size, `fromList` is a sort, `n log n`, and `union`,
-`intersection`, `difference` and `isSubset` are linear in the two
-sizes. Nothing is a primitive: the module is
-written over `List`.
+Sets whose elements are kept in order, the order of their type's `compare`.
+
+Use an ordered set where the elements must come out in order, or where the
+smallest or the largest is wanted. Where the order does not matter, the
+prelude's `Set` serves. An ordered set is a value: `put` and `remove` answer
+a new set and leave the one given as it was.
+
+**The order.** A function that needs the order says so, `needs a.compare`
+(report §4.9). A call writes nothing for it: the compiler supplies the
+element type's `compare` where the type is known, and a generic function
+that calls one declares the requirement itself. `fromList`, `contains`,
+`put`, `remove`, `union`, `intersection`, `difference` and `isSubset` need
+it, and `map` and `filterMap` need their result's; the rest need none.
+
+**Equal is one.** Two elements the order calls `Equal` are one element, and
+`put` keeps the one already there.
+
+**Everything in order.** `toList`, `foldLeft`, `foreach`, `find`, `min` and
+`max` go in the set's order, and `map`, `filter`, `filterMap`, `any` and
+`all` meet the elements in it. A set in another order is a set of another
+type, `type Descending = Descending(Int)` with its own `compare`, and the
+two cannot meet.
+
+**What it costs.** The set is a sorted list, written over `List` with no
+primitive. `put`, `contains` and `remove` take time linear in the size,
+`fromList` is a sort, `n log n`, and `union`, `intersection`, `difference`
+and `isSubset` are linear in the two sizes.
+
+A set is data: `==` is structural, a set keys a `Map`, and a set can be sent
+to another node (report §3.10).
 
 ## Examples
+
+Each element once, in order:
 
 ```ernest
 OrderedSet.toList(OrderedSet.fromList([3, 1, 3]))
 // => [1, 3]
 ```
+
+Two sets of the same elements are equal, whatever order they were made in:
 
 ```ernest
 OrderedSet.fromList([2, 1]) == OrderedSet.fromList([1, 2])
@@ -101,7 +114,7 @@ OrderedSet.isEmpty(OrderedSet.Set(a!)) : Bool
 OrderedSet.contains(OrderedSet.Set(a!), element : a!) : Bool needs a.compare
 ```
 
-`true` when an element the order calls `Equal` to it is in the set.
+`true` when an element the order calls `Equal` to `element` is in the set.
 
 ### Examples
 
@@ -116,8 +129,8 @@ OrderedSet.contains(OrderedSet.fromList([1, 3]), 3)
 OrderedSet.put(OrderedSet.Set(a!), element : a!) : OrderedSet.Set(a!) needs a.compare
 ```
 
-The set with that element; one already there, by the order, is kept
-and the given one dropped.
+The set with `element`. Where the order calls an element already there
+`Equal` to it, that one is kept and `element` dropped.
 
 ### Examples
 
@@ -132,7 +145,7 @@ OrderedSet.toList(OrderedSet.put(OrderedSet.fromList([1, 3]), 2))
 OrderedSet.remove(OrderedSet.Set(a!), element : a!) : OrderedSet.Set(a!) needs a.compare
 ```
 
-The set without the element the order calls `Equal` to it, which need
+The set without the element the order calls `Equal` to `element`, which need
 not be there.
 
 ### Examples
@@ -148,9 +161,9 @@ OrderedSet.toList(OrderedSet.remove(OrderedSet.fromList([1, 2]), 1))
 OrderedSet.map(OrderedSet.Set(a), f : (a) -> b! with e) : OrderedSet.Set(b!) with e needs b.compare
 ```
 
-The function applied to each element, in order, into a set of the
-results' type; two results that type's order calls `Equal` become one,
-so the result may be smaller.
+The set of `f`'s result for each element, met in order, in the order of the
+results' type. Two results that order calls `Equal` become one, so the
+result may be smaller.
 
 ### Examples
 
@@ -165,7 +178,7 @@ OrderedSet.toList(OrderedSet.map(OrderedSet.fromList([2, 1]), fn(n) = n * 10))
 OrderedSet.filter(OrderedSet.Set(a!), keep : (a!) -> Bool with e) : OrderedSet.Set(a!) with e
 ```
 
-The elements the predicate holds for, in order.
+The elements `keep` holds for, in order.
 
 ### Examples
 
@@ -180,7 +193,7 @@ OrderedSet.toList(OrderedSet.filter(OrderedSet.fromList([1, 2, 3]), fn(n) = n > 
 OrderedSet.filterMap(OrderedSet.Set(a), f : (a) -> Optional(b!) with e) : OrderedSet.Set(b!) with e needs b.compare
 ```
 
-The values of the `Some` results, into a set of their type.
+The values of `f`'s `Some` results, as a set in the order of their type.
 
 ### Examples
 
@@ -195,8 +208,8 @@ OrderedSet.toList(OrderedSet.filterMap(OrderedSet.fromList(["1", "x"]), String.t
 OrderedSet.foldLeft(OrderedSet.Set(a), acc : b, step : (b, a) -> b with e) : b with e
 ```
 
-The accumulator after the function has seen each element in order, the
-accumulator first.
+The accumulator after `step` has seen each element in order, the accumulator
+first.
 
 ### Examples
 
@@ -211,7 +224,7 @@ OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, Int.+)
 OrderedSet.foreach(OrderedSet.Set(a), f : (a) -> Unit with e) : Unit with e
 ```
 
-The function applied to each element in order for its effect.
+Applies `f` to each element in order, for its effect.
 
 ### Examples
 
@@ -226,7 +239,7 @@ OrderedSet.foreach(OrderedSet.fromList(["a"]), Io.println)
 OrderedSet.any(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Bool with e
 ```
 
-`true` when the predicate holds for some element.
+`true` when `test` holds for some element.
 
 ### Examples
 
@@ -242,8 +255,8 @@ OrderedSet.any(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Bool with e
 OrderedSet.all(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Bool with e
 ```
 
-`true` when the predicate holds for every element, and for the set with
-no elements.
+`true` when `test` holds for every element, and for the set with no
+elements.
 
 ## OrderedSet.find
 
@@ -251,7 +264,7 @@ no elements.
 OrderedSet.find(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Optional(a!) with e
 ```
 
-The first element in order the predicate holds for.
+The first element in order that `test` holds for.
 
 ### Examples
 
@@ -328,7 +341,7 @@ OrderedSet.toList(OrderedSet.intersection(OrderedSet.fromList([1, 2]),
 OrderedSet.difference(OrderedSet.Set(a!), OrderedSet.Set(a!)) : OrderedSet.Set(a!) needs a.compare
 ```
 
-The elements of the first that are not in the second.
+The elements of the first set that are not in the second.
 
 ### Examples
 
@@ -344,7 +357,7 @@ OrderedSet.toList(OrderedSet.difference(OrderedSet.fromList([1, 2]),
 OrderedSet.isSubset(OrderedSet.Set(a!), OrderedSet.Set(a!)) : Bool needs a.compare
 ```
 
-`true` when every element of the first is in the second.
+`true` when every element of the first set is in the second.
 
 ### Examples
 
@@ -355,4 +368,4 @@ OrderedSet.isSubset(OrderedSet.fromList([1]), OrderedSet.fromList([1, 2]))
 
 ---
 
-Generated by ern 0.3.0 from ordered_set.ern.
+Generated by ern 0.3.1 from ordered_set.ern.

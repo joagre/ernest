@@ -147,7 +147,7 @@ Each option, the jobs that take it, and the section that says what it does:
 - `--man`, of `ern doc`: a manual page written instead (§11.4).
 - `--short-errors`, of `ern build`, `ern doc` and `ern format`: each diagnostic's first line alone (§11.5).
 - `--source-root src-root`, of `ern build` and `ern doc`: the source root (§11.1); of `ern shell`, where the shell finds a module's source (§11.2).
-- `--version`, alone: `ern` and the toolchain's version, `ern 0.3.0`, written to standard output.
+- `--version`, alone: `ern` and the toolchain's version, `ern 0.3.1`, written to standard output.
 
 A `--load-path`, a `--source-root`, and a `--config-dir` of any job but `ern config` name a directory that is there; one that names none is refused with the directory and the option, `nonexist: no such directory, which --load-path names`.
 

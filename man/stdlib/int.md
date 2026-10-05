@@ -2,16 +2,26 @@
 
 *Since 0.1.0.*
 
-Operations on `Int`, the integers of arbitrary precision (report §3.1).
-The arithmetic and the ordering are the prelude's (report §9.6); this
-module provides them with the rest.
+Integers of any size.
+
+An `Int` never overflows: arithmetic on it is exact however large the
+numbers grow. Use a `Float` for fractions and measurements.
+
+The operators, `+`, `-`, `*`, `/`, `%` and the comparisons, are this
+module's, and the language calls them for an `Int`. `/` and `%` fault on a
+divisor of 0; `div` and `rem` answer `None` instead.
 
 ## Examples
+
+The larger of `abs(-7)` and 3, as text:
 
 ```ernest
 Int.toString(Int.max(Int.abs(-7), 3))
 // => "7"
 ```
+
+`div` rounds toward zero and `rem` takes the sign of the dividend; a
+division by zero is `None`:
 
 ```ernest
 #(Int.div(-7, 3), Int.rem(-7, 3), Int.div(1, 0))
@@ -56,7 +66,8 @@ The quotient, truncated toward zero: `-7 / 3` is `-2`.
 
 ### Errors
 
-Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.div` does not.
+Faults where `divisor` is 0, with the cause `division by zero`. `Int.div`
+answers `None` instead.
 
 ## Int.%
 
@@ -68,7 +79,8 @@ The remainder of `/`, with the sign of `dividend`: `-7 % 3` is `-1`.
 
 ### Errors
 
-Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.rem` does not.
+Faults where `divisor` is 0, with the cause `division by zero`. `Int.rem`
+answers `None` instead.
 
 ## Int.negate
 
@@ -76,7 +88,7 @@ Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.rem` does no
 Int.negate(int : Int) : Int
 ```
 
-`-int`, which prefix `-` calls.
+`-int`, which a prefix `-` calls.
 
 ### Examples
 
@@ -91,8 +103,7 @@ Int.negate(5)
 Int.div(dividend : Int, divisor : Int) : Optional(Int)
 ```
 
-`dividend / divisor`, truncated toward zero, or `None` when `divisor` is
-`0`.
+`dividend / divisor`, truncated toward zero, or `None` where `divisor` is 0.
 
 ## Int.rem
 
@@ -100,8 +111,8 @@ Int.div(dividend : Int, divisor : Int) : Optional(Int)
 Int.rem(dividend : Int, divisor : Int) : Optional(Int)
 ```
 
-`dividend % divisor`, the remainder with the sign of `dividend`, or
-`None` when `divisor` is `0`.
+`dividend % divisor`, the remainder with the sign of `dividend`, or `None`
+where `divisor` is 0.
 
 ## Int.compare
 
@@ -109,7 +120,7 @@ Int.rem(dividend : Int, divisor : Int) : Optional(Int)
 Int.compare(left : Int, right : Int) : Ordering
 ```
 
-The numeric order, which `<` and the other comparisons use.
+Compares two integers by size, the order `<` and the other comparisons use.
 
 ### Examples
 
@@ -124,7 +135,7 @@ Int.compare(1, 2)
 Int.abs(int : Int) : Int
 ```
 
-The magnitude.
+The absolute value: `abs(-3)` is `3`.
 
 ## Int.min
 
@@ -132,7 +143,7 @@ The magnitude.
 Int.min(left : Int, right : Int) : Int
 ```
 
-The smaller.
+The smaller of the two.
 
 ### Examples
 
@@ -147,7 +158,7 @@ Int.min(1, 2)
 Int.max(left : Int, right : Int) : Int
 ```
 
-The larger.
+The larger of the two.
 
 ## Int.bitAnd
 
@@ -155,7 +166,7 @@ The larger.
 Int.bitAnd(left : Int, right : Int) : Int
 ```
 
-Bitwise and, on the two's complement form.
+The bitwise and of the two, each taken as its two's complement form.
 
 ### Examples
 
@@ -170,7 +181,7 @@ Bitwise and, on the two's complement form.
 Int.bitOr(left : Int, right : Int) : Int
 ```
 
-Bitwise or, on the two's complement form.
+The bitwise or of the two, each taken as its two's complement form.
 
 ## Int.bitXor
 
@@ -178,7 +189,8 @@ Bitwise or, on the two's complement form.
 Int.bitXor(left : Int, right : Int) : Int
 ```
 
-Bitwise exclusive or, on the two's complement form.
+The bitwise exclusive or of the two, each taken as its two's complement
+form.
 
 ## Int.bitNot
 
@@ -186,7 +198,7 @@ Bitwise exclusive or, on the two's complement form.
 Int.bitNot(int : Int) : Int
 ```
 
-Bitwise complement, on the two's complement form.
+Each bit of the two's complement form flipped, which is `-int - 1`.
 
 ### Examples
 
@@ -201,13 +213,13 @@ Bitwise complement, on the two's complement form.
 Int.shiftLeft(int : Int, count : Int) : Int
 ```
 
-`int` shifted left by `count` bits: `int` times two to the power `count`; a
-count below 0 is none.
+`int` shifted left by `count` bits, which is `int` times two to the power
+`count`. A `count` below 0 shifts nothing.
 
 ### Errors
 
-A result beyond the host's integers faults the caller with
-`Fault("error:system_limit")`, a limit of the host met (report §7.4).
+Faults where the result is larger than the host can hold, with the cause
+`error:system_limit`.
 
 ### Examples
 
@@ -222,9 +234,8 @@ A result beyond the host's integers faults the caller with
 Int.shiftRight(int : Int, count : Int) : Int
 ```
 
-`int` shifted right by `count` bits, the sign kept: `int` divided by two to
-the power `count`, rounded toward negative infinity; a count below 0 is
-none.
+`int` shifted right by `count` bits, the sign kept, which is `int` divided
+by two to the power `count`, rounded down. A `count` below 0 shifts nothing.
 
 ## Int.toString
 
@@ -232,7 +243,7 @@ none.
 Int.toString(int : Int) : String
 ```
 
-The decimal form, with a leading `-` when negative.
+The decimal digits of `int`, with a leading `-` where it is negative.
 
 ## Int.pow
 
@@ -240,8 +251,8 @@ The decimal form, with a leading `-` when negative.
 Int.pow(base : Int, exponent : Int) : Optional(Int)
 ```
 
-`base` raised to `exponent`, exactly, or `None` when the exponent is
-negative, since that is not an `Int`.
+`base` raised to `exponent`, exactly, or `None` where `exponent` is
+negative, whose result is no integer.
 
 ### Examples
 
@@ -256,8 +267,8 @@ negative, since that is not an `Int`.
 Int.toStringBase(int : Int, base : Int) : Optional(String)
 ```
 
-The digits of `int` in that base, 2 to 36, letters upper case, with a
-leading `-` when negative; `None` outside those bases.
+The digits of `int` in `base`, 2 to 36, letters in upper case, with a
+leading `-` where it is negative, or `None` for a base outside 2 to 36.
 
 ### Examples
 
@@ -272,12 +283,13 @@ leading `-` when negative; `None` outside those bases.
 Int.toFloat(int : Int) : Float
 ```
 
-The nearest `Float`, ties to even.
+The `Float` nearest to `int`, a tie to the even one. A large integer loses
+its low digits, since a `Float` holds about sixteen.
 
 ### Errors
 
-Faults with `Fault("Int out of Float range")` beyond the largest finite
-`Float` (report §3.1).
+Faults where `int` is beyond the largest finite `Float`, with the cause `Int
+out of Float range`.
 
 ### Examples
 
@@ -288,4 +300,4 @@ Int.toFloat(7)
 
 ---
 
-Generated by ern 0.3.0 from int.ern.
+Generated by ern 0.3.1 from int.ern.

@@ -2,19 +2,41 @@
 
 *Since 0.1.0.*
 
-The file system through its system process, which reaches it
-(report §8.2). Every function answers `Right` with what it read or did,
-or `Left` with an `Io.Error`; the last argument is how many milliseconds
-to wait, and a slower answer than that is `Left(Io.Timeout)`, which does
-not undo the request: a write, a rename or a removal may still take
-place. A path is a `Path`, which `Path` builds and takes apart; a
-relative one names a file under `Os.workingDirectory`, and one that
-holds U+0000 names none, `Left(Io.Invalid)`. A name that is not UTF-8
-makes `list` answer `Left(Io.NotUtf8(name))`. `Io.Other` holds the host's
-description of a reason it has no constructor for, `"illegal operation
-on a directory"` or `"not a directory"` (report Appendix E.1).
+Files and directories.
+
+Every function asks the runtime's file system process and waits for its
+answer, so every function has one shape:
+
+- It answers `Right` with what it read or did, or `Left` with an
+  `Io.Error` that says why not, `Left(Io.NotFound)` for a file that is
+  not there.
+- Its last argument is how many milliseconds to wait. An answer that
+  takes longer is `Left(Io.Timeout)`.
+
+A timeout does not undo the request: a write, a rename or a removal
+that answered `Left(Io.Timeout)` may still take place.
+
+A file is named by a `Path`, which the module `Path` builds and takes
+apart. A relative path names a file under `Os.workingDirectory`, the
+directory the program was started in.
+
+`read`, `readRange`, `write` and `copy` work on regular files. For a
+directory, a named pipe, a device or a socket they answer
+`Left(Io.NotAFile)`.
+
+A function follows symbolic links, but not in a path's last name where
+the function is about the link itself: `list` describes a link as a
+`Link`, and `remove`, `rename` and `readLink` act on the link.
+
+Three answers are seldom met. A path that holds U+0000 names no file,
+and is `Left(Io.Invalid)`. A name that is not UTF-8 makes `list` answer
+`Left(Io.NotUtf8(name))`. `Io.Other(text)` holds the host's own words
+for a reason that has no constructor, `"not a directory"`.
 
 ## Examples
+
+A text written to a file and read back, waiting at most five seconds
+for each:
 
 ```ernest
 {
@@ -23,6 +45,8 @@ on a directory"` or `"not a directory"` (report Appendix E.1).
 }
 // => Right(Some("hello"))
 ```
+
+A file that is not there:
 
 ```ernest
 Fs.read(Path("no-such-file"), 5000)
@@ -86,7 +110,9 @@ Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File, mode = 0o644
 Fs.read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m+
 ```
 
-The file's octets.
+The whole file, as its bytes. A file that is not there is
+`Left(Io.NotFound)`. Text is decoded with `String.fromUtf8`, and a file
+too large to hold whole is read a part at a time with `readRange`.
 
 ## Fs.readRange
 
@@ -94,10 +120,11 @@ The file's octets.
 Fs.readRange(path : Path, offset : Int, count : Int, ms : Int) : Either(Io.Error, Bytes) with m+
 ```
 
-Up to `count` octets of the file from `offset`, fewer at its end and
-none past it, the rest of the file never held: how a file too large to
-hold whole is read, a part at a time. An offset or a count below 0 is
-none (report §7.4).
+Up to `count` bytes of the file, starting `offset` bytes from its
+start. Near the end of the file the answer holds fewer, and past the end
+it is empty. Only the part asked for is held, which is how a file too
+large to hold whole is read, a part at a time. An offset or a count
+below 0 counts as 0.
 
 ### Examples
 
@@ -117,7 +144,10 @@ none (report §7.4).
 Fs.write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Writes the octets, creating the file or replacing what it held.
+Writes the bytes as the whole of the file. A file that is not there is
+created, and one that is there loses what it held. The directory must be
+there, and `makeDir` makes it; where it is not, the answer is
+`Left(Io.NotFound)`.
 
 ## Fs.append
 
@@ -125,8 +155,8 @@ Writes the octets, creating the file or replacing what it held.
 Fs.append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Writes the octets after what the file holds, creating it when it is not
-there.
+Writes the bytes after what the file holds. A file that is not there is
+created.
 
 ### Examples
 
@@ -177,8 +207,9 @@ a link is a `Link`, whatever it leads to.
 Fs.stat(path : Path, ms : Int) : Either(Io.Error, Entry) with m+
 ```
 
-What the path leads to, its links followed: its size, its modification
-time, and its kind.
+What the path leads to, as an `Entry`: its kind, its size, its
+modification time, its permission bits and its user. Links are followed,
+so the entry is of what a link leads to; `list` describes a link itself.
 
 ### Examples
 
@@ -196,8 +227,8 @@ time, and its kind.
 Fs.makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Makes the directory and any parent it needs; a directory already there
-is not an error.
+Makes the directory, and any directory above it that is not there. A
+directory that is already there is not an error.
 
 ## Fs.remove
 
@@ -225,7 +256,8 @@ what it leads to.
 Fs.rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Renames the first path to the second.
+Renames what the first path names to the second path. A link is renamed
+itself, not what it leads to.
 
 ### Examples
 
@@ -244,8 +276,10 @@ Renames the first path to the second.
 Fs.copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Copies the file at the first path to the second, replacing what is
-there.
+Copies the regular file at the first path to the second. A file already
+at the second path is replaced and keeps its permission bits. A new one
+takes the first file's, less the bits the program's file mode mask
+takes away.
 
 ### Examples
 
@@ -425,4 +459,4 @@ bit `0o1000`, which the host does not write, is `Left(Invalid)`.
 
 ---
 
-Generated by ern 0.3.0 from fs.ern.
+Generated by ern 0.3.1 from fs.ern.

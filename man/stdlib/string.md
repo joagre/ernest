@@ -2,25 +2,41 @@
 
 *Since 0.1.0.*
 
-Operations on `String`, a Unicode string (report §3.1). A `String` is
-a container read through `toList`, which gives its `Char`s. `size`,
-`slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
-index in graphemes, extended grapheme clusters, each what a reader sees
-as one letter; `toList` and `fromList` are `Char`s, one scalar value
-each. Every search matches whole graphemes, so
-`String.contains("e\u{301}", "e")` is `false` (report Appendix E.5).
+Text: Unicode strings, held as UTF-8.
+
+Use a `String` for text a person reads or writes. For the bytes of a file or
+a socket use `Bytes`, and convert with `toUtf8` and `fromUtf8`. A string is
+a value: every function here answers a new string and leaves the one it was
+given as it was.
+
+**Letters, not bytes.** A string is counted and indexed in graphemes, each
+what a reader sees as one letter. `size`, `slice`, `indexOf`, `lastIndexOf`,
+`padStart` and `padEnd` count graphemes, so `"é"` has size 1 whether its
+accent is a letter of its own or a mark after an `e`. Every search matches
+whole graphemes: `String.contains("e\u{301}", "e")` is `false`, since the
+`e` there is part of a larger letter (report Appendix E.5).
+
+**Chars.** `toList` gives the string's `Char`s, one Unicode scalar value
+each, and `fromList` builds a string from them. A grapheme may be several
+`Char`s, and `graphemes` gives the graphemes themselves.
 
 ## Examples
+
+Text split, each part in upper case, and joined again:
 
 ```ernest
 String.join(List.map(String.split("a,b", ","), String.toUpper), "-")
 // => "A-B"
 ```
 
+Three characters from index 1:
+
 ```ernest
 String.slice("hello", 1, 3)
 // => "ell"
 ```
+
+A number read from text:
 
 ```ernest
 String.toInt("-12")
@@ -38,7 +54,7 @@ String.toInt("-12")
 String.<>(left : String, right : String) : String
 ```
 
-The first, then the second.
+The first string, then the second.
 
 ## String.size
 
@@ -46,9 +62,9 @@ The first, then the second.
 String.size(text : String) : Int
 ```
 
-The number of graphemes, extended grapheme clusters, which is neither
-the number of octets nor the number of `Char`s: `e` with a combining
-acute is one grapheme of two `Char`s.
+The number of graphemes, what a reader counts as letters. It is neither the
+number of bytes nor the number of `Char`s: `e` with a combining accent is
+one grapheme of two `Char`s.
 
 ### Examples
 
@@ -68,8 +84,8 @@ acute is one grapheme of two `Char`s.
 String.graphemes(text : String) : List(String)
 ```
 
-The graphemes in order, each a `String`: what a reader sees as one
-letter, where `toList` gives the `Char`s.
+The graphemes in order, each a `String`: what a reader sees as one letter,
+where `toList` gives the `Char`s.
 
 ### Examples
 
@@ -89,7 +105,7 @@ String.graphemes("a中!")
 String.isEmpty(text : String) : Bool
 ```
 
-`true` for the empty string.
+`true` for the empty string, `""`.
 
 ## String.compare
 
@@ -97,7 +113,9 @@ String.isEmpty(text : String) : Bool
 String.compare(left : String, right : String) : Ordering
 ```
 
-The order of the code points, which `<` and the other comparisons use.
+Compares two strings by their code points, which `<` and the other
+comparisons on strings use. It is not alphabetical order in any language:
+every capital letter of ASCII comes before every small one, so `"Z" < "a"`.
 
 ### Examples
 
@@ -112,8 +130,8 @@ String.compare("a", "b")
 String.contains(text : String, part : String) : Bool
 ```
 
-`true` when the second is somewhere in the first, as whole graphemes; an
-empty second is always there.
+`true` when `part` stands somewhere in `text`, as whole graphemes. An empty
+`part` is always there.
 
 ### Examples
 
@@ -133,8 +151,8 @@ String.contains("e\u{301}", "e")
 String.indexOf(text : String, part : String) : Optional(Int)
 ```
 
-Where the second begins in the first, and `None` where it is not
-there. An empty second is at 0.
+The index, in graphemes, at which `part` first begins in `text`, or `None`
+where it is not there. An empty `part` is at 0.
 
 ### Examples
 
@@ -149,8 +167,8 @@ there. An empty second is at 0.
 String.lastIndexOf(text : String, part : String) : Optional(Int)
 ```
 
-Where the second begins last in the first, and `None` where it is not
-there. An empty second is at the first's size.
+The index, in graphemes, at which `part` last begins in `text`, or `None`
+where it is not there. An empty `part` is at the size of `text`.
 
 ### Examples
 
@@ -165,8 +183,8 @@ there. An empty second is at the first's size.
 String.startsWith(text : String, prefix : String) : Bool
 ```
 
-`true` when the string begins with the second, as whole graphemes, and
-for an empty second.
+`true` when `text` begins with `prefix`, as whole graphemes. Every string
+begins with the empty string.
 
 ### Examples
 
@@ -181,8 +199,8 @@ for an empty second.
 String.endsWith(text : String, suffix : String) : Bool
 ```
 
-`true` when the string ends with the second, as whole graphemes, and for
-an empty second.
+`true` when `text` ends with `suffix`, as whole graphemes. Every string ends
+with the empty string.
 
 ## String.replace
 
@@ -190,8 +208,9 @@ an empty second.
 String.replace(text : String, old : String, new : String) : String
 ```
 
-Every occurrence of the second replaced by the third; an empty second
-changes nothing.
+`text` with each occurrence of `old` replaced by `new`. Occurrences are
+found from the left and do not overlap, so `replace("aaa", "aa", "b")` is
+`"ba"`. An empty `old` changes nothing.
 
 ### Examples
 
@@ -206,8 +225,8 @@ String.replace("a-b-c", "-", "+")
 String.slice(text : String, index : Int, count : Int) : String
 ```
 
-From the index, that many graphemes, clipped to what is there; a
-negative index starts at the beginning, and a negative count gives the
+The `count` graphemes of `text` from `index`, or as many as there are. An
+`index` below 0 starts at the beginning, and a `count` below 1 gives the
 empty string.
 
 ### Examples
@@ -223,10 +242,10 @@ empty string.
 String.padStart(text : String, count : Int, pad : String) : String
 ```
 
-The pad's copies in front until the text has that many graphemes, the
-last copy cut to fit; an empty pad adds none. A pad that begins no
-grapheme, a combining mark, joins the grapheme beside it, and the text
-stays short.
+`text` with copies of `pad` put in front until it has `count` graphemes, the
+last copy cut to fit. A text that already has `count` or more is answered as
+it is, and an empty `pad` adds nothing. A `pad` that begins with a combining
+mark joins the grapheme beside it, and the text stays short.
 
 ### Examples
 
@@ -246,8 +265,8 @@ String.size(String.padStart("ab", 4, "\u{301}"))
 String.padEnd(text : String, count : Int, pad : String) : String
 ```
 
-The pad's copies at the end until the text has that many graphemes, as
-`padStart` puts them in front.
+`text` with copies of `pad` put at its end until it has `count` graphemes,
+as `padStart` puts them in front.
 
 ## String.repeat
 
@@ -255,7 +274,7 @@ The pad's copies at the end until the text has that many graphemes, as
 String.repeat(text : String, count : Int) : String
 ```
 
-The string `count` times; `count` below 0 gives the empty string.
+`text` repeated `count` times. A `count` below 1 gives the empty string.
 
 ### Examples
 
@@ -270,9 +289,9 @@ String.repeat("ab", 3)
 String.trim(text : String) : String
 ```
 
-Without leading and trailing whitespace: the graphemes whose first code
-point is White_Space, as `Char.isSpace` says. It is `trimStart` then
-`trimEnd`, a pair the library keeps named (report Appendix E.0 rule 4).
+`text` without whitespace at its start and its end. Whitespace is the
+graphemes whose first code point is Unicode White_Space, as `Char.isSpace`
+says: spaces, tabs, line ends and the like.
 
 ### Examples
 
@@ -292,7 +311,7 @@ String.trim("\u{a0}a\u{3000}")
 String.trimStart(text : String) : String
 ```
 
-Without leading whitespace, as `trim` has it.
+`text` without whitespace at its start, whitespace as `trim` has it.
 
 ### Examples
 
@@ -307,7 +326,7 @@ Without leading whitespace, as `trim` has it.
 String.trimEnd(text : String) : String
 ```
 
-Without trailing whitespace, as `trim` has it.
+`text` without whitespace at its end, whitespace as `trim` has it.
 
 ## String.toLower
 
@@ -315,7 +334,8 @@ Without trailing whitespace, as `trim` has it.
 String.toLower(text : String) : String
 ```
 
-The lower-case form, by Unicode.
+`text` in lower case, by Unicode's rules, which may change its size: one
+letter may become two.
 
 ### Examples
 
@@ -330,7 +350,8 @@ The lower-case form, by Unicode.
 String.toUpper(text : String) : String
 ```
 
-The upper-case form, by Unicode.
+`text` in upper case, by Unicode's rules, which may change its size: `"ß"`
+becomes `"SS"`.
 
 ## String.lines
 
@@ -338,9 +359,9 @@ The upper-case form, by Unicode.
 String.lines(text : String) : List(String)
 ```
 
-The lines, split at each line feed and at each carriage return with a
-line feed, which is one grapheme; a line's end at the end adds no empty
-line, and `""` has no lines.
+The lines of `text`, split at each line feed and at each carriage return
+followed by a line feed. A line end at the very end adds no empty line, and
+`""` has no lines.
 
 ### Examples
 
@@ -357,10 +378,9 @@ String.words(text : String) : List(String)
 
 *Since 0.2.0.*
 
-The words: the parts between runs of whitespace, the graphemes whose
-first code point is White_Space, as `trim` judges them, none of the
-parts empty. A grapheme is never split, so a combining mark after a
-space goes with the space.
+The words of `text`: the parts between runs of whitespace, whitespace as
+`trim` has it, none of them empty. A grapheme is never split, so a combining
+mark after a space goes with the space.
 
 ### Examples
 
@@ -380,8 +400,9 @@ String.words("a \u{301}b")
 String.split(text : String, separator : String) : List(String)
 ```
 
-The parts between the occurrences of the second, the empty parts
-included; an empty second gives the string alone.
+The parts of `text` between the occurrences of `separator`, empty parts
+included: `"a,,b"` split at `","` is `["a", "", "b"]`. An empty `separator`
+gives `[text]`, and so does a text without one.
 
 ### Examples
 
@@ -396,7 +417,7 @@ String.split("a,,b", ",")
 String.join(parts : List(String), separator : String) : String
 ```
 
-The parts with the second between them.
+The strings of `parts` joined, with `separator` between each two.
 
 ### Examples
 
@@ -411,8 +432,9 @@ String.join(["a", "b"], ", ")
 String.toInt(text : String) : Optional(Int)
 ```
 
-The digits 0 to 9 as an `Int`, with an optional leading `-`, or `None`
-for anything else.
+Reads `text` as a decimal integer. It answers `Some(n)` where `text` is
+digits with an optional leading `-`. Other text answers `None`, text with a
+space, a `+`, an `_` or a point among it.
 
 ### Examples
 
@@ -427,9 +449,10 @@ for anything else.
 String.toIntBase(text : String, base : Int) : Optional(Int)
 ```
 
-The digits and letters in that base, 2 to 36, in either case, with an
-optional leading `-`, or `None` for anything else, a leading `+` among
-it, and for a base outside those.
+Reads `text` as an integer in `base`, from 2 to 36. It answers `Some(n)`
+where `text` is digits and letters of the base, in either case, with an
+optional leading `-`. Other text answers `None`, a leading `+` among it, and
+so does a base outside 2 to 36.
 
 ### Examples
 
@@ -444,8 +467,8 @@ it, and for a base outside those.
 String.toBool(text : String) : Optional(Bool)
 ```
 
-`true` for `"true"` and `false` for `"false"`, or `None` for anything
-else; the inverse of `Bool.toString`.
+`Some(true)` for `"true"` and `Some(false)` for `"false"`, or `None` for any
+other text; the inverse of `Bool.toString`.
 
 ### Examples
 
@@ -460,10 +483,12 @@ else; the inverse of `Bool.toString`.
 String.toFloat(text : String) : Optional(Float)
 ```
 
-The float literal form of report §2.5 without `_`, with an optional
-leading `-`, as a `Float`, or `None` for anything else and for a value
-beyond the finite range of report §3.1; one below the smallest
-subnormal is the nearest `Float`, `0.0` among them.
+Reads `text` as a `Float`. It answers `Some(x)` where `text` is digits with
+a point and digits after it, `"2.5"`, with an exponent, `"1e10"`, or with
+both, and an optional leading `-`. A whole number, `"1"`, answers `None`, as
+do `"2."`, `".5"`, a `+` or an `_`, other text, and a value too large for a
+`Float`. A value too small to hold is the nearest `Float`, `0.0` among them
+(report §2.5, §3.1).
 
 ### Examples
 
@@ -478,7 +503,8 @@ subnormal is the nearest `Float`, `0.0` among them.
 String.toList(text : String) : List(Char)
 ```
 
-The code points, in order.
+The `Char`s of the string, its Unicode scalar values, in order. A grapheme
+may be several of them; `graphemes` gives the graphemes.
 
 ### Examples
 
@@ -493,7 +519,7 @@ String.fromList(List.filter(String.toList("a1b"), Char.isAlpha))
 String.fromList(chars : List(Char)) : String
 ```
 
-The string of those code points.
+The string of those `Char`s, in order.
 
 ## String.toUtf8
 
@@ -501,7 +527,7 @@ The string of those code points.
 String.toUtf8(text : String) : Bytes
 ```
 
-The UTF-8 octets of the string.
+The string's bytes, in UTF-8, as a file or a socket takes them.
 
 ### Examples
 
@@ -516,8 +542,8 @@ The UTF-8 octets of the string.
 String.fromUtf8(bytes : Bytes) : Optional(String)
 ```
 
-The string those octets spell, or `None` when they are not UTF-8.
+The string that `bytes` holds in UTF-8, or `None` where they are not UTF-8.
 
 ---
 
-Generated by ern 0.3.0 from string.ern.
+Generated by ern 0.3.1 from string.ern.

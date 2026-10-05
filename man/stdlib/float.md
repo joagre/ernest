@@ -2,19 +2,33 @@
 
 *Since 0.1.0.*
 
-Operations on `Float`, IEEE 754 double precision restricted to the
-finite range (report §3.1). The arithmetic and the ordering are the
-prelude's (report §9.6); this module provides them with the rest. No
-operation here returns an infinity or a NaN: one that would, faults,
-and one with no answer gives `None`. The module holds the operations of
-the type itself; mathematics over collections of floats is a library.
+Floating-point numbers, always finite.
+
+A `Float` is a double-precision number. Use it for measurements and
+fractions, and an `Int` for counts and anything that must be exact: `0.1 +
+0.2` is not `0.3` in floating point.
+
+**Always finite.** There is no infinity, no NaN and no negative zero. An
+operation whose result would be infinite or no number, an overflow or a
+division by zero, faults with the cause `float arithmetic error`. A function
+with no answer for an argument, the square root of a negative number,
+answers `None` instead (report §3.1).
+
+The operators, `+`, `-`, `*`, `/` and the comparisons, are this module's,
+and the language calls them for a `Float`. An `Int` and a `Float` do not
+mix: `Int.toFloat` and `round` convert between them.
 
 ## Examples
+
+An absolute value, doubled, as text:
 
 ```ernest
 Float.toString(Float.abs(-2.5) * 2.0)
 // => "5.0"
 ```
+
+Rounding: `round` takes a half to the even neighbour, `floor` goes down and
+`ceil` up:
 
 ```ernest
 #(Float.round(2.5), Float.round(3.5), Float.floor(-2.5), Float.ceil(-2.5))
@@ -35,8 +49,8 @@ The sum, rounded to the nearest `Float`.
 
 ### Errors
 
-Faults with `Fault("float arithmetic error")` when the result is not
-finite (report §3.1).
+Faults where the result is too large to be finite, with the cause `float
+arithmetic error`.
 
 ## Float.-
 
@@ -48,8 +62,8 @@ The difference, rounded to the nearest `Float`.
 
 ### Errors
 
-Faults with `Fault("float arithmetic error")` when the result is not
-finite (report §3.1).
+Faults where the result is too large to be finite, with the cause `float
+arithmetic error`.
 
 ## Float.*
 
@@ -61,8 +75,8 @@ The product, rounded to the nearest `Float`.
 
 ### Errors
 
-Faults with `Fault("float arithmetic error")` when the result is not
-finite (report §3.1).
+Faults where the result is too large to be finite, with the cause `float
+arithmetic error`.
 
 ## Float./
 
@@ -74,8 +88,8 @@ The quotient, rounded to the nearest `Float`.
 
 ### Errors
 
-Faults with `Fault("float arithmetic error")` when the result is not
-finite (report §3.1), which a divisor of `0.0` makes it.
+Faults where the result would not be finite, a `divisor` of 0.0 among them,
+with the cause `float arithmetic error`.
 
 ## Float.negate
 
@@ -83,7 +97,7 @@ finite (report §3.1), which a divisor of `0.0` makes it.
 Float.negate(float : Float) : Float
 ```
 
-`-float`, which prefix `-` calls.
+`-float`, which a prefix `-` calls.
 
 ### Examples
 
@@ -98,7 +112,7 @@ Float.negate(1.5)
 Float.compare(left : Float, right : Float) : Ordering
 ```
 
-The numeric order, which `<` and the other comparisons use.
+Compares two floats by size, the order `<` and the other comparisons use.
 
 ### Examples
 
@@ -113,7 +127,7 @@ Float.compare(2.0, 1.0)
 Float.abs(float : Float) : Float
 ```
 
-The magnitude.
+The absolute value: `abs(-1.5)` is `1.5`.
 
 ## Float.min
 
@@ -121,7 +135,7 @@ The magnitude.
 Float.min(left : Float, right : Float) : Float
 ```
 
-The smaller.
+The smaller of the two.
 
 ### Examples
 
@@ -136,7 +150,7 @@ The smaller.
 Float.max(left : Float, right : Float) : Float
 ```
 
-The larger.
+The larger of the two.
 
 ## Float.toString
 
@@ -145,9 +159,9 @@ Float.toString(float : Float) : String
 ```
 
 The shortest digits that read back as the same value, always with a
-fraction: `100.0`, not `100`. From 0.0001 to below 1.0e16 they are
-written plain; beyond, as one digit, the point, the rest, and the
-exponent, whose sign is written only when it is negative.
+fraction: `100.0`, not `100`. From 0.0001 to below 1.0e16 they are written
+plain, and beyond as one digit, the point, the rest and the exponent:
+`1.0e16`.
 
 ### Examples
 
@@ -162,7 +176,8 @@ exponent, whose sign is written only when it is negative.
 Float.round(float : Float) : Int
 ```
 
-The nearest `Int`, ties to even.
+The nearest `Int`, a tie to the even one: `round(2.5)` is `2` and
+`round(3.5)` is `4`.
 
 ## Float.truncate
 
@@ -170,7 +185,7 @@ The nearest `Int`, ties to even.
 Float.truncate(float : Float) : Int
 ```
 
-Toward zero, so `-2.7` gives `-2`.
+The `Int` toward zero: `-2.7` gives `-2`.
 
 ### Examples
 
@@ -185,7 +200,7 @@ Toward zero, so `-2.7` gives `-2`.
 Float.floor(float : Float) : Int
 ```
 
-The greatest `Int` not above `float`.
+The greatest `Int` not above `float`: `-2.7` gives `-3`.
 
 ### Examples
 
@@ -200,7 +215,7 @@ The greatest `Int` not above `float`.
 Float.ceil(float : Float) : Int
 ```
 
-The least `Int` not below `float`.
+The least `Int` not below `float`: `2.1` gives `3`.
 
 ### Examples
 
@@ -215,7 +230,7 @@ The least `Int` not below `float`.
 Float.sqrt(float : Float) : Optional(Float)
 ```
 
-The square root, or `None` below zero.
+The square root, or `None` for a number below zero.
 
 ### Examples
 
@@ -230,13 +245,13 @@ The square root, or `None` below zero.
 Float.pow(base : Float, exponent : Float) : Optional(Float)
 ```
 
-`base` raised to `exponent`, or `None` where no real number is: a
-negative base with a fractional exponent, and zero to a negative power.
+`base` raised to `exponent`, or `None` where the result is no real number: a
+negative base with a fractional exponent, or zero to a negative power.
 
 ### Errors
 
-Faults with `Fault("float arithmetic error")` when the result is too
-large to be finite, as `Float.exp` does (report §3.1).
+Faults where the result is too large to be finite, with the cause `float
+arithmetic error`.
 
 ### Examples
 
@@ -255,8 +270,8 @@ Float.exp(float : Float) : Float
 
 ### Errors
 
-Faults with `Fault("float arithmetic error")` when the result is not
-finite (report §3.1).
+Faults where the result is too large to be finite, with the cause `float
+arithmetic error`.
 
 ### Examples
 
@@ -271,7 +286,7 @@ Float.exp(0.0)
 Float.log(float : Float) : Optional(Float)
 ```
 
-The natural logarithm, or `None` at zero and below.
+The natural logarithm, or `None` for zero and below.
 
 ### Examples
 
@@ -288,8 +303,8 @@ Float.pi : Float
 
 *Since 0.2.0.*
 
-The ratio of a circle's circumference to its diameter, the nearest
-`Float` to it, a constant of the type (report Appendix E.0 rule 3).
+The ratio of a circle's circumference to its diameter, as the nearest
+`Float`.
 
 ### Examples
 
@@ -304,8 +319,8 @@ Float.cos(Float.pi)
 Float.sin(float : Float) : Float
 ```
 
-The sine of an angle in radians, as the other trigonometric functions
-take and give.
+The sine of an angle in radians. The other trigonometric functions take and
+give radians too.
 
 ### Examples
 
@@ -320,7 +335,7 @@ take and give.
 Float.cos(float : Float) : Float
 ```
 
-The cosine.
+The cosine of an angle in radians.
 
 ## Float.tan
 
@@ -328,7 +343,7 @@ The cosine.
 Float.tan(float : Float) : Float
 ```
 
-The tangent.
+The tangent of an angle in radians.
 
 ## Float.asin
 
@@ -336,7 +351,7 @@ The tangent.
 Float.asin(float : Float) : Optional(Float)
 ```
 
-The angle whose sine is `float`, or `None` outside -1.0 to 1.0.
+The angle, in radians, whose sine is `float`, or `None` outside -1.0 to 1.0.
 
 ### Examples
 
@@ -351,7 +366,8 @@ The angle whose sine is `float`, or `None` outside -1.0 to 1.0.
 Float.acos(float : Float) : Optional(Float)
 ```
 
-The angle whose cosine is `float`, or `None` outside -1.0 to 1.0.
+The angle, in radians, whose cosine is `float`, or `None` outside -1.0 to
+1.0.
 
 ## Float.atan
 
@@ -359,7 +375,7 @@ The angle whose cosine is `float`, or `None` outside -1.0 to 1.0.
 Float.atan(float : Float) : Float
 ```
 
-The angle whose tangent is `float`.
+The angle, in radians, whose tangent is `float`.
 
 ### Examples
 
@@ -374,8 +390,8 @@ Float.atan(0.0)
 Float.atan2(y : Float, x : Float) : Float
 ```
 
-The angle of the point `#(x, y)`, the `y` given first, which keeps the
-quadrant that `atan(y / x)` loses.
+The angle, in radians, of the point `#(x, y)`, `y` given first. It keeps the
+quadrant that `atan(y / x)` loses, and takes an `x` of 0.0.
 
 ### Examples
 
@@ -386,4 +402,4 @@ Float.atan2(0.0, 1.0)
 
 ---
 
-Generated by ern 0.3.0 from float.ern.
+Generated by ern 0.3.1 from float.ern.

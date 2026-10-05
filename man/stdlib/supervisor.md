@@ -2,27 +2,37 @@
 
 *Since 0.1.0.*
 
-A supervisor restarts a group of processes, its children, together
-(report Appendix E.22). `group(strategy, limit)` is the function a
-supervisor runs and `child(supervisor, f)` the function a child runs. The
-caller spawns each, as it spawns what `restarting` answers, so a fault
-line names the binding that holds the process (report §6.9) and a
-service binding reaches it (report §6.5).
+A group of processes, restarted together when one of them faults.
 
-A child restarts in place after a fault, as `restarting` does, and the
-strategy says which of its siblings restart with it. A sibling runs on
-until it next waits and restarts there, keeping its address, its mailbox
-emptied as every restart empties it (report §6.9). The child that
-faulted runs again once each of those siblings has restarted or ended,
-so that a call to it after its fault is answered by the group restarted
-whole. A group whose
-children fault more often than its limit allows faults. A supervisor
-that is itself a child restarts in place, and asks each of its own
-children to restart. When a supervisor dies, its children are killed
-after it, the last spawned first, each once the one before has ended, by
-a watcher the module spawns beside it; so `kill(supervisor)` stops a group. A
-child that must finish its work first is sent a message of its own
-protocol before, since a killed process runs nothing more.
+Use it where processes depend on one another, so that a fault in one must
+restart others too, or where independent processes should share one restart
+limit and stop together, one child per connection among them. A single
+process that restarts alone is `restarting`'s work. Spawn `group(strategy,
+limit)` as the supervisor, then spawn `child(supervisor, f)` for each child,
+`f` the work it does. The caller spawns each, as it spawns what `restarting`
+answers, so a fault line names the binding that holds the process (report
+§6.9), and a service binding can reach it (report §6.5).
+
+**What restarts.** A child that faults runs `f` again in place, keeping its
+address, as under `restarting`. The `Strategy` says which of its siblings
+restart with it. The child that faulted runs again once each of those
+siblings has restarted or ended, so a call to it after its fault is answered
+by the group restarted whole.
+
+**When a sibling restarts.** A sibling restarts at its next wait, a
+`receive` or a call waiting for its answer, and runs on until then; a
+sibling that never waits never restarts. It keeps its address, and its
+mailbox is emptied, as every restart empties it (report §6.9).
+
+**The limit.** A group whose children fault more often than `limit` allows
+faults itself. A supervisor that is itself a child of another group then
+restarts in place, and asks each of its own children to restart.
+
+**Stopping a group.** `kill(supervisor)` stops the group: when a supervisor
+dies, its children are killed after it, the last spawned first, each once
+the one before has ended. A child that must finish its work first is sent a
+message of its own protocol before, since a killed process runs nothing
+more.
 
 ## Examples
 
@@ -55,15 +65,18 @@ mailbox takes a bare `Reply(Int)`, so the call makes its message with
 type Strategy = OneForOne | OneForAll | RestForOne
 ```
 
-What else a child's fault restarts: nothing, every other child, or the
-children spawned after it, in the order the runtime spawned them,
-whatever order they joined in.
+What else a child's fault restarts: nothing, under `OneForOne`; every other
+child, under `OneForAll`; or the children spawned after it, under
+`RestForOne`. The order is the one the runtime spawned them in, whatever
+order they joined in.
 
 ### Examples
 
+A group whose later children use the earlier ones, restarted from the child
+that faulted onwards:
+
 ```ernest
-Supervisor.RestForOne
-// => RestForOne
+spawn(Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 5000)))
 ```
 
 ## Supervisor.Msg
@@ -72,7 +85,8 @@ Supervisor.RestForOne
 abstract type Msg
 ```
 
-What a supervisor takes; only this module makes it.
+What a supervisor takes. Its constructors are hidden; only this module makes
+them.
 
 ### Examples
 
@@ -92,20 +106,24 @@ What a supervisor takes; only this module makes it.
 Supervisor.group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Msg) with m+
 ```
 
-The function a supervisor runs, which the caller spawns. It spawns the
-process that keeps the group's children, which a restart of the
-supervisor does not end. The first process that runs it is the group's
-supervisor, and another that runs it faults, whether the first still
-runs or has ended. When the children's faults pass `limit`, counted as
-`restarting` counts them (report §6.9), it faults. A supervisor that is
-itself a child restarts in place, and asks each of its children to
-restart; they keep their order.
+The function a supervisor runs, for the caller to spawn:
+`spawn(Supervisor.group(strategy, limit))`. The children's faults are
+counted against `limit` as `restarting` counts a process's (report §6.9).
+
+Spawn the function `group` answers once. A second process that runs the same
+function faults, even after the first has ended; a second group is a second
+call of `group`. The call also spawns a process that keeps the group's
+children and kills them when the supervisor dies. A restart of the
+supervisor does not end it, and `Process.live` lists it.
+
+A supervisor that is itself a child restarts in place, and asks each of its
+children to restart; they keep their order.
 
 ### Errors
 
-`Fault("supervisor restart limit reached")` when the children's faults
-pass `limit`, and `Fault("a group runs in one process")` in a second
-process that runs it.
+Faults where the children's faults pass `limit`, with the cause `supervisor
+restart limit reached`, and in a second process that runs it, with the cause
+`a group runs in one process`.
 
 ### Examples
 
@@ -119,15 +137,16 @@ spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within =
 Supervisor.child(supervisor : Address(Msg), f : () -> Unit with m+) : () -> Unit with m+
 ```
 
-The function a child runs, which the caller spawns. It joins `supervisor`'s
-group, waiting until the supervisor has it, and runs `f`; after a fault
-it runs `f` again in place until the group gives up. A child that
-returns or is killed leaves the group.
+The function a child runs, for the caller to spawn:
+`spawn(Supervisor.child(supervisor, f))`. It joins `supervisor`'s group,
+waiting until the supervisor has it, then runs `f`. After a fault it runs
+`f` again in place, until the group gives up. A child that returns or is
+killed leaves the group.
 
 ### Errors
 
-`Fault("the supervisor has ended")` when `supervisor` has ended before the
-child joins.
+Faults where `supervisor` has ended before the child joins, with the cause
+`the supervisor has ended`.
 
 ### Examples
 
@@ -144,4 +163,4 @@ child joins.
 
 ---
 
-Generated by ern 0.3.0 from supervisor.ern.
+Generated by ern 0.3.1 from supervisor.ern.
