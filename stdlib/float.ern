@@ -16,10 +16,15 @@
 ///
 /// ## Examples
 ///
+/// An absolute value, doubled, as text:
+///
 /// ```ernest
 /// Float.toString(Float.abs(-2.5) * 2.0)
 /// // => "5.0"
 /// ```
+///
+/// Rounding: `round` takes a half to the even neighbour, `floor` goes down and
+/// `ceil` up:
 ///
 /// ```ernest
 /// #(Float.round(2.5), Float.round(3.5), Float.floor(-2.5), Float.ceil(-2.5))

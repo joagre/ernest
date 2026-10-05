@@ -18,10 +18,15 @@
 ///
 /// ## Examples
 ///
+/// A line on standard output:
+///
 /// ```ernest
 /// Io.println("hello, world")
 /// // => Unit
 /// ```
+///
+/// `debug` writes a value to standard error and answers it, so it wraps an
+/// expression where it stands:
 ///
 /// ```ernest
 /// Io.debug(Optional.map(Some(2), fn(n) = n * 10))

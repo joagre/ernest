@@ -1,9 +1,14 @@
-/// What a shim over an Erlang API needs from Erlang's conventions: an atom
-/// made from text. An API that answers `{ok, V}` or `{error, R}` needs an
-/// Erlang helper that rewrites the answer to `Either`'s encoding,
-/// `{'Right', V}` or `{'Left', R}` (report §8.4).
+/// Erlang's atoms, for a shim over an Erlang API.
+///
+/// Use it when writing a `foreign fn` over an Erlang function that takes an
+/// atom: `Erl.atom("utf8")` makes one. An Erlang API that answers `{ok, V}` or
+/// `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s
+/// encoding, `{'Right', V}` or `{'Left', R}` (report §8.4).
 ///
 /// ## Examples
+///
+/// Two atoms of one spelling are equal, and the atom `true` is Erlang's `true`,
+/// a `Bool`:
 ///
 /// ```ernest
 /// #(Erl.atom("ready") == Erl.atom("ready"), Foreign.toBool(Erl.atom("true")))
@@ -12,13 +17,14 @@
 ///
 /// since 0.1.0
 
-/// The Erlang atom of the text. An atom is never freed while the node
-/// lives, and a node holds at most a number of them its host fixes, so it
-/// is made of the names a shim needs, never of text a program receives.
+/// The Erlang atom spelled by `text`. An atom is never freed while the node
+/// lives, and a node holds only as many as its host allows, so atoms are made
+/// of the names a shim needs, never of text a program receives.
 ///
 /// ### Errors
 ///
-/// A text longer than 255 characters, which no atom holds, faults as a
-/// foreign function's raise does (report §7.4).
+/// Faults where `text` is longer than 255 characters, which no atom holds, as a
+/// foreign function's raise does (report §7.4): `foreign function
+/// erlang:binary_to_atom/1 raised error:system_limit`.
 export foreign fn atom(text : String) : Foreign.Term =
     "erlang:binary_to_atom/1"

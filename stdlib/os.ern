@@ -19,6 +19,8 @@
 ///
 /// ## Examples
 ///
+/// A program run to its end, and its exit status:
+///
 /// ```ernest
 /// Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>), 5000),
 ///            fn(finished) = finished.status)

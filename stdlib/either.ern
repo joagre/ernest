@@ -11,16 +11,22 @@
 ///
 /// ## Examples
 ///
+/// `map` changes the value of a `Right`:
+///
 /// ```ernest
 /// let found : Either(String, Int) = Right(2);
 /// Either.map(found, fn(n) = n * 10)
 /// // => Right(20)
 /// ```
 ///
+/// `andThen` chains a step that can fail, and here it fails:
+///
 /// ```ernest
 /// Either.andThen(Right(3), fn(n) = if n > 5 then Right(n) else Left("small"))
 /// // => Left("small")
 /// ```
+///
+/// `withDefault` answers the default for a `Left`:
 ///
 /// ```ernest
 /// Either.withDefault(Left("gone"), 0)

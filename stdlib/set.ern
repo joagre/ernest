@@ -16,10 +16,15 @@
 ///
 /// ## Examples
 ///
+/// An element put in a set is in it:
+///
 /// ```ernest
 /// Set.contains(Set.put(Set.empty, "a"), "a")
 /// // => true
 /// ```
+///
+/// The elements of one set that are not in another; a set has no order, so the
+/// list is sorted to compare it:
 ///
 /// ```ernest
 /// List.sort(Set.toList(Set.difference(Set.fromList([1, 2, 3]), Set.fromList([2]))), Int.compare)

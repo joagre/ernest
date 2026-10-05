@@ -12,10 +12,14 @@
 ///
 /// ## Examples
 ///
+/// Asking what a character is, and its upper case:
+///
 /// ```ernest
 /// #(Char.isDigit('7'), Char.isAlpha('中'), Char.toUpper('é'))
 /// // => #(true, true, 'É')
 /// ```
+///
+/// A character's code point, and back; a surrogate is no character:
 ///
 /// ```ernest
 /// #(Char.toInt('A'), Char.fromInt(66), Char.fromInt(0xD800))

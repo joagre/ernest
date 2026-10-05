@@ -9,10 +9,15 @@
 ///
 /// ## Examples
 ///
+/// The larger of `abs(-7)` and 3, as text:
+///
 /// ```ernest
 /// Int.toString(Int.max(Int.abs(-7), 3))
 /// // => "7"
 /// ```
+///
+/// `div` rounds toward zero and `rem` takes the sign of the dividend; a
+/// division by zero is `None`:
 ///
 /// ```ernest
 /// #(Int.div(-7, 3), Int.rem(-7, 3), Int.div(1, 0))

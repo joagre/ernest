@@ -1,10 +1,25 @@
-/// Tests that `ern test` runs (report Appendix E.24, §11.2). A test is a
-/// top-level `let` of type `Case(m)`, exported or not: its name, and a
-/// function that answers whether it passed, run in a process whose mailbox
-/// type is `m`, so that a test may receive. The module declares the two
-/// types and `equal`, the comparison a test most often makes.
+/// Tests, which `ern test` runs.
+///
+/// A test is a top-level `let` of type `Case`, exported or not, in any module:
+/// `let adds = Test.Case(name = "adds", run = fn() = Test.equal(1 + 1, 2))`.
+/// Build the module, then run `ern test` on its `.erc`, or on a directory to
+/// run the tests of every module under it (report §11.2).
+///
+/// **What it prints.** `ern test` prints a line for each test as the test ends:
+/// `adds: passed`, `divides: failed: expected 4, got 3`, or `crashes: faulted:
+/// division by zero`. It exits with status 1 unless every test passed.
+///
+/// **One test at a time.** The tests run in the order the module declares them,
+/// each in a process of its own, so a test may spawn, send and receive. A test
+/// that faults or deadlocks has failed, and the run goes on with the next
+/// (report Appendix E.24).
+///
+/// Most tests compare a value with the one expected, which `equal` does. A test
+/// that wants another text answers `Failed` with its own.
 ///
 /// ## Examples
+///
+/// A test run by hand, as `ern test` runs it:
 ///
 /// ```ernest
 /// {
@@ -16,9 +31,9 @@
 ///
 /// since 0.2.0
 
-/// A test: its name, which `ern test` prints, and the function it runs, in
-/// a process whose mailbox type is `m`; a test that receives nothing leaves
-/// `m` open, and runs with `Never`.
+/// A test: its name, which `ern test` prints, and the function it runs, in a
+/// process whose mailbox type is `m`. A test that receives nothing leaves `m`
+/// open, and runs with `Never`.
 ///
 /// ### Examples
 ///
@@ -39,11 +54,10 @@ export type Case(m) = Case(name : String, run : () -> Result with m)
 /// ```
 export type Result = Passed | Failed(String)
 
-/// `Passed` where the actual value equals the expected one, and otherwise
-/// `Failed` naming both as `Io.show` writes them, the expected first:
-/// `expected 3, got 2`. It needs `a.show`, which a call at a known type
-/// supplies without writing it (report §4.9, §9.4). A test that wants
-/// another text writes its own comparison.
+/// `Passed` where `actual` equals `expected`, and otherwise `Failed` naming
+/// both as `Io.show` writes them, the expected first: `expected 3, got 2`. It
+/// needs `a.show`, which a call at a known type supplies without writing it
+/// (report §4.9, §9.4).
 ///
 /// ### Examples
 ///

@@ -20,6 +20,8 @@
 ///
 /// ## Examples
 ///
+/// Keys where standard input is a terminal, and lines where it is not:
+///
 /// ```ernest
 /// match Terminal.subscribe(fn(event) = event) {
 ///     Right(_) -> "keys"

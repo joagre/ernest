@@ -15,10 +15,14 @@
 ///
 /// ## Examples
 ///
+/// Two paths joined:
+///
 /// ```ernest
 /// Path.toString(Path("/etc") <> Path("hosts"))
 /// // => "/etc/hosts"
 /// ```
+///
+/// A path's last part, and its extension:
 ///
 /// ```ernest
 /// #(Path.name(Path("/tmp/report.txt")), Path.extension(Path("/tmp/report.txt")))

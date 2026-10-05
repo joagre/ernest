@@ -18,15 +18,21 @@
 ///
 /// ## Examples
 ///
+/// Text split, each part in upper case, and joined again:
+///
 /// ```ernest
 /// String.join(List.map(String.split("a,b", ","), String.toUpper), "-")
 /// // => "A-B"
 /// ```
 ///
+/// Three characters from index 1:
+///
 /// ```ernest
 /// String.slice("hello", 1, 3)
 /// // => "ell"
 /// ```
+///
+/// A number read from text:
 ///
 /// ```ernest
 /// String.toInt("-12")

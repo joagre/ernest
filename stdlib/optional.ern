@@ -11,15 +11,21 @@
 ///
 /// ## Examples
 ///
+/// `map` changes the value of a `Some`:
+///
 /// ```ernest
 /// Optional.map(Some(2), fn(n) = n * 10)
 /// // => Some(20)
 /// ```
 ///
+/// `andThen` chains a step that may find nothing:
+///
 /// ```ernest
 /// Optional.andThen(Some(4), fn(n) = if n > 0 then Some(n - 1) else None)
 /// // => Some(3)
 /// ```
+///
+/// `withDefault` answers the default where there is no value:
 ///
 /// ```ernest
 /// Optional.withDefault(None, 0)

@@ -16,6 +16,8 @@
 ///
 /// ## Examples
 ///
+/// The time now, in milliseconds since the epoch:
+///
 /// ```ernest
 /// Clock.now() > 0
 /// // => true

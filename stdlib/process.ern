@@ -13,6 +13,8 @@
 ///
 /// ## Examples
 ///
+/// The caller is among the processes the runtime runs:
+///
 /// ```ernest
 /// {
 ///     let me = Process.fromAddress(self());

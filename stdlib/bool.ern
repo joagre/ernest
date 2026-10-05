@@ -6,10 +6,14 @@
 ///
 /// ## Examples
 ///
+/// `not` of a comparison:
+///
 /// ```ernest
 /// Bool.not(1 < 2)
 /// // => false
 /// ```
+///
+/// A `Bool` as text:
 ///
 /// ```ernest
 /// Bool.toString(true)

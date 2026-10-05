@@ -15,10 +15,14 @@
 ///
 /// ## Examples
 ///
+/// Two byte sequences joined with `<>`, and the bytes as numbers:
+///
 /// ```ernest
 /// Bytes.toList(<<104, 105>> <> <<33>>)
 /// // => [104, 105, 33]
 /// ```
+///
+/// Bytes made from numbers, each from 0 to 255:
 ///
 /// ```ernest
 /// Bytes.fromList([104, 105])
