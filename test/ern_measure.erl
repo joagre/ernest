@@ -8,10 +8,14 @@
 %% scenario of its own beside the host's operation it stands on
 %% (scenarios/1), by what Ernest adds. All of it runs in one launch, so the
 %% system processes and the modules' bindings are those a program has.
-%% It prints what is past the line, and the whole table into the file
-%% given, and asserts nothing: a function past the line is the user's
-%% decision. ern_measure_tests holds that every function is measured or
-%% listed with the reason it is not, and that each call made here runs.
+%% Beside the time, what each call allocates, against the host's, with no
+%% line of its own yet (allocated/1). Time is the wall clock's, which holds
+%% what a call waits for as well as what it computes; the load average
+%% before the run says whether the machine was idle. It prints what is
+%% past the line, and the whole table into the file given, and asserts
+%% nothing: a function past the line is the user's decision.
+%% ern_measure_tests holds that every function is measured or listed with
+%% the reason it is not, and that each call made here runs.
 -module(ern_measure).
 
 -export([main/1, entries/0, measured/2]).
@@ -40,13 +44,18 @@
 %% fastest of three such runs kept.
 -define(RUN_NS, 1000000).
 -define(SLOW_NS, 500000000).
+%% The heap, in words, a call's allocation is counted in, which grows
+%% eightfold where a collection still runs, up to the last.
+-define(FIRST_HEAP, 1048576).
+-define(LAST_HEAP, 67108864).
 
 %% Prints the summary, and writes the whole table into File.
 -spec main([string()]) -> no_return().
 main([File]) ->
+    Load = load(),
     Rows = measured(?SIZES, timed),
-    ok = file:write_file(File, [row_text(Row) || Row <- Rows]),
-    io:put_chars(summary(Rows)),
+    ok = file:write_file(File, [load_text(Load), [row_text(Row) || Row <- Rows]]),
+    io:put_chars([load_text(Load), summary(Rows)]),
     io:format("The whole table is in ~s.~n", [File]),
     halt(0).
 
@@ -132,7 +141,10 @@ rows(Entries, Sizes, Mode, Dir) ->
     ern_rt:init_modules([Module || Module <- library_modules()]),
     Types = types(),
     Scenarios = scenarios(Dir),
-    [row(Entry, Sizes, Mode, Types, Scenarios) || Entry <- Entries].
+    {Counter, Stop} = counter(),
+    try [row(Entry, Sizes, Mode, Types, Scenarios, Counter) || Entry <- Entries]
+    after Stop()
+    end.
 
 library_modules() ->
     [begin
@@ -141,23 +153,24 @@ library_modules() ->
          ern_namespace:erlang_module(Namespace)
      end || Erc <- library_files()].
 
-row(#{kind := value} = Entry, _, _, _, _) ->
+row(#{kind := value} = Entry, _, _, _, _, _) ->
     Entry#{outcome => {not_measured, <<"a top-level binding, no function">>}};
-row(#{display := Display} = Entry, Sizes, Mode, Types, Scenarios) ->
+row(#{display := Display} = Entry, Sizes, Mode, Types, Scenarios, Counter) ->
     Name = iolist_to_binary(Display),
     case {maps:get(kind, Entry), lists:keyfind(Name, 1, Scenarios)} of
-        {_, {Name, Scenario}} -> Entry#{outcome => scenario(Scenario, Mode)};
+        {_, {Name, Scenario}} -> Entry#{outcome => scenario(Scenario, Mode, Counter)};
         {process, false} -> Entry#{outcome => not_listed};
-        {pure, false} -> Entry#{outcome => pure_row(Entry, Sizes, Mode, Types)}
+        {pure, false} -> Entry#{outcome => pure_row(Entry, Sizes, Mode, Types, Counter)}
     end.
 
 %% A pure function at each size: its time, the host's where hosts/0 names
 %% one, and whether either faulted on the arguments drawn.
 pure_row(#{module := Module, name := Name, scheme := Scheme, display := Display}, Sizes,
-         Mode, Types) ->
+         Mode, Types, Counter) ->
     Host = maps:get(iolist_to_binary(Display), hosts(), none),
     try
-        {timed, [sized(Module, Name, Scheme, Size, Mode, Types, Host) || Size <- Sizes]}
+        {timed, [sized(Module, Name, Scheme, Size, Mode, Types, Host, Counter)
+                 || Size <- Sizes]}
     catch
         throw:{no_value, Type} ->
             {not_measured, iolist_to_binary(io_lib:format("no argument drawn for ~p", [Type]))};
@@ -165,7 +178,7 @@ pure_row(#{module := Module, name := Name, scheme := Scheme, display := Display}
             {failed, iolist_to_binary(io_lib:format("~p:~p", [Class, Reason]))}
     end.
 
-sized(Module, Name, Scheme, Size, Mode, Types, Host) ->
+sized(Module, Name, Scheme, Size, Mode, Types, Host, Counter) ->
     Arguments = arguments(Module, Name, Scheme, Size, Types),
     Ernest = fun() -> erlang:apply(Module, Name, Arguments) end,
     HostCall = case Host of
@@ -178,7 +191,8 @@ sized(Module, Name, Scheme, Size, Mode, Types, Host) ->
                  {timed, 10000} -> large;
                  _ -> Mode
              end,
-    {Size, time(Ernest, Timing), time(HostCall, Timing)}.
+    {Size, time(Ernest, Timing), time(HostCall, Timing), allocated(Ernest, Counter),
+     allocated(HostCall, Counter)}.
 
 time(none, _) -> none;
 time(Call, once) -> _ = Call(), 0;
@@ -210,20 +224,88 @@ run(Call, Count, Start) ->
             run(Call, Count + 1, Start)
     end.
 
+%% What the host's side of a scenario gives, measured as foreign code.
+foreign(none, _) -> none;
+foreign(Host, Measure) -> ern_rt:in_foreign(fun() -> Measure(Host) end).
+
+%% The bytes a call allocates, counted in the process that makes it, since
+%% a port's or a socket's answers come to the process that opened it. The
+%% process is traced by the collector's events, its heap made too large for
+%% a collection to start during the call, and collected before and after
+%% it: what the heap holds as the second collection starts, its fragments
+%% and the binaries it holds off the heap among it, beside what the first
+%% left, is what was allocated, less what an empty call's measurement
+%% allocates. A collection that runs during the call all the same counts
+%% the call again in a heap eight times larger, and past the last the
+%% allocation is `{more_than, Bytes}`.
+allocated(none, _) -> none;
+allocated(Call, Counter) -> Counter(Call).
+
+%% A counter of allocations, with its tracer and its baseline, and the
+%% function that stops the tracer.
+counter() ->
+    Tracer = erlang:spawn(fun() -> tracer([]) end),
+    Baseline = counted(fun() -> ok end, Tracer, ?FIRST_HEAP),
+    Count = fun(Call) ->
+                    case counted(Call, Tracer, ?FIRST_HEAP) of
+                        {more_than, _} = Bound -> Bound;
+                        Bytes -> max(Bytes - Baseline, 0)
+                    end
+            end,
+    {Count, fun() -> exit(Tracer, kill) end}.
+
+counted(Call, Tracer, Heap) ->
+    ern_rt:in_foreign(fun() -> counted_now(Call, Tracer, Heap) end).
+
+counted_now(Call, Tracer, Heap) ->
+    MinHeap = erlang:process_flag(min_heap_size, Heap),
+    MinBinHeap = erlang:process_flag(min_bin_vheap_size, Heap),
+    _ = erlang:trace(erlang:self(), true, [garbage_collection, {tracer, Tracer}]),
+    erlang:garbage_collect(),
+    _ = Call(),
+    erlang:garbage_collect(),
+    _ = erlang:trace(erlang:self(), false, [garbage_collection]),
+    erlang:process_flag(min_heap_size, MinHeap),
+    erlang:process_flag(min_bin_vheap_size, MinBinHeap),
+    Events = events(Tracer),
+    erlang:garbage_collect(),
+    case {Events, Heap < ?LAST_HEAP} of
+        {[{gc_major_start, _}, {gc_major_end, Left}, {gc_major_start, Holds}, {gc_major_end, _}],
+         _} ->
+            (words(Holds) - words(Left)) * erlang:system_info(wordsize);
+        {_, true} ->
+            counted_now(Call, Tracer, Heap * 8);
+        {_, false} ->
+            {more_than, Heap * erlang:system_info(wordsize)}
+    end.
+
+words(Info) ->
+    lists:sum([proplists:get_value(Key, Info, 0) || Key <- [heap_size, mbuf_size, bin_vheap_size]]).
+
+%% The collector's events since the last asking, each delivered first.
+events(Tracer) ->
+    Ref = erlang:trace_delivered(erlang:self()),
+    receive {trace_delivered, _, Ref} -> ok end,
+    Tracer ! {events, erlang:self()},
+    receive {events, Tracer, Events} -> Events end.
+
+tracer(Events) ->
+    receive
+        {trace, _, Event, Info} -> tracer([{Event, Info} | Events]);
+        {events, Asker} -> Asker ! {events, erlang:self(), lists:reverse(Events)}, tracer([])
+    end.
+
 %% A scenario at its one size: the Ernest operation and the host's, each
 %% given its setup and cleanup, the host's run as foreign code, since it
 %% may wait in a receive the runtime does not watch (report §8.6).
-scenario({within, Other}, _) ->
+scenario({within, Other}, _, _) ->
     {within, Other};
-scenario({not_measured, Reason}, _) ->
+scenario({not_measured, Reason}, _, _) ->
     {not_measured, Reason};
-scenario({Ernest, Host}, Mode) ->
+scenario({Ernest, Host}, Mode, Counter) ->
     try
-        {system, time(Ernest, Mode),
-         case Host of
-             none -> none;
-             _ -> ern_rt:in_foreign(fun() -> time(Host, Mode) end)
-         end}
+        {system, time(Ernest, Mode), foreign(Host, fun(Call) -> time(Call, Mode) end),
+         allocated(Ernest, Counter), allocated(Host, Counter)}
     catch
         Class:Reason ->
             {failed, iolist_to_binary(io_lib:format("~p:~p", [Class, Reason]))}
@@ -744,18 +826,33 @@ row_text(#{display := Display, outcome := Outcome}) ->
     [Display, "\t", outcome_text(Outcome), "\n"].
 
 outcome_text({timed, Sizes}) ->
-    lists:join("  ", [io_lib:format("~B: ~s~s", [Size, ns(Ernest), host_text(Ernest, Host)])
-                      || {Size, Ernest, Host} <- Sizes])
+    lists:join("  ", [io_lib:format("~B: ~s ~s~s", [Size, ns(Ernest), bytes(Allocated),
+                                                    host_text(Ernest, Host, Allocated, Of)])
+                      || {Size, Ernest, Host, Allocated, Of} <- Sizes])
         ++ growth_text(Sizes);
-outcome_text({system, Ernest, Host}) ->
-    io_lib:format("~s~s", [ns(Ernest), host_text(Ernest, Host)]);
+outcome_text({system, Ernest, Host, Allocated, Of}) ->
+    io_lib:format("~s ~s~s", [ns(Ernest), bytes(Allocated),
+                              host_text(Ernest, Host, Allocated, Of)]);
 outcome_text({within, Other}) -> ["measured with ", Other];
 outcome_text({not_measured, Reason}) -> ["not measured: ", Reason];
 outcome_text({failed, Reason}) -> ["FAILED: ", Reason];
 outcome_text(not_listed) -> "NOT LISTED: needs a process, and has no scenario".
 
-host_text(_, none) -> "";
-host_text(Ernest, Host) -> io_lib:format(" (host ~s, ~.1fx)", [ns(Host), ratio(Ernest, Host)]).
+host_text(_, none, _, _) -> "";
+host_text(Ernest, Host, Allocated, Of) ->
+    io_lib:format(" (host ~s ~s, ~.1fx~s)", [ns(Host), bytes(Of), ratio(Ernest, Host),
+                                              allocation_ratio(Allocated, Of)]).
+
+%% Bytes allocated, as a person reads them.
+bytes({more_than, Bytes}) -> ["more than ", bytes(Bytes)];
+bytes(none) -> "";
+bytes(Bytes) when Bytes >= 1048576 -> io_lib:format("~.1f MB", [Bytes / 1048576]);
+bytes(Bytes) when Bytes >= 1024 -> io_lib:format("~.1f KB", [Bytes / 1024]);
+bytes(Bytes) -> io_lib:format("~B B", [Bytes]).
+
+allocation_ratio(Allocated, Of) when is_integer(Allocated), is_integer(Of), Of > 0 ->
+    io_lib:format(", ~.1fx the bytes", [Allocated / Of]);
+allocation_ratio(_, _) -> "".
 
 growth_text(Sizes) ->
     case {growth(Sizes), host_growth(Sizes)} of
@@ -774,14 +871,14 @@ ratio(Ernest, Host) -> Ernest / Host.
 
 growth(Sizes) ->
     case {lists:keyfind(100, 1, Sizes), lists:keyfind(10000, 1, Sizes)} of
-        {{100, Small, _}, {10000, Large, _}} when Small > 0 -> Large / Small;
+        {{100, Small, _, _, _}, {10000, Large, _, _, _}} when Small > 0 -> Large / Small;
         _ -> none
     end.
 
 host_growth(Sizes) ->
     case {lists:keyfind(100, 1, Sizes), lists:keyfind(10000, 1, Sizes)} of
-        {{100, _, Small}, {10000, _, Large}} when is_number(Small), Small > 0,
-                                                 is_number(Large) ->
+        {{100, _, Small, _, _}, {10000, _, Large, _, _}} when is_number(Small), Small > 0,
+                                                             is_number(Large) ->
             Large / Small;
         _ ->
             none
@@ -808,8 +905,10 @@ summary(Rows) ->
     Near = [{Row, growth_text(Sizes)} || #{outcome := {timed, Sizes}} = Row <- Rows,
                                          growth_judged(Sizes) =:= near],
     System = [{Row, io_lib:format("~.1fx, ~s added", [ratio(Ernest, Of), ns(Ernest - Of)])}
-              || #{outcome := {system, Ernest, Of}} = Row <- Rows,
+              || #{outcome := {system, Ernest, Of, _, _}} = Row <- Rows,
                  Of =/= none, ratio(Ernest, Of) > ?SYSTEM_LINE],
+    Allocates = [{Row, Worst} || #{outcome := {timed, Sizes}} = Row <- Rows,
+                                 Worst <- [allocation_worst(Sizes)], Worst > ?HOST_LINE],
     Unmeasured = [Row || #{outcome := Outcome} = Row <- Rows, unmeasured(Outcome)],
     Count = fun(Test) -> length([Row || #{outcome := Outcome} = Row <- Rows, Test(Outcome)]) end,
     [io_lib:format("~nEvery function of the library, measured (MVP 2.99d item 1)~n", []),
@@ -826,14 +925,18 @@ summary(Rows) ->
      section(io_lib:format("A system module's function past ~B times the host's operation, "
                            "and what Ernest adds", [round(?SYSTEM_LINE)]),
              System),
+     section(io_lib:format("Allocating more than ~B times the host's, at any size: no line yet, "
+                           "for the user to weigh", [round(?HOST_LINE)]),
+             [{Row, io_lib:format("~.1fx", [Worst])} || {Row, Worst} <- Allocates]),
      section("Not measured, or failing", [{Row, outcome_text(maps:get(outcome, Row))}
                                           || Row <- Unmeasured]),
      io_lib:format("~nTimed by drawn arguments: ~B, of which with a host: ~B. By scenario: ~B, "
                    "and measured with another's: ~B. Not measured: ~B, values left out: ~B.~n",
                    [Count(fun({timed, _}) -> true; (_) -> false end),
                     length([Row || #{outcome := {timed, Sizes}} = Row <- Rows,
-                                   [Host1 || {_, _, Host1} <- Sizes, Host1 =/= none] =/= []]),
-                    Count(fun({system, _, _}) -> true; (_) -> false end),
+                                   [Host1 || {_, _, Host1, _, _} <- Sizes, Host1 =/= none]
+                                       =/= []]),
+                    Count(fun({system, _, _, _, _}) -> true; (_) -> false end),
                     Count(fun({within, _}) -> true; (_) -> false end),
                     Count(fun({not_measured, Reason}) ->
                                   Reason =/= <<"a top-level binding, no function">>;
@@ -842,8 +945,14 @@ summary(Rows) ->
                              (_) -> false end)])].
 
 worst(Sizes) ->
-    lists:max([0.0 | [ratio(Ernest, Host) || {Size, Ernest, Host} <- Sizes,
+    lists:max([0.0 | [ratio(Ernest, Host) || {Size, Ernest, Host, _, _} <- Sizes,
                                               Size =< 100, Host =/= none]]).
+
+%% The most a call allocates beside the host's call at any size, where
+%% both are counted.
+allocation_worst(Sizes) ->
+    lists:max([0.0 | [Allocated / Of || {_, _, _, Allocated, Of} <- Sizes,
+                                        is_integer(Allocated), is_integer(Of), Of > 0]]).
 
 unmeasured({not_measured, <<"a top-level binding, no function">>}) -> false;
 unmeasured({not_measured, _}) -> true;
@@ -855,6 +964,29 @@ section(_, []) -> [];
 section(Title, Lines) ->
     [io_lib:format("~n~s:~n", [Title])
      | [io_lib:format("  ~-28s ~s~n", [Display, Text]) || {#{display := Display}, Text} <- Lines]].
+
+%% The host's load average over the last minute, and its processors, read
+%% before the run: a machine busy with more than half of them gives times
+%% that read high (the log's *The Release Review Before 0.3.1*).
+load() ->
+    Average = case file:read_file("/proc/loadavg") of
+                  {ok, Text} -> number(hd(string:lexemes(Text, " ")));
+                  _ -> number(hd(string:lexemes(os:cmd("sysctl -n vm.loadavg"), "{ ")))
+              end,
+    {Average, erlang:system_info(logical_processors_available)}.
+
+number(Text) ->
+    try binary_to_float(iolist_to_binary(Text))
+    catch error:badarg -> unknown
+    end.
+
+load_text({unknown, _}) ->
+    "The load average could not be read; the times hold only on an idle machine.\n";
+load_text({Average, Processors}) when is_number(Processors), Average > Processors / 2 ->
+    io_lib:format("NOT IDLE: load average ~.2f on ~B processors; the times read high. Run it "
+                  "again when the machine has rested.~n", [Average, Processors]);
+load_text({Average, Processors}) ->
+    io_lib:format("Load average ~.2f on ~p processors.~n", [Average, Processors]).
 
 %% A scratch directory of the run's own, which measured/2 removes.
 scratch() ->

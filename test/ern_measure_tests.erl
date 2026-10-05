@@ -23,7 +23,7 @@ every_function_measured() ->
 %% A function the machine timed, in a scenario or with another's, or one
 %% that is no function or that no measurement can reach.
 accounted({timed, _}) -> true;
-accounted({system, _, _}) -> true;
+accounted({system, _, _, _, _}) -> true;
 accounted({within, _}) -> true;
 accounted({not_measured, Reason}) ->
     lists:member(Reason, [<<"a top-level binding, no function">>, <<"reads standard input">>,

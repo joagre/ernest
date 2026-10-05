@@ -85,9 +85,13 @@ and its measurement does not hold the release.
    three times the host's at 10 or 100; or growing from 100 to 10,000 at least tenfold and
    more than three times the host's own growth, or a thousandfold where no host does the
    work, three hundredfold being near it. A system module's function is shown with what
-   Ernest adds, held to the prelude's line. Nothing is changed before the user decides:
-   each function past the line is a decision with the user, with its numbers in the log's
-   entry, and a function near the line is measured more thoroughly first.
+   Ernest adds, held to the prelude's line. Beside each time, what the call allocates
+   against the host's, counted from the collector's events, with no line of its own until
+   the user has seen the numbers (decided with the user on 2026-10-05); and above the
+   table the load average, which says whether the machine was idle. Nothing is changed
+   before the user decides: each function past the line is a decision with the user, with
+   its numbers in the log's entry, and a function near the line is measured more
+   thoroughly first.
 2. **The prelude measured**: each function of §9.4 to §9.6, about twenty, against the
    host's operation it stands on, at the sizes a program meets, held to CLAUDE.md's
    stricter line for the runtime, that what Ernest adds to a host operation costs a
