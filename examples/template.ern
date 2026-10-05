@@ -1,6 +1,14 @@
-/// Shapes in the plane and their areas. A shape is a point alone or a
-/// circle around one; `area` is the one operation every shape supports, and
-/// `Stack` keeps shapes in the order they were pushed.
+/// Shapes in the plane and their areas.
+///
+/// Use it where a program measures what it draws. A shape is a point alone
+/// or a circle around one, and `area` is the one operation every shape
+/// supports. Where shapes are only kept, in any order, a `List` of them
+/// serves.
+///
+/// Coordinates and radii are whole units, and an area is a `Float`.
+///
+/// `Stack` keeps shapes in the order they were pushed. A stack is a value:
+/// `push` and `pop` answer a new stack and leave the one given as it was.
 ///
 /// ## Examples
 ///
@@ -82,7 +90,15 @@ export let emptyStack = Stack([])
 export fn push(Stack(shapes) : Stack, shape : Shape) : Stack =
     Stack(shape :: shapes)
 
-/// The top shape and the rest, `None` when the stack is empty.
+/// The top shape and the stack without it, or `None` when the stack is
+/// empty. The stack given is left as it was.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.isNone(Template.pop(Template.emptyStack))
+/// // => true
+/// ```
 ///
 /// since 0.2.0
 export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
@@ -95,8 +111,8 @@ export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
 export fn circle(centre : Point, radius : Int) : Shape =
     Circle(centre = centre, radius = radius)
 
-/// The area of the shape: zero for a point, and pi times the radius
-/// squared for a circle.
+/// The area of the shape. A point's is zero, and a circle's is pi times
+/// its radius squared.
 ///
 /// ### See also
 ///
@@ -111,8 +127,8 @@ export fn area(shape : Shape) : Float =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("negative diameter")` on a negative diameter, the
-/// one fault in this module.
+/// Faults on a negative diameter, with the cause `negative diameter`. It
+/// is the one fault in this module.
 ///
 /// ### Examples
 ///

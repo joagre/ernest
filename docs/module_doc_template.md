@@ -9,9 +9,17 @@ Everything below the marker is the output of `ern doc examples/template.ern`, an
 
 *Since 0.1.0.*
 
-Shapes in the plane and their areas. A shape is a point alone or a
-circle around one; `area` is the one operation every shape supports, and
-`Stack` keeps shapes in the order they were pushed.
+Shapes in the plane and their areas.
+
+Use it where a program measures what it draws. A shape is a point alone
+or a circle around one, and `area` is the one operation every shape
+supports. Where shapes are only kept, in any order, a `List` of them
+serves.
+
+Coordinates and radii are whole units, and an area is a `Float`.
+
+`Stack` keeps shapes in the order they were pushed. A stack is a value:
+`push` and `pop` answer a new stack and leave the one given as it was.
 
 ## Examples
 
@@ -122,7 +130,15 @@ Template.pop(Stack) : Optional(#(Shape, Stack))
 
 *Since 0.2.0.*
 
-The top shape and the rest, `None` when the stack is empty.
+The top shape and the stack without it, or `None` when the stack is
+empty. The stack given is left as it was.
+
+### Examples
+
+```ernest
+Optional.isNone(Template.pop(Template.emptyStack))
+// => true
+```
 
 ## Template.circle
 
@@ -138,8 +154,8 @@ The circle of the radius around the centre.
 Template.area(shape : Shape) : Float
 ```
 
-The area of the shape: zero for a point, and pi times the radius
-squared for a circle.
+The area of the shape. A point's is zero, and a circle's is pi times
+its radius squared.
 
 ### See also
 
@@ -155,8 +171,8 @@ The radius of a circle of that diameter, rounded toward zero.
 
 ### Errors
 
-Faults with `Fault("negative diameter")` on a negative diameter, the
-one fault in this module.
+Faults on a negative diameter, with the cause `negative diameter`. It
+is the one fault in this module.
 
 ### Examples
 

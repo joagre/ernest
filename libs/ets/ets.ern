@@ -1,14 +1,31 @@
-/// Tables of the runtime, keyed by a value of type `k`. A table belongs to
-/// the process that made it and ends with it, or with `close`, and every
-/// operation on a table that has ended faults. Any process on the node that
-/// holds a table reads and writes it: a table is state that processes share,
-/// which is why this is a library and not the standard library's (report
-/// §10). Keys are compared as the runtime compares its terms. Appendix D of
-/// the report shows this library, with a shorter documentation, as its
-/// example of a shim. A program puts the library on its load path, when it
-/// is compiled and when it is run.
+/// Tables that live in the runtime, outside any one process.
+///
+/// A table maps keys to values, as a `Map` does, but it is not a value: it
+/// is changed in place, and every process that holds it sees the change.
+/// Use a table where several processes read and write the same state. For
+/// state that one process holds, a `Map` in that process is the usual
+/// choice, and the simpler one.
+///
+/// A program that uses the library puts it on its load path, both when it
+/// is compiled and when it is run: `--load-path` with the directory of the
+/// compiled library, `lib/ernest/build/libs/ets` under the prefix Ernest
+/// is installed in.
+///
+/// **A table's life.** A table belongs to the process that made it. It ends
+/// when that process ends, or when any process that holds it calls
+/// `close`. Every operation on a table that has ended faults.
+///
+/// **Sharing.** A table is not copied when it is sent in a message or
+/// captured by a spawned function: the other process reads and writes the
+/// same table. Nothing orders the writes of two processes but the order in
+/// which they run. A table stays on the node that made it.
+///
+/// **Keys.** The key type needs equality, which the `=` in `Table(k=, v)`
+/// says, and two keys are one key where `==` holds for them.
 ///
 /// ## Examples
+///
+/// A value put at a key and read back:
 ///
 /// ```ernest
 /// {
@@ -18,6 +35,8 @@
 /// }
 /// // => Some(1)
 /// ```
+///
+/// An entry removed, and the table as it is afterwards:
 ///
 /// ```ernest
 /// {
@@ -31,12 +50,12 @@
 ///
 /// ## See also
 ///
-/// `Map` for a value the program holds itself, `Erl` for what a shim needs
-/// from Erlang.
+/// `Map` for a map that is a value, held by one process.
 ///
 /// since 0.1.0
 
-/// A table of the runtime, keyed by `k` with values of type `v`.
+/// A table from keys of type `k` to values of type `v`. The `=` in `k=`
+/// says that the key type needs equality.
 ///
 /// ### Examples
 ///
@@ -49,19 +68,22 @@
 /// ```
 export foreign type Table(k=, v)
 
-/// A fresh empty table, owned by the calling process.
+/// A fresh empty table, owned by the calling process. It lives until that
+/// process ends or the table is closed. The types of its keys and values
+/// are those of its first use, or of an annotation.
 export fn new() : Table(k, v) with m =
     rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
 foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) with m =
     "ets:new/2"
 
-/// Puts the value at that key, replacing any entry the key had.
+/// Puts the value at that key, replacing any entry the key had. The table
+/// is changed in place, for every process that holds it.
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:insert/2 raised error:badarg`.
 export fn put(table : Table(k, v), key : k, value : v) : Unit with m = {
     let _ = rawInsert(table, #(key, value));
     Unit
@@ -74,8 +96,8 @@ foreign fn rawInsert(table : Table(k, v), entry : #(k, v)) : Bool with m =
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:lookup/2 raised error:badarg`.
 export fn get(table : Table(k, v), key : k) : Optional(v) with m =
     match rawLookup(table, key) {
         [#(_, value)] -> Some(value)
@@ -89,17 +111,18 @@ foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:lookup/2 raised error:badarg`.
 export fn contains(table : Table(k, v), key : k) : Bool with m =
     Optional.isSome(get(table, key))
 
-/// Removes the entry at that key, which need not be there.
+/// Removes the entry at that key. Removing a key the table does not hold
+/// does nothing.
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:delete/2 raised error:badarg`.
 export fn remove(table : Table(k, v), key : k) : Unit with m = {
     let _ = rawDelete(table, key);
     Unit
@@ -112,7 +135,7 @@ foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults with `Fault("the table has ended")`.
+/// Faults on a table that has ended, with the cause `the table has ended`.
 export fn size(table : Table(k, v)) : Int with m =
     match Foreign.toInt(rawInfo(table, Erl.atom("size"))) {
         Some(count) -> count
@@ -122,12 +145,13 @@ export fn size(table : Table(k, v)) : Int with m =
 foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term with m =
     "ets:info/2"
 
-/// Removes every entry, leaving the table.
+/// Removes every entry. The table itself stays, empty, and is used as
+/// before.
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:delete_all_objects/1 raised error:badarg`.
 ///
 /// ### Examples
 ///
@@ -148,12 +172,13 @@ export fn clear(table : Table(k, v)) : Unit with m = {
 foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool with m =
     "ets:delete_all_objects/1"
 
-/// Closes the table, deleting it; every operation on it after this faults.
+/// Ends the table and frees what it held. Every operation on it afterwards
+/// faults, in every process that holds it, a second `close` among them.
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:delete/1 raised error:badarg`.
 ///
 /// ### Examples
 ///
@@ -174,11 +199,12 @@ export fn close(table : Table(k, v)) : Unit with m = {
 foreign fn rawDeleteTable(table : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
-/// The entries as pairs, in unspecified order.
+/// The entries as pairs, in unspecified order. The list is a copy: a later
+/// write to the table does not change it.
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// Faults on a table that has ended. The cause names the host's function:
+/// `foreign function ets:tab2list/1 raised error:badarg`.
 export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"

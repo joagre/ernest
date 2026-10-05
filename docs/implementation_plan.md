@@ -110,6 +110,34 @@ and its measurement does not hold the release.
    as the walk was rewritten for the full review's S10). A path that names the root, however
    written, answers `Left(Invalid)` before the helper runs, as GNU `rm` refuses `/` by
    default; a sentence of E.17, the check in `ern_fs`, and a test.
+7. **The manual pages made to teach**: the pages `ern doc` writes, the standard library's,
+   the prelude's and the libraries', are the documentation a user of Ernest reads, and
+   their doc blocks were written in the report's register, a module's opening one dense
+   paragraph and a declaration one sentence. The form was decided on 2026-10-05 (Appendix
+   E.0 shape rule 6; the log's *The Manual Pages Teach*) and shown on
+   [`module_doc_template.md`](module_doc_template.md) and three modules of three kinds,
+   `libs/ets`, `Map` and `Fs`. What remains is the other twenty-seven pages, each rewritten
+   to the form as those three were:
+   - **The order**: the pages a newcomer opens first, the prelude's (its texts are in
+     `ern_prelude.erl`), `List`, `String`, `Io`, `Optional`, `Either`, `Int`, `Float`,
+     `Char`, `Bool`, `Bytes`, `Set` and `Path`; then the system modules, `Os`, `Tcp`,
+     `Clock`, `Terminal`, `Process`, `Supervisor`, `Random`, `Test`, `Foreign` and `Erl`;
+     then `OrderedSet` and `OrderedMap`; then `libs/ansi` and `libs/markdown`. A few pages a
+     commit.
+   - **A module's opening**: one sentence that says what the module is; when a program
+     uses it and what serves better elsewhere; what a program does to use it; what a caller
+     must know, one behaviour a paragraph, under a bold lead where there are several. A
+     reason for the design and a pointer into the project's own documents leave the page.
+   - **A declaration**: its first sentence stands alone in the shell, so it says what the
+     declaration does or answers; then one sentence for each edge a caller meets. A
+     sentence is added only where the function's body, a run of it, or its section of
+     Appendix E confirms it, and an edge is shown by an example where a line shows it, since
+     the tests run every example. An `Errors` section gives the cause as a run prints it.
+   - **What stops the work**: a doc block that cannot be written truly because the
+     report's contract is unclear goes to the report first, as a question.
+   - **Its end**: a cold reader, briefed as a newcomer, over a sample of the pages; then
+     whether the pages are published as Ernest 0.3.1 is decided with the user, recommended,
+     since `man/` holds a release's pages and shows the old ones until one is made.
 
 ---
 
