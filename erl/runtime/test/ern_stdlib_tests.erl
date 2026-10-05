@@ -678,6 +678,43 @@ fs_test() ->
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: a copy made where nothing was has the source's
+%% permission bits less the program's mask, as cp(1) makes it, and one
+%% made over a file keeps that file's. A regression test: a copy of a
+%% file only its owner could read was made as the mask leaves `0o666`, so
+%% every user could read it
+fs_copy_mode_test() ->
+    Self = self(),
+    Dir = scratch("ern_copy_mode_"),
+    ok = filelib:ensure_path(Dir),
+    Name = fun(File) -> filename:join(Dir, File) end,
+    InDir = fun(File) -> {'Path', unicode:characters_to_binary(Name(File))} end,
+    ok = file:write_file(Name("private"), <<"secret">>),
+    ok = file:change_mode(Name("private"), 8#600),
+    ok = file:write_file(Name("script"), <<"run">>),
+    ok = file:change_mode(Name("script"), 8#755),
+    ok = file:write_file(Name("kept"), <<"old">>),
+    ok = file:change_mode(Name("kept"), 8#640),
+    Fs = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Self ! {fs, Fs:copy(InDir("private"), InDir("private_copy"), 5000)},
+                           Self ! {fs, Fs:copy(InDir("script"), InDir("script_copy"), 5000)},
+                           Self ! {fs, Fs:copy(InDir("script"), InDir("kept"), 5000)}
+                       end, <<"fs_copy_mode_test">>, #{})),
+    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], collect(fs, [])),
+    Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
+    ModeOf = fun(File) ->
+                 {ok, #file_info{mode = Mode}} = file:read_file_info(Name(File)),
+                 Mode band 8#7777
+             end,
+    ?assertEqual(8#600 band bnot Mask, ModeOf("private_copy")),
+    ?assertEqual(8#755 band bnot Mask, ModeOf("script_copy")),
+    ?assertEqual(8#640, ModeOf("kept")),
+    ?assertEqual({ok, <<"secret">>}, file:read_file(Name("private_copy"))),
+    ?assertEqual({ok, <<"run">>}, file:read_file(Name("kept"))),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: read, write and copy work on regular files, and
 %% append on a regular file and a device; each refuses a named pipe and a
 %% directory at once. A regression test: a
@@ -979,6 +1016,25 @@ fs_remove_all_by_directories_test() ->
     ?assertEqual({'Left', 'Denied'}, Locked),
     ?assertEqual({'Left', 'NotFound'}, Nothing),
     ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#755),
+    file:del_dir_r(Dir).
+
+%% report Appendix E.17: `removeAll` holds a bounded number of descriptors
+%% however deep the tree, so a chain of directories deeper than the
+%% helper's limit on descriptors is removed whole. A regression test: the
+%% walk held one descriptor a level, and any writer of a directory could
+%% make a tree it could not remove. The helper is run as Fs runs it, under
+%% a limit of twenty descriptors, on a chain of two hundred
+fs_remove_all_deeper_than_the_descriptors_test() ->
+    Dir = scratch("ern_fs_deep_"),
+    ok = filelib:ensure_path(Dir),
+    "" = os:cmd("cd " ++ Dir ++ " && for i in $(seq 200); do mkdir d && cd d || exit 1; done"
+                " && touch last"),
+    Path = list_to_binary(filename:join(Dir, "d")),
+    Frame = filename:join(Dir, "frame"),
+    ok = file:write_file(Frame, <<(byte_size(Path) + 1):32, "p", Path/binary>>),
+    Answer = os:cmd("ulimit -n 20 && " ++ ern_os:helper() ++ " remove < " ++ Frame),
+    ?assertEqual(<<1:32, "d">>, list_to_binary(Answer)),
+    ?assertNot(filelib:is_file(filename:join(Dir, "d"))),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17, E.1: `setModified` with a time the host cannot

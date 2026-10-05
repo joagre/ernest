@@ -162,11 +162,31 @@ range(Text, Offset, Count) ->
             Error
     end.
 
+%% Report Appendix E.17: a destination that is not there is made with the
+%% source's permission bits less the program's mask, as cp(1) makes it,
+%% set before a byte is written; one that is there keeps its own.
 copy(Source, Destination) ->
-    case file:copy({Source, [raw]}, {Destination, [raw]}) of
-        {ok, _} -> {ok, 'Unit'};
-        Error -> Error
+    case file:open(Destination, [write, exclusive, raw, binary]) of
+        {ok, File} ->
+            Copied = case file:read_file_info(Source, [raw]) of
+                         {ok, #file_info{mode = Mode}} ->
+                             Bits = Mode band 8#777 band bnot ern_os:umask(),
+                             case file:change_mode(Destination, Bits) of
+                                 ok -> file:copy({Source, [raw]}, File);
+                                 Refused -> Refused
+                             end;
+                         Error -> Error
+                     end,
+            ok = file:close(File),
+            copied(Copied);
+        {error, eexist} ->
+            copied(file:copy({Source, [raw]}, {Destination, [raw]}));
+        Error ->
+            Error
     end.
+
+copied({ok, _}) -> {ok, 'Unit'};
+copied(Error) -> Error.
 
 %% Report Appendix E.17: read, write and copy work on regular files, since
 %% a named pipe waits for a writer that may never come and a device may

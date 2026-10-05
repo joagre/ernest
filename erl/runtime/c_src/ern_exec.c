@@ -33,12 +33,15 @@
  *
  * With no argument, the helper writes what the host says of the program as
  * it starts: a 'u' frame, the user it runs as in four bytes, big-endian,
- * which the host has no word for; then its environment, which it inherited
- * as exec passes it, byte for byte, a 'v' frame for each variable,
- * NAME=VALUE; and an 'x' frame. Report Appendix E.23: the runtime reads the
- * program's environment so, since the host decodes a value that is not
- * UTF-8 without a sign, and its user in the same run, so that no program
- * starts the helper twice for them.
+ * which the host has no word for; an 'm' frame, its file mode creation
+ * mask in four bytes, big-endian, which the host has no word for either
+ * and which Fs.copy takes from a new file's mode (Appendix E.17); then its
+ * environment, which it inherited as exec passes it, byte for byte, a 'v'
+ * frame for each variable, NAME=VALUE; and an 'x' frame. Report Appendix
+ * E.23: the runtime reads the program's environment so, since the host
+ * decodes a value that is not UTF-8 without a sign, and its user and its
+ * mask in the same run, so that no program starts the helper twice for
+ * them.
  *
  * In every mode the helper first makes its environment the one `ern` was
  * started in (report Appendix E.23, §11): the launcher clears the host's
@@ -65,6 +68,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -319,7 +323,13 @@ static char **read_command(void)
  * Report Appendix E.17: Fs.removeAll. Each entry is opened relative to its
  * directory, refusing a link, and removed relative to it, so that a
  * directory another process replaces with a link while the walk runs leads
- * it nowhere else, and a link is removed, never followed.
+ * it nowhere else, and a link is removed, never followed. The walk holds
+ * three descriptors at most, however deep the tree: it closes a directory
+ * as it enters one below it, and comes back through the lower one's `..`,
+ * which must be the directory it left, by its device and its inode. One
+ * that is not, the lower directory moved while the walk was in it, ends
+ * the walk with ENOENT, since the entry it would remove no longer names
+ * that directory.
  */
 
 /* The flags that open a directory and nothing else: a link is refused
@@ -391,15 +401,17 @@ static char **entry_names(int directory, size_t *count)
     return names;
 }
 
-static int remove_entry(int directory, const char *name);
+static int remove_entry(int *directory, const char *name);
 
-/* Everything in the directory open as directory removed: 0, or the error
-   of the first removal that failed. */
-static int empty_directory(int directory)
+/* Everything in the directory open as *directory removed: 0, or the error
+   of the first removal that failed. *directory is the directory's
+   descriptor as the walk last opened it, and -1 where the walk could not
+   come back to it. */
+static int empty_directory(int *directory)
 {
     size_t count, at;
     int error = 0;
-    char **names = entry_names(directory, &count);
+    char **names = entry_names(*directory, &count);
 
     if (names == NULL)
         return errno;
@@ -412,23 +424,46 @@ static int empty_directory(int directory)
     return error;
 }
 
-/* The entry of the directory open as directory removed: a directory with
-   everything under it, and anything else, a link among them, as itself. */
-static int remove_entry(int directory, const char *name)
+/* The entry of the directory open as *directory removed: a directory with
+   everything under it, and anything else, a link among them, as itself.
+   *directory is closed while the walk is below it, and is the directory
+   reopened through `..` when it comes back, or -1 where it cannot. */
+static int remove_entry(int *directory, const char *name)
 {
-    int inner = openat(directory, name, DIRECTORY_ONLY);
-    int error;
+    int inner = openat(*directory, name, DIRECTORY_ONLY);
+    int parent, error;
+    struct stat left, back;
 
     if (inner < 0) {
         if (errno != ENOTDIR && errno != ELOOP)
             return errno;
-        return unlinkat(directory, name, 0) < 0 ? errno : 0;
+        return unlinkat(*directory, name, 0) < 0 ? errno : 0;
     }
-    error = empty_directory(inner);
+    if (fstat(*directory, &left) < 0) {
+        error = errno;
+        close(inner);
+        return error;
+    }
+    close(*directory);
+    *directory = -1;
+    error = empty_directory(&inner);
+    if (inner < 0)
+        return error;
+    parent = openat(inner, "..", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (parent < 0) {
+        int failed = errno;
+        close(inner);
+        return error != 0 ? error : failed;
+    }
     close(inner);
+    if (fstat(parent, &back) < 0 || back.st_dev != left.st_dev || back.st_ino != left.st_ino) {
+        close(parent);
+        return error != 0 ? error : ENOENT;
+    }
+    *directory = parent;
     if (error != 0)
         return error;
-    return unlinkat(directory, name, AT_REMOVEDIR) < 0 ? errno : 0;
+    return unlinkat(parent, name, AT_REMOVEDIR) < 0 ? errno : 0;
 }
 
 /* The path removed as remove_entry removes an entry, its last name
@@ -440,6 +475,7 @@ static int remove_all(char *path)
 {
     size_t length = strlen(path);
     char *last;
+    const char *name;
     int parent, error;
 
     if (length == 0)
@@ -447,18 +483,22 @@ static int remove_all(char *path)
     while (length > 1 && path[length - 1] == '/')
         path[--length] = '\0';
     last = strrchr(path, '/');
-    if (last == NULL || strcmp(path, "/") == 0)
-        return remove_entry(AT_FDCWD, path);
-    if (last == path)
+    if (last == NULL || strcmp(path, "/") == 0) {
+        parent = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        name = path;
+    } else if (last == path) {
         parent = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    else {
+        name = last + 1;
+    } else {
         *last = '\0';
         parent = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        name = last + 1;
     }
     if (parent < 0)
         return errno;
-    error = remove_entry(parent, last + 1);
-    close(parent);
+    error = remove_entry(&parent, name);
+    if (parent >= 0)
+        close(parent);
     return error;
 }
 
@@ -508,7 +548,15 @@ int main(int argc, char **argv)
             (unsigned char)(user >> 24), (unsigned char)(user >> 16),
             (unsigned char)(user >> 8), (unsigned char)user
         };
+        mode_t mask = umask(0);
+        uint32_t mask_bits = (uint32_t)mask;
+        unsigned char mask_bytes[4] = {
+            (unsigned char)(mask_bits >> 24), (unsigned char)(mask_bits >> 16),
+            (unsigned char)(mask_bits >> 8), (unsigned char)mask_bits
+        };
+        umask(mask);
         frame('u', bytes, sizeof bytes);
+        frame('m', mask_bytes, sizeof mask_bytes);
         for (variable = environ; *variable != NULL; variable++)
             frame('v', (const unsigned char *)*variable, strlen(*variable));
         frame('x', (const unsigned char *)"\0\0\0\0", 4);

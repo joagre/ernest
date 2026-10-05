@@ -797,6 +797,61 @@ given_environment() ->
     Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>, <<"7">>],
     ?assertEqual(Given ++ Given ++ [<<"caught">>, <<"survived">>], Lines).
 
+%% report §11, Appendix E.23: `PWD` reaches a program as the launcher's
+%% shell leaves it, naming the working directory, where it was given so,
+%% unset, or naming another. Written after the code, which the shell
+%% decides: the launcher cannot see what the shell replaced
+pwd_is_the_shells_test_() ->
+    {timeout, 60, fun pwd_is_the_shells/0}.
+
+pwd_is_the_shells() ->
+    Dir = "build/pwd",
+    ok = filelib:ensure_path(Dir ++ "/src"),
+    ok = file:write_file(Dir ++ "/src/pwd.ern",
+                         "export fn main() : Unit with Never =\n"
+                         "    Io.println(Optional.withDefault(Os.environment(\"PWD\"),"
+                         " \"unset\"))\n"),
+    0 = build("--source-root " ++ Dir ++ "/src " ++ Dir ++ "/src"),
+    Here = list_to_binary(filename:absname(Dir)),
+    Run = fun(Setting) ->
+              sh("sh -c 'cd " ++ Dir ++ " && " ++ Setting ++ " " ++ filename:absname("../bin/ern")
+                 ++ " run src/pwd.erc'")
+          end,
+    Expected = {0, <<Here/binary, "\n">>},
+    ?assertEqual(Expected, Run("env -u PWD")),
+    ?assertEqual(Expected, Run("env PWD=/")),
+    ?assertEqual(Expected, Run("env PWD=" ++ binary_to_list(Here))),
+    file:del_dir_r(Dir).
+
+%% report §11, §11.2, §8.4: the host's compiler takes no options from the
+%% environment, and a foreign function's module is the host's own or on
+%% the load path, never in the working directory, which is not on the
+%% host's code path. A regression test: `ERL_COMPILER_OPTIONS` reached
+%% every compile, so a parse transform it named failed the build, and a
+%% `.beam` in the working directory answered a foreign function no
+%% directory of the load path held
+host_takes_nothing_from_where_it_runs_test_() ->
+    {timeout, 60, fun host_takes_nothing_from_where_it_runs/0}.
+
+host_takes_nothing_from_where_it_runs() ->
+    Dir = "build/hostcwd",
+    ok = filelib:ensure_path(Dir ++ "/src"),
+    ok = file:write_file(Dir ++ "/src/plain.ern",
+                         "foreign fn stub() : Int = \"ern_cwd_stub:value/0\"\n"
+                         "export fn main() : Unit with Never = Io.println(Int.toString(stub()))\n"),
+    ok = file:write_file(Dir ++ "/ern_cwd_stub.erl",
+                         "-module(ern_cwd_stub).\n-export([value/0]).\nvalue() -> 42.\n"),
+    {ok, ern_cwd_stub} = compile:file(Dir ++ "/ern_cwd_stub.erl", [{outdir, Dir}]),
+    Ern = filename:absname("../bin/ern"),
+    {Built, BuildOutput} = sh("sh -c 'cd " ++ Dir ++ " && ERL_COMPILER_OPTIONS="
+                              "\"[{parse_transform,ern_no_such_transform}]\" "
+                              ++ Ern ++ " build --source-root src src/plain.ern'"),
+    ?assertEqual({0, <<>>}, {Built, BuildOutput}),
+    {Ran, RunOutput} = sh("sh -c 'cd " ++ Dir ++ " && " ++ Ern ++ " run src/plain.erc'"),
+    ?assertEqual(1, Ran),
+    ?assertEqual(nomatch, binary:match(RunOutput, <<"42">>)),
+    file:del_dir_r(Dir).
+
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute
 %% path of the directory the program was started in, a relative path
 %% given to Fs names a file under it, and ern refuses to start where the

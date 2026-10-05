@@ -239,6 +239,27 @@ connect_ipv6_test() ->
            end, <<"main">>, quiet()),
     ?assertEqual('Right', wait(connected)).
 
+%% Appendix E.18: a listener reuses its address, so a server that closed
+%% its side of a connection first, which leaves the port's connection
+%% closing, listens on the port again at once. Written after the code, a
+%% test of what E.18 now states
+listen_again_while_closing_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               {'Right', Port} = port(Listener),
+               Me = self(),
+               spawn(fun() -> Me ! {client, connect(Port, 2000)}, timer:sleep(1000) end),
+               {'Right', Socket} = accept(Listener, 2000),
+               receive {client, {'Right', _}} -> ok end,
+               ern_rt:send(Socket, 'Close'),
+               ern_rt:send(Listener, 'CloseListener'),
+               sleep(200),
+               Self ! {again, side(listen(Port))}
+           end, <<"main">>, quiet()),
+    ?assertEqual('Right', wait(again)).
+
 %% Appendix E.1, E.18: a reason of the host's that no constructor of
 %% Io.Error names is answered in the host's words, a port already in use
 %% "address already in use". A regression test: `Other` held the code,

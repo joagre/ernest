@@ -176,7 +176,10 @@ and its notes say what changed.
 3. **The fixes**: the report, the guide and the documents, then the code and its tests, a
    batch a commit. A design question, a sentence of the report or of §0, and a reading of the
    argument run on the most advanced model, and a defect whose fix the finding names on the
-   one below, as *The models* says.
+   one below, as *The models* says. One fix departs from its triage: `PWD` reaches a
+   program as the launcher's shell sets it, which §11 states, since a shell's script cannot
+   see what the shell replaced; a compiled launcher, which would keep it, is not built (the
+   log's *The security reader's cheap lines*).
 4. **The close**: the log's entry for the review gains how many findings took each decision,
    and `findings.md` goes when every line is done or dropped, or stands in the plan as an
    item of its own.

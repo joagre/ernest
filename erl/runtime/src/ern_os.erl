@@ -10,7 +10,7 @@
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, host/0, working_directory/0]).
+-export([loop/0, helper_failed/0, helper/0, host/0, umask/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -352,14 +352,37 @@ not_started(Name) -> ern_io:helper_error(Name).
 %% host has no word for, and the environment byte for byte, since the host
 %% decodes a value that is not UTF-8 without a sign. Each value is its
 %% bytes, which Os.environment decodes when it is asked for.
+%% The mask the program creates files under comes in the same run, and is
+%% kept (umask/0).
 -spec host() -> {'Host', non_neg_integer(), #{binary() => binary()}}.
 host() ->
     Helper = try open([])
              catch error:_ -> host_failed()
              end,
     receive
-        {Helper, {data, <<"u", User:32>>}} -> {'Host', User, variables(Helper, #{})};
+        {Helper, {data, <<"u", User:32>>}} ->
+            receive
+                {Helper, {data, <<"m", Mask:32>>}} ->
+                    persistent_term:put({?MODULE, umask}, Mask),
+                    {'Host', User, variables(Helper, #{})};
+                {Helper, {exit_status, _}} -> host_failed()
+            end;
         {Helper, {exit_status, _}} -> host_failed()
+    end.
+
+%% Report Appendix E.17: the program's file mode creation mask, which the
+%% host has no word for, as the helper read it when the host was read,
+%% and read so where it has not been. It is kept for the program's life,
+%% since it is the process's own, set before the program starts, and
+%% nothing the runtime runs changes it.
+-spec umask() -> non_neg_integer().
+umask() ->
+    case persistent_term:get({?MODULE, umask}, none) of
+        none ->
+            _ = host(),
+            persistent_term:get({?MODULE, umask});
+        Mask ->
+            Mask
     end.
 
 %% Report Appendix E.23, §8.5: the helper failed as the host was read,

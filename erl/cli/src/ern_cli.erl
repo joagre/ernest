@@ -33,6 +33,10 @@
 -spec start() -> no_return().
 start() ->
     ok = ern_signals:install(),
+    %% report §11: the host's code path holds the working directory, so a
+    %% `.beam` there would answer a module no other directory holds; no job
+    %% reads one
+    _ = code:del_path("."),
     Args = init:get_plain_arguments(),
     %% a job writes through ports of its own, which end it when a stream's
     %% reader has gone (ern_out); the shell's terminal is the host's own
@@ -872,9 +876,8 @@ program(File, Options) ->
 %% Report §11.2: an Erlang module a `foreign fn` names is the host's own or
 %% a `.beam` in a directory of the load path, the host's own found first.
 %% The working directory, which the host puts on its code path, is neither,
-%% unless it is a root of the load path.
+%% unless it is a root of the load path; start/0 has taken it off.
 host_path(LoadPath) ->
-    _ = code:del_path("."),
     ok = code:add_pathsz(LoadPath).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts

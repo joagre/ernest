@@ -92,7 +92,8 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
-    case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
+    %% report §11: the host's compiler takes nothing from the environment
+    case compile:noenv_forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
         {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
         {error, Errors, _} -> erlang:error({emitted_erlang_does_not_compile, Errors})
     end.

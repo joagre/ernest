@@ -2782,7 +2782,9 @@ holder_beam(ErlangModule, Names) ->
              | [erl_syntax:function(erl_syntax:atom(ern_emitter:function_atom(Name)),
                                     [erl_syntax:clause([], none, [Get(Name)])])
                 || Name <- Names]],
-    {ok, _, Beam} = compile:forms([erl_syntax:revert(Form) || Form <- Forms], [return_errors]),
+    %% report §11: the host's compiler takes nothing from the environment
+    {ok, _, Beam} = compile:noenv_forms([erl_syntax:revert(Form) || Form <- Forms],
+                                        [return_errors]),
     Beam.
 
 %% Report §11.2: whether the input is an expression, which binds `it`, and
