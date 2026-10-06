@@ -18,7 +18,7 @@ measured, with the prelude and the emitted code, and the report's and the guide'
 shipped as Ernest 0.3.1 (*Done* below). Next is MVP 2.99e, the standard library's `Code`,
 placed on 2026-10-06, whose decisions are taken with the user before it is built. After it
 comes MVP 3.0, peers, whose design begins with the thinking in
-[`distribution.md`](distribution.md), discussed with the user before anything is built; that
+[`nodes_and_code.md`](nodes_and_code.md), discussed with the user before anything is built; that
 discussion goes on meanwhile. A release waits until the user calls it.
 
 **Ernest 0.3.1 is tagged** `v0.3.1` on 2026-10-05, a documentation release from MVP 2.99d:
@@ -115,7 +115,7 @@ executed examples.
 
 ## MVP 3.0 (peers: distributed code and the node protocol), about three weeks
 
-Designed in [`distribution.md`](distribution.md), the note for nodes, code and code change,
+Designed in [`nodes_and_code.md`](nodes_and_code.md), the note for nodes, code and code change,
 all of it tentative. It took in the protocol's note and code distribution's, brought to the
 report on 2026-09-28, which went on 2026-10-05, kept at `3fa6b42`. What it still asks of the
 report, listed below, and its open questions are decided before any of it is built.
@@ -134,7 +134,7 @@ others build on it, ran as MVP 2.99c's item 6, and its findings were worked befo
   written before peers are built on it (decided 2026-10-04): which two types are one, across
   nodes by their hash (§8.7) and across a session's inputs (§11.2), and what crosses a node,
   §3.8's and §3.11's transport.
-- **The distribution note, read with the user before any of it is built.** Brought to the
+- **The note for nodes and code, read with the user before any of it is built.** Brought to the
   report on 2026-09-28, the two notes it took in also gained design no one has weighed: a
   `spawned` and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn
   frame, the hash modules named `ern#<base32>`, and new open questions, its *P5*, *P7* to
@@ -143,7 +143,7 @@ others build on it, ran as MVP 2.99c's item 6, and its findings were worked befo
 - **Code change in running processes, decided with the user before any of it is built**:
   §6.10's replacement by a message that carries the new loop, and a long-serving service's
   upgrade. The thinking so far, tentative and undecided, is in
-  [`distribution.md`](distribution.md), which also holds the rest of the thinking for MVP
+  [`nodes_and_code.md`](nodes_and_code.md), which also holds the rest of the thinking for MVP
   3.0 and 3.1 until their discussions decide it.
 - The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
   in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
@@ -169,7 +169,7 @@ others build on it, ran as MVP 2.99c's item 6, and its findings were worked befo
   and with one node `pick` answers it without measuring. `measure : () -> Int with m`, so the
   common call is `Balancer.pick(Peer.runQueue)`. Its module page states the cost, two round
   trips per `pick`.
-- **What the distribution note asks of the report**, each decided before it is built: whether
+- **What the note for nodes and code asks of the report**, each decided before it is built: whether
   `Reason` gains `Unreachable` for a lost peer whose process may live on (the note's question *P6*,
   §9.3, §6.9), which also settles a contradiction a reader outside the project found on
   2026-10-04: §10 requires a lost peer's `Down` to carry a reason distinguishable from every
@@ -218,7 +218,7 @@ others build on it, ran as MVP 2.99c's item 6, and its findings were worked befo
 
 ## MVP 3.1 (content addressing), about four weeks
 
-Designed in [`distribution.md`](distribution.md) with MVP 3.0, all of it tentative; the
+Designed in [`nodes_and_code.md`](nodes_and_code.md) with MVP 3.0, all of it tentative; the
 open questions it carries of code distribution are decided here, report first. Its question
 *D9* meets the code as it stands: whether a node running hash modules
 keeps embedded mode, which loads nothing from the code path on demand, where §11.2 finds a
@@ -245,7 +245,7 @@ The milestone is §8.7's identity in full:
   compatible by its declaration is not thereby trusted to keep its promise. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
 - Hash modules never change, and versions coexist on a node for as long as a process runs one
-  ([`distribution.md`](distribution.md), section 4.1). The shell's reload then ends
+  ([`nodes_and_code.md`](nodes_and_code.md), section 4.1). The shell's reload then ends
   nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")` and §11.2's
   second-reload rule go, with the test that pins them.
 - **The loader's one `code_server`**, measured under the loader's batches before it is relied
