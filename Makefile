@@ -129,7 +129,7 @@ man: stdlib libs tools
 	  report/toolchain.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
 	@mv build/man/ern.1.new build/man/ern.1
 
-# The installation (docs/install.md): the toolchain's tree under
+# The installation (proposals/install/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
 # pages, the documents and the Emacs mode under $(PREFIX)/share, each path
 # after $(DESTDIR), which a packager passes. make install stages the tree
@@ -151,7 +151,7 @@ uninstall:
 # The release archive, build/release/ern-$(VERSION).tar.gz: the tree make
 # install stages, the helper as its C source, which the archive's own make
 # compiles where it is installed, and a Makefile and a README of its own
-# from tools/release (docs/install.md).
+# from tools/release (proposals/install/install.md).
 release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
 

@@ -18,8 +18,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`install.md`](install.md)**: the design note of the installation.
-- **[`proposals/`](../proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there and not yet decided; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](../proposals/shell/shell_design.md), and of the Emacs major mode, [`emacs_mode.md`](../proposals/emacs/emacs_mode.md).
+- **[`proposals/`](../proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there and not yet decided; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](../proposals/shell/shell_design.md), of the Emacs major mode, [`emacs_mode.md`](../proposals/emacs/emacs_mode.md), and of the installation, [`install.md`](../proposals/install/install.md).
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 - **[`emacs/README.md`](../emacs/README.md)**: how to install the Emacs mode.
 
@@ -134,7 +133,7 @@ make man          the manual pages alone, which make also writes: each module's 
                   its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
                   build/man/ern.1, which man -l shows
 make install      install under PREFIX, /usr/local by default, within DESTDIR if one
-                  is given (docs/install.md)
+                  is given (proposals/install/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for

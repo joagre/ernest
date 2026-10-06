@@ -589,7 +589,7 @@ Guide Read in Order*). `Fs.watch` stays out (the log's *Later*).
 (report §11, §11.4, Appendix G.2; the log's *Manual Pages Named `Ernest.List`*, *`ern(1)` Is
 §11* and *What Building the Manual Pages Found*). `make install` installs Ernest under
 `PREFIX`, and `make release` writes one archive for every system, compiled where it is
-installed ([`install.md`](install.md); the log's *`bin/ern` Is a Launcher*, *The Layout Under
+installed ([`install.md`](../proposals/install/install.md); the log's *`bin/ern` Is a Launcher*, *The Layout Under
 the Prefix* and *One Archive, Compiled Where It Is Installed*). The review ran a machine for
 every check and twelve readers, and is now [`release_review.md`](release_review.md)'s one page (the log's *A
 Lean Review*); `make test` went from 280 seconds to under a minute (the log's *The Time of

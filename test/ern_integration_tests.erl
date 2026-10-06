@@ -457,7 +457,7 @@ rendered(Pages) ->
 installation_test_() ->
     {inorder, [{timeout, 300, fun install/0}, {timeout, 300, fun release/0}]}.
 
-%% docs/install.md: make install writes the tree under a
+%% proposals/install/install.md: make install writes the tree under a
 %% prefix, bin/ern a relative link to its launcher; the prefix moved to
 %% another place runs there, `ern`, the shell, a program that runs another
 %% through the helper, and `ern doc --man`, and `man` finds ern(1), a
@@ -550,7 +550,7 @@ install() ->
             ok = file:change_mode(Base ++ "/closed", 8#755)
     end.
 
-%% docs/install.md: make release writes the archive, the staged tree with
+%% proposals/install/install.md: make release writes the archive, the staged tree with
 %% the helper as its C source, a Makefile and a README; its make compiles
 %% the helper, and its make install installs under a prefix, where a
 %% program that runs another through the helper runs, and its make
@@ -932,7 +932,7 @@ make_dir(Dir) ->
         Other -> Other
     end.
 
-%% report §11, docs/install.md: the launcher needs `iconv` to read the
+%% report §11, proposals/install/install.md: the launcher needs `iconv` to read the
 %% working directory's name, and names it where the path has none. A
 %% regression test: every working directory was refused as not UTF-8
 launcher_names_a_missing_iconv_test() ->

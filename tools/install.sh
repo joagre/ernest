@@ -1,5 +1,5 @@
 #!/bin/sh
-# The installation (docs/install.md). Its jobs:
+# The installation (proposals/install/install.md). Its jobs:
 #
 #   install.sh stage DIR                    the installation's tree from the checkout
 #   install.sh install DIR DESTDIR PREFIX   a staged tree installed
