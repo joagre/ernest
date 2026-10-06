@@ -49,6 +49,7 @@ Peer.spawnMonitored : (String, () -> Unit with m, (Down) -> n, Int)
 - `Peer.spawn(name, f, ms)` starts a process that runs `f` on the peer of that name and answers its address. `Peer.spawnMonitored(name, f, wrap, ms)` monitors it from its start.
 - A find and a spawn wait at most `ms` milliseconds, and answer the address or a failure, which the program matches on. Neither faults for what the network or the peer does. A spawn faults for one thing, a mistake of the program's own: a function that captured a value that may not cross.
 - `Reason` gains `Unreachable`: the process's node is out of reach, and the process may live on.
+- `ern reload --config-dir dir` makes the node started with that directory read its `ernest.conf` again, so that a peer is added or removed without stopping the node.
 
 The failures, in the order a request meets them:
 
@@ -193,6 +194,8 @@ ern run --config-dir /etc/ernest/board board.erc
 
 The desk prints `the counter is at 5` and ends. The board prints the total every second.
 
+A fourth machine is added by listing it in the others' `ernest.conf` and running `ern reload --config-dir /etc/ernest/store` on each, with the store and the board running on.
+
 Where the cable to the store is then pulled, each node finds the silence within 45 to 75 seconds. For as long as the store is out of reach the board's calls answer `None`, and the board prints nothing. When the cable is back, the next call opens a connection and the totals appear again. The board holds the same address throughout and has written nothing for the loss. The counter runs on untouched all the while, and still holds its total.
 
 Where the store's node is itself stopped and started, its counter is a new process, which the store offers again under the same key. The address the board holds names the one that is gone: its calls answer `None` from then on. A program that is to outlive that monitors the counter, and finds it again by the key when it is told that the counter has ended. A library can do that for it (section 10).
@@ -230,7 +233,9 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **The carrier.** Nodes talk over Erlang's own distribution, which the host has: its connections, its handshake, its heartbeat, its order, and its monitors across nodes. Ernest turns off what hurts in it, as the paragraphs below say, and puts three things of its own on it: a check that two nodes run the same build, the start of a process on a peer, and a service found by its key. A program never sees the carrier, so another can take its place.
 
-**Nodes.** A node's identity is the SHA-256 hash of its TLS public key, and its name on the carrier is that hash with a constant after it. So the name is the same on every node and holds no network address, and a node that moves to another machine keeps it. A peer's name in a program is one node's own word for it, the name its `ernest.conf` lists the peer under. A program never sees the name on the carrier, and what the runtime prints of a peer shows the listed name, and the hash only for a node that is not listed. `ern config` makes a node's key and a certificate that the node signs itself. The certificate's name is a constant, which nothing reads. A node has a configuration only where `--config-dir` names one: there is no default directory, and a program started without one is no node, has no peers and listens to nothing. As it starts, a node refuses a directory others can write and a key others can read. A node whose configuration gives it a network address listens there from its start. A node without one does not listen, and only dials. Each start of a node has a number of its own, which the host draws and puts in every address, so that an address of an earlier start is dead.
+**Nodes.** A node's identity is the SHA-256 hash of its TLS public key, and its name on the carrier is that hash with a constant after it. So the name is the same on every node and holds no network address, and a node that moves to another machine keeps it. A peer's name in a program is one node's own word for it, the name its `ernest.conf` lists the peer under. A program never sees the name on the carrier, and what the runtime prints of a peer shows the listed name, and the hash only for a node that is not listed. `ern config` makes a node's key and a certificate that the node signs itself. The certificate's name is a constant, which nothing reads. A node has a configuration only where `--config-dir` names one: there is no default directory, and a program started without one is no node, has no peers and listens to nothing. As it starts, a node refuses a directory others can write and a key others can read. A node whose configuration gives it a network address listens there from its start. A node without one does not listen, and only dials. Each start of a node has a number of its own, which the host draws and puts in every address, so that an address of an earlier start is dead. A node writes its process number to `ernest.pid` in its directory at its start and removes it at its exit.
+
+**A reload.** `ern reload --config-dir dir` sends the node named by `ernest.pid` the signal `SIGHUP`, which `kill -HUP` sends as well, and fails where there is no file or no such process. The node reads `ernest.conf` again and keeps its peers in a table, which the rule that accepts a peer and the dial both read. A peer added is a row, and nothing else happens until an operation dials it or it dials in. A peer removed, or one whose key changed, has its connection ended, both nodes run the loss, and the addresses a program holds of its processes are those of a node not listed. A peer whose address changed keeps an open connection, and the next dial uses the new address. A peer whose name changed under the same key keeps its connection; only the name a program uses changes. The node's own key and address cannot change while it runs, since they are its name and its listener: a file that changes either, or that does not parse, is refused, and the old configuration stays. The node says on its standard error which peers were added and removed, or why the file was refused. The signal carries nothing back: the command's exit status says only that it was delivered.
 
 **Connections.** Two nodes have at most one connection, opened by the first operation that needs it, over TLS 1.3 with a certificate on each side. A node accepts a peer whose public key its configuration lists, and no other, by a rule of Ernest's in the TLS handshake. The rule goes by the key alone, and the host's check of a certificate's name is turned off. There is no port-mapper daemon: a node finds a peer's address in its configuration. A peer may be listed without an address, and is then never dialled: it is out of reach until it opens a connection itself. Connections are not transitive: that A knows B and B knows C connects A and C in no way. Where both dial at once, the host keeps one. The host's cookie is a constant and proves nothing.
 
@@ -299,17 +304,16 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello wi
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
-3. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
-4. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
-5. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
-6. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
-7. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
-8. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
-9. **A network address.** A name or a number, and what the listener binds to.
-10. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
-11. **The shell on a node.**
-12. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
-13. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+3. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
+4. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
+5. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
+6. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
+7. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
+8. **A network address.** A name or a number, and what the listener binds to.
+9. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
+10. **The shell on a node.**
+11. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
+12. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
