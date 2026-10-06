@@ -1,5 +1,5 @@
 /// The shell's live region (report §11.2), designed in
-/// docs/shell_design.md: the bottom rows of the terminal, a tail of what
+/// proposals/shell/shell_design.md: the bottom rows of the terminal, a tail of what
 /// programs have written, the input being typed under it, and under that
 /// what `Tab` or `Shift-Tab` showed. Everything above it is the
 /// transcript, written into the terminal and scrolled by it.

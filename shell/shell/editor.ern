@@ -1,5 +1,5 @@
 /// The shell's line editor (report §11.2), designed in
-/// docs/shell_design.md: a pure function from what is being edited and an
+/// proposals/shell/shell_design.md: a pure function from what is being edited and an
 /// event to what the reader must do next. GNU Readline's Emacs bindings;
 /// `Escape` and the key after it are `Meta` and that key (§8.2).
 ///

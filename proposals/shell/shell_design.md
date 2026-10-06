@@ -1,6 +1,8 @@
 # The Ernest Shell: Design
 
-How `ern shell` is built. What the shell does is report §11.2, cited here by the names of its paragraphs, *Inputs*, *Scope*, *Editing* and the rest; how its code reads is [`shell/README.md`](../shell/README.md); why it is built so, and how it came to be, is the decisions log's; when each part was built is the plan's.
+Status: built. This is the shell's design note, and changes when the shell's design does. It is not authoritative: the report states what the shell does.
+
+How `ern shell` is built. What the shell does is report §11.2, cited here by the names of its paragraphs, *Inputs*, *Scope*, *Editing* and the rest; how its code reads is [`shell/README.md`](../../shell/README.md); why it is built so, and how it came to be, is the decisions log's; when each part was built is the plan's.
 
 ## Shape
 
@@ -80,7 +82,7 @@ A module's own values live in the runtime's store, keyed by the module and the n
 
 An expression's or a `let`'s module is deleted once its answer is in, unless its value holds one of its functions. It is purged unless a process it spawned still runs it, and a later input tries the purge again.
 
-An input that declares, a holder, and an input whose value holds its functions are kept while the session can reach them. Each records, as it is loaded, the session's modules it calls, read from its imports, and those whose types it names. The session collects (`collect`) once an input has answered, and at each `:forget`. A collection starts from the names in the session's scope and every module whose old code a process is still inside, follows what each needs, and frees the rest: its values in the store, its code, its interface, and its number. Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against. How the session's memory is checked is [`memory.md`](memory.md)'s.
+An input that declares, a holder, and an input whose value holds its functions are kept while the session can reach them. Each records, as it is loaded, the session's modules it calls, read from its imports, and those whose types it names. The session collects (`collect`) once an input has answered, and at each `:forget`. A collection starts from the names in the session's scope and every module whose old code a process is still inside, follows what each needs, and frees the rest: its values in the store, its code, its interface, and its number. Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against. How the session's memory is checked is [`memory.md`](../../docs/memory.md)'s.
 
 ### Loading and reloading
 

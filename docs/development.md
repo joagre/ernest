@@ -18,9 +18,8 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`shell_design.md`](shell_design.md)**, **[`install.md`](install.md)**: the design notes of the shell and of the installation.
-- **[`proposals/`](../proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there and not yet decided; operations records are there as the record of what was built, with three programs the tests run.
-- **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
+- **[`install.md`](install.md)**: the design note of the installation.
+- **[`proposals/`](../proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there and not yet decided; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](../proposals/shell/shell_design.md), and of the Emacs major mode, [`emacs_mode.md`](../proposals/emacs/emacs_mode.md).
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 - **[`emacs/README.md`](../emacs/README.md)**: how to install the Emacs mode.
 
@@ -115,7 +114,7 @@ make test-typed   well-typed programs generated, checked, compiled and run in on
                   hand a reply on, changed so that the checker must refuse them;
                   ERN_SEED=n runs a failing seed again
 make test-shell   the shell's sessions and the terminal
-make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
+make test-emacs   the Emacs mode's tests (proposals/emacs/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test, which builds
                   their programs and the benchmark's
 make service      a program run by the host's service manager, a user's systemd or
@@ -188,7 +187,7 @@ bin/ern build --load-path build/libs/ets --build-root build/app app
 bin/ern run --load-path build/libs/ets build/app/main.erc
 ```
 
-The shell's `:help` lists its commands; guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](shell_design.md) says how it is built.
+The shell's `:help` lists its commands; guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](../proposals/shell/shell_design.md) says how it is built.
 
 ## What the toolchain accepts
 

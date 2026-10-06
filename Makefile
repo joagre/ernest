@@ -8,7 +8,7 @@
 APPS = utils lexer parser format typer runtime emitter cli
 
 # Every Ernest source of the repository, which `make format` lays out and
-# the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
+# the Emacs mode's tests read (report §11.6, proposals/emacs/emacs_mode.md).
 ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
 		test/*/*.ern test/programs/modules/*.ern test/programs/modules/*/*.ern libs/*/*.ern \
 		tools/*.ern proposals/operations/programs/*.ern
@@ -242,7 +242,7 @@ service: all
 bench: all
 	@$(MAKE) -C test bench
 
-# The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
+# The Emacs mode's tests (proposals/emacs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test` will run and not have built. `format` runs
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to

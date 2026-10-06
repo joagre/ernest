@@ -1,6 +1,8 @@
 # The Emacs mode
 
-`ernest-mode` edits `.ern` files. It is `emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header and in [`emacs/README.md`](../emacs/README.md) beside it, which a test holds equal. Emacs 29 is the first with `font-lock-operator-face`, which it uses. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
+Status: built. This is the Emacs mode's design note, and changes when the mode's design does. It is not authoritative.
+
+`ernest-mode` edits `.ern` files. It is `emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header and in [`emacs/README.md`](../../emacs/README.md) beside it, which a test holds equal. Emacs 29 is the first with `font-lock-operator-face`, which it uses. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](../../docs/decisions.md) argues it.
 
 ## What it is
 

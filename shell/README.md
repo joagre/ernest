@@ -1,6 +1,6 @@
 # Reading the shell
 
-The Ernest shell is an Ernest program: `Shell` in [`shell.ern`](shell.ern), six modules under [`shell/`](shell/), and a front end in Erlang for what only the compiler or the host can answer. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/shell_design.md`](../docs/shell_design.md), cited by the names of its sections and paragraphs.
+The Ernest shell is an Ernest program: `Shell` in [`shell.ern`](shell.ern), six modules under [`shell/`](shell/), and a front end in Erlang for what only the compiler or the host can answer. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`proposals/shell/shell_design.md`](../proposals/shell/shell_design.md), cited by the names of its sections and paragraphs.
 
 ## Where to start
 

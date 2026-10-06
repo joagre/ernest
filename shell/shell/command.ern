@@ -1,4 +1,4 @@
-/// The shell's commands (report §11.2), designed in docs/shell_design.md:
+/// The shell's commands (report §11.2), designed in proposals/shell/shell_design.md:
 /// the one table every part of the shell reads, what a command's name
 /// selects, what a command line is, what completes after it, what the
 /// help says, and what `:set` sets. Pure, and tested by `ern test`; the

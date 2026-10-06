@@ -1,4 +1,4 @@
-/// Completion (report §11.2), designed in docs/shell_design.md: what
+/// Completion (report §11.2), designed in proposals/shell/shell_design.md: what
 /// `Tab` puts in the line, and what a second `Tab` lists.
 ///
 /// The matching and the ranking are pure functions from what is typed and

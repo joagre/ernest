@@ -48,7 +48,7 @@ The runtime's helper, `erl/runtime/c_src/ern_exec.c`, is C99 and compiles with `
 
 ## Ernest
 
-For every Ernest source and every Ernest block of the report and the guide. The layout `ern format` writes, and what else it keeps and changes, is report §11.6's: `make test` holds every source to it, `make format` restores it, and the Emacs mode indents as it does ([`emacs_mode.md`](emacs_mode.md)). The writer decides the rest:
+For every Ernest source and every Ernest block of the report and the guide. The layout `ern format` writes, and what else it keeps and changes, is report §11.6's: `make test` holds every source to it, `make format` restores it, and the Emacs mode indents as it does ([`emacs_mode.md`](../proposals/emacs/emacs_mode.md)). The writer decides the rest:
 
 - **Top-down**: types, then the module's service bindings, then `main` or the exported functions, each followed directly by its helpers; a helper several share goes with its first user or in a utilities section at the bottom.
 - **A block holds more than one statement**; one expression is written bare *(tested)*.

@@ -1,6 +1,6 @@
 # Installing the Emacs mode
 
-`ernest-mode` edits `.ern` files, and needs Emacs 29 or later. What it does and what it leaves to you is [`docs/emacs_mode.md`](../docs/emacs_mode.md).
+`ernest-mode` edits `.ern` files, and needs Emacs 29 or later. What it does and what it leaves to you is [`proposals/emacs/emacs_mode.md`](../proposals/emacs/emacs_mode.md).
 
 `make install` puts [`ernest-mode.el`](ernest-mode.el) in `share/emacs/site-lisp` under its prefix, which an Emacs built for that prefix has on its `load-path`. Another Emacs, and one that loads the mode from a checkout, is given the directory that holds it:
 

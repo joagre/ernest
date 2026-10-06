@@ -1,7 +1,7 @@
 ;;; reindent.el --- Reindent Ernest sources and report what moved  -*- lexical-binding: t; -*-
 
 ;; The repository's own sources are indented as the style guide says, so
-;; reindenting one with the mode must leave it unchanged (docs/emacs_mode.md,
+;; reindenting one with the mode must leave it unchanged (proposals/emacs/emacs_mode.md,
 ;; the table of tests).  Run from `emacs/':
 ;;
 ;;     emacs -Q -batch -l test/reindent.el ../stdlib/*.ern

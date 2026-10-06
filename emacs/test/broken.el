@@ -1,7 +1,8 @@
 ;;; broken.el --- Indent half-typed Ernest and check what happens  -*- lexical-binding: t; -*-
 
-;; Half-typed buffers (docs/emacs_mode.md, the table of tests).  Each file under test/broken
-;; is a buffer caught mid-keystroke, written with the indentation a
+;; Half-typed buffers (proposals/emacs/emacs_mode.md, the table of tests).
+;; Each file under test/broken is a buffer caught mid-keystroke, written
+;; with the indentation a
 ;; person would expect.  The mode must leave every line where it is, and
 ;; must give a fresh line at the end the column below.  Run from `emacs/':
 ;;

@@ -1,4 +1,4 @@
-/// The Ernest shell (report §11.2), designed in docs/shell_design.md.
+/// The Ernest shell (report §11.2), designed in proposals/shell/shell_design.md.
 ///
 /// An input is checked against the session, compiled as a module of its own
 /// and run in a process of its own; its value is printed with its type, or
