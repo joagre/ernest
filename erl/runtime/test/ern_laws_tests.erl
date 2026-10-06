@@ -187,7 +187,14 @@ map_laws_test_() ->
           {"map, filter, filterMap, foldLeft", fun map_and_key/1, fun map_traversals/1},
           {"any, all, find some entry that satisfies", fun map_and_key/1, fun map_search/1},
           {"merge: the second wins; mergeWith: the key, the first's value, the second's",
-           fun two_maps/1, fun map_merge/1}]).
+           fun two_maps/1, fun map_merge/1},
+          {"foreach meets each entry once", fun entries/1, fun map_foreach/1}]).
+
+%% Report Appendix E.3: foreach meets each entry once, in unspecified order.
+map_foreach(Pairs) ->
+    Map = ?MAP:fromList(Pairs),
+    Met = met(fun(Visit) -> ?MAP:foreach(Map, fun(Key, Value) -> Visit({Key, Value}) end) end),
+    lists:sort(Met) =:= lists:sort(maps:to_list(Map)).
 
 map_from_list(Pairs) ->
     ?MAP:fromList(Pairs) =:= maps:from_list(Pairs).
@@ -259,7 +266,13 @@ set_laws_test_() ->
           {"union, intersection, difference, isSubset", fun two_element_lists/1,
            fun set_operations/1},
           {"map, filter, filterMap, foldLeft, any, all, find", fun elements_and_one/1,
-           fun set_traversals/1}]).
+           fun set_traversals/1},
+          {"foreach meets each element once", fun elements/1, fun set_foreach/1}]).
+
+%% Report Appendix E.4: foreach meets each element once, in unspecified order.
+set_foreach(List) ->
+    Set = ?SET:fromList(List),
+    lists:sort(met(fun(Visit) -> ?SET:foreach(Set, Visit) end)) =:= lists:usort(List).
 
 set_contents(List) ->
     Set = ?SET:fromList(List),
@@ -616,7 +629,26 @@ float_laws_test_() ->
           {"pow: None for a negative base to a fraction and for 0 to a negative power",
            fun float_and_exponent/1, fun float_pow/1},
           {"toString: the shortest digits that read back, plain from 0.0001 to below 1e16",
-           fun finite/1, fun float_written/1}]).
+           fun finite/1, fun float_written/1},
+          {"exp and the trigonometric functions: the host's, a fault beyond the range, no -0.0",
+           fun two_floats/1, fun float_host_functions/1}]).
+
+%% Report Appendix E.9, §3.1: `exp`, `sin`, `cos`, `tan`, `atan` and `atan2`
+%% are the host's floating-point library's, `exp` faulting beyond the finite
+%% range, and none answers a negative zero, which Ernest has not.
+float_host_functions({X, Y}) ->
+    Pairs = [{?FLOAT:sin(X), math:sin(X)}, {?FLOAT:cos(X), math:cos(X)},
+             {?FLOAT:tan(X), math:tan(X)}, {?FLOAT:atan(X), math:atan(X)},
+             {?FLOAT:atan2(Y, X), math:atan2(Y, X)}],
+    Exp = try math:exp(X) of
+              Host -> ?FLOAT:exp(X) == Host
+          catch
+              error:badarith ->
+                  try ?FLOAT:exp(X) of _ -> false
+                  catch throw:{ern, fault, <<"float arithmetic error">>} -> true
+                  end
+          end,
+    Exp andalso lists:all(fun({Ernest, Host}) -> Ernest == Host andalso Ernest =/= -0.0 end, Pairs).
 
 float_order({First, Second}) ->
     ?FLOAT:abs(First) =:= abs(First)
@@ -714,7 +746,21 @@ path_laws_test_() ->
            fun path_joined/1},
           {"under: the second under the first, but an absolute second or one that steps",
            fun two_segments/1, fun path_under/1},
-          {"isAbsolute, toString", fun segments/1, fun path_text_of/1}]).
+          {"isAbsolute, toString", fun segments/1, fun path_text_of/1},
+          {"the empty path: no segments, and nothing under a root", fun segments/1,
+           fun path_empty/1}]).
+
+%% The empty path, which no other draw makes: no segments, no parent, name
+%% or extension, its extension left as it is, and `under` refusing it.
+path_empty(Segments) ->
+    Empty = {'Path', <<>>},
+    ?PATH:split(Empty) =:= [] andalso ?PATH:join([]) =:= Empty
+        andalso ?PATH:parent(Empty) =:= 'None' andalso ?PATH:name(Empty) =:= 'None'
+        andalso ?PATH:extension(Empty) =:= 'None'
+        andalso ?PATH:withExtension(Empty, <<"md">>) =:= Empty
+        andalso ?PATH:withoutExtension(Empty) =:= Empty
+        andalso ?PATH:under(?PATH:join(Segments), Empty) =:= 'None'
+        andalso ?PATH:'<>'(?PATH:join(Segments), Empty) =:= ?PATH:join(Segments).
 
 path_join_split(Text) ->
     ?PATH:join(?PATH:split({'Path', Text})) =:= {'Path', normal_path(Text)}.
@@ -947,7 +993,37 @@ ordered_map_laws_test_() ->
           {"merge: the second wins; mergeWith: the key, the first's value, the second's",
            fun two_entry_lists/1, fun ordered_map_merge/1},
           {"map, filter, filterMap, foldLeft, foreach, any, all, find in order",
-           fun entries_and_one/1, fun ordered_map_traversals/1}]).
+           fun entries_and_one/1, fun ordered_map_traversals/1},
+          {"keys the order calls Equal: the key the map holds stays", fun tagged_entries/1,
+           fun ordered_map_held_key/1}]).
+
+%% Report Appendix E.26: two keys the order calls `Equal` are one key, and
+%% the key the map holds stays; `put`, `update`, `merge` and `mergeWith`
+%% replace its value, and `fromList`, putting each pair in turn, keeps the
+%% first pair's key with the last pair's value. Keys are {Key, Tag}, the
+%% order reading Key alone, so that a held key and a given one differ.
+ordered_map_held_key({Pairs, {Key, _} = Given, Value}) ->
+    ByKey = fun({Left, _}, {Right, _}) -> ?INT:compare(Left, Right) end,
+    Map = ?ORDERED_MAP:fromList(Pairs, ByKey),
+    Model = held_model(Pairs),
+    Put = ?ORDERED_MAP:put(Map, Given, Value, ByKey),
+    Updated = ?ORDERED_MAP:update(Map, Given, fun(_) -> Value end, ByKey),
+    Merged = ?ORDERED_MAP:merge(Map, ?ORDERED_MAP:fromList([{Given, Value}], ByKey), ByKey),
+    Expected = held_model(Pairs ++ [{Given, Value}]),
+    ?ORDERED_MAP:toList(Map) =:= Model
+        andalso ?ORDERED_MAP:toList(Put) =:= Expected
+        andalso ?ORDERED_MAP:toList(Updated) =:= Expected
+        andalso ?ORDERED_MAP:toList(Merged) =:= Expected
+        andalso lists:keymember(Key, 1, [K || {K, _} <- Expected]).
+
+%% The entries in order of Key, each with the first key of its Key and the
+%% last value.
+held_model(Pairs) ->
+    Firsts = lists:foldl(fun({{Key, _} = Tagged, _}, Acc) ->
+                             maps:update_with(Key, fun(Held) -> Held end, Tagged, Acc)
+                         end, #{}, Pairs),
+    Lasts = maps:from_list([{Key, Value} || {{Key, _}, Value} <- Pairs]),
+    [{maps:get(Key, Firsts), Value} || {Key, Value} <- lists:sort(maps:to_list(Lasts))].
 
 ordered_map_contents(Pairs) ->
     Map = ?ORDERED_MAP:fromList(Pairs, fun ?INT:compare/2),
@@ -1251,6 +1327,12 @@ first_occurrences(Key, List) ->
                                 end
                             end, {[], #{}}, List),
     lists:reverse(Kept).
+
+%% Entries whose keys are {Key, Tag}, keys the order calls `Equal` drawn
+%% with other tags, and an entry to put among them.
+tagged_entries(Size) ->
+    Tagged = fun(Inner) -> {small(Inner) rem 5, pick([first, second, third])} end,
+    {list(Size, fun(Inner) -> {Tagged(Inner), small(Inner)} end), Tagged(Size), small(Size)}.
 
 entries_model(Pairs) ->
     lists:sort(maps:to_list(maps:from_list(Pairs))).

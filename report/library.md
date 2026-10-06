@@ -632,7 +632,7 @@ OrderedSet.isSubset : (Set(a!), Set(a!)) -> Bool needs a.compare // every elemen
 
 ### Appendix E.26. `ordered_map.ern` (namespace `OrderedMap`)
 
-A map from keys to values in the order of the key type's `compare` (§3.10), with E.0 rule 2's vocabulary for a map. `Map(k, v)` is an abstract type, `OrderedMap.Map(k, v)` outside the module, and within it hides the prelude's `Map` (§4.2); it holds its entries and nothing else, so a map is data as E.25's set is. A function that needs the order declares `needs k.compare` (§4.9): `fromList`, `contains`, `get`, `put`, `remove`, `update`, `merge` and `mergeWith` need it, and the rest keep the keys and need none. Two keys the order calls `Equal` are one key, and `put` replaces the value already there. The order of `keys`, `values`, `toList`, `foldLeft`, `foreach` and `find`, and the order in which `map`, `filter`, `filterMap`, `any`, `all` and `mergeWith` meet the entries, is the keys'. The map is a sorted list of pairs, one shape per map: `get`, `put`, `remove` and `update` are linear in the map's size, `fromList` is a stable sort and one pass, `n log n`, and `merge` and `mergeWith` are linear in the two sizes. Nothing is a primitive: the module is Ernest over `List` (E.0 rule 1). The key type's `compare` is the program's promise, as E.25 says of the element type's.
+A map from keys to values in the order of the key type's `compare` (§3.10), with E.0 rule 2's vocabulary for a map. `Map(k, v)` is an abstract type, `OrderedMap.Map(k, v)` outside the module, and within it hides the prelude's `Map` (§4.2); it holds its entries and nothing else, so a map is data as E.25's set is. A function that needs the order declares `needs k.compare` (§4.9): `fromList`, `contains`, `get`, `put`, `remove`, `update`, `merge` and `mergeWith` need it, and the rest keep the keys and need none. Two keys the order calls `Equal` are one key, and the key the map holds stays: `put`, `update`, `merge` and `mergeWith` replace its value alone, and `fromList`, which puts each pair in turn, keeps the first pair's key with the last pair's value. The order of `keys`, `values`, `toList`, `foldLeft`, `foreach` and `find`, and the order in which `map`, `filter`, `filterMap`, `any`, `all` and `mergeWith` meet the entries, is the keys'. The map is a sorted list of pairs, one shape per map: `get`, `put`, `remove` and `update` are linear in the map's size, `fromList` is a stable sort and one pass, `n log n`, and `merge` and `mergeWith` are linear in the two sizes. Nothing is a primitive: the module is Ernest over `List` (E.0 rule 1). The key type's `compare` is the program's promise, as E.25 says of the element type's.
 
 ```
 abstract type Map(k, v)
@@ -641,7 +641,7 @@ OrderedMap.size : (Map(k!, v!)) -> Int
 OrderedMap.isEmpty : (Map(k!, v!)) -> Bool
 OrderedMap.contains : (Map(k!, v!), k!) -> Bool needs k.compare
 OrderedMap.get : (Map(k!, v!), k!) -> Optional(v!) needs k.compare
-OrderedMap.put : (Map(k!, v!), k!, v!) -> Map(k!, v!) needs k.compare // replaces an entry with that key
+OrderedMap.put : (Map(k!, v!), k!, v!) -> Map(k!, v!) needs k.compare // replaces the value of an entry with that key
 OrderedMap.remove : (Map(k!, v!), k!) -> Map(k!, v!) needs k.compare // a key not present is not an error
 OrderedMap.update : (Map(k!, v!), k!, (Optional(v!)) -> v! with e) -> Map(k!, v!) with e needs k.compare // the entry, present or not, replaced by the function's value
 OrderedMap.map : (Map(k!, v), (k!, v) -> w with e) -> Map(k!, w) with e
@@ -654,7 +654,7 @@ OrderedMap.all : (Map(k!, v!), (k!, v!) -> Bool with e) -> Bool with e
 OrderedMap.find : (Map(k!, v!), (k!, v!) -> Bool with e) -> Optional(#(k!, v!)) with e // the first in order that satisfies
 OrderedMap.merge : (Map(k!, v!), Map(k!, v!)) -> Map(k!, v!) needs k.compare // the second wins for a shared key
 OrderedMap.mergeWith : (Map(k!, v!), Map(k!, v!), (k!, v!, v!) -> v! with e) -> Map(k!, v!) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
-OrderedMap.fromList : (List(#(k!, v!))) -> Map(k!, v!) needs k.compare // a later pair wins
+OrderedMap.fromList : (List(#(k!, v!))) -> Map(k!, v!) needs k.compare // a later pair's value wins
 OrderedMap.toList : (Map(k, v)) -> List(#(k, v)) // in order
 OrderedMap.keys : (Map(k, v!)) -> List(k) // in order
 OrderedMap.values : (Map(k!, v)) -> List(v) // in the keys' order

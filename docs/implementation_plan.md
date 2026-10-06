@@ -19,8 +19,8 @@ staged for its reader (item 5) and the report's contracts made precise (item 4),
 changed. Since then MVP 2.99d has measured the library (item 1) and stood it on the host
 (item 12), `Fs.removeAll` refuses the root (item 6), and a program's exit and its end are
 reported as they happen (items 9 and 10), and `Clock.now` reads the host's clock (item
-13). Next are the laws' draws read (item 14), the prelude measured (item 2) and the
-emitted code's cost (item 3). A release waits until the user calls it.
+13), and the laws' draws are read (item 14). Next are the prelude measured (item 2) and
+the emitted code's cost (item 3). A release waits until the user calls it.
 
 **Ernest 0.3.0 is tagged** `v0.3.0` on 2026-10-05, the end of MVP 2.99c: the core
 language argued sound in [`soundness.md`](soundness.md) and generated against, the grammar,
@@ -212,11 +212,10 @@ and its measurement does not hold the release.
     the log's *Clock.now Reads the Host's Clock*): no message to the clock's process, which
     keeps the alarms; 3.4 us became 437 ns, the rest item 3's. A regression test suspends
     the clock's process and asks the time.
-14. **The laws' draws read, module by module**, recommended and taken on 2026-10-06 (the
-    log's *Clock.now Reads the Host's Clock*): whether each module's laws draw the hard
-    cases its section of Appendix E names, as `Path`'s drew ASCII alone and hid a defect,
-    and the measuring machine drew a comparison that was no order. Each draw that misses
-    a case named gains it, and a law that then fails is a defect fixed with its test.
+14. **The laws' draws read, module by module**, done 2026-10-06 (the log's *The Laws'
+    Draws Read*): `OrderedMap` kept the key given in `put` and the held one in `merge`,
+    and now keeps the held key throughout (E.26); the empty path, `Map.foreach`,
+    `Set.foreach`, `exp` and the trigonometric functions gained laws, which held.
 
 ---
 

@@ -44,8 +44,8 @@ export abstract type Map(k, v) = Map(List(#(k, v)))
 /// The map with no entries.
 export let empty : Map(k, v) = Map([])
 
-/// The map of `pairs`. Where two pairs have one key, the last one's value is
-/// kept.
+/// The map of `pairs`, put in turn. Where the order calls two pairs' keys
+/// `Equal`, the first one's key is kept with the last one's value.
 ///
 /// ### Examples
 ///
@@ -54,17 +54,18 @@ export let empty : Map(k, v) = Map([])
 /// // => [#(1, "a"), #(2, "c")]
 /// ```
 export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
-    Map(lastOfEach(List.sort(pairs, fn(#(key, _), #(other, _)) = k.compare(key, other))))
+    Map(heldKeys(List.sort(pairs, fn(#(key, _), #(other, _)) = k.compare(key, other))))
 
-// The last of each run of pairs whose keys the order calls `Equal`, in a
-// sorted list. The sort is stable, so the list's later pair comes last
-// and is the one kept, as `put` replaces the value already there.
-fn lastOfEach(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
+// Each run of pairs whose keys the order calls `Equal`, in a sorted list,
+// made one: the first pair's key with the last pair's value. The sort is
+// stable, so the list's order holds within a run, as `put` keeps the key
+// the map holds and replaces its value.
+fn heldKeys(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
     match sorted {
         #(key, value) :: #(other, later) :: rest -> if k.compare(key, other) == Equal then
-            lastOfEach(#(other, later) :: rest)
+            heldKeys(#(key, later) :: rest)
         else
-            #(key, value) :: lastOfEach(#(other, later) :: rest)
+            #(key, value) :: heldKeys(#(other, later) :: rest)
       | _ -> sorted
     }
 
@@ -116,7 +117,8 @@ fn found(pairs : List(#(k, v)), key : k) : Optional(v) needs k.compare =
         }
     }
 
-/// The map with `value` at `key`, replacing a value already there.
+/// The map with `value` at `key`. Where the map holds a key the order calls
+/// `Equal` to `key`, that key stays and its value is replaced.
 ///
 /// ### Examples
 ///
@@ -132,7 +134,7 @@ fn inserted(pairs : List(#(k, v)), key : k, value : v) : List(#(k, v)) needs k.c
         [] -> [#(key, value)]
       | #(other, kept) :: rest -> match k.compare(key, other) {
             Less -> #(key, value) :: pairs
-          | Equal -> #(key, value) :: rest
+          | Equal -> #(other, value) :: rest
           | Greater -> #(other, kept) :: inserted(rest, key, value)
         }
     }
