@@ -31,7 +31,9 @@ Three things bound the milestone:
 **What is new.**
 
 - `Peer.spawn(name, f)` starts a process that runs `f` on the peer of that name and returns its address. `Peer.spawnMonitored(name, f, wrap)` monitors it from its start.
-- `Peer.find(name, fn() = M.service)` answers the address a top-level binding holds on that peer, or a failure.
+- A *key* names a service to a node's peers and carries the service's message type: `Peer.key("counter")`, bound at the type `Peer.Key(Msg)`. It is a value, and starts nothing.
+- `Peer.offer(key, address)` lets this node's peers find `address` under the key.
+- `Peer.find(name, key)` answers the address the peer of that name offers under the key, typed by the key, or a failure.
 - `Reason` gains `Unreachable`: the process's node is out of reach, and the process may live on.
 
 **What may cross.**
@@ -50,30 +52,39 @@ An operation that would carry a value that may not cross faults the process that
 
 ## 3. Examples
 
-A counter runs on a node named `store`.
+A counter runs on a node named `store`. Three modules share one more, which holds what a client needs to reach the counter and starts nothing.
 
 ```ernest-fragment
-// counter.ern
+// counter.ern, what the store and its clients share
 
 export type Msg = Add(Int) | Get(reply : Reply(Int))
 
-export let counter : Address(Msg) =
+export let key : Peer.Key(Msg) = Peer.key("counter")
+```
+
+```ernest-fragment
+// store.ern
+
+let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
-fn count(total : Int) : Unit with Msg =
+fn count(total : Int) : Unit with Counter.Msg =
     receive {
-        Add(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+        Counter.Add(amount) -> count(total + amount)
+      | Counter.Get(reply = reply) -> {
             answer(reply, total);
             count(total)
         }
     }
 
-// The store's entry point. It is in the module that declares `counter`,
-// so the counter runs on the node that starts here.
-export fn main() : Unit with Never =
+export fn main() : Unit with Never = {
+    Peer.offer(Counter.key, counter);
+    wait()
+}
+
+fn wait() : Unit with Never =
     receive {
-        after 60000 -> main()
+        after 60000 -> wait()
     }
 ```
 
@@ -83,7 +94,7 @@ export fn main() : Unit with Never =
 // desk.ern
 
 export fn main() : Unit with Never =
-    match Peer.find("store", fn() = Counter.counter) {
+    match Peer.find("store", Counter.key) {
         Left(_) -> Io.println("the store is not there")
       | Right(counter) -> {
             send(counter, Counter.Add(5));
@@ -106,7 +117,7 @@ fn report(total : Optional(Int)) : Unit with m =
 type Msg = Tick
 
 export fn main() : Unit with Msg =
-    match Peer.find("store", fn() = Counter.counter) {
+    match Peer.find("store", Counter.key) {
         Left(_) -> Io.println("the store is not there")
       | Right(counter) -> {
             Clock.alarm(1000, fn(_) = Tick);
@@ -146,7 +157,7 @@ Each node has a configuration directory, made once with `ern config --config-dir
 The same compiled files are on all three machines, and each node is started with its directory:
 
 ```
-ern run --config-dir /etc/ernest/store counter.erc
+ern run --config-dir /etc/ernest/store store.erc
 ern run --config-dir /etc/ernest/desk desk.erc
 ern run --config-dir /etc/ernest/board board.erc
 ```
@@ -155,9 +166,9 @@ The desk prints `the counter is at 5` and ends. The board prints the total every
 
 Where the cable to the store is then pulled, each node finds the silence within 45 to 75 seconds. For as long as the store is out of reach the board's calls answer `None`, and the board prints nothing. When the cable is back, the next call opens a connection and the totals appear again. The board holds the same address throughout and has written nothing for the loss. The counter runs on untouched all the while, and still holds its total.
 
-Where the store's node is itself stopped and started, its counter is a new process, and the address the board holds names one that is gone: its calls answer `None` from then on. A program that is to outlive that monitors the counter, and finds it again when it is told that the counter has ended (section 9, point 4).
+Where the store's node is itself stopped and started, its counter is a new process, which the store offers again under the same key. The address the board holds names the one that is gone: its calls answer `None` from then on. A program that is to outlive that monitors the counter, and finds it again by the key when it is told that the counter has ended (section 9, point 4).
 
-The desk's program and the board's name `Counter.counter`, to say which binding they want of the store. By the rule of section 6, *Bindings*, each of their nodes then starts a counter of its own as well, which nothing uses. Section 9 holds this as unsolved.
+The desk and the board depend on the module `Counter` for the message type and the key. That module starts nothing, so neither of them runs a counter of its own.
 
 ## 4. What holds
 
@@ -194,13 +205,15 @@ The desk's program and the board's name `Counter.counter`, to say which binding 
 
 **The hello.** When a connection opens, and before anything else passes, each node tells the other the version of this protocol, a hash of the build, and the versions of `ern` and of OTP. Where one differs, the node ends the connection, and the operation that asked for it fails with a reason that says which.
 
-**What passes.** Ernest's own frames are three, and the host carries the rest as it carries them on one node.
+**What passes.** Ernest's own frames are five, and the host carries the rest as it carries them on one node.
 
 | What | Carried by |
 |---|---|
 | a message, with the hash of the mailbox type it is sent at | a frame of Ernest's, to the peer's gateway |
 | a spawn on a peer | a frame of Ernest's |
 | the answer to a spawn | a frame of Ernest's |
+| a find, with a key's name and its type's hash | a frame of Ernest's |
+| the answer to a find | a frame of Ernest's |
 | a monitor, and its `Down` | the host's monitor |
 | a `kill` | the host's exit signal |
 | the answer to a call | the host's alias, which takes one answer |
@@ -224,7 +237,9 @@ The desk's program and the board's name `Counter.counter`, to say which binding 
 
 **A spawn.** `Peer.spawn(name, f)` sends the peer a frame with `f` as a reference to its code, its module and its place there, and the values it captured. The same build has the same modules, so the reference means the same on both nodes. The peer starts the process and answers with its address. The spawner waits with no clock of its own: the wait ends when the peer answers, when no connection can be opened, or when the connection is lost. A name that is no peer's, and a peer out of reach, fault the spawner.
 
-**Bindings.** A node runs, at its start, the top-level bindings of the standard library and of the modules its own entry point depends on, as a program on one node does. A function spawned on it runs only where the bindings that function depends on have their values there. Otherwise the spawn faults its spawner, and `Peer.find` answers a failure. Nothing is initialized because a peer asked. In spawned code a top-level binding is the peer's, and a captured value is the spawner's.
+**A service and its key.** On one node a service is a top-level binding that holds an address, and a process reaches it by the binding's name. A peer cannot name another node's binding, so a service that peers are to reach is offered under a key. A key holds a name and the hash of a message type; the type is the one its binding is written at, and the hash is taken there. `Peer.offer(key, address)` is accepted by the compiler only where the key and the address have one message type. The node then keeps the address under the key's name for as long as the process lives. `Peer.find(name, key)` asks the peer for what it offers under the key's name, and the peer answers the address where the hash is the same. A find fails, as a value, where the name is no peer's, where the peer is out of reach, where the peer offers nothing under that name, and where what it offers there has another message type. Only what a node offers can be found: its other bindings are closed to its peers. A find ships no code, so the one operation that carries a function to a peer is a spawn.
+
+**Bindings.** A node runs, at its start, the top-level bindings of the standard library and of the modules its own entry point depends on, as a program on one node does. A function spawned on it runs only where the bindings that function depends on have their values there. Otherwise the spawn faults its spawner. Nothing is initialized because a peer asked. In spawned code a top-level binding is the peer's, and a captured value is the spawner's.
 
 **Other nodes' processes and resources.** `Process.info` answers for the running node's processes alone, and `None` for a process of another node. A supervisor's children run on its own node.
 
@@ -249,12 +264,12 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 ## 9. Unsolved
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A node's name on the carrier and the name in its certificate were not tried against a real host name. A network that really parts, and one where only one side can dial, were not tried. And whether Ernest puts a delay before a connection is opened again, which the host does not.
-2. **A client that names a service starts it.** `Peer.find("store", fn() = Counter.counter)` makes the desk's program depend on the module `Counter`, so the desk's node runs that module's bindings and starts a counter of its own. For a service that owns a port or a file that is wrong.
+2. **What a key leaves open.** A key's name is a string the program chooses, so two keys can have one name: whether a second offer under a name takes the first one's place or is refused. Whether a node may offer an address of a process on another node. And whether a find takes a time, as other waits on a peer do.
 3. **A spawn that cannot reach its peer faults.** `Peer.find` answers a failure as a value, and `Peer.spawn` kills its caller for the same condition, the network. Whether a spawn should answer a value, and take a time as other waits on a peer do, is to be weighed afresh.
-4. **`Peer`'s exact shape.** The types of its functions and the names of `Peer.find`'s failures. Whether a program is given a standing address of a peer's service, one that finds the service again after its node has been started again, and whether that is `Peer`'s own or a library's. How a program learns which nodes there are and places work by load is not weighed here.
+4. **`Peer`'s exact shape.** The types of its functions and the names of `Peer.find`'s four failures. Whether a program is given a standing address of a peer's service, one that finds the service again by its key after its node has been started again, and whether that is `Peer`'s own or a library's. How a program learns which nodes there are and places work by load is not weighed here.
 5. **What the build's hash covers,** where two nodes are started from different entry points of one program.
 6. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
-7. **Two nodes with one key.** A second node started by mistake with the first one's key has the first one's name. What the host then does was not tried.
+7. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
 8. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
 9. **The texts of the new faults:** a peer out of reach, a resource's address that cannot cross, a function whose bindings have no values on the peer.
 10. **The mailbox type's description.** How a process carries it at run time, and what exactly its hash is taken over.
@@ -268,7 +283,8 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 ## 10. Left out on purpose
 
 - Code that crosses between nodes, and a change of code while a program runs.
-- Discovery of nodes, and a registry of names.
+- Discovery of nodes, and a registry that nodes share: a key is offered on one node and found there.
+- A function shipped to a peer to read one of its bindings.
 - A message carried through a third node.
 - A cluster's membership, an election, a lease: what must exist once is the program's or a library's.
 - A second attempt by the runtime at anything.
@@ -302,4 +318,4 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. The second is what makes every deploy a stop of all nodes at once. Without it, nodes are restarted one at a time wherever a change does not touch what they exchange, and unsolved point 5 falls away, there being no hash of a whole build. A changed module that spawns or finds on a node still holding the old one fails until that node has it too, so a real upgrade waits for step C. Step B only relaxes step A, by rule 1, and can follow MVP 3.0 without breaking a program. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
 
-Three places carry the most risk, since a later milestone may find them wrong. How a service is named and found: `Peer.find` reads a binding by its name in one build, and across builds a name alone does not say which service is meant (unsolved point 2 is its first sign). The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
+Three places carry the most risk, since a later milestone may find them wrong. How a service is named and found: a key is a name and the hash of a message type, which is what a later milestone needs to tell one version of a service from another, and whether the two are enough across builds is not known. The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
