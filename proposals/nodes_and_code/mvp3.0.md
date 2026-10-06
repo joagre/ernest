@@ -20,7 +20,7 @@ Three things bound the milestone:
 
 | Operation | Across nodes |
 |---|---|
-| `send(address, value)` | carries the value to the process's node, over a connection it asks for where there is none; returns at once and promises nothing |
+| `send(address, value)` | carries the value to the process's node, over a connection it asks for where there is none; returns at once while the network keeps up, and promises nothing |
 | `Address.call(address, request, ms)` | waits for the answer; `None` where none came in time, the callee ended or restarted, or its node went out of reach |
 | `Address.callForever(address, request)` | waits without a limit; faults where the callee ended or its node went out of reach |
 | `answer(reply, value)` | carries the answer to the caller's node |
@@ -218,7 +218,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 1. **`Unreachable` is not death.** A watcher that replaces a process it was told is out of reach can have two. What must exist once lives on one named node, and is unavailable while that node is out of reach.
 2. **A call that ended without an answer may have run.** `None` says that no answer came. It says nothing of why, or of whether the request ran, and it is the same where the request was never sent. A request that may be sent again is written so that running twice does no harm. A program that wants to know why monitors the callee, whose `Down` says it.
 3. **A spawn that failed may have started its process.** Where the spawn's time runs out, or the connection is lost while the spawner waits, the spawner is told only that. The process may run on the peer, and no one holds its address. Where the connection lasts, the process is ended as soon as its answer arrives.
-4. **A full buffer ends everything with that peer.** Where more waits to be sent to a peer than the buffer's limit, the node ends the connection: what waited is dropped, and every monitor and waiting call between the two nodes ends, the innocent among them.
+4. **A sender to a stalled peer waits.** Where more waits to be sent to a peer than the host's buffer holds, a `send` to that peer waits until it drains, as the host has it. A program that sends faster than the network carries is slowed to the network's speed. The wait ends at the latest when the detector gives the peer up: the send then returns, and the loss runs. A process that waits in a send serves nothing from its mailbox meanwhile, so a stalled peer stalls the processes that send to it. A call's time runs from the moment its request is sent, so a call to a stalled peer can take the wait and then its time.
 5. **One large value delays what its sender sends after it.** Two nodes share one connection. A large value crosses in pieces, and other senders' messages pass between them. A slow function of an adapted address delays what that peer sends through the gateway: its spawns, its finds, and its messages to adapted addresses. A plain message passes the gateway by.
 6. **A program that waits on itself across nodes hangs.** A node with peers declares no deadlock, since work can always reach it from outside.
 7. **A silent failure takes 45 to 75 seconds to find.** A program that must know sooner puts a time on its calls. A find and a spawn always have one.
@@ -259,7 +259,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **The gateway.** A node has, for each connected peer, one process that takes that peer's frames: its *gateway*. A plain message does not pass through it: the host puts it in the mailbox, as on one node, and nothing of Ernest's stands between the wire and the mailbox. Through the gateway goes what needs a process on the receiving node: a spawn, a find, and a message to an adapted address, which is carried, unconverted, to the node that made the address, whose gateway applies the function and hands on the result; a fault in that function is the fault of the process the address leads to. A frame the gateway cannot read is faulty, and the node ends the connection. So a message between nodes costs what the host's send costs, and only one to an adapted address makes a step more, on the node that made the address.
 
-**A loss.** A connection is lost when the network breaks it, when the detector finds it silent, when its outgoing buffer is full, or when a frame is faulty. In the last two the node ends the connection itself. Each node is told by its own host, and no frame announces it. The host gives a `Down` with `Unreachable` and an empty `site` for each monitor held on the peer's processes, and drops what waited to be sent. The calls waiting on those processes end. A node that dials a peer which still believes the old connection alive makes that peer run its loss first.
+**A loss.** A connection is lost when the network breaks it, when the detector finds it silent, or when a frame is faulty. In the last the node ends the connection itself. Each node is told by its own host, and no frame announces it. The host gives a `Down` with `Unreachable` and an empty `site` for each monitor held on the peer's processes, and drops what waited to be sent. The calls waiting on those processes end. A node that dials a peer which still believes the old connection alive makes that peer run its loss first.
 
 **The detector.** The host's. Any traffic is a sign of life, and a tick is sent where nothing else was for 15 seconds. A peer from which nothing came in four such intervals is lost, so a silence is found in 45 to 75 seconds. `ern` sets the same time on every node.
 
@@ -267,7 +267,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **Addresses.** An address is the host's own name for a process. It holds the node's name, the number of that node's start, and the process's number there. An address names its process for as long as the process lives, and a loss does not end it: when the two nodes connect again, the same address reaches the same process. Two things end an address. Its process ends. Or its node is started again: what is sent to an address of an earlier start is dropped, a call through it ends at once, and a monitor on its process gives `Unknown`. An address is a value like any other, and is as good on a third node it is sent to as on the node that sent it. A monitor is not kept through a loss. The loss gave its `Down`, and a program that wants to go on watching calls `monitor` again, on the process the `Down` names. Where that process's node is still out of reach, the new monitor gives its `Down` with `Unreachable`, and so it does where the node is not listed.
 
-**Messages.** `send` hands the message to the host and returns, and the host puts it in the mailbox on the other node. Where no connection is open the host opens one, and the frame waits: it is sent where the connection opens, and dropped where it does not. What waits to be sent to a peer waits in the host's buffer for that peer, which has a limit. A `send` that finds the buffer over its limit does not wait, as the host would have it wait: the node ends the connection (section 5, point 4). A large value crosses in pieces, and other senders' messages pass between them.
+**Messages.** `send` hands the message to the host and returns, and the host puts it in the mailbox on the other node. Where no connection is open the host opens one, and the frame waits: it is sent where the connection opens, and dropped where it does not. What waits to be sent to a peer waits in the host's buffer for that peer. A `send` that finds the buffer full waits until it drains, as the host has it, and at the latest until the detector gives the peer up (section 5, point 4). A large value crosses in pieces, and other senders' messages pass between them.
 
 **Calls.** A `Reply` is the host's alias, which takes one answer and drops any other, as on one node. The caller monitors the callee for as long as it waits, so the callee's end and a loss both end the call. Where the callee restarted, its node tells the caller's. A call to another node costs four of the host's signals where a `send` costs one.
 
@@ -291,7 +291,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 | the detector's tick | every 15 s where nothing else is sent |
 | a silence is found in | 45 to 75 s |
 | a dial that nothing answers is given up after | 7 s, the host's |
-| the outgoing buffer's limit | the host's setting, 1 MB as the host has it; unsolved (section 9) |
+| what waits to be sent before a sender waits | 1 MB, the host's own |
 
 `ern` gives the host the same numbers on every node. None is set in `ernest.conf`.
 
@@ -305,15 +305,14 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello wi
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
-3. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
-4. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
-5. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
-6. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
-7. **A network address.** A name or a number, and what the listener binds to.
-8. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
-9. **The shell on a node.**
-10. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
-11. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+3. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
+4. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
+5. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
+6. **A network address.** A name or a number, and what the listener binds to.
+7. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
+8. **The shell on a node.**
+9. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
+10. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
@@ -324,7 +323,7 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello wi
 - A message carried through a third node.
 - A cluster's membership, an election, a lease: what must exist once is the program's or a library's.
 - A second attempt by the runtime at anything.
-- A sender made to wait where the buffer is full, and a way to read how much waits.
+- A sender that never waits, with the connection ended where the buffer is full; and a way to read how much waits.
 - A protocol of Ernest's own beneath the frames, and a wire format of its own.
 - A detector that adapts its patience.
 - A delay of the runtime's before a connection is opened again.
