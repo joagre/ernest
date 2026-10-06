@@ -196,6 +196,41 @@ The plan's MVP 3.0 holds what is decided around these: `Peer.find`, which answer
 - What `Process.info` answers for a process on another node, of which Appendix E.21 says nothing. *Worked:* `None`. The runtime answers for its own node's processes alone, from its own record of them, and no frame is added. E.21 gains the sentence when this is decided: `None` where the process has ended or is another node's. A program that wants the answer asks on that node: it spawns a function there that calls `Process.info` and sends the result back, a `Process` crossing as it does. `None` then means ended or elsewhere, and a program tells the two apart by the node it had the process from.
 - Whether the address of a socket, of a listener or of a program the runtime started, a process the runtime started for a resource, crosses to another node, of which Appendix E.18 says nothing. *Worked:* it does not. A resource is bound to its node, as a foreign value is (§3.8): the address of a process the runtime started for one does not cross, nor does an address adapted around it, and transporting it faults the operation that would transport it, with a cause of its own, found where the address would first leave the node. Crossing, it would let a process on another node write to a socket by a call across nodes for every write, and own it, so that §6.9's rule that a resource ends with its owner would have to hold across a loss. A program that wants another node to use a resource puts a process of its own before it, which owns it and takes the peer's messages. A reader who knows Erlang expects as much, a port being of no use from another node. No input or output through a peer then comes for nothing, and who owns a resource stays one node's matter.
 
+### 2.9 The order to build it in, and what it asks of its owners
+
+**The order.** MVP 3.0 is built in phases, each on the one before, the soundness argument before the first. In each the report's sentences go in first, and the phase ends with its tests passing and a commit.
+
+1. *The state machine and its checker.* The connection's protocol as one function, checked over a played network, with the named races as cases (section 2.3, weakness 6). No socket and no process.
+2. *Connections.* The listener, mutual TLS from `ernest.conf`, the hello and its refusals, the detector, a loss, and the delay before a dial. Two nodes connect, lose each other and connect again, and nothing else crosses.
+3. *Addresses and messages.* The export table, an address's wire form, the connection's number, serialization with the safe decoding, `send` across nodes, the queue's limit, and adapted addresses.
+4. *Monitors, `kill` and calls.* A `Down` with `Unreachable`, and a call's watch and answer.
+5. *A spawn on a peer and the module `Peer`.* `Peer.spawn` and `Peer.spawnMonitored` within one build, then `Peer.find`, `Peer.nodes` and `Peer.runQueue`.
+6. *What stands on it.* `libs/balancer` and the guide's chapter.
+
+**What it asks of the report**, each a sentence to bring when the thinking is covered:
+
+- §9.3: `Reason` gains `Unreachable` (*P6*).
+- §10: a lost peer's processes are out of reach, with the reason `Unreachable`, where it has them dead with `Fault("peer lost")`; and a connection that returns is a new one, what crossed the old one staying dead, where it has a peer that reappears as a new instance.
+- §6.2: the one silence drops a message whose node is out of reach, a node absent from the peer table among it (*P8*). A spawn on a peer waits with no clock of its own and faults with one cause where the peer is out of reach (*P2*), which says that no answer came (*P18*).
+- §6.4: the unbroken prefix (*P19*).
+- §6.5: across nodes the connection applies an adapted address's function, in the order the frames arrived (*P17*); and an address is good for the connection it arrived over.
+- §6.6: a call to another node ends at a loss, `Address.call` with `None` and `Address.callForever` with a fault of its own cause (*P10*, *P20*); and `None` says that no answer came.
+- §6.9: a `Down` made at a loss has `Unreachable` and an empty site (*P7*); a monitor ends with its connection; and what a `monitor` of a process out of reach answers.
+- §3.8 and §3.11: transporting the address of a process the runtime started for a resource faults, and so does a value too large for the outgoing queue.
+- §7.4: the causes these add, the peer out of reach, a value too large to cross, and a resource's address that cannot cross.
+- §8.3: a node that has a configuration listens from its start.
+- §8.6: a node that listens for peers declares no deadlock, where it has sentences on a connected peer and on a process spawned on a peer (*P9*).
+- Appendix E: `Peer`'s section, with the exception to shape rule 8 for a spawn (*P2*); E.21, `Process.info` answering `None` for another node's process; and E.18 and E.23, a resource's address bound to its node.
+- Appendix F: out of reach.
+
+**Of the soundness argument** (`soundness.md`, where it is extended to nodes): the checker's five invariants as its claims (section 2.3, weakness 6), and the three sentences on an address that travels (weakness 5).
+
+**Of the guide:** that `Unreachable` is not death; the rules for two processes where one was meant and for a call that ended without an answer (section 2.3); and the lines by which a client finds its service again and monitors it, not trying again on `NoSuchPeer` (section 2.8).
+
+**Of the plan,** in MVP 3.0: this order as its items; that no code crosses in MVP 3.0, where it speaks of a spawn that ships code (*P15*); the have, want and code frames, and a hash for each definition, in MVP 3.1; its two questions of the report answered, `Unreachable` (*P6*) and the prefix (*P19*); and the refusal of another build in `docs/development.md`'s table.
+
+**Of the log:** the why of each, which sections 2.3 and 2.8 hold until then.
+
 ## 3. Code by its hash
 
 ### 3.1 Identity
