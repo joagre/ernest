@@ -96,20 +96,13 @@ and its measurement does not hold the release.
    before the user decides: each function past the line is a decision with the user, with
    its numbers in the log's entry, and a function near the line is measured more
    thoroughly first.
-2. **The prelude measured**: each function of §9.4 to §9.6, about twenty, against the
-   host's operation it stands on, at the sizes a program meets, held to CLAUDE.md's
-   stricter line for the runtime, that what Ernest adds to a host operation costs a
-   fraction of it: a ratio below 2. `make bench` already holds `send`, a call and `spawn`,
-   and the rest join it. `spawn` first, which the bench puts at about three and a half
-   times a bare spawn of the host's (the log's *The Principles Review Closed*), where a
-   call stands at 1.6. Each past the line comes back to the user as a decision with its
-   numbers, and a cost goes by needing less, never by a trick. Measured on 2026-10-06
-   (the log's *The Prelude Measured*): everything under the line but `Path.<>`, brought to
-   1.9 to 2.0, and what goes through the reaper, `spawn` 3.4 times, `spawnMonitored` 7,
-   `monitor` 2.5 of a live process and 15.6 of an ended one. A decision with the user
-   before this milestone closes: whether `spawn` and `monitor` keep waiting for the reaper,
-   and what the report then says of `Process.live` and of a monitor made as a process
-   ends.
+2. **The prelude measured**, done 2026-10-06 (the log's *The Prelude Measured* and *Spawn
+   Keeps Its Wait*): `make bench` holds every function of §9.4 to §9.6 beside the host's
+   operation, each under twice it but `Path.<>`, brought from 2.9 to 1.9, and what goes
+   through the reaper. `spawn` and `monitor` keep waiting for it, decided with the user
+   and measured: a `spawn` that did not wait saved 0.7 us of 5.2 and let a spawning loop
+   outrun the reaper, 0.74 s becoming 52, and a `monitor`'s wait orders it before the
+   caller's next act. Their messages are a system process's by design.
 3. **The emitted code's cost**, done 2026-10-06 (the log's *The Emitted Code Measured*):
    ordinary Ernest compiles to the Erlang a person writes, 1.0 to 1.5 times it in the
    bench; the count of a foreign call around ten primitives read as waiting on no process
@@ -190,11 +183,7 @@ and its measurement does not hold the release.
     The reaper asks whether the entry process has died as it handles a fault, which holds
     whatever order the two signals come in. A regression test ends a program five times
     under a hundred waiting accepts; it failed three runs in three before the change.
-11. **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
-   load): its terminal script found an expected line missing; run again alone it passed,
-   and under `make test-shell` too. Undiagnosed: when it fails again, its step file in the
-   run's directory says which expectation went unmet, and the fix follows from it; until
-   then it is watched.
+11. **The shell's `live_region` test, unmet once**, moved to *Standing gaps* on 2026-10-06.
 12. **The library stands on the host**, done 2026-10-06 (decided with the user on
     2026-10-05; the log's *The Library Stands on the Host*). E.0 rule 1 and CLAUDE.md's
     *Shims* say it: where a host function does exactly an operation's work by its page,
@@ -482,6 +471,11 @@ the terminal). The rest is MVP 3.3's.
 
 ## Standing gaps
 
+- **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
+  load; MVP 2.99d's item 11): its terminal script found an expected line missing; run
+  again alone it passed, and under `make test-shell` too, and it has not failed since in
+  eight full runs. Undiagnosed: when it fails again, its step file in the run's directory
+  says which expectation went unmet, and the fix follows from it.
 - **§3.11, §6.7 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
   3.0 and 3.1 material and unbuilt, since 2026-10-01 a spawn on a peer being `Peer.spawn`'s,
   which §8.3 introduces and a test of its refusal cites; anything else it lists is a gap.
