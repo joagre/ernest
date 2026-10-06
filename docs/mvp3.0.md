@@ -245,3 +245,17 @@ A checker runs those machines themselves, two nodes and then three, over a netwo
 - A wire format of Ernest's own, and a large value sent in pieces.
 - A detector that adapts its patience.
 - Rights for each peer beyond being listed.
+
+## 11. Room for what comes after
+
+MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that nodes of different builds work together. After it comes a change of code, and of a protocol, in a process that keeps running. MVP 3.0 is to leave room for both, as far as can be seen from here. Four rules do most of it.
+
+1. **Refuse now what may be allowed later, and allow nothing that must later be refused.** A function inside a message would be harmless among nodes of one build, and is refused, since it cannot be allowed once code crosses. A function whose bindings a node did not run is refused, where a later milestone may run them. Two builds that differ refuse each other, where a later milestone lets them meet. A refusal that becomes an answer breaks no program.
+
+2. **Settle now what a program writes.** A program writes the types of `Peer`'s functions and matches on the constructors of `Reason` and of `Peer.find`'s failure. A change to any of them breaks programs, where a change beneath them does not. So unsolved points 3 and 4 are settled with the later milestones in view: `Peer.find`'s failure, for one, has room for a service that is at another version.
+
+3. **Keep closed what will change beneath.** The protocol never looks inside a function's reference, which is a place in a module now and a hash later. It compares a type's hash and never asks how the hash was made. It allows that a process comes to accept more than one type's hash, as a process that has changed its protocol will. It speaks of the connection between two nodes and not of a socket, so that a second stream, for code, can join it. And it asks a table for a peer's address and key, and not a file, so that a table filled another way can replace it.
+
+4. **The wire is not kept.** A hello whose protocol version differs is refused, and MVP 3.1 is a new version: every node changes over at once. Nothing in MVP 3.0 promises that a node of one milestone talks to a node of the next.
+
+Three places carry the most risk, since a later milestone may find them wrong. How a service is named and found: `Peer.find` reads a binding by its name in one build, and across builds a name alone does not say which service is meant (unsolved point 2 is its first sign). The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
