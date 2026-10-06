@@ -177,8 +177,7 @@ The desk's program and the board's name `Counter.counter`, to say which binding 
 5. **Every call ends.** By its answer, by its time running out, by the callee's end or restart, or by the callee's node going out of reach.
 6. **Both nodes learn of a loss.** When two nodes lose each other, each ends what it held with the other: at once where the connection is closed, and within 45 to 75 seconds where it only falls silent.
 7. **What was held stays dead.** An address, a `Reply` or a monitor that crossed a connection is dead once that connection is lost, and stays dead when the two nodes connect again.
-8. **No atom from a peer.** Nothing a peer sends creates an atom on the node that receives it.
-9. **A node's own processes are untouched.** A loss ends conversations with the peer and nothing else: no local process dies of it.
+8. **A node's own processes are untouched.** A loss ends conversations with the peer and nothing else: no local process dies of it.
 
 ## 5. What does not hold
 
@@ -225,7 +224,7 @@ The desk's program and the board's name `Counter.counter`, to say which binding 
 
 **Calls.** A `Reply` crosses as the caller's node and a number private to the call. The callee's node watches the call as it watches a local one, and tells the caller's node when the call ends other than by an answer: the callee ended, or it restarted. A call to another node costs four frames where a `send` costs one.
 
-**Serialization.** A value crosses in the host's external term format. A constructor is the atom of its name, and no hash stands inside a value: its type is known at both ends, and the address carries the type's hash once. The receiving node reads the value with the host's safe decoding, which creates no atom. A type's description at run time names every constructor it has, so every atom of a well-typed value exists before the value is read, and an atom the node lacks is a faulty frame. The value is not checked further.
+**Serialization.** A value crosses in the host's external term format. A constructor is the atom of its name, and no hash stands inside a value: its type is known at both ends, and the address carries the type's hash once. An atom is the host's constant for a name. The host keeps every atom ever made, in a table with room for about a million, so data that made new atoms could fill the table and bring a node down. The receiving node therefore reads the value with the host's safe decoding, which creates no atom. A type's description at run time names every constructor it has, so every atom of a well-typed value exists before the value is read, and an atom the node lacks is a faulty frame. The value is not checked further.
 
 **A spawn.** `Peer.spawn(name, f)` sends `f` as a reference to its code, its module and its place there, with the values it captured. The same build has the same modules, so the reference means the same on both nodes. The peer starts the process, draws its number, and answers with its address. The spawner waits with no clock of its own: the wait ends when the peer answers, when the dial fails, or when the connection is lost. A name that is no peer's, and a peer out of reach, fault the spawner.
 
