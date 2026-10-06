@@ -281,6 +281,15 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **Other nodes' processes and resources.** `Process.info` answers for the running node's processes alone, and `None` for a process of another node. A supervisor's children run on its own node.
 
+**The faults.** Each has a cause in the report's register, and the faults of the report's older peer chapter, `peer lost`, `peer unreachable` and `peer resolution failed`, go with it.
+
+| Fault | Cause |
+|---|---|
+| a foreign value, a function, or the address of a socket, a listener or a program, about to cross | `foreign value cannot cross nodes`, `function cannot cross nodes`, `resource cannot cross nodes` |
+| a spawned function that captured such a value | the same, for the value it was |
+| `Address.callForever` on a callee whose node is out of reach | `callee is unreachable` |
+| an offer of a process that is not this node's | `an offer names a process on its own node` |
+
 ## 7. The numbers
 
 | What | Value |
@@ -305,14 +314,13 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello wi
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
-3. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
-4. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
-5. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
-6. **A network address.** A name or a number, and what the listener binds to.
-7. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
-8. **The shell on a node.**
-9. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
-10. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+3. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
+4. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
+5. **A network address.** A name or a number, and what the listener binds to.
+6. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
+7. **The shell on a node.**
+8. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
+9. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
