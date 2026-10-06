@@ -60,6 +60,8 @@ In the proposal's section 6, *Addresses*.
 
 In the proposal's section 4 and its section 6, *The gateway*, *Messages* and *Calls*.
 
+**A call's `None` has one meaning.** Across nodes a call ends without an answer in four cases: its time ran out, the callee ended or restarted, the callee's node went out of reach while the caller waited, or no connection could be opened. In the last the request was never sent and did not run, and in the others it may have run. A program is not told which, for five reasons. `None` on one node already covers a time that ran out, where the request may run later, and a callee that ended, so other nodes add nothing new in kind. That a request was never sent is known only where no connection could be opened: once one exists, the caller's node cannot know what arrived. A request that may be sent again must be harmless when run twice whichever case it was, so the difference would spare a program one duplicate, seldom, and none of its code. Telling them apart would change `Address.call`'s type on one node too, or give other nodes a call of their own, and a process would then have to know where an address leads, which an address is there to hide. And the reason is to be had: a monitor's `Down` says `Unreachable`, how the process ended, or `Unknown`. Erlang's `erpc` merges the same two: a connection lost and one never established are one error, under which the function may or may not have run.
+
 ### 2.6 Serialization
 
 In the proposal's section 2, *What may cross*, and its section 6, *Serialization*.
