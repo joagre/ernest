@@ -24,6 +24,8 @@ What is proposed for MVP 3.0 is [`mvp3.0.md`](mvp3.0.md)'s, the proposal: what a
 
 In the proposal's section 6, *Nodes*.
 
+**Neither of a node's names holds an address.** The carrier wants a name for each node, and TLS a name in each certificate, and a host name is what both expect. Ernest gives neither one. A node is its key: its name on the carrier is the key's hash with a constant after it, and its certificate's name is a constant that nothing reads. So every node computes the same name for a peer, a node that moves keeps its name, and no name has to resolve: the configuration gives the address. The experiment ran with certificates that name another host and another address, and once with nodes named by a name that resolves nowhere, and a peer was accepted by its key in each. The host did not refuse the foreign name even where it was not told to accept it, which was not looked into, so the runtime turns the host's check of the name off and does not rest on that. The name a program writes is a third thing and is untouched: the name one node's `ernest.conf` lists a peer under, which is also what the runtime prints.
+
 ### 2.2 Connections
 
 In the proposal's section 6, *Connections*, *The hello* and *What passes*.
