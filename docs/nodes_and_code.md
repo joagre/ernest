@@ -18,7 +18,7 @@ Unison has shipped for years, and Ernest has a design, so "better" is true only 
 
 ## 2. The peer protocol
 
-What is proposed for MVP 3.0 is [`mvp3.0.md`](mvp3.0.md)'s, the proposal: what a program sees, what holds and what does not, how it works, and what is unsolved. This section holds the reasons for it, in section 2.3 and at each question of section 2.8, and in section 2.9 the order to build it in. How other systems treat the same questions is [`other_systems.md`](other_systems.md)'s.
+What is proposed for MVP 3.0 is [`mvp3.0.md`](mvp3.0.md)'s, the proposal: what a program sees, what holds and what does not, how it works, and what is unsolved. This section holds the reasons for it, in section 2.3 and at each question of section 2.8, and in section 2.9 the order to build it in. How other systems treat the same questions is [`other_systems.md`](other_systems.md)'s. The reasons here were first written for a protocol of Ernest's own over TLS. The proposal now rides on Erlang's own distribution, so what these reasons say of a handshake, a detector, a delay before a dial and a checker over a played network is said of what is now the host's.
 
 ### 2.1 Nodes
 
@@ -26,7 +26,7 @@ In the proposal's section 6, *Nodes*.
 
 ### 2.2 Connections
 
-In the proposal's section 6, *Connections* and *Frames*.
+In the proposal's section 6, *Connections*, *The hello* and *What passes*.
 
 ### 2.3 Loss and reconnection
 
@@ -58,7 +58,7 @@ In the proposal's section 6, *Addresses*.
 
 ### 2.5 Messages
 
-In the proposal's section 4 and its section 6, *Messages* and *Calls*.
+In the proposal's section 4 and its section 6, *The gateway*, *Messages* and *Calls*.
 
 ### 2.6 Serialization
 
