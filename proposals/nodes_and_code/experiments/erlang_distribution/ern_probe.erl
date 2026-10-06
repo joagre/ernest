@@ -16,6 +16,7 @@ run() ->
     BPid = peer:call(B, os, getpid, []),
     try
         connecting(A, B, C, NodeB, NodeC),
+        same_key(A, B, NodeB, Dir),
         say("5  monitor, kill, fault, reply, on a towards b",
             on(A, fun() -> monitors(NodeB) end)),
         Holder = on(A, fun() -> hold(NodeB) end),
@@ -105,6 +106,31 @@ slow_sends(Node) ->
 given_up(Node) ->
     {Micros, Reason} = timer:tc(fun() -> down(monitor(process, {echo, Node}), 40000) end),
     {Micros div 1000, Reason}.
+
+%% Step 9: a second node with a's key and a's name dials b, which is connected
+%% to the first a. It does not listen, so that the two can share one machine.
+same_key(A, B, NodeB, Dir) ->
+    Holder = on(B, fun() -> hold('a@127.0.0.1') end),
+    say("9  b pings a process on the first a", ask(B, Holder, ping)),
+    _ = peer:call(A, ?MODULE, events, []),
+    _ = peer:call(B, ?MODULE, events, []),
+    {A2, _} = start_node(a, Dir, ["-dist_listen", "false"]),
+    try
+        say("9  a second a, with a's key and name, pings b", ping_from(A2, NodeB)),
+        say("9  b's nodedown", wait_event(B, nodedown, 5000)),
+        say("9  the first a's nodedown", wait_event(A, nodedown, 5000)),
+        say("9  b's monitor of the process on the first a", ask(B, Holder, down)),
+        say("9  b pings that process now", ask(B, Holder, ping)),
+        say("9  the first a pings b again", ping_from(A, NodeB)),
+        say("9  the second a pings b again", ping_from(A2, NodeB)),
+        say("9  the first a pings b once more", ping_from(A, NodeB))
+    after
+        peer:stop(A2)
+    end,
+    say("9  the second a stopped; b's nodedown", wait_event(B, nodedown, 5000)),
+    say("9  the first a pings b", ping_from(A, NodeB)).
+
+ping_from(Peer, Node) -> peer:call(Peer, ?MODULE, ping, [Node], 10000).
 
 %% Step 4: b's operating system process is stopped, and continued.
 silent_peer(A, B, BPid, Holder) ->
