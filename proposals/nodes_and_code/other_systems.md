@@ -220,6 +220,7 @@ After the reader's report, the carrier was tried: four nodes on one machine, on 
 |---|---|
 | TLS between nodes that list each other, with no port-mapper daemon | It connects. A table from a node's name to its port stands in for the daemon |
 | A node that is not listed | Refused in the TLS handshake, by a rule of ours that accepts a peer by its public key |
+| A certificate that names another host | Accepted by its key all the same. A node's name on the carrier need not hold its address either: a name that resolves nowhere works, the table answering for it |
 | No mesh | With a setting, two nodes that share a peer stay unconnected. A connection opens at the first send |
 | A sender that does not wait | With the peer stopped, a send that refuses to wait is refused at once; the node then ends the connection itself, and both nodes are told |
 | A silent peer, with the timeout at 4 seconds | Found lost after 4.6 to 4.8 seconds. A monitor on its process gives `noconnection`. The peer is told as it wakes |

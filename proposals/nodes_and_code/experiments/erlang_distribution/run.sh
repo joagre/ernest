@@ -9,11 +9,12 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cd "$work"
 
-# A key and a self-signed certificate for each node.
+# A key and a self-signed certificate for each node. The certificate names a
+# host and an address that are not the node's: a peer is accepted by its key.
 for node in a b c d; do
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
-        -keyout "$node.key" -out "$node.pem" -subj "/CN=$node" -days 2 \
-        -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
+        -keyout "$node.key" -out "$node.pem" -subj "/CN=elsewhere.example" -days 2 \
+        -addext "subjectAltName=DNS:elsewhere.example,IP:192.0.2.77" 2>/dev/null
 done
 
 # A node's TLS options: its own certificate, and the certificates it lists.
