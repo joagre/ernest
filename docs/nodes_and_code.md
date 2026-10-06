@@ -131,7 +131,7 @@ Practice elsewhere, as far as it is known on this day, from memory and to be che
 
 **Reading a value.** A value is decoded with a type the receiving node already holds (§8.7): a message with its process's mailbox type, an answer with the answer's type, a value sent to an adapted address with its function's argument type, and a spawn's payload with the types its exchange of code brought. How it is decoded so that no peer creates an atom is *P11*.
 
-**The other encoding.** A format of Ernest's own, a constructor written as its position in its type, would put no atom on the wire and owe the host nothing. It would be written in Erlang, value by value against the type, where the external term format is the host's own and written in C. It is left out; a runtime on another host, or a measured need, would change that.
+**The other encoding.** A format of Ernest's own, a constructor written as its position in its type, would put no atom on the wire and owe the host nothing. It would be written in Erlang, value by value against the type, where the external term format is the host's own and written in C. It is left out; a runtime on another host, or a measured need, would change that. Wikipedia's [comparison of data-serialization formats](https://en.wikipedia.org/wiki/Comparison_of_data-serialization_formats) lists the formats such an encoding would be weighed against.
 
 ### 2.7 Processes on a peer
 
