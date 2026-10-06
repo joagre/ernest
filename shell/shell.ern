@@ -1057,18 +1057,28 @@ fn reader(shell : Address(ShellMsg)) : Unit with ReaderMsg = {
 
 fn readLoop(shell : Address(ShellMsg),
             screen : Address(ScreenMsg),
-            reading : Reading) : Unit with ReaderMsg = {
-    let Reading(editing = editing, keeping = keeping) = reading;
+            reading : Reading) : Unit with ReaderMsg =
     receive {
+        Key(event) -> read(shell, screen, reading, event)
+    }
+
+// What a key does.
+fn read(shell : Address(ShellMsg),
+        screen : Address(ScreenMsg),
+        reading : Reading,
+        event : Terminal.Event) : Unit with ReaderMsg = {
+    let Reading(editing = editing, keeping = keeping) = reading;
+    match event {
         // the size the event carries is not passed on: the screen asks for
         // the size when it takes the message, so of several changes that
         // come together it paints the last alone
-        Key(Terminal.Resized(_)) -> {
+        Terminal.Resized(_) -> {
             send(screen, Resized);
             readLoop(shell, screen, reading)
         }
-      | Key(event) -> match Shell.Editor.edit(editing, event) {
+      | _ -> match Shell.Editor.edit(editing, event) {
             Shell.Editor.Edited(edited) -> showing(shell, screen, reading, edited)
+          | Shell.Editor.Matching(edited) -> matching(shell, screen, reading, edited)
           // report §11.2: another line where the parser cannot finish the
           // input, and the input where it can
           | Shell.Editor.Submit(edited) -> if continues(Shell.Editor.text(edited)) then
@@ -1104,6 +1114,32 @@ fn readLoop(shell : Address(ShellMsg),
           | Shell.Editor.Completing(edited) -> completing(shell, screen, reading, edited)
           | Shell.Editor.Documenting(edited) -> documenting(shell, screen, reading, edited)
           | Shell.Editor.Quit -> send(shell, InputEnded)
+        }
+    }
+}
+
+// Report §11.2: the bracket a closing one just typed closes is shown by
+// the cursor, which stands on it until the next key or for half a second.
+// A key that comes first puts the cursor back, and is read.
+fn matching(shell : Address(ShellMsg),
+            screen : Address(ScreenMsg),
+            reading : Reading,
+            edited : Shell.Editor.Editing) : Unit with ReaderMsg = {
+    let text = Shell.Editor.text(edited);
+    match opening(String.slice(text, 0, Shell.Editor.cursor(edited))) {
+        None -> showing(shell, screen, reading, edited)
+      | Some(index) -> {
+            send(screen, ShowInput(text = text, cursor = index, offered = []));
+            receive {
+                Key(event) -> {
+                    send(screen, shownInput(edited));
+                    read(shell,
+                         screen,
+                         Reading(..reading, editing = edited, last = Ordinary),
+                         event)
+                }
+              | after 500 -> showing(shell, screen, reading, edited)
+            }
         }
     }
 }
@@ -1388,6 +1424,12 @@ foreign fn reload(session : Session) : Either(String, #(Session, List(String))) 
 // may. The parser is the compiler's, and only it knows.
 foreign fn needsMore(input : String) : Bool =
     "ern_shell:needs_more/1"
+
+// Report §11.2: where the bracket that ends the text was opened, in
+// graphemes, as the compiler's lexer reads the text, which alone knows
+// where a string or a comment stands.
+foreign fn opening(before : String) : Optional(Int) =
+    "ern_shell:opening/1"
 
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
 // sentence of and then the whole of, as `:doc` shows it, and the version

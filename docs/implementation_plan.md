@@ -723,3 +723,10 @@ OTP's are written as reports in [`otp_bugs.md`](otp_bugs.md), the compiler's wor
 meanwhile. The report's and the guide's feedback, the manual pages and the examples made to
 teach, shipped as Ernest 0.3.1. The shell's `live_region` test, unmet once, stands in
 *Standing gaps*.
+
+### The shell shows a bracket's match (done 2026-10-06, ahead of MVP 3.3)
+
+A `)`, `]` or `}` typed at the prompt stands the cursor on the bracket it closes for half a
+second or until the next key, as Readline's `blink-matching-paren` does, and a mismatch shows
+nothing (§11.2 *Editing*). The compiler's lexer finds the bracket, so a string, a character or
+a comment hides what it holds (the log's *The Shell Shows a Bracket's Match*).

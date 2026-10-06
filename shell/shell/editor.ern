@@ -36,10 +36,12 @@ type Pending = Plain | Meta | Bracket | Parameters
 type Search = Search(query : String, back : Int, origin : Int, saved : String, forward : Bool)
 
 /// What the reader does after a key: go on with what is being edited,
-/// submit the line, cancel it, clear the screen, complete, show
-/// documentation, or leave the session.
+/// show the bracket a closing one just typed closes, submit the line,
+/// cancel it, clear the screen, complete, show documentation, or leave the
+/// session.
 export type Edit =
     Edited(Editing)
+  | Matching(Editing)
   | Submit(Editing)
   | Cancel
   | ClearScreen(Editing)
@@ -211,6 +213,8 @@ fn character(state : Editing, char : Char) : Edit = {
       | '\u{e}' -> Edited(walk(state, -1)) // C-n
       | '\u{12}' -> Edited(search(state, false)) // C-r
       | '\u{13}' -> Edited(search(state, true)) // C-s
+      // report §11.2: the reader shows the bracket it closes
+      | ')' or ']' or '}' -> Matching(insert(state, Char.toString(char)))
       // every other control character is not bound and does nothing
       | _ -> if char < ' ' then Edited(state) else Edited(insert(state, Char.toString(char)))
     }
@@ -599,6 +603,24 @@ let submits =
                 | other -> Test.Failed(said(other))
               })
 
+let closes =
+    Test.Case(name = "a closing bracket typed asks the reader to show the one it closes",
+              run = fn() = match play(keys("[{f(x)}]")) {
+                  Matching(Editing(text = "[{f(x)}]", cursor = 8)) -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
+
+let closesInSearch =
+    Test.Case(name = "a closing bracket typed into a search shows nothing",
+              run = fn() = match play([ctrl('r')] <> keys(")")) {
+                  Edited(_) -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
+
+let closesPasted =
+    Test.Case(name = "a closing bracket pasted shows nothing",
+              run = fn() = reads(play([Terminal.Pasted("f(x)")]), "f(x)", 4))
+
 let cancels =
     Test.Case(name = "C-c abandons the line",
               run = fn() = match play(keys("hi") <> [Terminal.Interrupt]) {
@@ -801,7 +823,7 @@ fn play(events : List(Terminal.Event)) : Edit =
 
 fn plays(initial : Editing, events : List(Terminal.Event)) : Edit =
     List.foldLeft(events, Edited(initial), fn(edited, event) = match edited {
-        Edited(state) -> edit(state, event)
+        Edited(state) or Matching(state) -> edit(state, event)
       | ended -> ended
     })
 
@@ -825,6 +847,7 @@ fn shows(edited : Edit) : String =
 fn said(edited : Edit) : String =
     match edited {
         Edited(Editing(text = text)) -> "typing \"" <> text <> "\""
+      | Matching(Editing(text = text)) -> "closing in \"" <> text <> "\""
       | Completing(_) -> "completing"
       | Documenting(_) -> "documenting"
       | Submit(Editing(text = text)) -> "submitted \"" <> text <> "\""

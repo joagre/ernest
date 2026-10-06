@@ -20,7 +20,7 @@ Then read the modules in any order. A file's path under the source root `shell/`
 The comments on the three mailbox types, `ShellMsg`, `ReaderMsg` and `ScreenMsg`, say who sends each message.
 
 - **The session** is `main`, then `keyLoop`, or `lineLoop` in line mode. It holds the `State` and takes one input at a time. It runs an Ernest input in a new process and waits for it in `await`.
-- **The reader** is `reader`, then `readLoop`. It passes a change of the terminal's size to the screen as `Resized`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, submit it, cancel it, clear the screen, complete, document, or leave.
+- **The reader** is `reader`, then `readLoop`, which receives a key and hands it to `read`. It passes a change of the terminal's size to the screen as `Resized`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, show the bracket a closing one closes, submit it, cancel it, clear the screen, complete, document, or leave. `matching` stands the cursor on that bracket and waits for the next key, or half a second, before it puts it back.
 - **The screen** is `screenLoop`, the only process that writes to the terminal. For each message it writes the bytes its `Shell.Region.Region` gives back, and it holds where `:output` sends what programs write. In line mode it runs `plainLoop` instead, which writes text as it comes.
 
 What each process holds, and how the session orders and queues its work, is the design note's *Processes*.

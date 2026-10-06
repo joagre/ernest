@@ -8,6 +8,7 @@
 -module(ern_shell).
 
 -export([loaded/1, start/0, spawn_program/0, config_startup/0, is_same_file/2, needs_more/1,
+         opening/1,
          check/3, is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
@@ -175,6 +176,74 @@ needs_more(Text) ->
 
 unfinished({error, #diagnostic{incomplete = Incomplete}}) -> Incomplete;
 unfinished(_) -> false.
+
+%% Report §11.2: where the bracket that ends the text, a `)`, `]` or `}`
+%% just typed, was opened, as the compiler's lexer reads the text: the
+%% index of its `(`, `[` or `{` in graphemes, as the editor counts, the `(`
+%% of a `#(` among them. From the closing bracket back, the brackets
+%% between the two are passed over in pairs. None where the text's last
+%% token is no closing bracket, a comment or a string holding it; where a
+%% bracket of another kind stands in the way, or none opens it; and where
+%% the lexer cannot read the text, a string or a comment left open.
+-spec opening(binary()) -> {'Some', non_neg_integer()} | 'None'.
+opening(Before) ->
+    case ern_lexer:tokenize(Before, [comments, no_new_names]) of
+        {ok, Tokens} ->
+            case lists:reverse(Tokens) of
+                [{eof, _}, {Symbol, _} | Earlier] -> closed(bracket(Symbol), Earlier, Before);
+                _ -> 'None'
+            end;
+        {error, _} ->
+            'None'
+    end.
+
+closed({close, Kind}, Earlier, Before) -> opened(Earlier, [Kind], Before);
+closed(_, _, _) -> 'None'.
+
+%% Each closing bracket met waits for one of its kind; an opening one
+%% answers the latest that waits, and where that is the first, it is the
+%% one sought.
+opened([], _, _) ->
+    'None';
+opened([{Symbol, Position} | Earlier], [Kind | Waiting] = Stack, Before) ->
+    case bracket(Symbol) of
+        {close, Closing} -> opened(Earlier, [Closing | Stack], Before);
+        {open, Kind} when Waiting =:= [] -> {'Some', grapheme_index(Position, Symbol, Before)};
+        {open, Kind} -> opened(Earlier, Waiting, Before);
+        {open, _} -> 'None';
+        none -> opened(Earlier, Stack, Before)
+    end;
+opened([_ | Earlier], Stack, Before) ->
+    opened(Earlier, Stack, Before).
+
+bracket('(') -> {open, round};
+bracket('#(') -> {open, round};
+bracket('[') -> {open, square};
+bracket('{') -> {open, curly};
+bracket(')') -> {close, round};
+bracket(']') -> {close, square};
+bracket('}') -> {close, curly};
+bracket(_) -> none.
+
+%% The lexer's line and column, in code points after a byte order mark it
+%% passes over, as the graphemes before them in the text; the `(` of a
+%% `#(` is a code point past where the token begins.
+grapheme_index({Line, Column, _, _}, Symbol, Before) ->
+    Chars = unicode:characters_to_list(Before),
+    Mark = case Chars of
+               [16#FEFF | _] -> 1;
+               _ -> 0
+           end,
+    Hash = case Symbol of
+               '#(' -> 1;
+               _ -> 0
+           end,
+    Offset = Mark + code_points_before(lists:nthtail(Mark, Chars), Line, Column) + Hash,
+    string:length(lists:sublist(Chars, Offset)).
+
+code_points_before(_, 1, Column) -> Column - 1;
+code_points_before([$\n | Rest], Line, Column) -> 1 + code_points_before(Rest, Line - 1, Column);
+code_points_before([_ | Rest], Line, Column) -> 1 + code_points_before(Rest, Line, Column).
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
 %% text, as `ern build` shows it, under the name of where the input came from:

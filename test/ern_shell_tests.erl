@@ -2029,6 +2029,43 @@ needs_more_test() ->
     ?assertNot(ern_shell:needs_more(<<"1 + * 2">>)),
     ?assertNot(ern_shell:needs_more(<<"\"a string">>)).
 
+%% report §11.2: a `)`, `]` or `}` typed shows the bracket it closes, the
+%% `(` of a `#(` among them, as the compiler's lexer reads the input, in
+%% graphemes as the editor counts; one that closes another kind, or none,
+%% or that stands in a string, a character or a comment, shows nothing
+opening_test() ->
+    ?assertEqual({'Some', 1}, ern_shell:opening(<<"f(x)">>)),
+    ?assertEqual({'Some', 1}, ern_shell:opening(<<"#(1, [2, {3}])">>)),
+    ?assertEqual({'Some', 5}, ern_shell:opening(<<"#(1, [2, {3}]">>)),
+    ?assertEqual({'Some', 9}, ern_shell:opening(<<"let a = f(\n  1,\n  2)">>)),
+    ?assertEqual({'Some', 2}, ern_shell:opening(<<") (x)">>)),
+    ?assertEqual({'Some', 4}, ern_shell:opening(<<"\"\x{301}é\" (x)"/utf8>>)),
+    ?assertEqual('None', ern_shell:opening(<<"f(x]">>)),
+    ?assertEqual('None', ern_shell:opening(<<"(x))">>)),
+    ?assertEqual('None', ern_shell:opening(<<"\"(\" )">>)),
+    ?assertEqual('None', ern_shell:opening(<<"\"a)">>)),
+    ?assertEqual('None', ern_shell:opening(<<"')'">>)),
+    ?assertEqual('None', ern_shell:opening(<<"g(1) // )">>)),
+    ?assertEqual('None', ern_shell:opening(<<"/* ( */ )">>)).
+
+%% report §11.2: the cursor stands on the `(` a typed `)` closes, and
+%% then returns to the end of the line
+bracket_shown_test_() ->
+    {timeout, 60, fun bracket_shown/0}.
+
+bracket_shown() ->
+    Bytes = pty(alone("../bin/ern shell"),
+                [{expect, "> "},
+                 {send, hex("f(x)")},
+                 {sleep, 900},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 24x80"),
+    %% the prompt and `f` are three columns, so the `(` is the fourth
+    {Shown, _} = binary:match(Bytes, <<"> f(x)\r\e[3C">>),
+    {Back, _} = binary:match(Bytes, <<"> f(x)\r\e[6C">>),
+    ?assert(Shown < Back).
+
 %% report §11.2, §6.9: a `let` at the prompt carries its annotation, so
 %% a binding whose type its input cannot settle is settled by one; and
 %% an input that binds a name whose type is still open is refused with
