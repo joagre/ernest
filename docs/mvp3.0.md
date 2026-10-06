@@ -232,7 +232,7 @@ A checker runs those machines themselves, two nodes and then three, over a netwo
 13. **Testing a program of two nodes** on one machine, and with `ern test`.
 14. **The shell on a node.**
 15. **Costs not measured:** a `send` across nodes beside the host's own, a call's four frames, everything between two nodes passing through one process, TLS, the safe decoding, and memory for each connection and each held address.
-16. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is being read, and nothing of it is in this proposal yet.
+16. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md), and nothing of it is in this proposal yet.
 
 ## 10. Left out on purpose
 

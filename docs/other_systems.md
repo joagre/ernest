@@ -1,6 +1,6 @@
-# Ernest: Findings
+# Ernest: Other Systems
 
-What readers found of how other systems treat what [`mvp3.0.md`](mvp3.0.md) proposes, to be read beside it. A finding is something to weigh. None is a decision.
+How other systems treat nodes, the loss of one, and what passes between them: what readers found, set beside what [`mvp3.0.md`](mvp3.0.md) proposes. A finding is something to weigh. None is a decision.
 
 Each reader was a research session of its own, which fetched the sources it names on 6 October 2026. A quotation is as the reader reported it, and was not fetched again for this document. Where a reader could not verify something, it is marked *unverified*. A finding is named by its reader's letter and a number: *O* for Orleans, *A* for Akka, *T* for the typed and capability systems.
 
