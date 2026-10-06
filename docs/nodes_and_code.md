@@ -4,7 +4,7 @@ Status: thinking for MVP 3.0 and 3.1, all of it tentative.
 
 The thinking about nodes, code distribution and code change, before MVP 3.0 decides any of it. Nothing here is a decision, nothing is built, and nothing flows from it into the report, the plan or the log until the thinking is covered. Then each decision goes to its owner, the report for a rule and the log for the why, and this note, its tentative marks gone, is the design note for nodes, code and code change.
 
-Sections 2.1, 2.2, 2.4 to 2.6 and 3.1 to 3.4, and the first paragraph of section 2.3, hold the design of the two notes this one replaced, in this note's words and not yet weighed. The rest is this note's thinking. The open questions stand with their subjects, in sections 2.7, 3.6 and 4.6, and what is left out in section 5. *P n* and *D n* are a question's number in the protocol note and in the distribution note, which commit `3fa6b42` keeps. The plan's MVP 3.0 and 3.1 hold further questions: when a module's top-level bindings run on a peer, where a node's configuration and its key are read, which tree the normalized definition is and what becomes of its effect variables, and what a foreign function's hash compares.
+Sections 2.1, 2.2, 2.4, 2.5, 2.7 and 3.1 to 3.4, and the first paragraph of sections 2.3 and 2.6, hold the design of the two notes this one replaced, in this note's words and not yet weighed. The rest is this note's thinking. The open questions stand with their subjects, in sections 2.8, 3.6 and 4.6, and what is left out in section 5. *P n* and *D n* are a question's number in the protocol note and in the distribution note, which commit `3fa6b42` keeps. The plan's MVP 3.0 and 3.1 hold further questions: when a module's top-level bindings run on a peer, where a node's configuration and its key are read, which tree the normalized definition is and what becomes of its effect variables, and what a foreign function's hash compares.
 
 ## 1. The aim
 
@@ -58,7 +58,7 @@ Unison has shipped for years, and Ernest has a design, so "better" is true only 
 
 **A loss ends what crossed its connection, and the pair may meet again.** Each node numbers its connections with each peer, for itself, and the number never crosses. A remote address, a `Reply` and an adapted address are marked, on the node that holds them, with the number of the connection current when they arrived, or of the next one where there was none, as for an address a third node hands over. An operation on one whose number is not the current connection's is an act on what has ended (§6.2): a `send`, an `answer` and a `kill` do nothing, and a call ends at once. So what was held before a loss stays dead when the connection returns, with neither node restarted, and what arrives from then on is live: an address `Peer.find` answers, one a spawn returns, one in a new message. That answers *P5*, where refusing the lost incarnation until a node restarts would part two long-lived nodes at every interruption. The mark is no part of an address's identity: a `Process` holds none and compares as before. Three things follow, each for its owner when this is decided. A node can meet again a process whose `Down` it has delivered, so the reason of a loss says that the process is out of reach and not that it died: *P6* inclines to `Unreachable`, as Erlang's `noconnection` says that the process may still be alive. §10's sentence on a peer that reappears becomes one about the connection: one that returns is a new one, and what crossed the old one stays dead. And the unbroken prefix of section 2.5 is a connection's (*P19*): what a sender sends through an address it gets after a loss is another sequence. A loss costs Ernest more than Erlang, where a pid works again after a reconnection, so the heartbeat's timeout wants weighing nearer Erlang's, which waits 45 to 75 seconds, than the 15 seconds proposed (*P3*).
 
-**A monitor ends with its connection.** A monitor on a peer's process is among what a loss ends. The watcher's node makes its `Down`, the one message its `monitor` call gives (§6.9), and nothing sets the monitor again when the connection returns. A program that wants to go on watching calls `monitor` again. The `Down` holds the process, and a `Process` holds no mark, so `monitor` on it watches the same process over the next connection, with no new address. Set again by the runtime, a monitor would say nothing at the loss, its watcher waiting for ever on a peer that never returns, or it would give two messages for one call. The node would dial in the background to set it, where a connection opens only on demand, and would keep each `wrap` for as long as the peer stays away. Erlang's monitor is the same: it is triggered once, the loss of the connection among what triggers it. A client finds its service again after a loss in any case (below), and monitors it again there; whether a library does both is section 2.7's question. What a `monitor` answers while the peer is still out of reach is open too. The inclination is a `Down` with the loss's reason once the dial has failed, so that a program that monitors again in a loop is paced by the dial's delay.
+**A monitor ends with its connection.** A monitor on a peer's process is among what a loss ends. The watcher's node makes its `Down`, the one message its `monitor` call gives (§6.9), and nothing sets the monitor again when the connection returns. A program that wants to go on watching calls `monitor` again. The `Down` holds the process, and a `Process` holds no mark, so `monitor` on it watches the same process over the next connection, with no new address. Set again by the runtime, a monitor would say nothing at the loss, its watcher waiting for ever on a peer that never returns, or it would give two messages for one call. The node would dial in the background to set it, where a connection opens only on demand, and would keep each `wrap` for as long as the peer stays away. Erlang's monitor is the same: it is triggered once, the loss of the connection among what triggers it. A client finds its service again after a loss in any case (below), and monitors it again there; whether a library does both is section 2.8's question. What a `monitor` answers while the peer is still out of reach is open too. The inclination is a `Down` with the loss's reason once the dial has failed, so that a program that monitors again in a loop is paced by the dial's delay.
 
 **An address across nodes lives as long as its connection.** Loss is terminal, and a silence past the heartbeat's timeout is a loss. A service that never ends still loses every client on another node at each loss, though both nodes run on: their addresses are dead and their calls ended, and they find the service again with `Peer.find`. So "without a dropped connection" is a promise about a node's own processes and the sockets they hold. A client on a peer is written to find its service again in any case.
 
@@ -107,9 +107,33 @@ Practice elsewhere, as far as it is known on this day, from memory and to be che
 
 **A message fetches no code.** A spawn's exchange of code holds up only its spawner, and no other sender's frames wait behind it.
 
+### 2.6 Serialization
+
 **Values** cross in the runtime's external term format, in the representations of §8.4's ABI, and no peer creates an atom on a node by sending data. An address crosses in its wire form. The function a spawn starts crosses as `{hash, env}`, and so does every function it reaches, through data and through captures; a raw function of the host's is never serialized. A foreign value, and a function anywhere else, faults the operation that would transport it (§3.8, §3.11). An adapted address crosses as its target's address and its function's `{hash, env}`. A message to it carries the value, unconverted, back to the node that made the address, which applies the function on delivery (§6.5).
 
-### 2.6 Processes on a peer
+**No atom in the language, and no hash in a value.** Ernest has no atoms: an atom is the host's, and a program never sees one. A hash names a definition, a function's code or a type (§8.7), and does not stand inside a data value. On the host a value is a term (§8.4), and a constructor is the atom of its name, alone or first in a tuple before its fields. That term is what crosses. A value needs no hash, since its type is known where it is read: the address it is sent to carries the hash of the mailbox type once, the receiving node checks that hash before it reads the value (section 2.4), and the type then tells one constructor from another of the same name.
+
+**What crosses as what.**
+
+| What | In a frame |
+|---|---|
+| `Int`, `Float`, `Bool`, `Char`, `String`, `Bytes` | the host's term for it (§8.4) |
+| a tuple, a list, a `Map`, a `Set` | the host's term, its parts as this table has them |
+| a constructor | the atom of its name, with its fields in declared order (§8.4), and no hash |
+| an address | `NodeId`, incarnation, `LocalId` and the hash of its mailbox type (section 2.4) |
+| an adapted address | its target's address, and its function as `{hash, env}` |
+| a `Reply` | the caller's node and the call's identifier (*P10*) |
+| a `Process` | `NodeId`, incarnation and `LocalId` |
+| the function a spawn starts, and a function its captures hold | `{hash, env}`: the hash of its code, and the values it captured as this table has them |
+| any other function, and a foreign value | nothing: the operation that would transport it faults (§3.11, §3.8) |
+
+**Where a hash is, and where an atom is.** A hash crosses in three places: in an address, its mailbox type's; in `{hash, env}`, a function's code's; and in the have, want and code frames, code's and types' (section 3.3). An atom crosses in one: a constructor's name, `true` and `false` among them, inside the external term format.
+
+**Reading a value.** A value is decoded with a type the receiving node already holds (§8.7): a message with its process's mailbox type, an answer with the answer's type, a value sent to an adapted address with its function's argument type, and a spawn's payload with the types its exchange of code brought. How it is decoded so that no peer creates an atom is *P11*.
+
+**The other encoding.** A format of Ernest's own, a constructor written as its position in its type, would put no atom on the wire and owe the host nothing. It would be written in Erlang, value by value against the type, where the external term format is the host's own and written in C. It is left out; a runtime on another host, or a measured need, would change that.
+
+### 2.7 Processes on a peer
 
 **A spawn.** `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` send a spawn frame: `f` as `{hash, env}`, a `LocalId` the spawner draws, and the spawn's site, which the peer reports in `Down`. For `spawnMonitored` the frame sets the monitor before the process runs. The caller waits: for a connection where there is none, for the handshake, for the exchange of code, and for the peer's answer once the process has started. An unknown or unreachable peer and a failed resolution fault the caller. `send` and `monitor` return at once while a connection opens.
 
@@ -119,7 +143,7 @@ Practice elsewhere, as far as it is known on this day, from memory and to be che
 
 The plan's MVP 3.0 holds what is decided around these: `Peer.find`, which answers a `Peer.Failure`; placement by `Peer.nodes` and `Peer.runQueue`, with a balancer library over them; and a supervisor's children on its own node.
 
-### 2.7 Open questions
+### 2.8 Open questions
 
 **Limits, and where they are set**
 
