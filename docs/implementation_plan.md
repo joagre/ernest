@@ -15,9 +15,11 @@ milestone, the standing gaps, and what is done.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
 measured, with the prelude and the emitted code, and the report's and the guide's feedback
-shipped as Ernest 0.3.1 (*Done* below). Next is MVP 3.0, peers, whose design begins with the
-thinking in [`distribution.md`](distribution.md), discussed with the user before anything
-is built. A release waits until the user calls it.
+shipped as Ernest 0.3.1 (*Done* below). Next is MVP 2.99e, the standard library's `Code`,
+placed on 2026-10-06, whose decisions are taken with the user before it is built. After it
+comes MVP 3.0, peers, whose design begins with the thinking in
+[`distribution.md`](distribution.md), discussed with the user before anything is built; that
+discussion goes on meanwhile. A release waits until the user calls it.
 
 **Ernest 0.3.1 is tagged** `v0.3.1` on 2026-10-05, a documentation release from MVP 2.99d:
 the manual pages rewritten to teach, the examples made to teach, the guide staged for its
@@ -62,11 +64,51 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
+| MVP 2.99e | the standard library's `Code`: the host's loading of code, reached from Ernest | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
+
+---
+
+## MVP 2.99e (the standard library's `Code`)
+
+Placed on 2026-10-06, before MVP 3.0 (the log's *A `Code` Module Is Placed*). A module of the
+standard library, `stdlib/code.ern`, namespace `Code`, through which a program reaches the
+host's loading of code: a shim of the functions of Erlang's `code` module that are a
+program's, each written with `code`'s manual page open. Until now loading was the
+toolchain's alone, the runner's at a program's start and the shell's at `:load` and `:reload`
+(§11.2), and the log held `code` out of the library. Its decisions are taken with the user,
+one at a time, before any of it is built, and the milestone is sized when the first is taken:
+
+- **What a module is to `Code`**, decided first: an Ernest module by its namespace, loaded
+  as `ern run` and `:load` load one, a compiled form refused where it was compiled against
+  another interface, the modules it uses loaded with it, and its top-level bindings evaluated
+  (§11.2, §8.5); or a module of the host's, as `code:load_file/1` loads one, which checks no
+  interface and runs no initializer. The first is Ernest around the host's function, and only
+  the second is its shim (E.0 rule 1).
+- **What a program does with a module it has loaded.** A compiled program's text names every
+  function it calls, and a module it was not built with has no name in that text (principle
+  3). A module it was built with is loaded when it starts, and loading another version of
+  one changes the code under running processes, which §6.10 gives to a message alone.
+- **Which functions are in**, each by E.0's four rules, in a section added at the end of
+  Appendix E and written before the module: loading, what is loaded and from where, letting
+  code go, and the load path, as far as each is a program's and not the toolchain's.
+- **What it leaves in the host.** A module's name is an atom of the host's, which is never
+  collected, and each version loaded leaves the host its lambda entries (the log's *The
+  Shell's Code Memory*). What a program that loads modules under names it computes leaves
+  behind is prevented at its cause, or the function that would leave it stays out.
+- **That the section stands under MVP 3.1**, where a module is named by its hash and versions
+  stay side by side: the contract is written in Ernest's terms, a namespace and never a host
+  module's name, so that MVP 3.1 changes what is beneath it and not what a program wrote.
+- **Whether the shell's `:load` and `:reload` then stand on it**, their loading written in
+  Ernest over `Code` in place of `foreign fn`s of the shell's own, compiling staying the
+  toolchain's.
+
+Built with `stdlib/`'s discipline: the section's tests, the module's page with its executed
+examples, and the row of the log's *Erlang's Standard Library, Module by Module*.
 
 ---
 
