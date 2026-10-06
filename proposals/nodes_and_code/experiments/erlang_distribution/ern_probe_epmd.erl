@@ -1,5 +1,6 @@
 %% A table in place of the port-mapper daemon: a node's name gives its port.
-%% Node d has none: it does not listen, and no node can dial it.
+%% Node d has none: it does not listen, and no node can dial it. Node e is
+%% no node: its address is one that nothing answers from.
 %% Erlang calls this module where `-epmd_module ern_probe_epmd` names it.
 -module(ern_probe_epmd).
 
@@ -32,7 +33,7 @@ port_please(Name, _Host, _Timeout) ->
 address_please(Name, _Host, _Family) ->
     case port(Name) of
         none -> {error, nxdomain};
-        Port -> {ok, {127, 0, 0, 1}, Port, 6}
+        Port -> {ok, ip(Name), Port, 6}
     end.
 
 -spec listen_port_please(term(), term()) -> {ok, inet:port_number()}.
@@ -51,4 +52,10 @@ port(Name) when is_binary(Name) -> port(binary_to_list(Name));
 port("a" ++ _) -> 47101;
 port("b" ++ _) -> 47102;
 port("c" ++ _) -> 47103;
-port("d" ++ _) -> none.
+port("d" ++ _) -> none;
+port("e" ++ _) -> 47105.
+
+ip(Name) when is_atom(Name) -> ip(atom_to_list(Name));
+ip(Name) when is_binary(Name) -> ip(binary_to_list(Name));
+ip("e" ++ _) -> {192, 0, 2, 1};
+ip(_Name) -> {127, 0, 0, 1}.

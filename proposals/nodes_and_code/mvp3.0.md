@@ -228,7 +228,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **The detector.** The host's. Any traffic is a sign of life, and a tick is sent where nothing else was for 15 seconds. A peer from which nothing came in four such intervals is lost, so a silence is found in 45 to 75 seconds. `ern` sets the same time on every node.
 
-**Connecting again.** The host's. A connection is opened again when an operation needs it, never in the background, and the host puts no delay between one attempt and the next.
+**Connecting again.** The host's. A connection is opened again when an operation needs it, never in the background, and the host puts no delay between one attempt and the next. A dial that is refused fails at once. A dial that nothing answers is given up after 7 seconds, and what waited behind it is then dropped.
 
 **Addresses.** An address is the host's own name for a process. It holds the node's name, the number of that node's start, and the process's number there. A message to it carries the hash of the mailbox type the sender holds the address at, which the receiving gateway checks. An address names its process for as long as the process lives, and a loss does not end it: when the two nodes connect again, the same address reaches the same process. Two things end an address. Its process ends. Or its node is started again: what is sent to an address of an earlier start is dropped, a call through it ends at once, and a monitor on its process gives `Unknown`. An address is a value like any other, and is as good on a third node it is sent to as on the node that sent it. A monitor is not kept through a loss. The loss gave its `Down`, and a program that wants to go on watching calls `monitor` again, on the process the `Down` names. Where that process's node is still out of reach, the new monitor gives its `Down` with `Unreachable`, and so it does where the node is not listed.
 
@@ -254,6 +254,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 | the number of a node's start | the host's, drawn at each start |
 | the detector's tick | every 15 s where nothing else is sent |
 | a silence is found in | 45 to 75 s |
+| a dial that nothing answers is given up after | 7 s, the host's |
 | the outgoing buffer's limit | the host's setting, 1 MB as the host has it; unsolved (section 9) |
 
 `ern` gives the host the same numbers on every node. None is set in `ernest.conf`.

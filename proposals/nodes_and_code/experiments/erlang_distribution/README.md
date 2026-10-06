@@ -4,9 +4,9 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 
 **What it asks.** Whether a node protocol of Ernest's can ride on Erlang's own distribution with what hurts in it turned off: the mesh, the port-mapper daemon, the cookie as the only proof of who a peer is, and a sender made to wait. `proposals/nodes_and_code/other_systems.md` holds what was found, beside what other systems do.
 
-**How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of four nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about half a minute.
+**How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of four nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about three quarters of a minute.
 
-**The four nodes.** Node `a` lists `b`. Node `b` lists `a`, `c` and `d`. Node `c` lists `b`. Node `d` lists `b`, does not listen, and has no port in the table, so that only `d` can dial. A node accepts a peer whose public key it lists, and no other.
+**The four nodes.** Node `a` lists `b`. Node `b` lists `a`, `c` and `d`. Node `c` lists `b`. Node `d` lists `b`, does not listen, and has no port in the table, so that only `d` can dial. A fifth name, `e`, is no node: the table gives it an address that nothing answers from. A node accepts a peer whose public key it lists, and no other.
 
 ## What each step tries, and what it found
 
@@ -28,6 +28,11 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 | 7 | A loss between the two | Both are told. What `b` then sends to the process on `d` is dropped, and `b` cannot open the connection |
 | 7 | That node dials again | The pid `b` holds reaches the same process on `d` |
 | 7 | What the host calls such a node | Hidden: `nodes/0` on `b` leaves `d` out, and `nodes(connected)` has it. A notice of a loss comes only where `monitor_nodes` is asked for every kind of node |
+| 8 | A send to a node that is down, whose port refuses | The send returns in 8 to 19 microseconds. A thousand more take 90 milliseconds, each a dial that is refused |
+| 8 | A send to an address that nothing answers from | Each of three sends returns in under 10 microseconds, and waits behind one dial |
+| 8 | How long that dial lasts | A monitor made then gives `noconnection` after 7.0 seconds, the host's own time for setting a connection up |
+
+Step 8 was run with the buffer's limit at 1 kB, as every step is. A first run sent a thousand messages to the silent address, and the sender was held until the dial was given up: what waits behind a dial counts against the limit, and a plain send over it waits.
 
 ## What it took
 
@@ -41,7 +46,7 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 
 ## What it does not show
 
-- All three nodes ran on one machine. A stopped process stood in for a silent peer. A network that parts was not tried, nor a dial that hangs at an address nothing answers from.
+- All three nodes ran on one machine. A stopped process stood in for a silent peer. A network that parts was not tried.
 - A certificate that names another host was not tried.
-- Nothing was timed but the finding of a silence.
+- Little was timed: the finding of a silence, a send with no connection open, and a dial that nothing answers.
 - A connected node could do anything on the other: the experiment itself spawned processes there and ended them. Nothing turns that off.

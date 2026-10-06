@@ -27,7 +27,13 @@ run() ->
         say("6  a monitors the process of b's earlier start", ask(A, Holder, monitor_again)),
         say("6  a pings the process of b's earlier start", ask(A, Holder, ping)),
         one_side_dials(B2, NodeB, Dir),
-        peer:stop(B2)
+        peer:stop(B2),
+        say("8  b is down; a's sends: us for one, for 1000 more",
+            on(A, fun() -> sends(NodeB) end)),
+        say("8  e's address is silent: us for each of a's 3 sends",
+            peer:call(A, erlang, apply, [fun() -> slow_sends('e@127.0.0.1') end, []], 90000)),
+        say("8  ms until a's monitor on e gives up, and why",
+            peer:call(A, erlang, apply, [fun() -> given_up('e@127.0.0.1') end, []], 60000))
     after
         os:cmd("kill -CONT " ++ BPid),
         [try peer:stop(Peer) catch _:_ -> ok end || Peer <- [A, C]]
@@ -86,6 +92,19 @@ one_side_dials(B, NodeB, Dir) ->
     after
         peer:stop(D)
     end.
+
+%% Step 8, on a: what a send costs its sender where no connection is open.
+sends(Node) ->
+    {First, _} = timer:tc(fun() -> {echo, Node} ! hello end),
+    {More, _} = timer:tc(fun() -> [{echo, Node} ! hello || _ <- lists:seq(1, 1000)] end),
+    {First, More}.
+
+slow_sends(Node) ->
+    [element(1, timer:tc(fun() -> {echo, Node} ! hello end)) || _ <- [1, 2, 3]].
+
+given_up(Node) ->
+    {Micros, Reason} = timer:tc(fun() -> down(monitor(process, {echo, Node}), 40000) end),
+    {Micros div 1000, Reason}.
 
 %% Step 4: b's operating system process is stopped, and continued.
 silent_peer(A, B, BPid, Holder) ->
