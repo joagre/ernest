@@ -8,7 +8,7 @@ MVP 3.0 lets one program run on several nodes. A *node* is one running runtime, 
 
 Three things bound the milestone:
 
-- **One build.** Every node runs the same compiled program. No code crosses between nodes.
+- **One build.** Every node carries the same compiled program, whole, and runs one entry point of it. No code crosses between nodes.
 - **No change in place.** A deploy stops every node and starts every node.
 - **A few nodes with one owner.** Every node lists its peers by hand, and trusts each of them completely.
 
@@ -201,7 +201,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 ## 4. What holds
 
-1. **Order.** What one process sends another arrives in the order it was sent, whichever addresses it was sent through.
+1. **Order.** What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but one: a message to an adapted address made on the receiver's node takes one step more there, and a message sent straight after it can pass it.
 2. **No gap while a connection lasts.** Between nodes a message is never dropped alone. Where one is dropped, the connection is lost, with everything that waited to be sent.
 3. **At most once.** A message arrives once or not at all. The runtime sends nothing a second time.
 4. **One `Down` for each monitor.** A monitor gives exactly one `Down`: the process's own end, told by its node, or `Unreachable`, made by the watcher's node when the process's node goes out of reach.
@@ -216,7 +216,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 2. **A call that ended without an answer may have run.** `None` says that no answer came. It says nothing of why, or of whether the request ran, and it is the same where the request was never sent. A request that may be sent again is written so that running twice does no harm. A program that wants to know why monitors the callee, whose `Down` says it.
 3. **A spawn that failed may have started its process.** Where the spawn's time runs out, or the connection is lost while the spawner waits, the spawner is told only that. The process may run on the peer, and no one holds its address. Where the connection lasts, the process is ended as soon as its answer arrives.
 4. **A full buffer ends everything with that peer.** Where more waits to be sent to a peer than the buffer's limit, the node ends the connection: what waited is dropped, and every monitor and waiting call between the two nodes ends, the innocent among them.
-5. **One large value delays what its sender sends after it.** Two nodes share one connection. A large value crosses in pieces, and other senders' messages pass between them. A slow function of an adapted address delays everything that peer sends.
+5. **One large value delays what its sender sends after it.** Two nodes share one connection. A large value crosses in pieces, and other senders' messages pass between them. A slow function of an adapted address delays what that peer sends through the gateway: its spawns, its finds, and its messages to adapted addresses. A plain message passes the gateway by.
 6. **A program that waits on itself across nodes hangs.** A node with peers declares no deadlock, since work can always reach it from outside.
 7. **A silent failure takes 45 to 75 seconds to find.** A program that must know sooner puts a time on its calls. A find and a spawn always have one.
 8. **A `send` to a node out of reach vanishes.** So does one to a node the sender's configuration does not list. A monitor or a call on the same address shows it.
@@ -228,19 +228,20 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 ## 6. How it works
 
-**The carrier.** Nodes talk over Erlang's own distribution, which the host has: its connections, its handshake, its heartbeat, its order, and its monitors across nodes. Ernest turns off what hurts in it, as the paragraphs below say, and puts three things of its own on it: a check that two nodes run the same program, a frame that carries each message with its type, and the start of a process on a peer. A program never sees the carrier, so another can take its place.
+**The carrier.** Nodes talk over Erlang's own distribution, which the host has: its connections, its handshake, its heartbeat, its order, and its monitors across nodes. Ernest turns off what hurts in it, as the paragraphs below say, and puts three things of its own on it: a check that two nodes run the same build, the start of a process on a peer, and a service found by its key. A program never sees the carrier, so another can take its place.
 
 **Nodes.** A node's identity is the SHA-256 hash of its TLS public key, and its name on the carrier is that hash with a constant after it. So the name is the same on every node and holds no network address, and a node that moves to another machine keeps it. A peer's name in a program is one node's own word for it, the name its `ernest.conf` lists the peer under. A program never sees the name on the carrier, and what the runtime prints of a peer shows the listed name, and the hash only for a node that is not listed. `ern config` makes a node's key and a certificate that the node signs itself. The certificate's name is a constant, which nothing reads. A node has a configuration only where `--config-dir` names one: there is no default directory, and a program started without one is no node, has no peers and listens to nothing. As it starts, a node refuses a directory others can write and a key others can read. A node whose configuration gives it a network address listens there from its start. A node without one does not listen, and only dials. Each start of a node has a number of its own, which the host draws and puts in every address, so that an address of an earlier start is dead.
 
 **Connections.** Two nodes have at most one connection, opened by the first operation that needs it, over TLS 1.3 with a certificate on each side. A node accepts a peer whose public key its configuration lists, and no other, by a rule of Ernest's in the TLS handshake. The rule goes by the key alone, and the host's check of a certificate's name is turned off. There is no port-mapper daemon: a node finds a peer's address in its configuration. A peer may be listed without an address, and is then never dialled: it is out of reach until it opens a connection itself. Connections are not transitive: that A knows B and B knows C connects A and C in no way. Where both dial at once, the host keeps one. The host's cookie is a constant and proves nothing.
 
-**The hello.** When a connection opens, and before anything else passes, each node tells the other the version of this protocol, a hash of the build, and the versions of `ern` and of OTP. Where one differs, the node ends the connection, and a find or a spawn that asked for it fails with `Refused`, whose text says which.
+**The hello.** When a connection opens, and before anything else passes, each node tells the other the version of this protocol, the hash of its build, and the versions of `ern` and of OTP. The build's hash covers every compiled module on the node's load path, by name and content, in name order, and is taken when the node starts. The entry point plays no part, so three nodes started from three modules of one build have one hash, and a node carries the whole build, the modules its entry point never uses included. The standard library is not in it: `ern`'s version stands for it. Where one of the four differs, the node ends the connection, and a find or a spawn that asked for it fails with `Refused`, whose text says which.
 
 **What passes.** Ernest's own frames are five, and the host carries the rest as it carries them on one node.
 
 | What | Carried by |
 |---|---|
-| a message, with the hash of the mailbox type it is sent at | a frame of Ernest's, to the peer's gateway |
+| a message | the host's send, straight into the mailbox |
+| a message to an adapted address | a frame of Ernest's, to the gateway of the node that made the address |
 | a spawn on a peer | a frame of Ernest's |
 | the answer to a spawn | a frame of Ernest's |
 | a find, with a key's name and its type's hash | a frame of Ernest's |
@@ -250,7 +251,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 | the answer to a call | the host's alias, which takes one answer |
 | a sign of life | the host's tick |
 
-**The gateway.** A node has, for each connected peer, one process that takes that peer's frames: its *gateway*. What one process sends arrives there in the order it was sent. For a message the gateway checks the hash against the mailbox type of the process addressed, and hands the value on. A hash that does not fit is a faulty frame, and the node ends the connection. A value sent to an adapted address is carried, unconverted, to the node that made the address, whose gateway applies the function and hands on the result; a fault in that function is the fault of the process the address leads to. So a message between nodes makes one step more than a message on one node, on the node that receives it.
+**The gateway.** A node has, for each connected peer, one process that takes that peer's frames: its *gateway*. A plain message does not pass through it: the host puts it in the mailbox, as on one node, and nothing of Ernest's stands between the wire and the mailbox. Through the gateway goes what needs a process on the receiving node: a spawn, a find, and a message to an adapted address, which is carried, unconverted, to the node that made the address, whose gateway applies the function and hands on the result; a fault in that function is the fault of the process the address leads to. A frame the gateway cannot read is faulty, and the node ends the connection. So a message between nodes costs what the host's send costs, and only one to an adapted address makes a step more, on the node that made the address.
 
 **A loss.** A connection is lost when the network breaks it, when the detector finds it silent, when its outgoing buffer is full, or when a frame is faulty. In the last two the node ends the connection itself. Each node is told by its own host, and no frame announces it. The host gives a `Down` with `Unreachable` and an empty `site` for each monitor held on the peer's processes, and drops what waited to be sent. The calls waiting on those processes end. A node that dials a peer which still believes the old connection alive makes that peer run its loss first.
 
@@ -258,13 +259,13 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **Connecting again.** The host's. A connection is opened again when an operation needs it, never in the background, and the host puts no delay between one attempt and the next. A dial that is refused fails at once. A dial that nothing answers is given up after 7 seconds, and what waited behind it is then dropped.
 
-**Addresses.** An address is the host's own name for a process. It holds the node's name, the number of that node's start, and the process's number there. A message to it carries the hash of the mailbox type the sender holds the address at, which the receiving gateway checks. An address names its process for as long as the process lives, and a loss does not end it: when the two nodes connect again, the same address reaches the same process. Two things end an address. Its process ends. Or its node is started again: what is sent to an address of an earlier start is dropped, a call through it ends at once, and a monitor on its process gives `Unknown`. An address is a value like any other, and is as good on a third node it is sent to as on the node that sent it. A monitor is not kept through a loss. The loss gave its `Down`, and a program that wants to go on watching calls `monitor` again, on the process the `Down` names. Where that process's node is still out of reach, the new monitor gives its `Down` with `Unreachable`, and so it does where the node is not listed.
+**Addresses.** An address is the host's own name for a process. It holds the node's name, the number of that node's start, and the process's number there. An address names its process for as long as the process lives, and a loss does not end it: when the two nodes connect again, the same address reaches the same process. Two things end an address. Its process ends. Or its node is started again: what is sent to an address of an earlier start is dropped, a call through it ends at once, and a monitor on its process gives `Unknown`. An address is a value like any other, and is as good on a third node it is sent to as on the node that sent it. A monitor is not kept through a loss. The loss gave its `Down`, and a program that wants to go on watching calls `monitor` again, on the process the `Down` names. Where that process's node is still out of reach, the new monitor gives its `Down` with `Unreachable`, and so it does where the node is not listed.
 
-**Messages.** `send` hands the frame to the host and returns. Where no connection is open the host opens one, and the frame waits: it is sent where the connection opens, and dropped where it does not. What waits to be sent to a peer waits in the host's buffer for that peer, which has a limit. A `send` that finds the buffer over its limit does not wait, as the host would have it wait: the node ends the connection (section 5, point 4). A large value crosses in pieces, and other senders' messages pass between them.
+**Messages.** `send` hands the message to the host and returns, and the host puts it in the mailbox on the other node. Where no connection is open the host opens one, and the frame waits: it is sent where the connection opens, and dropped where it does not. What waits to be sent to a peer waits in the host's buffer for that peer, which has a limit. A `send` that finds the buffer over its limit does not wait, as the host would have it wait: the node ends the connection (section 5, point 4). A large value crosses in pieces, and other senders' messages pass between them.
 
 **Calls.** A `Reply` is the host's alias, which takes one answer and drops any other, as on one node. The caller monitors the callee for as long as it waits, so the callee's end and a loss both end the call. Where the callee restarted, its node tells the caller's. A call to another node costs four of the host's signals where a `send` costs one.
 
-**Serialization.** A value crosses in the host's external term format, written and read by the host. A constructor crosses as the text of its name, as a string does, and on arrival the host looks the name up among the atoms the node has. Every constructor of the program is in the build, so the messages of a correct program make no new atom on the node that receives them, however many they are. No hash stands inside a value: its type is known at both ends, and the frame carries the type's hash once. Before a value is sent, Ernest looks through it for what may not cross (section 2), which the host would carry as it is. On arrival the hash is checked, and the value is not looked into.
+**Serialization.** A value crosses in the host's external term format, written and read by the host. A message carries no hash of its type: its type is known at both ends and the same at both, which the build's hash made sure of. A constructor crosses as the text of its name, as a string does, and on arrival the host looks the name up among the atoms the node has. Every constructor of the program is in the build, so the messages of a correct program make no new atom on the node that receives them, however many they are. Before a value is sent, Ernest looks through it for what may not cross (section 2), which the host would carry as it is. On arrival the value is not looked into.
 
 **A spawn.** `Peer.spawn(name, f, ms)` sends the peer a frame with `f` as a reference to its code, its module and its place there, and the values it captured. The same build has the same modules, so the reference means the same on both nodes. The peer starts the process and answers with its address. The spawner waits at most `ms` milliseconds, the opening of a connection among them. The wait ends when the peer answers, when no connection can be opened, when the connection is lost, or when the time runs out. A spawn fails, as a value, where the name is no peer's (`NotListed`), where the peer is out of reach or refused the hello (`Unreachable`, `Refused`), where the bindings the function depends on have no values on the peer (`NotLoaded`, *Bindings*), and where no answer came in time (`Timeout`). A monitored spawn that fails leaves no monitor. A spawn faults its caller in one case, which is found before anything is sent: the function captured a value that may not cross (section 2). An answer that comes when the spawner no longer waits, its time having run out or the spawner having ended, makes the node kill the process it names: the spawner was told that no process came, and that becomes true. The node keeps what it needs for that until the answer arrives or the connection is lost.
 
@@ -279,6 +280,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 | What | Value |
 |---|---|
 | a node's identity | SHA-256 of its TLS public key |
+| the build's hash | SHA-256 over every compiled module on the load path, by name and content, in name order |
 | the number of a node's start | the host's, drawn at each start |
 | the detector's tick | every 15 s where nothing else is sent |
 | a silence is found in | 45 to 75 s |
@@ -291,24 +293,23 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 The carrier is the host's and has its own long record. It is not checked again.
 
-What is Ernest's is small: the rule that accepts a peer by its key, the hello, the gateway's check, and the start of a process on a peer. It is tested with real nodes on one machine, as the experiment that tried the carrier was ([`other_systems.md`](other_systems.md), section 4): nodes with keys of their own, a peer stopped to stand for a silent one, a node started again, and a node that does not listen. Those tests hold the claims of section 4. What they cannot show is a network that really parts (section 9).
+What is Ernest's is small: the rule that accepts a peer by its key, the hello with the build's hash, the gateway for a spawn, a find and an adapted address, and the start of a process on a peer. It is tested with real nodes on one machine, as the experiment that tried the carrier was ([`other_systems.md`](other_systems.md), section 4): nodes with keys of their own, a peer stopped to stand for a silent one, a node started again, and a node that does not listen. Those tests hold the claims of section 4. What they cannot show is a network that really parts (section 9).
 
 ## 9. Unsolved
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
-3. **What the build's hash covers,** where two nodes are started from different entry points of one program.
-4. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
-5. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
-6. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
-7. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
-8. **The mailbox type's description.** How a process carries it at run time, and what exactly its hash is taken over.
-9. **What the gateway leaves open.** A function of an adapted address that does not finish holds up everything from that peer, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
-10. **A network address.** A name or a number, and what the listener binds to.
-11. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
-12. **The shell on a node.**
-13. **Costs not measured:** the gateway's step, a call's four signals, TLS, and the look through each value before it is sent.
-14. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+3. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
+4. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
+5. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
+6. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
+7. **A key's type hash.** What exactly it is taken over, and how the type is described at run time for it.
+8. **What the gateway leaves open.** A function of an adapted address that does not finish holds up that peer's spawns, finds and messages to adapted addresses, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
+9. **A network address.** A name or a number, and what the listener binds to.
+10. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
+11. **The shell on a node.**
+12. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
+13. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
@@ -336,7 +337,7 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 2. **Settle now what a program writes.** A program writes the types of `Peer`'s functions and matches on the constructors of `Reason` and of the failures of a find and of a spawn. A change to any of them breaks programs, where a change beneath them does not. So `Peer.Failure` is settled with the later milestones in view: `OtherType` has room for a service that is at another version, `NotLoaded` for code the peer does not have, and `Refused`'s text for what a later hello refuses.
 
-3. **Keep closed what will change beneath.** The protocol never looks inside a function's reference, which is a place in a module now and a hash later. It compares a type's hash and never asks how the hash was made. It allows that a process comes to accept more than one type's hash, as a process that has changed its protocol will. It speaks of the connection between two nodes and not of what carries it, so that another carrier can take the host's place. And it asks a table for a peer's address and key, and not a file, so that a table filled another way can replace it.
+3. **Keep closed what will change beneath.** The protocol never looks inside a function's reference, which is a place in a module now and a hash later. It compares a type's hash, at a find, and never asks how the hash was made. A message carries no hash in MVP 3.0, and step B puts one on it, which the fourth rule allows; the protocol then allows that a process comes to accept more than one type's hash, as a process that has changed its protocol will. It speaks of the connection between two nodes and not of what carries it, so that another carrier can take the host's place. And it asks a table for a peer's address and key, and not a file, so that a table filled another way can replace it.
 
 4. **The wire is not kept.** A hello whose protocol version differs ends the connection, and MVP 3.1 is a new version: every node changes over at once. Nothing in MVP 3.0 promises that a node of one milestone talks to a node of the next.
 
@@ -349,6 +350,6 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 | C | a hash for each definition; code crosses with a spawn; two versions stand side by side on a node | MVP 3.1 |
 | D | a running process takes new code, and later a new protocol | after MVP 3.1 |
 
-Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. The second is what makes every deploy a stop of all nodes at once. Without it, nodes are restarted one at a time wherever a change does not touch what they exchange, and unsolved point 3 falls away, there being no hash of a whole build. A changed module that spawns or finds on a node still holding the old one fails until that node has it too, so a real upgrade waits for step C. Step B only relaxes step A, by rule 1, and can follow MVP 3.0 without breaking a program. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
+Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. The second is what makes every deploy a stop of all nodes at once. Without it, nodes are restarted one at a time wherever a change does not touch what they exchange, and the build's hash falls away. A changed module that spawns or finds on a node still holding the old one fails until that node has it too, so a real upgrade waits for step C. Step B only relaxes step A, by rule 1, and can follow MVP 3.0 without breaking a program. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
 
 Three places carry the most risk, since a later milestone may find them wrong. How a service is named and found: a key is a name and the hash of a message type, which is what a later milestone needs to tell one version of a service from another, and whether the two are enough across builds is not known. The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
