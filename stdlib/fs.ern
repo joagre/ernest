@@ -102,7 +102,6 @@ type Msg =
   | Stat(path : Path, reply : Reply(Either(Io.Error, Entry)))
   | MakeDir(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
-  | RemoveAll(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Rename(source : Path, destination : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(source : Path, destination : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
@@ -361,35 +360,6 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
     answered(Address.call(reference,
                           fn(reply) = MakeFile(path = path, bytes = bytes, reply = reply),
                           ms))
-
-/// Removes a directory and everything under it, or a file or a link. A link
-/// is removed and not followed, wherever it stands, so what it leads to is
-/// left, even where another process puts it in a directory's place while
-/// the removal runs. It waits the milliseconds given once, for the whole
-/// removal.
-///
-/// A path that names the root directory, however it is written, `/` or
-/// `/usr/..`, answers `Left(Invalid)`, and nothing is removed. A link to the
-/// root is removed where it stands.
-///
-/// ### Errors
-///
-/// Where the runtime's helper fails, the caller faults with `Fault("the
-/// runtime's helper ern_exec failed")`, as `Os.start`'s does.
-///
-/// ### Examples
-///
-/// ```ernest
-/// {
-///     let _ <- Fs.makeDir(Path("tree/branch"), 5000);
-///     let _ <- Fs.write(Path("tree/branch/leaf.txt"), <<>>, 5000);
-///     let _ <- Fs.removeAll(Path("tree"), 5000);
-///     Right(Either.isLeft(Fs.stat(Path("tree"), 5000)))
-/// }
-/// // => Right(true)
-/// ```
-export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(reply) = RemoveAll(path = path, reply = reply), ms))
 
 /// Sets the modification time, in milliseconds since the epoch as
 /// `Clock.now` gives it, kept to the second as the file system keeps it.

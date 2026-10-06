@@ -955,19 +955,14 @@ fs_read_range_test() ->
                  collect(fs, [])),
     file:del_dir_r(Dir).
 
-%% report Appendix E.17: `makeFile` makes a new file or none; `removeAll`
-%% removes a tree, a link in it removed and what it leads to kept;
-%% `setModified` sets the time a `stat` then reads, to the second. Written
-%% with the code (MVP 2.98); a write that fails after the file is made is
-%% not covered, since a test cannot make one fail there
-fs_create_remove_all_modified_test() ->
+%% report Appendix E.17: `makeFile` makes a new file or none; `setModified`
+%% sets the time a `stat` then reads, to the second. Written with the code
+%% (MVP 2.98); a write that fails after the file is made is not covered,
+%% since a test cannot make one fail there
+fs_create_modified_test() ->
     Self = self(),
     Dir = scratch("ern_fs3_"),
-    ok = filelib:ensure_path(filename:join([Dir, "tree", "branch"])),
-    ok = filelib:ensure_path(filename:join(Dir, "kept")),
-    ok = file:write_file(filename:join([Dir, "kept", "precious.txt"]), <<"keep">>),
-    ok = file:write_file(filename:join([Dir, "tree", "branch", "leaf.txt"]), <<"x">>),
-    ok = file:make_symlink(filename:join(Dir, "kept"), filename:join([Dir, "tree", "to_kept"])),
+    ok = filelib:ensure_path(Dir),
     InDir = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
     Fs = 'ern@fs',
     ?assertEqual(ok, ern_rt:run_main(
@@ -975,133 +970,15 @@ fs_create_remove_all_modified_test() ->
                            Self ! {fs, Fs:makeFile(InDir("new.txt"), <<"a">>, 1000)},
                            Self ! {fs, Fs:makeFile(InDir("new.txt"), <<"b">>, 1000)},
                            Self ! {fs, Fs:read(InDir("new.txt"), 1000)},
-                           Self ! {fs, Fs:removeAll(InDir("tree"), 1000)},
                            Self ! {fs, Fs:setModified(InDir("new.txt"), 86400999, 1000)},
                            Self ! {fs, Fs:stat(InDir("new.txt"), 1000)}
-                       end, <<"fs_create_remove_all_modified_test">>, #{})),
-    [Made, Taken, Kept, Removed, Set, Stat] = collect(fs, []),
+                       end, <<"fs_create_modified_test">>, #{})),
+    [Made, Taken, Kept, Set, Stat] = collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Made),
     ?assertEqual({'Left', 'Exists'}, Taken),
     ?assertEqual({'Right', <<"a">>}, Kept),
-    ?assertEqual({'Right', 'Unit'}, Removed),
-    ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),
-    ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join([Dir, "kept", "precious.txt"]))),
     ?assertEqual({'Right', 'Unit'}, Set),
     ?assertMatch({'Right', {'Entry', _, 86400000, 1, 'File', _, _}}, Stat),
-    file:del_dir_r(Dir).
-
-%% report Appendix E.17: `removeAll` removes a link where it stands, at the
-%% root as inside, and never what it leads to, removes a named pipe without
-%% waiting on it, and answers the error that stopped it: a directory it
-%% cannot list is Denied, and a path that names nothing NotFound. A
-%% regression test, written with the walk by open directories that replaced
-%% one by paths; it cannot put a link in a directory's
-%% place between two steps of the walk, which the walk makes harmless by
-%% opening each directory refusing a link
-fs_remove_all_by_directories_test() ->
-    Self = self(),
-    Dir = scratch("ern_fs4_"),
-    Kept = filename:join(Dir, "kept"),
-    ok = filelib:ensure_path(Kept),
-    ok = file:write_file(filename:join(Kept, "precious.txt"), <<"keep">>),
-    ok = filelib:ensure_path(filename:join([Dir, "tree", "deep"])),
-    ok = file:make_symlink(Kept, filename:join([Dir, "tree", "deep", "to_kept"])),
-    ok = file:make_symlink(Kept, filename:join(Dir, "root_link")),
-    "" = os:cmd("mkfifo " ++ filename:join([Dir, "tree", "pipe"])),
-    ok = filelib:ensure_path(filename:join([Dir, "locked", "inner"])),
-    ok = file:write_file(filename:join([Dir, "locked", "inner", "f"]), <<>>),
-    ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#000),
-    InDir = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
-    Fs = 'ern@fs',
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs:removeAll(InDir("tree"), 5000)},
-                           Self ! {fs, Fs:removeAll(InDir("root_link"), 5000)},
-                           Self ! {fs, Fs:removeAll(InDir("locked"), 5000)},
-                           Self ! {fs, Fs:removeAll(InDir("nothing"), 5000)}
-                       end, <<"fs_remove_all_by_directories_test">>, #{})),
-    [Tree, RootLink, Locked, Nothing] = collect(fs, []),
-    ?assertEqual({'Right', 'Unit'}, Tree),
-    ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),
-    ?assertEqual({'Right', 'Unit'}, RootLink),
-    ?assertEqual({error, enoent}, file:read_link_info(filename:join(Dir, "root_link"))),
-    ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join(Kept, "precious.txt"))),
-    ?assertEqual({'Left', 'Denied'}, Locked),
-    ?assertEqual({'Left', 'NotFound'}, Nothing),
-    ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#755),
-    file:del_dir_r(Dir).
-
-%% report Appendix E.17: `removeAll` refuses a path that names the root,
-%% however written, with Left(Invalid), and a link to the root names none.
-%% Written with the check (MVP 2.99d's item 6). No helper that removes is
-%% ever given a root: Fs runs with a remover that removes nothing and tells
-%% the test what it was asked, and the first run holds that a scratch tree
-%% reaches that remover and stays, before any spelling of the root is sent.
-%% A root another process's link swaps in between the check and the walk is
-%% not covered, since the check reads the path as the walk will
-fs_remove_all_refuses_the_root_test() ->
-    Self = self(),
-    Dir = scratch("ern_fs_root_"),
-    Tree = filename:join(Dir, "tree"),
-    ok = filelib:ensure_path(Tree),
-    ok = file:make_symlink("/", filename:join(Dir, "to_root")),
-    RemovesNothing = fun(Text) -> Self ! {asked, Text}, {'Right', 'Unit'} end,
-    Options = #{remove_tree => RemovesNothing},
-    Fs = 'ern@fs',
-    Removed = fun(Text) -> Fs:removeAll({'Path', Text}, 5000) end,
-    ?assertEqual(ok, ern_rt:run_main(fun() -> Self ! {fs, Removed(list_to_binary(Tree))} end,
-                                     <<"fs_remove_all_refuses_the_root_test">>, Options)),
-    ?assertEqual([{'Right', 'Unit'}], collect(fs, [])),
-    ?assertEqual([list_to_binary(Tree)], asked([])),
-    ?assert(filelib:is_dir(Tree)),
-    %% only now a root: as written, with `.` and `..`, from the scratch
-    %% directory up past the root, and `.` with the root as the working
-    %% directory
-    Up = iolist_to_binary(lists:join("/", [Dir | lists:duplicate(length(filename:split(Dir)) + 2,
-                                                                 "..")])),
-    Roots = [<<"/">>, <<"//">>, <<"/.">>, <<"/usr/..">>, <<"/../..">>, Up],
-    ToRoot = list_to_binary(filename:join(Dir, "to_root")),
-    {ok, Working} = file:get_cwd(),
-    try
-        ok = file:set_cwd("/"),
-        ?assertEqual(ok, ern_rt:run_main(
-                           fun() ->
-                               [Self ! {fs, Removed(Root)} || Root <- Roots ++ [<<".">>]],
-                               Self ! {fs, Removed(ToRoot)}
-                           end, <<"fs_remove_all_refuses_the_root_test">>, Options))
-    after
-        ok = file:set_cwd(Working)
-    end,
-    Answers = collect(fs, []),
-    ?assertEqual(lists:duplicate(length(Roots) + 1, {'Left', 'Invalid'}),
-                 lists:droplast(Answers)),
-    %% the link reached the remover, which would remove it where it stands,
-    %% and no root did
-    ?assertEqual({'Right', 'Unit'}, lists:last(Answers)),
-    ?assertEqual([ToRoot], asked([])),
-    file:del_dir_r(Dir).
-
-%% What the remover that removes nothing was asked, in order.
-asked(Acc) ->
-    receive {asked, Text} -> asked([Text | Acc]) after 0 -> lists:reverse(Acc) end.
-
-%% report Appendix E.17: `removeAll` holds a bounded number of descriptors
-%% however deep the tree, so a chain of directories deeper than the
-%% helper's limit on descriptors is removed whole. A regression test: the
-%% walk held one descriptor a level, and any writer of a directory could
-%% make a tree it could not remove. The helper is run as Fs runs it, under
-%% a limit of twenty descriptors, on a chain of two hundred
-fs_remove_all_deeper_than_the_descriptors_test() ->
-    Dir = scratch("ern_fs_deep_"),
-    ok = filelib:ensure_path(Dir),
-    "" = os:cmd("cd " ++ Dir ++ " && for i in $(seq 200); do mkdir d && cd d || exit 1; done"
-                " && touch last"),
-    Path = list_to_binary(filename:join(Dir, "d")),
-    Frame = filename:join(Dir, "frame"),
-    ok = file:write_file(Frame, <<(byte_size(Path) + 1):32, "p", Path/binary>>),
-    Answer = os:cmd("ulimit -n 20 && " ++ ern_os:helper() ++ " remove < " ++ Frame),
-    ?assertEqual(<<1:32, "d">>, list_to_binary(Answer)),
-    ?assertNot(filelib:is_file(filename:join(Dir, "d"))),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17, E.1: `setModified` with a time the host cannot
@@ -1120,30 +997,6 @@ fs_set_modified_past_the_host_test() ->
                            Self ! {fs, 'ern@fs':setModified(Path, -(1 bsl 80), 1000)}
                        end, <<"fs_set_modified_past_the_host_test">>, #{})),
     ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], collect(fs, [])),
-    file:del_dir_r(Dir).
-
-%% report Appendix E.17: `removeAll` of a link named with a trailing `/`
-%% removes the link and keeps what it leads to, and an empty path names
-%% nothing. A regression test: the link was followed, its target emptied,
-%% and the removal then failed; and the empty path faulted as the helper's
-%% failure
-fs_remove_all_link_with_a_slash_test() ->
-    Self = self(),
-    Dir = scratch("ern_fs5_"),
-    Kept = filename:join(Dir, "kept"),
-    ok = filelib:ensure_path(Kept),
-    ok = file:write_file(filename:join(Kept, "precious.txt"), <<"keep">>),
-    ok = file:make_symlink(Kept, filename:join(Dir, "link")),
-    Fs = 'ern@fs',
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Slashed = list_to_binary(filename:join(Dir, "link") ++ "//"),
-                           Self ! {fs, Fs:removeAll({'Path', Slashed}, 5000)},
-                           Self ! {fs, Fs:removeAll({'Path', <<>>}, 5000)}
-                       end, <<"fs_remove_all_link_with_a_slash_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Left', 'NotFound'}], collect(fs, [])),
-    ?assertEqual({error, enoent}, file:read_link_info(filename:join(Dir, "link"))),
-    ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join(Kept, "precious.txt"))),
     file:del_dir_r(Dir).
 
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a

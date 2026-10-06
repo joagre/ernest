@@ -50,16 +50,8 @@
  * each as it was given under ERN_GIVEN_ and its
  * name, saying so with ERN_GIVEN. A program the helper runs, and the
  * environment it writes, are then the user's and not the host's.
- *
- * Run with the argument `remove`, the helper removes the path the runtime's
- * first frame names, 'p' and the path's bytes, a directory with everything
- * under it, and answers 'd' once it is gone, or 'f' and the name of the
- * error that stopped it. Report Appendix E.17: it walks a directory by the
- * directories it has opened, never by a path, which the host's file module
- * cannot do.
  */
 #define _POSIX_C_SOURCE 200809L
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -354,221 +346,6 @@ static char **read_command(void)
     return command;
 }
 
-/*
- * Report Appendix E.17: Fs.removeAll. Each entry is opened relative to its
- * directory, refusing a link, and removed relative to it, so that a
- * directory another process replaces with a link while the walk runs leads
- * it nowhere else, and a link is removed, never followed. The walk holds
- * three descriptors at most, however deep the tree: it closes a directory
- * as it enters one below it, and comes back through the lower one's `..`,
- * which must be the directory it left, by its device and its inode. One
- * that is not, the lower directory moved while the walk was in it, ends
- * the walk with ENOENT, since the entry it would remove no longer names
- * that directory.
- */
-
-/* The flags that open a directory and nothing else: a link is refused
-   with ELOOP and any other file with ENOTDIR, and a named pipe is not
-   waited on. */
-#define DIRECTORY_ONLY (O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
-
-/* The names in the directory open as directory, "." and ".." left out,
-   read whole before any is removed; NULL with errno set where they cannot
-   be read. */
-static char **entry_names(int directory, size_t *count)
-{
-    int listing = dup(directory);
-    DIR *stream;
-    struct dirent *entry;
-    char **names = malloc(sizeof *names);
-    size_t capacity = 1;
-    int error;
-
-    *count = 0;
-    if (names == NULL || listing < 0) {
-        error = listing < 0 ? errno : ENOMEM;
-        if (listing >= 0)
-            close(listing);
-        free(names);
-        errno = error;
-        return NULL;
-    }
-    stream = fdopendir(listing);
-    if (stream == NULL) {
-        error = errno;
-        close(listing);
-        free(names);
-        errno = error;
-        return NULL;
-    }
-    for (;;) {
-        errno = 0;
-        entry = readdir(stream);
-        if (entry == NULL)
-            break;
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-        if (*count == capacity) {
-            char **grown = realloc(names, 2 * capacity * sizeof *names);
-            if (grown == NULL) {
-                errno = ENOMEM;
-                break;
-            }
-            names = grown;
-            capacity *= 2;
-        }
-        names[*count] = strdup(entry->d_name);
-        if (names[*count] == NULL) {
-            errno = ENOMEM;
-            break;
-        }
-        (*count)++;
-    }
-    error = errno;
-    closedir(stream);
-    if (error != 0) {
-        while (*count > 0)
-            free(names[--*count]);
-        free(names);
-        errno = error;
-        return NULL;
-    }
-    return names;
-}
-
-static int remove_entry(int *directory, const char *name);
-
-/* Everything in the directory open as *directory removed: 0, or the error
-   of the first removal that failed. *directory is the directory's
-   descriptor as the walk last opened it, and -1 where the walk could not
-   come back to it. */
-static int empty_directory(int *directory)
-{
-    size_t count, at;
-    int error = 0;
-    char **names = entry_names(*directory, &count);
-
-    if (names == NULL)
-        return errno;
-    for (at = 0; at < count; at++) {
-        if (error == 0)
-            error = remove_entry(directory, names[at]);
-        free(names[at]);
-    }
-    free(names);
-    return error;
-}
-
-/* The entry of the directory open as *directory removed: a directory with
-   everything under it, and anything else, a link among them, as itself.
-   *directory is closed while the walk is below it, and is the directory
-   reopened through `..` when it comes back, or -1 where it cannot. */
-static int remove_entry(int *directory, const char *name)
-{
-    int inner = openat(*directory, name, DIRECTORY_ONLY);
-    int parent, error;
-    struct stat left, back;
-
-    if (inner < 0) {
-        if (errno != ENOTDIR && errno != ELOOP)
-            return errno;
-        return unlinkat(*directory, name, 0) < 0 ? errno : 0;
-    }
-    if (fstat(*directory, &left) < 0) {
-        error = errno;
-        close(inner);
-        return error;
-    }
-    close(*directory);
-    *directory = -1;
-    error = empty_directory(&inner);
-    if (inner < 0)
-        return error;
-    parent = openat(inner, "..", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (parent < 0) {
-        int failed = errno;
-        close(inner);
-        return error != 0 ? error : failed;
-    }
-    close(inner);
-    if (fstat(parent, &back) < 0 || back.st_dev != left.st_dev || back.st_ino != left.st_ino) {
-        close(parent);
-        return error != 0 ? error : ENOENT;
-    }
-    *directory = parent;
-    if (error != 0)
-        return error;
-    return unlinkat(parent, name, AT_REMOVEDIR) < 0 ? errno : 0;
-}
-
-/* The path removed as remove_entry removes an entry, its last name
-   relative to the directory before it, so that a link is removed and not
-   followed, written with a trailing `/` or not. The path is changed in
-   place: its trailing slashes go, and its last `/` ends the directory. An
-   empty path names nothing. */
-static int remove_all(char *path)
-{
-    size_t length = strlen(path);
-    char *last;
-    const char *name;
-    int parent, error;
-
-    if (length == 0)
-        return ENOENT;
-    while (length > 1 && path[length - 1] == '/')
-        path[--length] = '\0';
-    last = strrchr(path, '/');
-    if (last == NULL || strcmp(path, "/") == 0) {
-        parent = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        name = path;
-    } else if (last == path) {
-        parent = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        name = last + 1;
-    } else {
-        *last = '\0';
-        parent = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        name = last + 1;
-    }
-    if (parent < 0)
-        return errno;
-    error = remove_entry(&parent, name);
-    if (parent >= 0)
-        close(parent);
-    return error;
-}
-
-/* The job `remove`: the path the first frame names, 'p' and its bytes,
-   removed, and 'd' or 'f' and the error's name written back. */
-static int remove_job(void)
-{
-    unsigned char head[4];
-    size_t length;
-    char *frame_text;
-    int error;
-
-    if (!read_all(head, sizeof head))
-        return 1;
-    length = (size_t)head[0] << 24 | (size_t)head[1] << 16 | (size_t)head[2] << 8 | head[3];
-    if (length < 1)
-        return 1;
-    frame_text = malloc(length + 1);
-    if (frame_text == NULL || !read_all((unsigned char *)frame_text, length)
-        || frame_text[0] != 'p' || memchr(frame_text, '\0', length) != NULL) {
-        free(frame_text);
-        return 1;
-    }
-    frame_text[length] = '\0';
-    error = remove_all(frame_text + 1);
-    free(frame_text);
-    if (error == 0) {
-        frame('d', (const unsigned char *)"", 0);
-    } else {
-        const char *name = posix_name(error);
-        frame('f', (const unsigned char *)name, strlen(name));
-    }
-    return 0;
-}
-
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
@@ -597,8 +374,8 @@ int main(int argc, char **argv)
         frame('x', (const unsigned char *)"\0\0\0\0", 4);
         return 0;
     }
-    if (strcmp(argv[1], "remove") == 0)
-        return remove_job();
+    if (strcmp(argv[1], "run") != 0)
+        return 1;
     program_command = read_command();
     if (program_command == NULL || program_command[0] == NULL)
         return 1;

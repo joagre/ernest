@@ -13,14 +13,15 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
+**MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
+measured, with the prelude and the emitted code, and the report's and the guide's feedback
+shipped as Ernest 0.3.1 (*Done* below). Next is MVP 3.0, peers, whose design begins with the
+thinking in [`distribution.md`](distribution.md), discussed with the user before anything
+is built. A release waits until the user calls it.
+
 **Ernest 0.3.1 is tagged** `v0.3.1` on 2026-10-05, a documentation release from MVP 2.99d:
-the manual pages rewritten to teach (item 7), the examples made to teach (item 8), the guide
-staged for its reader (item 5) and the report's contracts made precise (item 4), no rule
-changed. Since then MVP 2.99d has measured the library (item 1) and stood it on the host
-(item 12), `Fs.removeAll` refuses the root (item 6), and a program's exit and its end are
-reported as they happen (items 9 and 10), and `Clock.now` reads the host's clock (item
-13), and the laws' draws are read (item 14). Next are the prelude measured (item 2) and
-the emitted code's cost (item 3). A release waits until the user calls it.
+the manual pages rewritten to teach, the examples made to teach, the guide staged for its
+reader and the report's contracts made precise, no rule changed.
 
 **Ernest 0.3.0 is tagged** `v0.3.0` on 2026-10-05, the end of MVP 2.99c: the core
 language argued sound in [`soundness.md`](soundness.md) and generated against, the grammar,
@@ -60,153 +61,12 @@ paragraph under "Done".
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | done 2026-10-05, tag `v0.3.0` |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
-| MVP 2.99d | the library and the prelude measured against their lines, the emitted code's cost, and the report's and the guide's feedback | |
+| MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
-
----
-
-## MVP 2.99d (the library and the prelude measured, and the report's and the guide's feedback), about a week
-
-E.0 rule 1's line, decided with the user on 2026-10-04 (the log's *The Full Review's
-Questions, One by One*): a private primitive goes beneath an Ernest operation where the Ernest
-form costs more than three times the host's own at the sizes a program meets, or grows with
-what the host's does not, and nowhere else. After Ernest 0.3.0, since the rule ships in it
-and its measurement does not hold the release.
-
-1. **Every function measured, a first pass**, the machine done 2026-10-05 (the log's *MVP
-   2.99d's First Measurements*): `test/ern_measure.erl`, which `make bench` runs in
-   seconds and `ern_measure_tests` holds to every function. Each of the 349 exported names
-   of `stdlib/` and `libs/` is timed by arguments drawn from its type at 10, 100 and
-   10,000, the subject at the size and the rest at 10 at most, beside the host's function
-   where one does the same work; or in a scenario beside the host's operation, for one
-   that needs a process; or listed with why it cannot be: five read standard input or a
-   terminal, or end the program, and ten are values. Past the line: costing more than
-   three times the host's at 10 or 100; or growing from 100 to 10,000 at least tenfold and
-   more than three times the host's own growth, or a thousandfold where no host does the
-   work, three hundredfold being near it. A system module's function is shown with what
-   Ernest adds, held to the prelude's line. Beside each time, what the call allocates
-   against the host's, counted from the collector's events, shown for reading and with no
-   line of its own (decided with the user on 2026-10-05, and kept so on 2026-10-06 when the
-   user had seen the numbers); and above the
-   table the load average, which says whether the machine was idle. Nothing is changed
-   before the user decides: each function past the line is a decision with the user, with
-   its numbers in the log's entry, and a function near the line is measured more
-   thoroughly first.
-2. **The prelude measured**, done 2026-10-06 (the log's *The Prelude Measured* and *Spawn
-   Keeps Its Wait*): `make bench` holds every function of §9.4 to §9.6 beside the host's
-   operation, each under twice it but `Path.<>`, brought from 2.9 to 1.9, and what goes
-   through the reaper. `spawn` and `monitor` keep waiting for it, decided with the user
-   and measured: a `spawn` that did not wait saved 0.7 us of 5.2 and let a spawning loop
-   outrun the reaper, 0.74 s becoming 52, and a `monitor`'s wait orders it before the
-   caller's next act. Their messages are a system process's by design.
-3. **The emitted code's cost**, done 2026-10-06 (the log's *The Emitted Code Measured*):
-   ordinary Ernest compiles to the Erlang a person writes, 1.0 to 1.5 times it in the
-   bench; the count of a foreign call around ten primitives read as waiting on no process
-   is gone, `Clock.now` 7.5 times the host's read to 1.1, and the `try` around a shim
-   stays, a few nanoseconds that carry §7.4's fault. `ern_rt`'s `-waits_on_nothing` lists
-   the functions so read.
-4. **The report's feedback**, done 2026-10-05: six points of precision in the report's
-   contracts, from a reader outside the project. Three were taken into the report, out of
-   order and ahead of items 1 to 3, each a statement of what already ran or was already
-   written, with no rule changed (the log's *The Report's Feedback, Three Points*): what a
-   call's time bounds (§6.6), an order's laws (§3.10, E.2, E.25), and the foreign boundary's
-   summaries (§4.7, §7.4). The three of peers, whose every answer is a rule, went into the
-   items that build them, with the file, kept at `0ebb1bc`: a peer's loss into MVP 3.0's
-   `Unreachable`, a peer's initialization into MVP 3.0's *When a module's top-level bindings
-   run*, and a foreign definition's compatibility into MVP 3.1's definition hash.
-5. **The guide's feedback**, done 2026-10-05, out of order and ahead of items 1 to 3 (the
-   log's *The Guide Staged for Its Reader*): a pedagogical assessment of the guide in seven
-   points, each taken into the guide, and the file gone, kept at `6495854`. The guide names
-   its reader, decided with the user: a programmer who has used a functional language, with
-   processes and messages taught from the start. Each construct's ordinary use comes before
-   its finer rules, which stand under leads of their own. §7.3 teaches a requirement, an
-   operations record and a record of closures as three lessons, each on a small program, and
-   the ordered set's source closes it, against MVP 2.99b's choice of that module as the
-   section's example. Chapters 4 to 7 gain exercises on Ernest's own distinctions. The
-   backbone, the programs, the word counter and the rejected programs, is kept.
-6. **`Fs.removeAll` refuses the root**, done 2026-10-05: a path that names the root
-   directory, however written, `/`, `//`, `/usr/..`, or `.` where the root is the working
-   directory, answers `Left(Invalid)` before anything is removed, and a link to the root
-   is removed where it stands (E.17). The check is the directory's identity, its device
-   and inode against the root's, as GNU `rm` refuses `/` by default, since a comparison of
-   spellings would miss some (the log's *MVP 2.99d's Measurements, Sized*). Its test gives
-   the file system process a remover that removes nothing, `run_main`'s `remove_tree`, and
-   holds that a scratch tree reaches it before any spelling of the root is sent. Left
-   open, found in the read-back: the check and the helper's walk resolve the path at two
-   moments, so a directory along the path that another process swaps for a link between
-   them, `/tmp/a/b` for a link to `/usr` under `/tmp/a/b/..`, can make the walk begin at
-   the root. The fix is the helper's own: the directory it opened compared with the root's
-   identity before it removes anything. No test can give the helper a root safely without
-   a root of the test's own, a chroot or a mount namespace, so whether it is built, and
-   how it is tested, is decided with the user.
-7. **The manual pages made to teach**, done 2026-10-05 and shipped as Ernest 0.3.1 (Appendix
-   E.0 shape rule 6; the log's *The Manual Pages Teach*): the pages `ern doc` writes, the
-   standard library's, the prelude's and the libraries', each rewritten to the form
-   [`module_doc_template.md`](module_doc_template.md) shows. A module's opening says what it
-   is, when to use it, what a program does to use it and what to know, one behaviour a
-   paragraph; a declaration's first sentence says what it does or answers, then its edges,
-   and an `Errors` section the cause as a run prints it. A cold reader, briefed as a
-   newcomer, read ten pages, and its forty findings were taken, three of them errors, one in
-   the guide. `man/` holds the pages at 0.3.1, decided with the user: each page names the
-   release that wrote it, so new pages are a release.
-8. **The examples made to teach**, done 2026-10-05 (the log's *The Examples Are for a
-   Reader*): `examples/` holds only programs written for a reader of the language, and
-   [`examples/README.md`](../examples/README.md) lists them in an order to read them. The
-   programs kept for the tests, the first test programs, the guide's copies, the echo
-   measurement and the module of the documentation template, went to `test/programs/`.
-   Each example's first comment says what it does, what to look at and how to run it.
-   Three were written where the set had none: `tally.ern`, a command-line tool,
-   `word_count.ern`, an operations record over two maps, and `shout.ern`, a TCP server and
-   its clients.
-
-9. **A program's exit reported at once**, done 2026-10-05 (found by item 1's first pass):
-   once a program had closed its outputs, the runtime's helper asked whether it had exited
-   and, if not yet, waited 50 ms in `poll` before asking again (`ern_exec.c`), so a
-   program that exits a moment after closing them, as `cat` does at the end of its input,
-   had its exit reported about 50 ms late. The helper is now woken by the exit: `SIGCHLD`
-   writes a byte to a pipe it polls beside the runtime's, with no timer, and an exit
-   between its asking and its poll leaves its byte to be read. `Os.closeInput`'s scenario
-   went from 52 ms to 2.1 ms, 1.6 times the host's; a regression test holds the fastest of
-   five exits reported under 25 ms.
-
-10. **A fault at the program's end, not reported**, done 2026-10-05 (found in a full `make
-    test` under load; the log's *A Fault at the Program's End*): when
-    `examples/shout.ern`'s `main` returned, its listener died with it, its owner, and the
-    accepting process's `accept` could fault with `callee had ended` and be reported
-    before the program's end stopped every process. §8.6 now says it: a process that
-    faults once the entry process has died, at what the program's end ended, dies with the
-    reason `ProgramEnd` too, and is not reported, and §11.2's reporting says until when.
-    The reaper asks whether the entry process has died as it handles a fault, which holds
-    whatever order the two signals come in. A regression test ends a program five times
-    under a hundred waiting accepts; it failed three runs in three before the change.
-11. **The shell's `live_region` test, unmet once**, moved to *Standing gaps* on 2026-10-06.
-12. **The library stands on the host**, done 2026-10-06 (decided with the user on
-    2026-10-05; the log's *The Library Stands on the Host*). E.0 rule 1 and CLAUDE.md's
-    *Shims* say it: where a host function does exactly an operation's work by its page,
-    the operation is its shim; where one almost does, Ernest closes the difference around
-    it, and Erlang only where that Ernest measurably costs; an operation written as the
-    host's operators applied once is no shim. A foreign function marks its equality, `a=`
-    (§3, §4.7), and no second mark lifts its reply restriction (decided 2026-10-06).
-    `List`, `String`, `Bytes`, `Map`, `Set` and `Ets.contains` stand on the host; `Path` is
-    read by its code points, as the runtime reads it (E.14). Measured again with varied
-    elements, an order and predicates that keep half, nothing is past three times the
-    host's but `List.reverse`, which carries replies, and `String.trimStart`, whose host
-    function reads whitespace otherwise. Four defects of OTP's are written as reports in
-    `docs/otp_bugs.md`, filed by the user. The log's entries from *A Foreign Function
-    Marks Its Equality* to *The System Modules and the Libraries, Read*, and *Item 12's
-    Last Measurement*, say each step.
-13. **`Clock.now` reads the host's clock**, done 2026-10-06, decided with the user (E.15;
-    the log's *Clock.now Reads the Host's Clock*): no message to the clock's process, which
-    keeps the alarms; 3.4 us became 437 ns, the rest item 3's. A regression test suspends
-    the clock's process and asks the time.
-14. **The laws' draws read, module by module**, done 2026-10-06 (the log's *The Laws'
-    Draws Read*): `OrderedMap` kept the key given in `put` and the held one in `merge`,
-    and now keeps the held key throughout (E.26); the empty path, `Map.foreach`,
-    `Set.foreach`, `exp` and the trigonometric functions gained laws, which held.
 
 ---
 
@@ -838,3 +698,26 @@ Moved*). The full review read every area on `d90a5b3`, and its 570 findings were
 before the release (*The full review's findings* above). The release review's machines ran
 on `6e07e7d` and the tag (the log's *The Release Review Before 0.3.0*), item 6's readers
 serving as its readers; a release's notes list no change (*A Release Carries No History*).
+
+### MVP 2.99d — the library stands on the host, measured (done 2026-10-06)
+
+Every function of the standard library and the libraries is measured beside the host's by a
+machine `make bench` runs in seconds, `test/ern_measure.erl`, and the prelude beside the
+host's operations (the log's *MVP 2.99d's First Measurements* and *The Prelude Measured*).
+E.0 rule 1 changed with the user: its line of three times went, and where a host function
+does exactly an operation's work by its page, the operation stands on it (*The Library
+Stands on the Host*); a foreign function marks its equality, `a=` (§3, §4.7), and no second
+mark lifts its reply restriction. `List`, `String`, `Bytes`, `Map`, `Set` and
+`Ets.contains` stand on the host, an operation written as the host's operators is no shim,
+and `Path` is read by its code points, as the runtime reads it (E.14). `Clock.now` reads the
+host's clock, and no count of a foreign call surrounds a primitive read as waiting on no
+process (*The Emitted Code Measured*); `spawn` and `monitor` keep waiting for the reaper,
+whose wait holds a spawning loop to its pace (*Spawn Keeps Its Wait*); `Path.<>` is `split`
+then `join`, with no second way kept for speed. `Fs.removeAll` refused the root and was then
+removed, its failure too great to carry (*Fs.removeAll Removed*). `OrderedMap` keeps the key
+it holds (E.26), which the laws' draws, read module by module, found. A program's exit is
+reported at once, and a fault at the program's end is not reported (§8.6). Four defects of
+OTP's are written as reports in [`otp_bugs.md`](otp_bugs.md), the compiler's worked around
+meanwhile. The report's and the guide's feedback, the manual pages and the examples made to
+teach, shipped as Ernest 0.3.1. The shell's `live_region` test, unmet once, stands in
+*Standing gaps*.

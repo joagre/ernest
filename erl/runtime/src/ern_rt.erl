@@ -1572,10 +1572,7 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% gone (§8.2); stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
 %% terminal's keys, for tests (fed/1); time => fun(() -> integer()), the
-%% clock the Clock process reads in place of the host's, for tests;
-%% remove_tree => fun((binary()) -> term()), what the file system process
-%% removes a tree with in place of the runtime's helper, for a test that
-%% must remove nothing (Appendix E.17). Report
+%% clock the Clock process reads in place of the host's, for tests. Report
 %% §8.2: the standard streams carry bytes for the run, whatever the host's
 %% locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
@@ -1645,11 +1642,10 @@ started_system(Options) ->
     OpenKeys = input(keys, Options),
     KeysCome = maps:is_key(keys, Options) orelse ern_tty:is_terminal(stdin),
     ReadTime = maps:get(time, Options, fun() -> erlang:system_time(millisecond) end),
-    RemoveTree = maps:get(remove_tree, Options, fun ern_fs:removed_by_helper/1),
     System = [{stdout, erlang:spawn(fun() -> stream(Stdout, stdout) end)},
               {stderr, erlang:spawn(fun() -> stream(Stderr, stderr) end)},
               {stdin, erlang:spawn(fun() -> stdin_loop(OpenStdin) end)},
-              {fs, erlang:spawn(fun() -> ern_fs:loop(RemoveTree) end)},
+              {fs, erlang:spawn(fun ern_fs:loop/0)},
               {terminal, erlang:spawn(fun() -> ern_tty:loop(OpenKeys, KeysCome) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
               {os, erlang:spawn(fun ern_os:loop/0)},

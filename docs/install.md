@@ -11,7 +11,7 @@ bin/ern                          a relative link, ../lib/ernest/bin/ern
 lib/ernest/                      the toolchain's tree, as the repository lays it out
     bin/ern                      the launcher
     erl/<app>/ebin/              the toolchain's modules, without its tests
-    erl/runtime/priv/ern_exec    the helper Os.run runs a program through, and Fs.removeAll removes a tree
+    erl/runtime/priv/ern_exec    the helper Os.run runs a program through
     stdlib/*.ern                 the standard library's source root (report §4.2)
     build/stdlib/                the standard library, compiled
     build/shell/                 the shell, compiled, with libs/markdown and libs/ansi

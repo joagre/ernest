@@ -655,21 +655,12 @@ fs_scenarios(Dir, Bytes) ->
                ok = file:close(Fd),
                file:delete(In("new"))
        end}},
-     {<<"Fs.removeAll">>,
-      {fun() -> tree(In("tree")), Fs:removeAll(P("tree"), 5000) end,
-       fun() -> tree(In("tree")), file:del_dir_r(In("tree")) end}},
      {<<"Fs.setModified">>,
       {fun() -> Fs:setModified(P("file"), 86400000, 5000) end,
        fun() -> file:write_file_info(In("file"), #file_info{mtime = 86400}, [{time, posix}, raw])
        end}},
      {<<"Fs.setMode">>, {fun() -> Fs:setMode(P("file"), 8#644, 5000) end,
                          fun() -> file:change_mode(In("file"), 8#644) end}}].
-
-%% A directory of ten files, which removeAll's scenarios remove, made in
-%% both alike.
-tree(Dir) ->
-    ok = filelib:ensure_path(Dir),
-    [ok = file:write_file(filename:join(Dir, integer_to_list(I)), <<>>) || I <- lists:seq(1, 10)].
 
 io_scenarios(Bytes, DevNull) ->
     Text = text(?SIZE),
