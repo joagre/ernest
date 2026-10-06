@@ -195,7 +195,7 @@ The desk prints `the counter is at 5` and ends. The board prints the total every
 
 Where the cable to the store is then pulled, each node finds the silence within 45 to 75 seconds. For as long as the store is out of reach the board's calls answer `None`, and the board prints nothing. When the cable is back, the next call opens a connection and the totals appear again. The board holds the same address throughout and has written nothing for the loss. The counter runs on untouched all the while, and still holds its total.
 
-Where the store's node is itself stopped and started, its counter is a new process, which the store offers again under the same key. The address the board holds names the one that is gone: its calls answer `None` from then on. A program that is to outlive that monitors the counter, and finds it again by the key when it is told that the counter has ended (section 9, point 3).
+Where the store's node is itself stopped and started, its counter is a new process, which the store offers again under the same key. The address the board holds names the one that is gone: its calls answer `None` from then on. A program that is to outlive that monitors the counter, and finds it again by the key when it is told that the counter has ended. A library can do that for it (section 10).
 
 The desk and the board depend on the module `Counter` for the message type and the key. That module starts nothing, so neither of them runs a counter of its own.
 
@@ -297,24 +297,24 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
-3. **A standing address.** Whether a program is given a standing address of a peer's service, one that finds the service again by its key after its node has been started again, and whether that is `Peer`'s own or a library's. How a program learns which nodes there are and places work by load is not weighed here.
-4. **What the build's hash covers,** where two nodes are started from different entry points of one program.
-5. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
-6. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
-7. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
-8. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
-9. **The mailbox type's description.** How a process carries it at run time, and what exactly its hash is taken over.
-10. **What the gateway leaves open.** A function of an adapted address that does not finish holds up everything from that peer, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
-11. **A network address.** A name or a number, and what the listener binds to.
-12. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
-13. **The shell on a node.**
-14. **Costs not measured:** the gateway's step, a call's four signals, TLS, and the look through each value before it is sent.
-15. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+3. **What the build's hash covers,** where two nodes are started from different entry points of one program.
+4. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
+5. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
+6. **The outgoing buffer's limit.** Its value. The host has 1 MB, and what is right for Ernest is not measured.
+7. **The texts of the new faults:** a node out of reach under a call that waits without a limit, and each value that may not cross.
+8. **The mailbox type's description.** How a process carries it at run time, and what exactly its hash is taken over.
+9. **What the gateway leaves open.** A function of an adapted address that does not finish holds up everything from that peer, with no limit on what waits behind it. And how a callee's node knows which calls from other nodes wait on a process, to end them where it restarts.
+10. **A network address.** A name or a number, and what the listener binds to.
+11. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
+12. **The shell on a node.**
+13. **Costs not measured:** the gateway's step, a call's four signals, TLS, and the look through each value before it is sent.
+14. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
 - Code that crosses between nodes, and a change of code while a program runs.
-- Discovery of nodes, and a registry that nodes share: a key is offered on one node and found there.
+- Discovery of nodes, and a registry that nodes share: a key is offered on one node and found there. How a program learns which nodes there are, and places work by load, is not weighed.
+- A standing address of a service, one that finds the service again after its node is started again. A library builds it: a process on the holder's node that forwards, finds by the key, monitors, and is held through `via`.
 - A function shipped to a peer to read one of its bindings.
 - A message carried through a third node.
 - A cluster's membership, an election, a lease: what must exist once is the program's or a library's.
@@ -349,6 +349,6 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 | C | a hash for each definition; code crosses with a spawn; two versions stand side by side on a node | MVP 3.1 |
 | D | a running process takes new code, and later a new protocol | after MVP 3.1 |
 
-Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. The second is what makes every deploy a stop of all nodes at once. Without it, nodes are restarted one at a time wherever a change does not touch what they exchange, and unsolved point 4 falls away, there being no hash of a whole build. A changed module that spawns or finds on a node still holding the old one fails until that node has it too, so a real upgrade waits for step C. Step B only relaxes step A, by rule 1, and can follow MVP 3.0 without breaking a program. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
+Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. The second is what makes every deploy a stop of all nodes at once. Without it, nodes are restarted one at a time wherever a change does not touch what they exchange, and unsolved point 3 falls away, there being no hash of a whole build. A changed module that spawns or finds on a node still holding the old one fails until that node has it too, so a real upgrade waits for step C. Step B only relaxes step A, by rule 1, and can follow MVP 3.0 without breaking a program. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
 
 Three places carry the most risk, since a later milestone may find them wrong. How a service is named and found: a key is a name and the hash of a message type, which is what a later milestone needs to tell one version of a service from another, and whether the two are enough across builds is not known. The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
