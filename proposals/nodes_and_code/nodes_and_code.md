@@ -56,6 +56,8 @@ The rules are in the proposal's section 6, *A loss*, *The detector* and *Connect
 
 In the proposal's section 6, *Addresses*.
 
+**An address is the permission to kill, across nodes too.** On one node an address lets its holder send to a process and kill it, inside one program. With peers the permission travels: every node that finds a service holds its address and can end it for the others. Two other rules were weighed. An address that only sends, which a find would give, is a second kind of address beside the one the language has, and the carrier cannot keep its promise: a connected node can end anything on the other, so it would guard against a peer's mistake and not against a peer. And a `kill` refused across nodes takes from a spawner the means to stop the worker it started on a peer. The rule kept is the one a process already knows, so that it need not know where an address leads, for `kill` as for `send`. Erlang has the same rule: whoever holds a pid can send it an exit signal. The capability systems have the other, a reference that conveys messaging alone ([`other_systems.md`](other_systems.md), *T6*), and there an address that only sends is a process in front of the service, which a program can write today: it forwards what it is sent, and a `kill` of it ends the forwarder. An address that only sends can enter later and break no program.
+
 ### 2.5 Messages
 
 In the proposal's section 4 and its section 6, *The gateway*, *Messages* and *Calls*.

@@ -195,6 +195,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 9. **A peer is trusted completely.** Any node in the configuration may do on this node whatever the host lets a connected node do: start, end and call anything. Ernest's checks hold against a peer's mistakes, and not against a peer that means harm. A faulty peer can send a value of the wrong type that is caught only where the receiving process meets it.
 10. **A loss can leave a hole.** What one process sent another while their nodes were out of reach of each other is gone, and what it sends after they connect again arrives. Both nodes run the loss, so a process that monitors the other is told that a hole may be there. A protocol that must have none numbers its messages, or calls.
 11. **Nothing is upgraded while it runs.** Two nodes whose builds differ by one line refuse each other, and so do two with different versions of `ern` or of OTP.
+12. **Whoever holds an address can kill its process.** An address is the permission to send and to kill, across nodes as on one. A node offers a service to all its peers alike, so each peer that finds it can end it for the others. A service that is to outlive a mistaken `kill` is supervised on its own node, and its new process is offered under the same key.
 
 ## 6. How it works
 
@@ -294,6 +295,7 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 - A detector that adapts its patience.
 - Rights for each peer beyond being listed.
 - An address that dies with its connection, and an operation that renews one.
+- An address that lets its holder send and not kill.
 - A promise that a peer's data creates no atom on the node that receives it.
 
 ## 11. Room for what comes after
