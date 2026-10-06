@@ -26,7 +26,7 @@ From the protocol note, sections 1 to 3 and 9.
 
 **A node's identity.** A node's `NodeId` is the SHA-256 hash of its TLS public key, and mutual TLS proves that a peer holds the key. It is stable across restarts. A new key is a new node, and every address to the old one is dead. Each start of a node draws a random 64-bit *incarnation*, which an address carries, so an address of an earlier start is dead.
 
-**The peer table.** `ernest.conf` lists each peer's name, network address and public key (§11.3). Names are local to a node, and `NodeId`s global. There is no discovery: every node that must reach a new one is updated by hand.
+**The peer table.** `ernest.conf` holds this node's network address and public key, and lists each peer's name, network address and public key (§11.3). It stands in the node's configuration directory beside the node's private key, `private-key.pem`. `ern config` makes the three: the directory, which only its owner can open, `ernest.conf`, and the key, which only its owner can read and write. The directory is `./.ernest` unless `--config-dir` names another. That default is in the directory a program starts in, a working tree among them, where a commit can take the key, and the plan's MVP 3.0 holds as a decision whether it stays (section 11). Names are local to a node, and `NodeId`s global. There is no discovery: every node that must reach a new one is updated by hand.
 
 **One connection for each pair of nodes.** It is opened by the first operation that needs it. Connections are not transitive: that A knows B and B knows C does not connect A to C. Where both nodes dial at once, the connection the lower `NodeId` opened is kept.
 
