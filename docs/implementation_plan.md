@@ -174,7 +174,7 @@ others build on it, ran as MVP 2.99c's item 6, and its findings were worked befo
   §9.3, §6.9), which also settles a contradiction a reader outside the project found on
   2026-10-04: §10 requires a lost peer's `Down` to carry a reason distinguishable from every
   other, and a process that calls `fault("peer lost")` gives the same; and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
-  a sender told nothing of a drop, as the note's section 3 promises.
+  a sender told nothing of a drop, as the note's section 2.5 promises.
 - **Where a node's configuration is read**, decided before `ernest.conf` is: its default,
   `./.ernest`, is the directory a program starts in, whose `ernest.conf` would name the peers
   and keys the node trusts, as its `startup` ran inputs until MVP 2.95 (§11.2, §11.3; the log's
@@ -245,18 +245,18 @@ The milestone is §8.7's identity in full:
   compatible by its declaration is not thereby trusted to keep its promise. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
 - Hash modules never change, and versions coexist on a node for as long as a process runs one
-  ([`distribution.md`](distribution.md), section 7). The shell's reload then ends
+  ([`distribution.md`](distribution.md), section 4.1). The shell's reload then ends
   nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")` and §11.2's
   second-reload rule go, with the test that pins them.
 - **The loader's one `code_server`**, measured under the loader's batches before it is relied
-  on, and **normalization**, given a test suite of its own (the note's section 6, *The loader* and *Risks*).
+  on, and **normalization**, given a test suite of its own (the note's section 3.3, *The loader* and *Risks*).
 - **A node whose atoms near the host's limit**, decided with the hash modules: the note's
-  section 6, *Atoms and lambdas*, drains and restarts it, which CLAUDE.md's rule that memory no collection
+  section 3.4, *Atoms and lambdas*, drains and restarts it, which CLAUDE.md's rule that memory no collection
   reclaims is fixed at its cause, never by a cap, questions (a reader's finding).
 - Two nodes with different versions of one type never meet in a message, decided 2026-09-27
   (§8.7, *Identity*): an address carries its mailbox type's hash and is obtained only through
   typed operations. A frame that breaks it comes from a faulty peer and tears the connection
-  down (the note's section 3).
+  down (the note's section 2.4).
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes of
   its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry.
