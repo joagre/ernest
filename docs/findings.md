@@ -2,9 +2,9 @@
 
 What readers found of how other systems treat what [`mvp3.0.md`](mvp3.0.md) proposes, to be read beside it. A finding is something to weigh. None is a decision.
 
-Each reader was a research session of its own, which fetched the sources it names on 6 October 2026. A quotation is as the reader reported it, and was not fetched again for this document. Where a reader could not verify something, it is marked *unverified*. A finding is named by its reader's letter and a number: *O* for Orleans, *A* for Akka.
+Each reader was a research session of its own, which fetched the sources it names on 6 October 2026. A quotation is as the reader reported it, and was not fetched again for this document. Where a reader could not verify something, it is marked *unverified*. A finding is named by its reader's letter and a number: *O* for Orleans, *A* for Akka, *T* for the typed and capability systems.
 
-Two readers have not reported yet, and sections 4 and 5 wait for them.
+One reader has not reported yet, and section 4 waits for it.
 
 ## 1. What recurs
 
@@ -18,6 +18,9 @@ What more than one reader said, or what bears on a choice the proposal made. Eac
 6. **Finding a service matters more than spawning on a peer.** Akka's typed interface has no remote spawn at all and discourages it; a "find it again" helper is the first library anyone writes (*A4*, *O4*). Bears on section 9, points 2 and 3.
 7. **One side may be unable to dial.** Behind address translation or in containers, A reaches B and B does not reach A (*A3*). The proposal does not say what follows.
 8. **Bytes prove the link and not the node.** A node that is starved and still connected looks alive (*O6*). Bears on section 6, *The detector*.
+9. **A dead address can stay dead when it travels.** In the language E a broken reference is passed on as broken, and only a live reference of the third party's own introduces anew (*T1*). The proposal lets a dead address come alive by a round trip. A node knows which addresses it holds dead, and could send them on as dead. Bears on section 6, *Addresses*.
+10. **How an address is obtained again is a design of its own** in every system read: a durable reference in the capability systems, a typed key in Swift and Akka, a named service in Unison (*T3*). Bears on section 9, point 2.
+11. **An address also lets its holder kill.** The capability systems give a reference the right to send and nothing more (*T6*). Bears on section 2.
 
 ## 2. Orleans and its relatives
 
@@ -164,4 +167,77 @@ Not reported yet. The reader was asked what Erlang's own distribution guarantees
 
 ## 5. Typed and capability systems
 
-Not reported yet. The reader was asked about Swift's distributed actors, Unison and its cloud, and the capability systems, OCapN and Spritely Goblins: whether a remote call is typed differently from a local one, what a reference means after a disconnection, and how a reference handed over by a third party is treated.
+Swift's distributed actors, Unison and its cloud, and the capability systems that descend from the language E: OCapN, its protocol CapTP, and Spritely Goblins. The reader took the quotations for Swift, Unison's `Remote`, OCapN, Goblins, E and Cloud Haskell from the sources themselves. Those for Ray, Gleam, wasmCloud and Cap'n Proto came through a tool that summarises, and their wording is to be checked before it is cited.
+
+### Swift's distributed actors
+
+- **A remote call is typed differently, by the actor's kind and not by where it is.** A call from outside a distributed actor can always fail and always waits, even where the actor is local: "It is, by design, not possible to *statically* determine if a distributed actor instance is remote or local, therefore all programming against a distributed actor must be done as-if it was remote." [T-1] The benefit argued: "it allows us to surface any potential network issues that might occur during these calls" [T-1].
+- **What crosses** is checked when the program is compiled, and a function is refused [T-1]. The target on the wire is the method's full signature: "any change in the method signature will result in not being able to resolve the target method anymore" [T-2]. No code moves.
+- **Failure.** A membership protocol with gossip finds failures. On a node's fall, "'terminated' signals are generated for all actors watching" [T-4], "regardless if it really has deinitialized or not" [T-3]. A fall is for ever: "once a node is down/dead, it may never again be considered up/alive" [T-5]. A lost connection alone ends nothing.
+- **Delivery.** A call has a time of 5 seconds by default. "A remote call may be delivered (and processed!) successfully, while only the reply to it may not" [T-7].
+- **Finding** is by a typed key that an actor registers under [T-8].
+
+### Unison and its cloud
+
+- **Documented.** "Each Unison definition is identified by a hash of its syntax tree", and whoever receives a computation "requests the ones it's missing and the sender syncs them on the fly" [T-12]. Any value can be sent, a function among them.
+- **Failure is in the type.** Distribution is an ability, `Remote`, and its operations answer `Either Failure` [T-14]. A service is typed by what it takes and what it gives [T-15].
+- **Not documented, as far as the reader found:** what is promised of delivery and of order, what a node's death does to what runs on it, and whether a type is checked on arrival. The cloud's runtime is a licensed product and not open [T-16]. "As easy as a local function call" [T-13] is what it is sold with, and the ability in the type says otherwise.
+
+### OCapN, Goblins and E
+
+- **A loss is for ever, as in the proposal.** "Even after a partition heals, all references broken by that partition stay broken." "A partition simultaneously breaks all references crossing in a given direction between two vats." [T-22]
+- **Order without a gap.** "Later messages will only be delivered by a reference if all earlier messages sent on that same reference were already delivered" [T-22]. OCapN requires "only one active session between two peers" [T-18].
+- **The difference in the language** is between a call that waits and a send that does not, and it follows the boundary between two units of computation, not between two machines [T-21][T-22]. A failure is a broken promise.
+- **Getting a reference again.** A durable reference holds the key's fingerprint, hints of where the node is, and a secret number. It "can be passed between vats even when the vat of the target object is inaccessible", and "one makes a new reference from an offline capability" [T-22].
+- **A reference handed over by a third party.** The giver deposits the gift with the node that owns the object and sends the receiver a signed note; the receiver opens a session of its own and collects it [T-18]. The specification does not say what follows where the giver's session ends before the gift is collected, and OCapN is "still pre-specification" [T-20].
+- **A broken reference stays broken wherever it goes.** "Broken is a terminal state (once Broken always Broken)", and broken references "are transitively passed by copy" [T-23].
+
+### Others, briefly
+
+- **Cloud Haskell.** "Every node is running the same code", and only a function known when the program is compiled crosses [T-29]. "Once a network connection breaks (even temporarily) no further communication on that connection will be possible" until the program calls `reconnect`, accepting "that some messages to B might have been lost" [T-29].
+- **Ray.** "By default, actor tasks execute with at-most-once semantics", and a second attempt is asked for [T-25].
+- **Proto.Actor.** "At-most-once delivery" and "message ordering per sender–receiver pair" [T-26].
+- **Gleam.** "Type safe message passing is implemented in Gleam in libraries" [T-31]. The reader found no stated position on distribution.
+- **Pony** has distribution in a thesis of 2013 alone. The reader found no stated reason.
+
+### What it supports
+
+- **A loss that is for ever, and getting an address again,** is E's design, argued from consistency. Cloud Haskell and Akka came to nearby positions.
+- **At most once, order for each pair, nothing tried again unseen** is the default in Proto.Actor, Ray, Swift and Akka.
+- **A time on a call, and "no answer",** match Swift's own admission that a lost answer and a lost call look the same.
+- **No function in a message, and a spawn by reference within one build,** is Cloud Haskell's line and Swift's. Unison shows that the later step, code by its hash, works.
+- **The same operations on one node and across nodes.** Swift types a remote call differently because a local call there cannot otherwise fail. A call in Ernest already answers "no answer" on one node, so it stands where E stands and needs nothing more.
+- **No membership** is workable because a loss is a connection's. Swift and Akka need gossip, a verdict and a record of the fallen to make "terminated" final.
+
+### What it questions
+
+- *T1.* **Is being dead said of the value or of its holder?** Where A sends its dead address to C and C sends it back, is it live? Does it equal a fresh one? E answers by making breakage a reference's own: a broken reference is passed on as broken, and a third party introduces only by a live reference of its own.
+- *T2.* **Both sides must come to know of the loss.** E relies on "eventual common knowledge of the loss of connection" [T-22], and OCapN states one session for each pair with a rule for crossed hellos. The proposal has both.
+- *T3.* **How an address is obtained again.** Every system has an answer of its own: a durable reference, a first object every session starts from, a typed key, a named service. The proposal needs a typed and lasting form that keeps an address a permission.
+- *T4.* **A type's hash and a new version.** Swift met this with signatures, and Unison puts a name between a service and its hash. A changed message type cuts nodes of two versions off from each other.
+- *T5.* **Order across an introduction.** A's message to X, and the message B sends X after A introduced them, can arrive in either order. E strengthened its order for this. The proposal should state its rule.
+- *T6.* **The right to kill travels with the right to send.** A reference in OCapN conveys messaging alone. An address that only sends would need a process in front of it.
+
+### Sources
+
+- [T-1] https://github.com/swiftlang/swift-evolution/blob/main/proposals/0336-distributed-actor-isolation.md
+- [T-2] https://github.com/swiftlang/swift-evolution/blob/main/proposals/0344-distributed-actor-runtime.md
+- [T-3] https://github.com/apple/swift-distributed-actors/blob/main/Sources/DistributedCluster/Docs.docc/Lifecycle.md
+- [T-4] https://github.com/apple/swift-distributed-actors/blob/main/Sources/DistributedCluster/Docs.docc/Clustering.md
+- [T-5] https://github.com/apple/swift-distributed-actors/blob/main/Sources/DistributedCluster/Cluster/Cluster+Member.swift
+- [T-7] https://github.com/apple/swift-distributed-actors/blob/main/Sources/DistributedCluster/Docs.docc/Introduction.md
+- [T-8] https://github.com/apple/swift-distributed-actors/blob/main/Sources/DistributedCluster/Docs.docc/Receptionist.md
+- [T-12] https://www.unison-lang.org/docs/the-big-idea/
+- [T-13] https://www.unison.cloud/docs/core-concepts/
+- [T-14] https://share.unison-lang.org/@unison/cloud/code/main/latest/types/Remote
+- [T-15] https://www.unison.cloud/our-approach/
+- [T-16] https://www.unison-lang.org/blog/cloud-byoc/
+- [T-18] https://github.com/ocapn/ocapn/blob/main/draft-specifications/CapTP%20Specification.md
+- [T-20] https://github.com/ocapn/ocapn/blob/main/README.md
+- [T-21] https://files.spritely.institute/docs/guile-goblins/0.18.0/Handling-Disconnects.html
+- [T-22] https://papers.agoric.com/assets/pdf/papers/concurrency-among-strangers.pdf
+- [T-23] https://web.archive.org/web/2023/http://www.erights.org/elib/concurrency/refmech.html
+- [T-25] https://docs.ray.io/en/latest/ray-core/fault_tolerance/actors.html
+- [T-26] https://github.com/Asynkron/Asynkron.Documentation/blob/HEAD/docs/ProtoActor/durability.md
+- [T-29] https://www.microsoft.com/en-us/research/wp-content/uploads/2016/07/remote.pdf
+- [T-31] https://gleam.run/frequently-asked-questions/
