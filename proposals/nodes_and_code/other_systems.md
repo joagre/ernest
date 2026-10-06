@@ -130,7 +130,7 @@ Akka is the best-known actor system on the Java runtime, and Pekko is its open f
 - *A5.* **A lease needs a token that only grows,** since "a lease can be lost due to a timeout with the third party system" [A-35], and a paused node acts on for a moment.
 - *A6.* **A message that cannot be decoded.** Akka drops it, which the proposal's rule against a gap forbids. So a build's identity in the hello, and a refusal, are right for now; whether a type's hash must be exact or may allow a compatible type is a later question.
 - *A7.* **A number drawn at each start,** in the hello and in every address. The proposal has it; the reader was not told so.
-- *A8.* **The delay before a dial.** Akka's is a fixed second. The proposal's grows and has a random part.
+- *A8.* **The delay before a dial.** Akka's is a fixed second. The proposal's grew and had a random part when the reader read it; on Erlang's distribution it has none (*An experiment*, section 4).
 - *A9.* **Detection in seconds,** against the proposal's 45 to 75, at the price of the false alarms above.
 
 ### What the reader could not verify

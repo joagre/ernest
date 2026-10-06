@@ -267,7 +267,7 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 
 ## 9. Unsolved
 
-1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A node's name on the carrier and the name in its certificate were not tried against a real host name. A network that really parts was not tried. And whether Ernest puts a delay before a connection is opened again, which the host does not.
+1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A node's name on the carrier and the name in its certificate were not tried against a real host name. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two keys can have one name: whether a second offer under a name takes the first one's place or is refused. And whether a node may offer an address of a process on another node.
 3. **A process whose spawner stopped waiting.** A spawn whose time ran out may still start its process, and the answer then reaches a node where no one waits for it. Whether that node kills the process the answer names, or drops the answer and lets the process run. Where the connection was lost instead, no answer arrives and neither node can know, so that process runs on in either case (section 5, point 3).
 4. **`Peer`'s exact shape.** The types of its functions. The names of the failures of a find and of a spawn, whether the two share one type, and where a peer that refused the hello stands among them. Whether a program is given a standing address of a peer's service, one that finds the service again by its key after its node has been started again, and whether that is `Peer`'s own or a library's. How a program learns which nodes there are and places work by load is not weighed here.
@@ -295,6 +295,7 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 - A sender made to wait where the buffer is full, and a way to read how much waits.
 - A protocol of Ernest's own beneath the frames, and a wire format of its own.
 - A detector that adapts its patience.
+- A delay of the runtime's before a connection is opened again.
 - Rights for each peer beyond being listed.
 - An address that dies with its connection, and an operation that renews one.
 - An address that lets its holder send and not kill.
