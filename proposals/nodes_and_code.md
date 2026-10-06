@@ -68,7 +68,9 @@ In the proposal's section 2, *What may cross*, and its section 6, *Serialization
 
 ### 2.7 Processes on a peer
 
-In the proposal's section 6, *A spawn* and *Bindings*.
+In the proposal's section 6, *A spawn*, *A service and its key* and *Bindings*.
+
+**A service is found by a typed key.** The proposal first found a peer's service by shipping a function that read one of the peer's top-level bindings. Three things were wrong with that. Naming the binding made the client's program depend on the service's module, so the client's node ran that module's bindings and started a service of its own, and no arrangement of modules avoids it, since the client needs the module for the message type. A function crossed to look something up, which needs the same function on both nodes and is the first thing to break where builds differ. And every binding of a peer was open to every peer. A key is a value that starts nothing, holds a name and a message type's hash, and crosses in place of code; a node offers what its peers may find, and nothing else is found. The compiler holds an offer to one message type, and the peer compares the hash at a find. It is a registry of a kind, which Ernest has otherwise refused: it holds what a program chose to offer, to peers alone, and on one node a service stays a top-level binding. It is what a reader who knows Erlang expects, a registered name on a node, with a type. Its price is a name the program chooses, so that two services under one name on one node clash.
 
 ### 2.8 Open questions
 
