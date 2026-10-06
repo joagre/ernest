@@ -35,7 +35,6 @@
 type Msg =
     Alarm(ms : Int, address : Address(Int), reply : Reply(Unit))
   | AlarmAt(time : Int, address : Address(Int), reply : Reply(Unit))
-  | Now(reply : Reply(Int))
 
 // Report §8.2: the system reference, the runtime's address of the clock,
 // bound at each start.
@@ -46,8 +45,8 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 
 /// The time now, in milliseconds since the epoch, 1970-01-01 UTC. It moves when
 /// the host's clock is set; `monotonic` measures a duration.
-export fn now() : Int with m =
-    Address.callForever(reference, fn(reply) = Now(reply = reply))
+export foreign fn now() : Int with m =
+    "ern_rt:now/0"
 
 /// Milliseconds since a moment the runtime chose, which never go back, so the
 /// difference of two readings is the time the host ran between them. Its value

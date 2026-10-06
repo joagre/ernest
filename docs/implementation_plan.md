@@ -18,8 +18,9 @@ the manual pages rewritten to teach (item 7), the examples made to teach (item 8
 staged for its reader (item 5) and the report's contracts made precise (item 4), no rule
 changed. Since then MVP 2.99d has measured the library (item 1) and stood it on the host
 (item 12), `Fs.removeAll` refuses the root (item 6), and a program's exit and its end are
-reported as they happen (items 9 and 10). Next are the prelude measured (item 2), the
-emitted code's cost (item 3), and the decision on `Clock.now` (item 13).
+reported as they happen (items 9 and 10), and `Clock.now` reads the host's clock (item
+13). Next are the laws' draws read (item 14), the prelude measured (item 2) and the
+emitted code's cost (item 3). A release waits until the user calls it.
 
 **Ernest 0.3.0 is tagged** `v0.3.0` on 2026-10-05, the end of MVP 2.99c: the core
 language argued sound in [`soundness.md`](soundness.md) and generated against, the grammar,
@@ -88,8 +89,9 @@ and its measurement does not hold the release.
    more than three times the host's own growth, or a thousandfold where no host does the
    work, three hundredfold being near it. A system module's function is shown with what
    Ernest adds, held to the prelude's line. Beside each time, what the call allocates
-   against the host's, counted from the collector's events, with no line of its own until
-   the user has seen the numbers (decided with the user on 2026-10-05); and above the
+   against the host's, counted from the collector's events, shown for reading and with no
+   line of its own (decided with the user on 2026-10-05, and kept so on 2026-10-06 when the
+   user had seen the numbers); and above the
    table the load average, which says whether the machine was idle. Nothing is changed
    before the user decides: each function past the line is a decision with the user, with
    its numbers in the log's entry, and a function near the line is measured more
@@ -105,8 +107,13 @@ and its measurement does not hold the release.
 3. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
    person would write, the emitter's output is measured against that Erlang and its
    overheads cut, since a faster emitter brings every function under the line at once,
-   where a shim brings one. Sized when items 1 and 2's numbers are in, and nothing is cut
-   before then.
+   where a shim brings one. Among them what a call into a standard library primitive
+   costs: a call and a `try` around one instruction, which made `Int.abs` slower as a shim
+   than as Ernest, and the counting of a foreign function with a mailbox effect as foreign
+   code while it runs, which puts `Clock.now` and `Clock.monotonic` at 4 to 8 times the
+   host's read (the log's *The Host's Operators Are No Shim's* and *Clock.now Reads the
+   Host's Clock*). Sized when items 1 and 2's numbers are in, and nothing is cut before
+   then.
 4. **The report's feedback**, done 2026-10-05: six points of precision in the report's
    contracts, from a reader outside the project. Three were taken into the report, out of
    order and ahead of items 1 to 3, each a statement of what already ran or was already
@@ -201,12 +208,15 @@ and its measurement does not hold the release.
     `docs/otp_bugs.md`, filed by the user. The log's entries from *A Foreign Function
     Marks Its Equality* to *The System Modules and the Libraries, Read*, and *Item 12's
     Last Measurement*, say each step.
-13. **Whether `Clock.now` reads the host's clock without a message**, a decision with the
-    user before this milestone closes (found 2026-10-06 by item 12; the log's *The System
-    Modules and the Libraries, Read*). E.15 has `now` reach the clock's process, 1.8 us
-    where the host's read takes 50 ns; the process gives it only the time source a test of
-    `alarmAt` replaces, and `Clock.monotonic` already reads the host. The recommendation is
-    to read the host's clock, E.15 saying so and the process keeping the alarms.
+13. **`Clock.now` reads the host's clock**, done 2026-10-06, decided with the user (E.15;
+    the log's *Clock.now Reads the Host's Clock*): no message to the clock's process, which
+    keeps the alarms; 3.4 us became 437 ns, the rest item 3's. A regression test suspends
+    the clock's process and asks the time.
+14. **The laws' draws read, module by module**, recommended and taken on 2026-10-06 (the
+    log's *Clock.now Reads the Host's Clock*): whether each module's laws draw the hard
+    cases its section of Appendix E names, as `Path`'s drew ASCII alone and hid a defect,
+    and the measuring machine drew a comparison that was no order. Each draw that misses
+    a case named gains it, and a law that then fails is a defect fixed with its test.
 
 ---
 

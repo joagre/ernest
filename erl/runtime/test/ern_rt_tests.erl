@@ -689,18 +689,38 @@ main_fault_test() ->
                  ern_rt:run_main(fun() -> 1 div zero() end, <<"main">>,
                                  #{stdout => fun(_) -> ok end})).
 
-%% report §8.2, Appendix E.15: the clock answers Now and fires After
+%% report §8.2, Appendix E.15: the clock fires an alarm, carrying the time
+%% it fired, which Clock.now reads
 clock_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Clock = ern_rt:system_process(clock),
-               {'Some', Now} = ern_rt:call(Clock, fun(Reply) -> {'Now', Reply} end, 1000),
+               Now = ern_rt:now(),
                alarm(Clock, 5, ern_rt:self()),
                %% Appendix E.15: the alarm carries the time it fired
                receive Fired when is_integer(Fired) -> Self ! {clock_ok, Fired >= Now} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(clock_ok)).
+
+%% report Appendix E.15: Clock.now reads the host's clock and sends no
+%% message, so it answers while the clock's process cannot (MVP 2.99d's
+%% item 13). A regression test: `now` asked the clock's process.
+clock_now_reads_the_host_test_() ->
+    {timeout, 10, fun clock_now_reads_the_host/0}.
+
+clock_now_reads_the_host() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Clock = ern_rt:system_process(clock),
+               true = erlang:suspend_process(Clock),
+               Answer = 'ern@clock':now(),
+               true = erlang:resume_process(Clock),
+               Self ! {now, Answer}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Now = wait(now),
+    ?assert(is_integer(Now) andalso abs(Now - erlang:system_time(millisecond)) < 1000).
 
 %% report §8.4: a process's end is a host term, since foreign code may
 %% observe it: normal, {ern, fault, Text}, {ern, fault, Text, Trace} for a

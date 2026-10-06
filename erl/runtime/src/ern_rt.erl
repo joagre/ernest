@@ -40,7 +40,7 @@
          self/0, via/2, call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2,
          monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3,
          proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1,
-         timed/0, untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
+         timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
@@ -995,6 +995,13 @@ deadline(Ms) ->
 remaining(Deadline) ->
     min(?SLICE, max(0, Deadline - erlang:monotonic_time(millisecond))).
 
+%% Appendix E.15: Clock.now, milliseconds since the epoch by the host's
+%% clock, read here and not through the clock's process, which an operation
+%% the host makes without a message needs no more than this.
+-spec now() -> integer().
+now() ->
+    erlang:system_time(millisecond).
+
 %% Appendix E.15: Clock.monotonic, milliseconds since a moment the runtime
 %% chose, which never go back.
 -spec monotonic() -> integer().
@@ -1413,7 +1420,8 @@ fed_message(Bytes) when is_binary(Bytes) -> {data, Bytes};
 fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
 %% Clock's messages, clock.ern's (report Appendix E.15): Alarm(ms,
-%% address, reply), AlarmAt(time, address, reply), and Now(reply). Alarms
+%% address, reply) and AlarmAt(time, address, reply); `now` reads the
+%% host's clock without them, and a test's `time` moves the alarms alone. Alarms
 %% are delivered through the clock itself, so each is counted as a source
 %% while it is pending (report §8.6). The clock holds each pending alarm by
 %% its timer, with its moment, where it goes and the process behind that,
@@ -1431,7 +1439,7 @@ clock(ReadTime) ->
     _ = erlang:monitor(time_offset, clock_service),
     clock_loop(#clock{read_time = ReadTime}).
 
-clock_loop(#clock{read_time = ReadTime} = Clock) ->
+clock_loop(Clock) ->
     receive
         {'Alarm', Ms, Address, Reply} ->
             clock_loop(alarm({monotonic, deadline(Ms)}, Address, Reply, Clock));
@@ -1441,9 +1449,6 @@ clock_loop(#clock{read_time = ReadTime} = Clock) ->
             clock_loop(fired(Timer, Clock));
         {'CHANGE', _, time_offset, clock_service, _} ->
             clock_loop(set_again(Clock));
-        {'Now', Reply} ->
-            answer(Reply, ReadTime()),
-            clock_loop(Clock);
         {new_run, Pid, Ref} ->
             Clock1 = alarms_cancelled(Pid, Clock),
             Pid ! {Ref, fresh},
