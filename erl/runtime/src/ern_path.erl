@@ -23,7 +23,21 @@ separator() ->
 %% Its options are atoms, which Ernest makes only through `Erl.atom` at
 %% each call, as `ern_list:zip/2` says.
 -spec parts(binary(), binary()) -> [binary()].
-parts(Text, Mark) -> binary:split(Text, Mark, [global]).
+parts(Text, Mark) -> binary:split(Text, pattern(Mark), [global]).
+
+%% The mark's pattern as `binary:compile_pattern/1` makes it, made at its
+%% first use and kept for the runtime's life: compiling it at each call
+%% cost more than the split of a path, 140 ns of 330. Path asks for two
+%% marks alone, the separator and the dot, so two are kept, and none goes.
+pattern(Mark) ->
+    case persistent_term:get({?MODULE, Mark}, none) of
+        none ->
+            Pattern = binary:compile_pattern(Mark),
+            persistent_term:put({?MODULE, Mark}, Pattern),
+            Pattern;
+        Pattern ->
+            Pattern
+    end.
 
 %% Appendix E.14: the text after the last occurrence of the mark, a
 %% separator of one byte, found from the text's end, so that what it costs

@@ -23,6 +23,10 @@ export fn main() : Unit with Msg = {
     let second = "cd";
     let bytes = String.toUtf8("abcd");
     let server = spawn(serve);
+    let tail = List.range(1, 10);
+    let path = Path("srv/site");
+    let ended = endedProcess();
+    let endedProcessOf = Process.fromAddress(ended);
     measure("loop", 10000000, fn(index) = index);
     measure("operator", 10000000, fn(index) = (Point(x = index, y = 1) + point).x);
     measure("equal", 10000000, fn(index) = if Point(x = index, y = 2) == point then 1 else 0);
@@ -48,7 +52,68 @@ export fn main() : Unit with Msg = {
     measure("spawn", 200000, fn(index) = {
         let _ = spawn(fn() : Unit with Never = Unit);
         index
+    });
+    // Report §9.4 to §9.6, MVP 2.99d's item 2: the rest of the prelude.
+    measure("self", 10000000, fn(index) = {
+        let _ = self();
+        index
+    });
+    measure("spawn_monitored", 200000, fn(index) = {
+        let _ = spawnMonitored(fn() : Unit with Never = Unit, fn(_) = Ping(index));
+        receive {
+            Ping(value) -> value
+        }
+    });
+    measure("show", 2000000, fn(index) = if Io.show(index) == "" then 0 else index);
+    measure("via", 2000000, fn(index) = {
+        send(via(self(), Ping), index);
+        receive {
+            Ping(value) -> value
+        }
+    });
+    measure("call_within",
+            1000000,
+            fn(index) =
+                Optional.withDefault(Address.call(server, fn(reply) = Get(reply = reply), 1000), 0)
+                    + index);
+    measure("monitor", 1000000, fn(index) = {
+        monitor(endedProcessOf, fn(_) = Ping(index));
+        receive {
+            Ping(value) -> value
+        }
+    });
+    measure("kill", 5000000, fn(index) = {
+        kill(ended);
+        index
+    });
+    measure("list_append", 2000000, fn(index) = List.size(tail <> tail) + index);
+    measure("bytes_append", 5000000, fn(index) = Bytes.size(bytes <> bytes) + index);
+    measure("path_join",
+            1000000,
+            fn(index) = if path <> Path("index.html") == path then 0 else index);
+    measure("int_compare", 10000000, fn(index) = match Int.compare(index, 5000000) {
+        Less -> 1
+      | _ -> 0
+    });
+    measure("string_compare", 10000000, fn(index) = match String.compare(first, second) {
+        Less -> index
+      | _ -> 0
+    });
+    measure("float_times", 10000000, fn(index) = Float.truncate(Int.toFloat(index) * 1.5));
+    measure("int_divide", 10000000, fn(index) = index / 3 + index % 7);
+    measure("restarting", 1000000, fn(index) = {
+        restarting(Unlimited, fn() : Unit with Msg = Unit)();
+        index
     })
+}
+
+// A process that has ended, which `monitor` reports at once and `kill`
+// leaves as it is.
+fn endedProcess() : Address(Never) with Msg = {
+    let address = spawnMonitored(fn() : Unit with Never = Unit, fn(_) = Ping(0));
+    receive {
+        Ping(_) -> address
+    }
 }
 
 // The fastest of three timings of `count` iterations, printed as `key count ms`.

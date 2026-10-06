@@ -49,7 +49,19 @@
 ///
 /// since 0.2.0
 export fn Path.<>(path : Path, under : Path) : Path =
-    if isAbsolute(under) then under else join(split(path) <> split(under))
+    if isAbsolute(under) then under else Path(joined(path, under))
+
+// The text of `path`'s segments and `under`'s, as `join` writes them: the
+// first part of an absolute `path` is its root, which takes the next
+// segment directly, and `under` is relative, so neither is asked again.
+fn joined(path : Path, under : Path) : String = {
+    let below = withoutEmpty(parts(toString(under), separator()));
+    match parts(toString(path), separator()) {
+        first :: rest when isAbsolute(path) ->
+            first <> separator() <> String.join(withoutEmpty(rest) <> below, separator())
+      | all -> String.join(withoutEmpty(all) <> below, separator())
+    }
+}
 
 /// The path of those segments, the inverse of `split`. A root first stays a
 /// root, and one separator stands between the others.

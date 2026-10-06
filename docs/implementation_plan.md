@@ -103,7 +103,13 @@ and its measurement does not hold the release.
    and the rest join it. `spawn` first, which the bench puts at about three and a half
    times a bare spawn of the host's (the log's *The Principles Review Closed*), where a
    call stands at 1.6. Each past the line comes back to the user as a decision with its
-   numbers, and a cost goes by needing less, never by a trick.
+   numbers, and a cost goes by needing less, never by a trick. Measured on 2026-10-06
+   (the log's *The Prelude Measured*): everything under the line but `Path.<>`, brought to
+   1.9 to 2.0, and what goes through the reaper, `spawn` 3.4 times, `spawnMonitored` 7,
+   `monitor` 2.5 of a live process and 15.6 of an ended one. A decision with the user
+   before this milestone closes: whether `spawn` and `monitor` keep waiting for the reaper,
+   and what the report then says of `Process.live` and of a monitor made as a process
+   ends.
 3. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
    person would write, the emitter's output is measured against that Erlang and its
    overheads cut, since a faster emitter brings every function under the line at once,

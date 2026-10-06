@@ -32,9 +32,14 @@ operations(Server) ->
     Point = {'Point', 1, 2},
     Map = #{1 => 2, 3 => 4},
     Numbers = lists:seq(1, 100),
-    Left = <<"ab">>,
-    Right = <<"cd">>,
-    Bytes = <<"abcd">>,
+    %% made at run time, as the Ernest program makes its own, so that the
+    %% host's compiler folds no operation on them into a literal
+    Left = binary:copy(<<"ab">>),
+    Right = binary:copy(<<"cd">>),
+    Bytes = binary:copy(<<"abcd">>),
+    Tail = lists:seq(1, 10),
+    Path = <<"srv/site">>,
+    Ended = ended(),
     #{"loop" => {"the loop alone", fun(Iteration) -> Iteration end},
       "operator" => {"a record added by a function",
                      fun(Iteration) ->
@@ -84,10 +89,95 @@ operations(Server) ->
                   fun(Iteration) ->
                       spawn(fun() -> ok end),
                       Iteration
-                  end}}.
+                  end},
+      %% report §9.4 to §9.6, MVP 2.99d's item 2: the rest of the prelude
+      "self" => {"self", fun(Iteration) -> _ = self(), Iteration end},
+      "spawn_monitored" => {"spawnMonitored, its Down received",
+                            fun(Iteration) ->
+                                {_, MonitorRef} = spawn_monitor(fun() -> ok end),
+                                receive {'DOWN', MonitorRef, _, _, _} -> Iteration end
+                            end},
+      "show" => {"Io.show of an Int, integer_to_binary",
+                 fun(Iteration) ->
+                     case integer_to_binary(Iteration) of
+                         <<>> -> 0;
+                         _ -> Iteration
+                     end
+                 end},
+      "via" => {"a send through via, a tagged send",
+                fun(Iteration) ->
+                    self() ! {'Ping', Iteration},
+                    receive {'Ping', Echo} -> Echo end
+                end},
+      "call_within" => {"Address.call with a limit, a call with after",
+                        fun(Iteration) -> call(Server, 1000) + Iteration end},
+      "monitor" => {"monitor an ended process, its Down received",
+                    fun(Iteration) ->
+                        MonitorRef = erlang:monitor(process, Ended),
+                        receive {'DOWN', MonitorRef, _, _, _} -> Iteration end
+                    end},
+      "kill" => {"kill an ended process", fun(Iteration) -> exit(Ended, kill), Iteration end},
+      "list_append" => {"List.<> of 10 and 10, ++",
+                        fun(Iteration) -> length(Tail ++ Tail) + Iteration end},
+      "bytes_append" => {"Bytes.<>, a binary built",
+                         fun(Iteration) ->
+                             byte_size(<<Bytes/binary, Bytes/binary>>) + Iteration
+                         end},
+      "path_join" => {"Path.<>, filename:join",
+                      fun(Iteration) ->
+                          case filename:join(Path, <<"index.html">>) of
+                              Path -> 0;
+                              _ -> Iteration
+                          end
+                      end},
+      "int_compare" => {"Int.compare, a comparison",
+                        fun(Iteration) when Iteration < 5000000 -> 1;
+                           (_) -> 0
+                        end},
+      "string_compare" => {"String.compare, a function comparing binaries",
+                           fun(Iteration) ->
+                               case ordering(Left, Right) of
+                                   'Less' -> Iteration;
+                                   _ -> 0
+                               end
+                           end},
+      "float_times" => {"Float.*, *", fun(Iteration) -> trunc(float(Iteration) * 1.5) end},
+      "int_divide" => {"Int./ and Int.%, div and rem",
+                       fun(Iteration) -> Iteration div 3 + Iteration rem 7 end},
+      "restarting" => {"restarting entered and returning, a try",
+                       fun(Iteration) ->
+                           try ok catch _:_ -> ok end,
+                           Iteration
+                       end}}.
+
+%% The order of two terms, as a `compare` answers it.
+ordering(Left, Right) when Left < Right -> 'Less';
+ordering(Left, Right) when Left > Right -> 'Greater';
+ordering(_, _) -> 'Equal'.
+
+%% A process that has ended, which a monitor reports at once.
+ended() ->
+    {Pid, MonitorRef} = spawn_monitor(fun() -> ok end),
+    receive {'DOWN', MonitorRef, _, _, _} -> Pid end.
 
 add({'Point', LeftX, LeftY}, {'Point', RightX, RightY}) ->
     {'Point', LeftX + RightX, LeftY + RightY}.
+
+%% A call as gen:do_call/4 makes one with a limit: the answer, or `none`
+%% when the limit passes first.
+call(Server, Ms) ->
+    MonitorRef = erlang:monitor(process, Server, [{alias, demonitor}]),
+    Server ! {get, MonitorRef},
+    receive
+        {MonitorRef, Value} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            Value;
+        {'DOWN', MonitorRef, _, _, ExitReason} ->
+            exit(ExitReason)
+    after Ms ->
+        erlang:demonitor(MonitorRef, [flush]),
+        0
+    end.
 
 %% A call as gen:do_call/4 makes one: a monitor that is the reply's alias.
 call(Server) ->
