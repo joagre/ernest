@@ -79,7 +79,7 @@ A module's atom is its Erlang name, `ern@` and its path (report §11.1), and a t
 
 `ern_rt` is what compiled code calls for processes, and the runner. It keeps nine tables:
 
-- `ern_processes`: `{Pid, Site, Timers, Foreign, SpawnOrder}` per process the runtime started or adopted, `Timers` and `Foreign` counting its timed receives and foreign calls, and `SpawnOrder` its place in the order of spawns, which `RestForOne` reads.
+- `ern_processes`: `{Pid, Site, Timers, Foreign, SpawnOrder}` per process the runtime started or adopted, `Timers` and `Foreign` counting its timed receives and foreign calls, and `SpawnOrder` its place in the order of spawns, which `RestForOne` reads. A standard library call is not counted where it waits on no process: a pure one, one whose effect is its callback's, and one whose implementation `ern_rt`'s `-waits_on_nothing` lists.
 - `ern_calls`: `{Caller, Callee, Reply}` per pending call, keyed by the caller, which makes one call at a time; `Reply` is the alias of the caller's monitor of the callee, and the reply's.
 - `ern_callees`: the same calls by callee, `{{Callee, Caller}, Reply}`, ordered, so that a restart reads its own callers.
 - `ern_faults`: `{Subscriber, Address}` per subscription to faults.

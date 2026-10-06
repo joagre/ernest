@@ -381,10 +381,15 @@ members_taken(Requirement, Context) ->
 %% mailbox type of its own waits on no process, and is not: one that is
 %% pure, and one whose effect is only a function's it is given, which runs
 %% as Ernest and is counted as Ernest is, so that a deadlock in it is found
-%% (Appendix E.0 rule 1).
+%% (Appendix E.0 rule 1). Nor is one whose implementation its runtime
+%% module lists as waiting on no process, read function by function
+%% (`ern_rt`'s `-waits_on_nothing`), since the count would cost a multiple
+%% of the call.
 foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes}, Context) ->
-    Counted = case Context#emit_context.standard andalso waits_on_nothing(Effect, ParamTypes,
-                                                                          Context) of
+    Uncounted = Context#emit_context.standard
+        andalso (waits_on_nothing(Effect, ParamTypes, Context)
+                 orelse is_read_waiting_on_nothing(HostModule, HostFunction, Arity)),
+    Counted = case Uncounted of
                   true -> Call;
                   false -> call_remote(ern_rt, in_foreign,
                                        [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
@@ -399,6 +404,16 @@ foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes}, Contex
                                                             erl_syntax:variable(Trace))],
                                 none, [Raised]),
     {erl_syntax:try_expr([Counted], [Handler]), Context1}.
+
+is_read_waiting_on_nothing(HostModule, HostFunction, Arity) ->
+    case code:ensure_loaded(HostModule) of
+        {module, HostModule} ->
+            Attributes = HostModule:module_info(attributes),
+            lists:member({HostFunction, Arity},
+                         lists:append(proplists:get_all_values(waits_on_nothing, Attributes)));
+        _ ->
+            false
+    end.
 
 waits_on_nothing(Effect, ParamTypes, Context) ->
     case resolved(Effect, Context) of

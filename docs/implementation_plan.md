@@ -110,16 +110,12 @@ and its measurement does not hold the release.
    before this milestone closes: whether `spawn` and `monitor` keep waiting for the reaper,
    and what the report then says of `Process.live` and of a monitor made as a process
    ends.
-3. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
-   person would write, the emitter's output is measured against that Erlang and its
-   overheads cut, since a faster emitter brings every function under the line at once,
-   where a shim brings one. Among them what a call into a standard library primitive
-   costs: a call and a `try` around one instruction, which made `Int.abs` slower as a shim
-   than as Ernest, and the counting of a foreign function with a mailbox effect as foreign
-   code while it runs, which puts `Clock.now` and `Clock.monotonic` at 4 to 8 times the
-   host's read (the log's *The Host's Operators Are No Shim's* and *Clock.now Reads the
-   Host's Clock*). Sized when items 1 and 2's numbers are in, and nothing is cut before
-   then.
+3. **The emitted code's cost**, done 2026-10-06 (the log's *The Emitted Code Measured*):
+   ordinary Ernest compiles to the Erlang a person writes, 1.0 to 1.5 times it in the
+   bench; the count of a foreign call around ten primitives read as waiting on no process
+   is gone, `Clock.now` 7.5 times the host's read to 1.1, and the `try` around a shim
+   stays, a few nanoseconds that carry §7.4's fault. `ern_rt`'s `-waits_on_nothing` lists
+   the functions so read.
 4. **The report's feedback**, done 2026-10-05: six points of precision in the report's
    contracts, from a reader outside the project. Three were taken into the report, out of
    order and ahead of items 1 to 3, each a statement of what already ran or was already

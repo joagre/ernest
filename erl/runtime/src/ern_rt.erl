@@ -50,6 +50,16 @@
 
 -export_type([address/0]).
 
+%% Report §8.6: the functions here behind a standard library primitive
+%% with a mailbox type of its own that wait on no process, each read so:
+%% a table, the process dictionary, a persistent term or the host's clock,
+%% a send that waits for nothing, and the host's answer of how another
+%% process stands, which it gives though that process waits. The emitter
+%% counts no call of them as foreign code, since the count would cost a
+%% multiple of the call (CLAUDE.md's cost rule).
+-waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, processes/0,
+                   spawn_order/1, start_cause/0, faults/1, info/1, ask_restart/1]).
+
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
 -define(UNIT, 'Unit').
