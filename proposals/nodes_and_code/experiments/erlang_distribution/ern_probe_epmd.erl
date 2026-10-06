@@ -1,4 +1,5 @@
 %% A table in place of the port-mapper daemon: a node's name gives its port.
+%% Node d has none: it does not listen, and no node can dial it.
 %% Erlang calls this module where `-epmd_module ern_probe_epmd` names it.
 -module(ern_probe_epmd).
 
@@ -16,18 +17,30 @@ register_node(Name, Port) -> register_node(Name, Port, inet).
 register_node(_Name, _Port, _Family) ->
     {ok, erlang:unique_integer([positive]) rem 16#7fffffff + 1}.
 
--spec port_please(term(), term()) -> {port, inet:port_number(), 6}.
+-spec port_please(term(), term()) -> {port, inet:port_number(), 6} | noport.
 port_please(Name, Host) -> port_please(Name, Host, infinity).
 
--spec port_please(term(), term(), timeout()) -> {port, inet:port_number(), 6}.
-port_please(Name, _Host, _Timeout) -> {port, port(Name), 6}.
+-spec port_please(term(), term(), timeout()) -> {port, inet:port_number(), 6} | noport.
+port_please(Name, _Host, _Timeout) ->
+    case port(Name) of
+        none -> noport;
+        Port -> {port, Port, 6}
+    end.
 
 -spec address_please(term(), term(), atom()) ->
-          {ok, inet:ip_address(), inet:port_number(), 6}.
-address_please(Name, _Host, _Family) -> {ok, {127, 0, 0, 1}, port(Name), 6}.
+          {ok, inet:ip_address(), inet:port_number(), 6} | {error, nxdomain}.
+address_please(Name, _Host, _Family) ->
+    case port(Name) of
+        none -> {error, nxdomain};
+        Port -> {ok, {127, 0, 0, 1}, Port, 6}
+    end.
 
 -spec listen_port_please(term(), term()) -> {ok, inet:port_number()}.
-listen_port_please(Name, _Host) -> {ok, port(Name)}.
+listen_port_please(Name, _Host) ->
+    case port(Name) of
+        none -> {ok, 0};
+        Port -> {ok, Port}
+    end.
 
 -spec names(term()) -> {error, address}.
 names(_Host) -> {error, address}.
@@ -37,4 +50,5 @@ port(Name) when is_atom(Name) -> port(atom_to_list(Name));
 port(Name) when is_binary(Name) -> port(binary_to_list(Name));
 port("a" ++ _) -> 47101;
 port("b" ++ _) -> 47102;
-port("c" ++ _) -> 47103.
+port("c" ++ _) -> 47103;
+port("d" ++ _) -> none.

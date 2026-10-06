@@ -28,6 +28,8 @@ In the proposal's section 6, *Nodes*.
 
 In the proposal's section 6, *Connections*, *The hello* and *What passes*.
 
+**One side may be unable to dial.** Behind a translated address a node reaches its peer and the peer does not reach it. One connection carries both ways, so the node that can dial opens it and the other then sends, answers, spawns and monitors over it; a system with a connection for each direction, as Akka's, cannot send to such a node at all. What is left is the time after a loss, when the node that cannot dial has no way to open the connection again. Two answers were left: a node that dials again in the background, which was refused for every node (section 2.3), and a message carried through a third node. So nothing is added, and the limit is stated: the node that can dial watches, and opens the connection again. The configuration follows the fact. A node with no network address of its own does not listen, and a peer listed without one is never dialled, so that no dial is made that can only hang until the host gives it up. The experiment tried it with a node that does not listen: its peer could not connect to it, reached it and spawned on it once it had dialled, lost it at a loss, and reached the same process by the same address once it had dialled again. The host calls a node that does not listen hidden, and leaves it out of its plain list of nodes and its plain notices, so the runtime asks for nodes of every kind.
+
 ### 2.3 Loss and reconnection
 
 The rules are in the proposal's section 6, *A loss*, *The detector* and *Connecting again*. The reasons follow.

@@ -1,18 +1,18 @@
 %% An experiment: what Erlang's distribution gives a node protocol that rides
-%% on it. run/0 starts three nodes on this machine and prints what it finds.
+%% on it. run/0 starts four nodes on this machine and prints what it finds.
 %% README.md says what each step tries.
 -module(ern_probe).
 
 -export([run/0, start/0, events/0, ping/1, worker/0]).
 
-%% The origin: starts nodes a, b and c, and drives them over their standard
+%% The origin: starts nodes a, b, c and later d, and drives them over their standard
 %% input, so that it is no node of the distribution itself.
 -spec run() -> ok.
 run() ->
     Dir = filename:absname("."),
-    {A, _} = start_node(a, Dir),
-    {B, NodeB} = start_node(b, Dir),
-    {C, NodeC} = start_node(c, Dir),
+    {A, _} = start_node(a, Dir, []),
+    {B, NodeB} = start_node(b, Dir, []),
+    {C, NodeC} = start_node(c, Dir, []),
     BPid = peer:call(B, os, getpid, []),
     try
         connecting(A, B, C, NodeB, NodeC),
@@ -22,10 +22,11 @@ run() ->
         silent_peer(A, B, BPid, Holder),
         refusing_sender(A, B, NodeB, BPid, Holder),
         ok = peer:stop(B),
-        {B2, NodeB} = start_node(b, Dir),
+        {B2, NodeB} = start_node(b, Dir, []),
         say("6  b started again; a pings b's new echo", peer:call(A, ?MODULE, ping, [NodeB])),
         say("6  a monitors the process of b's earlier start", ask(A, Holder, monitor_again)),
         say("6  a pings the process of b's earlier start", ask(A, Holder, ping)),
+        one_side_dials(B2, NodeB, Dir),
         peer:stop(B2)
     after
         os:cmd("kill -CONT " ++ BPid),
@@ -33,7 +34,7 @@ run() ->
     end,
     ok.
 
-start_node(Name, Dir) ->
+start_node(Name, Dir, Extra) ->
     Arguments = ["-proto_dist", "inet_tls",
                  "-ssl_dist_optfile", filename:join(Dir, atom_to_list(Name) ++ ".conf"),
                  "-epmd_module", "ern_probe_epmd",
@@ -42,7 +43,7 @@ start_node(Name, Dir) ->
                  "-kernel", "net_ticktime", "4",
                  "-setcookie", "ernest",
                  "+zdbbl", "1",
-                 "-pa", Dir],
+                 "-pa", Dir | Extra],
     {ok, Peer, Node} = peer:start_link(#{name => Name, host => "127.0.0.1", longnames => true,
                                          connection => standard_io, args => Arguments}),
     ok = peer:call(Peer, ?MODULE, start, []),
@@ -58,6 +59,33 @@ connecting(A, B, C, NodeB, NodeC) ->
     say("2  b pings c", peer:call(B, ?MODULE, ping, [NodeC])),
     timer:sleep(1500),
     say("2  no mesh: nodes of a, b, c", {nodes_of(A), nodes_of(B), nodes_of(C)}).
+
+%% Step 7: d does not listen, and b has no address for it. Only d can dial.
+one_side_dials(B, NodeB, Dir) ->
+    {D, NodeD} = start_node(d, Dir, ["-dist_listen", "false"]),
+    try
+        say("7  b connects to d, which it has no address for",
+            peer:call(B, net_kernel, connect_node, [NodeD])),
+        say("7  b monitors d's echo with no connection",
+            on(B, fun() -> down(monitor(process, {echo, NodeD}), 3000) end)),
+        say("7  d pings b", peer:call(D, ?MODULE, ping, [NodeB])),
+        say("7  b's nodes, and all it is connected to", {nodes_of(B), connected_of(B)}),
+        say("7  b pings d over the connection d opened", peer:call(B, ?MODULE, ping, [NodeD])),
+        Holder = on(B, fun() -> hold(NodeD) end),
+        say("7  b pings a process it spawned on d", ask(B, Holder, ping)),
+        _ = peer:call(B, ?MODULE, events, []),
+        _ = peer:call(D, ?MODULE, events, []),
+        say("7  b disconnects d", peer:call(B, erlang, disconnect_node, [NodeD])),
+        say("7  b's nodedown", wait_event(B, nodedown, 5000)),
+        say("7  d's nodedown", wait_event(D, nodedown, 5000)),
+        say("7  b's monitor of the process on d", ask(B, Holder, down)),
+        say("7  after the loss b pings that process", ask(B, Holder, ping)),
+        say("7  all b is connected to", connected_of(B)),
+        say("7  d pings b again", peer:call(D, ?MODULE, ping, [NodeB])),
+        say("7  b pings the same process on d", ask(B, Holder, ping))
+    after
+        peer:stop(D)
+    end.
 
 %% Step 4: b's operating system process is stopped, and continued.
 silent_peer(A, B, BPid, Holder) ->
@@ -91,6 +119,9 @@ say(What, Value) -> io:format("~-58s ~p~n", [What, Value]).
 
 nodes_of(Peer) -> lists:sort(peer:call(Peer, erlang, nodes, [])).
 
+%% A node that does not listen is hidden, and nodes/0 leaves it out.
+connected_of(Peer) -> lists:sort(peer:call(Peer, erlang, nodes, [connected])).
+
 on(Peer, Fun) -> peer:call(Peer, erlang, apply, [Fun, []]).
 
 %% On each node: a log of nodeup and nodedown with the time, and an echo.
@@ -99,7 +130,7 @@ start() ->
     Parent = self(),
     spawn(fun() ->
                   register(probe_log, self()),
-                  ok = net_kernel:monitor_nodes(true, [nodedown_reason]),
+                  ok = net_kernel:monitor_nodes(true, [nodedown_reason, {node_type, all}]),
                   Parent ! started,
                   logging([])
           end),

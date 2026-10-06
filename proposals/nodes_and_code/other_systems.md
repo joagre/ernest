@@ -14,7 +14,7 @@ What more than one reader said, or what bears on a choice the proposal made. Eac
 4. **A call's failure has two meanings.** A request that was never sent may be sent again, and one that was sent has an unknown outcome. The proposal answers `None` for both (*O1*). Bears on section 5, point 2.
 5. **What must exist once needs something outside the nodes.** Each node decides alone, so two can disagree about a third; a lease works only through a store all of them consult, with a token that only grows (*O3*, *A5*). Bears on section 5, point 1.
 6. **Finding a service matters more than spawning on a peer.** Akka's typed interface has no remote spawn at all and discourages it; a "find it again" helper is the first library anyone writes (*A4*, *O4*). The proposal now finds a service by a typed key that its node offers, as Akka, Swift and Gleam do, and ships no function for it. Bears on section 9, points 2 to 4.
-7. **One side may be unable to dial.** Behind address translation or in containers, A reaches B and B does not reach A (*A3*). The proposal does not say what follows.
+7. **One side may be unable to dial.** Behind address translation or in containers, A reaches B and B does not reach A (*A3*). The proposal has one connection for both ways, opened by the side that can dial, and states what the other side loses after a loss (section 4, *An experiment*). Bears on section 5, point 13.
 8. **Bytes prove the link and not the node.** A node that is starved and still connected looks alive (*O6*). Bears on section 6, *The detector*.
 9. **A broken reference stays broken in the capability systems,** wherever it goes, and a new one is made from a durable reference (*T1*). The proposal first had an address die with its connection, and now has it outlive a loss, as Erlang, Akka and Swift have it at an ordinary loss. Bears on section 4, claim 7, and section 5, point 10.
 10. **How an address is obtained again is a design of its own** in every system read: a durable reference in the capability systems, a typed key in Swift and Akka, a named service in Unison (*T3*). Bears on section 9, point 2.
@@ -214,7 +214,7 @@ Over TLS the two are within about a third of each other. Sending several message
 
 ### An experiment
 
-After the reader's report, the carrier was tried: three nodes on one machine, on OTP 29, each with a self-signed certificate and a list of the keys it accepts. Its code and how to run it are in `proposals/nodes_and_code/experiments/erlang_distribution/`.
+After the reader's report, the carrier was tried: four nodes on one machine, on OTP 29, each with a self-signed certificate and a list of the keys it accepts. Its code and how to run it are in `proposals/nodes_and_code/experiments/erlang_distribution/`.
 
 | Tried | Found |
 |---|---|
@@ -226,6 +226,7 @@ After the reader's report, the carrier was tried: three nodes on one machine, on
 | An address after a loss | The same pid reaches the same process, and the connection opens again by itself |
 | Monitors and replies | A kill and a fault arrive with Ernest's own reasons. A reply through an alias takes one answer and drops a second |
 | A node started again | A monitor on a process of its earlier start gives `noproc`, and a send to it is dropped |
+| A node that does not listen, which its peer has no address for | The peer cannot connect to it. Once it has dialled, the peer reaches it and spawns on it over that connection. After a loss both are told, and what the peer sends is dropped until the node dials again; the same pid then reaches the same process. The host calls such a node hidden: it is left out of `nodes/0`, and of the notices of a loss unless every kind of node is asked for |
 
 So the host gives the handshake, the detector, a loss that both nodes run, an address that outlives a loss, monitors and one-shot replies. What would be ours is a frame that carries a message's type, the check before a mailbox, and the check that two nodes run one program. Three things it does not show: a network that really parts, a certificate that names another host, and any speed. And one thing nothing turns off: a connected node may start, end and call anything on the other.
 
