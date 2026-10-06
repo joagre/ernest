@@ -323,7 +323,14 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello wi
 9. **The soundness argument's section 7,** owed before peers are built: which two types are one across nodes, and what crosses a node.
 10. **The spawn site.** `Down` carries the site of the process's spawn, which for a process spawned on a peer is on the spawner's node, so the spawn frame carries it.
 11. **Initialization on a peer,** which the plan lists: two processes that use one binding before it has a value, an initializer that faults, one that does not end. *Bindings* answers most of it, since a node runs its bindings at its start and never because a peer asked, and the paragraph is to say so.
-12. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+12. **A certificate's validity.** A self-signed certificate has an end date, and the host refuses an expired one. Either `ern config` makes one that does not expire in practice, or the rule ignores the dates, the key being the identity.
+13. **A node's own name.** `ernest.conf` names a node's peers and never the node, so a program does not know what it is called, and `Peer.nodes` has no name for the running node.
+14. **A node's end.** A peer's monitor is to get `ProgramEnd` for a process of a node that ended, not `Unreachable`, so the node lets those `Down`s cross before it closes its connections.
+15. **What a node says.** The host's own reports of a lost node are turned off, and the node says on its standard error, in one line each, that a peer connected, was lost, was refused at the hello, or was replaced by a second node of its name.
+16. **A table cannot cross.** An `Ets.Table` is a reference of the host's and means nothing on another node; it joins what may not cross, with `resource cannot cross nodes`.
+17. **A second start of one directory.** A node refuses to start where `ernest.pid` names a living process, so that a node which does not listen is not started twice.
+18. **A spawned process's output.** `Io.println` in a process spawned on a peer writes to the peer's standard output, the system processes being the peer's; *Bindings* is to say so.
+19. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
