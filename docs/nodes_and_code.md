@@ -205,7 +205,7 @@ The plan's MVP 3.0 holds what is decided around these: `Peer.find`, which answer
 3. *Addresses and messages.* The export table, an address's wire form, the connection's number, serialization with the safe decoding, `send` across nodes, the queue's limit, and adapted addresses.
 4. *Monitors, `kill` and calls.* A `Down` with `Unreachable`, and a call's watch and answer.
 5. *A spawn on a peer and the module `Peer`.* `Peer.spawn` and `Peer.spawnMonitored` within one build, then `Peer.find`, `Peer.nodes` and `Peer.runQueue`.
-6. *What stands on it.* `libs/balancer` and the guide's chapter.
+6. *What stands on it.* The balancer library and the guide's chapter.
 
 **What it asks of the report**, each a sentence to bring when the thinking is covered:
 
