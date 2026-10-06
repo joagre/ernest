@@ -25,7 +25,6 @@ put({set, Set}, Element) -> wrap(sets:add_element(Element, Set)).
 -spec remove({set, sets:set()}, term()) -> {set, sets:set()}.
 remove({set, Set}, Element) -> wrap(sets:del_element(Element, Set)).
 
-%% sets:to_list/1: the elements in an order the set does not promise.
 %% Appendix E.4: the order in which the function meets the elements is
 %% unspecified, as the host's page leaves it.
 -spec map({set, sets:set()}, fun((term()) -> term())) -> {set, sets:set()}.
@@ -37,6 +36,7 @@ filter({set, Set}, Keep) -> wrap(sets:filter(Keep, Set)).
 -spec from_list([term()]) -> {set, sets:set()}.
 from_list(List) -> wrap(sets:from_list(List, [{version, 2}])).
 
+%% sets:to_list/1: the elements in an order the set does not promise.
 -spec to_list({set, sets:set()}) -> [term()].
 to_list({set, Set}) -> sets:to_list(Set).
 

@@ -14,11 +14,11 @@
  *   each ended by a NUL byte, as execvp takes them; they come here and not
  *   on the helper's own command line, so that an argument too long for the
  *   host is the program's failure to start, and not the helper's. Then 'i'
- *   bytes of its input, dropped after 'e' or once the
- *   program has closed its input; 'e' the end of its input; 'n' a request
- *   for the next piece of its output. The end of fd 0 means the runtime has
- *   let go of the run: the program and its process group are killed, and
- *   the helper ends.
+ *   bytes of its input, dropped after 'e' or once the program has closed
+ *   its input; 'e' the end of its input; 'n' a request for the next piece
+ *   of its output. The end of fd 0 means the runtime has let go of the
+ *   run: the program and its process group are killed, and the helper
+ *   ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
  *   start; 'a' the program has taken the bytes of one 'i', or 'd' they

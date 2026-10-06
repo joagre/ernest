@@ -24,14 +24,14 @@
 -include_lib("kernel/include/file.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
-%% The machine's line, for what to look at: E.0 rule 1 has none since MVP
-%% 2.99d's item 12, deciding by whether a host function does the work. Past
-%% it, the Ernest form costs more than three times the host's at the sizes
-%% a program meets, or grows with what the host's does not. Growth is judged from 100 to 10,000: at
-%% least tenfold, and more than three times the host's own where hosts/0
-%% names one, since at 10,000 the host's memory makes a linear operation
-%% grow by several hundred; where none does, above what a sort with that
-%% grows by, and near the line between.
+%% The machine's line, E.0 rule 1's for an operation on a value the
+%% language owns that a host function almost does: past it, the Ernest form
+%% costs more than three times the host's at the sizes a program meets, or
+%% grows with what the host's does not. Growth is judged from 100 to
+%% 10,000: at least tenfold, and more than three times the host's own where
+%% hosts/0 names one, since at 10,000 the host's memory makes a linear
+%% operation grow by several hundred; where none does, above what a sort
+%% with that grows by, and near the line between.
 -define(HOST_LINE, 3.0).
 -define(HOST_GROWTH_LINE, 3.0).
 %% growth below this is no growth with the input: a constant cost's noise

@@ -102,13 +102,8 @@ walk(Text, Boundary, Index, Offset) ->
     end.
 
 %% Past the grapheme at the boundary; at the end, the boundary itself.
-%% `string:next_grapheme/1` answers the rest, of a form its page leaves
-%% open: where it is a binary the grapheme ends where the rest begins, and
-%% otherwise the grapheme is measured.
 step(Text, Boundary, Index) ->
     case string:next_grapheme(binary:part(Text, Boundary, byte_size(Text) - Boundary)) of
-        [_ | Rest] when is_binary(Rest) ->
-            {byte_size(Text) - byte_size(Rest), Index + 1};
         [Grapheme | _] ->
             {Boundary + byte_size(unicode:characters_to_binary([Grapheme])), Index + 1};
         [] ->

@@ -713,7 +713,9 @@ and `Path` is read by its code points, as the runtime reads it (E.14). `Clock.no
 host's clock, and no count of a foreign call surrounds a primitive read as waiting on no
 process (*The Emitted Code Measured*); `spawn` and `monitor` keep waiting for the reaper,
 whose wait holds a spawning loop to its pace (*Spawn Keeps Its Wait*); `Path.<>` is `split`
-then `join`, with no second way kept for speed. `Fs.removeAll` refused the root and was then
+then `join`, and nothing is kept only for speed: on a value the language owns, an operation
+a host function almost does is Ernest alone unless that is past three times the host's (E.0
+rule 1, *Kept Only for Speed, Taken Out*). `Fs.removeAll` refused the root and was then
 removed, its failure too great to carry (*Fs.removeAll Removed*). `OrderedMap` keeps the key
 it holds (E.26), which the laws' draws, read module by module, found. A program's exit is
 reported at once, and a fault at the program's end is not reported (§8.6). Four defects of

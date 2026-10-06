@@ -1,7 +1,7 @@
 %% The shims behind Bytes (report Appendix E.20, E.0 rule 1) whose host
 %% function takes an atom, which Ernest makes only through `Erl.atom` at
-%% each call, as `ern_list:zip/2` says, or raises where E.20 answers
-%% `None`, which Ernest cannot catch.
+%% each call, or raises where E.20 answers `None`, which Ernest cannot
+%% catch.
 -module(ern_bytes).
 
 -export([split/2, replace/3, from_hex/1]).

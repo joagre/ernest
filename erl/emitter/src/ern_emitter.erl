@@ -388,7 +388,7 @@ members_taken(Requirement, Context) ->
 foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes}, Context) ->
     Uncounted = Context#emit_context.standard
         andalso (waits_on_nothing(Effect, ParamTypes, Context)
-                 orelse is_read_waiting_on_nothing(HostModule, HostFunction, Arity)),
+                 orelse is_listed_waiting_on_nothing(HostModule, HostFunction, Arity)),
     Counted = case Uncounted of
                   true -> Call;
                   false -> call_remote(ern_rt, in_foreign,
@@ -405,7 +405,7 @@ foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes}, Contex
                                 none, [Raised]),
     {erl_syntax:try_expr([Counted], [Handler]), Context1}.
 
-is_read_waiting_on_nothing(HostModule, HostFunction, Arity) ->
+is_listed_waiting_on_nothing(HostModule, HostFunction, Arity) ->
     case code:ensure_loaded(HostModule) of
         {module, HostModule} ->
             Attributes = HostModule:module_info(attributes),

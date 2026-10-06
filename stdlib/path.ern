@@ -76,7 +76,7 @@ fn written(segments : List(String)) : String =
 
 // Whether the text's last code point is the separator.
 fn endsInSeparator(text : String) : Bool =
-    !String.isEmpty(text) && String.isEmpty(lastPart(text, separator()))
+    !String.isEmpty(text) && List.last(parts(text, separator())) == Some("")
 
 foreign fn separator() : String =
     "ern_path:separator/0"
@@ -134,19 +134,10 @@ export fn parent(path : Path) : Optional(Path) =
 /// // => #(Some("b.txt"), None)
 /// ```
 export fn name(path : Path) : Optional(String) =
-    match lastPart(toString(path), separator()) {
-        "" -> match split(path) {
-            [_] when isAbsolute(path) -> None
-          | segments -> List.last(segments)
-        }
-      | last -> Some(last)
+    match split(path) {
+        [_] when isAbsolute(path) -> None
+      | segments -> List.last(segments)
     }
-
-// Report Appendix E.14: the text after the separator's last occurrence,
-// read from the text's end, or the whole text where there is none; empty
-// where the text ends in the separator.
-foreign fn lastPart(text : String, separator : String) : String =
-    "ern_path:last_part/2"
 
 /// What follows the last `.` of the path's name, without the dot, or `None`
 /// where the name has none. A dot that begins the name begins no extension, so

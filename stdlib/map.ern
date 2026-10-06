@@ -67,10 +67,7 @@ export fn isEmpty(map : Map(k, v)) : Bool =
 /// // => #(true, false)
 /// ```
 export fn contains(map : Map(k, v), key : k) : Bool =
-    isKey(key, map)
-
-foreign fn isKey(key : k, map : Map(k, v)) : Bool =
-    "maps:is_key/2"
+    Optional.isSome(get(map, key))
 
 /// The value at that key, or `None` where the map has no entry for it.
 ///

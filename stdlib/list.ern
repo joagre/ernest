@@ -96,12 +96,10 @@ export fn isEmpty(list : List(a)) : Bool =
 /// // => #(true, false)
 /// ```
 export fn contains(list : List(a), element : a) : Bool =
-    isMember(element, list)
-
-// Report Appendix E.0 rule 1: the host matches with `=:=`, which `==` compiles to,
-// so the two agree on every value; `lists:delete/2` matches the same way.
-foreign fn isMember(element : a=, list : List(a)) : Bool =
-    "lists:member/2"
+    match list {
+        [] -> false
+      | head :: rest -> if head == element then true else contains(rest, element)
+    }
 
 /// The element at `index`, counting from 0, or `None` where the list has
 /// no element there: past its end, or at an index below 0. The list is
@@ -132,10 +130,10 @@ export fn get(list : List(a), index : Int) : Optional(a) =
 /// // => [2, 1]
 /// ```
 export fn remove(list : List(a), element : a) : List(a) =
-    deleted(element, list)
-
-foreign fn deleted(element : a=, list : List(a)) : List(a) =
-    "lists:delete/2"
+    match list {
+        [] -> []
+      | head :: rest -> if head == element then rest else head :: remove(rest, element)
+    }
 
 /// The list of `f(x)` for each element `x`, in order. `f` is called for the
 /// elements from the first.
@@ -284,12 +282,9 @@ export fn find(list : List(a), test : (a) -> Bool with e) : Optional(a) with e =
 export fn last(list : List(a)) : Optional(a) =
     match list {
         [] -> None
-      | _ -> Some(lastElement(list))
+      | [element] -> Some(element)
+      | _ :: rest -> last(rest)
     }
-
-// Raises on the empty list, which `last` answers itself.
-foreign fn lastElement(list : List(a)) : a =
-    "lists:last/1"
 
 /// The first `count` elements, or all of them where there are fewer. A
 /// `count` below 0 takes none.
@@ -301,11 +296,12 @@ foreign fn lastElement(list : List(a)) : a =
 /// // => #([1, 2], [3])
 /// ```
 export fn take(list : List(a), count : Int) : List(a) =
-    prefix(list, Int.max(count, 0))
-
-// Raises on a count below 0, which `take` makes 0.
-foreign fn prefix(list : List(a), count : Int) : List(a) =
-    "lists:sublist/2"
+    if count <= 0 then
+        []
+    else match list {
+        [] -> []
+      | head :: rest -> head :: take(rest, count - 1)
+    }
 
 /// The list without its first `count` elements, or empty where there are
 /// fewer. A `count` below 0 drops none.
@@ -407,11 +403,7 @@ fn indexedFrom(list : List(a), index : Int) : List(#(Int, a)) =
 /// // => ["ha", "ha"]
 /// ```
 export fn repeat(element : a, count : Int) : List(a) =
-    duplicated(Int.max(count, 0), element)
-
-// Raises on a count below 0, which `repeat` makes 0.
-foreign fn duplicated(count : Int, element : a) : List(a) =
-    "lists:duplicate/2"
+    if count <= 0 then [] else element :: repeat(element, count - 1)
 
 /// The elements in the opposite order.
 ///
@@ -438,15 +430,16 @@ export fn reverse(list : List(a)) : List(a) =
 /// // => [1, 2, 3]
 /// ```
 export fn sort(list : List(a), compare : (a, a) -> Ordering with e) : List(a) with e = {
-    let ordered = sorted(fn(left, right) = isInOrder(left, right, compare), enumerated(0, list));
-    let #(_, elements) = unzipped(ordered);
+    let ordered = sorted(fn(left, right) = isInOrder(left, right, compare), indexed(list));
+    let #(_, elements) = unzip(ordered);
     elements
 }
 
 // Report Appendix E.2: the host's sort promises no stability, and wants
 // an order that calls two elements equal only where they are one. Each
 // element carries its index, and two that `compare` calls `Equal` are in
-// the order of their indexes, which keeps the sort stable.
+// the order of their indexes, which keeps the sort stable. The host's
+// sort reads a sorted list as one run (E.0 rule 1).
 fn isInOrder(left : #(Int, a),
              right : #(Int, a),
              compare : (a, a) -> Ordering with e) : Bool with e = {
@@ -462,12 +455,6 @@ fn isInOrder(left : #(Int, a),
 foreign fn sorted(isLessOrEqual : (a, a) -> Bool with e, list : List(a)) : List(a) with e =
     "lists:sort/2"
 
-foreign fn enumerated(first : Int, list : List(a)) : List(#(Int, a)) =
-    "lists:enumerate/2"
-
-foreign fn unzipped(pairs : List(#(a, b))) : #(List(a), List(b)) =
-    "lists:unzip/1"
-
 /// The pairs of the elements at each index of both lists. The longer list's
 /// extra elements are left out.
 ///
@@ -477,8 +464,11 @@ foreign fn unzipped(pairs : List(#(a, b))) : #(List(a), List(b)) =
 /// List.zip([1, 2, 3], ["a", "b"])
 /// // => [#(1, "a"), #(2, "b")]
 /// ```
-export foreign fn zip(list : List(a), other : List(b)) : List(#(a, b)) =
-    "ern_list:zip/2"
+export fn zip(list : List(a), other : List(b)) : List(#(a, b)) =
+    match #(list, other) {
+        #(head :: rest, otherHead :: otherRest) -> #(head, otherHead) :: zip(rest, otherRest)
+      | _ -> []
+    }
 
 /// The pairs taken apart: the list of their first components and the list
 /// of their second, each in order.
@@ -522,12 +512,7 @@ export fn flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e =
 /// // => #([1, 2, 3, 4], [])
 /// ```
 export fn range(first : Int, last : Int) : List(Int) =
-    if first > last then [] else sequence(first, last)
-
-// Raises where `last` is below `first` less one, which `range` answers
-// itself.
-foreign fn sequence(first : Int, last : Int) : List(Int) =
-    "lists:seq/2"
+    if first > last then [] else first :: range(first + 1, last)
 
 /// Calls `step` on each element in order. Where every call answers `Right(y)`,
 /// the answer is `Right` of the list of the `y`s. At the first `Left(e)` the

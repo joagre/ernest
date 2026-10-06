@@ -1431,9 +1431,9 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
 %% Clock's messages, clock.ern's (report Appendix E.15): Alarm(ms,
 %% address, reply) and AlarmAt(time, address, reply); `now` reads the
-%% host's clock without them, and a test's `time` moves the alarms alone. Alarms
-%% are delivered through the clock itself, so each is counted as a source
-%% while it is pending (report §8.6). The clock holds each pending alarm by
+%% host's clock without them, and a test's `time` moves the alarms alone.
+%% Alarms are delivered through the clock itself, so each is counted as a
+%% source while it is pending (report §8.6). The clock holds each pending alarm by
 %% its timer, with its moment, where it goes and the process behind that,
 %% and each process's timers, so that a restart of that process cancels its
 %% own and reads no other's (report §6.9). An alarm after milliseconds is

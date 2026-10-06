@@ -173,10 +173,7 @@ fn lastIndexFrom(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
 /// // => #(true, false)
 /// ```
 export fn startsWith(bytes : Bytes, prefix : Bytes) : Bool =
-    commonPrefix([bytes, prefix]) == size(prefix)
-
-foreign fn commonPrefix(list : List(Bytes)) : Int =
-    "binary:longest_common_prefix/1"
+    slice(bytes, 0, size(prefix)) == prefix
 
 /// `true` when `bytes` ends with `suffix`, and always for an empty `suffix`.
 ///
@@ -186,11 +183,10 @@ foreign fn commonPrefix(list : List(Bytes)) : Int =
 /// Bytes.endsWith(<<1, 2, 3>>, <<3>>)
 /// // => true
 /// ```
-export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool =
-    commonSuffix([bytes, suffix]) == size(suffix)
-
-foreign fn commonSuffix(list : List(Bytes)) : Int =
-    "binary:longest_common_suffix/1"
+export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
+    let count = size(suffix);
+    size(bytes) >= count && slice(bytes, size(bytes) - count, count) == suffix
+}
 
 /// The parts of `bytes` between the occurrences of `separator`, empty parts
 /// included. An empty `separator` gives `[bytes]`.
@@ -233,13 +229,10 @@ foreign fn replaced(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
 /// // => <<1, 0, 2>>
 /// ```
 export fn join(parts : List(Bytes), separator : Bytes) : Bytes =
-    concatenated(interleaved(separator, parts))
-
-foreign fn interleaved(separator : Bytes, parts : List(Bytes)) : List(Bytes) =
-    "lists:join/2"
-
-foreign fn concatenated(parts : List(Bytes)) : Bytes =
-    "erlang:iolist_to_binary/1"
+    match parts {
+        [] -> <<>>
+      | first :: rest -> List.foldLeft(rest, first, fn(acc, part) = acc <> separator <> part)
+    }
 
 /// `bytes` repeated `count` times. A `count` below 1 gives the empty `Bytes`.
 ///
@@ -250,11 +243,10 @@ foreign fn concatenated(parts : List(Bytes)) : Bytes =
 /// // => <<1, 2, 1, 2>>
 /// ```
 export fn repeat(bytes : Bytes, count : Int) : Bytes =
-    copied(bytes, Int.max(count, 0))
+    copies(bytes, count, <<>>)
 
-// Raises on a count below 0, which `repeat` makes 0.
-foreign fn copied(bytes : Bytes, count : Int) : Bytes =
-    "binary:copy/2"
+fn copies(bytes : Bytes, count : Int, acc : Bytes) : Bytes =
+    if count <= 0 then acc else copies(bytes, count - 1, acc <> bytes)
 
 /// Each byte as two hexadecimal digits, letters in upper case: `<<255, 1>>` is
 /// `"FF01"`.
