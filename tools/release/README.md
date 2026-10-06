@@ -3,7 +3,7 @@
           srcset="assets/ernest-dark.svg">
   <source media="(prefers-color-scheme: light)"
           srcset="assets/ernest-light.svg">
-  <img src="assets/ernest-light.svg" alt="Ernest" width="50%">
+  <img src="assets/ernest-light.svg" alt="Ernest" width="75%">
 </picture>
 
 # Ernest @VERSION@
