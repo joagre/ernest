@@ -258,4 +258,15 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 4. **The wire is not kept.** A hello whose protocol version differs is refused, and MVP 3.1 is a new version: every node changes over at once. Nothing in MVP 3.0 promises that a node of one milestone talks to a node of the next.
 
+**Where new code comes in.** MVP 3.0 loads no new code: a new version is a stop of every node. Loading new code is four steps, of which MVP 3.0 is the first.
+
+| Step | What it gives | Where |
+|---|---|---|
+| A | one build on every node, and a deploy that stops them all | MVP 3.0 |
+| B | nodes of different builds connect; a message is accepted by its type's hash, and a spawned function only where the peer has its module, and all that module depends on, unchanged; no code crosses | a step after MVP 3.0, to be weighed |
+| C | a hash for each definition; code crosses with a spawn; two versions stand side by side on a node | MVP 3.1 |
+| D | a running process takes new code, and later a new protocol | after MVP 3.1 |
+
+Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. The second is what makes every deploy a stop of all nodes at once. Without it, nodes are restarted one at a time wherever a change does not touch what they exchange, and unsolved point 5 falls away, there being no hash of a whole build. A changed module that spawns or finds on a node still holding the old one fails until that node has it too, so a real upgrade waits for step C. Step B only relaxes step A, by rule 1, and can follow MVP 3.0 without breaking a program. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
+
 Three places carry the most risk, since a later milestone may find them wrong. How a service is named and found: `Peer.find` reads a binding by its name in one build, and across builds a name alone does not say which service is meant (unsolved point 2 is its first sign). The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
