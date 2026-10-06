@@ -28,14 +28,41 @@ Three things bound the milestone:
 | `kill(address)` | kills the process on its node |
 | `via(address, f)` | the adapted address may cross; `f` runs on the node that made it |
 
-**What is new.**
+**What is new.** The module `Peer`, and one constructor of `Reason`.
 
-- `Peer.spawn(name, f, ms)` starts a process that runs `f` on the peer of that name and answers its address. `Peer.spawnMonitored(name, f, wrap, ms)` monitors it from its start.
+```
+type Peer.Key(m)
+type Peer.Failure = NotListed | Unreachable | Refused(String) | Timeout
+                  | NotOffered | OtherType | NotLoaded
+
+Peer.key            : (String) -> Peer.Key(m)
+Peer.offer          : (Peer.Key(m), Address(m)) -> Unit with n
+Peer.find           : (String, Peer.Key(m), Int) -> Either(Peer.Failure, Address(m)) with n
+Peer.spawn          : (String, () -> Unit with m, Int) -> Either(Peer.Failure, Address(m)) with n
+Peer.spawnMonitored : (String, () -> Unit with m, (Down) -> n, Int)
+                        -> Either(Peer.Failure, Address(m)) with n
+```
+
 - A *key* names a service to a node's peers and carries the service's message type: `Peer.key("counter")`, bound at the type `Peer.Key(Msg)`. It is a value, and starts nothing.
 - `Peer.offer(key, address)` lets this node's peers find `address` under the key.
 - `Peer.find(name, key, ms)` answers the address the peer of that name offers under the key, typed by the key.
-- A spawn on a peer and a find wait at most `ms` milliseconds, and answer the address or a failure, which is a value the program matches on. A failure says that the name is no peer's, that the peer is out of reach, that no answer came in time, or why the peer refused. Neither faults for what the network or the peer does. A spawn faults for one thing, a mistake of the program's own: a function that captured a value that may not cross.
+- `Peer.spawn(name, f, ms)` starts a process that runs `f` on the peer of that name and answers its address. `Peer.spawnMonitored(name, f, wrap, ms)` monitors it from its start.
+- A find and a spawn wait at most `ms` milliseconds, and answer the address or a failure, which the program matches on. Neither faults for what the network or the peer does. A spawn faults for one thing, a mistake of the program's own: a function that captured a value that may not cross.
 - `Reason` gains `Unreachable`: the process's node is out of reach, and the process may live on.
+
+The failures, in the order a request meets them:
+
+| Failure | Says |
+|---|---|
+| `NotListed` | the name is no peer's in this node's configuration |
+| `Unreachable` | no connection could be opened, or it was lost while waiting |
+| `Refused(text)` | the peer refused the hello; the text says what differed |
+| `Timeout` | no answer came in time |
+| `NotOffered` | the peer offers nothing under the key's name |
+| `OtherType` | what it offers has another message type |
+| `NotLoaded` | the function's bindings have no values on the peer |
+
+One type serves a find and a spawn, as `Io.Error` serves every operation on a file: a program writes `_` for what its operation cannot meet.
 
 **What may cross.**
 
@@ -96,7 +123,8 @@ fn wait() : Unit with Never =
 
 export fn main() : Unit with Never =
     match Peer.find("store", Counter.key, 5000) {
-        Left(_) -> Io.println("the store is not there")
+        Left(Timeout) -> Io.println("the store did not answer")
+      | Left(_) -> Io.println("the store is not there")
       | Right(counter) -> {
             send(counter, Counter.Add(5));
             report(Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000))
@@ -206,7 +234,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **Connections.** Two nodes have at most one connection, opened by the first operation that needs it, over TLS 1.3 with a certificate on each side. A node accepts a peer whose public key its configuration lists, and no other, by a rule of Ernest's in the TLS handshake. The rule goes by the key alone, and the host's check of a certificate's name is turned off. There is no port-mapper daemon: a node finds a peer's address in its configuration. A peer may be listed without an address, and is then never dialled: it is out of reach until it opens a connection itself. Connections are not transitive: that A knows B and B knows C connects A and C in no way. Where both dial at once, the host keeps one. The host's cookie is a constant and proves nothing.
 
-**The hello.** When a connection opens, and before anything else passes, each node tells the other the version of this protocol, a hash of the build, and the versions of `ern` and of OTP. Where one differs, the node ends the connection, and the operation that asked for it fails with a reason that says which.
+**The hello.** When a connection opens, and before anything else passes, each node tells the other the version of this protocol, a hash of the build, and the versions of `ern` and of OTP. Where one differs, the node ends the connection, and a find or a spawn that asked for it fails with `Refused`, whose text says which.
 
 **What passes.** Ernest's own frames are five, and the host carries the rest as it carries them on one node.
 
@@ -238,11 +266,11 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **Serialization.** A value crosses in the host's external term format, written and read by the host. A constructor crosses as the text of its name, as a string does, and on arrival the host looks the name up among the atoms the node has. Every constructor of the program is in the build, so the messages of a correct program make no new atom on the node that receives them, however many they are. No hash stands inside a value: its type is known at both ends, and the frame carries the type's hash once. Before a value is sent, Ernest looks through it for what may not cross (section 2), which the host would carry as it is. On arrival the hash is checked, and the value is not looked into.
 
-**A spawn.** `Peer.spawn(name, f, ms)` sends the peer a frame with `f` as a reference to its code, its module and its place there, and the values it captured. The same build has the same modules, so the reference means the same on both nodes. The peer starts the process and answers with its address. The spawner waits at most `ms` milliseconds, the opening of a connection among them. The wait ends when the peer answers, when no connection can be opened, when the connection is lost, or when the time runs out. A spawn fails, as a value, where the name is no peer's, where the peer is out of reach, where the bindings the function depends on have no values on the peer (*Bindings*), and where no answer came in time. A monitored spawn that fails leaves no monitor. A spawn faults its caller in one case, which is found before anything is sent: the function captured a value that may not cross (section 2). An answer that comes when the spawner no longer waits, its time having run out or the spawner having ended, makes the node kill the process it names: the spawner was told that no process came, and that becomes true. The node keeps what it needs for that until the answer arrives or the connection is lost.
+**A spawn.** `Peer.spawn(name, f, ms)` sends the peer a frame with `f` as a reference to its code, its module and its place there, and the values it captured. The same build has the same modules, so the reference means the same on both nodes. The peer starts the process and answers with its address. The spawner waits at most `ms` milliseconds, the opening of a connection among them. The wait ends when the peer answers, when no connection can be opened, when the connection is lost, or when the time runs out. A spawn fails, as a value, where the name is no peer's (`NotListed`), where the peer is out of reach or refused the hello (`Unreachable`, `Refused`), where the bindings the function depends on have no values on the peer (`NotLoaded`, *Bindings*), and where no answer came in time (`Timeout`). A monitored spawn that fails leaves no monitor. A spawn faults its caller in one case, which is found before anything is sent: the function captured a value that may not cross (section 2). An answer that comes when the spawner no longer waits, its time having run out or the spawner having ended, makes the node kill the process it names: the spawner was told that no process came, and that becomes true. The node keeps what it needs for that until the answer arrives or the connection is lost.
 
-**A service and its key.** On one node a service is a top-level binding that holds an address, and a process reaches it by the binding's name. A peer cannot name another node's binding, so a service that peers are to reach is offered under a key. A key holds a name and the hash of a message type; the type is the one its binding is written at, and the hash is taken there. `Peer.offer(key, address)` is accepted by the compiler only where the key and the address have one message type. The node then keeps the address under the key's name for as long as the process lives, and a later offer under the same name takes its place. An offer cannot fail for a name, and nothing withdraws one: it ends with its process. Only a process of the offering node may be offered; an offer of any other address faults the caller. `Peer.find(name, key, ms)` asks the peer for what it offers under the key's name, and the peer answers the address where the hash is the same. The finder waits at most `ms` milliseconds, as a spawner does. A find fails, as a value, where the name is no peer's, where the peer is out of reach, where the peer offers nothing under that name, where what it offers there has another message type, and where no answer came in time. Only what a node offers can be found: its other bindings are closed to its peers. A find ships no code, so the one operation that carries a function to a peer is a spawn.
+**A service and its key.** On one node a service is a top-level binding that holds an address, and a process reaches it by the binding's name. A peer cannot name another node's binding, so a service that peers are to reach is offered under a key. A key holds a name and the hash of a message type; the type is the one its binding is written at, and the hash is taken there. `Peer.offer(key, address)` is accepted by the compiler only where the key and the address have one message type. The node then keeps the address under the key's name for as long as the process lives, and a later offer under the same name takes its place. An offer cannot fail for a name, and nothing withdraws one: it ends with its process. Only a process of the offering node may be offered; an offer of any other address faults the caller. `Peer.find(name, key, ms)` asks the peer for what it offers under the key's name, and the peer answers the address where the hash is the same. The finder waits at most `ms` milliseconds, as a spawner does. A find fails, as a value, where the name is no peer's (`NotListed`), where the peer is out of reach or refused the hello (`Unreachable`, `Refused`), where the peer offers nothing under that name (`NotOffered`), where what it offers there has another message type (`OtherType`), and where no answer came in time (`Timeout`). The last two are the ones that grow: a service at another version is `OtherType`, and code the peer does not have is `NotLoaded`. Only what a node offers can be found: its other bindings are closed to its peers. A find ships no code, so the one operation that carries a function to a peer is a spawn.
 
-**Bindings.** A node runs, at its start, the top-level bindings of the standard library and of the modules its own entry point depends on, as a program on one node does. A function spawned on it runs only where the bindings that function depends on have their values there. Otherwise the peer starts nothing, and the spawn fails with a value that says so. Nothing is initialized because a peer asked. In spawned code a top-level binding is the peer's, and a captured value is the spawner's.
+**Bindings.** A node runs, at its start, the top-level bindings of the standard library and of the modules its own entry point depends on, as a program on one node does. A function spawned on it runs only where the bindings that function depends on have their values there. Otherwise the peer starts nothing, and the spawn fails with `NotLoaded`. Nothing is initialized because a peer asked. In spawned code a top-level binding is the peer's, and a captured value is the spawner's.
 
 **Other nodes' processes and resources.** `Process.info` answers for the running node's processes alone, and `None` for a process of another node. A supervisor's children run on its own node.
 
@@ -269,7 +297,7 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello, t
 
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier. A network that really parts was not tried.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
-3. **`Peer`'s exact shape.** The types of its functions. The names of the failures of a find and of a spawn, whether the two share one type, and where a peer that refused the hello stands among them. Whether a program is given a standing address of a peer's service, one that finds the service again by its key after its node has been started again, and whether that is `Peer`'s own or a library's. How a program learns which nodes there are and places work by load is not weighed here.
+3. **A standing address.** Whether a program is given a standing address of a peer's service, one that finds the service again by its key after its node has been started again, and whether that is `Peer`'s own or a library's. How a program learns which nodes there are and places work by load is not weighed here.
 4. **What the build's hash covers,** where two nodes are started from different entry points of one program.
 5. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
 6. **Two nodes with one TLS key.** A second node started by mistake with the first one's TLS key has the first one's name. What the host then does was not tried.
@@ -306,7 +334,7 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 1. **Refuse now what may be allowed later, and allow nothing that must later be refused.** A function inside a message would be harmless among nodes of one build, and is refused, since it cannot be allowed once code crosses. A function whose bindings a node did not run is refused, where a later milestone may run them. Two builds that differ refuse each other, where a later milestone lets them meet. A refusal that becomes an answer breaks no program.
 
-2. **Settle now what a program writes.** A program writes the types of `Peer`'s functions and matches on the constructors of `Reason` and of the failures of a find and of a spawn. A change to any of them breaks programs, where a change beneath them does not. So unsolved point 3 is settled with the later milestones in view: the failure of a find has room for a service that is at another version, and the failure of a spawn for code the peer does not have.
+2. **Settle now what a program writes.** A program writes the types of `Peer`'s functions and matches on the constructors of `Reason` and of the failures of a find and of a spawn. A change to any of them breaks programs, where a change beneath them does not. So `Peer.Failure` is settled with the later milestones in view: `OtherType` has room for a service that is at another version, `NotLoaded` for code the peer does not have, and `Refused`'s text for what a later hello refuses.
 
 3. **Keep closed what will change beneath.** The protocol never looks inside a function's reference, which is a place in a module now and a hash later. It compares a type's hash and never asks how the hash was made. It allows that a process comes to accept more than one type's hash, as a process that has changed its protocol will. It speaks of the connection between two nodes and not of what carries it, so that another carrier can take the host's place. And it asks a table for a peer's address and key, and not a file, so that a table filled another way can replace it.
 
