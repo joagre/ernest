@@ -2,17 +2,15 @@
 
 How other systems treat nodes, the loss of one, and what passes between them: what readers found, set beside what [`mvp3.0.md`](mvp3.0.md) proposes. A finding is something to weigh. None is a decision.
 
-Each reader was a research session of its own, which fetched the sources it names on 6 October 2026. A quotation is as the reader reported it, and was not fetched again for this document. Where a reader could not verify something, it is marked *unverified*. A finding is named by its reader's letter and a number: *O* for Orleans, *A* for Akka, *T* for the typed and capability systems.
-
-One reader has not reported yet, and section 4 waits for it.
+Each reader was a research session of its own, which fetched the sources it names on 6 October 2026. A quotation is as the reader reported it, and was not fetched again for this document. Where a reader could not verify something, it is marked *unverified*. A finding is named by its reader's letter and a number: *O* for Orleans, *A* for Akka, *E* for the Erlang ecosystem, *T* for the typed and capability systems.
 
 ## 1. What recurs
 
 What more than one reader said, or what bears on a choice the proposal made. Each names the place in the proposal it bears on.
 
 1. **Finding a failure takes us three to five times longer.** Akka finds one in seconds, Orleans in about 15 seconds, the proposal in 45 to 75, and as a constant. Akka's speed costs it false alarms, which its documentation admits (*A9*, *O7*). Bears on section 6, *The detector*, and section 7.
-2. **A full queue does happen.** Akka's send queue overflows in practice under bursts, and Akka then drops the one message. The proposal ends every conversation between the two nodes (*A1*). Bears on section 5, point 4.
-3. **One connection for everything.** Akka gives each peer three streams so that a large message cannot block an urgent one (*A2*). Bears on section 5, point 5.
+2. **A full queue does happen.** Akka's send queue overflows in practice under bursts, and Akka then drops the one message. The proposal ends every conversation between the two nodes (*A1*). Erlang's own answer, a sender made to wait, is one its documentation says "cannot be fixed", and its way out is memory without a bound (*E4*). Bears on section 5, point 4.
+3. **One connection for everything.** Akka gives each peer three streams so that a large message cannot block an urgent one (*A2*). Partisan, Riak, RabbitMQ and gen_rpc each ended with several connections or channels to a peer (*E3*). Bears on section 5, point 5.
 4. **A call's failure has two meanings.** A request that was never sent may be sent again, and one that was sent has an unknown outcome. The proposal answers `None` for both (*O1*). Bears on section 5, point 2.
 5. **What must exist once needs something outside the nodes.** Each node decides alone, so two can disagree about a third; a lease works only through a store all of them consult, with a token that only grows (*O3*, *A5*). Bears on section 5, point 1.
 6. **Finding a service matters more than spawning on a peer.** Akka's typed interface has no remote spawn at all and discourages it; a "find it again" helper is the first library anyone writes (*A4*, *O4*). Bears on section 9, points 2 and 3.
@@ -21,6 +19,9 @@ What more than one reader said, or what bears on a choice the proposal made. Eac
 9. **A dead address can stay dead when it travels.** In the language E a broken reference is passed on as broken, and only a live reference of the third party's own introduces anew (*T1*). The proposal lets a dead address come alive by a round trip. A node knows which addresses it holds dead, and could send them on as dead. Bears on section 6, *Addresses*.
 10. **How an address is obtained again is a design of its own** in every system read: a durable reference in the capability systems, a typed key in Swift and Akka, a named service in Unison (*T3*). Bears on section 9, point 2.
 11. **An address also lets its holder kill.** The capability systems give a reference the right to send and nothing more (*T6*). Bears on section 2.
+12. **Erlang's own distribution cannot give what the proposal asks.** Four things are decided inside the host's runtime, where neither a layer above nor another carrier beneath reaches them: that a held address stays dead after a reconnection, that a message's type is checked before it reaches a mailbox, that a peer's data creates no atom, and that a peer's rights are narrower than everything (*E1*). Bears on section 9, point 1.
+13. **A protocol of our own costs about what the host's does over TLS,** where frames are sent several at a time. Sent one at a time, small messages were 11 to 15 times slower in a reader's own measurement (*E2*). Bears on section 9, point 15.
+14. **The runtime must not also be a node of distributed Erlang.** One that is hands everything to whoever holds its cookie (*E6*). The proposal does not say so.
 
 ## 2. Orleans and its relatives
 
@@ -163,7 +164,80 @@ A post from Credit Karma on quarantine is often cited, and its site did not answ
 
 ## 4. The Erlang ecosystem
 
-Not reported yet. The reader was asked what Erlang's own distribution guarantees and where it hurts in production, what Partisan and custom carriers change, and for the evidence for and against standing on Erlang's distribution, which is unsolved point 1 of the proposal.
+Erlang's own distribution, what has been built beside it, and the evidence for and against standing on it, which is unsolved point 1 of the proposal. The reader checked its quotations from Erlang's documentation, the Partisan paper and OTP's release notes against the text. A quotation marked † came through a tool that summarises, and its wording is to be checked before it is cited.
+
+### What Erlang's distribution promises
+
+- **Order for a pair, and silent loss.** "When communicating over the distribution, signals can be lost if the distribution channel goes down." And of two signals: "`S1` is guaranteed not to arrive after `S2`. Note that `S1` may or may not have been lost." [E-1]
+- **A held pid is not dead after a loss.** The reader tried it on OTP 29: after a disconnection the monitor fired `noconnection`, and the next send to the same pid connected again and was delivered. Only a restart of the node changes the number that marks its pids [E-6].
+- **Connecting again** is a setting for the whole node: never, or once, "If a node goes down, it must thereafter be explicitly connected." [E-3]
+- **The mesh.** "Connections are by default transitive." [E-2] Since OTP 25 the module `global` prevents overlapping partitions "by actively disconnecting from nodes that reports that they have lost connections to other nodes" [E-4].
+
+### Where it hurts
+
+- **One connection for a pair.** "a large message can thus hold heartbeats back" [E-19]. OTP 22 sends a large message in fragments; it is still one stream.
+- **A sender made to wait.** "the sending process may be suspended even though the signal is supposed to be sent asynchronously", which "cannot be fixed" [E-1]. A flag turns the wait off, and without a limit of its own that "will typically cause the sending runtime system to crash on an out of memory condition" [E-8].
+- **Size.** The Partisan paper cites 200 nodes at Ericsson and Riak "not … beyond 60" [E-17].
+- **Atoms.** A peer's data can "create resources, such as atoms and remote references, that cannot be garbage collected" [E-8], and distribution has no safe decoding.
+- **Trust.** "The Erlang Distribution protocol is not by itself secure and does not aim to be so." [E-6] "if one node in a cluster is compromised, all nodes are" [E-20]. TLS proves who a peer is and narrows nothing it may do.
+
+### What was built beside it
+
+- **Partisan** replaces the distribution with a library of its own, and reports "up to an order of magnitude increase in the number of nodes" and "up to a 38.07x increase in throughput" [E-17]. Its criticism is the one connection: "a single TCP connection, therefore multiplexing actor-to-actor communication on a single channel" [E-17]. It had to write its own versions of Erlang's servers and of monitoring†.
+- **Another carrier.** Erlang lets a module replace how nodes are found, connected and authenticated [E-5]. It must deliver bytes "in the exact same order, with no loss", and what a signal means, whether a pid is valid, how data is decoded and what a peer may do all stay the runtime's.
+- **Languages.** The reader found none on the Erlang runtime that avoids Erlang's distribution.
+- **Large deployments** work around it. Riak "avoids using Distributed Erlang for background data synchronization … to avoid head-of-line blocking" [E-17]. RabbitMQ moved its metadata to Raft, since the earlier store's "weakness is its failure recovery characteristics, in particular when it comes to network partitions"† [E-26]. Discord groups its sends by node†, and WhatsApp runs a filter on the distribution's messages [E-36].
+
+### The three ways
+
+| Way | What it gives | What it cannot give | Cost |
+|---|---|---|---|
+| A protocol of our own over TLS, as proposed | All that is asked, by construction: identity by key, addresses bound to a connection, a decoder of our own, one typed way in, any shape of network | Erlang's sends, links, monitors and tools across nodes; heartbeats, limits and fragments are ours to write | About the host's own over TLS, where frames are sent several at a time |
+| Erlang's distribution, with our rules above it | Links, monitors, spawns and tools; no mesh, by a setting; identity by key in part | A held pid lives again; nothing checks a message before the mailbox; a peer creates atoms; any peer can end, start and call anything; the cookie remains | The fastest without encryption |
+| Another carrier beneath Erlang's distribution | Transport, authentication and discovery of our own; several streams | The same as the second way for pids, checks, atoms and trust | About the host's own over TLS |
+
+### A measurement
+
+The reader measured on one machine, both nodes on it, on OTP 29, one to three runs each, with no limit on the sender in the protocol of our own. It is a first look and no more.
+
+| Transport | A round trip | 100 bytes, 16 senders | 10 KB | 1 MB |
+|---|---|---|---|---|
+| Erlang's, no encryption | 73 to 102 µs | 82 to 94 thousand a second | 460 to 570 MB/s | 1280 to 1470 MB/s |
+| Erlang's over TLS | 153 µs | 194 thousand a second | 279 MB/s | 333 MB/s |
+| Our own over TCP, a message a frame | 84 to 98 µs | 29 thousand a second | 190 to 213 MB/s | 671 MB/s |
+| Our own over TCP, up to 32 a frame | 88 µs | 324 thousand a second | 539 MB/s | 558 MB/s |
+| Our own over mutual TLS 1.3, a message a frame | 144 to 168 µs | 15 thousand a second | 114 to 116 MB/s | 330 to 346 MB/s |
+| Our own over mutual TLS 1.3, up to 32 a frame | 151 µs | 225 thousand a second | 253 MB/s | 241 MB/s |
+
+Over TLS the two are within about a third of each other. Sending several messages in a frame decides the rate of small messages. Without encryption Erlang's is about twice as fast for large values. The reader found no published comparison of the two.
+
+### What it questions, and advises
+
+- *E1.* **Stay with a protocol of our own.** What the other two ways cannot give is decided in the runtime, and no carrier or layer reaches it. The price is to build failure detection, monitors and limits ourselves.
+- *E2.* **Send several frames at a time** from the connection's process, and keep the heartbeat out of the queue of data.
+- *E3.* **Do not copy the single stream.** Leave room in a frame for fragments and for more than one connection to a peer.
+- *E4.* **Say what a sender sees when the queue is full.** Erlang's waiting sender cannot be fixed, and its way out has no bound.
+- *E5.* **Bind an address to its connection.** Erlang needed aliases, thirty years on, to come near it.
+- *E6.* **Run the host without its distribution,** or with one that listens to this machine alone. A node that is also a node of distributed Erlang gives everything to whoever holds the cookie. Trust a peer's key and not an authority that signs keys.
+
+### What the reader could not verify
+
+The versions that introduced two settings. The figure of 1,500 nodes in one cluster at WhatsApp, which is the text of a search result for a talk. Why Erlang's own distribution was slower than the protocol of our own for small messages in the measurement.
+
+### Sources
+
+- [E-1] https://www.erlang.org/doc/system/ref_man_processes.html
+- [E-2] https://www.erlang.org/doc/system/distributed.html
+- [E-3] https://www.erlang.org/doc/apps/kernel/kernel_app.html
+- [E-4] https://www.erlang.org/doc/apps/kernel/global.html
+- [E-5] https://www.erlang.org/doc/apps/erts/alt_dist.html
+- [E-6] https://www.erlang.org/doc/apps/erts/erl_dist_protocol.html
+- [E-8] https://www.erlang.org/doc/apps/erts/erlang.html
+- [E-17] https://www.usenix.org/system/files/atc19-meiklejohn.pdf
+- [E-19] https://learnyousomeerlang.com/distribunomicon
+- [E-20] https://security.erlef.org/secure_coding_and_deployment_hardening/distribution
+- [E-26] https://www.rabbitmq.com/docs/metadata-store
+- [E-36] https://github.com/WhatsApp/erldist_filter
 
 ## 5. Typed and capability systems
 
