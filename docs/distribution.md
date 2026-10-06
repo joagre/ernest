@@ -68,7 +68,7 @@ Settled:
 
 Weaknesses, worked one at a time, in this order:
 
-1. *A full outgoing queue is a loss* (section 3, *P1*). Overload then costs every conversation with the peer, the innocent among them, and what they do to recover, finding, monitoring and sending again, adds to the load that caused it. The sender that filled the queue is told nothing.
+1. *A full outgoing queue is a loss* (section 3, *P1*). Overload then costs every conversation with the peer, the innocent among them, and what they do to recover, finding, monitoring and sending again, adds to the load that caused it. The sender that filled the queue is told nothing. *Worked:* the teardown stays. Of what else a full queue could do, a sender made to wait stalls a server that answers one slow node for all its other clients, and §6.2 has `send` return at once; one message dropped breaks the unbroken prefix; a fault of the sender falls on whoever meets the limit, a server at its `answer` among them; and no limit lets a slow link take the node's memory. The teardown alone keeps the prefix, keeps `send` from waiting or faulting, and stops the harm at one peer. Three things go with it. A program can read how much waits for a peer, under the working name `Peer.queued(name)`, since §10 leaves backpressure to the program, which paces only what it sees. The limit is generous and a key of `ernest.conf`, since reaching it costs every conversation with the peer. And the delay before a connection is opened again counts losses, which weakness 4 settles. The innocent conversations with the peer still end at an overflow, and nothing cheap that keeps the prefix spares them.
 2. *A large frame delays the heartbeat* (*P14*), and a delayed heartbeat is a false loss.
 3. *The detector is a fixed timeout* (*P3*): what counts as a sign of life, how long the silence is, and what a node that is itself stalled concludes of its peers.
 4. *The delay before a connection is opened again has no random part* (*P4*), so after a wide interruption many nodes dial in step. And it grows with failed attempts alone, where a link that comes and goes, or a queue that fills again, loses a connection as often as it opens one.
@@ -264,7 +264,7 @@ The two notes' questions and this note's, by subject. *P n* is the protocol note
 
 **Limits, and where they are set**
 
-- The limit of a connection's outgoing queue. Proposed: 64 MB. (*P1*)
+- The limit of a connection's outgoing queue. Proposed: 64 MB. The thinking keeps the teardown at the limit, with the limit a key of `ernest.conf` and the queue's size readable by a program (section 2). (*P1*)
 - How long a spawn waits for a connection and for the peer's answer, and what a timeout or a loss during the wait faults with. Proposed: 5 s for a first connection. (*P2*)
 - The heartbeat's interval and timeout, when too short a timeout makes a brief interruption a loss, and a watcher that replaces a process still running then has two. Proposed: 5 s and 15 s, to be weighed against Erlang's 45 to 75 seconds, a loss costing more here (section 2). (*P3*)
 - The backoff of reconnection. Proposed: doubling from 100 ms to 30 s. (*P4*)
