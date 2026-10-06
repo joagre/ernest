@@ -56,6 +56,39 @@ From the protocol note, sections 1 to 3 and 9.
 
 **A monitor ends with its connection.** A monitor on a peer's process is among what a loss ends. The watcher's node makes its `Down`, the one message its `monitor` call gives (§6.9), and nothing sets the monitor again when the connection returns. A program that wants to go on watching calls `monitor` again. The `Down` holds the process, and a `Process` holds no mark, so `monitor` on it watches the same process over the next connection, with no new address. Set again by the runtime, a monitor would say nothing at the loss, its watcher waiting for ever on a peer that never returns, or it would give two messages for one call. The node would dial in the background to set it, where a connection opens only on demand, and would keep each `wrap` for as long as the peer stays away. Erlang's monitor is the same: it is triggered once, the loss of the connection among what triggers it. A client finds its service again after a loss in any case (section 8), and monitors it again there; whether a library does both is section 11's question. What a `monitor` answers while the peer is still out of reach is open too. The inclination is a `Down` with the loss's reason once the dial has failed, so that a program that monitors again in a loop is paced by the dial's delay.
 
+**Where the thinking stands on loss and reconnection**, on 6 October 2026. Settled means the thinking no longer weighs it; it is no decision of the report's until it goes to its owner.
+
+Settled:
+
+- A loss is the end of a connection, and both ends run it, each for itself: at the close, at its own heartbeat timeout, or at a hello from a peer it holds an established connection with.
+- A loss ends what crossed its connection, by a number each node gives its connections, and the pair may meet again with neither restarted (*P5*).
+- A loss's reason says out of reach and not dead: `Unreachable` (*P6*).
+- A monitor ends with its connection, and the program calls `monitor` again.
+- The heartbeat's timeout is weighed nearer Erlang's 45 to 75 seconds than the 15 seconds proposed (*P3*).
+
+Weaknesses, worked one at a time, in this order:
+
+1. *A full outgoing queue is a loss* (section 3, *P1*). Overload then costs every conversation with the peer, the innocent among them, and what they do to recover, finding, monitoring and sending again, adds to the load that caused it. The sender that filled the queue is told nothing.
+2. *A large frame delays the heartbeat* (*P14*), and a delayed heartbeat is a false loss.
+3. *The detector is a fixed timeout* (*P3*): what counts as a sign of life, how long the silence is, and what a node that is itself stalled concludes of its peers.
+4. *The delay before a connection is opened again has no random part* (*P4*), so after a wide interruption many nodes dial in step. And it grows with failed attempts alone, where a link that comes and goes, or a queue that fills again, loses a connection as often as it opens one.
+5. *A dead address comes alive by travelling.* Sent to another node and back, it arrives marked with the current connection. An address is then good for the connection it arrived over, and dead is said of a held address and not of a process. The soundness argument has to state what that keeps.
+6. *The races are argued and not tested*: a dial again against two nodes dialling at once; a loss during a handshake, during a spawn's exchange of code, and while a `spawned` is awaited; a hello of a new incarnation over an established connection; and a loss one end has run and the other not yet.
+
+Not solved, and not a heartbeat's to solve:
+
+- *Two processes where one was meant.* A watcher told `Unreachable` that starts a replacement has two where the first lives on. What must exist once needs more than a monitor: a lease whose holder the resource checks, or agreement among nodes, a library's work. The guide says that `Unreachable` is not death.
+- *Whether a call that ended without an answer ran.* `None`, or the fault of a loss, says only that no answer came. A request that may be sent again is written so that running twice does no harm.
+
+Practice elsewhere, as far as it is known on this day, from memory and to be checked before anything rests on it:
+
+- *Detection.* A silence is a suspicion and never a death. A detector that fits its patience to the delays it has seen (the phi accrual detector), and in a cluster one that asks other nodes to try before it suspects (SWIM), give fewer false losses than a fixed timeout. Any traffic counts as a sign of life. For a few nodes listed by hand, a long fixed timeout is held to be reasonable.
+- *Epochs.* What belongs to an earlier session is refused, which is what the connection's number does. A resource that must have one user checks a token that only grows, a fencing token.
+- *A slow receiver.* Practice is divided: a window for each stream, so that one slow stream holds up no other (HTTP/2, QUIC); the slow consumer disconnected, to protect the rest, as message brokers do; or the sender suspended, as Erlang's distribution does, which stalls a server that answers a slow node.
+- *Trying again.* A deadline on every wait, requests that may run twice, and a delay that doubles with a random part, so that recovery does not arrive all at once.
+- *Verification.* The protocol run under a simulated network that loses, delays and reorders on a schedule a seed repeats, and its state machine given to a model checker, since the errors are in the races.
+- *Transport.* New protocols often run over QUIC, whose streams do not hold one another up. TLS over TCP remains sound, at the price of the large frame above.
+
 ## 3. Addresses and what crosses
 
 From the protocol note, sections 4, 5, 8 and 10.
@@ -247,6 +280,7 @@ The two notes' questions and this note's, by subject. *P n* is the protocol note
 - What a monitor of an address whose node is absent from the peer table answers, `Unknown` at once or `Fault("peer lost")`, and what a `send` to one does, which the report does not say. (*P8*)
 - What becomes of a process a peer starts after its spawner has faulted, the spawn having timed out. (*P18*)
 - What a long-serving service's clients on other nodes do at a loss, and whether a library finds the service again for them and monitors it again (sections 2 and 8).
+- The six weaknesses of loss and reconnection, and the two things it does not solve, each worked in its turn. Section 2's *Where the thinking stands on loss and reconnection* lists them.
 - What a `monitor` answers while its process's peer is still out of reach. The inclination is a `Down` with the loss's reason once the dial has failed (section 2).
 
 **Calls, order and deadlock across nodes**
