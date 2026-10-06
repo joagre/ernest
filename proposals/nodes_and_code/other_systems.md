@@ -214,7 +214,7 @@ Over TLS the two are within about a third of each other. Sending several message
 
 ### An experiment
 
-After the reader's report, the carrier was tried: three nodes on one machine, on OTP 29, each with a self-signed certificate and a list of the keys it accepts. Its code and how to run it are in `proposals/experiments/erlang_distribution/`.
+After the reader's report, the carrier was tried: three nodes on one machine, on OTP 29, each with a self-signed certificate and a list of the keys it accepts. Its code and how to run it are in `proposals/nodes_and_code/experiments/erlang_distribution/`.
 
 | Tried | Found |
 |---|---|

@@ -1,6 +1,8 @@
 # Operations records
 
-*The comparison of operations records, code written once over several representations of one type, with type classes, functors and traits, what the forms cost to build, and three programs that use them. The report states the forms: the requirement in §4.9, `derives` in §3.5, the fill in §5.6, the place of a record among a function's parameters in E.0's shape rule 1, `show` under a requirement in E.1, and the ordered set and map in E.25 and E.26; [`soundness.md`](soundness.md) argues them. This note restates none of their rules. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once*, *MVP 2.99b's Questions, One by One* and *The Requirement, the Fill and the Set as Data* argue the choices, and *The Requirement Built* the build. The three programs stand under [`docs/operations/`](operations/), where the integration tests build them and hold what they print to what this note says; the code here is excerpted from them. Revised 2026-10-04.*
+Status: built in MVP 2.99b, and kept as the record of its design. It is not authoritative and no longer maintained: only the report states the rules.
+
+*The comparison of operations records, code written once over several representations of one type, with type classes, functors and traits, what the forms cost to build, and three programs that use them. The report states the forms: the requirement in §4.9, `derives` in §3.5, the fill in §5.6, the place of a record among a function's parameters in E.0's shape rule 1, `show` under a requirement in E.1, and the ordered set and map in E.25 and E.26; [`soundness.md`](../../docs/soundness.md) argues them. This note restates none of their rules. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once*, *MVP 2.99b's Questions, One by One* and *The Requirement, the Fill and the Set as Data* argue the choices, and *The Requirement Built* the build. The three programs stand under [`docs/operations/`](programs/), where the integration tests build them and hold what they print to what this note says; the code here is excerpted from them. Revised 2026-10-04.*
 
 Ernest has one set in its standard library, `Set`, a hash set. A second, `OrderedSet`, keeps its elements in the order of their type's `compare`. Code written once works on both through an *operations record*, a record the program declares of the operations it needs, filled from each representation's namespace. The § numbers cite Ernest's report.
 
@@ -15,9 +17,9 @@ Ernest has one set in its standard library, `Set`, a hash set. A second, `Ordere
 
 ## The programs
 
-The ordered set and the ordered map are the standard library's, [`ordered_set.ern`](../stdlib/ordered_set.ern) and [`ordered_map.ern`](../stdlib/ordered_map.ern); guide §7.3 shows the parts of the first that carry the requirement. The programs here use them and the forms.
+The ordered set and the ordered map are the standard library's, [`ordered_set.ern`](../../stdlib/ordered_set.ern) and [`ordered_map.ern`](../../stdlib/ordered_map.ern); guide §7.3 shows the parts of the first that carry the requirement. The programs here use them and the forms.
 
-[`usage.ern`](operations/usage.ern) is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, generic, declare what they need; and `Operations` is the record `common` needs, declared there and filled from each representation at `Int`.
+[`usage.ern`](programs/usage.ern) is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, generic, declare what they need; and `Operations` is the record `common` needs, declared there and filled from each representation at `Int`.
 
 ```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
@@ -91,7 +93,7 @@ export fn main() : Unit with Never = {
 
 `ern build` refuses it at `down`: `the argument does not fit OrderedSet.union: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)`.
 
-Two programs beyond sets test the two forms where no set is involved. [`numeric.ern`](operations/numeric.ern) writes generic numeric functions over the requirement `needs a.+`, at `Int`, at `Float`, and at a type with a `+` of its own; `sum` needs a zero as well, which is no member, so its caller passes one.
+Two programs beyond sets test the two forms where no set is involved. [`numeric.ern`](programs/numeric.ern) writes generic numeric functions over the requirement `needs a.+`, at `Int`, at `Float`, and at a type with a `+` of its own; `sum` needs a zero as well, which is no member, so its caller passes one.
 
 ```ernest
 type Money = Money(Int)
@@ -124,7 +126,7 @@ $ ern build --short-errors numeric.ern
 numeric.ern:16:34: zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)
 ```
 
-[`num.ern`](operations/num.ern) writes the same functions over a record the program fills by hand, `Num`, since `zero` and `one` are no members and `+` is no field name, so no fill applies; each type is one line, and generic code passes the record.
+[`num.ern`](programs/num.ern) writes the same functions over a record the program fills by hand, `Num`, since `zero` and `one` are no members and `+` is no field name, so no fill applies; each type is one line, and generic code passes the record.
 
 ```ernest
 type Num(a) = Num(zero : a, one : a, add : (a, a) -> a, mul : (a, a) -> a)

@@ -11,7 +11,7 @@ APPS = utils lexer parser format typer runtime emitter cli
 # the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
 ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
 		test/*/*.ern test/programs/modules/*.ern test/programs/modules/*/*.ern libs/*/*.ern \
-		tools/*.ern docs/operations/*.ern
+		tools/*.ern proposals/operations/programs/*.ern
 
 # The Ernest trees, stdlib/, libs/, shell/ and tools/, are built by `ern build`
 # every time, and its own rule decides what in each to compile again, by the

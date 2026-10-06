@@ -3,7 +3,7 @@
 %% expected/<name>.out, since prints from different processes interleave
 %% by scheduling; the launcher, the signals and the streams; `Os`; the
 %% manual pages against §11; the installation and the release archive; the
-%% libraries' tests; and docs/operations/'s programs. Run from this
+%% libraries' tests; and proposals/operations/programs/. Run from this
 %% directory by its Makefile.
 -module(ern_integration_tests).
 
@@ -1216,7 +1216,7 @@ modules() ->
     {0, Output} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Output)).
 
-%% report §4.9, §3.5, §5.6, Appendix E.25, E.26, docs/operations.md: the
+%% report §4.9, §3.5, §5.6, Appendix E.25, E.26, proposals/operations/operations.md: the
 %% note's three programs, its directory built as a source root over the
 %% standard library's ordered set and map, each print what the note says, in
 %% order. Written after the code, which they were built against first.
@@ -1226,7 +1226,7 @@ operations_test_() ->
     {timeout, 120, fun operations/0}.
 
 operations() ->
-    {0, _} = sh("../bin/ern build --build-root build/operations ../docs/operations"),
+    {0, _} = sh("../bin/ern build --build-root build/operations ../proposals/operations/programs"),
     lists:foreach(fun(Name) ->
                       {0, Output} = sh("../bin/ern run build/operations/" ++ Name ++ ".erc"),
                       {ok, Expected} = file:read_file("expected/operations/" ++ Name ++ ".out"),

@@ -357,9 +357,9 @@ shell() ->
     ern_repository:files(["shell/**/*.ern"]).
 
 %% The programs of the build written in Ernest, whose comments cite the
-%% report too, and docs/operations.md's three programs.
+%% report too, and proposals/operations/operations.md's three programs.
 tools() ->
-    ern_repository:files(["tools/*.ern", "docs/operations/*.ern"]).
+    ern_repository:files(["tools/*.ern", "proposals/operations/programs/*.ern"]).
 
 %% The toolchain's own code, whose comments cite the report as its rules
 %% ask: the Erlang sources, includes and tests, the helper in C, the tests
