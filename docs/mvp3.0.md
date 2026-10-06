@@ -30,6 +30,7 @@ Three things bound the milestone:
 
 - `Peer.spawn(name, f)` starts a process that runs `f` on the peer of that name and returns its address. `Peer.spawnMonitored(name, f, wrap)` monitors it from its start.
 - `Peer.find(name, fn() = M.service)` answers the address a top-level binding holds on that peer, or a failure.
+- `Remote.service(name, fn() = M.service)` answers a local address that stands for that binding's process on the peer through every loss. It is a library over the rest, and its name is a working one.
 - `Reason` gains `Unreachable`: the process's node is out of reach, and the process may live on.
 
 **What may cross.**
@@ -97,31 +98,22 @@ fn report(total : Optional(Int)) : Unit with m =
     }
 ```
 
-**A program that stays.** It shows the total every second for as long as it runs. It keeps the counter's address, so it monitors the counter, and when the store goes out of reach it finds the counter again.
+**A program that stays.** It shows the total every second for as long as it runs. It holds a standing address of the counter, and writes nothing for a loss.
 
 ```ernest-fragment
 // board.ern
 
-type Msg = Tick | Lost(Down)
+type Msg = Tick
+
+let counter : Address(Counter.Msg) =
+    Remote.service("store", fn() = Counter.counter)
 
 export fn main() : Unit with Msg = {
     Clock.alarm(1000, fn(_) = Tick);
-    seek()
+    show()
 }
 
-// Finds the counter and shows it. A store out of reach is tried again, and
-// the runtime paces the tries. Any other failure will not mend by itself.
-fn seek() : Unit with Msg =
-    match Peer.find("store", fn() = Counter.counter) {
-        Right(counter) -> {
-            monitor(Process.fromAddress(counter), Lost);
-            show(counter)
-        }
-      | Left(Peer.OutOfReach) -> seek()
-      | Left(_) -> Io.println("the store has no counter for us")
-    }
-
-fn show(counter : Address(Counter.Msg)) : Unit with Msg =
+fn show() : Unit with Msg =
     receive {
         Tick -> {
             match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
@@ -129,14 +121,12 @@ fn show(counter : Address(Counter.Msg)) : Unit with Msg =
               | None -> Unit
             };
             Clock.alarm(1000, fn(_) = Tick);
-            show(counter)
+            show()
         }
-      | Lost(Down(reason = Unreachable)) -> seek()
-      | Lost(_) -> Io.println("the counter has ended")
     }
 ```
 
-`Peer.OutOfReach` is a working name: what `Peer.find`'s failures are called is unsolved (section 9).
+`Remote.service` starts a process on the board's own node that finds the counter, passes on what it is sent, and finds the counter again whenever the store has been out of reach (section 6, *A standing address*). Without it the board would write that itself: a monitor on the counter, a message of its own for the loss, and a function that finds the counter again.
 
 Each node has a configuration directory, made once with `ern config --config-dir dir`: the file `ernest.conf` and the node's private key. The desk's `ernest.conf` names the store, and the store's names the desk in the same way:
 
@@ -164,7 +154,7 @@ ern run --config-dir /etc/ernest/board board.erc
 
 The desk prints `the counter is at 5` and ends. The board prints the total every second.
 
-Where the cable to the store is then pulled, each node finds the silence within 45 to 75 seconds. Until then the board's calls answer `None`, each after its second. Then its monitor gives `Lost` with `Unreachable`, and it looks for the counter again, try after try, until the cable is back. The counter runs on untouched all the while, and still holds its total.
+Where the cable to the store is then pulled, each node finds the silence within 45 to 75 seconds. For as long as the store is out of reach the board's calls answer `None`, each after its second, and the board prints nothing. When the cable is back the totals appear again. The counter runs on untouched all the while, and still holds its total.
 
 The desk's program and the board's name `Counter.counter`, to say which binding they want of the store. By the rule of section 6, *Bindings*, each of their nodes then starts a counter of its own as well, which nothing uses. Section 9 holds this as unsolved.
 
@@ -190,7 +180,8 @@ The desk's program and the board's name `Counter.counter`, to say which binding 
 7. **A silent failure takes 45 to 75 seconds to find.** A program that must know sooner puts a time on its calls.
 8. **A `send` to a node out of reach vanishes.** So does one to a node the sender's configuration does not list. A monitor or a call on the same address shows it.
 9. **A peer is trusted completely.** Any node in the configuration may start any function of the program on this node, with any values. A faulty peer can send a value of the wrong type that is caught only where the receiving process meets it.
-10. **Nothing is upgraded while it runs.** Two nodes whose builds differ by one line refuse each other, and so do two with different versions of `ern` or of OTP.
+10. **A standing address hides a loss, and the gap with it.** What a program sends through one while the service is out of reach is lost, and what it sends later arrives. A call through one waits out its time where no answer comes.
+11. **Nothing is upgraded while it runs.** Two nodes whose builds differ by one line refuse each other, and so do two with different versions of `ern` or of OTP.
 
 ## 6. How it works
 
@@ -230,6 +221,8 @@ The desk's program and the board's name `Counter.counter`, to say which binding 
 
 **Bindings.** A node runs, at its start, the top-level bindings of the standard library and of the modules its own entry point depends on, as a program on one node does. A function spawned on it runs only where the bindings that function depends on have their values there. Otherwise the spawn faults its spawner, and `Peer.find` answers a failure. Nothing is initialized because a peer asked. In spawned code a top-level binding is the peer's, and a captured value is the spawner's.
 
+**A standing address.** `Remote.service(name, read)` is written in Ernest over what this section states. It starts a process on the caller's node, the *relay*, and answers an address of the relay at the service's message type. The relay finds the service with `Peer.find`, monitors it, and passes on each message it is sent. On a `Down` with `Unreachable` it finds the service again, try after try. What it is sent meanwhile it sends to the address it last had, which is dead, so that is dropped as any `send` to a node out of reach is. A program then holds one address for as long as it runs. Four things follow. Each message makes one more step, on the caller's node. Claim 2 of section 4 holds between the relay and the service, and not between the program and the service. A call through the address is watched at the relay, which lives, so where no answer comes the call waits out its time, and `Address.callForever` through it can wait for ever. And `kill` and `monitor` through the address reach the relay and not the service. `Remote.service` faults its caller where the name is no peer's. The relay ends when the process that made it ends, and it faults where the service's process has ended or the peer has no value for the binding.
+
 **Other nodes' processes and resources.** `Process.info` answers for the running node's processes alone, and `None` for a process of another node. A supervisor's children run on its own node.
 
 ## 7. The numbers
@@ -259,7 +252,7 @@ A checker runs those machines themselves, two nodes and then three, over a netwo
 1. **Whether to stand on Erlang's own distribution.** The proposal builds node-to-node messaging in Erlang code over TLS. Ernest otherwise stands on the host wherever the host does the work, and the host's distribution is built into its runtime. What is gained and what it costs has not been weighed.
 2. **A client that names a service starts it.** `Peer.find("store", fn() = Counter.counter)` makes the desk's program depend on the module `Counter`, so the desk's node runs that module's bindings and starts a counter of its own. For a service that owns a port or a file that is wrong.
 3. **A spawn that cannot reach its peer faults.** `Peer.find` answers a failure as a value, and `Peer.spawn` kills its caller for the same condition, the network. Whether a spawn should answer a value, and take a time as other waits on a peer do, is to be weighed afresh.
-4. **`Peer`'s exact shape.** The types of its functions and the names of `Peer.find`'s failures. How a program learns which nodes there are and places work by load is not weighed here.
+4. **`Peer`'s exact shape.** The types of its functions and the names of `Peer.find`'s failures. Whether the standing address is `Peer`'s own or a library's, what it is called, and whether a second form tells its caller of each loss and return. How a program learns which nodes there are and places work by load is not weighed here.
 5. **What the build's hash covers,** where two nodes are started from different entry points of one program.
 6. **Adding a peer.** The configuration is read at a node's start. Whether a peer can be added or removed without stopping the others is not answered.
 7. **A second hello from the same key.** A peer that restarted, and a second node started by mistake with the first one's key, look the same.
