@@ -474,7 +474,7 @@ the terminal). The rest is MVP 3.3's.
 - **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
   load; MVP 2.99d's item 11): its terminal script found an expected line missing; run
   again alone it passed, and under `make test-shell` too, and it has not failed since in
-  eight full runs. Undiagnosed: when it fails again, its step file in the run's directory
+  the full runs of 2026-10-06. Undiagnosed: when it fails again, its step file in the run's directory
   says which expectation went unmet, and the fix follows from it.
 - **§3.11, §6.7 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
   3.0 and 3.1 material and unbuilt, since 2026-10-01 a spawn on a peer being `Peer.spawn`'s,
