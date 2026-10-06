@@ -43,13 +43,13 @@ Three things bound the milestone:
 | any other function, alone or inside a value | no |
 | a foreign value | no |
 | the address of a socket, a listener or a program the runtime started | no |
-| a value too large for the outgoing queue | no |
+| a single value larger than a connection's outgoing queue can hold (section 6, *Messages*) | no |
 
 An operation that would carry a value that may not cross faults the process that makes it, at that operation.
 
-## 3. An example
+## 3. Examples
 
-A counter runs on a node named `store`. A program on another node finds it, adds to it and asks for the total.
+A counter runs on a node named `store`.
 
 ```ernest-fragment
 // counter.ern
@@ -76,21 +76,17 @@ export fn main() : Unit with Never =
     }
 ```
 
+**A program that asks once.** It finds the counter, adds to it, asks for the total and ends. It needs no monitor: the call answers `None` where the counter has ended or the store is out of reach.
+
 ```ernest-fragment
 // desk.ern
 
-type Msg = Lost(Down)
-
-export fn main() : Unit with Msg =
+export fn main() : Unit with Never =
     match Peer.find("store", fn() = Counter.counter) {
         Left(_) -> Io.println("the store is not there")
       | Right(counter) -> {
-            monitor(Process.fromAddress(counter), Lost);
             send(counter, Counter.Add(5));
-            report(Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000));
-            receive {
-                Lost(_) -> Io.println("the store is out of reach")
-            }
+            report(Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000))
         }
     }
 
@@ -100,6 +96,47 @@ fn report(total : Optional(Int)) : Unit with m =
       | None -> Io.println("no answer")
     }
 ```
+
+**A program that stays.** It shows the total every second for as long as it runs. It keeps the counter's address, so it monitors the counter, and when the store goes out of reach it finds the counter again.
+
+```ernest-fragment
+// board.ern
+
+type Msg = Tick | Lost(Down)
+
+export fn main() : Unit with Msg = {
+    Clock.alarm(1000, fn(_) = Tick);
+    seek()
+}
+
+// Finds the counter and shows it. A store out of reach is tried again, and
+// the runtime paces the tries. Any other failure will not mend by itself.
+fn seek() : Unit with Msg =
+    match Peer.find("store", fn() = Counter.counter) {
+        Right(counter) -> {
+            monitor(Process.fromAddress(counter), Lost);
+            show(counter)
+        }
+      | Left(Peer.OutOfReach) -> seek()
+      | Left(_) -> Io.println("the store has no counter for us")
+    }
+
+fn show(counter : Address(Counter.Msg)) : Unit with Msg =
+    receive {
+        Tick -> {
+            match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
+                Some(total) -> Io.println(Int.toString(total))
+              | None -> Unit
+            };
+            Clock.alarm(1000, fn(_) = Tick);
+            show(counter)
+        }
+      | Lost(Down(reason = Unreachable)) -> seek()
+      | Lost(_) -> Io.println("the counter has ended")
+    }
+```
+
+`Peer.OutOfReach` is a working name: what `Peer.find`'s failures are called is unsolved (section 9).
 
 Each node has a configuration directory, made once with `ern config --config-dir dir`: the file `ernest.conf` and the node's private key. The desk's `ernest.conf` names the store, and the store's names the desk in the same way:
 
@@ -117,16 +154,19 @@ Each node has a configuration directory, made once with `ern config --config-dir
 }
 ```
 
-The same compiled files are on both machines, and each node is started with its directory:
+The same compiled files are on all three machines, and each node is started with its directory:
 
 ```
 ern run --config-dir /etc/ernest/store counter.erc
 ern run --config-dir /etc/ernest/desk desk.erc
+ern run --config-dir /etc/ernest/board board.erc
 ```
 
-The desk prints `the counter is at 5`. Where the cable between the two is then pulled, both nodes find the silence within 45 to 75 seconds; the desk prints `the store is out of reach`, and the counter runs on, untouched.
+The desk prints `the counter is at 5` and ends. The board prints the total every second.
 
-The desk's program names `Counter.counter`, to say which binding it wants of the store. By the rule of section 6, *Bindings*, the desk's node then starts a counter of its own as well, which nothing uses. Section 9 holds this as unsolved.
+Where the cable to the store is then pulled, each node finds the silence within 45 to 75 seconds. Until then the board's calls answer `None`, each after its second. Then its monitor gives `Lost` with `Unreachable`, and it looks for the counter again, try after try, until the cable is back. The counter runs on untouched all the while, and still holds its total.
+
+The desk's program and the board's name `Counter.counter`, to say which binding they want of the store. By the rule of section 6, *Bindings*, each of their nodes then starts a counter of its own as well, which nothing uses. Section 9 holds this as unsolved.
 
 ## 4. What holds
 
@@ -181,7 +221,7 @@ The desk's program names `Counter.counter`, to say which binding it wants of the
 
 **Addresses.** An address on the wire is the node's identity, its incarnation, a random 128-bit number that names the process, and a hash of the process's mailbox type. A node draws the numbers of its own processes and of no other's. The receiving node checks the hash against the process's mailbox type, and a mismatch is a faulty frame. Each node numbers its connections with each peer, for itself, and holds a remote address together with the number of the connection it arrived over. An address is good for that connection alone: once it is lost, a `send`, an `answer` or a `kill` through the address does nothing, and a call ends at once. The same process may be reached again through an address that arrives later, from `Peer.find`, from a spawn, or in a new message. A `Process` holds no such number, so `monitor` may be called again on the process a `Down` names. Where that process's node is still out of reach, the new monitor gives its `Down` with `Unreachable` once the dial has failed, and at once where the node is not listed.
 
-**Messages.** `send` hands the value to the connection and returns. A value sent to an adapted address is carried, unconverted, to the node that made the address, where the connection applies the function in the order the frames arrived. A fault in that function is the fault of the process the address leads to.
+**Messages.** `send` hands the value to the connection and returns. What waits to be sent to a peer waits in that connection's outgoing queue, which has a limit in bytes. A value that is larger than the limit by itself can never be sent, and the operation that would send it faults. Where the queue is full of values that each fit, the connection is lost (section 5, point 4). A value sent to an adapted address is carried, unconverted, to the node that made the address, where the connection applies the function in the order the frames arrived. A fault in that function is the fault of the process the address leads to.
 
 **Calls.** A `Reply` crosses as the caller's node and a number private to the call. The callee's node watches the call as it watches a local one, and tells the caller's node when the call ends other than by an answer: the callee ended, or it restarted. A call to another node costs four frames where a `send` costs one.
 
