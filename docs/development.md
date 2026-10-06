@@ -19,7 +19,8 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`operations.md`](operations.md)**: operations records compared with type classes, what the forms cost, and three programs that use them; the report states their rules.
-- **[`shell_design.md`](shell_design.md)**, **[`nodes_and_code.md`](nodes_and_code.md)**, **[`install.md`](install.md)**: the design notes of the shell, of nodes, code distribution and code change, which is tentative thinking until MVP 3.0 decides it, and of the installation.
+- **[`shell_design.md`](shell_design.md)**, **[`install.md`](install.md)**: the design notes of the shell and of the installation.
+- **[`proposals/`](../proposals/)**: what is being designed and is not yet decided, the peer protocol of MVP 3.0 among it.
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 - **[`emacs/README.md`](../emacs/README.md)**: how to install the Emacs mode.
@@ -43,6 +44,8 @@ assets/            the logo the README, the guide and a release show, light and 
                    512-pixel avatar, and the social preview GitHub's settings take,
                    with a note on each
 docs/              the documents listed above, and this one
+proposals/         what is being designed and is not yet decided: a proposal, the
+                   reasons for it, what other systems do, and its experiments
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists in the order to read them
 erl/               the toolchain, as Erlang applications: lexer, parser, format,

@@ -2,7 +2,7 @@
 
 Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 
-**What it asks.** Whether a node protocol of Ernest's can ride on Erlang's own distribution with what hurts in it turned off: the mesh, the port-mapper daemon, the cookie as the only proof of who a peer is, and a sender made to wait. `docs/other_systems.md` holds what was found, beside what other systems do.
+**What it asks.** Whether a node protocol of Ernest's can ride on Erlang's own distribution with what hurts in it turned off: the mesh, the port-mapper daemon, the cookie as the only proof of who a peer is, and a sender made to wait. `proposals/other_systems.md` holds what was found, beside what other systems do.
 
 **How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of three nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about half a minute.
 

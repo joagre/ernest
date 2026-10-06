@@ -220,7 +220,7 @@ described() ->
 %% and a wildcard stands for a set, so neither names one file.
 paths(Document) ->
     Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/", "shell/",
-            "libs/", "tools/", "emacs/", "assets/"],
+            "libs/", "tools/", "emacs/", "assets/", "proposals/"],
     Pieces = binary:split(Document, <<"`">>, [global]),
     [binary_to_list(Piece) || {Index, Piece} <- lists:zip(lists:seq(1, length(Pieces)), Pieces),
                               Index rem 2 =:= 0,
