@@ -22,6 +22,7 @@ What more than one reader said, or what bears on a choice the proposal made. Eac
 12. **Erlang's own distribution cannot give what the proposal asks.** Three things are decided inside the host's runtime, where neither a layer above nor another carrier beneath reaches them: that a message's type is checked before it reaches a mailbox, that a peer's data creates no atom, and that a peer's rights are narrower than everything (*E1*). The reader counted a fourth, an address that stays dead after a reconnection, which the proposal no longer asks. Bears on section 9, point 1.
 13. **A protocol of our own costs about what the host's does over TLS,** where frames are sent several at a time. Sent one at a time, small messages were 11 to 15 times slower in a reader's own measurement (*E2*). Bears on section 9, point 15.
 14. **The runtime must not also be a node of distributed Erlang.** One that is hands everything to whoever holds its cookie (*E6*). The proposal does not say so.
+15. **Erlang's distribution can carry frames of our own, with what hurts in it turned off.** Tried on OTP 29: TLS with listed keys and no port-mapper daemon, no mesh, a sender that does not wait, both nodes told of a loss, a pid that reaches its process again after one, and monitors and one-shot replies across nodes (section 4, *An experiment*). What stays is that a connected node may do anything. Bears on section 9, point 1.
 
 ## 2. Orleans and its relatives
 
@@ -210,6 +211,23 @@ The reader measured on one machine, both nodes on it, on OTP 29, one to three ru
 | Our own over mutual TLS 1.3, up to 32 a frame | 151 µs | 225 thousand a second | 253 MB/s | 241 MB/s |
 
 Over TLS the two are within about a third of each other. Sending several messages in a frame decides the rate of small messages. Without encryption Erlang's is about twice as fast for large values. The reader found no published comparison of the two.
+
+### An experiment
+
+After the reader's report, the carrier was tried: three nodes on one machine, on OTP 29, each with a self-signed certificate and a list of the keys it accepts. Its code and how to run it are in `docs/scratch/experiments/erlang_distribution/`.
+
+| Tried | Found |
+|---|---|
+| TLS between nodes that list each other, with no port-mapper daemon | It connects. A table from a node's name to its port stands in for the daemon |
+| A node that is not listed | Refused in the TLS handshake, by a rule of ours that accepts a peer by its public key |
+| No mesh | With a setting, two nodes that share a peer stay unconnected. A connection opens at the first send |
+| A sender that does not wait | With the peer stopped, a send that refuses to wait is refused at once; the node then ends the connection itself, and both nodes are told |
+| A silent peer, with the timeout at 4 seconds | Found lost after 4.6 to 4.8 seconds. A monitor on its process gives `noconnection`. The peer is told as it wakes |
+| An address after a loss | The same pid reaches the same process, and the connection opens again by itself |
+| Monitors and replies | A kill and a fault arrive with Ernest's own reasons. A reply through an alias takes one answer and drops a second |
+| A node started again | A monitor on a process of its earlier start gives `noproc`, and a send to it is dropped |
+
+So the host gives the handshake, the detector, a loss that both nodes run, an address that outlives a loss, monitors and one-shot replies. What would be ours is a frame that carries a message's type, the check before a mailbox, and the check that two nodes run one program. Three things it does not show: a network that really parts, a certificate that names another host, and any speed. And one thing nothing turns off: a connected node may start, end and call anything on the other.
 
 ### What it questions, and advises
 

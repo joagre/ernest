@@ -1,0 +1,231 @@
+%% An experiment: what Erlang's distribution gives a node protocol that rides
+%% on it. run/0 starts three nodes on this machine and prints what it finds.
+%% README.md says what each step tries.
+-module(ern_probe).
+
+-export([run/0, start/0, events/0, ping/1, worker/0]).
+
+%% The origin: starts nodes a, b and c, and drives them over their standard
+%% input, so that it is no node of the distribution itself.
+-spec run() -> ok.
+run() ->
+    Dir = filename:absname("."),
+    {A, _} = start_node(a, Dir),
+    {B, NodeB} = start_node(b, Dir),
+    {C, NodeC} = start_node(c, Dir),
+    BPid = peer:call(B, os, getpid, []),
+    try
+        connecting(A, B, C, NodeB, NodeC),
+        say("5  monitor, kill, fault, reply, on a towards b",
+            on(A, fun() -> monitors(NodeB) end)),
+        Holder = on(A, fun() -> hold(NodeB) end),
+        silent_peer(A, B, BPid, Holder),
+        refusing_sender(A, B, NodeB, BPid, Holder),
+        ok = peer:stop(B),
+        {B2, NodeB} = start_node(b, Dir),
+        say("6  b started again; a pings b's new echo", peer:call(A, ?MODULE, ping, [NodeB])),
+        say("6  a monitors the process of b's earlier start", ask(A, Holder, monitor_again)),
+        say("6  a pings the process of b's earlier start", ask(A, Holder, ping)),
+        peer:stop(B2)
+    after
+        os:cmd("kill -CONT " ++ BPid),
+        [try peer:stop(Peer) catch _:_ -> ok end || Peer <- [A, C]]
+    end,
+    ok.
+
+start_node(Name, Dir) ->
+    Arguments = ["-proto_dist", "inet_tls",
+                 "-ssl_dist_optfile", filename:join(Dir, atom_to_list(Name) ++ ".conf"),
+                 "-epmd_module", "ern_probe_epmd",
+                 "-start_epmd", "false",
+                 "-connect_all", "false",
+                 "-kernel", "net_ticktime", "4",
+                 "-setcookie", "ernest",
+                 "+zdbbl", "1",
+                 "-pa", Dir],
+    {ok, Peer, Node} = peer:start_link(#{name => Name, host => "127.0.0.1", longnames => true,
+                                         connection => standard_io, args => Arguments}),
+    ok = peer:call(Peer, ?MODULE, start, []),
+    {Peer, Node}.
+
+%% Steps 1 and 2: TLS with listed keys and no port mapper, and no mesh.
+connecting(A, B, C, NodeB, NodeC) ->
+    say("1  nodes at start (a, b, c)", {nodes_of(A), nodes_of(B), nodes_of(C)}),
+    say("1  a pings b: TLS, listed keys, no port mapper", peer:call(A, ?MODULE, ping, [NodeB])),
+    say("1  a's nodes after", nodes_of(A)),
+    say("1  a connects to c, which does not list a",
+        peer:call(A, net_kernel, connect_node, [NodeC])),
+    say("2  b pings c", peer:call(B, ?MODULE, ping, [NodeC])),
+    timer:sleep(1500),
+    say("2  no mesh: nodes of a, b, c", {nodes_of(A), nodes_of(B), nodes_of(C)}).
+
+%% Step 4: b's operating system process is stopped, and continued.
+silent_peer(A, B, BPid, Holder) ->
+    _ = peer:call(A, ?MODULE, events, []),
+    _ = peer:call(B, ?MODULE, events, []),
+    Stopped = erlang:monotonic_time(millisecond),
+    os:cmd("kill -STOP " ++ BPid),
+    Down = wait_event(A, nodedown, 12000),
+    say("4  b stopped; a's nodedown after ms, and its reason",
+        {erlang:monotonic_time(millisecond) - Stopped, Down}),
+    say("4  a's monitor of a process on b", ask(A, Holder, down)),
+    say("3  a sends without connecting: [noconnect]", ask(A, Holder, noconnect)),
+    os:cmd("kill -CONT " ++ BPid),
+    Continued = erlang:monotonic_time(millisecond),
+    DownB = wait_event(B, nodedown, 12000),
+    say("4  b continued; b's nodedown after ms, and its reason",
+        {erlang:monotonic_time(millisecond) - Continued, DownB}),
+    say("4  the same pid after the loss: a pings the held process", ask(A, Holder, ping)),
+    say("4  a's nodes after that ping", nodes_of(A)).
+
+%% Step 3: a sender that does not wait, and a connection a node ends itself.
+refusing_sender(A, B, NodeB, BPid, Holder) ->
+    os:cmd("kill -STOP " ++ BPid),
+    say("3  b stopped; a sends 64 kB values with [nosuspend]", ask(A, Holder, flood)),
+    say("3  a disconnects b", peer:call(A, erlang, disconnect_node, [NodeB])),
+    say("3  a's nodedown", wait_event(A, nodedown, 5000)),
+    os:cmd("kill -CONT " ++ BPid),
+    say("3  b continued; b's nodedown", wait_event(B, nodedown, 12000)).
+
+say(What, Value) -> io:format("~-58s ~p~n", [What, Value]).
+
+nodes_of(Peer) -> lists:sort(peer:call(Peer, erlang, nodes, [])).
+
+on(Peer, Fun) -> peer:call(Peer, erlang, apply, [Fun, []]).
+
+%% On each node: a log of nodeup and nodedown with the time, and an echo.
+-spec start() -> ok.
+start() ->
+    Parent = self(),
+    spawn(fun() ->
+                  register(probe_log, self()),
+                  ok = net_kernel:monitor_nodes(true, [nodedown_reason]),
+                  Parent ! started,
+                  logging([])
+          end),
+    receive started -> ok end,
+    spawn(fun() -> register(echo, self()), echo() end),
+    ok.
+
+logging(Events) ->
+    receive
+        {events, From} ->
+            From ! {events, lists:reverse(Events)},
+            logging([]);
+        Event ->
+            logging([{erlang:monotonic_time(millisecond), Event} | Events])
+    end.
+
+%% What the node's log has taken since it was last asked.
+-spec events() -> [{integer(), term()}] | timeout.
+events() ->
+    probe_log ! {events, self()},
+    receive {events, Events} -> Events after 2000 -> timeout end.
+
+echo() ->
+    receive
+        {ping, From} ->
+            From ! pong,
+            echo();
+        {twice, Alias} ->
+            Alias ! {Alias, 1},
+            Alias ! {Alias, 2},
+            echo()
+    end.
+
+%% A process another node spawns here, with the ends an Ernest process has.
+-spec worker() -> no_return().
+worker() ->
+    receive
+        {ping, From} ->
+            From ! pong,
+            worker();
+        fault ->
+            exit({ern, fault, <<"boom">>})
+    end.
+
+-spec ping(node()) -> pong | timeout.
+ping(Node) ->
+    {echo, Node} ! {ping, self()},
+    receive pong -> pong after 5000 -> timeout end.
+
+%% Step 5, on a: a kill and a fault seen through a monitor, and a reply that
+%% takes one answer.
+monitors(NodeB) ->
+    Killed = spawn(NodeB, ?MODULE, worker, []),
+    KilledRef = monitor(process, Killed),
+    exit(Killed, {ern, killed}),
+    Faulted = spawn(NodeB, ?MODULE, worker, []),
+    FaultedRef = monitor(process, Faulted),
+    Faulted ! fault,
+    Alias = alias([reply]),
+    {echo, NodeB} ! {twice, Alias},
+    First = receive {Alias, Value1} -> Value1 after 3000 -> timeout end,
+    Second = receive {Alias, Value2} -> Value2 after 700 -> none end,
+    [{killed, down(KilledRef, 3000)}, {faulted, down(FaultedRef, 3000)},
+     {first_answer, First}, {second_answer, Second}].
+
+down(Ref, Timeout) ->
+    receive {'DOWN', Ref, process, _, Reason} -> Reason after Timeout -> timeout end.
+
+%% On a: a process that holds a pid of b's and a monitor on it, and does what
+%% the origin asks of it.
+hold(NodeB) ->
+    spawn(fun() ->
+                  Pid = spawn(NodeB, ?MODULE, worker, []),
+                  holding(Pid, monitor(process, Pid))
+          end).
+
+holding(Pid, Ref) ->
+    receive
+        {down, From} ->
+            From ! down(Ref, 6000),
+            holding(Pid, Ref);
+        {noconnect, From} ->
+            From ! erlang:send(Pid, {ping, self()}, [noconnect]),
+            holding(Pid, Ref);
+        {ping, From} ->
+            Pid ! {ping, self()},
+            From ! (receive pong -> pong after 3000 -> timeout end),
+            holding(Pid, Ref);
+        {flood, From} ->
+            From ! flood(Pid, binary:copy(<<0>>, 65536), 0),
+            holding(Pid, Ref);
+        {monitor_again, From} ->
+            Again = monitor(process, Pid),
+            From ! down(Again, 4000),
+            holding(Pid, Again)
+    end.
+
+flood(_Pid, _Value, 20000) -> {never_refused, 20000};
+flood(Pid, Value, Count) ->
+    case erlang:send(Pid, Value, [nosuspend]) of
+        ok -> flood(Pid, Value, Count + 1);
+        nosuspend -> {refused_after_sends, Count}
+    end.
+
+%% Asks the holder on a peer, from the origin.
+ask(Peer, Holder, What) ->
+    Asking = fun() ->
+                     Holder ! {What, self()},
+                     receive Answer -> Answer after 15000 -> timeout end
+             end,
+    peer:call(Peer, erlang, apply, [Asking, []], 20000).
+
+wait_event(Peer, Kind, Timeout) ->
+    wait_event_until(Peer, Kind, erlang:monotonic_time(millisecond) + Timeout).
+
+wait_event_until(Peer, Kind, Deadline) ->
+    Events = peer:call(Peer, ?MODULE, events, []),
+    case [Event || {_, Event} <- Events, element(1, Event) =:= Kind] of
+        [Event | _] ->
+            Event;
+        [] ->
+            case erlang:monotonic_time(millisecond) > Deadline of
+                true ->
+                    {none, Events};
+                false ->
+                    timer:sleep(200),
+                    wait_event_until(Peer, Kind, Deadline)
+            end
+    end.
