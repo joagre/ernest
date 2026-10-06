@@ -319,7 +319,11 @@ What is Ernest's is small: the rule that accepts a peer by its key, the hello wi
 5. **Testing a program of two nodes** with `ern test`. The experiment shows a way to run several nodes on one machine.
 6. **The shell on a node.**
 7. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the look through each value before it is sent.
-8. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+8. **Placement by load.** The plan gives MVP 3.0 `Peer.nodes`, the nodes a program can place work on, `Peer.runQueue`, how many processes wait to run on this node, and `libs/balancer` over the two, `Balancer.pick(measure)` and `Balancer.spawn(measure, f)`. All three can be built on this proposal as it stands; whether MVP 3.0 includes them is to be decided.
+9. **The soundness argument's section 7,** owed before peers are built: which two types are one across nodes, and what crosses a node.
+10. **The spawn site.** `Down` carries the site of the process's spawn, which for a process spawned on a peer is on the spawner's node, so the spawn frame carries it.
+11. **Initialization on a peer,** which the plan lists: two processes that use one binding before it has a value, an initializer that faults, one that does not end. *Bindings* answers most of it, since a node runs its bindings at its start and never because a peer asked, and the paragraph is to say so.
+12. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
