@@ -6,11 +6,12 @@
 
 -include_lib("public_key/include/public_key.hrl").
 
-%% A self-signed certificate is what the host refuses by default, and is the
-%% one event this rule answers for itself.
+%% A self-signed certificate, and an expired one, are what the host refuses by
+%% default, and are the two events this rule answers for itself: the key is the
+%% identity, and the certificate's dates mean nothing.
 -spec verify(#'OTPCertificate'{}, term(), [file:filename()]) ->
           {valid, [file:filename()]} | {unknown, [file:filename()]} | {fail, term()}.
-verify(Certificate, {bad_cert, selfsigned_peer}, Listed) ->
+verify(Certificate, {bad_cert, Why}, Listed) when Why =:= selfsigned_peer; Why =:= cert_expired ->
     case lists:member(key(Certificate), [key(listed(File)) || File <- Listed]) of
         true -> {valid, Listed};
         false -> {fail, not_listed}

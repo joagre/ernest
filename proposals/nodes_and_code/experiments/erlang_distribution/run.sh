@@ -10,11 +10,13 @@ trap 'rm -rf "$work"' EXIT
 cd "$work"
 
 # A key and a self-signed certificate for each node. The certificate names a
-# host and an address that are not the node's: a peer is accepted by its key.
+# host and an address that are not the node's, and its validity ended in 2021:
+# a peer is accepted by its key, and by nothing else in the certificate.
 for node in a b c d f; do
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
         -keyout "$node.key" -out "$node.pem" -subj "/CN=elsewhere.example" -days 2 \
         -addext "subjectAltName=DNS:elsewhere.example,IP:192.0.2.77" 2>/dev/null
+    escript "$here/ern_probe_backdate.escript" "$node"
 done
 
 # A node's TLS options: its own certificate, and the certificates it lists.

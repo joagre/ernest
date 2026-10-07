@@ -14,7 +14,7 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 |---|---|---|
 | 1 | TLS between two nodes that list each other, with no port-mapper daemon | `a` reaches `b`. A table from a node's name to its port stands in for the daemon |
 | 1 | A node that is not listed | `a` to `c` is refused in the TLS handshake, with the reason `not_listed` |
-| 1 | A certificate that names another host and another address | Accepted all the same: every node's certificate names `elsewhere.example` and `192.0.2.77`, and the rule goes by the key |
+| 1 | A certificate that names another host and another address, and expired in 2021 | Accepted all the same: every node's certificate names `elsewhere.example` and `192.0.2.77` and its validity ended in 2021, and the rule goes by the key. With the rule as the host has it, an expired certificate is refused, "Certificate Expired", which was tried by hand |
 | 2 | No mesh | With `a` and `b` connected, and `b` and `c`, `a` and `c` stay unconnected. A connection opens at the first send |
 | 3 | A sender that does not wait | With the peer stopped and the buffer's limit at 1 kB, a send with `nosuspend` is refused at once. The node then ends the connection itself, and both nodes are told |
 | 3 | A send that does not connect | With no connection open, a send with `noconnect` answers `noconnect` and dials nothing |
