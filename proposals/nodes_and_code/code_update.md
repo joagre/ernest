@@ -61,7 +61,7 @@ What in place keeps that a rolling restart loses is a process's connections thro
 
 ## 5. The test
 
-**The rollout runs as a test on every commit.** The shape half runs with nothing started: each service's row against the baseline, each hole and each untold rename refused. The run half needs two nodes: it starts the release on both, writes a state into each service through its protocol, rolls one node to the new build, checks the protocols from both, rolls the other, reads the state back, rolls back, and reads it again (*U11*, *D14*). The oracle is identity where nothing changed and the round trip where a state crossed; a property a human writes is asked for only where the round trip is not total, the one piece no system has automated (*D14*, *V14*). The cost of testing a rollout by hand is the stated reason the field does it seldom (*U7*, *U9*), and the generated run is the answer.
+**The rollout runs as a test on every commit.** The shape half runs with nothing started: each service's row against the hashes the release's nodes ran, each hole and each untold rename refused. The run half needs two nodes, and sends no message of any protocol. Decided with the user on 2026-10-07: its channel into and out of every service is the state file of the planned stop. It generates values of each service's state type from the release, as the typed tests generate programs from the grammar, and writes each as the file a stop would have written; starts the release on both nodes, which read them in; rolls one node to the new build, checks that every key answers at the identity the plan expects, rolls the other, and stops both, which writes the states out in the new shape; compares; and rolls back the same way, which tests the way back on the same values (*U11*, *D14*). The oracle is identity where the state type is unchanged and the round trip, the reverse `migrate` of what came out equal to what went in, where it changed; a property a human writes is asked for only where the reverse has a hole, which the plan has already named forward-only, the one piece no system has automated (*D14*, *V14*). A service whose state cannot cross is skipped and listed. The test covers the deploy's whole path and not the service's logic, which the program's own tests cover. The cost of testing a rollout by hand is the stated reason the field does it seldom (*U7*, *U9*), and the generated run is the answer.
 
 ## 6. What is to hold
 
@@ -82,5 +82,4 @@ Four readers on 2026-10-07, into [`other_systems.md`](other_systems.md), section
 
 The rest, decided here one at a time.
 
-- How the test writes a state into a service through its protocol and reads it back, without a message the protocol does not have.
 - Whether a change of logic in place stays as the library's convenience, and with it `Supervisor`'s operation (section 4).
