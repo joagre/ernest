@@ -1,6 +1,6 @@
 # Ernest: MVP 3.0, Peers
 
-Status: the proposal for MVP 3.0, peers, settled on 2026-10-07 after a read-back against its four rules; it changes only by a question raised against it. One is raised and decided in principle: a service placed by eligibility, which [`code_update.md`](code_update.md)'s section 2 states and which changes `Peer.find` and the configuration when this proposal is edited next. Section 9 holds what is unsolved. The reasons for what it says are in [`nodes.md`](nodes.md).
+Status: the proposal for MVP 3.0, peers, settled on 2026-10-07 after a read-back against its four rules; it changes only by a question raised against it. Two are raised and decided in principle, which [`code_update.md`](code_update.md)'s section 2 states and which change `Peer` and the configuration when this proposal is edited next: a service placed by eligibility, and `Peer.standing`, a find that finds again. Section 9 holds what is unsolved. The reasons for what it says are in [`nodes.md`](nodes.md).
 
 ## 1. What it is
 
