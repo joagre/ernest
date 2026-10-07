@@ -2,6 +2,13 @@
 
 Six readers read `proposals/nodes_and_code/mvp3.0.md`, `mvp3.1.md` and `mvp3.2.md` whole on 2026-10-08, before anything is built from them: *C* for consistency across the three, *P* for the five principles, *R* for the report and the soundness argument, *F* for feasibility against the runtime, *O* for operations through a list of scenarios, and *W*, who wrote a paper program across all three. Each section is a reader's report as given, lightly cut. A finding is something to weigh, worked with the user one at a time; its verdict is written beside it when taken, and the file goes when every finding has one, as CLAUDE.md has it. The proposals change with the verdicts; nodes.md, code.md and deploy.md are synced after; the plan last.
 
+## Verdicts taken
+
+Each verdict names the findings it closes; a finding not named is open.
+
+- **2026-10-08, a kept state.** A service whose state is to outlive a deploy runs `kept(key, init, step)`, a function of `restarting`'s family whose loop the runtime owns, so the runtime holds the state between steps and asks for it between two, as a supervisor asks for a restart (§6.9); it composes with `spawn` and `restarting`, and the report's service, a binding holding an address, is unchanged (mvp3.2.md §2, §3, §6). A process that is not a `kept` loop begins afresh at its node's restart. Closes P1, O2, W1, C1, R1, R-soundness 1, F2.
+- **2026-10-08, the move dropped.** A kept state is written to the file at every planned stop and read by the `kept` loop under the key at the next start; nothing moves a state to another node, and a service is away for its node's restart. A moved state made two owners at the restarted node's own `kept`, and could not close the race of two nodes starting with a third out of reach; a hot standby is a lease's, a library's over a store outside the nodes (mvp3.2.md §1, §5, §6, §10, §11). Closes O1 and the judgment's move half, W4, W13, C8, and F11's first half, the standing address asking the key's next node; F11's second half, what a standing address sees, stays open under finding 3 of R.
+
 ## P. The principles
 
 Read: `language.md` §0 whole; the three proposals in full.
