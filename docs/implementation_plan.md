@@ -63,7 +63,7 @@ paragraph under "Done".
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
 | MVP 3.0 | peers: one program on several nodes, by its proposal | design settled 2026-10-07 |
-| MVP 3.1 | code by its hash, and the standard library's `Code` | design being written |
+| MVP 3.1 | code by its hash, and the standard library's `Code` | design settled 2026-10-07 |
 | MVP 3.1a | the runtime's surface: `ern`'s version in the cookie narrowed to what shipped code calls by name, so that nodes of different `ern` versions connect | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
@@ -92,8 +92,10 @@ The items, in build order, each with the report's sentences first, its tests, an
    §6.6's calls across nodes; §7.4's causes; §8.3, §8.5, §8.6 and §8.7 as the proposal has
    them, no code crossing; §9.3's `Unreachable`; §10 whole; §11.2 and §11.3 for `--config-dir`,
    `ern config` and `ern reload`; Appendix E's section for `Peer`, E.21's `Process.info`, E.18
-   and E.23 for a resource bound to its node; Appendix F; the guide's chapter. The log's
-   entries for each, pointing at `nodes.md` for the argument. With them, as the build
+   and E.23 for a resource bound to its node; Appendix F; §8.6 for a node's end, hangup a
+   reload and termination an end. The log's entries for each, pointing at `nodes.md` for the
+   argument. The rewrite leaves room for `ern run --config-dir dir` with no file, MVP 3.1's
+   bare node, and adds nothing for it. With them, as the build
    reaches each: `soundness.md`'s section 7; `architecture.md` for the gateway, the peer
    table, the helpers and the rows a call keeps; `memory.md` for what those hold and when
    they let go; `style.md`'s glossary for peer, gateway, key, bound type and helper;
@@ -107,9 +109,11 @@ The items, in build order, each with the report's sentences first, its tests, an
    key, with the host's name check off and the certificate's dates ignored; the table in place
    of the port-mapper daemon; no mesh; the cookie as the build's fingerprint over the checksum
    of what runs; the detector's time. `ernest.pid` and its guard; the bindings before the
-   listener; the orderly end; what a node says, with the host's reports off.
-3. **Messages and addresses.** The bound type in the checker: `Peer.key` of a bound type and a
-   spawn whose captures are bound or have a type variable refused. `send` as the host's;
+   listener; hangup a reload and termination an end, `ern stop`; the orderly end; what a
+   node says, with the host's reports off.
+3. **Messages and addresses.** The bound type in the checker: `Peer.key` of a bound type, a
+   spawn whose captures are bound or have a type variable, and a spawn whose mailbox type is
+   bound, refused. `send` as the host's;
    `Reason`'s `Unreachable`; a `Down` with an empty site across nodes; `kill`; the gateway for
    an adapted address, its function's fault to the sender, its captures checked as it crosses.
 4. **Calls.** The request sent without waiting and the helper where the buffer is full,
@@ -118,13 +122,16 @@ The items, in build order, each with the report's sentences first, its tests, an
 5. **`Peer`.** `key`, `offer` and `find` with the type's text; `spawn` and `spawnMonitored` with
    their time, the site in the frame, `NotLoaded`, and the kill of a process whose spawner
    stopped waiting; `Peer.Failure`; `Peer.nodes`. `ern reload` by `SIGHUP` and the table. The
-   shell as a node, its `:load` and `:reload` refused naming MVP 3.1; `ern test` as a node.
+   shell as a node, its `:load` and `:reload` refused naming MVP 3.1; `ern test` as a node;
+   `Peer`'s page with its executed examples.
 6. **`Load` and `Balancer`**, in Ernest on the runtime, with `measures` starting the host's
    services: the first programs written on the design.
 7. **The tests**, with real nodes on one machine as the experiment runs them, holding the
    proposal's section 4 whole, the parted network through the proxy among them; the costs of
-   the proposal's section 9 measured; `docs/development.md`'s table for the two refusals that
-   name MVP 3.1.
+   the proposal's section 9 measured; `docs/development.md`'s table for the refusals that
+   name MVP 3.1, the shell's two and `ern run --config-dir dir` with no file; and the guide's
+   peer chapter, here and not in item 1, since its examples run only once items 2 to 6 are
+   built.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two services under one name on one node are not told apart beyond their
@@ -133,80 +140,67 @@ right is narrowed (point 1).
 
 ---
 
-## MVP 3.1 (content addressing), about four weeks
+## MVP 3.1 (code by its hash), about five weeks
 
-Designed in `mvp3.1.md`, written from [`code.md`](../proposals/nodes_and_code/code.md) before MVP 3.0 is
-built, the way [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md) was, one question at a time with the
-user; `code.md` is the thinking from before the peer design was settled, and where the two
-differ `mvp3.0.md` and its section 11 hold. The open questions of code distribution are
-decided there, report first. Its first items are the standard library's `Code`, moved here
-from a milestone of its own on 2026-10-07, since MVP 3.0 loads no code and every decision
-of `Code` is one of a module named by its hash:
+Designed in [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md), written from the thinking in
+[`code.md`](../proposals/nodes_and_code/code.md) and settled with the user on 2026-10-07 after
+a cross-check with `mvp3.0.md`, a fresh reader's findings and a read-back; its reasons are
+`code.md`'s part one, and what three readers found of Unison, Dhall, Nix, Git and the BEAM is
+[`other_systems.md`](../proposals/nodes_and_code/other_systems.md), section 6. It is step C of
+`mvp3.0.md`'s section 11: a hash for each definition, code crossing with a spawn, versions side
+by side, a deploy a rolling restart; nothing of step D, a running process that takes new code,
+which is the milestone after this one and `code.md`'s part two. The standard library's `Code`,
+placed as a milestone of its own on 2026-10-06, is here: its six decisions are answered in the
+proposal, `Code` being two functions for the toolchain's Ernest code and the tools, `load` and
+`hashes`, with `Code.Error`, a program having nothing to load by name.
 
-- **What a module is to `Code`**, decided first: an Ernest module by its namespace, loaded
-  as `ern run` and `:load` load one, a compiled form refused where it was compiled against
-  another interface, the modules it uses loaded with it, and its top-level bindings evaluated
-  (§11.2, §8.5); or a module of the host's, as `code:load_file/1` loads one, which checks no
-  interface and runs no initializer. The first is Ernest around the host's function, and only
-  the second is its shim (E.0 rule 1).
-- **What a program does with a module it has loaded.** A compiled program's text names every
-  function it calls, and a module it was not built with has no name in that text (principle
-  3). A module it was built with is loaded when it starts, and loading another version of
-  one changes the code under running processes, which §6.10 gives to a message alone.
-- **Which functions are in**, each by E.0's four rules, in a section added at the end of
-  Appendix E and written before the module: loading, what is loaded and from where, letting
-  code go, and the load path, as far as each is a program's and not the toolchain's.
-- **What it leaves in the host.** A module's name is an atom of the host's, which is never
-  collected, and each version loaded leaves the host its lambda entries (the log's *The
-  Shell's Code Memory*). What a program that loads modules under names it computes leaves
-  behind is prevented at its cause, or the function that would leave it stays out.
-- **That the section stands under MVP 3.1**, where a module is named by its hash and versions
-  stay side by side: the contract is written in Ernest's terms, a namespace and never a host
-  module's name, so that MVP 3.1 changes what is beneath it and not what a program wrote.
-- **Whether the shell's `:load` and `:reload` then stand on it**, their loading written in
-  Ernest over `Code` in place of `foreign fn`s of the shell's own, compiling staying the
-  toolchain's.
+The items, in build order, each with the report's sentences first, its tests, and a commit:
 
-The rest of the milestone: Its question
-*D9* meets the code as it stands: whether a node running hash modules
-keeps embedded mode, which loads nothing from the code path on demand, where §11.2 finds a
-`foreign fn`'s Erlang module on the load path. The toolchain has no IR: `ern_emitter` goes from
-the typed AST to Erlang's abstract format in one traversal, and whether an IR is introduced or
-the typed AST canonicalized is part of the decision on the normalized definition below.
+1. **The report and the soundness argument.** §8.7 rewritten from the proposal: identity by
+   hash, what crosses with a spawn, a binding's identity, nothing on a message; §11.1 for what
+   an `.erc` holds; §11.2 for a bare node, the shell's `:load` and `:reload` in a shell that is
+   a node, and `ern diff`; Appendix E's section for `Code`; `soundness.md`'s section 7 extended
+   to identity by hash. The log's entries, pointing at `code.md` for the argument.
+2. **The canonical form, and the hash.** The form's document with the scheme's version, written
+   before any hash is computed, and its test suite: the same definition hashes the same across
+   a rebuild, a renamed function keeps its dependents' hashes, a renamed type or binding
+   changes them, a moved definition in a group changes the group's, two bodies that differ in
+   local names or layout hash the same, a literal's encoding is fixed; two hashes for one
+   definition and one hash for two are its cases. The compiler computes every definition's
+   hash, a type's identity with its members, a binding's with its name, a group's in source
+   order, a lambda's by its enclosing definition and position; the `.erc` carries the canonical
+   forms and the hashes.
+3. **`ern diff` and `Code.hashes`.** The first use of the hashes, visible before any node uses
+   them: `changed` and `follows`, and the keys whose identity changed.
+4. **The cookie and the key.** The cookie without the build's checksum; a key carrying its
+   type's identity in the find frame; `OtherType` by identity; `Refused`'s text.
+5. **A node's code.** The table from hash to the host's module and function; the node's own
+   build compiled through it; what arrives in one exchange compiled into one unit of the
+   host's; a build directory never changed under a running node; embedded mode and the units
+   off the code path; the node's line on its standard error at four fifths of a limit.
+6. **The exchange at a spawn.** The spawn frame with the function's hash; the request for the
+   list, the list with the foreign declarations, the lacks and the code frames, each one
+   definition's canonical form with its immediate references; verification on arrival,
+   quarantine until the closure is complete, one atomic load, what the peer said it has pinned
+   meanwhile; the exchange in a process of its own on each node; `NotLoaded` for a foreign
+   module the peer lacks and `Refused` for a closure it cannot load; a form verified before it
+   is shipped; the forms of received and shell-typed definitions kept.
+7. **Bindings, the bare node and the shell.** Bindings' values by identity; `ern run
+   --config-dir dir` with no file, refused without `listen`; the shell's two refusals lifted,
+   a shell-typed function spawning with its code; `Balancer.measure` capturing the key.
+8. **`Code.load`**, with `Code.Error`, and the shell's `:load` and `:reload` written in Ernest
+   over it, compiling staying the toolchain's.
+9. **The tests, the measurements and the guide.** Two builds of one program as nodes on one
+   machine, holding the proposal's section 4 whole; a node told to load many units, once,
+   measured; what a spawn that ships code costs; the guide's chapter for code by its hash and
+   the rolling deploy; `docs/development.md`'s table for the refusals lifted; `mvp3.1.md`'s
+   status line.
 
-The milestone is §8.7's identity in full:
-
-- **The normalized definition, decided first**: the typed tree or the untyped one, and what
-  becomes of the effect variables, which are inferred and
-  never written. With it, whether a type's identity holds the hash of its `compare`, so that
-  a value ordered under one order is not read under another where versions meet (on one
-  node MVP 2.99b's item 5 made it the type's `compare`, supplied by the compiler, so that a
-  set built before an `Upgrade` of its `compare` is misordered after it, as Appendix E.25
-  says). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
-  the definition hash or a second scheme stands beside it is part of that decision.
-- Every definition gets a hash of its typed AST; modules are named by hash, with a registry
-  per node `{Hash -> Module}`. With the hash of a `foreign fn`, what §8.7's "incompatible
-  foreign definition" compares, which a reader outside the project found unstated on
-  2026-10-04: whether the qualified name and the host's implementation, the arity, the
-  parameters' and the result's types, the mailbox type, the inferred restrictions and a foreign
-  type's equality parameters, and the runtime's version, each count; and that a definition
-  compatible by its declaration is not thereby trusted to keep its promise. A function spawned on a peer carries its hash, and a node that
-  lacks it fetches the code from the sender. Erlang's module distribution is not used.
-- Hash modules never change, and versions coexist on a node for as long as a process runs one
-  ([`code.md`](../proposals/nodes_and_code/code.md), section 3.1). The shell's reload then ends
-  nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")` and §11.2's
-  second-reload rule go, with the test that pins them.
-- **The loader's one `code_server`**, measured under the loader's batches before it is relied
-  on, and **normalization**, given a test suite of its own (`code.md`'s section 2.3, *The loader* and *Risks*).
-- **A node whose atoms near the host's limit**, decided with the hash modules: `code.md`'s
-  section 2.4, *Atoms and lambdas*, drains and restarts it, which CLAUDE.md's rule that memory no collection
-  reclaims is fixed at its cause, never by a cap, questions (a reader's finding).
-- Two nodes with different versions of one type never meet in a message, decided 2026-09-27
-  (§8.7, *Identity*): a message carries its mailbox type's hash, which MVP 3.0 does not
-  (`mvp3.0.md`, section 11, step B), and an address is obtained only through typed operations.
-- The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
-  tree from a git URL into a directory on the load path, compiles it, and records the hashes of
-  its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry.
+What the plan once held for this milestone, the normalized definition, hash modules named
+`ern#<base32>`, a registry per node, a loader beside the host's with a cache on disk, versions
+coexisting by unloading, a drain and restart, a fetcher of libraries by hash, is decided
+otherwise or placed: the first three by the proposal's *The hash* and *A node's code*, the
+unloading by its limit 3 and MVP 3.1a, the fetcher by MVP 3.2's library story.
 
 ---
 
