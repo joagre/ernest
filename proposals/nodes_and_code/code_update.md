@@ -52,7 +52,9 @@ What changed is read from the hashes by `ern diff`; what kind of process meets i
 
 A supervisor is a service whose `State` is its children. The platform's change ends every process on the node, as section 2 says. A worker ends on its code and the next spawn runs the new. The loop column is part two's: §6.10 by hand, and `become` with a translation where a protocol changes under an address that must be kept.
 
-**One program for each cell**, under `experiments/code_update/`, run by the tests and written twice, as today and under the concept, so that what the design saves is measured in lines and in what can go wrong: a counter for C1 and C2; a store over a listening socket for the node that stops; the counter with `Reset` for C3 and with `Get` retired for C4; three services sharing a record for C5; a supervisor over two of them; and a chat server holding connections for the loop column.
+**The restart is the baseline the step function must beat.** The alternative to step D is to update no code in place: a deploy is MVP 3.1's rolling restart with a drain, and a part of a node is restarted by its supervisor into new code, which under hashes is an upgrade of the supervisor alone, since `restarting` holds its function by hash. It is what Orleans, Elixir, WhatsApp and the cloud do (*V2*, *U7*, *U9*), and it removes section 2 after its first paragraph: the `Upgrade`, the envelope, the translation on intake and `become`. It removes nothing else: `ern diff` still says which protocols part old clients from new services across a rollout, `migrate` is still owed for every state that outlives a process in a keeper, a table or a database, a translation is still owed where an old client is to be served during the rollout rather than left on `OtherType`, and the test is still owed for the stored shapes. Its cost is section 1's three kinds of process: a state worth keeping moves outside, into a keeper whose own state has the same problem one level up, down to the store; a singleton reopens its resource at the restart; and a connection holder loses its connections, which nothing softens and which is the case the step function pays for itself in. Ernest's claims make the restart the base already: a process keeps its code, a restart begins afresh, nothing is swapped beneath.
+
+**One program for each cell**, under `experiments/code_update/`, run by the tests and written twice, as the restart alone has it and under the concept, so that what the step function saves over the baseline is measured in lines and in what can go wrong: a counter for C1 and C2; a store over a listening socket for the node that stops; the counter with `Reset` for C3 and with `Get` retired for C4; three services sharing a record for C5; a supervisor over two of them; and a chat server holding connections for the loop column.
 
 ## 5. The plan and the test
 
@@ -83,6 +85,7 @@ Four readers on 2026-10-07, into [`other_systems.md`](other_systems.md), section
 
 ## 8. Open, for the experiment programs
 
+- Whether step D is built at all: the restart alone is the baseline of section 4, and the step function stays only where the programs show it saving enough, the chat server's connections first; where it does not, MVP 3.1's rolling restart is the final answer and this document records why.
 - The `Upgrade` message's exact shape, and who may send it: the address the service keeps, clients being given one narrowed by `via`.
 - How a supervisor's children are a `State`, and whether a child keeps its place under a successor supervisor, read against `Supervisor`.
 - What a step that blocks costs an upgrade, and whether the plan should refuse a service whose step may not return.
