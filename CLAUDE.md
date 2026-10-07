@@ -75,6 +75,7 @@ The rules follow the order of work, and each is stated once.
 ## Writing
 
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating.
+- **A proposal and its reasons say what Ernest does, and why.** What was tried and set aside, and what Ernest does not do, stays in the experiment or goes to the log, not into the paragraph that states the rule.
 - **Clear before short.** Plain sentences, one rule per sentence, its exception and its example in sentences of their own. A sentence is cut for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
 - **A report edit updates the revision date** in line 3 of each file it changes.
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. A section is never renumbered, removed, or put between two others. A new rule goes into the section it belongs to; where none can hold it, a new section is added at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
