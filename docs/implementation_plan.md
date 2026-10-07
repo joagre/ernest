@@ -338,7 +338,8 @@ the terminal). The rest is MVP 3.3's.
   reports a fault that did not happen, so the group may give up. Appendix E.22 is silent on
   it. Decided with the user on 2026-10-07: `Supervisor` gains an operation by which a child
   replaces the function its restart runs, which an upgrade in place of a supervised process
-  needs (`code_update.md`, section 2); its name and shape, and what the call above then does,
+  needs (`code_update.md`, section 4, where a change of logic in place may stay as the
+  library's convenience); its name and shape, and what the call above then does,
   are step D's proposal's, and E.22 states them when it is built. Until then the call is the
   program's mistake, and the experiment's README says so.
 - **The shell's reload does not see a function of the previous version held in a process's
