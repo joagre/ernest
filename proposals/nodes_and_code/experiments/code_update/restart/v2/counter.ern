@@ -1,0 +1,23 @@
+/// Version 2: the same counter, each `Add` logged. The protocol and the
+/// state's type are unchanged; only the loop's logic is (row C1).
+export type Msg = Add(Int) | Total(reply : Reply(Int))
+
+export let counter : Address(Msg) = spawn(fn() = count(0))
+
+fn count(total : Int) : Unit with Msg =
+    receive {
+        Add(amount) -> {
+            Io.println("add " <> Int.toString(amount));
+            count(total + amount)
+        }
+      | Total(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn add(amount : Int) : Unit with n =
+    send(counter, Add(amount))
+
+export fn total() : Int with n =
+    Address.callForever(counter, fn(reply) = Total(reply = reply))

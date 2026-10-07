@@ -1,0 +1,34 @@
+/// A service as a step function the library runs (code_update.md, section
+/// 2): the loop holds the state and the mailbox, calls `step` on each
+/// message, and takes one message of its own, `Upgrade`, which hands the
+/// state to new code. Written for the counter experiment, on one node, with
+/// no envelope tag yet, since no protocol changes here.
+export type Envelope(m, s) = Message(m) | Upgrade(next : (s) -> Unit with Envelope(m, s))
+
+/// What a service binding holds: the loop's own address, which takes an
+/// `Upgrade`, and the clients' address, which takes the protocol alone.
+export type Handle(m, s) = Handle(loop : Address(Envelope(m, s)), clients : Address(m))
+
+export fn start(init : () -> s, step : (s, m) -> s with Envelope(m, s)) : Handle(m, s) with n = {
+    let loop = spawn(fn() = run(step, init()));
+    Handle(loop = loop, clients = via(loop, Message))
+}
+
+export fn run(step : (s, m) -> s with Envelope(m, s), state : s) : Unit with Envelope(m, s) =
+    receive {
+        Message(message) -> run(step, step(state, message))
+      | Upgrade(next = next) -> next(state)
+    }
+
+/// The address clients send to.
+export fn address(handle : Handle(m, s)) : Address(m) =
+    match handle {
+        Handle(clients = clients) -> clients
+    }
+
+/// New code behind an unchanged protocol and state type (row C1): the loop
+/// goes on with `step` over the state it holds.
+export fn upgrade(handle : Handle(m, s), step : (s, m) -> s with Envelope(m, s)) : Unit with n =
+    match handle {
+        Handle(loop = loop) -> send(loop, Upgrade(next = fn(state) = run(step, state)))
+    }

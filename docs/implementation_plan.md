@@ -331,6 +331,16 @@ the terminal). The rest is MVP 3.3's.
 
 ## Standing gaps
 
+- **The shell's reload does not see a function of the previous version held in a process's
+  state** (found 2026-10-07 by the counter experiment under `proposals/nodes_and_code/experiments/code_update/`):
+  §11.2 lists the processes still running a previous version by the host's
+  `check_process_code`, which sees a process's code and not a function held in its arguments
+  (the survey's *B8*), so a library loop that holds a module's `step` is not listed, and the
+  further reload that purges the version leaves it to fail with the host's `undef` at its next
+  call rather than §7.4's `its code was unloaded`. The host offers no way to see a function in
+  another process's state. MVP 3.1 removes the purge, nothing being unloaded and no unit taking a
+  second version (`mvp3.1.md`, section 6, *A node's code*), which closes it; since 2026-10-07 §11.2
+  says the limit, as it says the host's others.
 - **The shell does not tell a previous version of a type from the current one** (found
   2026-10-07 by an experiment while [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) was
   read back): after a `:reload` that added a constructor to `Counter.Msg`, a message of the

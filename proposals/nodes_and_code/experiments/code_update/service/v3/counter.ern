@@ -1,0 +1,28 @@
+/// Version 3: the state's shape changes (row C2), from `Int` to a record that
+/// also counts the adds. The protocol is unchanged. `migrate` carries the
+/// old total over. This version compiles; what does not is upgrading a
+/// running version 1 or 2 service to it, see `upgrade_v3.ern`.
+export type Msg = Add(Int) | Total(reply : Reply(Int))
+
+export type Count = Count(total : Int, adds : Int)
+
+export let counter : Service.Handle(Msg, Count) = Service.start(fn() = Count(total = 0, adds = 0),
+                                                                step)
+
+export fn migrate(total : Int) : Count =
+    Count(total = total, adds = 0)
+
+export fn step(count : Count, message : Msg) : Count with Service.Envelope(Msg, Count) =
+    match message {
+        Add(amount) -> Count(total = count.total + amount, adds = count.adds + 1)
+      | Total(reply = reply) -> {
+            answer(reply, count.total);
+            count
+        }
+    }
+
+export fn add(amount : Int) : Unit with n =
+    send(Service.address(counter), Add(amount))
+
+export fn total() : Int with n =
+    Address.callForever(Service.address(counter), fn(reply) = Total(reply = reply))

@@ -1,0 +1,20 @@
+/// A counter as the restart alone has it: a loop with its state in its
+/// arguments, reached by the module's binding (report §6.5). Version 1.
+export type Msg = Add(Int) | Total(reply : Reply(Int))
+
+export let counter : Address(Msg) = spawn(fn() = count(0))
+
+fn count(total : Int) : Unit with Msg =
+    receive {
+        Add(amount) -> count(total + amount)
+      | Total(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn add(amount : Int) : Unit with n =
+    send(counter, Add(amount))
+
+export fn total() : Int with n =
+    Address.callForever(counter, fn(reply) = Total(reply = reply))

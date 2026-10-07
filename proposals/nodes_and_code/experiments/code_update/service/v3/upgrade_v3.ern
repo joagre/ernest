@@ -1,0 +1,13 @@
+/// The upgrade of a running version 1 or 2 counter to version 3, as the
+/// language stands: the running loop's mailbox type is
+/// `Service.Envelope(Counter.Msg, Int)`, and the new loop's is
+/// `Service.Envelope(Counter.Msg, Counter.Count)`, so the function the
+/// `Upgrade` carries cannot run the new loop. This module is expected not to
+/// compile; its diagnostic is the experiment's finding.
+export fn upgrade(old : Service.Handle(Counter.Msg, Int)) : Unit with n =
+    match old {
+        Service.Handle(loop = loop) ->
+            send(loop,
+                 Service.Upgrade(next = fn(total) =
+                                     Service.run(Counter.step, Counter.migrate(total))))
+    }
