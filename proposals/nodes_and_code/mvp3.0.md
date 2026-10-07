@@ -362,6 +362,4 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 4. **The wire is not kept.** The protocol's version is in the cookie, so two nodes of different versions never connect, and MVP 3.1 is a new version: every node changes over at once. Nothing in MVP 3.0 promises that a node of one milestone talks to a node of the next.
 
-**Where new code comes in** is code's subject: the four steps by which new code reaches a running system, of which MVP 3.0 is the first, are [`code.md`](code.md)'s section 1, *The four steps*.
-
 Three places carry the most risk. How a service is named and found: a key is a name and the identity of a message type, and whether the two are enough to tell one version of a service from another across builds is not known. The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.
