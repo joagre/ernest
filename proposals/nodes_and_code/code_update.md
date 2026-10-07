@@ -1,6 +1,6 @@
 # Ernest: Code Update, the thinking for step D
 
-Status: a thinking document for step D of [`code.md`](code.md)'s section 1, *The four steps*, a running system that takes new code. Begun 2026-10-07, read against four readers the same day ([`other_systems.md`](other_systems.md), section 7), tried in six experiment programs ([`experiments/code_update/`](experiments/code_update/README.md)), and rewritten the same day around an ordered rolling restart, upgrading in place set aside for the reasons of section 4. Nothing in it is decided, and no proposal is written from it yet.
+Status: a thinking document for step D of [`code.md`](code.md)'s section 1, *The four steps*, a running system that takes new code. Begun 2026-10-07, read against four readers the same day ([`other_systems.md`](other_systems.md), section 7), tried in six experiment programs ([`experiments/code_update/`](experiments/code_update/README.md)), and rewritten the same day around an ordered rolling restart, upgrading in place set aside for the reasons of section 4. Section 8's questions are being decided with the user one at a time, each marked with its date where it is; the rest is thinking, and no proposal is written from it yet. The test for each is that the team that deploys writes and does only what no tool can know.
 
 ## 1. The problem
 
@@ -21,7 +21,9 @@ Ernest knows what the operator guesses. The hashes say which definitions changed
 3. Each service whose state is worth keeping hands it to a successor on another node, the library's replace with the successor started by `Peer.spawn`, the state crossing as a value through `migrate`, as Orleans's grain migration does (*V3*). The old service forwards to the successor until the node stops, so that the state has one owner at every instant, where Orleans's shutdown can make a second (*V2*).
 4. The node closes. Connections drain to their own end, since no system moves one across machines (*U12*).
 
-**The rollout goes in lockstep.** A coordinator, written in Ernest, walks the nodes one at a time: the planned stop, the start with the new build, and a check before the next. The check is the protocol's, not the process's: the node offers its keys again, and a find by each key answers at the type identity the plan expects. A check that fails stops the rollout, and the stopped node goes back to the previous build, which stays whole until the coordinator says otherwise, as nginx keeps its old master (*U14*). Nothing is suspended and nothing restarts the whole system, where OTP's failure past its point of no return reboots into the old release (*U5*).
+**The coordinator is one command, and keeps nothing.** Decided with the user on 2026-10-07: `ern deploy new-build --config-dir dir` prints the plan, waits for a yes, and does the rest. It is a job of `ern`, written in Ernest, and a node like the shell, listed by the nodes it deploys to. It ships the build to each node over the peer connection, into a directory of its own, and the node restarts itself into it at its planned stop, the machine's service manager left only to restart `ern` when it dies. It keeps no record of the rollout: each node says which build it runs, so running it again after a crash or a cancel continues from where the nodes are. The runtime gains a restart of a node into a new build directory, and the peer protocol a frame that carries a build.
+
+**The rollout goes in lockstep.** The coordinator walks the nodes one at a time: the planned stop, the start with the new build, and a check before the next. The check is the protocol's, not the process's: the node offers its keys again, and a find by each key answers at the type identity the plan expects. A check that fails stops the rollout, and the stopped node goes back to the previous build, which stays whole until the coordinator says otherwise, as nginx keeps its old master (*U14*). Nothing is suspended and nothing restarts the whole system, where OTP's failure past its point of no return reboots into the old release (*U5*).
 
 **A client survives its service's restart without code of its own.** Every client finds again after a restart, which nodes.md's section 14 left to a library: the standing address, a forwarder on the client's node that holds the key, monitors the service and finds it again when told, given to the client through `via`, which is the first library everyone writes (*A4*, *O4*). The client writes only its policy for the gap, to hold with a bound, drop, or fail each call. What no library hides is the call itself: a `None` may or may not have run (nodes.md, section 11), so the retry is the program's and a request must be harmless when run twice.
 
@@ -72,7 +74,6 @@ Four readers on 2026-10-07, into [`other_systems.md`](other_systems.md), section
 
 ## 8. Open
 
-- The coordinator's shape: a job of `ern`, `ern deploy`, or an Ernest program a node runs, and where it keeps what it has done so that it survives its own restart.
 - The planned stop's name and form, and how a service says that its state is worth handing on: the library's service, or every service of a key.
 - The order of the nodes where the plan finds a translation one way only, and whether the coordinator derives it or the program states it.
 - The drain: who sets its length, how it grows firmer, and what the close does with what still arrives.
