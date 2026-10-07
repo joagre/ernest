@@ -323,13 +323,12 @@ A program's own tests of two nodes need nothing new: `ern test --config-dir dir`
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
 3. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the check of an adapted address's captured values as it crosses.
 4. **The soundness argument's section 7,** owed before peers are built: which two types are one across nodes, and what crosses a node.
-5. **A node's own name.** `ernest.conf` names a node's peers and never the node, so a program does not know what it is called, and `Peer.nodes` has no name for the running node.
-6. **A node's end.** A peer's monitor is to get `ProgramEnd` for a process of a node that ended, not `Unreachable`, so the node lets those `Down`s cross before it closes its connections.
-7. **What a node says.** The host's own reports of a lost node are turned off, and the node says on its standard error, in one line each, that a peer connected, was lost, was refused for its key or its build, or was replaced by a second node of its name.
-8. **A second start of one directory.** A node refuses to start where `ernest.pid` names a living process, so that a node which does not listen is not started twice.
+5. **A node's end.** A peer's monitor is to get `ProgramEnd` for a process of a node that ended, not `Unreachable`, so the node lets those `Down`s cross before it closes its connections.
+6. **What a node says.** The host's own reports of a lost node are turned off, and the node says on its standard error, in one line each, that a peer connected, was lost, was refused for its key or its build, or was replaced by a second node of its name.
+7. **A second start of one directory.** A node refuses to start where `ernest.pid` names a living process, so that a node which does not listen is not started twice.
 **Found in a read-back of the whole, 2026-10-06, to discuss before anything else is decided:**
 
-9. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+8. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
@@ -348,6 +347,7 @@ A program's own tests of two nodes need nothing new: `ern test --config-dir dir`
 - An address that dies with its connection, and an operation that renews one.
 - An address that lets its holder send and not kill.
 - An operation that withdraws an offer, and a set of addresses under one key.
+- A name of the node's own in `ernest.conf`: each peer calls it by its own alias, and a node that must know which of its kind it is gets that as an argument, `ern run --config-dir dir worker.erc 1`.
 - A shell attached to a running node, inside its process space: a shell is a node of its own, and reaches a running node's services by key.
 
 ## 11. Room for what comes after
