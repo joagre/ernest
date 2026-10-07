@@ -18,7 +18,7 @@ The bounds of MVP 3.0 stay: a few nodes with one owner, listed by hand, trusted 
 
 ## 2. What a program sees
 
-**The operations** are MVP 3.0's, with one difference: a spawn on a peer carries its code where the peer lacks it. `Peer`'s functions and `Peer.Failure` are unchanged. `NotLoaded` means what the function needs and the peer does not have: a binding's value, or the module a foreign declaration names. `OtherType` means a service at another version. `Refused` is the peer's refusal, of the connection or of a closure: its text says that this node is not listed there, that `ern`, OTP or the hash scheme differ, or why the peer could not load what was sent.
+**The operations** are MVP 3.0's, with one difference: a spawn on a peer carries its code where the peer lacks it. `Peer`'s functions and `Peer.Failure` are unchanged. `NotLoaded` means what the function needs and the peer does not have: a binding's value, or the module a foreign declaration names. `OtherType` means a service at another version. `Refused` is the peer's refusal of a closure: its text says why the peer could not load what was sent; a connection the handshake refused is `Unreachable`, as MVP 3.0 has it.
 
 **What is new.**
 

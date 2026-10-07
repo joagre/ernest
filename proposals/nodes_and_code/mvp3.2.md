@@ -111,7 +111,7 @@ Had `Count.migrate` been missing, the plan would have refused, naming it and the
 
 ## 4. What holds
 
-1. **No message of one version is read as another's**, refused by its hash before any frame is decoded.
+1. **No message of one version is read as another's**: a build of another runtime surface is refused by the cookie at the handshake, and a key of another identity by the find, as mvp3.1.md's claim 5 has it.
 2. **A rollout the plan refuses never starts**: a changed protocol the new build does not also offer at the old identity, a kept state whose type changed without a `migrate`, a build that drops a protocol while a node still speaks it.
 3. **Through a planned stop a service's state has one owner at every instant.**
 4. **The next node is not touched until the last answers** its keys at the identities the plan expects.
