@@ -64,9 +64,9 @@ paragraph under "Done".
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
 | MVP 3.0 | peers: one program on several nodes, by its proposal | design settled 2026-10-07 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design settled 2026-10-07 |
-| MVP 3.1a | the runtime's surface: `ern`'s version in the cookie narrowed to what shipped code calls by name, so that nodes of different `ern` versions connect | |
-| MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
+| MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design settled 2026-10-07 |
 | MVP 3.3 | the shell's second round | |
+| MVP 3.4 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 
 ---
@@ -110,7 +110,7 @@ specification, and this list the order.
    the rules; the proposal and `nodes.md` stay as the record, as CLAUDE.md has it.
 2. **The node.** `ern config`: the key, the certificate with the longest validity, `ernest.conf`,
    the public key printed. The configuration: `listen`, the peers with name, key and
-   `network-address`, one family of addresses, `measures`. The rule that accepts a peer by its
+   `network-address`, one family of addresses, `keys`, `measures`. The rule that accepts a peer by its
    key, with the host's name check off and the certificate's dates ignored; the table in place
    of the port-mapper daemon; no mesh; the cookie as the build's fingerprint over the checksum
    of what runs; the detector's time. `ernest.pid` and its guard; the bindings before the
@@ -127,7 +127,8 @@ specification, and this list the order.
 4. **Calls.** The request sent without waiting and the helper where the buffer is full,
    `answer` the same; the note to the callee's node that a call waits, and the second at its
    time; `callee is unreachable`.
-5. **`Peer`.** `key`, `offer` and `find` with the type's text; `spawn` and `spawnMonitored` with
+5. **`Peer`.** `key`, `offer` and `find` with the type's text, `find` by the key alone over the
+   key's peers, and `standing`, a find that finds again, with a loss's semantics for the gap; `spawn` and `spawnMonitored` with
    their time, the site in the frame, `NotLoaded`, and the kill of a process whose spawner
    stopped waiting; `Peer.Failure`; `Peer.nodes`. `ern reload` by `SIGHUP` and the table. The
    shell as a node, its `:load` and `:reload` refused naming MVP 3.1; `ern test` as a node;
@@ -212,27 +213,84 @@ What the plan once held for this milestone, the normalized definition, hash modu
 `ern#<base32>`, a registry per node, a loader beside the host's with a cache on disk, versions
 coexisting by unloading, a drain and restart, a fetcher of libraries by hash, is decided
 otherwise or placed: the first three by the proposal's *The hash* and *A node's code*, the
-unloading by its limit 3 and MVP 3.1a, the fetcher by MVP 3.2's library story.
+unloading by its limit 3 and MVP 3.2, the fetcher by MVP 3.4's library story.
 
 ---
 
-## MVP 3.1a (the runtime's surface)
+## MVP 3.2 (the ordered rolling restart), about five weeks
 
-Placed on 2026-10-07 with [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md)'s cookie. MVP 3.1 puts `ern`'s whole version in the cookie, so an upgrade of `ern` stops every node. This milestone names the runtime's surface, the functions shipped code calls by name and the standard library's foreign declarations, gives it a version of its own, and puts that version in the cookie in place of `ern`'s, so that nodes running different `ern` versions with one surface connect and a release of `ern` can be rolled out node by node. Nothing a program writes names a version, so it breaks no program.
+Designed in [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), whose every question was decided
+with the user on 2026-10-07 and which was settled the same day; its reasons are
+[`deploy.md`](../proposals/nodes_and_code/deploy.md), what other systems do is
+[`other_systems.md`](../proposals/nodes_and_code/other_systems.md)'s section 7, and what six
+programs showed is [`experiments/code_update/`](../proposals/nodes_and_code/experiments/code_update/README.md).
+It is step D of `code.md`'s section 1: a deploy is a rolling restart the runtime orders and
+checks, no code changes in a running process, and the team writes only what no tool can know.
+What the plan held as MVP 3.1a, the runtime's surface in the cookie, is this milestone's. Each
+item builds its area as the proposal's section 6 states it, whole.
 
-- **The memory of code**, measured on a node that outlives many deploys of its peers: how fast
-  the host's module, fun and export tables grow in practice, which on OTP 29 are never
-  reclaimed and end the node at 65,536 module names (the survey's *B2* to *B5*, measured on
-  2026-10-07), and what can be done before step D needs an answer: a later OTP's raised
-  limits, `+zmml` being on OTP's master since 2026-08; a pool of host module names reused
-  once a module is unloaded, as Elixir's compiler does, which the table from hash to module
-  allows since no name is a hash; unloading code that no process runs and no closure of which
-  has escaped, where the runtime's own bookkeeping can know it; and what a purge costs on a
-  node with many processes. Decided with the user from the numbers.
+1. **The report and the soundness argument.** §8.7 for the rollout and the planned stop; §11.2
+   and §11.3 for `ern deploy`, `ern stop`, `--drain` and `keys` in `ernest.conf`; Appendix E
+   for `Peer.find(key, ms)`, `Peer.standing` and E.22's refusal, `a process runs one child
+   function`; §8.6 for a node's planned stop; `soundness.md`'s paragraph for the state file and
+   `migrate`. The log's entries, pointing at `deploy.md`.
+2. **The plan from the hashes.** `ern diff` grown into the plan: each key's row from the
+   identities of its protocol and state type in two builds, what the build holds, derived,
+   written or a hole; a protocol changed accepted only with a `forward`; a build that drops a
+   protocol accepted only when no node is older than the one that first served both; the order
+   from the keys each node offers and finds; the plan's lines and refusals printed.
+3. **What is derived.** `migrate` by the one rule, matched by name and type, defaults, drops,
+   promotions, `was` for a rename, and the reverse; `forward` for every constructor kept in
+   form; the hole the checker refuses; the new declaration in a module of its own.
+4. **The planned stop and the state file.** `ern stop` as the planned stop and the coordinator's
+   frame: keys withdrawn, the drain ended early and bounded by `--drain`, a service moved to the
+   key's next node or its state written to `state/`, the close; the file's form, the type's
+   hash then the value, written by rename, read through `migrate` at the service's start and
+   removed, written through the reverse `migrate` where the next build is older.
+5. **The cache and the surface.** A node's code on its disk by hash, fetched before the stop by
+   the exchange, a build's hashes let go when the plan no longer names it; the runtime's
+   surface named, versioned and in the cookie in place of `ern`'s version. The memory of code
+   measured here, which the plan once held as MVP 3.1a: how fast the host's module, fun and
+   export tables grow across deploys, and what the cache's letting go leaves of it.
+6. **`ern deploy`.** The coordinator in Ernest, a node like the shell: the plan and the yes, the
+   lockstep, the check by key at the plan's identities, a node that does not answer put back,
+   the way back as a rollout, nothing kept between runs.
+7. **The generated test**, `ern test --config-dir dir` where a build names the previous one:
+   the shape half, and the run half with two nodes, values generated for each state type and
+   written as state files, the rollout, the comparison by identity and round trip, the
+   rollback; the generator of values for a type.
+8. **The tests, the measurements and the guide.** The proposal's section 8 whole, on three nodes
+   on one machine; `experiments/code_update/`'s programs run as the generated test's first
+   subjects; the guide's chapter on a deploy, which teaches the two builds and small protocols
+   of a service's own with the shared record's number; `mvp3.2.md`'s status line.
 
 ---
 
-## MVP 3.2 (the libraries, as they are wanted)
+## MVP 3.3 (the shell's second round), about three weeks
+
+The shell's later work that its parts' merits take, decided with the user 2026-09-30 (the
+log's *The Shell's Second Round*), in this order. The first three need nothing of MVP 3.0 or
+3.1 and may be taken earlier where the user wants them.
+
+1. **Readline's remaining keys**, about a day: the kill ring with `M-y` cycling the earlier
+   kills, `C-t` and `M-t` transposing, and `M-u`, `M-l` and `M-c` for case, each a change to
+   `Shell.Editor`'s pure `edit`, with key-stream tests.
+2. **`:trace f`**, about two days: each call of `f` and each return printed, the values by
+   their types (§11.2).
+3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
+   constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
+   check an unfinished input, designed first.
+4. **A shell attached to a running node**, about a week: each input run on the peer, over MVP
+   3.0's peers and MVP 3.1's shipping of code. The shell's design does not assume it runs on
+   the node whose code it evaluates.
+5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
+   a running program an input opens end with the input's process, their owner (§11.2), and
+   the session could own them instead, so that they live until it ends, by a way the shell
+   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
+
+---
+
+## MVP 3.4 (the libraries, as they are wanted)
 
 A library not yet written waits, and is written when our work needs it, MVP 3.0 and 3.1 among
 that work, when someone asks for it, or when we want it, decided 2026-09-25 (the log's
@@ -274,30 +332,6 @@ package story. Written: `libs/ets`, `libs/markdown` and `libs/ansi` (Appendix G;
   rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
   with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is
   Placed*).
-
----
-
-## MVP 3.3 (the shell's second round), about three weeks
-
-The shell's later work that its parts' merits take, decided with the user 2026-09-30 (the
-log's *The Shell's Second Round*), in this order. The first three need nothing of MVP 3.0 or
-3.1 and may be taken earlier where the user wants them.
-
-1. **Readline's remaining keys**, about a day: the kill ring with `M-y` cycling the earlier
-   kills, `C-t` and `M-t` transposing, and `M-u`, `M-l` and `M-c` for case, each a change to
-   `Shell.Editor`'s pure `edit`, with key-stream tests.
-2. **`:trace f`**, about two days: each call of `f` and each return printed, the values by
-   their types (§11.2).
-3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
-   constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
-   check an unfinished input, designed first.
-4. **A shell attached to a running node**, about a week: each input run on the peer, over MVP
-   3.0's peers and MVP 3.1's shipping of code. The shell's design does not assume it runs on
-   the node whose code it evaluates.
-5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
-   a running program an input opens end with the input's process, their owner (§11.2), and
-   the session could own them instead, so that they live until it ends, by a way the shell
-   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
 
 ---
 
@@ -348,7 +382,7 @@ the terminal). The rest is MVP 3.3's.
   `proposals/nodes_and_code/experiments/code_update/`): `Supervisor.child(group, f)()` called
   inside a running child reads the process's start cause, which is the outer restart's, and
   reports a fault that did not happen, so the group may give up. Appendix E.22 is silent on
-  it. Decided with the user on 2026-10-07 (`code_update.md`, section 4): the call is refused,
+  it. Decided with the user on 2026-10-07 (`deploy.md`, section 13): the call is refused,
   `Fault("a process runs one child function")`, which E.22 states and `Supervisor` does
   when step D is built; an operation by which a child replaces the function its restart runs
   was decided the same day and withdrawn, no code changing in place. Until then the call is
@@ -494,7 +528,7 @@ harness every terminal test runs through, turned `Keys` into `Terminal`, split `
 into areas, and found about twenty defects in the toolchain. The log's entries from 2026-09-20
 to 2026-09-25 hold every argument.
 
-### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 3.2)
+### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 3.4)
 
 Pure Ernest, about five hundred lines: `Markdown.parse` reads CommonMark 0.31's blocks and
 inlines, and `Markdown.render` lays them out at a width, with the terminal's styles or as

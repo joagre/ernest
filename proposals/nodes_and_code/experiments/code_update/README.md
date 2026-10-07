@@ -1,6 +1,6 @@
 # The counter, written twice
 
-The experiment programs of [`code_update.md`](../../code_update.md), whose section 4 summarises them; the first, written and run on 2026-10-07 on one node with the toolchain as it stands, Ernest 0.3.1: a counter with its total as its state, first as the restart alone has it, then as a step function the library runs. Row C1, a change of logic behind an unchanged protocol and state type, runs both ways; row C2, a change of the state's shape, is where the second way stops, and its diagnostic is the experiment's finding.
+The experiment programs behind [`mvp3.2.md`](../../mvp3.2.md), whose reasons, [`deploy.md`](../../deploy.md), summarise them in section 15; the first, written and run on 2026-10-07 on one node with the toolchain as it stands, Ernest 0.3.1: a counter with its total as its state, first as the restart alone has it, then as a step function the library runs. Row C1, a change of logic behind an unchanged protocol and state type, runs both ways; row C2, a change of the state's shape, is where the second way stops, and its diagnostic is the experiment's finding.
 
 ## The files
 
@@ -68,7 +68,7 @@ upgrade_v3.ern:10:47: field next: expected (a) -> Unit with Service.Envelope(e, 
    | = help: the types differ at Service.Envelope(a, b) and Service.Envelope(Counter.Msg, Counter.Count)
 ```
 
-The `Upgrade` hands the state to new code through a function whose mailbox type is the loop's, `Envelope(Msg, Int)`, and version 3's loop runs under `Envelope(Msg, Count)`. The state's type is in the mailbox type, so a change of the state's shape in place is a change of the mailbox type, which only `become` makes. What `code_update.md` makes of it is its section 4, *Why not in place*.
+The `Upgrade` hands the state to new code through a function whose mailbox type is the loop's, `Envelope(Msg, Int)`, and version 3's loop runs under `Envelope(Msg, Count)`. The state's type is in the mailbox type, so a change of the state's shape in place is a change of the mailbox type, which only `become` makes. What `deploy.md` makes of it is its section 15, *Why not in place*.
 
 ## A second finding, on today's shell
 
@@ -224,7 +224,7 @@ Two items are put and read back, and a connection is answered `keys: 2`. After t
 
 ## Findings
 
-- **A changed state is a replace today, and the replace is the library's one message.** `Upgrade`'s function takes the old state and may do anything with it: starting a successor from `migrate` of it and ending is the handover, the planned stop's third step in `code_update.md`'s section 2, written in six lines, with no new concept. Its price is the one the document names: a new address, which the old handle no longer reaches, and the resource reopened, since the listener ends with its owner. Across nodes the same function would start the successor by `Peer.spawn` and the state would cross as a value.
+- **A changed state is a replace today, and the replace is the library's one message.** `Upgrade`'s function takes the old state and may do anything with it: starting a successor from `migrate` of it and ending is the handover, the planned stop's third step in `deploy.md`'s section 7, written in six lines, with no new concept. Its price is the one the document names: a new address, which the old handle no longer reaches, and the resource reopened, since the listener ends with its owner. Across nodes the same function would start the successor by `Peer.spawn` and the state would cross as a value.
 - **In place keeps the resource for nothing.** Row C1 kept the listener and its port through the upgrade, since the process is the same; nothing was given, nothing reopened.
 - **The helpers are version holders here too.** Each version's acceptor runs the module's `accepting` and holds that version; the third reload ended version 1's acceptor, as the chat server's readers were ended. A successor's acceptor ends with the old listener, which is right; a helper of an upgraded loop must be upgraded or listed.
 - **A first version of the program asked itself for its size.** `spawn(fn() = accepting(listener, via(self(), Service.Message)))` evaluates `self()` inside the spawned acceptor, so the acceptor's request went to the acceptor. The language is right and the program was wrong; the address is now bound outside the lambda. It is the kind of mistake the plan's generated test would have found, since the first connection answered nothing.

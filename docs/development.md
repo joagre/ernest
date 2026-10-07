@@ -22,7 +22,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 - **[`emacs/README.md`](../emacs/README.md)**: how to install the Emacs mode.
 
-The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 3.2.
+The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 3.4.
 
 ## The layout of the repository
 

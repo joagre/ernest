@@ -1,6 +1,6 @@
 # Ernest: MVP 3.2, The Ordered Rolling Restart
 
-Status: the proposal for step D of [`code.md`](code.md)'s section 1, *The four steps*, written on 2026-10-07 from [`code_update.md`](code_update.md), whose every question was decided with the user the same day; to be read back before anything is planned or built. The reasons for what it says are `code_update.md`'s; what other systems do is [`other_systems.md`](other_systems.md), section 7; what six programs showed is [`experiments/code_update/`](experiments/code_update/README.md). Its number in the plan is taken when it is settled.
+Status: the proposal for step D of [`code.md`](code.md)'s section 1, *The four steps*, written on 2026-10-07 from the thinking that is now [`deploy.md`](deploy.md), whose every question was decided with the user the same day, and settled with the user the same day. The reasons for what it says are [`deploy.md`](deploy.md)'s; what other systems do is [`other_systems.md`](other_systems.md), section 7; what six programs showed is [`experiments/code_update/`](experiments/code_update/README.md).
 
 ## 1. What it is
 
@@ -157,7 +157,7 @@ What remains is the build's: a generator of values for a type, which the test ne
 
 ## 10. Left out on purpose
 
-- A change of a running process's code, a change of its mailbox type under a translation, and the library's `Upgrade`: nothing in place, section 1; what they would cost is `code_update.md`'s section 4.
+- A change of a running process's code, a change of its mailbox type under a translation, and the library's `Upgrade`: nothing in place, section 1; what they would cost is [`deploy.md`](deploy.md)'s section 15.
 - An election, a lease, and a service that moves by itself at a failure: a library's over a store outside the nodes.
 - A drain that grows firmer: the runtime holds no connections of its own.
 - A set of addresses under one key, a service offered by several nodes at once.
