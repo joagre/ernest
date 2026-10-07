@@ -20,7 +20,7 @@ Nothing invisible, and the program decides. What the network does is a value the
 
 A protocol is a type. The mailbox's type is the contract between two processes, wherever they are: an address carries it, a key carries it, a service is found by it, and a version of a service is a type with another identity.
 
-What crosses is identified, never named. A node is its key, a process is its address, a protocol is its type's identity, and code, when it crosses, is its hash. A name is one node's own word, the alias in its configuration or a binding's name, and moves without changing what it named. Two names cross all the same: a key's, which is the program's word and is checked by the type's identity, and in MVP 3.0 a function's module and place, which the one build makes mean the same everywhere and which MVP 3.1 replaces by a hash.
+What crosses is identified, never named. A node is its key, a process is its address, a protocol is its type's identity, and code, when it crosses, is its hash. A name is one node's own word, the alias in its configuration or a binding's name, and moves without changing what it named. Three names cross all the same: a key's, which is the program's word and is checked by the type's identity; in MVP 3.0 a function's module and place, which the one build makes mean the same everywhere and which MVP 3.1 replaces by a hash; and a foreign declaration's qualified name with its type, since what it names is the host's and has no hash.
 
 These are Erlang's rules with identity made explicit and typed. Where this document departs from Erlang, a typed address, a failure answered as a value, a peer refused unless listed, the departure comes from the second and third of the four.
 
