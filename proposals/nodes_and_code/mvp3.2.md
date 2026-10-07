@@ -18,13 +18,12 @@ MVP 3.0's and MVP 3.1's bounds stay: a few nodes with one owner, listed by hand,
 
 ## 2. What a program sees
 
-**The operations.** `Peer` gains two things and the configuration one.
+**The operations.** `Peer` gains two things, §9.5 one and the configuration one.
 
 ```
 Peer.find     : (Peer.Key(m), Int) -> Either(Peer.Failure, Address(m)) with n
 Peer.standing : (Peer.Key(m), Int) -> Either(Peer.Failure, Address(m)) with n
-Service.start : (Peer.Key(m), () -> s with Service.Msg(m, s), (s, m) -> s with Service.Msg(m, s))
-                    -> Address(m) with n
+kept          : (Peer.Key(m), () -> s with m, (s, m) -> s with m) -> () -> Unit with m
 ```
 
 - `Peer.find(key, ms)` asks the nodes `ernest.conf` lists as the key's, in order, and answers the first address offered under the key at the key's type identity, with MVP 3.0's failures; `Peer.find(name, key, ms)` stays, for one named node.
@@ -33,27 +32,26 @@ Service.start : (Peer.Key(m), () -> s with Service.Msg(m, s), (s, m) -> s with S
 
 **The commands.** `ern deploy build --config-dir dir` is the coordinator: a node like the shell, listed by the nodes it deploys to. It prints the plan and waits for a yes, then does the rollout, and prints what stands at which version when it ends or stops. Run again after a crash or a cancel, it continues from where the nodes are. `ern stop --config-dir dir` is the planned stop, by `ernest.pid`; the signal the machine's service manager sends stays the quick end. Both take `--drain ms`, the drain's bound.
 
-**A service.** A service is a process of the standard library's `Service`. `Service.start(key, init, step)` spawns a process whose state is what `init` gives, offers the key with the process's address, and answers that address; `step` is run on each message, over the state and the message, and gives the next state. The library holds the state between steps, and so can answer the runtime's request for it at a planned stop, and send on what it is sent after. Where a state for the key was handed on, from the state file or from a moved service, the process begins with it, through `migrate` where its type changed, and `init` is not run. The library's own messages are `Service.Msg(m, s) = Message(m) | Hand(reply : Reply(s)) | Successor(address : Address(m))`, which the runtime alone sends. A process the program loops itself, with its own `receive`, is a worker: it keeps nothing across a restart, and a deploy promises it nothing.
+**A kept state.** `kept(key, init, step)` is a function of `restarting`'s family: it runs a loop the runtime owns, whose state is what `init` gives, and runs `step` on each message, over the state and the message, for the next state. The runtime holds the state between steps, and at a planned stop asks the process for it between two steps, as a supervisor asks for a restart (§6.9), and tells it where to send what arrives after. Where a state is kept under the key, in the state file or handed on from a moved process, the loop begins with it, through `migrate` where its type changed, and `init` is not run. `kept` composes with `spawn` and `restarting`: a fault in `step` restarts the loop from `init`, with nothing of the old run, as §6.9 says of every restart. A service whose state is to outlive a deploy is a `kept` loop; any other process begins afresh at its node's restart, and a deploy promises it nothing.
 
 **What the program writes.** For a service whose protocol changes, a function `forward : (OldMsg, Address(NewMsg)) -> Unit with n`, in the build that serves both; where every old constructor is kept in form the tool writes it. For a state type that changes, `migrate : (OldState) -> NewState`, derived where the diff decides it, written where it does not, and the same the other way. A renamed field is told by `was` in the new declaration. A new declaration takes a module of its own, and the old stays where it is until the build that drops it.
 
-**The state file.** A node writes, at its planned stop, the state of each service it alone may offer to `state/` in its configuration directory, one file for each key, and `Service.start` under that key reads it at its start, in place of `init`. A program sees nothing of it but the directory.
+**The state file.** A node writes, at its planned stop, the state of each service it alone may offer to `state/` in its configuration directory, one file for each key, and the `kept` loop under that key reads it at its start, in place of `init`. A program sees nothing of it but the directory.
 
 **The refusal.** `Supervisor.child`'s function run inside a process that is already a child faults with `Fault("a process runs one child function")`.
 
 ## 3. Examples
 
-The counter of [`mvp3.0.md`](mvp3.0.md)'s section 3 runs on the store, found by `Counter.key`, with the desk and the board as clients. The store writes it as a service, so that a deploy carries its total:
+The counter of [`mvp3.0.md`](mvp3.0.md)'s section 3 runs on the store, found by `Counter.key`, with the desk and the board as clients. The store keeps its total through `kept`, so that a deploy carries it, and is otherwise as MVP 3.0 has it:
 
 ```ernest-fragment
 // store.ern, build 1
 
-export fn main() : Unit with Never = {
-    let _ = Service.start(Counter.key, fn() = 0, step);
-    wait()
-}
+let counter : Address(Counter.Msg) =
+    spawn(restarting(RestartLimit(restarts = 3, within = 5000),
+                     kept(Counter.key, fn() = 0, step)))
 
-fn step(total : Int, message : Counter.Msg) : Int with n =
+fn step(total : Int, message : Counter.Msg) : Int with Counter.Msg =
     match message {
         Counter.Add(amount) -> total + amount
       | Counter.Get(reply = reply) -> {
@@ -61,6 +59,11 @@ fn step(total : Int, message : Counter.Msg) : Int with n =
             total
         }
     }
+
+export fn main() : Unit with Never = {
+    Peer.offer(Counter.key, counter);
+    wait()
+}
 ```
 
 The desk and the board are as they are in MVP 3.0, but that the board holds `Peer.standing(Counter.key, 5000)` in place of its find. `ernest.conf` on the desk and the board lists the key's nodes as the store, then the backup. Every node runs build 1.
@@ -73,7 +76,7 @@ plan: build 1 to build 2
 order: store, backup, desk, board
 ```
 
-The operator says yes. The store's keys are withdrawn; the desk's and the board's finds go to the backup, where nothing offers the key yet, so a standing address waits and a call through it answers `None` at its time; the store drains, asks the counter for its total, which the library answers, starts the counter of build 2 on the backup with that total, tells the old counter where it went, and closes; the store starts with build 2 and is checked; and so on through the four. The board sees one `Down` with `Unreachable` per node that stopped, which its standing address absorbs.
+The operator says yes. The store's keys are withdrawn; the desk's and the board's finds go to the backup, where nothing offers the key yet, so a standing address waits and a call through it answers `None` at its time; the store drains, asks the counter for its total, starts build 2's counter on the backup with that total, tells the old counter where it went, and closes; the store starts with build 2 and is checked; and so on through the four. The board sees one `Down` with `Unreachable` per node that stopped, which its standing address absorbs.
 
 **A changed protocol.** Build 3 adds `Reset` to `Counter.Msg`, in a module of its own, `counter2.ern`, with `Counter.Msg` kept and `Counter2.forward` written by the tool. `ern deploy build3` prints:
 
@@ -141,9 +144,9 @@ MVP 3.0's and MVP 3.1's limits stand.
 
 **The order.** The coordinator knows which keys each node offers and which keys each node's code finds, since a find is a reference the hashes see. It orders the nodes so that a node offering a changed service goes before the nodes whose code finds it, and in that order a new client never finds an old service. Where the graph has a cycle the coordinator picks an order and the plan names the finds that will wait.
 
-**The planned stop.** `ern stop`, or the coordinator's frame carrying the drain's bound and the next build's root hashes, runs four steps on the node. First, the node withdraws its keys: a find from a peer answers `NotOffered`, and a standing address asks the key's next node. Second, the drain: the node waits until no call waits on any of its services and their mailboxes are empty, or the bound passes, a minute unless `--drain` says otherwise. Third, each service's state: the node sends each service `Hand`, the library answers the state, and the service holds what it is sent from then. A service whose key another node may offer, which the coordinator names, is moved there: the state crosses to that node, which starts the library's loop from the next build's code in its cache, with the next build's `step` for the key, which the hashes name at its `Service.start`, and the state in place of `init`, through `migrate` where its type changed; the old service is sent `Successor` with the address started, sends it what it held, in order, and forwards until the close. A service whose key this node alone may offer writes its state to the file, and what it holds is lost at the close. A service whose state cannot cross, by §3.11's rule, writes nothing, and the next build's begins with `init`. Where the next build is older, the state is written through the reverse `migrate`, which the stopping build holds. Fourth, the close: the node ends as a node ends, in order, and the loss is the ordinary one.
+**The planned stop.** `ern stop`, or the coordinator's frame carrying the drain's bound and the next build's root hashes, runs four steps on the node. First, the node withdraws its keys: a find from a peer answers `NotOffered`, and a standing address asks the key's next node. Second, the drain: the node waits until no call waits on any of its services and their mailboxes are empty, or the bound passes, a minute unless `--drain` says otherwise. Third, each kept state: the node asks each `kept` loop for its state between two steps, and the loop holds what arrives from then. A state whose key another node may offer, which the coordinator names, is moved there: it crosses to that node, which starts a `kept` loop from the next build's code in its cache, with the next build's `step` for the key, which the hashes name at its `kept`, and the state in place of `init`, through `migrate` where its type changed; the old loop is told the address started, sends it what it held, in order, and forwards until the close. A state whose key this node alone may offer is written to the file, and what the loop holds is lost at the close. A state that cannot cross, by §3.11's rule, is not written, and the next build's loop begins with `init`. Where the next build is older, the state is written through the reverse `migrate`, which the stopping build holds. Fourth, the close: the node ends as a node ends, in order, and the loss is the ordinary one.
 
-**The state file.** Under `state/` in the configuration directory, one file for each key the node alone may offer, named by the key's name, holding the hash of the state type's identity and then the value in the encoding a value crosses in. It is written to a temporary name and renamed. `Service.start` under the key reads it, through `migrate` where the hash is not its own state type's, and removes it; where its build holds no `migrate` from that hash the service begins with `init` and says so on its standard error, which the plan said before the yes.
+**The state file.** Under `state/` in the configuration directory, one file for each key the node alone may offer, named by the key's name, holding the hash of the state type's identity and then the value in the encoding a value crosses in. It is written to a temporary name and renamed. The `kept` loop under the key reads it at its start, through `migrate` where the hash is not its own state type's, and removes it; where its build holds no `migrate` from that hash the loop begins with `init` and says so on its standard error, which the plan said before the yes.
 
 **Lockstep.** After a node's planned stop the coordinator starts it with the new build, waits until the node offers its keys, and finds each key at the identity the plan expects; then the next node. A node that does not answer within the plan's time stops the rollout: the coordinator starts that node with the previous build, the other nodes stand as they are, and the plan prints what stands at which version. The coordinator keeps no record: each node answers which build it runs, so a second `ern deploy` of the same build continues.
 
@@ -177,7 +180,7 @@ The runtime's tests run three nodes on one machine, as MVP 3.0's do: a planned s
 
 ## 9. Unsolved
 
-What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the exact syntax of `was`; the frame the coordinator sends a node, one or several; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, Appendix E for `Peer.find`, `Peer.standing`, `Service` and E.22's refusal, §11.3 for `keys` in `ernest.conf`; and the soundness argument's paragraph for the state file and `migrate`.
+What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the exact syntax of `was`; the frame the coordinator sends a node, one or several; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, §9.5 for `kept`, Appendix E for `Peer.find`, `Peer.standing` and E.22's refusal, §11.3 for `keys` in `ernest.conf`; and the soundness argument's paragraph for the state file and `migrate`.
 
 ## 10. Left out on purpose
 
