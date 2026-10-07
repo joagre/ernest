@@ -1,6 +1,6 @@
 # Ernest: MVP 3.0, Peers
 
-Status: a proposal, to be read back and discussed before anything is planned or built. Section 9 holds what is unsolved. The reasons for what it says are in [`nodes.md`](nodes.md).
+Status: the proposal for MVP 3.0, peers, settled on 2026-10-07 after a read-back against its four rules; it changes only by a question raised against it. One is raised and decided in principle: a service placed by eligibility, which [`code_update.md`](code_update.md)'s section 2 states and which changes `Peer.find` and the configuration when this proposal is edited next. Section 9 holds what is unsolved. The reasons for what it says are in [`nodes.md`](nodes.md).
 
 ## 1. What it is
 
@@ -40,7 +40,7 @@ These are Erlang's rules with identity made explicit and typed. Where this docum
 | `kill(address)` | kills the process on its node |
 | `via(address, f)` | the adapted address may cross; `f` runs on the node that made it |
 
-**What is new.** The module `Peer`, one constructor of `Reason`, and one command.
+**What is new.** The module `Peer`, one constructor of `Reason`, and three commands, `ern config`, `ern reload` and `ern stop`.
 
 ```
 type Peer.Key(m)
@@ -287,7 +287,7 @@ The host's cookie is the build's fingerprint: each node computes it at its start
 
 **Placement by load.** Two libraries stand on `Peer`, written in Ernest. The library `Load` gives the host's measures of this node, each a shim: the run queue and the schedulers' utilisation, which any node has, and memory and disk, from the host's `memsup` and `disksup`, which answer a failure on a node whose `measures` did not start them. The library `Balancer` places work. A balancer is a process: `Balancer.start(places)` gives its address, a place being this node or a peer's name, a type of the library's, and `Balancer.spawn(balancer, f, ms)` asks it for a spawn. It is round robin unless given a measure. A measure is a function from the program, answering a load from 0.0 to 1.0; a program installs it on a place by `Balancer.measure(place, f)`, which spawns a measuring process there, by `Peer.spawn` where the place is a peer, and the process offers itself under `Balancer.key`. The function captures what it needs and names no binding of the program's, so that it runs on any node. Numbers are not spread: a pick draws two candidates at random, calls each one's measuring process, and takes the lower. A node that offers no measure, or is out of reach, is passed over.
 
-**The shell.** `ern shell --config-dir dir` is a node like any other: what is typed at it finds, calls and sends to its peers' services. A function typed at the shell is in a module of the shell's own, which no peer has, so a spawn of it on a peer fails with `NotLoaded`; a function of the build spawns as from a program. `:load` and `:reload` are refused in a shell that is a node, with an error naming MVP 3.1.
+**The shell.** `ern shell --config-dir dir` is a node like any other: what is typed at it finds, calls and sends to its peers' services. A function typed at the shell is in a module of the shell's own, which no peer has, so a spawn of it on a peer fails with `NotLoaded`; a function of the build spawns as from a program. `:load` and `:reload` are refused in a shell that is a node, with an error naming MVP 3.1, and so is `ern run --config-dir dir` with no `.erc`, since in MVP 3.0 a node runs a program.
 
 **Other nodes' processes and resources.** `Process.info` answers for the running node's processes alone, and `None` for a process of another node. A supervisor's children run on its own node.
 

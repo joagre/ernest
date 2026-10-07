@@ -78,30 +78,35 @@ Designed in [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md), settled with t
 [`nodes.md`](../proposals/nodes_and_code/nodes.md), what the host showed is the experiment under
 [`experiments/`](../proposals/nodes_and_code/experiments/erlang_distribution/), and
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md) holds what other systems do.
-**The report's §8.7 and §10 and the guide's peer chapter describe the design before the
-proposal. They are rewritten from it as this milestone's first item, and nothing is built from
-them until then.** Before this milestone is built, MVP 3.1's design is written the same way
+**The report's §8.6, §8.7 and §10 and the guide's peer chapter describe the design before the
+proposal. The report's are rewritten from it as this milestone's first item and the guide's as
+its last, and nothing is built from them until then.** Before this milestone is built, MVP 3.1's design is written the same way
 (MVP 3.1 below), so that the proposal's section 11, what MVP 3.0 leaves room for, is checked
 against a design and not a guess; MVP 3.0's items are then confirmed or corrected from it.
 
-The items, in build order, each with the report's sentences first, its tests, and a commit:
+The items, in build order, each with the report's sentences first, its tests, and a commit.
+Each builds its area as the proposal's section 6 states it, whole: the proposal is the
+specification, and this list the order.
 
-1. **The report and the guide rewritten from the proposal, and the soundness argument's
-   section 7.** §6.2's one silence widened to a `send` or a `kill` to a process whose node is
-   out of reach or not listed; §6.4's unbroken prefix; §6.5's adapted address across nodes;
+1. **The report rewritten from the proposal, and the soundness argument's section 7.**
+   §6.2's one silence widened to a `send` or a `kill` to a process whose node is out of reach
+   or not listed; §6.4's order for one sender and one receiver across nodes, with the corner
+   of an adapted address made on the receiver's node (the proposal's section 4, points 1 and
+   2); §6.5's adapted address across nodes;
    §6.6's calls across nodes; §7.4's causes; §8.3, §8.5, §8.6 and §8.7 as the proposal has
    them, no code crossing; §9.3's `Unreachable`; §10 whole; §11.2 and §11.3 for `--config-dir`,
-   `ern config` and `ern reload`; Appendix E's section for `Peer`, E.21's `Process.info`, E.18
-   and E.23 for a resource bound to its node; Appendix F; §8.6 for a node's end, hangup a
-   reload and termination an end. The log's entries for each, pointing at `nodes.md` for the
+   `ern config`, `ern reload` and `ern stop`; Appendix E's section for `Peer`, E.21's
+   `Process.info`, E.18 and E.23 for a resource bound to its node; Appendix F's words for a
+   node, a peer, a key and the gateway; §8.6 for a node's end, hangup a reload and termination
+   an end. The log's entries for each, pointing at `nodes.md` for the
    argument. The rewrite leaves room for `ern run --config-dir dir` with no file, MVP 3.1's
-   bare node, and adds nothing for it. With them, as the build
-   reaches each: `soundness.md`'s section 7; `architecture.md` for the gateway, the peer
-   table, the helpers and the rows a call keeps; `memory.md` for what those hold and when
+   bare node, and adds nothing for it. `soundness.md`'s section 7 is written here, before
+   item 2, as the proposal's section 9 asks. With them, as the build reaches each:
+   `architecture.md` for the gateway, the peer table, the helpers and the rows a call keeps; `memory.md` for what those hold and when
    they let go; `style.md`'s glossary for peer, gateway, key, bound type and helper;
    `test/diagnostics.md` for the compiler's refusals; the manual pages and `ern --help` for
-   `ern config`, `ern reload` and `--config-dir`; and a program of two nodes under
-   `examples/`. When it is built, `mvp3.0.md`'s status line says so and the report owns
+   `ern config`, `ern reload`, `ern stop` and `--config-dir`; and the proposal's program of
+   three nodes under `examples/`. When it is built, `mvp3.0.md`'s status line says so and the report owns
    the rules; the proposal and `nodes.md` stay as the record, as CLAUDE.md has it.
 2. **The node.** `ern config`: the key, the certificate with the longest validity, `ernest.conf`,
    the public key printed. The configuration: `listen`, the peers with name, key and
@@ -111,9 +116,12 @@ The items, in build order, each with the report's sentences first, its tests, an
    of what runs; the detector's time. `ernest.pid` and its guard; the bindings before the
    listener; hangup a reload and termination an end, `ern stop`; the orderly end; what a
    node says, with the host's reports off.
-3. **Messages and addresses.** The bound type in the checker: `Peer.key` of a bound type, a
-   spawn whose captures are bound or have a type variable, and a spawn whose mailbox type is
-   bound, refused. `send` as the host's;
+3. **Messages and addresses.** The bound type in the checker: `Peer.key` of a bound type or
+   of a type not fully known where it is written, a spawn whose captures are bound or have a
+   type variable, and a spawn whose mailbox type is bound, refused. Serialization as the
+   proposal's section 6 has it, the host's format, a constructor as its name's text, nothing
+   looked into on arrival, with a test that a correct program's messages make no new atom on
+   the node that receives them. `send` as the host's;
    `Reason`'s `Unreachable`; a `Down` with an empty site across nodes; `kill`; the gateway for
    an adapted address, its function's fault to the sender, its captures checked as it crosses.
 4. **Calls.** The request sent without waiting and the helper where the buffer is full,
@@ -127,7 +135,10 @@ The items, in build order, each with the report's sentences first, its tests, an
 6. **`Load` and `Balancer`**, in Ernest on the runtime, with `measures` starting the host's
    services: the first programs written on the design.
 7. **The tests**, with real nodes on one machine as the experiment runs them, holding the
-   proposal's section 4 whole, the parted network through the proxy among them; the costs of
+   proposal's section 4 whole and the cases of its section 8, nodes with keys of their own, a
+   peer stopped for a silent one, a node started again, a node that does not listen, a node
+   of another build and a node that ends, the parted network through the proxy among them; a
+   program's own test of two nodes with `ern config` and `Os`, as section 8 has it; the costs of
    the proposal's section 9 measured; `docs/development.md`'s table for the refusals that
    name MVP 3.1, the shell's two and `ern run --config-dir dir` with no file; and the guide's
    peer chapter, here and not in item 1, since its examples run only once items 2 to 6 are
@@ -136,7 +147,8 @@ The items, in build order, each with the report's sentences first, its tests, an
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two services under one name on one node are not told apart beyond their
 types (its section 9, point 2); a connected peer may do anything on this carrier, and no
-right is narrowed (point 1).
+right is narrowed (point 1); and what other systems teach beyond the carrier and the address
+rule (point 6) is `nodes.md`'s and `other_systems.md`'s, and no item's.
 
 ---
 
@@ -526,7 +538,7 @@ of 2026-09-25 and 2026-09-26 hold every decision.
 ### MVP 2.66 — the standard library's `Supervisor` (done 2026-09-27)
 
 Its opening decided the three questions left in the feedback list. `remote` left the language,
-placement by load going to MVP 3.0's `Peer.nodes`, `Peer.runQueue` and `libs/balancer` (items
+placement by load going to MVP 3.0's `Peer.nodes` and the libraries `Load` and `Balancer` (items
 14 and 25; §6.7; the log's *No Remote Computation in the Language*). The command line is
 `Os`'s, with `Os.run` and `Os.exit`, built in MVP 2.7 (item 16; the log's *A Program's Command
 Line Is `Os`'s* and *A Program Ends With `Os.exit`*). The build is `stdlib/supervisor.ern`
