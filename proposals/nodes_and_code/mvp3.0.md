@@ -358,7 +358,7 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 2. **Settle now what a program writes.** A program writes the types of `Peer`'s functions and matches on the constructors of `Reason` and of `Peer.Failure`. A change to any of them breaks programs, where a change beneath them does not. So `Peer.Failure` is settled with the later milestones in view: `OtherType` has room for a service that is at another version, `NotLoaded` for code the peer does not have, and `Refused`'s text for what a later handshake refuses.
 
-3. **Keep closed what will change beneath.** The protocol never looks inside a function's reference, which is a place in a module now and a hash later. It compares a type's identity, at a find, and never asks how it was made: the type's text in MVP 3.0, a hash in MVP 3.1. A message carries nothing of its type in MVP 3.0, and step B puts a hash on it, which the fourth rule allows; the protocol then allows that a process comes to accept more than one type's hash, as a process that has changed its protocol will. It speaks of the connection between two nodes and not of what carries it, so that another carrier can take the host's place. And it asks a table for a peer's address and key, and not a file, so that a table filled another way can replace it.
+3. **Keep closed what will change beneath.** The protocol never looks inside a function's reference, which is a place in a module now and a hash later. It compares a type's identity, at a find, and never asks how it was made: the type's text in MVP 3.0, a hash in MVP 3.1. A message carries nothing of its type, in MVP 3.0 and after: every remote address a program holds came from a find, a spawn or a message whose type was already agreed. The protocol allows that a process comes to accept more than one type's identity, as a process that has changed its protocol will. It speaks of the connection between two nodes and not of what carries it, so that another carrier can take the host's place. And it asks a table for a peer's address and key, and not a file, so that a table filled another way can replace it.
 
 4. **The wire is not kept.** The protocol's version is in the cookie, so two nodes of different versions never connect, and MVP 3.1 is a new version: every node changes over at once. Nothing in MVP 3.0 promises that a node of one milestone talks to a node of the next.
 
@@ -367,7 +367,7 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 | Step | What it gives | Where |
 |---|---|---|
 | A | one build on every node, and a deploy that stops them all | MVP 3.0 |
-| B | nodes of different builds connect; a message is accepted by its type's hash, and a spawned function only where the peer has its module, and all that module depends on, unchanged; no code crosses | a step after MVP 3.0, to be weighed |
+| B | nodes of different builds connect; a message is accepted by the address it was sent through, and a spawned function only where the peer has its module, and all that module depends on, unchanged; no code crosses | a step after MVP 3.0, to be weighed |
 | C | a hash for each definition; code crosses with a spawn; two versions stand side by side on a node | MVP 3.1 |
 | D | a running process takes new code, and later a new protocol | after MVP 3.1 |
 
