@@ -49,7 +49,6 @@ type Peer.Failure = NotListed | Unreachable | Refused(String) | Timeout
 
 Peer.key            : (String) -> Peer.Key(m)
 Peer.offer          : (Peer.Key(m), Address(m)) -> Unit with n
-Peer.find           : (String, Peer.Key(m), Int) -> Either(Peer.Failure, Address(m)) with n
 Peer.find           : (Peer.Key(m), Int) -> Either(Peer.Failure, Address(m)) with n
 Peer.spawn          : (String, () -> Unit with m, Int) -> Either(Peer.Failure, Address(m)) with n
 Peer.spawnMonitored : (String, () -> Unit with m, (Down) -> n, Int)
@@ -59,7 +58,7 @@ Peer.nodes          : () -> List(String) with n
 
 - A *key* names a service to a node's peers and carries the service's message type: `Peer.key("counter")`, bound at the type `Peer.Key(Msg)`. It is a value, and starts nothing.
 - `Peer.offer(key, address)` lets this node's peers find `address` under the key.
-- `Peer.find(name, key, ms)` answers the address the peer of that name offers under the key, typed by the key. `Peer.find(key, ms)` asks the peers `ernest.conf` lists as the key's, in order, and answers the first address offered under it.
+- `Peer.find(key, ms)` asks the peers `ernest.conf` lists as the key's, in order, and answers the first address offered under the key, typed by the key. Where a service lives is the configuration's, never the program's: a key with no entry answers `NotListed`, and a service on one node is an entry of one peer.
 - `Peer.spawn(name, f, ms)` starts a process that runs `f` on the peer of that name and answers its address. `Peer.spawnMonitored(name, f, wrap, ms)` monitors it from its start.
 - A find and a spawn wait at most `ms` milliseconds, from the operation itself, and answer the address or a failure, which the program matches on. Neither faults for what the network or the peer does.
 - `Peer.nodes()` answers the names of the peers this node lists, in the configuration's order. The running node is no peer of itself.
@@ -70,7 +69,7 @@ The failures, in the order a request meets them. One type serves a find and a sp
 
 | Failure | Says |
 |---|---|
-| `NotListed` | the name is no peer's in this node's configuration |
+| `NotListed` | the key's name has no peers in this node's configuration, or the name is no peer's |
 | `Unreachable` | no connection could be opened, or it was lost while waiting |
 | `Refused(text)` | the peer refused the connection: this node is not listed there, or the builds differ |
 | `Timeout` | no answer came in time |
@@ -126,7 +125,7 @@ fn wait() : Unit with Never =
 // desk.ern
 
 export fn main() : Unit with Never =
-    match Peer.find("store", Counter.key, 5000) {
+    match Peer.find(Counter.key, 5000) {
         Left(Timeout) -> Io.println("the store did not answer")
       | Left(_) -> Io.println("the store is not there")
       | Right(counter) -> {
@@ -150,7 +149,7 @@ fn report(total : Optional(Int)) : Unit with m =
 type Msg = Tick
 
 export fn main() : Unit with Msg =
-    match Peer.find("store", Counter.key, 5000) {
+    match Peer.find(Counter.key, 5000) {
         Left(_) -> Io.println("the store is not there")
       | Right(counter) -> {
             Clock.alarm(1000, fn(_) = Tick);
@@ -171,7 +170,7 @@ fn show(counter : Address(Counter.Msg)) : Unit with Msg =
     }
 ```
 
-Each node has a configuration directory, made once with `ern config --config-dir dir`: the file `ernest.conf` and the node's private key. The desk's `ernest.conf` names the store, and the store's names the desk in the same way:
+Each node has a configuration directory, made once with `ern config --config-dir dir`: the file `ernest.conf` and the node's private key. The desk's `ernest.conf` names the store, says that the counter is found there, and the store's names the desk in the same way, with no `keys`:
 
 ```json
 {
@@ -183,7 +182,8 @@ Each node has a configuration directory, made once with `ern config --config-dir
       "network-address": "store.example:8654",
       "public-key": "<the store's public key>"
     }
-  ]
+  ],
+  "keys": { "counter": ["store"] }
 }
 ```
 
@@ -216,7 +216,8 @@ Where the store's node is stopped and started, its counter is a new process, whi
 
 ## 5. What does not hold
 
-1. **`Unreachable` is not death.** A watcher that replaces a process it was told is out of reach can have two. What must exist once lives on one named node, and is unavailable while that node is out of reach.
+1. **`Unreachable` is not death.** A watcher that replaces a process it was told is out of reach can have two. What must exist once lives on one node, and is unavailable while that node is out of reach.
+15. **A find spends its time in the order of the list.** Each of a key's peers is given the time left, and a silent peer early in the list can take the whole of it before the next is asked.
 2. **A call that ended without an answer may have run.** `None` says that no answer came, and nothing of why, or of whether the request ran; it is the same where the request was never sent. A request that may be sent again is written so that running twice does no harm. A program that wants to know why monitors the callee.
 3. **A spawn that failed may have started its process.** Where the spawn's time runs out, or the connection is lost while the spawner waits, the spawner is told only that. Where the connection lasts, the process is ended as soon as its answer arrives; where it was lost, the process runs on, and no one holds its address.
 4. **A sender to a stalled peer waits.** Where more waits to be sent to a peer than the host's buffer holds, a plain `send` to that peer waits until it drains, at the latest until the detector gives the peer up. A plain `send` to a peer with no connection open waits for the dial too, up to the 7 seconds the host gives one that nothing answers, and the message is then dropped. A process that waits in a send serves nothing from its mailbox meanwhile. A call, a find, a spawn and an `answer` are not held: their request waits for the network in a process of the runtime's. A service that pushes to many remote clients does it through a process for each.
@@ -237,7 +238,7 @@ Where the store's node is stopped and started, its counter is a new process, whi
 
 **A node.** A node's identity is its TLS public key, and its name on the carrier is the key's SHA-256 digest with a constant after it: the same on every node, and holding no network address. A program never sees it; a peer's name in a program is the name this node's `ernest.conf` lists the peer under. `ern config --config-dir dir` makes the node's key, a certificate the node signs itself, whose name is a constant and whose validity is the longest the format allows, and `ernest.conf`; it prints the public key, which is what another node's configuration lists. A configuration directory is made for one machine and never copied. A node has a configuration only where `--config-dir` names one: a program started without one is no node, has no peers and listens to nothing. As it starts, a node refuses a directory others can write and a key others can read.
 
-**Its configuration.** `ernest.conf` holds the node's `listen`, its public key, its peers, its `keys` and its `measures`. `listen` is what the node's listener binds to, an address of one interface, or `0.0.0.0` or `::` for all of them, and a port; a node without one does not listen, and only dials. A peer has a name, a public key and a `network-address`, `host:port`, the host a name or an address, an IPv6 one in brackets; a name is resolved by the host at each dial. A peer may be listed without an address, and is then never dialled: it is out of reach until it opens a connection itself. A node runs over one family of addresses, IPv4 or IPv6, the listener's, or IPv4 where there is none; a peer whose address is of the other family, or whose name resolves only to it, is refused when the configuration is read, with an error that names the peer. `keys` lists, for a key's name, the peers that may offer it, by their aliases, in the order a find by the key alone asks them; a key not listed is found on one named peer. `measures` names which of the host's measures run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it by their meaning, `check-interval`, `almost-full`; none runs where the section is absent. The host's own names for the services stay out of the file; the library `Load`'s page gives them.
+**Its configuration.** `ernest.conf` holds the node's `listen`, its public key, its peers, its `keys` and its `measures`. `listen` is what the node's listener binds to, an address of one interface, or `0.0.0.0` or `::` for all of them, and a port; a node without one does not listen, and only dials. A peer has a name, a public key and a `network-address`, `host:port`, the host a name or an address, an IPv6 one in brackets; a name is resolved by the host at each dial. A peer may be listed without an address, and is then never dialled: it is out of reach until it opens a connection itself. A node runs over one family of addresses, IPv4 or IPv6, the listener's, or IPv4 where there is none; a peer whose address is of the other family, or whose name resolves only to it, is refused when the configuration is read, with an error that names the peer. `keys` lists, for a key's name, the peers that may offer it, by their aliases, in the order a find asks them; a key not listed is found nowhere. `measures` names which of the host's measures run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it by their meaning, `check-interval`, `almost-full`; none runs where the section is absent. The host's own names for the services stay out of the file; the library `Load`'s page gives them.
 
 **Its start and its end.** Each start of a node has a number of its own, which the host draws and puts in every address, so that an address of an earlier start is dead. A node runs, at its start, the top-level bindings of the standard library and of the modules its entry point depends on, as a program on one node does, and listens only once they all have their values. An initializer that faults ends the node, as it ends a program. A node writes its process number to `ernest.pid` in its directory at its start and removes it at its exit; a node that starts and finds the file naming a living process refuses to start, saying so, and overwrites a file left by one that died. A node ends when its program ends, or by termination, which `ern stop --config-dir dir` sends by `ernest.pid` and `kill -TERM` sends as well. A node that ends is no loss to its peers: its processes die with `ProgramEnd`, and the node stops the way the host stops a node, in order, so that every `Down` already on its way crosses before the connection closes. A peer's monitor on one of its processes gives `ProgramEnd`; only a monitor made after that gives `Unreachable`.
 
@@ -282,7 +283,7 @@ The host's cookie is the build's fingerprint: each node computes it at its start
 
 **A spawn.** `Peer.spawn(name, f, ms)` sends the peer a frame with `f` as a reference to its code, its module and its place there, the values it captured, and the spawn's site, which the peer records for the process as it records a local spawn's. The peer starts the process and answers with its address. The spawner waits at most `ms` milliseconds, the opening of a connection among them. The wait ends when the peer answers, when no connection can be opened, when the connection is lost, or when the time runs out, with the failures of section 2. A monitored spawn that fails leaves no monitor. A spawn never faults. An answer that comes when the spawner no longer waits, its time having run out or the spawner having ended, makes the node kill the process it names; the node keeps what it needs for that until the answer arrives or the connection is lost.
 
-**A service and its key.** On one node a service is a top-level binding that holds an address, and a process reaches it by the binding's name. A peer cannot name another node's binding, so a service that peers are to reach is offered under a key. A key holds a name and the text of a message type, as the compiler prints it, `Counter.Msg` or `Box(Int)`. The compiler takes the type where `Peer.key` is written, and refuses a key whose message type is not fully known there. `Peer.offer(key, address)` is accepted by the compiler only where the key and the address have one message type. The node keeps the address under the key's name for as long as the process lives, and a later offer under the same name takes its place. An offer cannot fail for a name, and nothing withdraws one: it ends with its process. Only a process of the offering node may be offered; an offer of any other address faults the caller. `Peer.find(name, key, ms)` asks the peer for what it offers under the key's name, and the peer answers the address where the type's text is the same; `Peer.find(key, ms)` asks the key's peers in order and answers the first that offers. A find that finds again when the service it found ends is a library's, written in Ernest over `Peer.find` and `monitor` (`mvp3.2.md`). The finder waits at most `ms` milliseconds, as a spawner does, with the failures of section 2. Only what a node offers can be found: its other bindings are closed to its peers. A find ships no code; the one operation that carries a function to a peer is a spawn.
+**A service and its key.** On one node a service is a top-level binding that holds an address, and a process reaches it by the binding's name. A peer cannot name another node's binding, so a service that peers are to reach is offered under a key. A key holds a name and the text of a message type, as the compiler prints it, `Counter.Msg` or `Box(Int)`. The compiler takes the type where `Peer.key` is written, and refuses a key whose message type is not fully known there. `Peer.offer(key, address)` is accepted by the compiler only where the key and the address have one message type. The node keeps the address under the key's name for as long as the process lives, and a later offer under the same name takes its place. An offer cannot fail for a name, and nothing withdraws one: it ends with its process. Only a process of the offering node may be offered; an offer of any other address faults the caller. `Peer.find(key, ms)` asks the key's peers, in the order `keys` lists them, each given the time left, for what it offers under the key's name, and a peer answers the address where the type's text is the same. The find passes over `Unreachable`, `Refused`, `NotOffered` and `OtherType`, answers the first address, and otherwise the last failure met, or `Timeout` where the time ran out. A find that finds again when the service it found ends is a library's, written in Ernest over `Peer.find` and `monitor` (`mvp3.2.md`). The finder waits at most `ms` milliseconds, as a spawner does, with the failures of section 2. Only what a node offers can be found: its other bindings are closed to its peers. A find ships no code; the one operation that carries a function to a peer is a spawn.
 
 **Bindings.** A function spawned on a node runs only where the bindings that function depends on have their values there; otherwise the peer starts nothing, and the spawn fails with `NotLoaded`. Nothing is initialized because a peer asked. A spawn that arrives before a node's bindings all have their values, over a connection the node dialled itself, is answered `NotLoaded`, and the spawner may try again. In spawned code a top-level binding is the peer's, and a captured value is the spawner's; the system processes are the peer's too, so `Io.println` in a process spawned on a peer writes to the peer's standard output.
 
@@ -318,7 +319,7 @@ The host's cookie is the build's fingerprint: each node computes it at its start
 
 The carrier is the host's and has its own long record. It is not checked again.
 
-What is Ernest's is small: the rule that accepts a peer by its key, the cookie that is the build's fingerprint, the gateway for a spawn, a find and an adapted address, and the start of a process on a peer. It is tested with real nodes on one machine, as the experiment that tried the carrier is ([`other_systems.md`](other_systems.md), section 4): nodes with keys of their own, a peer stopped to stand for a silent one, a node started again, a node that does not listen, a node of another build, a node that ends, and a network parted through a proxy that drops what passes one way or both. Those tests hold the claims of section 4.
+What is Ernest's is small: the rule that accepts a peer by its key, the cookie that is the build's fingerprint, the gateway for a spawn, a find and an adapted address, the find over a key's peers in the order and the time stated, passing over the failures it passes over, and the start of a process on a peer. It is tested with real nodes on one machine, as the experiment that tried the carrier is ([`other_systems.md`](other_systems.md), section 4): nodes with keys of their own, a peer stopped to stand for a silent one, a node started again, a node that does not listen, a node of another build, a node that ends, and a network parted through a proxy that drops what passes one way or both. Those tests hold the claims of section 4.
 
 A program's own tests of two nodes need nothing new: `ern test --config-dir dir` makes the test run a node, and a test makes a second configuration directory with `ern config`, lists each node in the other's `ernest.conf` on two ports of this machine, starts the second node with `Os` as a child program on the same build, talks to it as to any peer, and ends it.
 

@@ -18,7 +18,7 @@ MVP 3.0's and MVP 3.1's bounds stay: a few nodes with one owner, listed by hand,
 
 ## 2. What a program sees
 
-**The operations.** `Peer` gains one thing, §9.5 one, the configuration one, and a library is written.
+**The operations.** §9.5 gains one function and a library is written; `Peer.find(key, ms)` and the `keys` section are MVP 3.0's, used here.
 
 ```
 Peer.find     : (Peer.Key(m), Int) -> Either(Peer.Failure, Address(m)) with n
@@ -26,9 +26,8 @@ kept          : (Peer.Key(m), () -> s with m, (s, m) -> s with m) -> () -> Unit 
 Standing.start : (Peer.Key(m), Int) -> Address(m) with n
 ```
 
-- `Peer.find(key, ms)` asks the nodes `ernest.conf` lists as the key's, in order, and answers the first address offered under the key at the key's type identity, with MVP 3.0's failures; `Peer.find(name, key, ms)` stays, for one named node.
+- `Peer.find(key, ms)` and `keys` are as mvp3.0.md's section 2 has them: a key's nodes are the configuration's, in the order a find asks them.
 - `Standing.start(key, ms)`, of the library `Standing` under `libs/`, spawns a process that finds the key and forwards to the service what it is sent, and answers `via` of that process; it is an ordinary process the program spawned, and every rule of the report holds of its address as of any. It finds the key within `ms`, monitors the service, finds again when the service ends or its node is lost, with `ms` between finds while a find fails, and ends with the process that started it. A send to it while the service is away is dropped, as a send during a loss is, and a call through it waits by its own time and answers `None` where the service is not back. A program that is to monitor the service itself holds the address `Peer.find` gives.
-- `ernest.conf` gains a section `keys`: for a key's name, the peers that may offer it, by their aliases, in the order a find asks them. A key not listed is found on one named node, as in MVP 3.0.
 
 **The commands.** `ern deploy build --config-dir dir` is the coordinator: a node like the shell, listed by the nodes it deploys to. It prints the plan and waits for a yes, then does the rollout, and prints what stands at which version when it ends or stops. Run again after a crash or a cancel, it continues from where the nodes are. `ern stop --config-dir dir` is the planned stop, by `ernest.pid`; the signal the machine's service manager sends stays the quick end. Both take `--drain ms`, the drain's bound. The configuration directory names the build the node runs, in its file `build`: `ern run --config-dir dir prog.erc` runs the program and writes its root there, and `ern run --config-dir dir` runs the build the file names, from the cache, and is MVP 3.1's bare node where the file names none. So a node started by anyone, the machine's service manager or an operator, runs the build the last planned stop named.
 
