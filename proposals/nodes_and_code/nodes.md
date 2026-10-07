@@ -1,6 +1,6 @@
 # Ernest: Nodes, the reasons
 
-Status: the reasons for nodes as designed through MVP 3.1, in the order of [`mvp3.0.md`](mvp3.0.md)'s section 6, kept in sync with the latest proposal that touches nodes; nothing here is normative, and the proposals state what this argues. Where MVP 3.0 and MVP 3.1 differ, a paragraph says so. The reasons for hashing itself, the exchange that ships code, a node's code and `Code` are [`code.md`](code.md)'s; what other systems do is [`other_systems.md`](other_systems.md); what the host showed is the experiment under [`experiments/`](experiments/erlang_distribution/).
+Status: the reasons behind [`mvp3.0.md`](mvp3.0.md), nodes as MVP 3.0 and MVP 3.1 design them. The sections follow the order of `mvp3.0.md`'s section 6, and a paragraph that begins *From MVP 3.1* says where that milestone changes the rule. Nothing here is normative: the proposals state the rules, and this document says why. Three things are elsewhere: the reasons for code by its hash are [`code.md`](code.md)'s; what other systems do is [`other_systems.md`](other_systems.md); and what the host showed is the experiment under [`experiments/`](experiments/erlang_distribution/).
 
 ## 1. The carrier
 
