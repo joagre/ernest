@@ -12,6 +12,18 @@ Three things bound the milestone:
 - **No change in place.** A deploy stops every node and starts every node.
 - **A few nodes with one owner.** Every node lists its peers by hand, and trusts each of them completely.
 
+**What rules the design.** Four things decide every sentence that follows, and MVP 3.1's as well.
+
+Erlang's process semantics, taken whole. A process is isolated and owns its state. A message is asynchronous, arrives at most once, and in order for each sender and receiver. A process learns of another's end through a monitor, once. A loss is a connection's, and both sides learn of it. The runtime sends nothing twice and waits for nothing on the program's behalf, except where the network itself is behind.
+
+Nothing invisible, and the program decides. What the network does is a value the program matches on; a fault is the program's own mistake, on a peer as on one node. No identity moves, no cluster votes, nothing is retried, and a policy, finding a service again, placing work, is a library's. The runtime says what is true and does nothing more. A process changes its code only by its own act.
+
+A protocol is a type. The mailbox's type is the contract between two processes, wherever they are: an address carries it, a key carries it, a service is found by it, and a version of a service is a type with another identity.
+
+What crosses is identified, never named. A node is its key, a process is its address, a protocol is its type's identity, and code, when it crosses, is its hash. A name is one node's own word, the alias in its configuration or a binding's name, and moves without changing what it named.
+
+These are Erlang's rules with identity made explicit and typed. Where this document departs from Erlang, a typed address, a failure answered as a value, a peer refused unless listed, the departure comes from the second and third of the four.
+
 **The building block** is small. An *address* names one process for as long as that process lives, on whichever node it is. A *connection* carries what two nodes send each other, for as long as it lasts. A *loss* of the connection ends what was in flight and nothing else: what waited to be sent is dropped, each monitor gets its one `Down`, and each waiting call ends. The address is as good as before, and when the two nodes connect again it reaches its process again. What carries all of it is Erlang's own distribution, with what hurts in it turned off and Ernest's types put on it (section 6).
 
 ## 2. What a program sees
