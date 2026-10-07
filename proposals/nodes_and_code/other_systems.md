@@ -340,3 +340,28 @@ Swift's distributed actors, Unison and its cloud, and the capability systems tha
 - [T-26] https://github.com/Asynkron/Asynkron.Documentation/blob/HEAD/docs/ProtoActor/durability.md
 - [T-29] https://www.microsoft.com/en-us/research/wp-content/uploads/2016/07/remote.pdf
 - [T-31] https://gleam.run/frequently-asked-questions/
+
+## 6. Code by its hash
+
+Read on 7 October 2026 by three readers, for [`mvp3.1.md`](mvp3.1.md), after its first question was decided: the hash over the canonical typed tree, references by hash, no own name and no positions, types nominal with their members, a group as one hash with positions, no project name. What each found is set beside that decision. The second and third readers' findings follow when they report.
+
+### How Unison, Dhall and Nix hash definitions
+
+The reader read Unison's hashing code (`unison-hashing-v2`), its codebase migrations, its issue 2787 and pull request 6007; Dhall's standard and changelog; Nix's RFC 62 and manual.
+
+- **Local names and the definition's own name are erased** (*H1*). "All named arguments are replaced by positionally-numbered variable references"; names are "separately stored metadata that don't affect the function's hash". Confirms.
+- **A reference is the bare hash of what it names** (*H2*). `x = 1 + 1` and `y = x` hash the same, which Unison calls transparency. Confirms, and asks that the choice be made on purpose.
+- **Unison's order within a cycle is defective, and has been since 2022** (*H3*). The docs say a cycle's members are sorted by their hashes with the cycle removed; members that differ only in which other member they name tie, the tie falls back to names, and "equivalent cycles [get] different hashes, and possibly different cycles [get] the same hash". A 2025 change makes hashing fail on a tie and asks the user to add a dummy definition. Corrects: a group's position must be defined, by source order or by an order that rejects ties, and the group is the strongly connected component.
+- **A term's hash includes its inferred type, and effects are hashed as a sorted set** (*H4*). Confirms typed hashing; adds that an effect row needs a canonical order, and that hashing an inferred type ties every hash to the inference.
+- **Unison hashes a type by its structure, with every identifier removed, and gives a unique type a minted identity that a rename keeps** (*H5*). Constructor and field names are not hashed. Corrects: a nominal hash means a type rename is a new type, and every dependent changes; either say so or mint an identity once.
+- **Types and terms are hashed in separate passes with a kind tag each, and a cycle never spans a type and a term** (*H6*). Corrects: a `compare` whose tree names its type, inside that type's hash, is a type-to-term cycle; the members go beside the type's hash, not in it.
+- **The hashing version is mixed into every hash, and a change is a complete migration** (*H7*). Adds: the scheme's version is prefixed to every hash so that hashes of two schemes are never equal.
+- **Unison's rehash migration kept old hashes and two codebases mapped one old hash to two new objects, which crashed syncing** (*H8*). Adds: a migration is total and one-way.
+- **Dhall hashes the binary encoding of the alpha-beta-normal form, bound variables renamed to one name with an index** (*H9*). Confirms the erasure; contrasts in inlining dependencies rather than referencing them.
+- **Dhall once put the language version into the hash and removed it, since every release changed every hash** (*H10*). Corrects a possible reading: the version in the hash is the scheme's own, never the toolchain's.
+- **Every change to Dhall's normaliser changed hashes** (*H11*). Adds: whatever runs before hashing is part of the frozen form, desugaring, elaboration, inferred types, how supplies are filled.
+- **Dhall fixes the encoding of literals, floats, zero's sign, big integers, text, and sorts fields, so that hashes agree across platforms** (*H12*). Adds: the canonical form fixes its literals and sorts explicitly, never by a map's iteration order, with a self-describing prefix.
+- **Nix hashes a reference by what it names, so that an irrelevant change does not spread** (*H13*). Confirms.
+- **Changing Nix's addressing took years, and content addressing needs determinism** (*H14*). Adds: freeze the form before code is shared.
+
+What the reader would tell the designers first: define a group's position before anything else; a nominal type hash and members inside it conflict with rename-invariance and make a cycle; version the scheme on its own, mixed into every hash, and plan the one-way rehash now.
