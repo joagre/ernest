@@ -85,6 +85,7 @@ Had the record's new field no default, the plan would have printed the hole and 
 8. **A process keeps its code until it ends.**
 9. **A client reaches its service after a restart without code of its own**, through `Peer.standing`.
 10. **The team writes only what no tool can know.**
+11. **Two releases of `ern` with one runtime surface connect**, and a release of `ern` that keeps the surface is a rollout.
 
 ## 5. What does not hold
 
@@ -102,6 +103,7 @@ MVP 3.0's and MVP 3.1's limits stand.
 10. **Where the order's graph has a cycle, some finds wait during the rollout**, which the plan names.
 11. **A retry is the program's.** A call that answered `None` may or may not have run, so a request must be harmless when run twice.
 12. **A drain does not grow firmer**; what a process has not finished by the close it loses, as at any restart.
+13. **A release of `ern` that changes the runtime's surface stops every node.**
 
 ## 6. How it works
 
@@ -127,6 +129,8 @@ MVP 3.0's and MVP 3.1's limits stand.
 
 **The standing address.** `Peer.standing(key, ms)` spawns a process on the caller's node that finds the key, holds the address found, monitors its process, and gives the caller `via` of itself; what it is sent it forwards. Told that the service went, it finds the key again among its nodes, with MVP 3.0's dial and time, and forwards again when found; meanwhile a message is dropped, and a call through it, which waits by its own time, answers `None` where the service is not back. A monitor on the service, which the caller makes through the address found or through `Process.fromAddress`, says what happened as any monitor does.
 
+**The runtime's surface, and a release of `ern` as a rollout.** Decided with the user on 2026-10-07 to be this milestone's and not one of its own: the cookie is the digest of the protocol's version, the hash scheme's version, OTP's version and the version of the runtime's surface, in place of `ern`'s whole version. The surface is what shipped code calls by name, the runtime's functions and the standard library's foreign declarations, named and given a version of its own that changes when it does, so that two releases of `ern` with one surface connect and a release of `ern` is a rollout like a program's, which `ern deploy` carries. A release that changes the surface still stops every node, and says so in its notes.
+
 **The refusal.** `Supervisor.child`'s function reads the process's start cause when it begins; run inside a process that is already a child it would read the outer child's, so it faults instead with `Fault("a process runs one child function")`, and E.22 says so.
 
 **The test.** `ern test --config-dir dir` runs the rollout's test where a build names the previous one. The shape half runs with nothing started: each service's line of the plan, each hole and each untold rename refused. The run half starts two nodes: it generates values of each service's state type from the previous build and writes them as the state files a stop would have written; starts the previous build on both nodes; rolls one node to the new build, checks every key at the identity the plan expects, rolls the other, and stops both; and compares what the stops wrote with what went in, identity where the state type is unchanged and the round trip through the reverse `migrate` where it changed. It rolls back the same way. A service whose state cannot cross is skipped and listed. The test sends no message of any protocol.
@@ -149,7 +153,7 @@ The runtime's tests run three nodes on one machine, as MVP 3.0's do: a planned s
 
 ## 9. Unsolved
 
-What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the exact syntax of `was`; the frame the coordinator sends a node, one or several; the texts of the plan's lines; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, Appendix E for `Peer.find`, `Peer.standing` and E.22's refusal, §11.3 for `keys` in `ernest.conf`; and the soundness argument's paragraph for the state file and `migrate`.
+What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the exact syntax of `was`; the frame the coordinator sends a node, one or several; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, Appendix E for `Peer.find`, `Peer.standing` and E.22's refusal, §11.3 for `keys` in `ernest.conf`; and the soundness argument's paragraph for the state file and `migrate`.
 
 ## 10. Left out on purpose
 
@@ -165,5 +169,4 @@ What remains is the build's: a generator of values for a type, which the test ne
 
 - **A change of code in place**, with `become`, where a deployment shows that a restart's gap matters for a process that holds connections; the experiments say what it costs.
 - **A key offered by several nodes at once**, which the `keys` section's shape already allows a find to ask.
-- **MVP 3.1a's rolling release of `ern` itself**, which this rollout then carries, the cookie narrowed to the runtime's surface.
 - **A coordinator that runs unattended**, taking the yes from a flag, once the plan has been read often enough to be trusted.
