@@ -20,6 +20,8 @@ The bounds of MVP 3.0 stay: a few nodes with one owner, listed by hand, trusted 
 
 **What is new.** Nothing in `Peer`: its functions and `Peer.Failure` are MVP 3.0's, with `NotLoaded` meaning what the function needs and the peer does not have, a binding's value or a foreign declaration's module, and `OtherType` a service at another version. One module of the standard library, `Code`, for the toolchain's own Ernest code and for tools: `Code.load(path)` loads a compiled module and its closure from a build, at once, its bindings evaluated, and answers `Either(error, Unit)`; `Code.hashes(path)` answers a compiled module's definitions as name and hash. A program has nothing to load by name, since it names every function it calls, so `Code` is what the shell's `:load` and `:reload` and `ern diff` stand on, and nothing a program needs. One command: `ern diff old-build new-build` lists the definitions whose hash differs between two builds, and among them the keys whose type identity differs, which are the services that answer `OtherType` across a rollout.
 
+**A bare node.** `ern run --config-dir dir` with no `.erc` starts a node that holds no definition of a program's: it runs the runtime and the system processes, evaluates the standard library's bindings, listens, and waits. Everything it runs arrives by a spawn from a peer, with the code; a spawned function there names no binding but the standard library's and captures the rest, and a spawned process may offer itself under a key. Nothing is copied to such a machine but `ern`, and it is upgraded by restarting it.
+
 The rest is written as the questions are decided.
 
 ## 3. Examples
@@ -36,7 +38,8 @@ The rest is written as the questions are decided.
 
 1. **A renamed type is a new type.** A type's hash holds its qualified name, so renaming a type or a constructor, or moving a type to another module, changes its hash and every dependent's, and a service whose protocol holds it is at another version to every client of the old build. A renamed function changes nothing but its own build's name for its hash.
 2. **A changed protocol parts old clients from new services for the length of a rollout.** An old client's find on a node of the new build answers `OtherType`, and a new client's on an old node the same, until both are of one build; a client written for peers waits and finds again, as it does for `Unreachable`. A change to a type that many protocols carry parts clients from every service that carries it at once.
-3. **An upgrade of `ern`, of OTP or of the hash scheme stops every node.** Nodes of different versions of any of the three never connect: the runtime's surface is what shipped code calls by name, and nothing hashes it. A program's own code is what a rolling restart changes.
+3. **Code loaded on a node stays until the node restarts.** Nothing is unloaded. The host gives no module name back on unloading, a purge stalls every process, and a closure held in a value would break; and a node's life is one rolling deploy, so what it accumulates is what its peers' deploys sent it meanwhile. A node that outlives many deploys of its peers, a bare node among them, grows by what it receives, and says so on its standard error when it nears a limit of the host's (section 7), which is the cue to restart it.
+4. **An upgrade of `ern`, of OTP or of the hash scheme stops every node.** Nodes of different versions of any of the three never connect: the runtime's surface is what shipped code calls by name, and nothing hashes it. A program's own code is what a rolling restart changes.
 
 The rest is written as the questions are decided.
 
@@ -56,11 +59,19 @@ The rest is written as the questions are decided.
 
 **A rolling deploy.** A node restarted with a new build connects to the old ones as any node does, its `ernest.conf` unchanged. The operator copies the build to one machine, stops that node, which is no loss to its peers, and starts it again; one machine at a time, in the order the program allows. A service's protocol that is unchanged, which is the ordinary fix, shows nothing to a client of either build. `ern diff` says beforehand which will not.
 
+**A node's code.** A node holds definitions by hash, in a table from each hash to the host's module and function that hold it; that table is the cache, and the compiled code lives once, as loaded modules of the host. Definitions that arrive in one exchange are compiled together into one unit of the host's, under a name of the node's own, and references between definitions are compiled through the table; the node's own build is compiled as `ern build` compiles it, one unit per source module, with the same table over it. Nothing names a unit of the host's. The canonical form of the node's own definitions is in its `.erc` files, read when the node ships one; the canonical form of a received definition is kept beside its compiled code, text-sized, so that the node can ship it onward. Loading is by the host's `prepare_loading` and `atomic_load`, one batch per closure, skipping what is loaded already, with no `-on_load`; the node runs in embedded mode, and its units are off the code path.
+
 The rest is written as the questions are decided.
 
 ## 7. The numbers
 
-Written as the questions are decided.
+| What | Value |
+|---|---|
+| module names a node can load in its life | 65,536, the host's, never reclaimed (OTP 29) |
+| lambdas a node can load in its life | 524,288, the host's, never reclaimed (OTP 28 and later) |
+| a node says it nears a limit at | four fifths of either |
+
+The rest is written as the questions are decided.
 
 ## 8. How it is checked
 
@@ -70,9 +81,7 @@ Written as the questions are decided.
 
 The questions, in the order they are taken; each leaves the list as it is decided.
 
-1. **A node's code.** The cache keyed by hash, in memory or on disk; the loader beside the host's `code_server`; what a module of the host is for a hash; whether a node keeps embedded mode. (`code.md` 2.3, *D9*.)
-2. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
-3. **How it is checked**, with nodes of two builds on one machine.
+1. **How it is checked**, with nodes of two builds on one machine.
 
 ## 10. Left out on purpose
 
@@ -83,4 +92,4 @@ The questions, in the order they are taken; each leaves the list as it is decide
 
 ## 11. Room for what comes after
 
-Written when the questions are decided, for step D. One thing is known already: a milestone after this one narrows `ern`'s version in the cookie to the runtime's surface, the part shipped code calls by name, and lets the rest of `ern` differ between nodes; that breaks no program, since nothing a program writes names a version.
+Written when the questions are decided, for step D. The memory of code is step D's problem: a node that takes new code without a stop never restarts, and the host's tables never shrink; MVP 3.1a measures it and weighs what can be done (the plan). One thing is known already: a milestone after this one narrows `ern`'s version in the cookie to the runtime's surface, the part shipped code calls by name, and lets the rest of `ern` differ between nodes; that breaks no program, since nothing a program writes names a version.
