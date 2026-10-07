@@ -30,11 +30,15 @@ Written as the questions are decided.
 
 ## 5. What does not hold
 
-Written as the questions are decided.
+1. **An upgrade of `ern`, of OTP or of the hash scheme stops every node.** Nodes of different versions of any of the three never connect: the runtime's surface is what shipped code calls by name, and nothing hashes it. A program's own code is what a rolling restart changes.
+
+The rest is written as the questions are decided.
 
 ## 6. How it works
 
 **The hash.** A definition's hash is the SHA-256 of its canonical form: the typed tree after checking, with local variables numbered by position, layout and comments gone, every name resolved, and types written out. A reference to another definition is the hash of what it names, and nothing else; a reference to a foreign declaration, which has no hash, is its qualified name and its type, and each node resolves it for itself. A function's own name and its source positions are not in its hash: two functions with one body are one definition. A type's hash covers its qualified name, its parameters by position, its constructors in declared order with their fields' names and the hashes of their types, and the hashes of the members the type declares, `compare` among them. A mutually recursive group is hashed as one, in declared order, and each member's identity is the group's hash and its position in it. No project name stands above a qualified name. The canonical form is written down, with the hash scheme's version, before any hash is computed, and that version is in the cookie.
+
+**The cookie.** The host's cookie is the digest of the protocol's version, the hash scheme's version, `ern`'s version and OTP's version. A program's code is not in it: the build's checksum of MVP 3.0 leaves, and nodes of different builds connect. What the hashes leave out agrees by the cookie: the runtime and the compiler's back end, which are `ern`'s; the standard library, which is hashed as a program's code is but ships with `ern`; the host's functions that code calls by name, which are OTP's; and a foreign declaration, which a peer resolves by name and type and has, its `ern` and OTP being the same.
 
 The rest is written as the questions are decided.
 
@@ -50,15 +54,14 @@ Written as the questions are decided.
 
 The questions, in the order they are taken; each leaves the list as it is decided.
 
-1. **What the hashes leave out**, and what the cookie then holds: the hash scheme's version, the compiler's back end, the runtime, OTP, and the host's functions that code calls by name. (`code.md` 2.2.)
-2. **A node's code.** The cache keyed by hash, in memory or on disk; the loader beside the host's `code_server`; what a module of the host is for a hash; whether a node keeps embedded mode. (`code.md` 2.3, *D9*.)
-3. **Code crossing with a spawn.** The have-and-want exchange; what a code frame carries, the form that is hashed or the compiled module; verification; what happens to the spawn when the exchange fails; a foreign declaration a peer lacks or has differently. (`code.md` 2.3, *D10*, *D13*, *D17*.)
-4. **Messages and keys across builds.** A message carries its mailbox type's hash and the gateway checks it, which MVP 3.0's section 11 planned; a key carries its type's hash; what a peer of another build is answered where a type differs.
-5. **Bindings across builds.** A top-level binding is evaluated once on a node for each hash of its definition, and a service binding of a new build beside the old one's on a peer: what `Peer.find` answers, and whether two services run. (`code.md` 2.5, 3.3.)
-6. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
-7. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
-8. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
-9. **How it is checked**, with nodes of two builds on one machine.
+1. **A node's code.** The cache keyed by hash, in memory or on disk; the loader beside the host's `code_server`; what a module of the host is for a hash; whether a node keeps embedded mode. (`code.md` 2.3, *D9*.)
+2. **Code crossing with a spawn.** The have-and-want exchange; what a code frame carries, the form that is hashed or the compiled module; verification; what happens to the spawn when the exchange fails; a foreign declaration a peer lacks or has differently. (`code.md` 2.3, *D10*, *D13*, *D17*.)
+3. **Messages and keys across builds.** A message carries its mailbox type's hash and the gateway checks it, which MVP 3.0's section 11 planned; a key carries its type's hash; what a peer of another build is answered where a type differs.
+4. **Bindings across builds.** A top-level binding is evaluated once on a node for each hash of its definition, and a service binding of a new build beside the old one's on a peer: what `Peer.find` answers, and whether two services run. (`code.md` 2.5, 3.3.)
+5. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
+6. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
+7. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
+8. **How it is checked**, with nodes of two builds on one machine.
 
 ## 10. Left out on purpose
 
@@ -69,4 +72,4 @@ The questions, in the order they are taken; each leaves the list as it is decide
 
 ## 11. Room for what comes after
 
-Written when the questions are decided, for step D.
+Written when the questions are decided, for step D. One thing is known already: a milestone after this one narrows `ern`'s version in the cookie to the runtime's surface, the part shipped code calls by name, and lets the rest of `ern` differ between nodes; that breaks no program, since nothing a program writes names a version.

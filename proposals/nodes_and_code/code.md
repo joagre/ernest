@@ -28,6 +28,8 @@ Unison has shipped for years, and Ernest has a design, so "better" is true only 
 
 ### 2.2 What the hashes leave out
 
+**Decided for `mvp3.1.md`, 2026-10-07.** The cookie is the digest of the protocol's version, the hash scheme's version, `ern`'s version and OTP's version, the build's checksum of MVP 3.0 leaving it. `ern`'s version stands for the runtime, the back end and the standard library at once, so an upgrade of `ern` is a stop of every node, which is honest: shipped code calls the runtime by name and nothing hashes that surface. A later milestone narrows it to the surface alone. The paragraph below is the thinking before that decision.
+
 **What the hashes leave out.** Three things are not hashed and must agree across nodes: the hash scheme, checked in the handshake; the compiler's back end, on every node, whose version keys the cached binaries; and what hashed code calls by name, the host's built-in functions and Ernest's runtime, pinned for each deployment with the OTP version. The prelude's types and the standard library are hashed as a program's code is. Their foreign declarations are excepted, and are each node's own (§8.7).
 
 ### 2.3 A node's code

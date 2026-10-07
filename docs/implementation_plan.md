@@ -63,7 +63,8 @@ paragraph under "Done".
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
 | MVP 3.0 | peers: one program on several nodes, by its proposal | design settled 2026-10-07 |
-| MVP 3.1 | code by its hash, and the standard library's `Code` | |
+| MVP 3.1 | code by its hash, and the standard library's `Code` | design being written |
+| MVP 3.1a | the runtime's surface: `ern`'s version in the cookie narrowed to what shipped code calls by name, so that nodes of different `ern` versions connect | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
@@ -206,6 +207,12 @@ The milestone is §8.7's identity in full:
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes of
   its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry.
+
+---
+
+## MVP 3.1a (the runtime's surface)
+
+Placed on 2026-10-07 with [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md)'s cookie. MVP 3.1 puts `ern`'s whole version in the cookie, so an upgrade of `ern` stops every node. This milestone names the runtime's surface, the functions shipped code calls by name and the standard library's foreign declarations, gives it a version of its own, and puts that version in the cookie in place of `ern`'s, so that nodes running different `ern` versions with one surface connect and a release of `ern` can be rolled out node by node. Nothing a program writes names a version, so it breaks no program.
 
 ---
 
