@@ -1,0 +1,120 @@
+/// A chat server, version 1: a room, and one process for each connection,
+/// which owns its socket (report Appendix E.18) and is the loop column of
+/// code_update.md's matrix, upgraded by §6.10's case written by hand. A
+/// reader process reads the socket and sends each line to its connection.
+export type RoomMsg =
+    Join(Member)
+  | Leave(Process)
+  | Say(String)
+  | Members(reply : Reply(Int))
+  | UpgradeAll(next : (Conn) -> Unit with ConnMsg)
+
+export type ConnMsg =
+    Read(Bytes)
+  | Line(String)
+  | Closed
+  | Upgrade(migrate : (Conn) -> Conn, next : (Conn) -> Unit with ConnMsg)
+
+export type Member = Member(process : Process, address : Address(ConnMsg))
+
+export type Conn = Conn(socket : Address(Tcp.SocketMsg), room : Address(RoomMsg), name : String)
+
+type AcceptorMsg = Port(reply : Reply(Int))
+
+export let room : Address(RoomMsg) = spawn(fn() = chatting([]))
+
+/// The acceptor owns the listener, which ends with it (Appendix E.18).
+let acceptor : Address(AcceptorMsg) = spawn(listening)
+
+export fn port() : Int with n =
+    Address.callForever(acceptor, fn(reply) = Port(reply = reply))
+
+fn listening() : Unit with AcceptorMsg =
+    match Tcp.listen("127.0.0.1", 0) {
+        Right(listener) -> accepting(listener, 1)
+      | Left(_) -> fault("cannot listen")
+    }
+
+fn accepting(listener : Address(Tcp.ListenerMsg), count : Int) : Unit with AcceptorMsg =
+    receive {
+        Port(reply = reply) -> {
+            answer(reply, match Tcp.port(listener) {
+                Right(found) -> found
+              | Left(_) -> 0
+            });
+            accepting(listener, count)
+        }
+      | after 0 -> match Tcp.accept(listener, 200) {
+            Right(socket) -> {
+                let name = "guest" <> Int.toString(count);
+                let connection =
+                    spawn(fn() = connected(Conn(socket = socket, room = room, name = name)));
+                Tcp.give(socket, Process.fromAddress(connection));
+                send(room,
+                     Join(Member(process = Process.fromAddress(connection), address = connection)));
+                accepting(listener, count + 1)
+            }
+          | Left(_) -> accepting(listener, count)
+        }
+    }
+
+fn connected(conn : Conn) : Unit with ConnMsg = {
+    let me = self();
+    let _ = spawn(fn() = reading(conn.socket, me));
+    serving(conn)
+}
+
+/// The connection's loop, which an `UpgradeAll` replaces in place.
+export fn serving(conn : Conn) : Unit with ConnMsg =
+    receive {
+        Read(bytes) -> {
+            match String.fromUtf8(bytes) {
+                Some(text) -> send(conn.room, Say(text))
+              | None -> Unit
+            };
+            serving(conn)
+        }
+      | Line(text) -> {
+            let _ = Tcp.write(conn.socket, String.toUtf8(text), 5000);
+            serving(conn)
+        }
+      | Closed -> send(conn.room, Leave(Process.fromAddress(self())))
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(conn))
+    }
+
+fn reading(socket : Address(Tcp.SocketMsg), connection : Address(ConnMsg)) : Unit with m =
+    match Tcp.read(socket, 600000) {
+        Right(bytes) -> {
+            send(connection, Read(bytes));
+            reading(socket, connection)
+        }
+      | Left(Io.Timeout) -> reading(socket, connection)
+      | Left(_) -> send(connection, Closed)
+    }
+
+fn chatting(members : List(Member)) : Unit with RoomMsg =
+    receive {
+        Join(member) -> chatting(member :: members)
+      | Leave(process) -> chatting(List.filter(members, fn(member) = member.process != process))
+      | Say(text) -> {
+            broadcast(members, Line(text));
+            chatting(members)
+        }
+      | Members(reply = reply) -> {
+            answer(reply, List.size(members));
+            chatting(members)
+        }
+      | UpgradeAll(next = next) -> {
+            broadcast(members, Upgrade(migrate = fn(conn) = conn, next = next));
+            chatting(members)
+        }
+    }
+
+fn broadcast(members : List(Member), message : ConnMsg) : Unit with m =
+    match members {
+        [] -> Unit
+      | member :: rest -> {
+            send(member.address, message);
+            broadcast(rest, message)
+        }
+    }

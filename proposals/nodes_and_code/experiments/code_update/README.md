@@ -12,7 +12,12 @@ The first program of [`code_update.md`](../../code_update.md)'s section 4, writt
 
 ## How it was run
 
-Each version is built with `bin/ern build --source-root dir --build-root dir/build dir` over a directory holding `service.ern` and the version's `counter.ern`. The two sessions below are `bin/ern shell --source-root dir` in line mode, the source rewritten between inputs with `Fs.write`, as `test/ern_shell_tests.erl` drives a reload.
+Each version is built over a directory holding `service.ern` and the version's `counter.ern`, and each session below is the shell in line mode over such a directory, the source rewritten between inputs with `Fs.write`, as `test/ern_shell_tests.erl` drives a reload:
+
+```console
+$ ern build --source-root dir --build-root dir/build dir
+$ ern shell --source-root dir < session.in
+```
 
 ## The restart alone
 
@@ -80,3 +85,94 @@ In the service session the reload did not list the version 1 process as holding 
 | what the upgrade in place cost the program | one line at the shell, `Service.upgrade(h, Counter.step)` |
 
 What the step function saved here is the total, 3, and what it cost is the library. The store, the protocol change and the chat server are next, and the chat server is where `become` is weighed.
+
+# The chat server, written twice
+
+The loop column's program, written and run on 2026-10-07: a room, one process for each connection owning its socket, and a reader process for each that reads the socket and sends every line to its connection. The connection's address and its socket are what its clients hold, so a successor at another address is a loss, and the connection is upgraded in place by §6.10's case written by hand. The clients are processes too, since a socket an input opens ends with the input's process (report §11.2); `chat/client.ern` is the same in every version.
+
+## The files
+
+- `chat/v1/chat.ern`: version 1, lines broadcast as they are, `UpgradeAll` in the room's protocol and `Upgrade` in the connection's.
+- `chat/v2/chat.ern`: version 2, each line said under the speaker's name; the protocol and the state unchanged (row C1).
+- `chat/v3/chat.ern`: version 3, a connection can be kicked, a constructor added to the connection's protocol (row C3).
+- `chat/restart/chat.ern`: the same room and connections with no upgrade case, as the restart alone has it.
+- `chat/client.ern`: a client as a process that owns its socket, `start`, `say` and `hear`.
+
+## The upgrade in place
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Chat, compiled from chat.ern
+> Client, compiled from client.ern
+> r : Address(Chat.RoomMsg)
+> p : Int
+> c1 : Address(Client.Msg)
+> c2 : Address(Client.Msg)
+> > Some("hello") : Optional(String)
+> Some("hello") : Optional(String)
+> 2 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Chat, compiled again
+Chat: the previous version is held by the processes spawned at Chat.room:24, Chat.acceptor:27, Chat.accepting:51, Chat.connected:63, Chat.accepting:51 and Chat.connected:63; the next reload of Chat ends them
+> > > Some("guest1: again") : Optional(String)
+> Right(Unit) : Either(Io.Error, Unit)
+> Chat, compiled again
+Chat: the previous version is unloaded; the reload ended the processes spawned at Chat.room:24, Chat.acceptor:27, Chat.connected:63 and Chat.connected:63
+Chat: the previous version is held by the processes spawned at Chat.acceptor:27, Chat.accepting:51, Chat.accepting:51 and Chat.room:24; the next reload of Chat ends them
+Chat.ConnMsg changed: the binding r was checked against its previous version, which MVP 3.1 tells from the current one; the reload forgot it
+Chat.acceptor:27 faulted: its code was unloaded
+Chat.connected:63 faulted: its code was unloaded
+Chat.connected:63 faulted: its code was unloaded
+Chat.room:24 faulted: its code was unloaded
+> input 18:1:6: unknown name r
+1 | send(r, Chat.UpgradeAll(next = Chat.serving))
+  |      ^
+  | = help: r was forgotten by a reload: it was checked against a previous version of Chat.ConnMsg, which MVP 3.1 tells from the current one
+> > Some("guest1: again") : Optional(String)
+>
+```
+
+Two clients connect; a line from one reaches both, and the room counts two members. After the reload to version 2, `UpgradeAll` hands every connection version 2's `serving`: the next line arrives under the speaker's name, through the same connection and the same socket, with nothing dropped. After the reload to version 3, which changed `ConnMsg`, the room's old address `r` is forgotten by the shell's rule of this afternoon, since it was checked against the previous `ConnMsg`, and the `UpgradeAll` is refused: a running connection's mailbox type is the old `ConnMsg`, and nothing of the new protocol can reach it. The last line heard is the one the first client had not yet read; the connections' readers, spawned by version 1 and never upgraded, were ended by that third reload, see the findings.
+
+## The restart alone
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Chat, compiled from chat.ern
+> Client, compiled from client.ern
+> p : Int
+> c1 : Address(Client.Msg)
+> > Some("hello") : Optional(String)
+> Right(Unit) : Either(Io.Error, Unit)
+> Chat, compiled again
+Chat: the previous version is held by the processes spawned at Chat.room:15, Chat.accepting:42, Chat.acceptor:18 and Chat.connected:54; the next reload of Chat ends them
+> Right(Unit) : Either(Io.Error, Unit)
+> Chat, compiled again
+Chat: the previous version is unloaded; the reload ended the processes spawned at Chat.room:15, Chat.accepting:42, Chat.acceptor:18 and Chat.connected:54
+Chat: the previous version is held by the processes spawned at Chat.acceptor:18 and Chat.room:15; the next reload of Chat ends them
+Chat.acceptor:18 faulted: its code was unloaded
+Chat.room:15 faulted: its code was unloaded
+Chat.connected:54 faulted: its code was unloaded
+Chat.accepting:42 faulted: its code was unloaded
+> > None : Optional(String)
+>
+```
+
+The second reload ends the previous version's processes, the connection among them, and the connection's socket closes with its owner (report Appendix E.18): the client's next read answers `None`. This is what a restart of the node does to every connection it holds.
+
+## Findings
+
+- **The loop column works today for rows C1 and C2.** A connection upgraded in place keeps its address and its socket, and its clients see nothing but the new behaviour. What it cost the program is the `Upgrade` constructor and its clause, written by hand in each loop, and the room's `UpgradeAll` to reach every connection.
+- **Row C3 needs `become`.** A running loop's mailbox type is its old protocol; the shell refuses the new one at the binding, and the type would refuse it at the `Upgrade` as the counter's version 3 did. For a process whose address must be kept, a protocol change in place has one way, a change of the mailbox type under a translation, which is part two's `become`.
+- **Every process of a module is a version holder.** The readers, spawned by a connection and never upgraded, ran version 1 until the shell's purge ended them, and the connections then heard nothing more. An upgrade must reach every long-running process of a module, helpers among them, or list them as still on old code, which is what the plan's list by code hash is for; under MVP 3.1 nothing is purged and they would run the old code until the node restarts.
+- **A listener opened in a top-level binding dies at `:load`.** The first version opened its listener in a binding, and the acceptor found it ended: `:load` evaluates bindings in a process of the shell's own, which ends, and a listener ends with its owner (report §11.2, Appendix E.18), where `ern run` evaluates them in the entry process, which lives on. The program now has the acceptor own its listener, which is the right shape; the difference between the shell and a run is in `docs/language_feedback.md`.
+
+## The count
+
+| | lines |
+|---|---|
+| the chat server as the restart has it | 105 |
+| the chat server with the upgrade case, version 1 | 120 |
+| what the upgrade in place cost the program | 15 lines, the two constructors and their clauses |
+| what version 2 changed, either way | 1 line |
+| what the upgrade cost at the shell | one line, `send(r, Chat.UpgradeAll(next = Chat.serving))` |

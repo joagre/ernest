@@ -1,0 +1,31 @@
+/// A chat client as a process that owns its socket (report Appendix E.18).
+/// At the shell a socket an input opens ends with the input's process, so
+/// the experiment's clients are processes, the same in every version.
+export type Msg = Say(String) | Hear(reply : Reply(Optional(String)))
+
+export fn start(port : Int) : Address(Msg) with n =
+    spawn(fn() = match Tcp.connect("127.0.0.1", port, 1000) {
+        Right(socket) -> talking(socket)
+      | Left(_) -> fault("cannot connect")
+    })
+
+fn talking(socket : Address(Tcp.SocketMsg)) : Unit with Msg =
+    receive {
+        Say(text) -> {
+            let _ = Tcp.write(socket, String.toUtf8(text), 1000);
+            talking(socket)
+        }
+      | Hear(reply = reply) -> {
+            answer(reply, match Tcp.read(socket, 2000) {
+                Right(bytes) -> String.fromUtf8(bytes)
+              | Left(_) -> None
+            });
+            talking(socket)
+        }
+    }
+
+export fn say(client : Address(Msg), text : String) : Unit with n =
+    send(client, Say(text))
+
+export fn hear(client : Address(Msg)) : Optional(String) with n =
+    Address.callForever(client, fn(reply) = Hear(reply = reply))
