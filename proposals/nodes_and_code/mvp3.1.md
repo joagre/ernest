@@ -6,7 +6,7 @@ Status: a proposal, written one question at a time from [`code.md`](code.md) on 
 
 MVP 3.1 names every definition by a hash of its content, and lets nodes of different builds work together. A process on one node spawns a process on a peer with code the peer does not have, and the code crosses with the spawn. Versions of a definition stand side by side on a node, and a process keeps the code it was started with until it ends.
 
-It is step C of [`mvp3.0.md`](mvp3.0.md)'s section 11, and nothing of step D. Three things bound it:
+It is step C of [`mvp3.0.md`](mvp3.0.md)'s section 11, and nothing of step D; step B is not built on its own. Three things bound it:
 
 - **A hash for each definition.** The compiler computes it from a canonical form of the definition, and it is the identity of code and of types everywhere: in a spawn, in a key, on a message.
 - **Code crosses with a spawn, and only then.** The peer asks for the hashes it lacks, the sender ships them, and the whole closure is present before the process starts. A message ships no code; a find ships no code.
@@ -18,16 +18,16 @@ The bounds of MVP 3.0 stay: a few nodes with one owner, listed by hand, trusted 
 
 ## 2. What a program sees
 
-**The operations** are MVP 3.0's, with one difference: a spawn on a peer carries its code where the peer lacks it. `Peer`'s functions and `Peer.Failure` are unchanged. `NotLoaded` means what the function needs and the peer does not have: a binding's value, or the module a foreign declaration names. `OtherType` means a service at another version.
+**The operations** are MVP 3.0's, with one difference: a spawn on a peer carries its code where the peer lacks it. `Peer`'s functions and `Peer.Failure` are unchanged. `NotLoaded` means what the function needs and the peer does not have: a binding's value, or the module a foreign declaration names. `OtherType` means a service at another version. `Refused`'s text says that this node is not listed there, or that `ern`, OTP or the hash scheme differ.
 
 **What is new.**
 
-- **A bare node.** `ern run --config-dir dir` with no `.erc` starts a node that holds no definition of a program's: it runs the runtime and the system processes, evaluates the standard library's bindings, listens, and waits. Everything it runs arrives by a spawn from a peer, with the code. A spawned function there names no binding but the standard library's and captures the rest, and a spawned process may offer itself under a key. Nothing is copied to such a machine but `ern`. A balancer places work on it as on any peer, and installs its measure there by `Balancer.measure(place, f)`.
+- **A bare node.** `ern run --config-dir dir` with no `.erc` starts a node that holds no definition of a program's: it runs the runtime and the system processes, evaluates the standard library's bindings, listens, and waits. Everything it runs arrives by a spawn from a peer, with the code. A spawned function there names no binding but the standard library's and captures the rest, and a spawned process may offer itself under a key. Nothing is copied to such a machine but `ern`. A balancer places work on it as on any peer, and installs its measure there by `Balancer.measure(place, f)`, whose measuring process captures `Balancer.key` and names no binding. A bare node whose `ernest.conf` has no `listen` is refused at its start, since it never dials.
 - **`Code`**, a module of the standard library for the toolchain's own Ernest code and for tools. `Code.load(path)` loads a compiled module and its closure from a build, at once, its bindings evaluated, and answers `Either(Code.Error, Unit)`, where `Code.Error = NotFound | Stale | Incomplete`: no compiled module at the path, one compiled against another interface, or a closure whose definitions the build does not hold. `Code.hashes(path)` answers a compiled module's definitions as name and hash. `Code` is what the shell's `:load` and `:reload` and `ern diff` stand on; a program has nothing to load by name.
-- **`ern diff old-build new-build`** lists the definitions whose hash differs between two builds, and among them the keys whose type identity differs, which are the services that answer `OtherType` across a rollout.
+- **`ern diff old-build new-build`** lists the definitions whose hash differs between two builds, `changed` where the definition's own form differs and `follows` where only a reference does, and among them the keys whose type identity differs, which are the services that answer `OtherType` across a rollout.
 - **The shell's `:load` and `:reload`** work in a shell that is a node, which MVP 3.0 refused: a load adds hashes and moves the session's names, and a function typed at the shell spawns on a peer with its code.
 
-**What may cross** is MVP 3.0's rule unchanged: a bound type never crosses, the compiler refuses a key of a bound type and a spawn whose captures are bound, and an adapted address's captures are checked as it crosses. The function a spawn starts crosses with its code, where the peer lacks it.
+**What may cross** is MVP 3.0's rule unchanged: a bound type never crosses, the compiler refuses a key of a bound type and a spawn whose captures are bound or have a type variable in their type, and an adapted address's captures are checked as it crosses. The function a spawn starts crosses with its code, where the peer lacks it.
 
 ## 3. Examples
 
@@ -37,18 +37,24 @@ The counter of [`mvp3.0.md`](mvp3.0.md)'s section 3 runs on the store, and the d
 
 ```
 store.ern  fn count       changed
+store.ern  let counter    follows
+store.ern  fn main        follows
 ```
 
-No key is listed: `Counter.Msg` is unchanged, so `Counter.key`'s identity is the same in both builds. The operator copies build 2 to the store's machine, stops the store and starts it. A board that monitors the counter is told `ProgramEnd`, finds the counter again by its key, and gets build 2's counter. The desk and the board are still at build 1, and nothing shows.
+`follows` marks a definition whose own form is unchanged and whose hash changed through a reference. No key is listed: `Counter.Msg` is unchanged, so `Counter.key`'s identity is the same in both builds. The operator copies build 2 to the store's machine, stops the store and starts it. A board that monitors the counter is told `ProgramEnd`, finds the counter again by its key, and gets build 2's counter; the board as MVP 3.0's section 3 writes it, without a monitor, sees the restart as it sees any, its calls answering `None`. The desk and the board are still at build 1, and nothing of the two builds shows.
 
 **A changed protocol.** Build 3 adds `Reset` to `Counter.Msg`. `ern diff build2 build3` prints:
 
 ```
 counter.ern  type Msg        changed
-counter.ern  let key         changed    key "counter": identity changed
+counter.ern  let key         follows    key "counter": identity changed
 store.ern    fn count        changed
-desk.ern     fn main         changed
-board.ern    fn main         changed
+store.ern    let counter     follows
+store.ern    fn main         follows
+desk.ern     fn main         follows
+desk.ern     fn report       follows
+board.ern    fn main         follows
+board.ern    fn show         follows
 ```
 
 The store is restarted with build 3 first. Until the board is restarted too, its find answers `Left(OtherType)`, and the board prints "the store is not there" and finds again on its next tick; once the board is at build 3, it finds the counter. The desk at build 1 meets the same, and is restarted in its turn.
@@ -56,13 +62,13 @@ The store is restarted with build 3 first. Until the board is restarted too, its
 **A bare node.** A fourth machine, `worker`, is started with `ern run --config-dir /etc/ernest/worker` and no program, and listed by the store. The store spawns on it:
 
 ```ernest-fragment
-match Peer.spawn("worker", fn() = count(0), 5000) {
+match Peer.spawn("worker", fn() = { Peer.offer(Counter.key, self()); count(0) }, 5000) {
     Left(_) -> Io.println("no worker")
-  | Right(counter) -> Peer.offer(Counter.key, counter)
+  | Right(_) -> Unit
 }
 ```
 
-The first spawn ships `count` and `Counter.Msg`, verified and loaded on the worker before the process starts; the second ships nothing. `count` captures nothing and names no binding of the store's, so it runs there. The worker's output goes to the worker's standard output. When the store is restarted with a new build, its next spawn ships the new `count`, and the old one runs on until it ends.
+The first spawn ships the function, `count` and `Counter.Msg`, verified and loaded on the worker before the process starts; the second ships nothing. The process offers itself, since only a process of the offering node may be offered. The function captures `Counter.key`, a value, and names no binding of the store's, so it runs there. The worker's output goes to the worker's standard output. When the store is restarted with a new build, its next spawn ships the new `count`, and the old one runs on until it ends.
 
 ## 4. What holds
 
@@ -84,21 +90,22 @@ MVP 3.0's limits stand, but the first half of its eleventh: builds that differ c
 4. **An upgrade of `ern`, of OTP or of the hash scheme stops every node.** Nodes of different versions of any of the three never connect. A program's own code is what a rolling restart changes.
 5. **A spawn that ships code is slow once.** The first spawn of a definition on a node that lacks it crosses the closure, compiles it there, and loads it, within the spawn's time or `Timeout`; what arrived complete stays, and the next spawn ships nothing.
 6. **A spawned function finds no binding the peer did not run.** It names the standard library's bindings and captures the rest, or the peer answers `NotLoaded`. On a bare node that is every binding of the program's.
-7. **A foreign declaration's implementation is outside the hashes.** A `foreign fn` names a host module, which is each node's own; two builds whose Erlang under one foreign name differs are not told apart, and a shipped definition that names it runs the peer's. The standard library's foreign declarations agree by `ern`'s version.
+7. **A foreign declaration's implementation is outside the hashes.** A `foreign fn` names a host module, which is each node's own; two builds whose Erlang under one foreign name differs are not told apart, and a shipped definition that names it runs the peer's. A foreign declaration over a module of OTP's or of `ern`'s is on every node; one over a library's own Erlang is where the library is, and a bare node lacks it, so the `Load` library's shims are over OTP's modules.
+8. **Two peers that offer under one key on a bare node replace each other**, the latest offer holding, as MVP 3.0 has it.
 
 ## 6. How it works
 
-**The hash.** A definition's hash is the SHA-256 of its canonical form: the typed tree after checking, with local variables numbered by position, layout and comments gone, every name resolved, and types written out. A reference to another definition is the hash of what it names, and nothing else; a reference to a foreign declaration, which has no hash, is its qualified name and its type, and each node resolves it for itself. A function's own name and its source positions are not in its hash: two functions with one body are one definition. A type's hash covers its qualified name, its parameters by position, and its constructors in declared order with their fields' names and the hashes of their types; a type's *identity*, which a key carries and a find compares, is that hash with the hashes of the members the type declares, `compare` among them. A mutually recursive group is the strongly connected component of the dependency graph, hashed as one in source order, and each member's identity is the group's hash and its position in it. No project name stands above a qualified name. The scheme's version is mixed into every hash. The canonical form is written down with it before any hash is computed, literals and order fixed, and everything that runs before hashing is part of it.
+**The hash.** A definition's hash is the SHA-256 of its canonical form: the typed tree after checking, with local variables numbered by position, layout and comments gone, every name resolved, and types written out. A reference to another definition is the hash of what it names, and nothing else; a reference to a foreign declaration, which has no hash, is its qualified name and its type, and each node resolves it for itself. A function's own name and its source positions are not in its hash: two functions with one body are one definition. A type's hash covers its qualified name, its parameters by position, and its constructors in declared order with their fields' names and the hashes of their types; a type's *identity*, which a key carries and a find compares, is that hash with the hashes of the members the type declares, `compare` among them. A mutually recursive group is the strongly connected component of the dependency graph, hashed as one in source order, and each member's identity is the group's hash and its position in it. A lambda's identity is its enclosing definition's hash and its position in it, and an applied type's is its constructor's hash over its arguments' identities, a built-in type's its name. No project name stands above a qualified name. The site a spawn frame carries is the spawner's build's words, shown and never compared. The scheme's version is mixed into every hash. The canonical form is written down with it before any hash is computed, literals and order fixed, and everything that runs before hashing is part of it.
 
-**The cookie.** The host's cookie is the digest of the protocol's version, the hash scheme's version, `ern`'s version and OTP's version. A program's code is not in it: the build's checksum of MVP 3.0 leaves, and nodes of different builds connect. What the hashes leave out agrees by the cookie: the runtime and the compiler's back end, `ern`'s; the standard library, hashed as a program's code is and shipped with `ern`; the host's functions that code calls by name, OTP's; and a foreign declaration, which a peer resolves by name and type. A function of the standard library written in Ernest is hashed code, which crosses with a spawn and may differ between builds; one that is a shim is the platform's, changed only by an upgrade of `ern`.
+**The cookie.** The host's cookie is the digest of the protocol's version, the hash scheme's version, `ern`'s version and OTP's version. A program's code is not in it: the build's checksum of MVP 3.0 leaves, and nodes of different builds connect. What the hashes leave out agrees by the cookie: the runtime and the compiler's back end, `ern`'s; the standard library, hashed as a program's code is and shipped with `ern`; the host's functions that code calls by name, OTP's; and a foreign declaration, which a peer resolves by name and type. A library under `libs/` is a program's code, hashed and crossing with it; the standard library is `ern`'s, and the same on every connected node.
 
 **Messages and keys.** A message carries nothing of its type, as in MVP 3.0, and goes straight into the mailbox. A key carries its type's identity, hash and members, in place of MVP 3.0's text; a find answers the address where the identities are the same, and `OtherType` where they differ. Serialization and the gateway are MVP 3.0's.
 
 **Bindings.** A node holds its bindings' values by the hash of their definition. A spawned function that names a binding finds the value where the peer's own build ran that hash, and fails with `NotLoaded` where it did not; nothing is initialized because a peer asked, as in MVP 3.0, and a value a spawned function is to have on the peer is captured. A service is one per node and key, the latest offer, as MVP 3.0 has it: a node of a build offers what that build started, and a bare node what its peers spawned on it. An old client that finds a service on a node restarted with a new build gets the new service where the type's identity is unchanged, and `OtherType` where it is not. Versions stand side by side as code, in processes spawned from peers of other builds, never as services.
 
-**A node's code.** A node holds definitions by hash, in a table from each hash to the host's module and function that hold it; that table is the cache, and the compiled code lives once, as loaded modules of the host. Definitions that arrive in one exchange are compiled together into one unit of the host's, under a name of the node's own, and references between definitions are compiled through the table; the node's own build is compiled as `ern build` compiles it, one unit per source module, with the same table over it. Nothing names a unit of the host's. The canonical form of the node's own definitions is in its `.erc` files, read when the node ships one; the canonical form of a received definition is kept beside its compiled code, and the node ships it onward as its own. Loading is by the host's `prepare_loading` and `atomic_load`, one batch per closure, skipping what is loaded already, with no `-on_load`; the node runs in embedded mode, and its units are off the code path.
+**A node's code.** A node holds definitions by hash, in a table from each hash to the host's module and function that hold it; that table is the cache, and the compiled code lives once, as loaded modules of the host. Definitions that arrive in one exchange are compiled together into one unit of the host's, under a name of the node's own, and references between definitions are compiled through the table; the node's own build is compiled as `ern build` compiles it, one unit per source module, with the same table over it. Nothing names a unit of the host's. The canonical form of the node's own definitions is in its `.erc` files, read and verified against its hash when the node ships one; a build directory is never changed under a running node, and a new build goes in a directory of its own. The canonical form of a received definition, and of one typed at the shell, is kept beside its compiled code, and the node ships it onward as its own. Loading is by the host's `prepare_loading` and `atomic_load`, one batch per closure, skipping what is loaded already, with no `-on_load`; the node runs in embedded mode, and its units are off the code path.
 
-**A spawn across builds.** The spawn frame carries the function's hash, its captured values and the site. A peer that has the hash starts the process at once. A peer that lacks it asks for the closure's list; the sender sends the hashes the function references transitively, code and types, with the foreign declarations it names; the peer answers with the hashes it lacks, and with `NotLoaded` where it lacks the module a foreign declaration names; the sender ships the missing code, dependencies first. The list, the lacks and a code frame are three frames of Ernest's beside MVP 3.0's. A code frame carries one definition's canonical form, the form that is hashed, with its immediate references, and never a compiled binary. The peer verifies each frame against its hash as it arrives and holds it apart until the closure is complete; then it compiles the closure with its own back end, loads it all at once by the host's atomic load, and starts the process. What the peer said it has is pinned until the load is done. A frame whose content does not match its hash is a faulty frame, and the connection ends. The spawn's time covers the exchange; what arrived complete stays, cached by hash, and two spawns waiting on one hash share one exchange.
+**A spawn across builds.** The spawn frame carries the function's hash, its captured values and the site. A peer that has the hash starts the process at once. A peer that lacks it asks for the closure's list; the sender sends the hashes the function references transitively, code and types, with the foreign declarations it names; the peer answers with the hashes it lacks, and with `NotLoaded` where it lacks the module a foreign declaration names; the sender ships the missing code, dependencies first. The request for the list, the list, the lacks and a code frame are four frames of Ernest's beside MVP 3.0's. A code frame carries one definition's canonical form, the form that is hashed, with its immediate references, and never a compiled binary. The peer verifies each frame against its hash as it arrives and holds it apart until the closure is complete; then it compiles the closure with its own back end, loads it all at once by the host's atomic load, and starts the process. What the peer said it has is pinned until the load is done. A frame whose content does not match its hash is a faulty frame, and the connection ends. The exchange runs in a process of its own on each node, and the gateways only pass its frames. The spawn's time covers the exchange; what arrived complete stays, cached by hash, and two spawns waiting on one hash share one exchange.
 
 **`Code`.** `Code.load` is `ern run`'s loading reached from Ernest: the compiled module, refused where it was compiled against another interface, and its closure, loaded at once and its bindings evaluated. The host's own load is not offered. A load changes nothing under a running process; the shell's `:reload` loads the new hashes and moves the session's names to them. Nothing is unloaded by `Code`: code goes when the node restarts.
 
@@ -127,21 +134,21 @@ A program's own tests of two builds need nothing new: `ern test --config-dir dir
 
 ## 9. Unsolved
 
-Every question the proposal was written through is decided. What remains is the build's: the canonical form's document, with the hash scheme's version, written before any hash is computed; and the measurements of section 7 and of what a spawn that ships code costs.
+Every question the proposal was written through is decided. What remains is the build's: the canonical form's document, with the hash scheme's version, written before any hash is computed; the measurements of section 7 and of what a spawn that ships code costs; the soundness argument's section 7 extended to identity by hash; and the report's sentences, §8.7 whole, §11.1 for what an `.erc` holds, §11.2 for a bare node and the shell, and Appendix E's section for `Code`.
 
 ## 10. Left out on purpose
 
 - An upgrade in place of a running process, a change of protocol by a translation, and a rollback: step D, the milestone after this one, where [`code.md`](code.md)'s section 3 waits.
-- The deploy tool that plans from the hashes, and the keeper: step D's. `ern diff` is a list, not a plan.
+- The deploy tool that plans from the hashes, and the keeper, a service that holds its state behind a protocol that seldom changes: step D's. `ern diff` is a list, not a plan.
 - Unloading code, and a pool of host module names reused: MVP 3.1a's measurement, step D's answer.
 - A node that boots the platform over the network, and the key such a node receives.
-- A drain and restart of a node whose atoms near the host's limit, and the hybrid that interprets cold code: step D's.
+- A drain and restart of a node whose atoms near the host's limit, and the hybrid, which interprets code until it is hot and compiles it then: step D's.
 - A compiled binary in a code frame, trusted as its sender is.
 - A project's name above a qualified name.
 
 ## 11. Room for what comes after
 
-Step D lets a running process take new code, and later a new protocol, and MVP 3.1a narrows the cookie to the runtime's surface. What MVP 3.1 leaves room for:
+Step D lets a running process take new code, and later a new protocol, and MVP 3.1a, a milestone of the plan's between the two, narrows the cookie to the runtime's surface, the functions shipped code calls by name. What MVP 3.1 leaves room for:
 
 1. **A process's code is a hash it can be asked for.** `Process.info` gains the hash of the function a process was started with, which a deploy tool reads to list the processes still on old code. It is added without breaking a program, and MVP 3.1 does not add it.
 2. **A process may come to accept more than one identity.** The gateway and a key compare identities, and never ask how many a process serves; a process that has changed its protocol serves two, through a translation, and a find then matches either.

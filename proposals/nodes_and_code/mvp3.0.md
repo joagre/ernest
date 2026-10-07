@@ -211,7 +211,7 @@ Where the store's node is stopped and started, its counter is a new process, whi
 5. **Every call ends.** By its answer, by its time running out, by the callee's end or restart, or by the callee's node going out of reach. A find and a spawn end the same way.
 6. **Both nodes learn of a loss.** When two nodes lose each other, each ends what it held with the other: at once where the connection is closed, and within 45 to 75 seconds where it only falls silent.
 7. **An address outlives a loss.** When two nodes connect again, an address reaches the process it reached before, for as long as that process lives and its node has not been started again. A monitor and a waiting call do not outlive a loss: it ends them.
-8. **A node's own processes are untouched.** A loss ends conversations with the peer and nothing else: no local process dies of it.
+8. **A node's own processes are untouched.** A loss ends conversations with the peer and nothing else: no local process dies of it, but one waiting in `Address.callForever` on a process of the peer, which faults as it does when its callee ends.
 
 ## 5. What does not hold
 
@@ -248,7 +248,7 @@ Where the store's node is stopped and started, its counter is a new process, whi
 
 The host's cookie is the build's fingerprint: each node computes it at its start as the digest of the protocol's version, `ern`'s version, OTP's version and the checksum of its build, and the host's handshake proves both sides hold it before anything passes. Two nodes of different builds fail the handshake with nothing sent. The build's checksum covers what runs: every compiled module on the node's load path, in name order, each as its name and the host's own digest of its code, which leaves out documentation, line numbers and attributes. The entry point plays no part, and a node carries the whole build. The standard library is not in it: `ern`'s version stands for it. A find or a spawn whose connection the peer refused fails with `Refused`; the refusing side knows why, and says so.
 
-**What passes.** Ernest's own frames are six, and the host carries the rest as it carries them on one node.
+**What passes.** Ernest's own frames are seven, and the host carries the rest as it carries them on one node.
 
 | What | Carried by |
 |---|---|
@@ -327,7 +327,7 @@ A program's own tests of two nodes need nothing new: `ern test --config-dir dir`
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
 3. **Costs not measured:** the gateway's step for an adapted address, a call's five signals, TLS, and the check of an adapted address's captured values as it crosses.
 4. **The soundness argument's section 7,** owed before peers are built: which two types are one across nodes, and what crosses a node.
-5. **What the report must say anew.** Its one silence, an act on what has ended that asks nothing back, widens to a `send` or a `kill` to a process whose node is out of reach or not listed, which vanishes while the process lives (section 5, point 8); and its peer chapter, §8.7 and §10, is rewritten from this proposal.
+5. **What the report must say anew.** Its one silence, an act on what has ended that asks nothing back, widens to a `send` or a `kill` to a process whose node is out of reach or not listed, which vanishes while the process lives (section 5, point 8); and its peer chapter, §8.6's sentence on peers, §8.7 and §10, is rewritten from this proposal.
 6. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
