@@ -185,6 +185,8 @@ What reading sections 2 and 3 beside sections 4.1 and 4.2 shows of code change. 
 
 ### 3.4 In practice
 
+**Decided for `mvp3.1.md`, 2026-10-07: the rolling deploy.** Step C's deploy is a rolling restart, one node at a time, services met by key, and a changed protocol answering `OtherType` across the rollout, which the program handles as it handles `Unreachable`. `ern diff old-build new-build` is the one tool: the definitions whose hash changed and the keys whose identity changed, a list and not a plan, since a plan that orders a rollout and checks translations is step D's. The discipline below, a service's protocol small, stable and its own, is what makes most deploys silent, and is the guide's to teach.
+
 Most production systems, Erlang's among them, do not upgrade in place. They start the new version beside the old, move the traffic and drain the old, with the state kept outside the processes. An upgrade in place serves where reconnecting costs: a telephone call, a chat or game server holding many connections, a trading gateway. So the thinking is to make the ordinary path excellent and the upgrade in place safe.
 
 - **A deploy planned from the hashes.** For each service binding, by its name in the two builds' name tables: its definition and its protocol unchanged is nothing to do; its definition changed behind the same protocol is an upgrade in place; its protocol changed is an upgrade in place with a translation, which the plan asks for and checks is there. Erlang's `appup` files say this by hand. A tool that prints the plan before a deploy, and refuses what it cannot do safely, is worth more than a feature of the language.

@@ -18,7 +18,9 @@ The bounds of MVP 3.0 stay: a few nodes with one owner, listed by hand, trusted 
 
 ## 2. What a program sees
 
-Written as the questions are decided.
+**What is new.** Nothing in `Peer`: its functions and `Peer.Failure` are MVP 3.0's, with `NotLoaded` meaning what the function needs and the peer does not have, a binding's value or a foreign declaration's module, and `OtherType` a service at another version. One command: `ern diff old-build new-build` lists the definitions whose hash differs between two builds, and among them the keys whose type identity differs, which are the services that answer `OtherType` across a rollout.
+
+The rest is written as the questions are decided.
 
 ## 3. Examples
 
@@ -33,7 +35,8 @@ The rest is written as the questions are decided.
 ## 5. What does not hold
 
 1. **A renamed type is a new type.** A type's hash holds its qualified name, so renaming a type or a constructor, or moving a type to another module, changes its hash and every dependent's, and a service whose protocol holds it is at another version to every client of the old build. A renamed function changes nothing but its own build's name for its hash.
-2. **An upgrade of `ern`, of OTP or of the hash scheme stops every node.** Nodes of different versions of any of the three never connect: the runtime's surface is what shipped code calls by name, and nothing hashes it. A program's own code is what a rolling restart changes.
+2. **A changed protocol parts old clients from new services for the length of a rollout.** An old client's find on a node of the new build answers `OtherType`, and a new client's on an old node the same, until both are of one build; a client written for peers waits and finds again, as it does for `Unreachable`. A change to a type that many protocols carry parts clients from every service that carries it at once.
+3. **An upgrade of `ern`, of OTP or of the hash scheme stops every node.** Nodes of different versions of any of the three never connect: the runtime's surface is what shipped code calls by name, and nothing hashes it. A program's own code is what a rolling restart changes.
 
 The rest is written as the questions are decided.
 
@@ -48,6 +51,8 @@ The rest is written as the questions are decided.
 **Bindings.** A node holds its bindings' values by the hash of their definition. A spawned function that names a binding finds the value where the peer's own build ran that hash, and fails with `NotLoaded` where it did not; nothing is initialized because a peer asked, as in MVP 3.0, and a value a spawned function is to have on the peer is captured. A service is one per node: a node runs one build and offers what that build started, and an old client that finds a service on a node restarted with a new build gets the new service where the type's identity is unchanged, and `OtherType` where it is not. Versions stand side by side as code, in processes spawned from peers of other builds, never as services.
 
 **A spawn across builds.** The spawn frame carries the function's hash, its captured values and the site. A peer that has the hash starts the process at once. A peer that lacks it asks for the closure's list; the sender sends the hashes the function references transitively, code and types, with the foreign declarations it names; the peer answers with the hashes it lacks, and with `NotLoaded` where it lacks the module a foreign declaration names; the sender ships the missing code, dependencies first. A code frame carries one definition's canonical form, the form that is hashed, with its immediate references, and never a compiled binary. The peer verifies each frame against its hash as it arrives and holds it apart until the closure is complete; then it compiles the closure with its own back end, loads it all at once by the host's atomic load, and starts the process. What the peer said it has is pinned until the load is done. A frame whose content does not match its hash is a faulty frame, and the connection ends. The spawn's time covers the exchange; what arrived complete stays, cached by hash, and two spawns waiting on one hash share one exchange.
+
+**A rolling deploy.** A node restarted with a new build connects to the old ones as any node does, its `ernest.conf` unchanged. The operator copies the build to one machine, stops that node, which is no loss to its peers, and starts it again; one machine at a time, in the order the program allows. A service's protocol that is unchanged, which is the ordinary fix, shows nothing to a client of either build. `ern diff` says beforehand which will not.
 
 The rest is written as the questions are decided.
 
@@ -66,8 +71,7 @@ The questions, in the order they are taken; each leaves the list as it is decide
 1. **A node's code.** The cache keyed by hash, in memory or on disk; the loader beside the host's `code_server`; what a module of the host is for a hash; whether a node keeps embedded mode. (`code.md` 2.3, *D9*.)
 2. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
 3. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
-4. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
-5. **How it is checked**, with nodes of two builds on one machine.
+4. **How it is checked**, with nodes of two builds on one machine.
 
 ## 10. Left out on purpose
 
