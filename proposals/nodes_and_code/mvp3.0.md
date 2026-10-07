@@ -53,6 +53,7 @@ Peer.find           : (String, Peer.Key(m), Int) -> Either(Peer.Failure, Address
 Peer.spawn          : (String, () -> Unit with m, Int) -> Either(Peer.Failure, Address(m)) with n
 Peer.spawnMonitored : (String, () -> Unit with m, (Down) -> n, Int)
                         -> Either(Peer.Failure, Address(m)) with n
+Peer.nodes          : () -> List(String) with n
 ```
 
 - A *key* names a service to a node's peers and carries the service's message type: `Peer.key("counter")`, bound at the type `Peer.Key(Msg)`. It is a value, and starts nothing.
@@ -61,6 +62,7 @@ Peer.spawnMonitored : (String, () -> Unit with m, (Down) -> n, Int)
 - `Peer.spawn(name, f, ms)` starts a process that runs `f` on the peer of that name and answers its address. `Peer.spawnMonitored(name, f, wrap, ms)` monitors it from its start.
 - A find and a spawn wait at most `ms` milliseconds, and answer the address or a failure, which the program matches on. Neither faults for what the network or the peer does, and a function that captured a value that cannot cross is refused by the compiler, not at run time.
 - `Reason` gains `Unreachable`: the process's node is out of reach, and the process may live on.
+- `Peer.nodes()` answers the names of the peers this node lists, in the configuration's order. The running node is no peer of itself.
 - `ern reload --config-dir dir` makes the node started with that directory read its `ernest.conf` again, so that a peer is added or removed without stopping the node.
 
 The failures, in the order a request meets them:
@@ -279,6 +281,8 @@ The desk and the board depend on the module `Counter` for the message type and t
 
 **Bindings.** A node runs, at its start, the top-level bindings of the standard library and of the modules its own entry point depends on, as a program on one node does. A function spawned on it runs only where the bindings that function depends on have their values there. Otherwise the peer starts nothing, and the spawn fails with `NotLoaded`. Nothing is initialized because a peer asked. In spawned code a top-level binding is the peer's, and a captured value is the spawner's.
 
+**Placement by load.** Two libraries stand on `Peer`, written in Ernest, the first programs on this design and the last items of the milestone. `libs/load` gives the host's measures of this node, each a shim with the host's page open: the run queue and the schedulers' utilisation, which any node has, and memory and disk, from the host's `memsup` and `disksup`, which answer a failure on a node whose `measures` did not start them. `libs/balancer` places work: a balancer is a process, `Balancer.start(nodes)` giving its address, over the library's own type of a place, this node or a peer's name, and `Balancer.spawn(balancer, f, ms)` asking it for a spawn. It is round robin unless given a measure. A measure is a function from the program, answering a load from 0.0 to 1.0 so that measures of different kinds compare and compose; a program gives it on each node by `Balancer.measure(f)`, which spawns a measuring process there and offers it under `Balancer.key`. Numbers are not spread: a pick draws two candidates at random, calls each one's measuring process, and takes the lower, so a pick costs two calls whatever the number of nodes, and a node that offers no measure is passed over.
+
 **The shell.** `ern shell --config-dir dir` is a node like any other: what is typed at it finds, calls and sends to its peers' services. A function typed at the shell is in a module of the shell's own, which no peer has, so a spawn of it on a peer fails with `NotLoaded`; a function of the build spawns as from a program. `:load` and `:reload` are refused in a shell that is a node, with an error naming MVP 3.1, since code the build does not have would be spawned on a peer by a reference the peer resolves to other code.
 
 **Other nodes' processes and resources.** `Process.info` answers for the running node's processes alone, and `None` for a process of another node. A supervisor's children run on its own node.
@@ -303,7 +307,7 @@ The desk and the board depend on the module `Counter` for the message type and t
 | a dial that nothing answers is given up after | 7 s, the host's |
 | what waits to be sent before a sender waits | 1 MB, the host's own |
 
-`ern` gives the host the same numbers on every node. None is set in `ernest.conf`.
+`ern` gives the host the same numbers on every node. None is set in `ernest.conf`, which holds the machine's numbers alone: which of the host's measures run on the node, `cpu_sup`, `memsup` and `disksup`, with their intervals and thresholds, under `measures`, none running where the section is absent.
 
 ## 8. How it is checked
 
@@ -318,25 +322,23 @@ A program's own tests of two nodes need nothing new: `ern test --config-dir dir`
 1. **What the carrier leaves open.** A connected node may start, end and call anything on the other, and nothing turns that off, so a peer's rights can never be narrowed on this carrier.
 2. **What a key leaves open.** A key's name is a string the program chooses, so two services can take one name by mistake. Where their message types differ a find through the first key answers that, and where they are the same the later offer silently wins.
 3. **Costs not measured:** the gateway's step for an adapted address, a call's four signals, TLS, and the check of an adapted address's captured values as it crosses.
-4. **Placement by load.** The plan gives MVP 3.0 `Peer.nodes`, the nodes a program can place work on, `Peer.runQueue`, how many processes wait to run on this node, and `libs/balancer` over the two, `Balancer.pick(measure)` and `Balancer.spawn(measure, f)`. All three can be built on this proposal as it stands. The shape agreed so far: the balancer is a process, `Balancer.start(nodes)` giving an address and `Balancer.spawn(balancer, f)` asking it, and it is round robin unless given a measure; a measure is a function that answers a load from 0.0 to 1.0, so that measures of different kinds compare and compose, and it runs on each node as a measuring process offered under `Balancer.key`, so that a pick is a call to each candidate and no code crosses; and the host's own measures, the scheduler's utilisation and the run queue for how busy a node is, `memsup` and `disksup` for how much room it has, and `cpu_sup` with its caveats, stand behind a library. Whether that is one library or several is to be decided, and so is whether MVP 3.0 includes all of it. Which of the host's measures run on a node is the node's own matter, so it is proposed for `ernest.conf`, a section `measures` naming the services of the host's `os_mon` that the node starts, `cpu_sup`, `memsup` and `disksup`, with their intervals and thresholds, none running where the section is absent, read at the node's start and at a reload; a function the program calls to set them was weighed against it, since the program is one build on every node and the host reads the parameters only when `os_mon` starts. A measure not running on a node is answered as a failure. These are the machine's numbers and not the protocol's, which section 7 keeps out of the file.
-5. **The soundness argument's section 7,** owed before peers are built: which two types are one across nodes, and what crosses a node.
-6. **The spawn site.** `Down` carries the site of the process's spawn, which for a process spawned on a peer is on the spawner's node, so the spawn frame carries it.
-7. **Initialization on a peer,** which the plan lists: two processes that use one binding before it has a value, an initializer that faults, one that does not end. *Bindings* answers most of it, since a node runs its bindings at its start and never because a peer asked, and the paragraph is to say so.
-8. **A certificate's validity.** A self-signed certificate has an end date, and the host refuses an expired one. Either `ern config` makes one that does not expire in practice, or the rule ignores the dates, the key being the identity.
-9. **A node's own name.** `ernest.conf` names a node's peers and never the node, so a program does not know what it is called, and `Peer.nodes` has no name for the running node.
-10. **A node's end.** A peer's monitor is to get `ProgramEnd` for a process of a node that ended, not `Unreachable`, so the node lets those `Down`s cross before it closes its connections.
-11. **What a node says.** The host's own reports of a lost node are turned off, and the node says on its standard error, in one line each, that a peer connected, was lost, was refused for its key or its build, or was replaced by a second node of its name.
-12. **A second start of one directory.** A node refuses to start where `ernest.pid` names a living process, so that a node which does not listen is not started twice.
-13. **A spawned process's output.** `Io.println` in a process spawned on a peer writes to the peer's standard output, the system processes being the peer's; *Bindings* is to say so.
+4. **The soundness argument's section 7,** owed before peers are built: which two types are one across nodes, and what crosses a node.
+5. **The spawn site.** `Down` carries the site of the process's spawn, which for a process spawned on a peer is on the spawner's node, so the spawn frame carries it.
+6. **Initialization on a peer,** which the plan lists: two processes that use one binding before it has a value, an initializer that faults, one that does not end. *Bindings* answers most of it, since a node runs its bindings at its start and never because a peer asked, and the paragraph is to say so.
+7. **A certificate's validity.** A self-signed certificate has an end date, and the host refuses an expired one. Either `ern config` makes one that does not expire in practice, or the rule ignores the dates, the key being the identity.
+8. **A node's own name.** `ernest.conf` names a node's peers and never the node, so a program does not know what it is called, and `Peer.nodes` has no name for the running node.
+9. **A node's end.** A peer's monitor is to get `ProgramEnd` for a process of a node that ended, not `Unreachable`, so the node lets those `Down`s cross before it closes its connections.
+10. **What a node says.** The host's own reports of a lost node are turned off, and the node says on its standard error, in one line each, that a peer connected, was lost, was refused for its key or its build, or was replaced by a second node of its name.
+11. **A second start of one directory.** A node refuses to start where `ernest.pid` names a living process, so that a node which does not listen is not started twice.
+12. **A spawned process's output.** `Io.println` in a process spawned on a peer writes to the peer's standard output, the system processes being the peer's; *Bindings* is to say so.
 **Found in a read-back of the whole, 2026-10-06, to discuss before anything else is decided:**
 
-14. **Section 10 and point 8 disagree.** Section 10 says that how a program learns which nodes there are, and places work by load, is not weighed; point 8 weighs it. The line goes when point 8 is decided.
-15. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
+13. **What other systems teach.** How Akka, Orleans, Erlang's ecosystem, Swift's distributed actors, Unison and the capability systems treat the same questions is in [`other_systems.md`](other_systems.md). The carrier and the rule that an address outlives a loss come from weighing it; the rest of it is not in this proposal yet.
 
 ## 10. Left out on purpose
 
 - Code that crosses between nodes, and a change of code while a program runs.
-- Discovery of nodes, and a registry that nodes share: a key is offered on one node and found there. How a program learns which nodes there are, and places work by load, is not weighed.
+- Discovery of nodes, and a registry that nodes share: a key is offered on one node and found there, and `Peer.nodes` answers what the configuration lists. A balancer that learns which nodes exist, and a placement that moves a running process.
 - A standing address of a service, one that finds the service again after its node is started again. A library builds it: a process on the holder's node that forwards, finds by the key, monitors, and is held through `via`.
 - A function shipped to a peer to read one of its bindings.
 - A message carried through a third node.
