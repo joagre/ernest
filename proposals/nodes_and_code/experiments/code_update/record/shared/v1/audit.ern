@@ -1,0 +1,14 @@
+/// The audit, a service whose protocol carries `Goods.Item`; it counts
+/// what it logged.
+export type Msg = Log(Goods.Item) | Entries(reply : Reply(Int))
+
+export let audit : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
+
+export fn step(entries : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+    match message {
+        Log(_) -> entries + 1
+      | Entries(reply = reply) -> {
+            answer(reply, entries);
+            entries
+        }
+    }

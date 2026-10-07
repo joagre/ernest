@@ -1,0 +1,17 @@
+/// The catalog with a protocol of its own: its item is its own type, which
+/// no other service's protocol carries.
+export type Item = Item(name : String, price : Int)
+
+export type Msg = Add(Item) | Find(name : String, reply : Reply(Optional(Item)))
+
+export let catalog : Service.Handle(Msg, Map(String, Item)) = Service.start(fn() = Map.empty, step)
+
+export fn step(items : Map(String, Item),
+               message : Msg) : Map(String, Item) with Service.Envelope(Msg, Map(String, Item)) =
+    match message {
+        Add(item) -> Map.put(items, item.name, item)
+      | Find(name = name, reply = reply) -> {
+            answer(reply, Map.get(items, name));
+            items
+        }
+    }

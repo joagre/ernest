@@ -1,0 +1,19 @@
+/// The pricer of version 2, beside version 1's.
+export type Msg = Quote(item : Goods2.Item, reply : Reply(Int))
+
+export let pricer : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
+
+export fn step(quotes : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+    match message {
+        Quote(item = item, reply = reply) -> {
+            answer(reply, item.price + item.price / 4);
+            quotes + 1
+        }
+    }
+
+export fn forward(message : Pricer.Msg,
+                  to : Address(Msg)) : Unit with Service.Envelope(Pricer.Msg, Int) =
+    match message {
+        Pricer.Quote(item = item, reply = reply) ->
+            send(to, Quote(item = Goods2.fromV1(item), reply = reply))
+    }

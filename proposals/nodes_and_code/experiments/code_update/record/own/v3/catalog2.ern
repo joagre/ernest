@@ -1,0 +1,37 @@
+/// The catalog of version 2, beside version 1's: its own item with its stock.
+/// The pricer and the audit are unchanged.
+export type Item = Item(name : String, price : Int, stock : Int)
+
+export type Msg = Add(Item) | Find(name : String, reply : Reply(Optional(Item)))
+
+export let catalog : Service.Handle(Msg, Map(String, Item)) = Service.start(fn() = Map.empty, step)
+
+export fn step(items : Map(String, Item),
+               message : Msg) : Map(String, Item) with Service.Envelope(Msg, Map(String, Item)) =
+    match message {
+        Add(item) -> Map.put(items, item.name, item)
+      | Find(name = name, reply = reply) -> {
+            answer(reply, Map.get(items, name));
+            items
+        }
+    }
+
+export fn fromV1(old : Catalog.Item) : Item =
+    Item(name = old.name, price = old.price, stock = 0)
+
+export fn toV1(item : Item) : Catalog.Item =
+    Catalog.Item(name = item.name, price = item.price)
+
+export fn migrate(items : Map(String, Catalog.Item)) : Map(String, Item) =
+    Map.map(items, fn(_, item) = fromV1(item))
+
+export fn forward(message : Catalog.Msg,
+                  to : Address(Msg)) : Unit with Service.Envelope(Catalog.Msg,
+                                                                  Map(String, Catalog.Item)) =
+    match message {
+        Catalog.Add(item) -> send(to, Add(fromV1(item)))
+      | Catalog.Find(name = name, reply = reply) -> {
+            let found = Address.callForever(to, fn(asked) = Find(name = name, reply = asked));
+            answer(reply, Optional.map(found, toV1))
+        }
+    }

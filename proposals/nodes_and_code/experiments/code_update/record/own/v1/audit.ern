@@ -1,0 +1,13 @@
+/// The audit with a protocol of its own: it logs a line.
+export type Msg = Log(String) | Entries(reply : Reply(Int))
+
+export let audit : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
+
+export fn step(entries : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+    match message {
+        Log(_) -> entries + 1
+      | Entries(reply = reply) -> {
+            answer(reply, entries);
+            entries
+        }
+    }

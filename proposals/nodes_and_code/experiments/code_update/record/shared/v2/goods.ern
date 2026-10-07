@@ -1,0 +1,3 @@
+/// Version 2, in place: the item gains its stock. No service's source
+/// changes, and every protocol that carries the item is another protocol.
+export type Item = Item(name : String, price : Int, stock : Int)

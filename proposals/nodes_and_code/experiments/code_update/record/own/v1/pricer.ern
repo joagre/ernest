@@ -1,0 +1,12 @@
+/// The pricer with a protocol of its own: a quote names a price, not an item.
+export type Msg = Quote(price : Int, reply : Reply(Int))
+
+export let pricer : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
+
+export fn step(quotes : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+    match message {
+        Quote(price = price, reply = reply) -> {
+            answer(reply, price + price / 4);
+            quotes + 1
+        }
+    }

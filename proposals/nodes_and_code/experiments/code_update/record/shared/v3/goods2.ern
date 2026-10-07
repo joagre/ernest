@@ -1,0 +1,11 @@
+/// Version 2, beside version 1: the item with its stock, in a module of its
+/// own so that the item of version 1 keeps its name and its identity.
+export type Item = Item(name : String, price : Int, stock : Int)
+
+/// An item of version 1 as one of version 2, its stock unknown and so 0.
+export fn fromV1(old : Goods.Item) : Item =
+    Item(name = old.name, price = old.price, stock = 0)
+
+/// An item of version 2 as one of version 1, for an old client's answer.
+export fn toV1(item : Item) : Goods.Item =
+    Goods.Item(name = item.name, price = item.price)

@@ -1,0 +1,2 @@
+/// An item, carried by three services' protocols (row C5).
+export type Item = Item(name : String, price : Int)

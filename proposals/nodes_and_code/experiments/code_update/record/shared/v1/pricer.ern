@@ -1,0 +1,13 @@
+/// The pricer, a service whose protocol carries `Goods.Item`; it counts
+/// the quotes it gave.
+export type Msg = Quote(item : Goods.Item, reply : Reply(Int))
+
+export let pricer : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
+
+export fn step(quotes : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+    match message {
+        Quote(item = item, reply = reply) -> {
+            answer(reply, item.price + item.price / 4);
+            quotes + 1
+        }
+    }

@@ -241,7 +241,7 @@ Two items are put and read back, and a connection is answered `keys: 2`. After t
 
 # The protocol change, written under the concept
 
-Rows C3 and C4 for a service, written and run on 2026-10-07: the counter's protocol gains `Reset`, then retires its request for the total in favour of another. The running loop's mailbox type is its old protocol, so in place is `become`'s case; what runs today is the replace: the successor takes the state by its own `Upgrade`, and the old loop goes on as a forwarder for the clients that hold its address, each old message given to a function the program writes with the successor's address. The library gained `replace` and `forwarding` for it, 30 lines.
+Rows C3 and C4 for a service, written and run on 2026-10-07: the counter's protocol gains `Reset`, then retires its request for the total in favour of another. The running loop's mailbox type is its old protocol, so in place is `become`'s case; what runs today is the replace: the successor takes the state by its own `Upgrade`, and the old loop goes on as a forwarder for the clients that hold its address, each old message given to a function the program writes with the successor's address. The library gained `replace` and `forwarding` for it, 30 lines; `replace` takes a `migrate` since the shared record experiment, the identity here.
 
 ## The files
 
@@ -273,13 +273,13 @@ Counter, compiled from counter.ern
 >
 ```
 
-A client of version 1 holds `h`. After the reload to version 2, `Service.replace(h, Counter.forward, h2, Counter.step)` moves the total of 3 into the new service and turns the old loop into a forwarder: the old client's request for the total answers 3, then 7 after a new client's add, then 0 after a new client's reset, while the new client sees the same. After the reload to version 3 the same again from `h2`: the oldest client, two translations deep, the version 2 client, whose retired request is answered through `Stats`, and the new client all see 5.
+A client of version 1 holds `h`. After the reload to version 2, `Service.replace(h, Counter.forward, h2, fn(total) = total, Counter.step)` moves the total of 3 into the new service and turns the old loop into a forwarder: the old client's request for the total answers 3, then 7 after a new client's add, then 0 after a new client's reset, while the new client sees the same. After the reload to version 3 the same again from `h2`: the oldest client, two translations deep, the version 2 client, whose retired request is answered through `Stats`, and the new client all see 5.
 
 ## Findings
 
 - **Rows C3 and C4 work today as a replace, with a forwarder per retired version.** Nothing was told to any client, and the cost to the program was the kept old protocol and one `forward` function per version, 5 lines for C3 and 7 for C4. The forwarders chain: the oldest client's request crossed two before it was answered, one process and one hop for each version still held, which is what deleting the old type and its `forward` ends.
 - **A retired request needs no reply adapter.** Part two asked for a `via` for replies, to carry a reply of one answer type into a request of another. The forwarder is a process and answers the retired request itself, by asking the new service and answering the old caller, 2 lines; the pure translation of part two is the C3 case, and C4 is the forwarder's.
-- **The kept declaration wants a module of its own.** Two types in one module cannot share constructor names, so keeping `Msg` beside `Msg2` renamed every constructor of the new protocol, `Add2`, `Total2`, which every client of the new protocol then writes. The rule that the old declaration stays until nothing holds it should place it in a module of its own, `counter/v1.ern`, so that the current protocol keeps its names and the old one keeps its own under its module.
+- **The kept declaration wants its own module, and it is the new one that moves.** Two types in one module cannot share constructor names, so keeping `Msg` beside `Msg2` renamed every constructor of the new protocol, `Add2`, `Total2`, which every client of the new protocol then writes. This finding first put the old declaration in a module of its own; the shared record experiment corrected it, since a type's qualified name is in its identity and an old type moved is another type: the new declaration takes a module of its own, `counter2.ern`, and keeps the names.
 - **The replace is where the plan's tool earns its keep.** The caller wrote three things by hand that the plan derives from the hashes: that the protocol changed, that version 2's `forward` is the namesake map, and the two-line incantation at the shell. The C4 `forward` is the one thing a human writes.
 
 ## The count
@@ -349,3 +349,123 @@ The counter counts to 2, is crashed, and is restarted from 0 by the group. After
 | the tree, version 1 | 59 |
 | what version 2 added | the logs, the clock, the limit and `upgradeTally`, 34 lines |
 | what the upgrade in place cost at the shell | one line, which a restart then undid |
+
+# The shared record, written twice
+
+Row C5, written and run on 2026-10-07: three services, a catalog, a pricer and an audit, whose protocols carry an item, and the item gains its stock. Written twice: with one record shared by the three protocols, and with each protocol owning its types, the pricer taking a price and the audit a line. Each is changed in place, to see the ripple through today's reload, and beside the old version, with the services replaced by the library's `replace`, to measure the bill.
+
+## The files
+
+- `record/shared/v1/`: `goods.ern`, the item, and `catalog.ern`, `pricer.ern` and `audit.ern`, each a service whose protocol carries `Goods.Item`.
+- `record/shared/v2/goods.ern`: the item with its stock, in place.
+- `record/shared/v3/`: beside version 1, `goods2.ern`, the item with its stock and the two conversions, and `catalog2.ern`, `pricer2.ern` and `audit2.ern`, each the service at the new item with its `forward` from version 1's protocol, and the catalog's `migrate`.
+- `record/own/v1/`: the same services with protocols of their own; only the catalog's carries an item, its own.
+- `record/own/v2/catalog.ern`: the catalog's own item with its stock, in place.
+- `record/own/v3/catalog2.ern`: beside version 1, the catalog at its new item, with its conversions, `migrate` and `forward`.
+
+## In place, shared
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Goods, compiled from goods.ern
+Catalog, compiled from catalog.ern
+> Pricer, compiled from pricer.ern
+> Audit, compiled from audit.ern
+> c : Service.Handle(Catalog.Msg, Map(String, Goods.Item))
+> p : Service.Handle(Pricer.Msg, Int)
+> a : Service.Handle(Audit.Msg, Int)
+> > > 10 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Goods, compiled again
+Audit, compiled again
+Pricer, compiled again
+Catalog, compiled again
+Goods.Item changed: the bindings a, c and p were checked against its previous version, which MVP 3.1 tells from the current one; the reload forgot them
+>
+```
+
+## In place, own
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Catalog, compiled from catalog.ern
+> Pricer, compiled from pricer.ern
+> Audit, compiled from audit.ern
+> c : Service.Handle(Catalog.Msg, Map(String, Catalog.Item))
+> p : Service.Handle(Pricer.Msg, Int)
+> a : Service.Handle(Audit.Msg, Int)
+> > > 10 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Catalog, compiled again
+Catalog.Item changed: the binding c was checked against its previous version, which MVP 3.1 tells from the current one; the reload forgot it
+> 10 : Int
+> 1 : Int
+>
+```
+
+## Beside, shared
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Goods, compiled from goods.ern
+Catalog, compiled from catalog.ern
+> Pricer, compiled from pricer.ern
+> Audit, compiled from audit.ern
+> c : Service.Handle(Catalog.Msg, Map(String, Goods.Item))
+> p : Service.Handle(Pricer.Msg, Int)
+> a : Service.Handle(Audit.Msg, Int)
+> > > 10 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Right(Unit) : Either(Io.Error, Unit)
+> Right(Unit) : Either(Io.Error, Unit)
+> Right(Unit) : Either(Io.Error, Unit)
+> Goods2, compiled from goods2.ern
+Catalog2, compiled from catalog2.ern
+> Pricer2, compiled from pricer2.ern
+> Audit2, compiled from audit2.ern
+> > > > Some(Item(name = "apple", price = 8)) : Optional(Goods.Item)
+> 10 : Int
+> > Some(Item(name = "apple", price = 8, stock = 0)) : Optional(Goods2.Item)
+> 2 : Int
+>
+```
+
+## Beside, own
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Catalog, compiled from catalog.ern
+> Pricer, compiled from pricer.ern
+> Audit, compiled from audit.ern
+> c : Service.Handle(Catalog.Msg, Map(String, Catalog.Item))
+> p : Service.Handle(Pricer.Msg, Int)
+> a : Service.Handle(Audit.Msg, Int)
+> > > 10 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Catalog2, compiled from catalog2.ern
+> > Some(Item(name = "apple", price = 8)) : Optional(Catalog.Item)
+> Some(Item(name = "apple", price = 8, stock = 0)) : Optional(Catalog2.Item)
+> 10 : Int
+>
+```
+
+## Findings
+
+- **The ripple is the protocols that carry the type, whatever changed in their sources.** In place, the shared item's new field compiled again all three services, none of whose sources changed, and every binding of their protocols was checked against a previous version; under MVP 3.1 each protocol's identity changes, and `ern diff` lists the three as `follows`. With protocols of their own, the same change reached the catalog alone, and the pricer and the audit answered on.
+- **The bill is a copy of each service, and it is paid for every protocol that carries the type.** Beside version 1, each service of the new item is a new module that copies its step to retype it, with a `forward` from the old protocol: 84 lines for the shared record, of which 46 are copies, against 37 for the catalog alone. The copies leave with the old version, but for as long as both run they are a second way of writing one service.
+- **The new declaration takes a module of its own, not the old one.** The protocol experiment's finding put the kept declaration in a module of its own. A type's qualified name is in its identity, so the old declaration moved to another module would be another type, which no running client holds (`mvp3.1.md`, section 5, limit 1). Here the old `Goods.Item` and every old protocol stay where they are, and the new ones are `Goods2.Item`, `Catalog2.Msg` and the rest, whose clients write the new modules' names.
+- **A changed type inside an answer is the forwarder's, as a retired request is.** An old client's `Find` answers an item of version 1; the forwarder asks the new catalog and converts the answer back with `toV1`, two lines, as the protocol experiment's forwarder answered a retired request. Every answer that carries a changed type needs the conversion back, and a conversion that loses a field, here the stock, answers the old client with less than the new service knows, which is right.
+- **The guide's rule holds, and now has a number.** Small protocols of their own, a price and a line rather than the shared item, made the change one service's bill instead of three.
+
+## The count
+
+| | lines |
+|---|---|
+| the three services and the shared item, version 1 | 46 |
+| the shared record's change beside version 1 | 84, of which 46 copied and 38 the conversions, `migrate` and the three `forward`s |
+| the own types' change beside version 1 | 37, the catalog alone |
+| what each replace cost at the shell | one line |
