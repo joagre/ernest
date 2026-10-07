@@ -22,7 +22,7 @@ What is proposed for MVP 3.0 is [`mvp3.0.md`](mvp3.0.md)'s, the proposal: what a
 
 ### 2.1 Nodes
 
-In the proposal's section 6, *Nodes*.
+In the proposal's section 6, *A node*, *Its configuration*, *Its start and its end*, *What it says* and *A reload*.
 
 **A node's peers change while it runs.** A configuration read only at start was weighed first and left, since adding a node is not a change to one node's list: every node that is to talk to the new one gets an entry, so adding a machine would restart the whole system, a deploy's cost for a change that touches no code. On this carrier the change is cheap. The rule that accepts a peer and the table that gives a peer's address read a table the runtime fills, and a removed peer is dropped with the host's own disconnect. Three ways for `ern` to reach the running node were weighed. Over the distribution, `ern` would be a node with a key the running node lists, which would have to be in the file about to be reloaded. A local socket or pipe is a second listener and a second protocol to say "read your file again". A signal needs no new channel: the host delivers it, the runtime has a signal handler, only the process's owner can send it, which is the right permission for a node with one owner, and `kill -HUP` works where `ern` is not at hand. So `SIGHUP` is the mechanism and `ern reload --config-dir dir` the convenience, by a process number the node writes in the directory it owns, as every daemon does. What cannot change while running is the node's own key and address, its name and its listener; the rest is a table's rows. A signal carries nothing back, so the node reports on its standard error, and the command's status says only that the signal was delivered.
 
@@ -36,7 +36,7 @@ In the proposal's section 6, *Nodes*.
 
 ### 2.2 Connections
 
-In the proposal's section 6, *Connections*, *The hello* and *What passes*.
+In the proposal's section 6, *Connections* and *What passes*.
 
 **A sender waits, as the host has it.** The rule that a sender never waits was made for a protocol of our own, where blocking would have been code of ours. On the host's distribution it is the other way round: a sender that waits where the buffer is full is what the host does, and not waiting is what would be built, a `nosuspend` on every send, a disconnect where it is refused, and a limit to argue over. The host's way gives back-pressure, a program that sends faster than the network carries being slowed to the network's speed instead of losing the connection and every monitor and call on it; a bound, since the detector gives the peer up within 45 to 75 seconds and the send then returns; and nothing to build. Its costs are stated as a limit: a `send` across nodes returns at once only while the network keeps up; a process that waits in a send serves nothing from its mailbox, so a stalled peer stalls the processes that send to it, which Erlang programs live with by supervision and timeouts; and a call's time runs from the moment its request is sent. Akka drops the message where its queue overflows, which would break the claim that no message is dropped alone; ending the connection, which was weighed before, is the harshest answer to a stall. The buffer's size is the host's own 1 MB and says only when slowing begins.
 
