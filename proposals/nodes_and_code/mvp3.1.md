@@ -1,6 +1,6 @@
 # Ernest: MVP 3.1, Code by Its Hash
 
-Status: a proposal being written, one question at a time, from [`code.md`](code.md), before MVP 3.0 is built. Its section 1 is decided; the rest is written as its questions are decided, and section 9 holds them. The reasons for what it says go to [`code.md`](code.md) as they are settled.
+Status: a proposal, written one question at a time from [`code.md`](code.md) on 2026-10-07, before MVP 3.0 is built; its sections 2 to 7 are to be made whole and read back, as `mvp3.0.md` was. The reasons for what it says are in [`code.md`](code.md), marked *Decided*, beside the thinking they came from.
 
 ## 1. What it is
 
@@ -75,13 +75,15 @@ The rest is written as the questions are decided.
 
 ## 8. How it is checked
 
-Written as the questions are decided.
+The canonical form has a test suite of its own, written with the form before any hash is computed: the same definition hashes the same across a rebuild; a renamed function keeps its dependents' hashes; a renamed type changes them; a moved definition in a group changes the group's hash; two bodies that differ only in local names or layout hash the same; a literal's encoding is fixed. Two hashes for one definition, and one hash for two, are its cases.
+
+The runtime's tests build one program twice with one definition changed, start a node of each on one machine as the experiment starts nodes, and hold the claims: the cookie lets them connect; a find across them answers the address where the key's identity is unchanged and `OtherType` where it changed; a spawn of changed code onto the old node ships exactly the lacking definitions, verified and loaded at once, and the process runs; `NotLoaded` for a binding the old node did not run and for a foreign declaration it lacks; a faulty frame ends the connection; a bare node takes a spawn and offers a service; a late or broken exchange leaves nothing half-loaded. `ern diff` on the two builds names the changed definition and the changed key. A node told to load many units says so at four fifths of a limit, once, measured.
+
+A program's own tests of two builds need nothing new: `ern test --config-dir dir` with the other build started by `Os`, as MVP 3.0 has it.
 
 ## 9. Unsolved
 
-The questions, in the order they are taken; each leaves the list as it is decided.
-
-1. **How it is checked**, with nodes of two builds on one machine.
+Every question the proposal was written through is decided. What remains is the build's: the canonical form's document, with the hash scheme's version, written before any hash is computed; and the measurements of section 7 and of what a spawn that ships code costs.
 
 ## 10. Left out on purpose
 
