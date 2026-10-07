@@ -76,7 +76,7 @@ The three paragraphs before the risks, and the two after, are the thinking befor
 
 ## 7. Code change in running processes, the thinking for step D
 
-Thought before the peer design and MVP 3.1 were settled, and left as it was. What MVP 3.1 has since decided and this part assumes otherwise: no message or address carries a hash, a key carries a type's identity, a service is found by its key and not by its binding's hash, nothing is unloaded and the host reclaims no module name, and a deploy is a rolling restart. Section 7.3's findings on a service across builds and after its node restarts are answered by keys for step C, and stand for step D only where a process is to take new code in place. The milestone after MVP 3.1 writes its proposal from this part the way `mvp3.1.md` was written from the thinking before it.
+Thought before the peer design and MVP 3.1 were settled, and left as it was. [`code_update.md`](code_update.md), begun 2026-10-07, reads this part against one recovery path and a matrix of the cases, and this part moves there when that document's shape is agreed. What MVP 3.1 has since decided and this part assumes otherwise: no message or address carries a hash, a key carries a type's identity, a service is found by its key and not by its binding's hash, nothing is unloaded and the host reclaims no module name, and a deploy is a rolling restart. Section 7.3's findings on a service across builds and after its node restarts are answered by keys for step C, and stand for step D only where a process is to take new code in place. The milestone after MVP 3.1 writes its proposal from this part the way `mvp3.1.md` was written from the thinking before it.
 
 ### 7.1 Loading and upgrade in place
 
