@@ -1,6 +1,6 @@
 # Ernest: MVP 3.1, Code by Its Hash
 
-Status: a proposal, written one question at a time from [`code.md`](code.md) on 2026-10-07, before MVP 3.0 is built, and made whole the same day, then amended the same day for a load on one node (section 4, claim 5; section 6, *A node's code* and *The shell*); to be read back against section 1 of [`mvp3.0.md`](mvp3.0.md). The reasons for what it says are in [`code.md`](code.md), marked *Decided*, beside the thinking they came from; what other systems do is [`other_systems.md`](other_systems.md), section 6.
+Status: the proposal for MVP 3.1, code by its hash, written on 2026-10-07 before MVP 3.0 is built. The reasons for what it says are [`code.md`](code.md)'s part one; what other systems do is [`other_systems.md`](other_systems.md), section 6.
 
 ## 1. What it is
 
