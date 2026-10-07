@@ -4,7 +4,7 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 
 **What it asks.** Whether a node protocol of Ernest's can ride on Erlang's own distribution with what hurts in it turned off: the mesh, the port-mapper daemon, the cookie as the only proof of who a peer is, and a sender made to wait. `proposals/nodes_and_code/other_systems.md` holds what was found, beside what other systems do.
 
-**How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of five nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about a minute.
+**How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of five nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about a minute and a half.
 
 **The four nodes.** Node `a` lists `b`. Node `b` lists `a`, `c` and `d`. Node `c` lists `b`. Node `d` lists `b`, does not listen, and has no port in the table, so that only `d` can dial. A second `a`, with `a`'s key and name, is started for one step and does not listen. Node `f` lists `b` and reaches it through a TCP proxy, `ern_probe_proxy`, which can drop what passes in one direction or both, a close included, as a parted network does. A sixth name, `e`, is no node: the table gives it an address that nothing answers from. A node accepts a peer whose public key it lists, and no other.
 
@@ -33,6 +33,8 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 | 10 | A node with another cookie, standing for another build, dials `b` | Refused in the host's handshake, "Invalid challenge reply", with nothing sent: its send to `b` times out, `b`'s log has no event, and the first `a`'s connection is untouched |
 | 11 | The link between `f` and `b` drops both ways, with no close | `f` finds `b` lost after 4.8 s and `b` finds `f` lost at the same time, both `net_tick_timeout`. When the link is back, the next ping connects again |
 | 12 | The link drops `f` to `b` only | `b` finds `f` lost after 4.6 s, `net_tick_timeout`. Its close passes the open direction, and `f` is told 1 ms later, `shutdown`. The next ping after the link is back connects again |
+| 13 | `b` ends its processes with `{ern, program_end}` and then halts at once, or disconnects its peers and halts | `a`'s monitor on one of them gives `noconnection`: the `Down` was still in the buffer |
+| 13 | The same, then the host's orderly stop, `init:stop` | `a`'s monitor gives `{ern, program_end}` |
 | 8 | A send to a node that is down, whose port refuses | The send returns in 8 to 19 microseconds. A thousand more take 90 milliseconds, each a dial that is refused |
 | 8 | A send to an address that nothing answers from | Each of three sends returns in under 10 microseconds, and waits behind one dial |
 | 8 | How long that dial lasts | A monitor made then gives `noconnection` after 7.0 seconds, the host's own time for setting a connection up |

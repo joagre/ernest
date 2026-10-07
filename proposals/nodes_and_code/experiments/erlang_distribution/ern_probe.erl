@@ -29,6 +29,7 @@ run() ->
         say("6  a pings the process of b's earlier start", ask(A, Holder, ping)),
         one_side_dials(B2, NodeB, Dir),
         peer:stop(B2),
+        node_end(A, Dir),
         say("8  b is down; a's sends: us for one, for 1000 more",
             on(A, fun() -> sends(NodeB) end)),
         say("8  e's address is silent: us for each of a's 3 sends",
@@ -178,6 +179,37 @@ timed_event(Peer, Kind) ->
     Started = erlang:monotonic_time(millisecond),
     Event = wait_event(Peer, Kind, 15000),
     {erlang:monotonic_time(millisecond) - Started, Event}.
+
+%% Step 13: b ends every process of the experiment's with program_end, as a
+%% node ends its processes when its program ends, and then stops in one of
+%% three ways. What a's monitor on one of those processes sees.
+node_end(A, Dir) ->
+    lists:foreach(fun(How) -> node_end(A, Dir, How) end, [halt, disconnect, stop]).
+
+node_end(A, Dir, How) ->
+    {B, NodeB} = start_node(b, Dir, []),
+    Holder = on(A, fun() -> hold(NodeB) end),
+    pong = ask(A, Holder, ping),
+    catch peer:call(B, erlang, apply, [fun() -> end_program(How) end, []], 1000),
+    say("13 b ended its processes, then " ++ atom_to_list(How) ++ "; a's monitor",
+        ask(A, Holder, down)),
+    catch peer:stop(B).
+
+%% On b: ends the experiment's own processes, then the node.
+end_program(How) ->
+    Ours = [Pid || Pid <- processes(), Pid =/= self(), is_ours(Pid)],
+    lists:foreach(fun(Pid) -> exit(Pid, {ern, program_end}) end, Ours),
+    case How of
+        halt -> erlang:halt();
+        disconnect -> [erlang:disconnect_node(Node) || Node <- nodes(connected)], erlang:halt();
+        stop -> init:stop()
+    end.
+
+is_ours(Pid) ->
+    case erlang:process_info(Pid, initial_call) of
+        {initial_call, {?MODULE, _, _}} -> true;
+        _ -> false
+    end.
 
 ping_from(Peer, Node) -> peer:call(Peer, ?MODULE, ping, [Node], 10000).
 
