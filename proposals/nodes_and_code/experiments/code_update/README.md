@@ -176,3 +176,65 @@ The second reload ends the previous version's processes, the connection among th
 | what the upgrade in place cost the program | 15 lines, the two constructors and their clauses |
 | what version 2 changed, either way | 1 line |
 | what the upgrade cost at the shell | one line, `send(r, Chat.UpgradeAll(next = Chat.serving))` |
+
+# The store, written twice
+
+The singleton's program, written and run on 2026-10-07: a store whose state is its items and the listener it owns, as a step function the library runs, with an acceptor helper that answers each connection the store's size. Row C1 in place, and row C2 as a handover to a successor, which is the node that stops done on one node. The restart alone is the counter's story again, the items lost, and is not run twice.
+
+## The files
+
+- `store/v1/store.ern`: version 1; the listener is opened in `init`, inside the loop, so that the loop owns it.
+- `store/v2/store.ern`: version 2, each `Put` logged; the protocol and the state's type unchanged (row C1).
+- `store/v3/store.ern`: version 3, the state's shape changed to `State2`, which counts the puts; `State` stays, the previous version's, so that `migrate` can be written; `handover` starts a successor from the migrated state and ends the old loop.
+- The client is `chat/client.ern`.
+
+## The run
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Store, compiled from store.ern
+> Client, compiled from client.ern
+> h : Service.Handle(Store.Msg, Store.State)
+> > > Some(1) : Optional(Int)
+> p : Int
+> c1 : Address(Client.Msg)
+> Some("keys: 2") : Optional(String)
+> Right(Unit) : Either(Io.Error, Unit)
+> Store, compiled again
+Store: the previous version is held by the process spawned at Store.init:19; the next reload of Store ends it
+> > put c
+> 3 : Int
+> c2 : Address(Client.Msg)
+> Some("keys: 3") : Optional(String)
+> Right(Unit) : Either(Io.Error, Unit)
+> Store, compiled again
+Store: the previous version is unloaded; the reload ended the process spawned at Store.init:19
+Store: the previous version is held by the process spawned at Store.init:18; the next reload of Store ends it
+Store.init:19 faulted: its code was unloaded
+> the successor listens on 37333 with 3 keys
+> fault: callee had ended
+> Client.start:7 faulted: cannot connect
+c3 : Address(Client.Msg)
+> fault: callee had ended
+>
+```
+
+Two items are put and read back, and a connection is answered `keys: 2`. After the reload to version 2, `Service.upgrade(h, Store.step)` hands the running store the new step: the next put is logged by the new code, the size is 3, and a connection on the same port, through the same listener, is answered `keys: 3`; the store kept its items and its resource through an upgrade in place. After the reload to version 3, `Store.handover(h)` sends the old loop an `Upgrade` whose function starts a successor from `migrate` of the state and returns: the successor listens on a new port with the three keys, the old store has ended, and a connection to the old port is refused.
+
+## Findings
+
+- **A changed state is a replace today, and the replace is the library's one message.** `Upgrade`'s function takes the old state and may do anything with it: starting a successor from `migrate` of it and ending is the handover of code_update.md's section 2, written in six lines, with no new concept. Its price is the one the document names: a new address, which the old handle no longer reaches, and the resource reopened, since the listener ends with its owner. Across nodes the same function would start the successor by `Peer.spawn` and the state would cross as a value.
+- **In place keeps the resource for nothing.** Row C1 kept the listener and its port through the upgrade, since the process is the same; nothing was given, nothing reopened.
+- **The helpers are version holders here too.** Each version's acceptor runs the module's `accepting` and holds that version; the third reload ended version 1's acceptor, as the chat server's readers were ended. A successor's acceptor ends with the old listener, which is right; a helper of an upgraded loop must be upgraded or listed.
+- **A first version of the program asked itself for its size.** `spawn(fn() = accepting(listener, via(self(), Service.Message)))` evaluates `self()` inside the spawned acceptor, so the acceptor's request went to the acceptor. The language is right and the program was wrong; the address is now bound outside the lambda. It is the kind of mistake the plan's generated test would have found, since the first connection answered nothing.
+
+## The count
+
+| | lines |
+|---|---|
+| the store as a step function, version 1 | 73 |
+| what version 2 changed | 1 line |
+| what version 3 added for the handover | `State2`, `migrate`, `opened` and `handover`, 25 lines, of which the handover is 8 |
+| what the upgrade in place cost at the shell | one line, `Service.upgrade(h, Store.step)` |
+| what the handover cost at the shell | one line, `Store.handover(h)` |

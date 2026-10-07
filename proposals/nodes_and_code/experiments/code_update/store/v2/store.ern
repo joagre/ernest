@@ -1,0 +1,74 @@
+/// Version 2: each `Put` logged; the protocol and the state's type unchanged
+/// (row C1). The running store takes this `step` by `Service.upgrade` and
+/// keeps its items and its listener.
+export type Msg =
+    Put(key : String, value : Int)
+  | Get(key : String, reply : Reply(Optional(Int)))
+  | Size(reply : Reply(Int))
+  | Port(reply : Reply(Int))
+
+export type State = State(items : Map(String, Int), listener : Address(Tcp.ListenerMsg))
+
+export let store : Service.Handle(Msg, State) = Service.start(init, step)
+
+export fn init() : State with Service.Envelope(Msg, State) =
+    match Tcp.listen("127.0.0.1", 0) {
+        Right(listener) -> {
+            let me = via(self(), Service.Message);
+            let _ = spawn(fn() = accepting(listener, me));
+            State(items = Map.empty, listener = listener)
+        }
+      | Left(_) -> fault("cannot listen")
+    }
+
+export fn step(state : State, message : Msg) : State with Service.Envelope(Msg, State) =
+    match message {
+        Put(key = key, value = value) -> {
+            Io.println("put " <> key);
+            State(items = Map.put(state.items, key, value), listener = state.listener)
+        }
+      | Get(key = key, reply = reply) -> {
+            answer(reply, Map.get(state.items, key));
+            state
+        }
+      | Size(reply = reply) -> {
+            answer(reply, Map.size(state.items));
+            state
+        }
+      | Port(reply = reply) -> {
+            answer(reply, portOf(state.listener));
+            state
+        }
+    }
+
+export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int with n =
+    match Tcp.port(listener) {
+        Right(found) -> found
+      | Left(_) -> 0
+    }
+
+/// Answers each connection the store's size and closes it; ends when the
+/// listener does, which is when its owner does.
+export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) : Unit with m =
+    match Tcp.accept(listener, 60000) {
+        Right(socket) -> {
+            let size = Address.callForever(store, fn(reply) = Size(reply = reply));
+            let _ = Tcp.write(socket, String.toUtf8("keys: " <> Int.toString(size)), 1000);
+            Tcp.close(socket);
+            accepting(listener, store)
+        }
+      | Left(Io.Timeout) -> accepting(listener, store)
+      | Left(_) -> Unit
+    }
+
+export fn put(key : String, value : Int) : Unit with n =
+    send(Service.address(store), Put(key = key, value = value))
+
+export fn get(key : String) : Optional(Int) with n =
+    Address.callForever(Service.address(store), fn(reply) = Get(key = key, reply = reply))
+
+export fn size(handle : Service.Handle(Msg, State)) : Int with n =
+    Address.callForever(Service.address(handle), fn(reply) = Size(reply = reply))
+
+export fn port(handle : Service.Handle(Msg, State)) : Int with n =
+    Address.callForever(Service.address(handle), fn(reply) = Port(reply = reply))

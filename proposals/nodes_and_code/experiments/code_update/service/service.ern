@@ -9,7 +9,8 @@ export type Envelope(m, s) = Message(m) | Upgrade(next : (s) -> Unit with Envelo
 /// `Upgrade`, and the clients' address, which takes the protocol alone.
 export type Handle(m, s) = Handle(loop : Address(Envelope(m, s)), clients : Address(m))
 
-export fn start(init : () -> s, step : (s, m) -> s with Envelope(m, s)) : Handle(m, s) with n = {
+export fn start(init : () -> s with Envelope(m, s),
+                step : (s, m) -> s with Envelope(m, s)) : Handle(m, s) with n = {
     let loop = spawn(fn() = run(step, init()));
     Handle(loop = loop, clients = via(loop, Message))
 }
