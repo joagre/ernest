@@ -35,6 +35,9 @@
 %% (report §11.2), which the checker takes as its fourth argument.
 -record(session, {load_path = [], source_root = ".", last_input = 0, interfaces = [],
                   scope = #{}, beams = #{}, source_hashes = #{}, last_holder = 0, prelude}).
+%% scope: what an input may name, `values`, `types` and `constructors`, each
+%% name to its qualified name; and `previous`, the names a reload forgot,
+%% each to the type it was checked against a previous version of (§11.2)
 %% last_input: the highest input number given; last_holder: the highest
 %% `$Bindings` number given; a number freed is given again first, from the
 %% kept row `free` (free_namespace/1)
@@ -461,7 +464,8 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
             end;
         {error, Diagnostics} ->
             {'Left', diagnostic(InputOrigin, Input,
-                                [load_hinted(Session, Diagnostic) || Diagnostic <- Diagnostics])}
+                                [previous_hinted(Session, load_hinted(Session, Diagnostic))
+                                 || Diagnostic <- Diagnostics])}
     end.
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
@@ -1827,6 +1831,25 @@ load_hinted(Session, #diagnostic{unknown_namespace = [_ | _] = Namespace,
 load_hinted(_Session, Diagnostic) ->
     Diagnostic.
 
+%% Report §11.2: a name a reload forgot is answered why, `c was forgotten
+%% by a reload: it was checked against a previous version of Counter.Msg,
+%% which MVP 3.1 tells from the current one`.
+previous_hinted(#session{scope = Scope},
+                #diagnostic{unknown_name = Name, help = undefined} = Diagnostic)
+  when Name =/= undefined ->
+    case maps:get(previous, Scope, #{}) of
+        #{Name := Root} ->
+            Diagnostic#diagnostic{
+              help = lists:flatten([atom_to_list(Name), " was forgotten by a reload: it was"
+                                    " checked against a previous version of ",
+                                    ern_namespace:text(Root),
+                                    ", which MVP 3.1 tells from the current one"])};
+        _ ->
+            Diagnostic
+    end;
+previous_hinted(_Session, Diagnostic) ->
+    Diagnostic.
+
 %% Report §11.2: a typed input is the file `input`; an input from a startup
 %% file is named by the file, its positions moved to the line it stands on
 %% there and, on its first line, to the column it begins in, and its lines
@@ -2194,11 +2217,121 @@ reloaded(Session, Needed, Compiled, SourcelessLines) ->
                           ok -> [];
                           {fault, Site, Cause} -> [kept_values_line(Site, Cause)]
                       end,
-            {'Right', {keep_session(Session2), lists:reverse(Lines) ++ Faulted ++ SourcelessLines}};
+            {Session3, Forgotten} = forget_previous(Session, Session2, Compiled),
+            {'Right', {keep_session(Session3),
+                       lists:reverse(Lines) ++ Forgotten ++ Faulted ++ SourcelessLines}};
         {fault, Site, Cause} ->
             withdraw_all(Needed),
             {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded\n">>}
     end.
+
+
+%% Report §11.2: the session's bindings whose type names a type whose
+%% declaration the reload changed, an abstract type of a module compiled
+%% again or a type of the session that names one of these among them,
+%% were checked against the previous version, which the session does not
+%% tell from the current one: the reload forgets them and says so,
+%% `Counter.Msg changed: the binding c was checked against its previous
+%% version, which MVP 3.1 tells from the current one; the reload forgot
+%% it`; an input that names one afterwards is answered the same
+%% (previous_hinted/2). The session before the reload holds the previous
+%% interfaces, the session after it the current ones.
+forget_previous(Before, #session{scope = Scope} = After, Compiled) ->
+    Recompiled = [Namespace || {Namespace, _, _} <- Compiled,
+                               is_map_key(Namespace, Before#session.source_hashes)],
+    Changed = changed_types(Before, After, Recompiled),
+    Values = maps:get(values, Scope, #{}),
+    Forgotten = [{Key, Root}
+                 || {Key, QualifiedName} <- lists:sort(maps:to_list(Values)),
+                    {ok, #scheme{type = Type}} <- [scheme(QualifiedName, After)],
+                    Root <- [first_changed(type_names(Type), Changed)],
+                    Root =/= none],
+    case Forgotten of
+        [] ->
+            {After, []};
+        _ ->
+            Previous = maps:merge(maps:get(previous, Scope, #{}), maps:from_list(Forgotten)),
+            Scope1 = Scope#{values => maps:without([Key || {Key, _} <- Forgotten], Values),
+                            previous => Previous},
+            {collected(After#session{scope = Scope1}), forgotten_lines(Forgotten)}
+    end.
+
+%% The types whose declaration the reload changed, each compared by the
+%% hash of itself alone in §11.1's canonical form, an abstract type of a
+%% module compiled again counted as changed since its representation is
+%% not in its interface; then every type of the session, a loaded
+%% module's, an input's or a holder's, that names one of them, to a fixed
+%% point. Each to the changed type it names, itself for the first kind.
+changed_types(#session{interfaces = Old}, #session{interfaces = New}, Recompiled) ->
+    Changed = maps:from_list(
+                [{QualifiedName, QualifiedName}
+                 || Namespace <- Recompiled,
+                    #interface{types = OldTypes} <- [interface_of(Namespace, Old)],
+                    #interface{types = NewTypes} <- [interface_of(Namespace, New)],
+                    {QualifiedName, OldInfo} <- maps:to_list(OldTypes),
+                    type_changed(QualifiedName, OldInfo, maps:get(QualifiedName, NewTypes, none))]),
+    dependents(Changed, [{QualifiedName, TypeInfo}
+                         || #interface{types = Types} <- New,
+                            {QualifiedName, TypeInfo} <- maps:to_list(Types)]).
+
+interface_of(Namespace, Interfaces) ->
+    lists:last([Interface || #interface{namespace = Found} = Interface <- Interfaces,
+                             Found =:= Namespace]).
+
+type_changed(_, _, none) -> true;
+type_changed(_, #type_info{abstract = true}, _) -> true;
+type_changed(_, _, #type_info{abstract = true}) -> true;
+type_changed(QualifiedName, OldInfo, NewInfo) ->
+    type_hash(QualifiedName, OldInfo) =/= type_hash(QualifiedName, NewInfo).
+
+type_hash(QualifiedName, TypeInfo) ->
+    ern_interface:hash(#interface{namespace = lists:droplast(QualifiedName),
+                                  types = #{QualifiedName => TypeInfo}}).
+
+dependents(Changed, Types) ->
+    Mentions = fun(#constructor_info{scheme = #scheme{type = Type}}) ->
+                   first_changed(type_names(Type), Changed)
+               end,
+    More = [{QualifiedName, Root}
+            || {QualifiedName, #type_info{constructors = Constructors}} <- Types,
+               not is_map_key(QualifiedName, Changed),
+               Root <- [first_found([Mentions(Constructor) || Constructor <- Constructors])],
+               Root =/= none],
+    case More of
+        [] -> Changed;
+        _ -> dependents(maps:merge(Changed, maps:from_list(More)), Types)
+    end.
+
+first_found(Roots) ->
+    case [Root || Root <- Roots, Root =/= none] of
+        [] -> none;
+        [Root | _] -> Root
+    end.
+
+first_changed(Names, Changed) ->
+    first_found([maps:get(Name, Changed, none) || Name <- Names]).
+
+%% The declared types a type is made of, each by its qualified name.
+type_names({tcon, QualifiedName, Args}) ->
+    [QualifiedName | lists:append([type_names(Arg) || Arg <- Args])];
+type_names({ttuple, Types}) ->
+    lists:append([type_names(Type) || Type <- Types]);
+type_names({tfn, Args, Effect, Result}) ->
+    lists:append([type_names(Type) || Type <- Args ++ [Result]]) ++ effect_names(Effect);
+type_names({tvar, _}) ->
+    [].
+
+effect_names(pure) -> [];
+effect_names(Type) -> type_names(Type).
+
+forgotten_lines(Forgotten) ->
+    [unicode:characters_to_binary(
+       [ern_namespace:text(Root), " changed: ", bindings_named(Names),
+        counted(Names, " was", " were"),
+        " checked against its previous version, which MVP 3.1 tells from the current one;"
+        " the reload forgot ", counted(Names, "it", "them")])
+     || Root <- lists:usort([Found || {_, Found} <- Forgotten]),
+        Names <- [[name_text(Key) || {Key, Found} <- Forgotten, Found =:= Root]]].
 
 %% Report §11.2: a loaded module whose source the source root does not
 %% hold is named, since `:reload` cannot compile it again.
@@ -2812,8 +2945,13 @@ joined(#session{interfaces = Interfaces, scope = Scope} = Session, #interface{} 
                               <- maps:values(InterfaceTypes),
                           #constructor_info{qualified_name = QualifiedName} <- TypeConstructors],
     Constructors = maps:merge(maps:get(constructors, Scope, #{}), maps:from_list(NewConstructors)),
+    %% a name bound again is of the current version (§11.2)
+    Previous = maps:without([value_key(Namespace, QualifiedName)
+                             || QualifiedName <- maps:keys(InterfaceValues)],
+                            maps:get(previous, Scope, #{})),
     Session#session{interfaces = Interfaces ++ [Interface],
-                    scope = Scope#{values => Values, types => Types, constructors => Constructors}}.
+                    scope = Scope#{values => Values, types => Types, constructors => Constructors,
+                                   previous => Previous}}.
 
 %% A name as an input after this one writes it: a type member under the
 %% type that owns it (report §4.2), anything else under its own name.

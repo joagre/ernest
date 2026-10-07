@@ -331,6 +331,16 @@ the terminal). The rest is MVP 3.3's.
 
 ## Standing gaps
 
+- **The shell does not tell a previous version of a type from the current one** (found
+  2026-10-07 by an experiment while [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) was
+  read back): after a `:reload` that added a constructor to `Counter.Msg`, a message of the
+  new version sent to a binding of the old was accepted, and sat unmatched in the old
+  process's mailbox (§6.3). Since 2026-10-07 §11.2 has the reload forget such a binding,
+  naming MVP 3.1, which `reload_forgets_previous_version` in `test/ern_shell_tests.erl` holds
+  (the log's *A Binding of a Previous Version Is Forgotten*). Its fix is MVP 3.1's items 2
+  and 7, a type's identity its hash in the session's scope as everywhere (`mvp3.1.md`,
+  section 6, *The shell*), which keeps the binding, of its own type, and refuses only a
+  message of the other version.
 - **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
   load; MVP 2.99d's item 11): its terminal script found an expected line missing; run
   again alone it passed, and under `make test-shell` too, and it has not failed since in

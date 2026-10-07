@@ -3,7 +3,8 @@
 -define(ERN_DIAGNOSTIC_HRL, true).
 
 -record(diagnostic, {span, message, labels = [], help, incomplete = false,
-                     expected = undefined, within = undefined, unknown_namespace = undefined}).
+                     expected = undefined, within = undefined, unknown_namespace = undefined,
+                     unknown_name = undefined}).
 %% span: ern_diagnostic:span(), the primary span.
 %% message: string(), the first line.
 %% labels: [{ern_diagnostic:span(), string()}], the secondary spans the message
@@ -20,6 +21,9 @@
 %% unknown_namespace: the namespace of a qualified name that names nothing
 %%   in scope, for the shell to name the `:load` that would put it there
 %%   (§11.2), and nothing else reads it; `undefined` for every other failure.
+%% unknown_name: an unqualified name that names nothing, for the shell to say
+%%   when a reload forgot it (§11.2), and nothing else reads it; `undefined`
+%%   for every other failure.
 
 %% Where a constructor's field's name stands, kind `field`; or where its
 %% first argument would stand and could be a field's name or a value,

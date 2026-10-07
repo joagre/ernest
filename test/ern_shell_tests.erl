@@ -2384,6 +2384,61 @@ reload_ends() ->
     ?assertMatch({_, _},
                  binary:match(Output, <<"Counter.service:5 faulted: its code was unloaded">>)).
 
+%% report §11.2: a reload that changed a type's declaration forgets the
+%% session's bindings checked against its previous version, a binding of a
+%% session type that names the changed type among them, names them, and
+%% answers an input that names one with why; a binding bound again is of
+%% the current version, a binding of another type stays, and a reload that
+%% changes no declaration forgets nothing. A regression test: before it,
+%% `send(c, Counter.Reset)` to an address of the previous version was
+%% accepted, and `Reset` sat in the old process's mailbox unmatched
+reload_forgets_previous_version_test_() ->
+    {timeout, 60, fun reload_forgets_previous_version/0}.
+
+reload_forgets_previous_version() ->
+    Dir = scratch("ern_reload_forgets_"),
+    Counter = fun(Reset, Start) ->
+                  ["export type Msg = Inc(Int) | Get(reply : Reply(Int))",
+                   [" | Reset" || Reset], "\n",
+                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "    receive {\n",
+                   "        Inc(by) -> serve(n + by)\n",
+                   "      | Get(reply = r) -> { answer(r, n); serve(n) }\n",
+                   ["      | Reset -> serve(0)\n" || Reset],
+                   "    }\n",
+                   "export let service : Address(Msg) =\n",
+                   "    spawn(fn() : Unit with Msg = serve(", integer_to_list(Start), "))\n"]
+              end,
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(false, 1)),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Counter\n",
+                                     "let c = Counter.service\n",
+                                     "type Box = Box(Address(Counter.Msg))\n",
+                                     "let b = Box(c)\n",
+                                     "let n = 1\n",
+                                     write_source(Dir, "counter.ern", Counter(true, 1)),
+                                     ":reload\n",
+                                     "send(c, Counter.Reset)\n",
+                                     "b\n",
+                                     "n\n",
+                                     "let c = Counter.service\n",
+                                     "{ send(c, Counter.Reset); 2 + 2 }\n",
+                                     write_source(Dir, "counter.ern", Counter(true, 2)),
+                                     ":reload\n",
+                                     "{ send(c, Counter.Reset); 2 + 2 }\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Found = fun(Text) -> binary:match(Output, Text) =/= nomatch end,
+    ?assert(Found(<<"Counter.Msg changed: the bindings b and c were checked against its"
+                    " previous version, which MVP 3.1 tells from the current one; the reload"
+                    " forgot them">>)),
+    ?assert(Found(<<"c was forgotten by a reload: it was checked against a previous version of"
+                    " Counter.Msg, which MVP 3.1 tells from the current one">>)),
+    ?assert(Found(<<"b was forgotten by a reload: it was checked against a previous version of"
+                    " Counter.Msg, which MVP 3.1 tells from the current one">>)),
+    ?assert(Found(<<"> 1 : Int">>)),
+    ?assertEqual(2, length(binary:matches(Output, <<"4 : Int">>))),
+    ?assertEqual(1, length(binary:matches(Output, <<"changed: the binding">>))).
+
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)

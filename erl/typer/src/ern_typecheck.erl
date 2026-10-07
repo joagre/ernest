@@ -5629,7 +5629,7 @@ lookup_outside(Span, Name, Env) ->
                                ++ ".compare";
                        false -> undefined
                    end,
-            fail(Span, "unknown name " ++ atom_to_list(Name), [], Help)
+            unknown_name(Span, Name, Help)
     end.
 
 %% This module's own declaration, QualifiedName being its namespace, the
@@ -6021,6 +6021,13 @@ plural(_) -> "s".
 
 fail(Span, Message) ->
     throw({type_error, Span, lists:flatten(Message)}).
+
+%% Report §11.2: an unqualified name that names nothing, kept for the
+%% shell, which says when a reload forgot it.
+unknown_name(Span, Name, Help) ->
+    throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
+                                   message = "unknown name " ++ atom_to_list(Name),
+                                   help = Help, unknown_name = Name}}).
 
 %% Report §11.2: a qualified name that names nothing in scope, its
 %% namespace kept for the shell, which names the `:load` that would put
