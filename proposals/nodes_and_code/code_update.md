@@ -1,6 +1,6 @@
 # Ernest: Code Update, the thinking for step D
 
-Status: a thinking document, begun 2026-10-07, for step D of [`code.md`](code.md)'s section 1, *The four steps*, a running system that takes new code; nothing in it is decided, and no proposal is written from it yet. It starts from one recovery path and a matrix of the cases, and reads [`code.md`](code.md)'s part two, the thinking for one process that takes new code, against them; part two moves here when this document's shape is agreed, so that the subject has one owner. What other systems do is to be read into [`other_systems.md`](other_systems.md) as its section 7, from the list in section 6. The reasons for code by its hash are `code.md`'s part one, and for nodes [`nodes.md`](nodes.md)'s.
+Status: a thinking document, begun 2026-10-07, for step D of [`code.md`](code.md)'s section 1, *The four steps*, a running system that takes new code; nothing in it is decided, and no proposal is written from it yet. It starts from one recovery path and a matrix of the cases, and reads [`code.md`](code.md)'s part two, the thinking for one process that takes new code, against them; part two moves here when this document's shape is agreed, so that the subject has one owner. What other systems do is [`other_systems.md`](other_systems.md), section 7, read from the list section 6 once held. The reasons for code by its hash are `code.md`'s part one, and for nodes [`nodes.md`](nodes.md)'s.
 
 ## 1. The problem
 
@@ -99,19 +99,9 @@ What a proposal written from this would claim, each to be tested:
 7. **What the hashes can refuse is refused before the deploy.** Nothing fails during a deploy that the two builds could have shown.
 8. **The way back is the drain**, and after the drain it is forward.
 
-## 6. What to read
+## 6. What was read
 
-The state of the art on this question is thin, which is the opportunity, and each system below answers one piece of it. To be read into `other_systems.md`'s section 7, one paragraph each with what it answers and what it leaves:
-
-- **OTP's `appup` and `relup`**, the Appup Cookbook: the failure case, read for every piece the author writes by hand, so that the plan derives each or does without it. And why Elixir's releases left the mechanism out, and what Distillery and its successors kept.
-- **Orleans grain versioning**: typed grain interfaces with a version, silos of different versions in one cluster, compatibility declared and placement by version. The closest thing to a typed, mixed-version cluster, and the one to read first for what a key at two versions should do.
-- **Akka**: behaviour switching, from which `become` takes its name, and schema evolution of persisted events by adapters, which is `migrate` on stored state.
-- **Envoy's and nginx's hot restart**: a new process, the listening sockets passed to it, a drain period, the old process ending; the handover of section 2 done at the operating system's level, and the measure of what a drain costs.
-- **Kitsune and the dynamic software updating literature**: update points and state transformers, which are §6.10's shape, and the con-freeness theorem, the condition under which an update is type-safe, which two types for two versions makes trivial; read for the soundness argument.
-- **CLOS's update of instances on class redefinition**: migration on touch, lazily, read for whether a kept state can be migrated when it is next read rather than at the deploy.
-- **Elm's hot swap**: code swapped where the model's type is unchanged and a restart otherwise, which is the matrix's C1 against C2 made a rule.
-- **Database migration practice**, expand then contract, and **protobuf's breaking-change detectors**: the industry's discipline for a protocol change in phases, and the tool `ern diff` grows toward.
-- **Smalltalk's `become:`**, for what swapping an identity in place has cost and what it has given.
+Read on 2026-10-07 by four readers into [`other_systems.md`](other_systems.md), section 7: the upgrade practice, OTP's appup and relup, Elixir's releases and the proxies' hot restart; versioned actors, Orleans, Akka, Durable Functions and Dapr; schema evolution and the step-function shape, Avro, protobuf, Elm, safecopy and Smalltalk; and dynamic software updating as a field, Kitsune, Ginseng, Rubah, Ekiden, con-freeness and CLOS. Its *What recurs* lists twelve findings against this document's sections 1 to 4 and its claims, and the four readers' first words to the designers. Nothing of it is worked into this document yet: the next step is the concept section, written from those findings, and the rewrite of sections 2 to 4 under it.
 
 ## 7. Open questions
 
