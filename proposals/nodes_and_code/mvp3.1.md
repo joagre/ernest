@@ -1,6 +1,6 @@
 # Ernest: MVP 3.1, Code by Its Hash
 
-Status: the proposal for MVP 3.1, code by its hash, written on 2026-10-07 before MVP 3.0 is built. The reasons for what it says are [`code.md`](code.md)'s part one; what other systems do is [`other_systems.md`](other_systems.md), section 6.
+Status: the proposal for MVP 3.1, code by its hash, written on 2026-10-07 before MVP 3.0 is built; it changes only by a question raised against it. One is raised and decided in principle: a cache of hashed code on each node's disk, which [`code_update.md`](code_update.md)'s section 2 states and which changes section 6 and limit 3 when this proposal is edited next. The reasons for what it says are [`code.md`](code.md)'s part one; what other systems do is [`other_systems.md`](other_systems.md), section 6.
 
 ## 1. What it is
 
