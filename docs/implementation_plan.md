@@ -15,11 +15,9 @@ milestone, the standing gaps, and what is done.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
 measured, with the prelude and the emitted code, and the report's and the guide's feedback
-shipped as Ernest 0.3.1 (*Done* below). Next is MVP 2.99e, the standard library's `Code`,
-placed on 2026-10-06, whose decisions are taken with the user before it is built. After it
-comes MVP 3.0, peers, whose design begins with the thinking in
-[`nodes_and_code.md`](../proposals/nodes_and_code/nodes_and_code.md), discussed with the user before anything is built; that
-discussion goes on meanwhile. A release waits until the user calls it.
+shipped as Ernest 0.3.1 (*Done* below). Next is MVP 3.0, peers, whose design is
+[`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md), settled with the user on 2026-10-07; before it is
+built, MVP 3.1's design is written the same way, to check what MVP 3.0 leaves room for. A release waits until the user calls it.
 
 **Ernest 0.3.1 is tagged** `v0.3.1` on 2026-10-05, a documentation release from MVP 2.99d:
 the manual pages rewritten to teach, the examples made to teach, the guide staged for its
@@ -64,25 +62,85 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 2.99e | the standard library's `Code`: the host's loading of code, reached from Ernest | |
-| MVP 3.0 | peers: distributed code and the node protocol | |
-| MVP 3.1 | content addressing | |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | design settled 2026-10-07 |
+| MVP 3.1 | code by its hash, and the standard library's `Code` | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 
 ---
 
-## MVP 2.99e (the standard library's `Code`)
+## MVP 3.0 (peers), about four weeks
 
-Placed on 2026-10-06, before MVP 3.0. Its one item is a module of the standard library,
-`stdlib/code.ern`, namespace `Code`, through which a program reaches the host's loading of
-code: a shim of the relevant parts of Erlang's `code` module, each function written with
-`code`'s manual page open. Until now loading is the toolchain's alone, the runner's at a
-program's start and the shell's at `:load` and `:reload` (§11.2), and the log's *Erlang's
-Standard Library, Module by Module* holds `code` out of the library, a row that changes when
-the module's section is written. Its decisions are taken with the user, one at a time,
-before any of it is built, and the milestone is sized when the first is taken:
+Designed in [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md), settled with the user on
+2026-10-07 after a read-back against its four rules; its reasons are
+[`nodes.md`](../proposals/nodes_and_code/nodes.md), what the host showed is the experiment under
+[`experiments/`](../proposals/nodes_and_code/experiments/erlang_distribution/), and
+[`other_systems.md`](../proposals/nodes_and_code/other_systems.md) holds what other systems do.
+**The report's §8.7 and §10 and the guide's peer chapter describe the design before the
+proposal. They are rewritten from it as this milestone's first item, and nothing is built from
+them until then.** Before this milestone is built, MVP 3.1's design is written the same way
+(MVP 3.1 below), so that the proposal's section 11, what MVP 3.0 leaves room for, is checked
+against a design and not a guess; MVP 3.0's items are then confirmed or corrected from it.
+
+The items, in build order, each with the report's sentences first, its tests, and a commit:
+
+1. **The report and the guide rewritten from the proposal, and the soundness argument's
+   section 7.** §6.2's one silence widened to a `send` or a `kill` to a process whose node is
+   out of reach or not listed; §6.4's unbroken prefix; §6.5's adapted address across nodes;
+   §6.6's calls across nodes; §7.4's causes; §8.3, §8.5, §8.6 and §8.7 as the proposal has
+   them, no code crossing; §9.3's `Unreachable`; §10 whole; §11.2 and §11.3 for `--config-dir`,
+   `ern config` and `ern reload`; Appendix E's section for `Peer`, E.21's `Process.info`, E.18
+   and E.23 for a resource bound to its node; Appendix F; the guide's chapter. The log's
+   entries for each, pointing at `nodes.md` for the argument. With them, as the build
+   reaches each: `soundness.md`'s section 7; `architecture.md` for the gateway, the peer
+   table, the helpers and the rows a call keeps; `memory.md` for what those hold and when
+   they let go; `style.md`'s glossary for peer, gateway, key, bound type and helper;
+   `test/diagnostics.md` for the compiler's refusals; the manual pages and `ern --help` for
+   `ern config`, `ern reload` and `--config-dir`; and a program of two nodes under
+   `examples/`. When it is built, `mvp3.0.md`'s status line says so and the report owns
+   the rules; the proposal and `nodes.md` stay as the record, as CLAUDE.md has it.
+2. **The node.** `ern config`: the key, the certificate with the longest validity, `ernest.conf`,
+   the public key printed. The configuration: `listen`, the peers with name, key and
+   `network-address`, one family of addresses, `measures`. The rule that accepts a peer by its
+   key, with the host's name check off and the certificate's dates ignored; the table in place
+   of the port-mapper daemon; no mesh; the cookie as the build's fingerprint over the checksum
+   of what runs; the detector's time. `ernest.pid` and its guard; the bindings before the
+   listener; the orderly end; what a node says, with the host's reports off.
+3. **Messages and addresses.** The bound type in the checker: `Peer.key` of a bound type and a
+   spawn whose captures are bound or have a type variable refused. `send` as the host's;
+   `Reason`'s `Unreachable`; a `Down` with an empty site across nodes; `kill`; the gateway for
+   an adapted address, its function's fault to the sender, its captures checked as it crosses.
+4. **Calls.** The request sent without waiting and the helper where the buffer is full,
+   `answer` the same; the note to the callee's node that a call waits, and the second at its
+   time; `callee is unreachable`.
+5. **`Peer`.** `key`, `offer` and `find` with the type's text; `spawn` and `spawnMonitored` with
+   their time, the site in the frame, `NotLoaded`, and the kill of a process whose spawner
+   stopped waiting; `Peer.Failure`; `Peer.nodes`. `ern reload` by `SIGHUP` and the table. The
+   shell as a node, its `:load` and `:reload` refused naming MVP 3.1; `ern test` as a node.
+6. **`Load` and `Balancer`**, in Ernest on the runtime, with `measures` starting the host's
+   services: the first programs written on the design.
+7. **The tests**, with real nodes on one machine as the experiment runs them, holding the
+   proposal's section 4 whole, the parted network through the proxy among them; the costs of
+   the proposal's section 9 measured; `docs/development.md`'s table for the two refusals that
+   name MVP 3.1.
+
+Decisions the proposal leaves as they are, named here so that none is open: a key's name is
+the program's, and two services under one name on one node are not told apart beyond their
+types (its section 9, point 2); a connected peer may do anything on this carrier, and no
+right is narrowed (point 1).
+
+---
+
+## MVP 3.1 (content addressing), about four weeks
+
+Designed in `mvp3.1.md`, written from [`code.md`](../proposals/nodes_and_code/code.md) before MVP 3.0 is
+built, the way [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md) was, one question at a time with the
+user; `code.md` is the thinking from before the peer design was settled, and where the two
+differ `mvp3.0.md` and its section 11 hold. The open questions of code distribution are
+decided there, report first. Its first items are the standard library's `Code`, moved here
+from a milestone of its own on 2026-10-07, since MVP 3.0 loads no code and every decision
+of `Code` is one of a module named by its hash:
 
 - **What a module is to `Code`**, decided first: an Ernest module by its namespace, loaded
   as `ern run` and `:load` load one, a compiled form refused where it was compiled against
@@ -108,118 +166,7 @@ before any of it is built, and the milestone is sized when the first is taken:
   Ernest over `Code` in place of `foreign fn`s of the shell's own, compiling staying the
   toolchain's.
 
-Built with `stdlib/`'s discipline: the section's tests and the module's page with its
-executed examples.
-
----
-
-## MVP 3.0 (peers: distributed code and the node protocol), about three weeks
-
-Designed in [`nodes_and_code.md`](../proposals/nodes_and_code/nodes_and_code.md), the note for nodes, code and code change,
-all of it tentative. It took in the protocol's note and code distribution's, brought to the
-report on 2026-09-28, which went on 2026-10-05, kept at `3fa6b42`. What it still asks of the
-report, listed below, and its open questions are decided before any of it is built.
-
-Nodes that reach each other, a spawn on a peer that ships code (§8.7), and messages between
-them that carry values (§3.11). Code is shipped only between nodes running the same build,
-§8.7's easiest case, and a peer whose build differs is refused with an error naming 3.1. Split
-from MVP 3.1 on 2026-09-20. It holds distributed code and the node protocol alone, decided
-2026-09-28 (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*).
-
-The full review ([`full_review.md`](full_review.md)) that was to run before it, since
-others build on it, ran as MVP 2.99c's item 6, and its findings were worked before Ernest
-0.3.0 (the log's *A Full Review Now and Then*). Another runs only when the user says so.
-
-- **The soundness argument extended** ([`soundness.md`](soundness.md), its section 7),
-  written before peers are built on it (decided 2026-10-04): which two types are one, across
-  nodes by their hash (§8.7) and across a session's inputs (§11.2), and what crosses a node,
-  §3.8's and §3.11's transport.
-- **The note for nodes and code, read with the user before any of it is built.** Brought to the
-  report on 2026-09-28, the two notes it took in also gained design no one has weighed: a
-  `spawned` and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn
-  frame, the hash modules named `ern#<base32>`, and new open questions, its *P5*, *P7* to
-  *P12* and *P15* to *P21*, and its *D8* to *D17* (the second read-back, 2026-09-30, placed
-  here with the user the same day).
-- **Code change in running processes, decided with the user before any of it is built**:
-  §6.10's replacement by a message that carries the new loop, and a long-serving service's
-  upgrade. The thinking so far, tentative and undecided, is in
-  [`nodes_and_code.md`](../proposals/nodes_and_code/nodes_and_code.md), which also holds the rest of the thinking for MVP
-  3.0 and 3.1 until their discussions decide it.
-- The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
-  in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
-  and the guide's examples in §8.1 and §8.4 are compiled again (2026-10-01, the log's *The Rules
-  That Exist for Another*). It spawns over the peers in `ernest.conf`, authenticated with the
-  configured keys: the connection is `ssl`, with the peer's public key from `ernest.conf` as the only
-  trust, read with `public_key`, inside `ern`; a program never sees either module.
-- Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, its
-  monitors delivered; a peer that reappears is a new instance.
-- **Placement by load, in `Peer` and a library** (feedback items 14 and 25, decided in MVP
-  2.66; the log's *No Remote Computation in the Language*). `Peer.nodes` answers the nodes
-  a program can place work on, the running node first, then each peer of `ernest.conf` in its
-  order. How a program places work on the node chosen, since `Where` left the prelude on
-  2026-10-01, is this item's decision, made with the user when it is built; the recommendation
-  is that the library spawn on the node it chooses, `Balancer.spawn(measure, f)`, so that no
-  node type exists (the log's *Placing Work Without `Where`*). `Peer.runQueue : () -> Int with m` answers how many processes
-  wait to run on the node that evaluates it. Both are shims by E.0 rule 1, stated in `Peer`'s
-  section of Appendix E.
-- **`libs/balancer`**, in Ernest over those two. `Balancer.pick(measure)` draws two nodes at
-  random from `Peer.nodes()`, spawns on each a process that evaluates `measure()` there and
-  sends the number back, and answers the node with the lower number, the first on a tie. A
-  node lost before it answers is dropped and another drawn; the running node always answers,
-  and with one node `pick` answers it without measuring. `measure : () -> Int with m`, so the
-  common call is `Balancer.pick(Peer.runQueue)`. Its module page states the cost, two round
-  trips per `pick`.
-- **What the note for nodes and code asks of the report**, each decided before it is built: whether
-  `Reason` gains `Unreachable` for a lost peer whose process may live on (the note's question *P6*,
-  §9.3, §6.9), which also settles a contradiction a reader outside the project found on
-  2026-10-04: §10 requires a lost peer's `Down` to carry a reason distinguishable from every
-  other, and a process that calls `fault("peer lost")` gives the same; and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
-  a sender told nothing of a drop, as the note's section 2.5 promises.
-- **Where a node's configuration is read**, decided before `ernest.conf` is: its default,
-  `./.ernest`, is the directory a program starts in, whose `ernest.conf` would name the peers
-  and keys the node trusts, as its `startup` ran inputs until MVP 2.95 (§11.2, §11.3; the log's
-  *A Directory Runs Nothing of Its Own*). Recommended: the default goes, and a node reads a
-  configuration directory only where `--config-dir` names it. With it goes where the node's
-  private key lives, which `ern config` writes there by default, into the working tree, where
-  a commit can take it (the security reader's S-H, 2026-09-29); nothing reads the key before
-  this milestone.
-- **`Peer.find(name, fn() = M.service)`**: a peer's service is found by reading its binding on
-  the peer, decided in MVP 2.65's step 5 (the log's *A Peer's Service Is Found Through Its
-  Binding* and *`Peer.find` Stands*). Built here with §8.7's two sentences on a node's own
-  initialization and on a definition that differs by hash. It answers a failure rather than
-  faulting, `Peer.Failure = NoSuchPeer | Lost`, `Peer`'s own.
-- **When a module's top-level bindings run**, decided with §8.7's sentence on a node's own
-  initialization: whether one rule serves both nodes, where the node a program starts on runs
-  those of every module the entry point depends on, though their names may appear nowhere at a
-  use (§8.5, principle 3), and a peer runs them lazily (a reader's finding, P4). With it,
-  what §8.7 leaves open of a peer's initialization, which the same reader listed: what two
-  processes see that use one binding before it has a value; whether an initializer's fault is
-  kept, or a later use runs it again; what follows where the process that began it dies or
-  restarts meanwhile; an initializer that reads a binding not yet initialized, and one that
-  does not end; and which process runs it, and so what its `self()` is.
-- **Code travels only with a spawn**, decided 2026-09-27 (§3.11, §6.5, §8.7; the log's *Code
-  Travels Only With a Spawn*). A value that holds a function faults at the operation that
-  would take it to another node, `function cannot cross nodes`, found by the walk that finds a
-  foreign value; the function a spawn starts, with its captures, is shipped. An adapted address
-  crosses as its target's address and its function's `{hash, env}`, and the node where it was
-  made applies the function on delivery; one made around another node's process faults.
-- **Shipped code and the host's lambda entries**, noted 2026-09-27 (the log's *The Shell's
-  Code Memory*): OTP keeps an entry for each lambda of each version of a module it loads, up
-  to 524,288, for as long as the node lives. A node that receives code loads one version per
-  definition, by its hash, and `docs/memory.md` gains a load of peers spawning the same and
-  new definitions.
-- **A supervisor's children run on its node**, decided 2026-09-27 (Appendix E.22; the log's
-  *The `Supervisor`'s Shape*): `Supervisor.child` asks the runtime, through a private shim,
-  whether `sup` is on the child's node, and faults with `a child runs on its supervisor's
-  node` before the child joins when it is not, which no code can reach before peers exist
-  (the release review's C1-35, 2026-09-30).
-
----
-
-## MVP 3.1 (content addressing), about four weeks
-
-Designed in [`nodes_and_code.md`](../proposals/nodes_and_code/nodes_and_code.md) with MVP 3.0, all of it tentative; the
-open questions it carries of code distribution are decided here, report first. Its question
+The rest of the milestone: Its question
 *D9* meets the code as it stands: whether a node running hash modules
 keeps embedded mode, which loads nothing from the code path on demand, where §11.2 finds a
 `foreign fn`'s Erlang module on the load path. The toolchain has no IR: `ern_emitter` goes from
@@ -245,18 +192,17 @@ The milestone is §8.7's identity in full:
   compatible by its declaration is not thereby trusted to keep its promise. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
 - Hash modules never change, and versions coexist on a node for as long as a process runs one
-  ([`nodes_and_code.md`](../proposals/nodes_and_code/nodes_and_code.md), section 4.1). The shell's reload then ends
+  ([`code.md`](../proposals/nodes_and_code/code.md), section 3.1). The shell's reload then ends
   nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")` and §11.2's
   second-reload rule go, with the test that pins them.
 - **The loader's one `code_server`**, measured under the loader's batches before it is relied
-  on, and **normalization**, given a test suite of its own (the note's section 3.3, *The loader* and *Risks*).
-- **A node whose atoms near the host's limit**, decided with the hash modules: the note's
-  section 3.4, *Atoms and lambdas*, drains and restarts it, which CLAUDE.md's rule that memory no collection
+  on, and **normalization**, given a test suite of its own (`code.md`'s section 2.3, *The loader* and *Risks*).
+- **A node whose atoms near the host's limit**, decided with the hash modules: `code.md`'s
+  section 2.4, *Atoms and lambdas*, drains and restarts it, which CLAUDE.md's rule that memory no collection
   reclaims is fixed at its cause, never by a cap, questions (a reader's finding).
 - Two nodes with different versions of one type never meet in a message, decided 2026-09-27
-  (§8.7, *Identity*): an address carries its mailbox type's hash and is obtained only through
-  typed operations. A frame that breaks it comes from a faulty peer and tears the connection
-  down (the note's section 2.4).
+  (§8.7, *Identity*): a message carries its mailbox type's hash, which MVP 3.0 does not
+  (`mvp3.0.md`, section 11, step B), and an address is obtained only through typed operations.
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes of
   its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry.

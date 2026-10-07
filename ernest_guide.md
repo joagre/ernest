@@ -2578,7 +2578,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - A function does not travel in a message between nodes: a `send` that would take one to another node faults. Code goes to a peer only with a process spawned there (§8.2).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
-- Nodes talk over Ernest's own protocol, [`proposals/nodes_and_code/nodes_and_code.md`](proposals/nodes_and_code/nodes_and_code.md), not over Erlang distribution, and ship code by content (§8.2).
+- Nodes talk over Ernest's own protocol, [`proposals/nodes_and_code/nodes.md`](proposals/nodes_and_code/nodes.md), not over Erlang distribution, and ship code by content (§8.2).
 
 ## 11. The design
 

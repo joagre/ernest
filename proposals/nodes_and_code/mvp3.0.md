@@ -1,6 +1,6 @@
 # Ernest: MVP 3.0, Peers
 
-Status: a proposal, to be read back and discussed before anything is planned or built. Section 9 holds what is unsolved. The reasons for what it says are in [`nodes_and_code.md`](nodes_and_code.md), section 2.
+Status: a proposal, to be read back and discussed before anything is planned or built. Section 9 holds what is unsolved. The reasons for what it says are in [`nodes.md`](nodes.md).
 
 ## 1. What it is
 
