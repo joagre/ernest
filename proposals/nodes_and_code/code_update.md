@@ -1,6 +1,6 @@
 # Ernest: Code Update, the thinking for step D
 
-Status: a thinking document, begun 2026-10-07, for step D of [`mvp3.0.md`](mvp3.0.md)'s section 11, a running system that takes new code; nothing in it is decided, and no proposal is written from it yet. It starts from one recovery path and a matrix of the cases, and reads [`code.md`](code.md)'s part two, the thinking for one process that takes new code, against them; part two moves here when this document's shape is agreed, so that the subject has one owner. What other systems do is to be read into [`other_systems.md`](other_systems.md) as its section 7, from the list in section 6. The reasons for code by its hash are `code.md`'s part one, and for nodes [`nodes.md`](nodes.md)'s.
+Status: a thinking document, begun 2026-10-07, for step D of [`code.md`](code.md)'s section 1, *The four steps*, a running system that takes new code; nothing in it is decided, and no proposal is written from it yet. It starts from one recovery path and a matrix of the cases, and reads [`code.md`](code.md)'s part two, the thinking for one process that takes new code, against them; part two moves here when this document's shape is agreed, so that the subject has one owner. What other systems do is to be read into [`other_systems.md`](other_systems.md) as its section 7, from the list in section 6. The reasons for code by its hash are `code.md`'s part one, and for nodes [`nodes.md`](nodes.md)'s.
 
 ## 1. The problem
 

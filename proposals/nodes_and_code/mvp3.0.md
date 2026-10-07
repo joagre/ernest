@@ -362,15 +362,6 @@ MVP 3.1 gives every definition a hash and lets code cross with a spawn, so that 
 
 4. **The wire is not kept.** The protocol's version is in the cookie, so two nodes of different versions never connect, and MVP 3.1 is a new version: every node changes over at once. Nothing in MVP 3.0 promises that a node of one milestone talks to a node of the next.
 
-**Where new code comes in.** MVP 3.0 loads no new code: a new version is a stop of every node. Loading new code is four steps, of which MVP 3.0 is the first.
-
-| Step | What it gives | Where |
-|---|---|---|
-| A | one build on every node, and a deploy that stops them all | MVP 3.0 |
-| B | nodes of different builds connect; a message is accepted by the address it was sent through, and a spawned function only where the peer has its module, and all that module depends on, unchanged; no code crosses | a step after MVP 3.0, to be weighed |
-| C | a hash for each definition; code crosses with a spawn; two versions stand side by side on a node | MVP 3.1 |
-| D | a running process takes new code, and later a new protocol | after MVP 3.1 |
-
-Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. Without the second, nodes are restarted one at a time wherever a change does not touch what they exchange, and the build's checksum falls away; a changed module that spawns or finds on a node still holding the old one fails until that node has it too. Step B only relaxes step A, by rule 1. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
+**Where new code comes in** is code's subject: the four steps by which new code reaches a running system, of which MVP 3.0 is the first, are [`code.md`](code.md)'s section 1, *The four steps*.
 
 Three places carry the most risk. How a service is named and found: a key is a name and the identity of a message type, and whether the two are enough to tell one version of a service from another across builds is not known. The sum types a program matches on, where a constructor added later breaks every `match` that lists them all. And whatever one build on every node lets a program assume without saying, which MVP 3.1 then has to keep true or break.

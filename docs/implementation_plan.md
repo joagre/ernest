@@ -147,7 +147,7 @@ Designed in [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md), written from t
 a cross-check with `mvp3.0.md`, a fresh reader's findings and a read-back; its reasons are
 `code.md`'s part one, and what three readers found of Unison, Dhall, Nix, Git and the BEAM is
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md), section 6. It is step C of
-`mvp3.0.md`'s section 11: a hash for each definition, code crossing with a spawn, versions side
+`code.md`'s section 1: a hash for each definition, code crossing with a spawn, versions side
 by side, a deploy a rolling restart; nothing of step D, a running process that takes new code,
 which is the milestone after this one and `code.md`'s part two. The standard library's `Code`,
 placed as a milestone of its own on 2026-10-06, is here: its six decisions are answered in the

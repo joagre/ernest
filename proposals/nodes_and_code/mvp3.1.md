@@ -6,7 +6,7 @@ Status: a proposal, written one question at a time from [`code.md`](code.md) on 
 
 MVP 3.1 names every definition by a hash of its content, and lets nodes of different builds work together. A process on one node spawns a process on a peer with code the peer does not have, and the code crosses with the spawn. Versions of a definition stand side by side on a node, and a process keeps the code it was started with until it ends.
 
-It is step C of [`mvp3.0.md`](mvp3.0.md)'s section 11, and nothing of step D; step B is not built on its own. Three things bound it:
+It is step C of [`code.md`](code.md)'s section 1, *The four steps*, and nothing of step D; step B is not built on its own. Three things bound it:
 
 - **A hash for each definition.** The compiler computes it from a canonical form of the definition, and it is the identity of code and of types everywhere: in a spawn, in a key, on a message.
 - **Code crosses with a spawn, and only then.** The peer asks for the hashes it lacks, the sender ships them, and the whole closure is present before the process starts. A message ships no code; a find ships no code.

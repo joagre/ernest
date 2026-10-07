@@ -10,6 +10,17 @@ Unison names every definition by a hash of its content. Builds become incrementa
 - **Typed processes as the unit of distribution.** Shipping code is spawning a typed process on a peer, its protocol's hash checked.
 - **Realistic.** Source stays text files under git, edited and reviewed as any code; the compiler computes the hashes. The runtime is the BEAM, with its decades of production behaviour, on machines a program's owner runs, listed in `ernest.conf` and authenticated by mutual TLS, with no platform to depend on. What hash modules cost on the BEAM, atoms and code memory, is measured before anything is promised.
 
+**The four steps.** Moved here from `mvp3.0.md`'s section 11 on 2026-10-07, being code's roadmap and not nodes'. MVP 3.0 loads no new code: a new version is a stop of every node. Loading new code is four steps, of which MVP 3.0 is the first.
+
+| Step | What it gives | Where |
+|---|---|---|
+| A | one build on every node, and a deploy that stops them all | MVP 3.0 |
+| B | nodes of different builds connect; a message is accepted by the address it was sent through, and a spawned function only where the peer has its module, and all that module depends on, unchanged; no code crosses | a step after MVP 3.0, to be weighed |
+| C | a hash for each definition; code crosses with a spawn; two versions stand side by side on a node | MVP 3.1 |
+| D | a running process takes new code, and later a new protocol | after MVP 3.1, thought through in [`code_update.md`](code_update.md) |
+
+Step B parts two rules that step A holds as one: that no code crosses, and that every node is the same build. Without the second, nodes are restarted one at a time wherever a change does not touch what they exchange, and the build's checksum falls away; a changed module that spawns or finds on a node still holding the old one fails until that node has it too. Step B only relaxes step A, by the first of `mvp3.0.md`'s rules for what comes after. Replacing a module under running processes, as Erlang's `code` module does, is none of these steps: it changes code with nothing to check its types against.
+
 Unison has shipped for years, and Ernest has a design, so "better" is true only when MVP 3.0 and 3.1 run and their numbers hold. Unison's codebase is a database rather than text files, and its distributed promise lives largely in its hosted cloud; what is said of its internals is said from the outside, and modestly.
 
 ## 2. The hash
