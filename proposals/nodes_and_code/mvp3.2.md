@@ -10,7 +10,7 @@ Three things bound it:
 
 - **Nothing in place.** A deploy ends every process on a node and starts new ones. No process takes new code, no mailbox type changes, and no protocol changes under a running process.
 - **One owner, and nothing moved.** A kept state is held by one process, or by the file between two. Nothing moves a state to another node, at a planned stop or at a failure.
-- **The team writes only what no tool can know**: a translation where a request was retired or changed, a migration where a type's diff does not decide one, and a word where a field was renamed. Everything else the hashes derive.
+- **The team writes two things, and is told which.** A `migrate` where a kept state's type changed, and a conversion or a `forward` where a protocol changed; the plan names each before anything stops, and `ern diff` prints the text to paste. Nothing is derived into source.
 
 MVP 3.0's and MVP 3.1's bounds stay: a few nodes with one owner, listed by hand, trusted completely; no discovery; nothing the runtime retries.
 
@@ -33,7 +33,7 @@ Standing.start : (Peer.Key(m), Int) -> Address(m) with n
 
 **A kept state.** `kept(key, init, step)` is a function of `restarting`'s family: it runs a loop the runtime owns, whose state is what `init` gives, and runs `step` on each message, over the state and the message, for the next state. The runtime holds the state between steps, and at a planned stop asks the process for it between two steps, as a supervisor asks for a restart (§6.9); the loop then holds what arrives until the close. Where the state file holds a state under the key, the loop begins with it, through `migrate` where its type changed, and `init` is not run. `kept` composes with `spawn` and `restarting`: a fault in `step` restarts the loop from `init`, with nothing of the old run, as §6.9 says of every restart. A service whose state is to outlive a deploy is a `kept` loop; any other process begins afresh at its node's restart, and a deploy promises it nothing.
 
-**What the program writes.** For a service whose protocol changes, a function `forward : (OldMsg, Address(NewMsg)) -> Unit with n`, in the build that serves both; where every old constructor is kept in form the tool writes it. For a state type that changes, `migrate : (OldState) -> NewState`, derived where the diff decides it, written where it does not, and the same the other way. A renamed field is told by `was` in the new declaration. A new declaration takes a module of its own, and the old stays where it is until the build that drops it.
+**What the program writes.** A type's identity is its shape and not its name (mvp3.1.md, section 6), so a changed declaration keeps its module, its name and its key, and the old shape is kept under another name in a module of its own, `counter_v1.ern`, copied from what `ern diff` prints, until the build that drops it. For a kept state whose type changed, a member `migrate` on the new type from the old, `fn Count.migrate(old : CountV1.Count) : Count`, and one on the old from the new for the way back, both in the newer build. For a protocol that gained constructors, the old key offered as `via(service, convert)` with a pure conversion from the old type to the new, §6.5's adapted address; for one that retired or changed a request, a process the program starts with the library's `Forward.start(forward, service)`, whose `forward : (OldMsg, Address(NewMsg)) -> Unit with n` answers a retired request on the old side, offered under the old key. The offer table is by name and identity, so one node offers a key at two identities. `ern diff` prints the `migrate` and the conversion the matching fields and constructors give, with what needs a decision left empty, for the program to paste and complete.
 
 **The state file.** A node writes, at its planned stop, each kept state to `state/` in its configuration directory, one file for each key, and the `kept` loop under that key reads it at its start, in place of `init`. A program sees nothing of it but the directory.
 
@@ -77,35 +77,45 @@ order: store, backup, desk, board
 
 The operator says yes. The store's keys are withdrawn, and a find of the key answers `NotOffered` on every node, so the board's standing address waits and a call through it answers `None` at its time; the store drains, asks the counter for its total, writes it to `state/counter`, and closes; the store starts with build 2, the counter begins with the total from the file, `main` offers it, the board's standing address finds it again, and the coordinator checks the key; then the backup, the desk and the board the same way. The board's standing process sees one `Down` with `ProgramEnd` per node that stopped, and finds again.
 
-**A changed protocol.** Build 3 adds `Reset` to `Counter.Msg`, in a module of its own, `counter2.ern`, with `Counter.Msg` kept and `Counter2.forward` written by the tool. `ern deploy build3` prints:
+**A changed protocol.** Build 3 adds `Reset` to `Counter.Msg`. The old shape is kept as `CounterV1.Msg` in `counter_v1.ern`, pasted from `ern diff`, with `CounterV1.key : Peer.Key(Msg) = Peer.key("counter")`, and the store offers it too:
+
+```ernest-fragment
+export fn main() : Unit with Never = {
+    Peer.offer(Counter.key, counter);
+    Peer.offer(CounterV1.key, via(counter, CounterV1.convert));
+    wait()
+}
+```
+
+where `CounterV1.convert` maps `Add` to `Add` and `Get` to `Get`, pasted whole. `ern deploy build3` prints:
 
 ```
 plan: build 2 to build 3
-  Counter2.key  protocol added Reset       Counter2.forward, derived
-  Counter.key   served through Counter2.forward until build 4 drops it
+  counter       protocol added Reset       served at build 2's identity through CounterV1.convert
+                                           until the build that drops counter_v1.ern
 order: store, backup, desk, board
 ```
 
-A board still on build 2 finds `Counter.key` on a node of build 3 and is served through the `forward`. Build 4 deletes `Counter.Msg` and `Counter2.forward`; `ern deploy build4` refuses while any node runs build 2, and accepts when none does.
+A board still on build 2 finds `counter` at its identity on a node of build 3 and is served through the conversion. Build 4 deletes `counter_v1.ern`; `ern deploy build4` refuses while any node runs build 2, and accepts when none does.
 
-**A changed state.** Build 5 changes the counter's state from an `Int` to a record that also counts the adds. `ern deploy build5` prints:
+**A changed state.** Build 5 changes the counter's state from an `Int` to a record `Count`, which also counts the adds, and writes `fn Count.migrate(old : Int) : Count = Count(total = old, adds = 0)`. `ern deploy build5` prints:
 
 ```
 plan: build 4 to build 5
-  Counter2.key  state changed: Count       Counter2.migrate, derived: adds = 0
-                the way back               Counter2.migrate back, derived
+  counter       state changed: Int to Count   Count.migrate
+                the way back                  none: Int takes no member; forward-only
 order: store, backup, desk, board
 ```
 
-Had the record's new field no default, the plan would have printed the hole and refused.
+Had `Count.migrate` been missing, the plan would have refused, naming it and the fields `total` and `adds`.
 
 ## 4. What holds
 
 1. **No message of one version is read as another's**, refused by its hash before any frame is decoded.
-2. **A rollout the plan refuses never starts**: a changed protocol the new build does not also serve the old way, a crossing state without a `migrate`, a build that drops a protocol while a node still speaks it.
+2. **A rollout the plan refuses never starts**: a changed protocol the new build does not also offer at the old identity, a kept state whose type changed without a `migrate`, a build that drops a protocol while a node still speaks it.
 3. **Through a planned stop a service's state has one owner at every instant.**
 4. **The next node is not touched until the last answers** its keys at the identities the plan expects.
-5. **State crosses a version through `migrate` alone**, derived where the diff decides, written where it does not, and never with a default the program did not write.
+5. **State crosses a version through a `migrate` the program wrote**, and through nothing the program did not write.
 6. **Every version in flight is listed**: the build each node runs, the protocols each service serves, the stored states of each shape.
 7. **The way back during a rollout is the previous build**, node by node; after the build that drops the old protocol it is forward.
 8. **A process keeps its code until it ends.**
@@ -125,7 +135,7 @@ MVP 3.0's and MVP 3.1's limits stand.
 6. **A changed meaning behind an unchanged type is invisible to the plan**, which sees declarations and not code's intent; a program may give a `migrate` whose types are equal.
 7. **A protocol that is a conversation has no point between its messages where versions change**; a conversation is a process of its own, and a protocol is of independent requests.
 8. **The database's side of a schema change is not checked.** The plan checks a `migrate` from every row shape still stored, and says it cannot check the database.
-9. **A change whose reverse `migrate` has a hole is forward-only**, which the plan says.
+9. **A change without a reverse `migrate` is forward-only**, which the plan says; a state of a prelude type, which takes no member, has none.
 10. **Where the order's graph has a cycle, some finds wait during the rollout**, which the plan names.
 11. **A retry is the program's.** A call that answered `None` may or may not have run, so a request must be harmless when run twice.
 12. **A drain does not grow firmer**; what a process has not finished by the close it loses, as at any restart.
@@ -134,13 +144,13 @@ MVP 3.0's and MVP 3.1's limits stand.
 
 ## 6. How it works
 
-**The plan.** The coordinator asks each node, by one frame, its build, the root it started from, the keys it offers with their type identities, and the kept states it holds with theirs; and reads from the new build its hashes and canonical forms; `ern diff` over the two is the plan's first half. For each key, from the configuration and from what the nodes offer: the identity of its protocol and of its service's state type in each build; whether the new build holds a `forward` from the old protocol, a `migrate` from the old state and one back, and whether each is derived, written or a hole. A protocol unchanged and a state unchanged is nothing to do. A protocol changed is accepted where the new build serves the old one too, by a `forward` the plan names, and refused otherwise. A state changed is accepted where the `migrate` is whole. A build that drops a protocol is accepted where no node runs a build older than the one that first served both, and refused otherwise. The plan prints each service's line, the order, and the builds the way back can reach after this rollout; the refusals name the function: `Catalog: Msg changed and the build does not serve Catalog.Msg of build 4`. Before the plan is printed the coordinator tells every node the next build's root, each node fetches what it lacks and writes it to its cache, and a node that cannot, its disk full or its cache refusing, fails the plan naming the node and the cause. Nothing starts before the yes, and the yes is asked only when every node holds the next build whole.
+**The plan.** The coordinator asks each node, by one frame, its build, the root it started from, the keys it offers with their type identities, and the kept states it holds with theirs; and reads from the new build its hashes and canonical forms; `ern diff` over the two is the plan's first half. For each key, from what the nodes offer and hold and from the new build: the identity of its protocol and of its kept state's type in each; whether the new build offers the key at the old identity, by a conversion or a forwarder; and whether it holds a `migrate` from the old state's identity to the new and one back, found as members by their types, the old and the new paired by the key and never by a name. A protocol unchanged and a state unchanged is nothing to do. A protocol changed is accepted where the new build offers the old identity too, and refused otherwise. A state changed is accepted where the `migrate` exists. A build that drops a protocol is accepted where no node runs a build older than the one that first served both, and refused otherwise. The plan prints each service's line, the order, and the builds the way back can reach after this rollout; the refusals name what to write: `catalog: the protocol changed and the build does not offer catalog at build 4's identity`, `catalog: the state changed and Stock.migrate from build 4's Stock is missing: fields reserved, bin`. Before the plan is printed the coordinator tells every node the next build's root, each node fetches what it lacks and writes it to its cache, and a node that cannot, its disk full or its cache refusing, fails the plan naming the node and the cause. Nothing starts before the yes, and the yes is asked only when every node holds the next build whole.
 
-**What is derived.** `migrate` is derived by one rule: fields matched by name and type, a default for a field the new type adds, a field the new type drops dropped, a number promoted to a wider width; a field renamed is matched by `was` in the new declaration, `stock : Int was count`. Where the rule stops the derived function is written out with a hole, which the checker refuses as it refuses a partial `match`, so the build does not compile until the program fills it. `forward` is derived where every constructor of the old protocol is kept in form, each to its namesake, and holed for a constructor retired or changed; the program's `forward` answers a retired request by asking the new service and answering the old caller, and converts an answer whose type changed back to the old type.
+**What `ern diff` prints.** For a kept state whose type changed, the `migrate` the matching fields give, a field matched by name and type copied, a field the new type drops left out, and a field the new type adds or renamed left empty for the program; and the reverse the same way. For a protocol that changed, the conversion each old constructor kept in form gives, to its namesake, and an arm left empty for a constructor retired or changed, which the program answers in a `forward` instead. The text is for pasting: the tool writes into no source, and what the program commits it has read.
 
-**The new declaration takes a module of its own.** A type's qualified name is in its identity, so the old declaration stays where it is while any node may hold a value of it, and the new one is declared in a new module, `counter2.ern`, whose clients write its name. Deleting the old declaration with its `forward` or `migrate` is the act that drops the version, which the plan accepts when no node is older than the build that first served both. A `forward` and a `migrate` live in the new module beside the new declaration.
+**The old shape keeps a module of its own.** Constructor names are one module's, so the old shape of a type cannot stand beside the new in one module; the program keeps it under another name in a module of its own, `counter_v1.ern`, pasted from the form `ern diff` prints, with its key at the old identity where it is a protocol. Its identity is unchanged by the name, so an old client's key and an old state file match it. Deleting that module is the act that drops the version, which the plan accepts when no node is older than the build that first served both, and `migrate` and the conversion go with it.
 
-**Two builds for a changed protocol.** The first serves both protocols: it offers the new key, and the old key through the `forward`, under which an old client and a new service meet in any order. The second drops the old. The plan enforces the two; a build that changes a protocol and drops the old at once is refused.
+**Two builds for a changed protocol.** The first offers the key at both identities: the new, and the old through a conversion or a forwarder, under which an old client and a new service meet in any order. The second drops the old. The plan enforces the two; a build that changes a protocol and drops the old at once is refused.
 
 **The order.** The coordinator knows which keys each node offers and which keys each node's code finds, since a find is a reference the hashes see. It orders the nodes so that a node offering a changed service goes before the nodes whose code finds it, and in that order a new client never finds an old service. Where the graph has a cycle the coordinator picks an order and the plan names the finds that will wait.
 
@@ -162,7 +172,7 @@ MVP 3.0's and MVP 3.1's limits stand.
 
 **The refusal.** `Supervisor.child`'s function reads the process's start cause when it begins; run inside a process that is already a child it would read the outer child's, so it faults instead with `Fault("a process runs one child function")`, and E.22 says so.
 
-**The test.** `ern test --config-dir dir` runs the rollout's test where a build names the previous one. The shape half runs with nothing started: each service's line of the plan, each hole and each untold rename refused. The run half starts two nodes: it generates values of each service's state type from the previous build and writes them as the state files a stop would have written; starts the previous build on both nodes; rolls one node to the new build, checks every key at the identity the plan expects, rolls the other, and stops both; and compares what the stops wrote with what went in, identity where the state type is unchanged and the round trip through the reverse `migrate` where it changed. It rolls back the same way. A service whose state cannot cross is skipped and listed. The test sends no message of any protocol.
+**The test.** `ern test --config-dir dir` runs the rollout's test where a build names the previous one. The shape half runs with nothing started: each service's line of the plan, each missing `migrate` and each old identity not offered refused. The run half starts two nodes: it generates values of each service's state type from the previous build and writes them as the state files a stop would have written; starts the previous build on both nodes; rolls one node to the new build, checks every key at the identity the plan expects, rolls the other, and stops both; and compares what the stops wrote with what went in, identity where the state type is unchanged and the round trip through the reverse `migrate` where it changed. It rolls back the same way. A service whose state cannot cross is skipped and listed. The test sends no message of any protocol.
 
 ## 7. The numbers
 
@@ -180,13 +190,13 @@ MVP 3.0's and MVP 3.1's limits stand.
 
 ## 8. How it is checked
 
-The plan has a test suite of its own: two builds differing in each of the matrix's rows, and the plan's line for each, derived, written, holed or refused; a build that drops a protocol refused while an older node runs and accepted after; the order from a graph with and without a cycle.
+The plan has a test suite of its own: two builds differing in each of the matrix's rows, and the plan's line for each, accepted or refused, and `ern diff`'s text for each; a build that drops a protocol refused while an older node runs and accepted after; the order from a graph with and without a cycle.
 
 The runtime's tests run three nodes on one machine, as MVP 3.0's do: a planned stop withdraws the keys, writes each kept state's file, and closes in order; a kept loop reads its file through `migrate` and removes it, and begins afresh where no `migrate` fits; the `Standing` library's tests drop a send and answer `None` to a call while the service is away, reach it again where it comes back on the same node and on another, and end the standing process with its caller; a rollout in lockstep stops at a node that does not answer and puts it back; a rollback through the reverse `migrate`; the cache holding the next build before the stop and letting an old one go; the refusal of E.22; and the generated test itself, run over the experiment programs' builds.
 
 ## 9. Unsolved
 
-What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the exact syntax of `was`; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, §9.5 for `kept`, Appendix E for `Peer.find` and E.22's refusal, §11.3 for `keys` and `drain` in `ernest.conf` and the `build` file, §8.6 for termination as the planned stop, and §11.2 for a node's restart inside its process; the glossary's words, *build*, *root*, *kept state*, *planned stop*, *rollout* and *plan*, in Appendix F and in `docs/style.md`, written with the report's sentences; and the soundness argument's paragraph for the state file and `migrate`.
+What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, §9.5 for `kept`, Appendix E for `Peer.find` and E.22's refusal, §11.3 for `keys` and `drain` in `ernest.conf` and the `build` file, §8.6 for termination as the planned stop, and §11.2 for a node's restart inside its process; the glossary's words, *build*, *root*, *kept state*, *planned stop*, *rollout* and *plan*, in Appendix F and in `docs/style.md`, written with the report's sentences; and the soundness argument's paragraph for the state file and `migrate`.
 
 ## 10. Left out on purpose
 
