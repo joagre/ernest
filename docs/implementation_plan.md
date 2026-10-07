@@ -214,6 +214,16 @@ The milestone is §8.7's identity in full:
 
 Placed on 2026-10-07 with [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md)'s cookie. MVP 3.1 puts `ern`'s whole version in the cookie, so an upgrade of `ern` stops every node. This milestone names the runtime's surface, the functions shipped code calls by name and the standard library's foreign declarations, gives it a version of its own, and puts that version in the cookie in place of `ern`'s, so that nodes running different `ern` versions with one surface connect and a release of `ern` can be rolled out node by node. Nothing a program writes names a version, so it breaks no program.
 
+- **The memory of code**, measured on a node that outlives many deploys of its peers: how fast
+  the host's module, fun and export tables grow in practice, which on OTP 29 are never
+  reclaimed and end the node at 65,536 module names (the survey's *B2* to *B5*, measured on
+  2026-10-07), and what can be done before step D needs an answer: a later OTP's raised
+  limits, `+zmml` being on OTP's master since 2026-08; a pool of host module names reused
+  once a module is unloaded, as Elixir's compiler does, which the table from hash to module
+  allows since no name is a hash; unloading code that no process runs and no closure of which
+  has escaped, where the runtime's own bookkeeping can know it; and what a purge costs on a
+  node with many processes. Decided with the user from the numbers.
+
 ---
 
 ## MVP 3.2 (the libraries, as they are wanted)
