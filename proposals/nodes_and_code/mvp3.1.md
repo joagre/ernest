@@ -26,7 +26,9 @@ Written as the questions are decided.
 
 ## 4. What holds
 
-Written as the questions are decided.
+1. **A node holds a hash only with its whole closure.** Nothing enters a node's store before everything it references is there and verified.
+
+The rest is written as the questions are decided.
 
 ## 5. What does not hold
 
@@ -45,6 +47,8 @@ The rest is written as the questions are decided.
 
 **Bindings.** A node holds its bindings' values by the hash of their definition. A spawned function that names a binding finds the value where the peer's own build ran that hash, and fails with `NotLoaded` where it did not; nothing is initialized because a peer asked, as in MVP 3.0, and a value a spawned function is to have on the peer is captured. A service is one per node: a node runs one build and offers what that build started, and an old client that finds a service on a node restarted with a new build gets the new service where the type's identity is unchanged, and `OtherType` where it is not. Versions stand side by side as code, in processes spawned from peers of other builds, never as services.
 
+**A spawn across builds.** The spawn frame carries the function's hash, its captured values and the site. A peer that has the hash starts the process at once. A peer that lacks it asks for the closure's list; the sender sends the hashes the function references transitively, code and types, with the foreign declarations it names; the peer answers with the hashes it lacks, and with `NotLoaded` where it lacks the module a foreign declaration names; the sender ships the missing code, dependencies first. A code frame carries one definition's canonical form, the form that is hashed, with its immediate references, and never a compiled binary. The peer verifies each frame against its hash as it arrives and holds it apart until the closure is complete; then it compiles the closure with its own back end, loads it all at once by the host's atomic load, and starts the process. What the peer said it has is pinned until the load is done. A frame whose content does not match its hash is a faulty frame, and the connection ends. The spawn's time covers the exchange; what arrived complete stays, cached by hash, and two spawns waiting on one hash share one exchange.
+
 The rest is written as the questions are decided.
 
 ## 7. The numbers
@@ -60,11 +64,10 @@ Written as the questions are decided.
 The questions, in the order they are taken; each leaves the list as it is decided.
 
 1. **A node's code.** The cache keyed by hash, in memory or on disk; the loader beside the host's `code_server`; what a module of the host is for a hash; whether a node keeps embedded mode. (`code.md` 2.3, *D9*.)
-2. **Code crossing with a spawn.** The have-and-want exchange; what a code frame carries, the form that is hashed or the compiled module; verification; what happens to the spawn when the exchange fails; a foreign declaration a peer lacks or has differently. (`code.md` 2.3, *D10*, *D13*, *D17*.)
-3. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
-4. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
-5. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
-6. **How it is checked**, with nodes of two builds on one machine.
+2. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
+3. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
+4. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
+5. **How it is checked**, with nodes of two builds on one machine.
 
 ## 10. Left out on purpose
 
