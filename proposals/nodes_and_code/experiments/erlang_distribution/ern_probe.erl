@@ -41,7 +41,9 @@ run() ->
     end,
     ok.
 
-start_node(Name, Dir, Extra) ->
+start_node(Name, Dir, Extra) -> start_node(Name, Dir, Extra, []).
+
+start_node(Name, Dir, Extra, Env) ->
     Arguments = ["-proto_dist", "inet_tls",
                  "-ssl_dist_optfile", filename:join(Dir, atom_to_list(Name) ++ ".conf"),
                  "-epmd_module", "ern_probe_epmd",
@@ -52,7 +54,8 @@ start_node(Name, Dir, Extra) ->
                  "+zdbbl", "1",
                  "-pa", Dir | Extra],
     {ok, Peer, Node} = peer:start_link(#{name => Name, host => "127.0.0.1", longnames => true,
-                                         connection => standard_io, args => Arguments}),
+                                         connection => standard_io, args => Arguments,
+                                         env => Env}),
     ok = peer:call(Peer, ?MODULE, start, []),
     {Peer, Node}.
 
@@ -129,7 +132,8 @@ same_key(A, B, NodeB, Dir) ->
     end,
     say("9  the second a stopped; b's nodedown", wait_event(B, nodedown, 5000)),
     say("9  the first a pings b", ping_from(A, NodeB)),
-    other_cookie(A, B, NodeB, Dir).
+    other_cookie(A, B, NodeB, Dir),
+    parted(B, NodeB, Dir).
 
 %% Step 10: a node with another cookie, standing for another build, dials b.
 other_cookie(A, B, NodeB, Dir) ->
@@ -144,6 +148,36 @@ other_cookie(A, B, NodeB, Dir) ->
     after
         peer:stop(A2)
     end.
+
+%% Steps 11 and 12: f reaches b through a proxy, which then drops what passes,
+%% both ways and then one way, as a parted network does.
+parted(B, NodeB, Dir) ->
+    {ok, Proxy} = ern_probe_proxy:start(47106, 47102),
+    {F, _} = start_node(f, Dir, [], [{"ERN_PROBE_B_PORT", "47106"}]),
+    try
+        say("11 f pings b through the proxy", ping_from(F, NodeB)),
+        _ = peer:call(B, ?MODULE, events, []),
+        _ = peer:call(F, ?MODULE, events, []),
+        ern_probe_proxy:cut(Proxy, both),
+        say("11 the link drops both ways; f's nodedown, ms and reason", timed_event(F, nodedown)),
+        say("11 b's nodedown, ms and reason", timed_event(B, nodedown)),
+        ern_probe_proxy:heal(Proxy),
+        say("11 the link is back; f pings b", ping_from(F, NodeB)),
+        _ = peer:call(B, ?MODULE, events, []),
+        _ = peer:call(F, ?MODULE, events, []),
+        ern_probe_proxy:cut(Proxy, to_peer),
+        say("12 the link drops f to b only; b's nodedown, ms and reason", timed_event(B, nodedown)),
+        say("12 f's nodedown, ms and reason", timed_event(F, nodedown)),
+        ern_probe_proxy:heal(Proxy),
+        say("12 the link is back; f pings b", ping_from(F, NodeB))
+    after
+        peer:stop(F)
+    end.
+
+timed_event(Peer, Kind) ->
+    Started = erlang:monotonic_time(millisecond),
+    Event = wait_event(Peer, Kind, 15000),
+    {erlang:monotonic_time(millisecond) - Started, Event}.
 
 ping_from(Peer, Node) -> peer:call(Peer, ?MODULE, ping, [Node], 10000).
 

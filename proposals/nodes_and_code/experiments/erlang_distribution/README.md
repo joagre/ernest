@@ -4,9 +4,9 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 
 **What it asks.** Whether a node protocol of Ernest's can ride on Erlang's own distribution with what hurts in it turned off: the mesh, the port-mapper daemon, the cookie as the only proof of who a peer is, and a sender made to wait. `proposals/nodes_and_code/other_systems.md` holds what was found, beside what other systems do.
 
-**How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of four nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about three quarters of a minute.
+**How it is run.** `./run.sh`, from any directory. It needs `erl` and `openssl`. It makes a key and a self-signed certificate for each of five nodes in a directory of its own, starts the nodes on this machine, prints what it finds, and removes the directory. A run takes about a minute.
 
-**The four nodes.** Node `a` lists `b`. Node `b` lists `a`, `c` and `d`. Node `c` lists `b`. Node `d` lists `b`, does not listen, and has no port in the table, so that only `d` can dial. A second `a`, with `a`'s key and name, is started for one step and does not listen. A fifth name, `e`, is no node: the table gives it an address that nothing answers from. A node accepts a peer whose public key it lists, and no other.
+**The four nodes.** Node `a` lists `b`. Node `b` lists `a`, `c` and `d`. Node `c` lists `b`. Node `d` lists `b`, does not listen, and has no port in the table, so that only `d` can dial. A second `a`, with `a`'s key and name, is started for one step and does not listen. Node `f` lists `b` and reaches it through a TCP proxy, `ern_probe_proxy`, which can drop what passes in one direction or both, a close included, as a parted network does. A sixth name, `e`, is no node: the table gives it an address that nothing answers from. A node accepts a peer whose public key it lists, and no other.
 
 ## What each step tries, and what it found
 
@@ -31,6 +31,8 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 | 7 | What the host calls such a node | Hidden: `nodes/0` on `b` leaves `d` out, and `nodes(connected)` has it. A notice of a loss comes only where `monitor_nodes` is asked for every kind of node |
 | 9 | A second node with the first one's key and name dials `b`, which is connected to the first | `b` drops the first, with the reason `wait_pending`, and the first is told `shutdown`. `b`'s monitor on a process of the first gives `noconnection`, and a send to it is dropped. The first dials `b` again and takes the connection back; the second's next send then times out. Two nodes with one key are one node to their peers, and each one's dial ends the other's connection |
 | 10 | A node with another cookie, standing for another build, dials `b` | Refused in the host's handshake, "Invalid challenge reply", with nothing sent: its send to `b` times out, `b`'s log has no event, and the first `a`'s connection is untouched |
+| 11 | The link between `f` and `b` drops both ways, with no close | `f` finds `b` lost after 4.8 s and `b` finds `f` lost at the same time, both `net_tick_timeout`. When the link is back, the next ping connects again |
+| 12 | The link drops `f` to `b` only | `b` finds `f` lost after 4.6 s, `net_tick_timeout`. Its close passes the open direction, and `f` is told 1 ms later, `shutdown`. The next ping after the link is back connects again |
 | 8 | A send to a node that is down, whose port refuses | The send returns in 8 to 19 microseconds. A thousand more take 90 milliseconds, each a dial that is refused |
 | 8 | A send to an address that nothing answers from | Each of three sends returns in under 10 microseconds, and waits behind one dial |
 | 8 | How long that dial lasts | A monitor made then gives `noconnection` after 7.0 seconds, the host's own time for setting a connection up |
@@ -49,7 +51,7 @@ Step 8 was run with the buffer's limit at 1 kB, as every step is. A first run se
 
 ## What it does not show
 
-- All three nodes ran on one machine. A stopped process stood in for a silent peer. A network that parts was not tried.
+- Every node ran on one machine. A stopped process stood in for a silent peer, and a proxy that drops bytes for a parted network; the proxy's own TCP acknowledgements still flow beneath what it drops, which a real partition's would not.
 - The nodes are named by an address, `a@127.0.0.1`. Run once by hand with a name in its place, `a@node.ernest`, which resolves nowhere and which the table answers for, the steps gave the same results, with the client's check of the server's name left as the host has it and with it turned off (`{server_name_indication, disable}`). Why the host does not refuse the name as it stands was not looked into.
 - Little was timed: the finding of a silence, a send with no connection open, and a dial that nothing answers.
 - A connected node could do anything on the other: the experiment itself spawned processes there and ended them. Nothing turns that off.

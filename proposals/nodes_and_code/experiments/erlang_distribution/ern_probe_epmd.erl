@@ -1,6 +1,7 @@
 %% A table in place of the port-mapper daemon: a node's name gives its port.
 %% Node d has none: it does not listen, and no node can dial it. Node e is
-%% no node: its address is one that nothing answers from.
+%% no node: its address is one that nothing answers from. Node f reaches b
+%% through the proxy where ERN_PROBE_B_PORT names the proxy's port.
 %% Erlang calls this module where `-epmd_module ern_probe_epmd` names it.
 -module(ern_probe_epmd).
 
@@ -50,10 +51,15 @@ names(_Host) -> {error, address}.
 port(Name) when is_atom(Name) -> port(atom_to_list(Name));
 port(Name) when is_binary(Name) -> port(binary_to_list(Name));
 port("a" ++ _) -> 47101;
-port("b" ++ _) -> 47102;
+port("b" ++ _) ->
+    case os:getenv("ERN_PROBE_B_PORT") of
+        false -> 47102;
+        Port -> list_to_integer(Port)
+    end;
 port("c" ++ _) -> 47103;
 port("d" ++ _) -> none;
-port("e" ++ _) -> 47105.
+port("e" ++ _) -> 47105;
+port("f" ++ _) -> 47107.
 
 ip(Name) when is_atom(Name) -> ip(atom_to_list(Name));
 ip(Name) when is_binary(Name) -> ip(binary_to_list(Name));
