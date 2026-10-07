@@ -128,7 +128,22 @@ same_key(A, B, NodeB, Dir) ->
         peer:stop(A2)
     end,
     say("9  the second a stopped; b's nodedown", wait_event(B, nodedown, 5000)),
-    say("9  the first a pings b", ping_from(A, NodeB)).
+    say("9  the first a pings b", ping_from(A, NodeB)),
+    other_cookie(A, B, NodeB, Dir).
+
+%% Step 10: a node with another cookie, standing for another build, dials b.
+other_cookie(A, B, NodeB, Dir) ->
+    _ = peer:call(B, ?MODULE, events, []),
+    {A2, _} = start_node(a, Dir, ["-dist_listen", "false", "-setcookie", "other"]),
+    try
+        say("10 a node with another cookie connects to b",
+            peer:call(A2, net_kernel, connect_node, [NodeB])),
+        say("10 its send to b's echo", ping_from(A2, NodeB)),
+        say("10 b's events meanwhile", peer:call(B, ?MODULE, events, [])),
+        say("10 the first a still pings b", ping_from(A, NodeB))
+    after
+        peer:stop(A2)
+    end.
 
 ping_from(Peer, Node) -> peer:call(Peer, ?MODULE, ping, [Node], 10000).
 

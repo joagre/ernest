@@ -30,6 +30,7 @@ Tried on 6 October 2026, on OTP 29 (ERTS 17.1), with OpenSSL 3.0.
 | 7 | That node dials again | The pid `b` holds reaches the same process on `d` |
 | 7 | What the host calls such a node | Hidden: `nodes/0` on `b` leaves `d` out, and `nodes(connected)` has it. A notice of a loss comes only where `monitor_nodes` is asked for every kind of node |
 | 9 | A second node with the first one's key and name dials `b`, which is connected to the first | `b` drops the first, with the reason `wait_pending`, and the first is told `shutdown`. `b`'s monitor on a process of the first gives `noconnection`, and a send to it is dropped. The first dials `b` again and takes the connection back; the second's next send then times out. Two nodes with one key are one node to their peers, and each one's dial ends the other's connection |
+| 10 | A node with another cookie, standing for another build, dials `b` | Refused in the host's handshake, "Invalid challenge reply", with nothing sent: its send to `b` times out, `b`'s log has no event, and the first `a`'s connection is untouched |
 | 8 | A send to a node that is down, whose port refuses | The send returns in 8 to 19 microseconds. A thousand more take 90 milliseconds, each a dial that is refused |
 | 8 | A send to an address that nothing answers from | Each of three sends returns in under 10 microseconds, and waits behind one dial |
 | 8 | How long that dial lasts | A monitor made then gives `noconnection` after 7.0 seconds, the host's own time for setting a connection up |
@@ -44,7 +45,7 @@ Step 8 was run with the buffer's limit at 1 kB, as every step is. A first run se
 - `-kernel net_ticktime`, for how long a silence is.
 - `-dist_listen false`, for a node that only dials.
 - `+zdbbl`, for how much may wait to be sent before a send with `nosuspend` is refused.
-- A cookie, which the host still requires. It was a constant.
+- A cookie, which the host still requires. It was a constant for the nodes, and `other` for the one of step 10.
 
 ## What it does not show
 
