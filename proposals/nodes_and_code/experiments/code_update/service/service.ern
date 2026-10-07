@@ -33,3 +33,32 @@ export fn upgrade(handle : Handle(m, s), step : (s, m) -> s with Envelope(m, s))
     match handle {
         Handle(loop = loop) -> send(loop, Upgrade(next = fn(state) = run(step, state)))
     }
+
+/// A changed protocol (rows C3 and C4), as a replace: the running loop hands
+/// its state to a successor of the new protocol, by the successor's own
+/// `Upgrade`, and goes on as a forwarder for the clients that hold its
+/// address, each old message given to `forward` with the successor's
+/// address. `forward` sends the translated message, or answers a retired
+/// request itself.
+export fn replace(old : Handle(m, s),
+                  forward : (m, Address(m2)) -> Unit with Envelope(m, s),
+                  successor : Handle(m2, s),
+                  step : (s, m2) -> s with Envelope(m2, s)) : Unit with n =
+    match old {
+        Handle(loop = loop) -> match successor {
+            Handle(loop = next, clients = clients) -> send(loop, Upgrade(next = fn(state) = {
+                send(next, Upgrade(next = fn(_) = run(step, state)));
+                forwarding(clients, forward)
+            }))
+        }
+    }
+
+fn forwarding(successor : Address(m2),
+              forward : (m, Address(m2)) -> Unit with Envelope(m, s)) : Unit with Envelope(m, s) =
+    receive {
+        Message(message) -> {
+            forward(message, successor);
+            forwarding(successor, forward)
+        }
+      | Upgrade(next = _) -> forwarding(successor, forward)
+    }

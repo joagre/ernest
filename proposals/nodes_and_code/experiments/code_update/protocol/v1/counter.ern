@@ -1,0 +1,20 @@
+/// The counter under the concept, version 1, for the protocol experiment:
+/// `Add` and `Total`.
+export type Msg = Add(Int) | Total(reply : Reply(Int))
+
+export let counter : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
+
+export fn step(total : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+    match message {
+        Add(amount) -> total + amount
+      | Total(reply = reply) -> {
+            answer(reply, total);
+            total
+        }
+    }
+
+export fn add(amount : Int) : Unit with n =
+    send(Service.address(counter), Add(amount))
+
+export fn total() : Int with n =
+    Address.callForever(Service.address(counter), fn(reply) = Total(reply = reply))

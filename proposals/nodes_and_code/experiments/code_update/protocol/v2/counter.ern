@@ -1,0 +1,35 @@
+/// Version 2: `Reset` added to the protocol (row C3). The previous protocol
+/// stays under its name, `Msg`, and the new one is `Msg2`, so that `forward`
+/// can be written; every old constructor is kept in form, so `forward` is
+/// the translation a tool could write.
+export type Msg = Add(Int) | Total(reply : Reply(Int))
+
+export type Msg2 = Add2(Int) | Total2(reply : Reply(Int)) | Reset
+
+export let counter : Service.Handle(Msg2, Int) = Service.start(fn() = 0, step)
+
+export fn step(total : Int, message : Msg2) : Int with Service.Envelope(Msg2, Int) =
+    match message {
+        Add2(amount) -> total + amount
+      | Total2(reply = reply) -> {
+            answer(reply, total);
+            total
+        }
+      | Reset -> 0
+    }
+
+/// An old message to the new service: each constructor to its namesake.
+export fn forward(message : Msg, to : Address(Msg2)) : Unit with Service.Envelope(Msg, Int) =
+    match message {
+        Add(amount) -> send(to, Add2(amount))
+      | Total(reply = reply) -> send(to, Total2(reply = reply))
+    }
+
+export fn add(amount : Int) : Unit with n =
+    send(Service.address(counter), Add2(amount))
+
+export fn reset() : Unit with n =
+    send(Service.address(counter), Reset)
+
+export fn total() : Int with n =
+    Address.callForever(Service.address(counter), fn(reply) = Total2(reply = reply))

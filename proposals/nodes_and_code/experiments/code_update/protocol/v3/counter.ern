@@ -1,0 +1,37 @@
+/// Version 3: `Total2` retired for `Stats` (row C4). `Msg2` stays, the
+/// previous protocol, and `forward` answers a retired request itself, by
+/// asking the new service, since no translation can carry a reply of one
+/// type into a request of another. `Msg` stays too, while a client of
+/// version 1 may still hold the first service's address.
+export type Msg = Add(Int) | Total(reply : Reply(Int))
+
+export type Msg2 = Add2(Int) | Total2(reply : Reply(Int)) | Reset
+
+export type Msg3 = Add3(Int) | Stats(reply : Reply(Int)) | Reset3
+
+export let counter : Service.Handle(Msg3, Int) = Service.start(fn() = 0, step)
+
+export fn step(total : Int, message : Msg3) : Int with Service.Envelope(Msg3, Int) =
+    match message {
+        Add3(amount) -> total + amount
+      | Stats(reply = reply) -> {
+            answer(reply, total);
+            total
+        }
+      | Reset3 -> 0
+    }
+
+/// An old message to the new service; the retired `Total2` answered here.
+export fn forward(message : Msg2, to : Address(Msg3)) : Unit with Service.Envelope(Msg2, Int) =
+    match message {
+        Add2(amount) -> send(to, Add3(amount))
+      | Total2(reply = reply) ->
+            answer(reply, Address.callForever(to, fn(stats) = Stats(reply = stats)))
+      | Reset -> send(to, Reset3)
+    }
+
+export fn add(amount : Int) : Unit with n =
+    send(Service.address(counter), Add3(amount))
+
+export fn total() : Int with n =
+    Address.callForever(Service.address(counter), fn(reply) = Stats(reply = reply))

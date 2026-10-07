@@ -5,7 +5,7 @@ The first program of [`code_update.md`](../../code_update.md)'s section 4, writt
 ## The files
 
 - `restart/v1/counter.ern`, `restart/v2/counter.ern`: the counter as a loop with its state in its arguments (report §6.5); version 2 logs each `Add`.
-- `service/service.ern`: the library, `Service`, written for this experiment: an `Envelope(m, s)` of the protocol's messages and one `Upgrade`, a `Handle` of the loop's address and the clients' adapted address, `start`, `run`, `address` and `upgrade`. No envelope tag yet, since no protocol changes here.
+- `service/service.ern`: the library, `Service`, written for these experiments: an `Envelope(m, s)` of the protocol's messages and one `Upgrade`, a `Handle` of the loop's address and the clients' adapted address, `start`, `run`, `address` and `upgrade`, and for the protocol experiment `replace` and `forwarding`. No envelope tag, since no protocol changes in place here.
 - `service/v1/counter.ern`, `service/v2/counter.ern`: the counter as a `step` the library runs; version 2 logs each `Add`.
 - `service/v3/counter.ern`: version 3, the state's shape changed to a record that also counts the adds, with `migrate`; it compiles.
 - `service/v3/upgrade_v3.ern`: the upgrade of a running version 1 or 2 counter to version 3, which does not compile.
@@ -238,3 +238,55 @@ Two items are put and read back, and a connection is answered `keys: 2`. After t
 | what version 3 added for the handover | `State2`, `migrate`, `opened` and `handover`, 25 lines, of which the handover is 8 |
 | what the upgrade in place cost at the shell | one line, `Service.upgrade(h, Store.step)` |
 | what the handover cost at the shell | one line, `Store.handover(h)` |
+
+# The protocol change, written under the concept
+
+Rows C3 and C4 for a service, written and run on 2026-10-07: the counter's protocol gains `Reset`, then retires its request for the total in favour of another. The running loop's mailbox type is its old protocol, so in place is `become`'s case; what runs today is the replace: the successor takes the state by its own `Upgrade`, and the old loop goes on as a forwarder for the clients that hold its address, each old message given to a function the program writes with the successor's address. The library gained `replace` and `forwarding` for it, 30 lines.
+
+## The files
+
+- `protocol/v1/counter.ern`: version 1, `Add` and `Total`.
+- `protocol/v2/counter.ern`: version 2, `Reset` added (row C3); `Msg` stays and the new protocol is `Msg2`; `forward` maps each constructor to its namesake.
+- `protocol/v3/counter.ern`: version 3, the request for the total retired for `Stats` (row C4); `Msg` and `Msg2` stay; `forward` answers the retired request by asking the new service.
+
+## The run
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Counter, compiled from counter.ern
+> h : Service.Handle(Counter.Msg, Int)
+> > 3 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Counter, compiled again
+> h2 : Service.Handle(Counter.Msg2, Int)
+> > 3 : Int
+> > 7 : Int
+> > 0 : Int
+> 0 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Counter, compiled again
+> h3 : Service.Handle(Counter.Msg3, Int)
+> > > 5 : Int
+> 5 : Int
+> 5 : Int
+>
+```
+
+A client of version 1 holds `h`. After the reload to version 2, `Service.replace(h, Counter.forward, h2, Counter.step)` moves the total of 3 into the new service and turns the old loop into a forwarder: the old client's request for the total answers 3, then 7 after a new client's add, then 0 after a new client's reset, while the new client sees the same. After the reload to version 3 the same again from `h2`: the oldest client, two translations deep, the version 2 client, whose retired request is answered through `Stats`, and the new client all see 5.
+
+## Findings
+
+- **Rows C3 and C4 work today as a replace, with a forwarder per retired version.** Nothing was told to any client, and the cost to the program was the kept old protocol and one `forward` function per version, 5 lines for C3 and 7 for C4. The forwarders chain: the oldest client's request crossed two before it was answered, one process and one hop for each version still held, which is what deleting the old type and its `forward` ends.
+- **A retired request needs no reply adapter.** Part two asked for a `via` for replies, to carry a reply of one answer type into a request of another. The forwarder is a process and answers the retired request itself, by asking the new service and answering the old caller, 2 lines; the pure translation of part two is the C3 case, and C4 is the forwarder's.
+- **The kept declaration wants a module of its own.** Two types in one module cannot share constructor names, so keeping `Msg` beside `Msg2` renamed every constructor of the new protocol, `Add2`, `Total2`, which every client of the new protocol then writes. The rule that the old declaration stays until nothing holds it should place it in a module of its own, `counter/v1.ern`, so that the current protocol keeps its names and the old one keeps its own under its module.
+- **The replace is where the plan's tool earns its keep.** The caller wrote three things by hand that the plan derives from the hashes: that the protocol changed, that version 2's `forward` is the namesake map, and the two-line incantation at the shell. The C4 `forward` is the one thing a human writes.
+
+## The count
+
+| | lines |
+|---|---|
+| the library's `replace` and `forwarding`, written once | 30 |
+| what version 2 added for the protocol change | `Msg2` kept beside `Msg`, and `forward`, 5 lines |
+| what version 3 added | `Msg3`, and `forward` with the retired request answered, 7 lines |
+| what each replace cost at the shell | one line |
