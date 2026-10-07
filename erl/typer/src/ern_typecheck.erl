@@ -20,10 +20,10 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, lookup_type/2, is_reply_carrying/2, assume_reply_carrying/2,
-         restricted_reply_carrying/1, let_order/1, foreign_implementation/1, fields/2,
-         declared_scheme/3, session_member/3, lookup_constructor/4, constructor_info/2,
-         is_value/2, resolve_type/2, node_type/1]).
+         prelude_env/0, lookup_type/2, described_type/2, is_reply_carrying/2,
+         assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
+         foreign_implementation/1, fields/2, declared_scheme/3, session_member/3,
+         lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -75,7 +75,10 @@
               groups = #{}, typed = [], diagnostics = [], reply_variables = [],
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
-              signature = [], definition}).
+              signature = [], definition, private_types = #{}}).
+%% private_types: the private types of the modules given, which their
+%% abstract types' fields name; the descriptor builder reads them
+%% (described_type/2), and no name resolves to one (report §4.2, §11.1)
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
@@ -508,13 +511,15 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
            end,
     Env#env{types = lists:foldl(Mark, Types, Declarations)}.
 
-add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets},
+add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
+                         private_types = PrivateTypes},
               #env{types = Types, globals = Globals} = Env) ->
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
                              end, Env#env.constructors, InterfaceTypes),
     Env#env{types = maps:merge(Types, InterfaceTypes), globals = maps:merge(Globals, Values),
             constructors = Constructors,
+            private_types = maps:merge(Env#env.private_types, PrivateTypes),
             lets = maps:merge(Env#env.lets,
                               maps:from_list([{QualifiedName, true} || QualifiedName <- Lets]))}.
 
@@ -651,6 +656,16 @@ lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = T
 
 -spec lookup_type([atom()], env()) -> #type_info{} | undefined.
 lookup_type(QualifiedName, #env{types = Types}) -> maps:get(QualifiedName, Types, undefined).
+
+%% Report §8.4, §11.1, Appendix E.1: a type as a value of it is described,
+%% printed or checked: one in scope, or a private type of another module
+%% that an abstract type's fields name, which its interface carries.
+-spec described_type([atom()], env()) -> #type_info{} | undefined.
+described_type(QualifiedName, #env{types = Types, private_types = PrivateTypes}) ->
+    case Types of
+        #{QualifiedName := TypeInfo} -> TypeInfo;
+        _ -> maps:get(QualifiedName, PrivateTypes, undefined)
+    end.
 
 %% Report §4.2, §11.2: whether Namespace is a module and the type that owns the
 %% member Name: a type of that module, or, at the prompt, a type the session
@@ -5777,7 +5792,33 @@ interface_of(Declarations, #env{namespace = Namespace, types = Types, globals = 
     %% its getter even where its type is a function
     Lets = [QualifiedName || #let_declaration{} = Declaration <- Declarations,
                              {true, QualifiedName} <- [exported_value(Declaration, Env)]],
-    #interface{namespace = Namespace, types = ExportedTypes, values = ExportedValues, lets = Lets}.
+    #interface{namespace = Namespace, types = ExportedTypes, values = ExportedValues, lets = Lets,
+               private_types = private_types(ExportedTypes, Env)}.
+
+%% Report §4.2, §8.4, §11.1: the module's private types an exported
+%% abstract type's fields name, and those theirs name, which a dependent
+%% describes the abstract type's values by and cannot name.
+private_types(ExportedTypes, #env{local_types = LocalTypes, types = Types} = Env) ->
+    OwnTypes = maps:values(LocalTypes),
+    Private = fun(QualifiedName) ->
+                  lists:member(QualifiedName, OwnTypes)
+                      andalso not is_map_key(QualifiedName, ExportedTypes)
+              end,
+    Named = lists:append([constructor_tcons(TypeInfo, Env)
+                          || #type_info{abstract = true} = TypeInfo <- maps:values(ExportedTypes)]),
+    reached_private(Named, Private, Types, Env, #{}).
+
+reached_private([], _Private, _Types, _Env, Acc) ->
+    Acc;
+reached_private([QualifiedName | Rest], Private, Types, Env, Acc) ->
+    case Private(QualifiedName) andalso not is_map_key(QualifiedName, Acc) of
+        true ->
+            TypeInfo = maps:get(QualifiedName, Types),
+            reached_private(constructor_tcons(TypeInfo, Env) ++ Rest, Private, Types, Env,
+                            Acc#{QualifiedName => TypeInfo});
+        false ->
+            reached_private(Rest, Private, Types, Env, Acc)
+    end.
 
 %% Report §4.2: an exported declaration is made of the types that cross the
 %% boundary with it. A private type in an exported signature would leave a

@@ -331,6 +331,16 @@ the terminal). The rest is MVP 3.3's.
 
 ## Standing gaps
 
+- **A child's function run in a process that is already a supervisor's child** (found
+  2026-10-07 by the supervisor experiment under
+  `proposals/nodes_and_code/experiments/code_update/`): `Supervisor.child(group, f)()` called
+  inside a running child reads the process's start cause, which is the outer restart's, and
+  reports a fault that did not happen, so the group may give up. Appendix E.22 is silent on
+  it. The decision, named in `code_update.md`'s section 8 and taken with the user before step
+  D's proposal is written: a refusal, `Fault("a process runs one child function")`, or an
+  operation by which a child replaces the function its restart runs, which is what an upgrade
+  in place of a supervised process needs. Until it is decided, the call is the program's
+  mistake and the experiment's README says so.
 - **The shell's reload does not see a function of the previous version held in a process's
   state** (found 2026-10-07 by the counter experiment under `proposals/nodes_and_code/experiments/code_update/`):
   §11.2 lists the processes still running a previous version by the host's

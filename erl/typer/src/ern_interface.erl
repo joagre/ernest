@@ -12,7 +12,7 @@
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 5).
+-define(FORMAT, 6).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], compiler => binary(),
@@ -37,9 +37,11 @@ read(Beam) ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk)
             try ern_chunk:term(Chunk) of
                 {ok, #{format := ?FORMAT,
-                       interface := {interface, Namespace, Types, Values, Lets}} = Read} ->
+                       interface := {interface, Namespace, Types, Values, Lets, PrivateTypes}}
+                       = Read} ->
                     Interface = #interface{namespace = Namespace, types = maps:from_list(Types),
-                                           values = maps:from_list(Values), lets = Lets},
+                                           values = maps:from_list(Values), lets = Lets,
+                                           private_types = maps:from_list(PrivateTypes)},
                     {ok, Read#{interface => Interface}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
@@ -59,14 +61,19 @@ hash(Interface) ->
 %% interfaces have equal bytes (report §11.1). VariableNames, keep or
 %% strip: the hash leaves the variables' names out, since a renamed
 %% annotation changes no dependent.
-canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets},
+canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets,
+                     private_types = PrivateTypes},
           VariableNames) ->
     {interface, Namespace,
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
                  || {QualifiedName, TypeInfo} <- maps:to_list(Types)]),
      lists:sort([{QualifiedName, canonical_scheme(Scheme, #{}, VariableNames)}
                  || {QualifiedName, Scheme} <- maps:to_list(Values)]),
-     lists:sort(Lets)}.
+     lists:sort(Lets),
+     %% report §11.1: a change to what an abstract type's fields name changes
+     %% how a dependent describes its values, so it is in the hash
+     lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
+                 || {QualifiedName, TypeInfo} <- maps:to_list(PrivateTypes)])}.
 
 %% A type's parameters numbered by place, and its constructors' schemes
 %% over the same numbers; the names its declaration writes are left out of

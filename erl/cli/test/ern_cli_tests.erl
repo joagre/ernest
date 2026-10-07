@@ -396,6 +396,33 @@ source_root_test() ->
     ?assert(filelib:is_regular(Dir ++ "/build/net/http.erc")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/http.erc")).
 
+%% report §11.1, §8.4, §4.2, Appendix E.1: a dependent describes an exported
+%% abstract type whose fields name a private type, to print it or check it,
+%% through the private types the interface carries, and cannot name them.
+%% A regression test: printing an address of `Supervisor.Msg`, whose `Join`
+%% names the private `WatcherMsg`, stopped `ern build` with an internal
+%% error, and binding one stopped the shell; it does not cover a foreign
+%% value checked against such a type, which takes the same descriptor
+abstract_private_fields_test() ->
+    Dir = tmp(),
+    write(Dir, "box.ern", "type Secret = Secret(Int)\n\n"
+                          "export abstract type Box = Box(Secret)\n\n"
+                          "export fn box(count : Int) : Box = Box(Secret(count))\n"),
+    write(Dir, "main.ern",
+          "export fn main() : Unit with Never = {\n"
+          "    Io.println(Io.show(Box.box(3)));\n"
+          "    let group = spawn(Supervisor.group(Supervisor.OneForOne,\n"
+          "                                       RestartLimit(restarts = 3, within = 5000)));\n"
+          "    Io.println(Io.show(String.startsWith(Io.show(group), \"<address\")))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, Dir])),
+    ?assertEqual(0, ern_cli:ern(["run", filename:join(Dir, "main.erc")])),
+    ?assertEqual(<<"<abstract>\ntrue\n">>, iolist_to_binary(?capturedOutput)),
+    Peek = write(Dir, "peek.ern", "export fn peek(secret : Box.Secret) : Int = 0\n"),
+    ?assertEqual(1, build_err(["--source-root", Dir, Peek])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"unknown type Box.Secret">>)).
+
 %% report §11.1: a dependency outside the compiled subtree must have been
 %% compiled into the build directory already
 dependency_not_built_test() ->

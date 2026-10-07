@@ -1,0 +1,59 @@
+/// A supervisor over two services, version 1 (report Appendix E.22): a
+/// counter that can be made to fault, and an echo. The group restarts a
+/// faulting child afresh, up to three times in five seconds.
+export type CountMsg = Inc | Count(reply : Reply(Int)) | Crash
+
+export type EchoMsg = Echo(text : String, reply : Reply(String))
+
+export let group : Address(Supervisor.Msg) =
+    spawn(Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 3, within = 5000)))
+
+export let counter : Address(CountMsg) = spawn(Supervisor.child(group, fn() = counting(0)))
+
+export let echo : Address(EchoMsg) = spawn(Supervisor.child(group, echoing))
+
+/// A service under the group: the library's loop as the child's function,
+/// so that its step can be upgraded in place.
+export type TallyMsg = Tally | Tallied(reply : Reply(Int)) | Break
+
+export let tally : Service.Handle(TallyMsg, Int) = {
+    let loop = spawn(Supervisor.child(group, fn() = Service.run(tallyStep, 0)));
+    Service.Handle(loop = loop, clients = via(loop, Service.Message))
+}
+
+export fn tallyStep(count : Int, message : TallyMsg) : Int with Service.Envelope(TallyMsg, Int) =
+    match message {
+        Tally -> count + 1
+      | Tallied(reply = reply) -> {
+            answer(reply, count);
+            count
+        }
+      | Break -> fault("the tally was broken")
+    }
+
+export fn tallied(handle : Service.Handle(TallyMsg, Int)) : Int with n =
+    Address.callForever(Service.address(handle), fn(reply) = Tallied(reply = reply))
+
+fn counting(count : Int) : Unit with CountMsg =
+    receive {
+        Inc -> counting(count + 1)
+      | Count(reply = reply) -> {
+            answer(reply, count);
+            counting(count)
+        }
+      | Crash -> fault("the counter was crashed")
+    }
+
+fn echoing() : Unit with EchoMsg =
+    receive {
+        Echo(text = text, reply = reply) -> {
+            answer(reply, text);
+            echoing()
+        }
+    }
+
+export fn inc(address : Address(CountMsg)) : Unit with n =
+    send(address, Inc)
+
+export fn count(address : Address(CountMsg)) : Int with n =
+    Address.callForever(address, fn(reply) = Count(reply = reply))

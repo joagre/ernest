@@ -290,3 +290,62 @@ A client of version 1 holds `h`. After the reload to version 2, `Service.replace
 | what version 2 added for the protocol change | `Msg2` kept beside `Msg`, and `forward`, 5 lines |
 | what version 3 added | `Msg3`, and `forward` with the retired request answered, 7 lines |
 | what each replace cost at the shell | one line |
+
+# The supervisor, written once
+
+Row C6 and the supervised service, written and run on 2026-10-07: a group of a counter, an echo and a tally, the tally a service under the library whose loop is the child's function. Version 2 changes the counter's and the tally's logic, adds a clock, and raises the limit. The run began by stopping the shell, which found a defect of the toolchain, fixed the same day (the log's *An Abstract Type's Private Fields Travel in Its Interface*).
+
+## The files
+
+- `supervisor/v1/tree.ern`: version 1, the group, the counter, the echo, and the tally as a service under the group.
+- `supervisor/v2/tree.ern`: version 2, the counter and the tally logging each step, a clock, the limit raised to five, and `upgradeTally`, an upgrade in place whose new loop states its own place under the group.
+
+## The run
+
+```console
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Service, compiled from service.ern
+Tree, compiled from tree.ern
+> g : Address(Supervisor.Msg)
+> c : Address(Tree.CountMsg)
+> > > 2 : Int
+> Tree.counter:14 faulted, restarted: the counter was crashed
+> 0 : Int
+> t : Service.Handle(Tree.TallyMsg, Int)
+> > 1 : Int
+> Right(Unit) : Either(Io.Error, Unit)
+> Tree, compiled again
+Tree: the previous version is held by the processes spawned at Tree.counter:14 and Tree.echo:16 and by the binding t; the next reload of Tree ends the processes and forgets the binding
+> > 1 : Int
+> Tree.counter:14 faulted, restarted: the counter was crashed
+> > 1 : Int
+> inc, version 2
+> 1 : Int
+> k : Address(Tree.ClockMsg)
+> true : Bool
+> > tally, version 2
+> 2 : Int
+> Tree.tally:26 faulted, restarted: the tally was broken
+> > 1 : Int
+> Tree.group:12 faulted: supervisor restart limit reached
+> > fault: callee had ended
+> > > fault: callee had ended
+>
+```
+
+The counter counts to 2, is crashed, and is restarted from 0 by the group. After the reload to version 2, the old counter, crashed again, restarts into version 1's code: a restart runs the function the child was spawned with. The reload's re-evaluation started a second group with version 2's children, as §11.2 has it. A clock of version 2 joins the old group from the shell. The tally, upgraded in place to version 2's step, logs and counts on; at its next fault it restarts into version 1's step from 0, and the upgrade is gone. `upgradeTally` then had the new loop state its own place by calling `Supervisor.child(group, f)()` inside the running child, as part two proposed, and the old group gave up at once: the inner child read the process's start cause, which is the outer restart's, and reported a fault that had not happened, the fourth within the old limit.
+
+## Findings
+
+- **A restart runs the function the child was spawned with, so an upgrade in place vanishes at the first fault.** Shown twice, by the counter after a reload and by the tally after an upgrade. Part two's 7.2 predicted it; it is now the experiment's first finding for step D: whatever upgrades a supervised process must change what its restart runs.
+- **Part two's answer does not work with today's supervisor.** A child's function run inside a process that is already a child misreads why it began and is counted as a fault. Appendix E.22 is silent on it; the plan's standing gaps hold it, with the two shapes of its answer: a refusal, or the operation step D wants, a child that replaces the function its restart runs.
+- **A child joins a running group at any time**, so adding a service to a tree needs nothing new. Removing one is killing it. Changing the strategy or the limit needs a new group, whose children begin afresh, which is a replace of the whole subtree.
+- **A supervisor is not a service whose `State` is its children.** Its state is the watcher's list of processes and its loop's count of recent faults, behind an abstract `Msg`, and none of it is a value a successor could take: the processes are the children themselves, which stay where they are. The tree's upgrade is therefore its children's, one by one, plus a way to change what each restart runs, and a change of strategy or limit is a new group.
+
+## The count
+
+| | lines |
+|---|---|
+| the tree, version 1 | 59 |
+| what version 2 added | the logs, the clock, the limit and `upgradeTally`, 34 lines |
+| what the upgrade in place cost at the shell | one line, which a restart then undid |

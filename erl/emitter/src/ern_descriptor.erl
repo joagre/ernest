@@ -101,7 +101,7 @@ descriptor({tcon, QualifiedName, Args} = Type, Seen, #scope{env = Env} = Scope) 
         #{Type := Id} ->
             {ref, Id};
         _ ->
-            case ern_typecheck:lookup_type(QualifiedName, Env) of
+            case ern_typecheck:described_type(QualifiedName, Env) of
                 #type_info{foreign = true} ->
                     %% report §8.4, Appendix E.1: unchecked, as a type
                     %% variable is, and shown as `<foreign>`
