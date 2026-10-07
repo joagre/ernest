@@ -43,6 +43,8 @@ The rest is written as the questions are decided.
 
 **Messages and keys.** A message carries nothing of its type, as in MVP 3.0, and goes straight into the mailbox: every remote address a program holds came from a find, where the peer compared the key's type identity, from a spawn of the program's own function, or inside a message whose type was agreed by one of the two, and there is no fourth way. A key carries its type's identity, hash and members, in place of MVP 3.0's text; a find answers the address where the identities are the same, and `OtherType` where they differ, which is a service at another version.
 
+**Bindings.** A node holds its bindings' values by the hash of their definition. A spawned function that names a binding finds the value where the peer's own build ran that hash, and fails with `NotLoaded` where it did not; nothing is initialized because a peer asked, as in MVP 3.0, and a value a spawned function is to have on the peer is captured. A service is one per node: a node runs one build and offers what that build started, and an old client that finds a service on a node restarted with a new build gets the new service where the type's identity is unchanged, and `OtherType` where it is not. Versions stand side by side as code, in processes spawned from peers of other builds, never as services.
+
 The rest is written as the questions are decided.
 
 ## 7. The numbers
@@ -59,11 +61,10 @@ The questions, in the order they are taken; each leaves the list as it is decide
 
 1. **A node's code.** The cache keyed by hash, in memory or on disk; the loader beside the host's `code_server`; what a module of the host is for a hash; whether a node keeps embedded mode. (`code.md` 2.3, *D9*.)
 2. **Code crossing with a spawn.** The have-and-want exchange; what a code frame carries, the form that is hashed or the compiled module; verification; what happens to the spawn when the exchange fails; a foreign declaration a peer lacks or has differently. (`code.md` 2.3, *D10*, *D13*, *D17*.)
-3. **Bindings across builds.** A top-level binding is evaluated once on a node for each hash of its definition, and a service binding of a new build beside the old one's on a peer: what `Peer.find` answers, and whether two services run. (`code.md` 2.5, 3.3.)
-4. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
-5. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
-6. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
-7. **How it is checked**, with nodes of two builds on one machine.
+3. **The memory of code.** What holds code: a process, a value, a `restarting` function, an adapted address a peer may still send to; when a hash is unloaded; the host's atoms and lambda entries for each module loaded, measured. (`code.md` 2.4, 2.5, *D1*, *D4*, *D14*.)
+4. **The standard library's `Code`.** What a module is to it, what a program does with one it has loaded, which functions are in, what it leaves in the host, and whether the shell's `:load` and `:reload` stand on it. (The plan's MVP 3.1, its first items.)
+5. **The rolling deploy.** How a node of a new build joins nodes of the old; what a program sees of a service at another version; what `ern` shows of what changed between two builds, by hash.
+6. **How it is checked**, with nodes of two builds on one machine.
 
 ## 10. Left out on purpose
 
