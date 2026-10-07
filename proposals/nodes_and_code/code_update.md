@@ -86,6 +86,7 @@ Four readers on 2026-10-07, into [`other_systems.md`](other_systems.md), section
 ## 8. Open, for the experiment programs
 
 - Whether step D is built at all: the restart alone is the baseline of section 4, and the step function stays only where the programs show it saving enough, the chat server's connections first; where it does not, MVP 3.1's rolling restart is the final answer and this document records why.
+- Whether replay replaces `migrate` for a service: the library keeps a snapshot and the messages since, and an upgrade folds the new step over the translated log, so that no `migrate` is written, only the translation; the rollback is the old step over the same log, and the test is deterministic (*S9*, *V12*). Its costs, to be measured against `migrate` in the counter and the chat server: a log per service, the replay's time at the upgrade, and a step split into what changes the state and what has effects, since a replayed send would send again, which is why Akka and Elm split the two.
 - The `Upgrade` message's exact shape, and who may send it: the address the service keeps, clients being given one narrowed by `via`.
 - How a supervisor's children are a `State`, and whether a child keeps its place under a successor supervisor, read against `Supervisor`.
 - What a step that blocks costs an upgrade, and whether the plan should refuse a service whose step may not return.
