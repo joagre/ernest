@@ -54,12 +54,11 @@ store.ern    fn count        changed
 store.ern    let counter     follows
 store.ern    fn main         follows
 desk.ern     fn main         follows
-desk.ern     fn report       follows
 board.ern    fn main         follows
 board.ern    fn show         follows
 ```
 
-The store is restarted with build 3 first. Until the board is restarted too, its find answers `Left(OtherType)`, and the board prints "the store is not there" and finds again on its next tick; once the board is at build 3, it finds the counter. The desk at build 1 meets the same, and is restarted in its turn.
+The store is restarted with build 3 first. A board started on build 1 after the store's restart gets `Left(Peer.OtherType)` from its find and prints "the store is not there"; once the board is at build 3, it finds the counter. The desk at build 1 meets the same, and is restarted in its turn.
 
 **A bare node.** A fourth machine, `worker`, is started with `ern run --config-dir /etc/ernest/worker` and no program, and listed by the store. The store spawns on it:
 
@@ -142,7 +141,7 @@ Every question the proposal was written through is decided. What remains is the 
 
 ## 10. Left out on purpose
 
-- An upgrade in place of a running process, a change of protocol by a translation, and a rollback: step D, the milestone after this one, where [`code.md`](code.md)'s section 3 waits.
+- An upgrade in place of a running process, a change of protocol by a translation, and a rollback: step D, the milestone after this one, where [`code.md`](code.md)'s section 7 waits.
 - The deploy tool that plans from the hashes, and the keeper, a service that holds its state behind a protocol that seldom changes: step D's. `ern diff` is a list, not a plan.
 - Unloading code: a node's code is bounded by section 7's limits, and a node warned restarts.
 - A node that boots the platform over the network, and the key such a node receives.
