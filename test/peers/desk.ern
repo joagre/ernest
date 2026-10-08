@@ -10,6 +10,7 @@ export fn main() : Unit with Msg =
         ["find"] -> finds()
       | ["spawn"] -> spawns()
       | ["across"] -> across()
+      | ["calls"] -> calls()
       | _ -> Unit
     }
 
@@ -172,3 +173,73 @@ fn shape(n : Int) : Census.Shape =
 
 foreign fn sever(process : Process) : Unit with m =
     "ern_peers_host:sever/1"
+
+// Report §8.7: each way a call to a process of another node ends, and the
+// note the store keeps of it until it is over, which the store's census
+// counts.
+fn calls() : Unit with Msg = {
+    let brittle = Shared.found(Calls.brittle);
+    let sleeper = Shared.found(Calls.sleeper);
+    let doomed = Shared.found(Calls.doomed);
+    let census = Shared.found(Census.key);
+    let started = Clock.monotonic();
+    let crashed = Address.call(brittle, fn(reply) = Calls.Crash(reply = reply), 10000);
+    Io.println("restarted: "
+                   <> Io.show(crashed)
+                   <> " "
+                   <> Io.show(Clock.monotonic() - started < 5000));
+    faulted("restarted forever", fn() : Unit with Never = {
+        let _ = Address.callForever(brittle, fn(reply) = Calls.Crash(reply = reply));
+        Unit
+    });
+    Io.println("echo: "
+                   <> Io.show(Address.call(brittle,
+                                           fn(reply) = Calls.Echo(n = 7, reply = reply),
+                                           5000)));
+    let _ = spawnMonitored(fn() : Unit with Never = {
+                               let _ =
+                                   Address.call(doomed,
+                                                fn(reply) = Calls.Slow(ms = 60000, reply = reply),
+                                                60000);
+                               Unit
+                           },
+                           Died);
+    Io.println("while it waits: " <> Int.toString(notes(census, doomed, 1)));
+    kill(doomed);
+    ended("its callee killed");
+    Io.println("after the callee's end: " <> Int.toString(notes(census, doomed, 0)));
+    let late = Address.call(sleeper, fn(reply) = Calls.Slow(ms = 60000, reply = reply), 50);
+    Io.println("timed out: " <> Io.show(late) <> " " <> Int.toString(notes(census, sleeper, 0)));
+    let answerer = spawn(fn() : Unit with Reply(Int) = receive {
+        reply -> answer(reply, 42)
+    });
+    let forwarded =
+        Address.call(brittle, fn(reply) = Calls.Forward(answerer = answerer, reply = reply), 5000);
+    Io.println("answered here: "
+                   <> Io.show(forwarded)
+                   <> " "
+                   <> Int.toString(notes(census, brittle, 0)));
+    let _ = spawnMonitored(fn() : Unit with Never = {
+                               let _ =
+                                   Address.call(sleeper,
+                                                fn(reply) = Calls.Slow(ms = 60000, reply = reply),
+                                                60000);
+                               Unit
+                           },
+                           Died);
+    Io.println("waits again: " <> Int.toString(notes(census, sleeper, 1)));
+    sever(Process.fromAddress(census));
+    ended("its connection lost");
+    Io.println("after the loss: " <> Int.toString(notes(census, sleeper, 0)))
+}
+
+// The notes the store keeps on the callee, once they are the count wanted:
+// the second note and the store's gateway come after the call they follow
+// has ended here.
+fn notes(census : Address(Census.Msg), callee : Address(Calls.Msg), wanted : Int) : Int with n = {
+    let process = Process.fromAddress(callee);
+    match Address.callForever(census, fn(reply) = Census.Notes(callee = process, reply = reply)) {
+        kept when kept == wanted -> kept
+      | _ -> notes(census, callee, wanted)
+    }
+}

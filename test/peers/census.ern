@@ -1,6 +1,7 @@
 // Report §8.7: values of many shapes sent to the store, whose census answers
 // how many atoms its node holds, so that a test sees that a correct
-// program's messages make none on the node that receives them.
+// program's messages make none on the node that receives them, and how
+// many notes of calls from other nodes it keeps on a callee.
 
 export type Shape =
     Point(x : Float, y : Float)
@@ -9,7 +10,10 @@ export type Shape =
   | Raw(Bytes)
   | Pair(#(Char, Bool))
 
-export type Msg = Value(Shape) | Count(reply : Reply(Int))
+export type Msg =
+    Value(Shape)
+  | Count(reply : Reply(Int))
+  | Notes(callee : Process, reply : Reply(Int))
 
 export let key : Peer.Key(Msg) = Peer.key("census")
 
@@ -20,7 +24,14 @@ export fn serve() : Unit with Msg =
             answer(reply, atoms());
             serve()
         }
+      | Notes(callee = callee, reply = reply) -> {
+            answer(reply, notes(callee));
+            serve()
+        }
     }
 
 foreign fn atoms() : Int with m =
     "ern_peers_host:atoms/0"
+
+foreign fn notes(callee : Process) : Int with m =
+    "ern_peers_host:notes/1"

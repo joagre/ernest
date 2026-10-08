@@ -13,7 +13,9 @@
 %% (report §8.4), whose messages cross into foreign code. A Reply(a) is the
 %% alias of the call's monitor of its callee, as gen_server's call makes
 %% one: it deactivates when the call is over, which drops a late answer
-%% (report §6.6). Ernest answers {Reply, answered, Value} and foreign code
+%% (report §6.6). Ernest answers {Reply, answered, Value}, or, on the
+%% node that keeps a remote call's note, {Reply, unnoted, Value}, which says
+%% the note is gone (§8.7); foreign code
 %% {Reply, Value}, so that a call checks the second only, as §8.4 says; a
 %% Reply foreign code gave back is {foreign_reply, Reply, Descriptor,
 %% Bound}, answered in the second form with the answer exposed.
@@ -48,7 +50,8 @@
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1, spawn_order/1,
-         init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2, ordered/1]).
+         init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2, note_call/3,
+         drop_note/1, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -103,6 +106,11 @@
 %% them; and the modules whose initializers have run, which a spawn from a
 %% peer asks for.
 -define(OFFERS, ern_offers).
+%% Report §8.7: the notes of calls from other nodes on this node's
+%% processes, {{CallerNode, Reply}, Callee, Caller}, by the caller's node,
+%% so that a loss drops a peer's together; each beside its row of CALLEES,
+%% which a restart reads.
+-define(NOTES, ern_notes).
 -define(OFFERED, ern_offered).
 -define(INITIALIZED, ern_initialized).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
@@ -296,10 +304,11 @@ call(Address, Request, Ms, Check) ->
 waited_answer(Reply, Deadline, Check) ->
     receive
         {Reply, answered, Value} -> {'Some', Value};
+        {Reply, unnoted, Value} -> closed(erlang:self()), {'Some', Value};
         {Reply, Value} -> {'Some', foreign_answer(Check, Value)};
-        {Reply, restarted, _} -> 'None';
+        {Reply, restarted, _} -> closed(erlang:self()), 'None';
         {Reply, fault, Cause} -> fault(Cause);
-        {'DOWN', Reply, process, _, _} -> 'None';
+        {'DOWN', Reply, process, _, _} -> closed(erlang:self()), 'None';
         '$ern_restart' -> '$ern_restart';
         %% report §8.4: a foreign message's fault, taken at a call's wait
         {'$ern_fault', Cause} -> fault(Cause)
@@ -326,12 +335,17 @@ call_forever(Address, Request, Check) ->
                  deliver(Address, Request(Reply)),
                  receive
                      {Reply, answered, Value} -> {answered, Value};
+                     {Reply, unnoted, Value} -> closed(erlang:self()), {answered, Value};
                      {Reply, Value} -> {answered, foreign_answer(Check, Value)};
-                     {Reply, restarted, CalleeCause} -> {fault, CalleeCause};
+                     {Reply, restarted, CalleeCause} ->
+                         closed(erlang:self()),
+                         {fault, CalleeCause};
                      %% report §8.2: a system process faults the caller it
                      %% answers
                      {Reply, fault, SystemCause} -> {fault, SystemCause};
-                     {'DOWN', Reply, process, _, CalleeExitReason} -> {ended, CalleeExitReason};
+                     {'DOWN', Reply, process, _, CalleeExitReason} ->
+                         closed(erlang:self()),
+                         {ended, CalleeExitReason};
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart;
@@ -373,12 +387,17 @@ ended('ProgramEnd') ->
 
 %% A call's monitor of the process behind the address, whose alias is the
 %% reply's, and the call noted against that process, so that its restart
-%% ends the call.
+%% ends the call; report §8.7: for a process of another node, noted on that
+%% node too, by a note to its gateway, sent before the request so that it
+%% arrives first.
 pending(Address) ->
     Callee = process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     ets:insert(?CALLS, {erlang:self(), Callee, Reply}),
     ets:insert(?CALLEES, {{Callee, erlang:self()}, Reply}),
+    node(Callee) =:= node()
+        orelse erlang:send({ern_gateway, node(Callee)},
+                           {ern_frame, erlang:self(), {call_waits, Callee, Reply}}),
     Reply.
 
 %% The call is over: its rows go, its monitor and with it the alias go, and
@@ -389,8 +408,25 @@ settled(Reply) ->
     erlang:demonitor(Reply, [flush]),
     flushed(Reply).
 
-%% The pending call of Caller, gone from both tables.
+%% The pending call of Caller, gone from both tables; report §8.7: where
+%% its callee is of another node, whose note no answer there, restart or end
+%% has let go, the second note tells that node the call is over.
 uncalled(Caller) ->
+    case ets:take(?CALLS, Caller) of
+        [{_, Callee, Reply}] ->
+            ets:delete(?CALLEES, {Callee, Caller}),
+            node(Callee) =:= node()
+                orelse erlang:send({ern_gateway, node(Callee)},
+                                   {ern_frame, Caller, {call_over, Reply}});
+        [] ->
+            true
+    end.
+
+%% Report §8.7: the pending call of the caller, gone from both tables where
+%% its callee's node has already let its note go: by an answer given there,
+%% by the restart it told, or by the callee's end or the connection's, so
+%% that no second note follows.
+closed(Caller) ->
     case ets:take(?CALLS, Caller) of
         [{_, Callee, _}] -> ets:delete(?CALLEES, {Callee, Caller});
         [] -> true
@@ -411,8 +447,16 @@ flushed(Reply) ->
 answer({foreign_reply, Reply, Descriptor, Bound}, Value) ->
     Reply ! {Reply, ern_boundary:expose(Descriptor, Value, Bound)},
     ?UNIT;
-answer(Reply, Value) ->
+answer(Reply, Value) when node(Reply) =:= node() ->
     Reply ! {Reply, answered, Value},
+    ?UNIT;
+%% report §8.7: a reply of a call from another node, whose note this node may
+%% keep: an answer given here lets it go, and tells the caller so
+answer(Reply, Value) ->
+    case dropped_note(Reply) of
+        true -> Reply ! {Reply, unnoted, Value};
+        false -> Reply ! {Reply, answered, Value}
+    end,
     ?UNIT.
 
 %% Report §8.2, §7.4: a system process faults the caller it answers.
@@ -575,6 +619,7 @@ new_run(Pid, Ref, #reaper{monitors = Monitors, monitoring = Monitoring,
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
     unoffered(Pid),
+    drop_callee_notes(Pid),
     delivered_down(Pid, ExitReason, Reaper),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
         orelse is_map_key(Pid, MonitorRefs) of
@@ -1646,7 +1691,7 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 -spec tables() -> [atom()].
 tables() ->
     [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?HELD, ?DELIVERIES, ?RESTARTS, ?PROXIES, ?LAUNCH,
-     ?OFFERS, ?OFFERED, ?INITIALIZED].
+     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public, table_kind(Table)]) end,
@@ -1658,6 +1703,7 @@ table_kind(?CALLEES) -> ordered_set;
 table_kind(?DELIVERIES) -> ordered_set;
 table_kind(?OFFERS) -> ordered_set;
 table_kind(?OFFERED) -> bag;
+table_kind(?NOTES) -> ordered_set;
 table_kind(_) -> set.
 
 %% The reference that tags this launch, under which the runner is known,
@@ -2007,7 +2053,7 @@ fresh_run() ->
                  Pid ! {new_run, Self, MonitorRef},
                  MonitorRef
              end || Pid <- [persistent_term:get({?MODULE, reaper}), system_process(clock),
-                            system_process(terminal)]],
+                            system_process(terminal)] ++ gateway()],
     lists:foreach(fun(MonitorRef) ->
                       receive
                           {MonitorRef, fresh} -> erlang:demonitor(MonitorRef, [flush]);
@@ -2020,6 +2066,14 @@ emptied() ->
     receive
         _ -> emptied()
     after 0 -> ok
+    end.
+
+%% Report §8.7: a node's gateway, which a restart asks too, so that every
+%% call's note that came before it is recorded when the restart reads them.
+gateway() ->
+    case erlang:whereis(ern_gateway) of
+        undefined -> [];
+        Gateway -> [Gateway]
     end.
 
 %% Report §6.9: whether a fault now is restarted, and the times of the
@@ -2044,6 +2098,8 @@ restarted(Cause) ->
     lists:foreach(fun({Caller, Reply}) ->
                       ets:delete(?CALLEES, {Self, Caller}),
                       ets:delete_object(?CALLS, {Caller, Self, Reply}),
+                      %% report §8.7: a caller of another node's note, used
+                      ets:delete(?NOTES, {node(Reply), Reply}),
                       Reply ! {Reply, restarted, Cause}
                   end, Callers).
 
@@ -2217,6 +2273,49 @@ unoffered(Pid) ->
     lists:foreach(fun({_, Key}) ->
                       ets:select_delete(?OFFERS, [{{Key, '_', Pid}, [], [true]}])
                   end, ets:take(?OFFERED, Pid)).
+
+%% Report §8.7: a call's note, which the gateway records as it comes: the
+%% caller of another node waits on a process of this one, with the reply,
+%% beside its row of CALLEES, which a restart reads. A callee that has
+%% already ended takes none, since its end, which drops its notes, came
+%% before; one that ends after the row is written finds it.
+-spec note_call(pid(), pid(), reference()) -> ok.
+note_call(Callee, Caller, Reply) ->
+    ets:insert(?CALLEES, {{Callee, Caller}, Reply}),
+    ets:insert(?NOTES, {{node(Reply), Reply}, Callee, Caller}),
+    erlang:is_process_alive(Callee) orelse dropped_note(Reply),
+    ok.
+
+%% Report §8.7: the second note, that the call is over.
+-spec drop_note(reference()) -> ok.
+drop_note(Reply) ->
+    dropped_note(Reply),
+    ok.
+
+%% Report §8.7: a loss drops every note of the peer.
+-spec drop_notes(node()) -> ok.
+drop_notes(Node) ->
+    lists:foreach(fun({_, Callee, Caller}) -> ets:delete(?CALLEES, {Callee, Caller}) end,
+                  ets:select(?NOTES, [{{{Node, '_'}, '_', '_'}, [], ['$_']}])),
+    ets:select_delete(?NOTES, [{{{Node, '_'}, '_', '_'}, [], [true]}]),
+    ok.
+
+%% Whether the reply's note was here, and is gone with its row.
+dropped_note(Reply) ->
+    case ets:take(?NOTES, {node(Reply), Reply}) of
+        [{_, Callee, Caller}] -> ets:delete(?CALLEES, {Callee, Caller});
+        [] -> false
+    end.
+
+%% Report §8.7: a callee's end drops the notes of its callers of other
+%% nodes, whose monitors tell them; its own node's callers drop their rows.
+drop_callee_notes(Pid) ->
+    Remote = ets:select(?CALLEES, [{{{Pid, '$1'}, '$2'}, [{'=/=', {node, '$1'}, node()}],
+                                    [{{'$1', '$2'}}]}]),
+    lists:foreach(fun({Caller, Reply}) ->
+                      ets:delete(?CALLEES, {Pid, Caller}),
+                      ets:delete(?NOTES, {node(Reply), Reply})
+                  end, Remote).
 
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and

@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 5 and 8 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 6 and 8 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -230,7 +230,10 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    frame announcing it; a `Down` with `Unreachable` and an empty site for each monitor held on
    the peer's processes, what waited dropped, the calls waiting ended and every row of that
    peer gone, a dial to a peer that believes the old connection alive making it run its loss
-   first; a node's own processes untouched but one in `Address.callForever`.
+   first; a node's own processes untouched but one in `Address.callForever`. Done 2026-10-08,
+   with what the building decided in the log's *Calls Across Nodes*: the gateway records the
+   notes itself and a restart asks it, and the second note goes wherever a call ends but by
+   an answer on the callee's node, a restart or an end.
 7. **The node's end and its reload.** The end: the program's end or termination, `ern stop` and
    `kill -TERM` by `ernest.pid`, in order as the host stops a node, every `Down` on its way
    crossing before the connection closes, the processes dying with `ProgramEnd`, a monitor made

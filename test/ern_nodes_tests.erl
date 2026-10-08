@@ -494,7 +494,8 @@ store_and_desk(Base) ->
     lists(Desk, [{"store", Store, PortStore}, {"gone", Gone, PortGone}]),
     lists(Third, [{"store", Store, PortStore}]),
     Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
-              <<"echo-slot">>, <<"fragile">>, <<"strict">>],
+              <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
+              <<"doomed">>],
     edit(Desk, fun(Conf) ->
                    Conf#{<<"keys">> => maps:merge(
                                           maps:from_list([{Key, [<<"store">>]} || Key <- Stored]),
@@ -630,3 +631,31 @@ across() ->
     has(binary_to_list(FirstErr), "the peer desk sent a frame this node cannot read"),
     has(ThirdOut, "sent through the third node"),
     ?assertEqual(nomatch, string:find(ThirdOut, "the echo got")).
+
+%% report §8.7, §6.6, §6.9: a call to a process of another node leaves a
+%% note on that node while it waits, which goes however the call ends: a
+%% request that faults its callee ends the call at once, through a restart
+%% that reads the note, and a callForever faults with the callee's cause;
+%% the callee's end drops it; a call whose time runs out, and one answered
+%% from the caller's own node, send the second note; a loss drops every
+%% note of the peer, and the call ends. A regression test, written after the
+%% code: a request that faults its callee before the store's gateway has
+%% the note is the race the note's order is there for, which a run may or
+%% may not meet; and a sender waiting at a full buffer is not covered
+calls_test_() ->
+    {timeout, 120, fun calls/0}.
+
+calls() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["calls"]))()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["restarted: None true", "restarted forever: Fault(\"crashed\")",
+                 "echo: Some(7)", "while it waits: 1", "its callee killed: Returned",
+                 "after the callee's end: 0", "timed out: None 0", "answered here: Some(42) 0",
+                 "waits again: 1", "its connection lost: Returned", "after the loss: 0"]].

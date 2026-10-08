@@ -5,7 +5,9 @@
 %% Through it go what needs a process on the receiving node: a spawn and its
 %% answer, a find, and a message to an adapted address, each read by
 %% ern_peer:frame/2; a frame it cannot read is faulty, and the node ends
-%% that peer's connection. A frame is {ern_frame, From, Body}, From the
+%% that peer's connection. A call's two notes it records itself, in the
+%% order they came, so that a restart, which asks it as it asks the
+%% reaper, reads every note that came before it (§6.9). A frame is {ern_frame, From, Body}, From the
 %% process on the peer that sent it, whose node is the frame's peer; a
 %% message to the gateway that names no process of another node names no
 %% connection to end, and is dropped, which the node says.
@@ -32,6 +34,18 @@ start() ->
 %% connection lasts.
 gateway(Workers) ->
     receive
+        {ern_frame, From, {call_waits, Callee, Reply}} when is_pid(From), node(From) =/= node(),
+                                                           is_pid(Callee),
+                                                           is_reference(Reply) ->
+            noted(fun() -> ern_rt:note_call(Callee, From, Reply) end),
+            gateway(Workers);
+        {ern_frame, From, {call_over, Reply}} when is_pid(From), node(From) =/= node(),
+                                                    is_reference(Reply) ->
+            noted(fun() -> ern_rt:drop_note(Reply) end),
+            gateway(Workers);
+        {new_run, Pid, MonitorRef} when is_pid(Pid) ->
+            Pid ! {MonitorRef, fresh},
+            gateway(Workers);
         {ern_frame, From, _Body} = Frame when is_pid(From), node(From) =/= node() ->
             Node = node(From),
             {Worker, Workers1} = worker(Node, Workers),
@@ -42,6 +56,7 @@ gateway(Workers) ->
                 #{Node := Worker} -> exit(Worker, kill);
                 _ -> ok
             end,
+            noted(fun() -> ern_rt:drop_notes(Node) end),
             gateway(maps:remove(Node, Workers));
         {nodeup, _, _} ->
             gateway(Workers);
@@ -50,6 +65,11 @@ gateway(Workers) ->
                             " dropped"),
             gateway(Workers)
     end.
+
+%% A call's notes are rows of a run's tables; between two runs of `ern test`
+%% over a directory, in one host, there are none, and nothing waits.
+noted(Write) ->
+    try Write() catch error:badarg -> ok end.
 
 worker(Node, Workers) ->
     case Workers of

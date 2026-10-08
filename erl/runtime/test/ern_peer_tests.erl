@@ -95,3 +95,38 @@ withdrawn(Name, Tries) ->
         {found, _} when Tries > 0 -> timer:sleep(1), withdrawn(Name, Tries - 1);
         Answer -> Answer
     end.
+
+%% report §8.7, §6.9: a restart on a node asks its gateway, as it asks the
+%% reaper, before it reads the calls waiting on the process, so that it
+%% reads every note the gateway took before it. Here a stand-in gateway
+%% records the note only when the restart asks it, so the caller is told
+%% only if the restart asked. A regression test: on real nodes the note came
+%% first whether or not the restart asked, so they could not show it
+restart_asks_gateway_test() ->
+    Self = self(),
+    Main = fun() ->
+               Entry = self(),
+               Callee = ern_rt:spawn(ern_rt:restarting('Unlimited', fun crashes/0), <<"M.f:1">>),
+               Caller = spawn(fun() ->
+                                  Reply = erlang:alias(),
+                                  Entry ! {reply, Reply},
+                                  receive {Reply, restarted, Cause} -> Entry ! {told, Cause} end
+                              end),
+               Reply = receive {reply, Made} -> Made end,
+               Gateway = spawn(fun() ->
+                                   receive
+                                       {new_run, Pid, MonitorRef} ->
+                                           ern_rt:note_call(Callee, Caller, Reply),
+                                           Pid ! {MonitorRef, fresh}
+                                   end
+                               end),
+               true = register(ern_gateway, Gateway),
+               Callee ! crash,
+               Self ! receive {told, _} = Told -> Told end
+           end,
+    Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, Quiet)),
+    ?assertEqual({told, <<"crashed">>}, receive {told, _} = Told -> Told end).
+
+crashes() ->
+    receive crash -> ern_rt:fault(<<"crashed">>) end.

@@ -1,0 +1,35 @@
+// Report §8.7: a service the desk calls on the store, which faults on a
+// request, answers it, answers it late, or passes its reply on to a
+// process that answers it, so that a test sees each way a call across
+// nodes ends and what its note on the store does.
+
+export type Msg =
+    Crash(reply : Reply(Int))
+  | Echo(n : Int, reply : Reply(Int))
+  | Slow(ms : Int, reply : Reply(Int))
+  | Forward(answerer : Address(Reply(Int)), reply : Reply(Int))
+
+export let brittle : Peer.Key(Msg) = Peer.key("brittle")
+
+export let sleeper : Peer.Key(Msg) = Peer.key("sleeper")
+
+export let doomed : Peer.Key(Msg) = Peer.key("doomed")
+
+export fn serve() : Unit with Msg =
+    receive {
+        Crash(reply = reply) -> fault("crashed")
+      | Echo(n = n, reply = reply) -> {
+            answer(reply, n);
+            serve()
+        }
+      | Slow(ms = ms, reply = reply) -> {
+            receive {
+                after ms -> answer(reply, ms)
+            };
+            serve()
+        }
+      | Forward(answerer = answerer, reply = reply) -> {
+            send(answerer, reply);
+            serve()
+        }
+    }
