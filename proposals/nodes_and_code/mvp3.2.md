@@ -1,6 +1,6 @@
 # Ernest: MVP 3.2, The Ordered Rolling Restart
 
-Status: the proposal for step D of [`code.md`](code.md)'s section 1, *The four steps*, written on 2026-10-07 from the thinking that is now [`deploy.md`](deploy.md), whose every question was decided with the user the same day, and settled with the user the same day. The reasons for what it says are [`deploy.md`](deploy.md)'s; what other systems do is [`other_systems.md`](other_systems.md), section 7; what six programs and the library they share showed is [`experiments/code_update/`](experiments/code_update/README.md).
+Status: the proposal for step D of [`code.md`](code.md)'s section 1, *The four steps*, written on 2026-10-07 from the thinking that is now [`deploy.md`](deploy.md), whose every question was decided and settled the same day. The reasons for what it says are [`deploy.md`](deploy.md)'s; what other systems do is [`other_systems.md`](other_systems.md), section 7; what six programs and the library they share showed is [`experiments/code_update/`](experiments/code_update/README.md).
 
 ## 1. What it is
 
@@ -14,7 +14,7 @@ Three things bound it:
 
 MVP 3.0's and MVP 3.1's bounds stay: a few nodes with one owner, listed by hand, trusted completely; no discovery; nothing the runtime retries.
 
-**The building block.** A *build* is the set of entry points compiled together, a build directory; each entry point's closure is named by its *root*, the hash of the entry point's definition, inside which every hash of the closure is, and a node's root is the entry point it runs. A *rollout* is one build replacing another on every node whose root differs between the two, one node at a time. A *planned stop* is a node's end in four steps: its keys withdrawn, its calls drained, its kept states written, and the close; one that carries a next build is followed by the node's restart into it, inside the same host process. A *plan* is what the coordinator computes from two builds and prints before the first stop: for each service, what will be done and what the build must hold for it.
+**The building block.** A *build* is the set of entry points compiled together, a build directory; each entry point's closure is named by its *root*, the hash of the entry point's definition, inside which every hash of the closure is, and a node's root is the entry point it runs. A *rollout* is one build replacing another on every running node whose root differs between the two, one node at a time. A *planned stop* is a node's end in four steps: its keys withdrawn, its calls drained, its kept states written, and the close; one that carries a next build is followed by the node's restart into it, inside the same host process. A *plan* is what the coordinator computes from two builds and prints before the first stop: for each service, what will be done and what the build must hold for it.
 
 ## 2. What a program sees
 
@@ -26,16 +26,16 @@ kept          : (Peer.Key(m), () -> s with m, (s, m) -> s with m) -> () -> Unit 
 Standing.start : (Peer.Key(m), Int) -> Address(m) with n
 ```
 
-- `Peer.find(key, ms)` and `keys` are as mvp3.0.md's section 2 has them: a key's nodes are the configuration's, in the order a find asks them.
+- `Peer.find(key, ms)` and `keys` are as mvp3.0.md's section 2 has them: a key's peers are the configuration's, in the order a find asks them.
 - `Standing.start(key, ms)`, of the library `Standing` under `libs/`, spawns a process that finds the key and forwards to the service what it is sent, and answers `via` of that process; it is an ordinary process the program spawned, and every rule of the report holds of its address as of any. It finds the key within `ms`, monitors the service, finds again when the service ends or its node is lost, with `ms` between finds while a find fails, and ends with the process that started it. A send to it while the service is away is dropped, as a send during a loss is, and a call through it waits by its own time and answers `None` where the service is not back. A program that is to monitor the service itself holds the address `Peer.find` gives.
 
-**The commands.** `ern deploy build --config-dir dir` is the coordinator: a node like the shell, listed by the nodes it deploys to. It prints the plan and waits for a yes, then stops, restarts and checks the first node and asks again, `next` or `all`, and prints what stands at which version when it ends or stops; the pause between nodes and the one node tried first are the operator's, with no option. It acts on nothing the yes did not cover: it never rolls a node back, and a cancel ends the coordinator alone, the node in its stop finishing its steps and restarting itself. Run again after a crash or a cancel, it continues from where the nodes are. A node accepts a planned stop only from a peer its `ernest.conf` marks as a coordinator, `"coordinator": true` in the peer's entry. `ern status --config-dir dir` asks the nodes what the plan asks and prints it: each node's roots, its release of `ern`, the keys it offers with their identities, its kept states and any rollout mark. `ern state path` prints a state file's type and value as Ernest literals. Termination is the planned stop: from the machine's service manager, from `ern stop --config-dir dir`, which sends it by `ernest.pid`, and from `kill -TERM` alike, a node withdraws its keys, drains, writes its kept states and closes, and then restarts where a next build was carried and ends where none was. There is one way a node ends. The interrupt is the quick end, as §8.6 has it for a program, and a second termination during the drain ends the drain and goes on to the states and the close. The drain's bound is the node's time, `drain` in `ernest.conf`, a minute unless the configuration says otherwise, which also bounds the coordinator's wait for the node to be back; the node tells the coordinator its time and each kept state's size, and the plan prints them. The configuration directory names the build the node runs, in its file `build`: `ern run --config-dir dir prog.erc` runs the program and writes its root there, and `ern run --config-dir dir` runs the build the file names, from the cache, and is MVP 3.1's bare node where the file names none. So a node started by anyone, the machine's service manager or an operator, runs the build the last planned stop named.
+**The commands.** `ern deploy build --config-dir dir` is the coordinator: a node like the shell, listed by the nodes it deploys to. It prints the plan and waits for a yes, then stops, restarts and checks the first node and asks again, `next` or `all`, and prints what stands at which version when it ends or stops; the pause between nodes and the one node tried first are the operator's, with no option. It acts on nothing the yes did not cover: it never rolls a node back, and a cancel ends the coordinator alone, the node in its stop finishing its steps and restarting itself. Run again after a crash or a cancel, it continues from where the nodes are. A node accepts a planned stop only from a peer its `ernest.conf` marks as a coordinator, `"coordinator": true` in the peer's entry. `ern status --config-dir dir` asks the nodes what the plan asks and prints it: each node's root, its release of `ern`, the keys it offers with their identities, its kept states and any rollout mark. `ern state path` prints a state file's type and value as Ernest literals. Termination is the planned stop: from the machine's service manager, from `ern stop --config-dir dir`, which sends it by `ernest.pid`, and from `kill -TERM` alike, a node withdraws its keys, drains, writes its kept states and closes, and then restarts where a next build was carried and ends where none was; a node whose own program returns ends the same way, its kept states written. The interrupt is the quick end, as §8.6 has it for a program, writing nothing, and a second termination during the drain ends the drain and goes on to the states and the close. The drain's bound is the node's time, `drain` in `ernest.conf`, a minute unless the configuration says otherwise, which also bounds the coordinator's wait for the node to be back; the node tells the coordinator its time and each kept state's size, and the plan prints them. The configuration directory names the build the node runs, in its file `build`: `ern run --config-dir dir prog.erc` runs the program and writes its root there, and `ern run --config-dir dir` runs the build the file names, from the cache, and is MVP 3.1's bare node where the file names none. So a node started by anyone, the machine's service manager or an operator, runs the build the last planned stop named.
 
 **A kept state.** `kept(key, init, step)` is a function of `restarting`'s family: it runs a loop the runtime owns, whose state is what `init` gives, and runs `step` on each message, over the state and the message, for the next state. The runtime holds the state between steps, and at a planned stop asks the process for it between two steps, as a supervisor asks for a restart (§6.9); the loop then holds what arrives until the close. Where the state file holds a state under the key, the loop begins with it, through `migrate` where its type changed, and `init` is not run. `kept` composes with `spawn` and `restarting`: a fault in `step` restarts the loop from `init`, with nothing of the old run, as §6.9 says of every restart. A service whose state is to outlive a deploy is a `kept` loop; any other process begins afresh at its node's restart, and a deploy promises it nothing.
 
-**What the program writes.** A type's identity is its shape and not its name (mvp3.1.md, section 6), so a changed declaration keeps its module, its name and its key, and the old shape is kept under another name in a module of its own, `counter_v1.ern`, copied from what `ern diff` prints, until the build that drops it. For a kept state whose type changed, a member `migrate` on the new type from the old, `fn Count.migrate(old : CountV1.Count) : Count`, and one on the old from the new for the way back, both in the newer build. For a protocol that gained constructors, the old key offered as `via(service, convert)` with a pure conversion from the old type to the new, §6.5's adapted address; for one that retired or changed a request, a process the program starts with the library's `Forward.start(forward, service)`, whose `forward : (OldMsg, Address(NewMsg)) -> Unit with n` answers a retired request on the old side, offered under the old key. The offer table is by name and identity, so one node offers a key at two identities. `ern diff` prints the `migrate` and the conversion the matching fields and constructors give, with what needs a decision left empty, for the program to paste and complete.
+**What the program writes.** A type's identity is its shape and not its name (mvp3.1.md, section 6), so a changed declaration keeps its module, its name and its key, and the old shape is kept under another name in a module of its own, `counter_v1.ern`, copied from what `ern diff` prints, until the build that drops it. For a kept state whose type changed, a member `migrate` on the new type from the old, `fn Count.migrate(old : CountV1.Count) : Count`, and one on the old from the new for the way back, both in the newer build. For a protocol that gained constructors, the old key offered as `via(service, convert)` with a pure conversion from the old type to the new, §6.5's adapted address; for one that retired or changed a request, a forwarder the program writes and starts, a loop that answers a retired request on the old side and sends the rest on to the service, offered under the old key. The offer table is by name and identity, so one node offers a key at two identities. `ern diff` prints the `migrate` and the conversion the matching fields and constructors give, with what needs a decision left empty, for the program to paste and complete.
 
-**The state file.** A node writes, at its planned stop, each kept state to `state/` in its configuration directory, one file for each key, and the `kept` loop under that key reads it at its start, in place of `init`. A program sees nothing of it but the directory.
+**The state file.** A node writes, at its planned stop, each kept state to `state/` in its configuration directory, one file for each key, and the `kept` loop under that key reads it at its start, in place of `init`. A program sees nothing of it but the directory. A program without `--config-dir` is no node and keeps its `kept` states the same way, in `./.ernest`, written at its termination or its own end and read at its next start; it has no `ernest.pid` for `ern stop` to find, and `kill -TERM` serves.
 
 **The refusal.** `Supervisor.child`'s function run inside a process that is already a child faults with `Fault("a process runs one child function")`.
 
@@ -65,21 +65,21 @@ export fn main() : Unit with Never = {
 }
 ```
 
-The desk and the board are as they are in MVP 3.0, but that the board holds `Standing.start(Counter.key, 5000)` in place of its find. `ernest.conf` on the desk and the board lists the key's nodes as the store, then the backup. Every node runs build 1.
+The desk and the board are as they are in MVP 3.0, but that the board holds `Standing.start(Counter.key, 5000)` in place of its find. `ernest.conf` on the desk and the board lists the key's peers as the store, then the backup, a node the operator keeps for the day the program moves there, which runs no program today. The store and the board run build 1, and the desk is started by hand when it is wanted.
 
 **A fix behind the protocol.** Build 2 changes `count` to log each `Add`. `ern deploy build2` prints:
 
 ```
 plan: build 1 to build 2
-  store, backup: ern 0.4.0, scheme 1; desk, board: the same
+  store, board: ern 0.4.0, scheme 1
   counter       logic changed             nothing to write
-order: store, backup; desk and board unchanged, not restarted
-each node's time: 60 s; the rollout takes at most 4 min
+order: store; board unchanged, not restarted; desk not running
+each node's time: 60 s; the rollout takes at most 1 min
 the way back: ern deploy build1
 meanwhile: a standing address drops its sends to counter through each restart
 ```
 
-The operator says yes, and after the store is checked says `all`. The store's keys are withdrawn, and a find of the key answers `NotOffered` on every node, so the board's standing address waits and a call through it answers `None` at its time; the store drains, asks the counter for its total, writes it to `state/counter`, and closes; the store starts with build 2, the counter begins with the total from the file, `main` offers it, the board's standing address finds it again, and the coordinator checks the key; then the backup, the desk and the board the same way. The board's standing process sees one `Down` with `ProgramEnd` per node that stopped, and finds again.
+The operator says yes, and after the store is checked says `all`. The store's keys are withdrawn, and a find of the key answers `NotOffered` on every node, so the board's standing address waits and a call through it answers `None` at its time; the store drains, asks the counter for its total, writes it to `state/counter`, and closes; the store starts with build 2, the counter begins with the total from the file, `main` offers it, the board's standing address finds it again, and the coordinator checks the key, and the rollout is done. The board's standing process sees one `Down` with `ProgramEnd`, and finds again.
 
 **A changed protocol.** Build 3 adds `Reset` to `Counter.Msg`. The old shape is kept as `CounterV1.Msg` in `counter_v1.ern`, pasted from `ern diff`, with `CounterV1.key : Peer.Key(Msg) = Peer.key("counter")`, and the store offers it too:
 
@@ -97,7 +97,7 @@ where `CounterV1.convert` maps `Add` to `Add` and `Get` to `Get`, pasted whole. 
 plan: build 2 to build 3
   counter       protocol added Reset       served at build 2's identity through CounterV1.convert
                                            until the build that drops counter_v1.ern
-order: store, backup, board; desk unchanged, not restarted
+order: store, board; desk not running
 ```
 
 A board still on build 2 finds `counter` at its identity on a node of build 3 and is served through the conversion. Build 4 deletes `counter_v1.ern`; `ern deploy build4` refuses while any node runs build 2, and accepts when none does.
@@ -108,7 +108,7 @@ A board still on build 2 finds `counter` at its identity on a node of build 3 an
 plan: build 4 to build 5
   counter       state changed: Int to Count   Count.migrate
                 the way back                  none: Int takes no member; forward-only
-order: store, backup; desk and board unchanged, not restarted
+order: store; board unchanged, not restarted; desk not running
 ```
 
 Had `Count.migrate` been missing, the plan would have refused, naming it and the fields `total` and `adds`.
@@ -134,8 +134,8 @@ MVP 3.0's and MVP 3.1's limits stand.
 1. **A service is away for its node's restart**, seconds, from the moment its state is handed to its first offer, since nothing tells a finder of a withdrawal; a standing address drops sends through it, and a call answers `None` at its time.
 2. **Nothing moves a state to another node.** A service whose node is lost is unavailable until the node returns or an operator moves the program and its state file; one owner across a node's loss or a hot standby needs a lease in a store outside the nodes, a library's.
 3. **A connection holder loses its connections at its node's restart.** A process that keeps them does so behind a protocol that never changes, with its logic in a service beside it.
-4. **Two of a key's nodes offering at once is possible by mistake**, as two services under one name on one node are; the find answers the first.
-5. **A find over a key's nodes may dial several**, where the operator has moved a program; the list bounds it.
+4. **Two of a key's peers offering at once is possible by mistake**, as two services under one name on one node are; the find answers the first.
+5. **A find over a key's peers may dial several**, where the operator has moved a program; the list bounds it.
 6. **A changed meaning behind an unchanged type is invisible to the plan**, which sees declarations and not code's intent; a program may give a `migrate` whose types are equal.
 7. **A protocol that is a conversation has no point between its messages where versions change**; a conversation is a process of its own, and a protocol is of independent requests.
 8. **The database's side of a schema change is not checked.** The plan checks a `migrate` from every row shape still stored, and says it cannot check the database.
@@ -172,11 +172,11 @@ MVP 3.0's and MVP 3.1's limits stand.
 
 **The cache.** Each node keeps the code it runs on its disk, by hash, as mvp3.1.md's section 6 has it: each definition's canonical form with its compiled unit, for the builds it has run and the one it is about to run. Told the next build's root before the plan, the node fetches the closure it lacks from the coordinator by MVP 3.1's exchange, each definition verified against its hash on arrival, compiles it, and writes it; it loads nothing until its restart. A node restarts into a build from its cache and nothing else, verifying every form against its hash as it loads, and compiling nothing. A build leaves the cache when the plan has printed that no way back reaches it, the drop of its protocols. No build directory is copied to a node.
 
-**What passes.** Beside MVP 3.0's and MVP 3.1's frames, three of Ernest's: the coordinator's question to a node, its build, offers and kept states, and the answer; the next build's root, which the exchange's four frames follow; and the planned stop, with the next build's root. The withdrawal is no frame: a find answers `NotOffered`.
+**What passes.** Beside MVP 3.0's and MVP 3.1's frames, five of Ernest's: the coordinator's question to a node and its answer, the build, the offers and the kept states; the next build's root, which the exchange's four frames follow; and the planned stop, with the next build's root, and its answer, done or the failure that ended it. The withdrawal is no frame: a find answers `NotOffered`.
 
 **The standing address.** `Standing.start(key, ms)` is Ernest, in a library, and the runtime has no part in it. Its process has the mailbox type `Message(m) | Went(Down)`, and the caller is given `via` of it with `Message`. It finds the key by `Peer.find(key, ms)`, holds the address found, monitors the service's process, and forwards each `Message`; at `Went` it finds again, and where a find fails it waits `ms` and finds again. A message that arrives while no address is held is dropped. It monitors the process that called `start` and ends at its `Down`, so that nothing is left finding. The forwarder is one more process on a message's way, and a message through it may pass a message sent directly, as through any process (mvp3.0.md's claim 4.1).
 
-**The runtime's surface, and a release of `ern`.** Decided with the user on 2026-10-07 to be this milestone's and not one of its own: the cookie is the digest of the protocol's version, the hash scheme's version, OTP's version and the version of the runtime's surface, in place of `ern`'s whole version. The surface is what shipped code calls by name, the runtime's functions and the standard library's foreign declarations, with the identity of the standard library's own Ernest, named and given a version of its own that changes when any of it does, so that two releases of `ern` with one surface connect, and a spawned function never meets a standard-library binding of another identity on a peer. The operator installs a release on each machine; `ern deploy` with the build the nodes run then restarts each node whose release is not the coordinator's, which its line says, and carries nothing of the release. A release that changes the surface still stops every node, and says so in its notes.
+**The runtime's surface, and a release of `ern`.** Decided on 2026-10-07 to be this milestone's and not one of its own: the cookie is the digest of the protocol's version, the hash scheme's version, OTP's version and the version of the runtime's surface, in place of `ern`'s whole version. The surface is what shipped code calls by name, the runtime's functions and the standard library's foreign declarations, with the identity of the standard library's own Ernest, named and given a version of its own that changes when any of it does, so that two releases of `ern` with one surface connect, and a spawned function never meets a standard-library binding of another identity on a peer. The operator installs a release on each machine; `ern deploy` with the build the nodes run then restarts each node whose release is not the coordinator's, which its line says, and carries nothing of the release. A release that changes the surface still stops every node, and says so in its notes.
 
 **The refusal.** `Supervisor.child`'s function reads the process's start cause when it begins; run inside a process that is already a child it would read the outer child's, so it faults instead with `Fault("a process runs one child function")`, and E.22 says so.
 
@@ -187,14 +187,14 @@ MVP 3.0's and MVP 3.1's limits stand.
 | What | Value |
 |---|---|
 | a node's time, `drain` in `ernest.conf` | 60,000 ms unless the configuration says otherwise; the drain ends early when nothing waits |
-| a find over a key's nodes | at most one dial per node listed, each MVP 3.0's |
+| a find over a key's peers | at most one dial per peer listed, each MVP 3.0's |
 | the coordinator's wait for a restarted node | the node's time |
 | the state file | `state/<key>` in the configuration directory, the type's hash then the value; removed once the node listens |
 | the build file | `build` in the configuration directory, the root of the build the node runs |
 | a failed start's way back | one restart into the previous build; a second fault ends the node |
 | a service's absence at its node's restart | the restart's time: the close, the start, the first offer |
 | a build's stay in the cache | until the plan has printed that no way back reaches it |
-| the frames of this milestone | three, beside MVP 3.0's seven and MVP 3.1's four |
+| the frames of this milestone | five, beside MVP 3.0's seven and MVP 3.1's four |
 | the plan's estimate | the sum of the nodes' times, the most the rollout takes |
 
 ## 8. How it is checked
@@ -205,12 +205,12 @@ The runtime's tests run three nodes on one machine, as MVP 3.0's do: a planned s
 
 ## 9. Unsolved
 
-What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, §9.5 for `kept`, Appendix E for `Peer.find` and E.22's refusal, §11.3 for `keys` and `drain` in `ernest.conf` and the `build` file, §8.6 for termination as the planned stop, and §11.2 for a node's restart inside its process; the glossary's words, *build*, *root*, *kept state*, *planned stop*, *rollout* and *plan*, in Appendix F and in `docs/style.md`, written with the report's sentences; and the soundness argument's paragraph for the state file and `migrate`.
+What remains is the build's: a generator of values for a type, which the test needs and the descriptors give; the texts of the plan's lines; the naming of the runtime's surface, measured by what the exchange ships and what it calls by name; the report's sentences, §8.7 for the rollout and the planned stop, §11.2 for `ern deploy` and `ern stop`, §9.5 for `kept`, Appendix E for `Peer.find` and E.22's refusal, §11.3 for `keys`, `drain` and `coordinator` in `ernest.conf`, the `build` file, `state/` and `./.ernest` for a program that is no node, §8.6 for termination as the planned stop, and §11.2 for a node's restart inside its process; the glossary's words, *build*, *root*, *kept state*, *planned stop*, *rollout* and *plan*, in Appendix F and in `docs/style.md`, written with the report's sentences; and the soundness argument's paragraph for the state file and `migrate`.
 
 ## 10. Left out on purpose
 
 - A change of a running process's code, a change of its mailbox type under a translation, and the library's `Upgrade`: nothing in place, section 1; what they would cost is [`deploy.md`](deploy.md)'s section 15.
-- A state moved to another of its key's nodes for its node's restart; a hot standby is a lease's, below.
+- A state moved to another of its key's peers for its node's restart; a hot standby is a lease's, below.
 - An election, a lease, and a service that moves by itself at a failure: a library's over a store outside the nodes.
 - A drain that grows firmer: the runtime holds no connections of its own.
 - A set of addresses under one key, a service offered by several nodes at once.

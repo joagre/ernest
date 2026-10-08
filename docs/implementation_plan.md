@@ -296,7 +296,7 @@ item builds its area as the proposal's section 6 states it, whole.
    and what to write.
 3. **The old shape and what the program writes.** The offer table by name and type identity;
    the old key offered as `via(service, convert)` with a pure conversion for a gained
-   constructor, and through a forwarder of the library `Forward` for a retired request;
+   constructor, and through a forwarder the program writes for a retired request;
    `migrate` as a member of the new type from the old and of the old from the new; `ern diff`
    printing the `migrate` and the conversion to paste, with what needs a decision left empty;
    the library `Standing` under `libs/`, an ordinary process over `Peer.find` and `monitor`
