@@ -179,7 +179,7 @@ The reasons are [`code.md`](code.md)'s section 8.
 - Of nodes of different builds working together, the rest: a type's identity by its shape, `ern diff`, a service offered at an old identity through a conversion or a forwarder, and two builds for a changed protocol.
 - A deploy the runtime orders and checks: the coordinator, the plan, lockstep, a node's restart inside its host process, the `build` file, the cache, the way back, the generated test, `ern deploy`, `ern status`, `ern state`, and `drain` and `coordinator` in `ernest.conf`.
 - A state the runtime holds and writes, `kept`, a member `migrate`, a state file and `./.ernest/state/`; and the planned stop's withdrawal of keys and its drain.
-- A module `Code` of the standard library, `load` and `hashes`.
+- A module `Code` of the standard library: [`mvp3.2.md`](mvp3.2.md).
 - An upgrade in place of a running process by anything but §6.10's message on its own node, and a change of a mailbox type under a translation.
 - A state moved to another of its key's peers; an election, a lease, and a service that moves by itself at a failure.
 - A bound of the runtime's own on the end's wait.

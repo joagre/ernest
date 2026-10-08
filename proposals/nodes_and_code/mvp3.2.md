@@ -24,6 +24,13 @@ Three things bound it.
 
 - **A bare node.** `ern run --config-dir dir` with no `.erc` starts a node that holds no definition of a program's. It runs the runtime and the system processes, its entry process evaluates the standard library's bindings, and the node listens and waits. It ends by termination alone. Everything it runs arrives by a spawn from a peer, with the code. Nothing is copied to its machine but `ern`. A node without `listen` is refused at its start, since it never dials. A balancer places work on it as on any peer, and installs its measure there with `Balancer.serve`. A shell whose load path holds no program is a bare node with a prompt.
 - **A function typed at the shell spawns on a peer**, with its code.
+- **`Code`**, a module of the standard library, three functions. `Code.load(path)` loads a compiled module and its closure, from the load path, into the node's code table, as `ern run` loads a program; a file that is no `.erc` of this `ern`, or one whose closure the load path lacks, answers `Left`. `Code.hashes(path)` answers a compiled module's definitions, each as its name and its hash. `Code.running(f)` answers the addresses of the processes on this node whose stack holds a frame of `f`, at the moment of the call. An upgrade is the program's own line over it: `List.each(Code.running(count), fn(p) = send(p, Counter.Upgrade(migrate = fn(n) = n, next = count2)))`. No function sends an `Upgrade` for a program.
+
+```
+Code.load : (Path) -> Either(Io.Error, Unit) with m+
+Code.hashes : (Path) -> Either(Io.Error, List(#(String, Code.Hash))) with m+
+Code.running : ((s) -> Unit with m) -> List(Address(m)) with n
+```
 
 **What may cross** is MVP 3.1's rule, with one addition: the function a spawn starts crosses with its code, where the peer lacks it.
 
@@ -86,6 +93,8 @@ MVP 3.1's limits stand, but its third, which this milestone lifts. MVP 3.0's nin
 
 **The shell.** A function typed at the shell has a hash as any definition has, and spawns on a peer with its code. The rest is MVP 3.1's.
 
+**`Code`.** `load` is `ern run`'s loading reached from Ernest: the module's canonical forms and its closure's are read from the load path, verified against their hashes, and become a unit as a load of the shell's does, counted against the limits of section 7. `hashes` reads the `.erc` and answers its table of names and hashes. `running` asks the host for each process's stack, maps each frame's unit and position through the code table to a hash, and keeps the processes with a frame of `f`'s hash, or of a lambda written in `f`; a function value names its unit and position, which the table maps to its hash the same way. Every process running `f` has `f`'s mailbox type, so the list is typed `Address(m)`. The list is a snapshot: a process that enters or leaves `f` after the call is not in it, and a process in it may have ended by the time it is sent to, as any address may.
+
 ## 7. The numbers
 
 | What | Value |
@@ -101,7 +110,7 @@ MVP 3.1's limits stand, but its third, which this milestone lifts. MVP 3.0's nin
 
 ## 8. How it is checked
 
-The runtime's tests start nodes on one machine, as MVP 3.0's do. A spawn of a function typed at a shell that is a node ships exactly the lacking definitions, verified and loaded at once, and the process runs; a spawn onto a bare node ships the program's closure once and nothing the second time, and the process offers a service the program finds; `NotLoaded` for a binding the peer did not run and for a foreign declaration it lacks; a faulty frame ends the connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its callers, and the callers compile on the peer; a unit whose processes have ended stays until the node nears a limit, is then let go, and crosses again at the next spawn that needs it, and one a process holds a function of stays; a table of a function type is refused by the compiler; a node told to load many units says so at four fifths of a limit, once, measured; the shell fixes a service on a peer through `Upgrade`.
+The runtime's tests start nodes on one machine, as MVP 3.0's do. A spawn of a function typed at a shell that is a node ships exactly the lacking definitions, verified and loaded at once, and the process runs; a spawn onto a bare node ships the program's closure once and nothing the second time, and the process offers a service the program finds; `NotLoaded` for a binding the peer did not run and for a foreign declaration it lacks; a faulty frame ends the connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its callers, and the callers compile on the peer; a unit whose processes have ended stays until the node nears a limit, is then let go, and crosses again at the next spawn that needs it, and one a process holds a function of stays; a table of a function type is refused by the compiler; a node told to load many units says so at four fifths of a limit, once, measured; the shell fixes a service on a peer through `Upgrade`; `Code.load` of a module and its closure lets a spawn of its function run, and a file that is no `.erc` or whose closure is missing answers `Left`; `Code.hashes` answers the names and hashes `ern build` wrote; `Code.running` lists the processes on `count`, none of them once each took its `Upgrade`, and a lambda's process under its enclosing function.
 
 ## 9. Unsolved
 
@@ -109,7 +118,7 @@ Every question the proposal was written through is decided. What remains is the 
 
 - the measurements of section 7, and of what a spawn that ships code costs, a bare node's first spawn and the callers of a fix above all;
 - the soundness argument's section 7, extended to code that crosses;
-- the report's sentences: §8.7 for the spawn that carries its code, the bare node, and a peer that may spawn on a node running what it sends; §11.2 for a bare node and for what a node lets go; Appendix G.1 for a table that holds no function; and the glossary's word, exchange, in Appendix F and in `docs/style.md`;
+- the report's sentences: §8.7 for the spawn that carries its code, the bare node, and a peer that may spawn on a node running what it sends; §11.2 for a bare node and for what a node lets go; Appendix G.1 for a table that holds no function; Appendix E's page for `Code`, with `Code.Hash`; and the glossary's word, exchange, in Appendix F and in `docs/style.md`;
 - the sections whose rules change: §8.1, §8.5, §8.6 and §11.8, for a bare node's entry process that runs no `main` and ends by termination; §6.10, whose cross-node sentence is completed by a spawn that carries its code; and `docs/development.md`'s table, from which the refusal of a node without a program goes.
 
 ## 10. Left out on purpose
@@ -122,11 +131,11 @@ The reasons are [`code.md`](code.md)'s section 8.
 - A bare node of a build, given it by its configuration or by its first peer.
 - A node that boots the platform over the network, and the key such a node receives.
 - A compiled binary in a code frame.
+- `Code.upgrade`, by address or by function.
 
 ## 11. Room for what comes after
 
 1. **Deltas on the wire.** A caller a fix renames differs from what the peer holds in its references alone, so the sender could ship the held hash and the references that differ, and the peer make the form. What would bring it back is a measurement: a fix to a definition many call crossing more than a node's network can carry in a spawn's time.
 2. **When a node sweeps.** A unit is let go when the node nears a limit; a sweep on a clock, or by how long a unit has gone unused, is a measurement away.
-3. **A process's code is a hash it can be asked for.** `Process.info` may gain the hash of the function a process was started with, so that a node can list the processes still on old code after a fix from the shell.
 
 Two places carry the most risk. The compile on the peer, a bare node's first spawn and the callers of a fix, which the spawn's time bounds and the measurements must show fits it. And the let-go's reliance on the host's check seeing every holder of a function, which the table rule secures: a new place a function could rest outside a process would have to be refused the same way.
