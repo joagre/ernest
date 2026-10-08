@@ -6,7 +6,7 @@
 %% names. A refusal is the runner's (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/1, start/1, start/2, stop/1, read/1]).
+-export([create/1, start/1, start/2, stop/1, read/1, measures_changed/3, signalled/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -282,6 +282,41 @@ living(Pid) ->
             end;
         _ ->
             false
+    end.
+
+%% Report §8.7: a reload's measures: the host's services stopped and those
+%% the new file names started, where the file changed them; where they do
+%% not start, those that ran are started again and the reload is refused.
+-spec measures_changed(file:filename(), map(), map()) -> ok.
+measures_changed(_ConfigDir, Measures, Measures) ->
+    ok;
+measures_changed(ConfigDir, Measures, NewMeasures) ->
+    _ = application:stop(os_mon),
+    try measures_started(ConfigDir, NewMeasures)
+    catch throw:Refusal ->
+        _ = application:stop(os_mon),
+        measures_started(ConfigDir, Measures),
+        throw(Refusal)
+    end.
+
+%% Report §8.7, §11.2: the signal sent to the node that runs from the
+%% directory, which its `ernest.pid` names; where there is none, or its
+%% process has ended or is another user's, the job fails, saying so.
+-spec signalled(file:filename(), pos_integer()) -> ok.
+signalled(ConfigDir, Number) ->
+    Text = case file:read_file(filename:join(ConfigDir, ?PID)) of
+               {ok, Bytes} -> string:trim(binary_to_list(Bytes));
+               {error, _} -> fail(ConfigDir, ?PID, "no such file: no node runs from the directory")
+           end,
+    Process = case string:to_integer(Text) of
+                  {Named, ""} when Named > 0 -> Named;
+                  _ -> fail(ConfigDir, ?PID, "names no process")
+              end,
+    case ern_os:signal(Number, Process) of
+        sent -> ok;
+        none -> fail(ConfigDir, ?PID, "names a process that has ended: no node runs from the"
+                                      " directory");
+        others -> fail(ConfigDir, ?PID, "names another user's process")
     end.
 
 %% Report §8.7: the host's measures `measures` names, started with their

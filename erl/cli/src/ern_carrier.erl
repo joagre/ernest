@@ -5,12 +5,14 @@
 %% build's fingerprint, which is the host's cookie (fingerprint/1); the
 %% rule that accepts a peer by its listed key alone (verify/3, which the
 %% host's TLS calls); the listener started once the bindings have their
-%% values (start/2); and the lines a node says of its peers, one each on its
+%% values (start/2); a reload, which hangup asks for (reload/0); the end in
+%% order (depart/0); and the lines a node says of its peers, one each on its
 %% standard error.
 -module(ern_carrier).
 
 -export([boot_flags/2, name/1, fingerprint/1, start/2, list/1, booted/0, configuration/0,
-         peer/1, verify/3, listed/1, say/1, named/1, said/1, filter/2]).
+         is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1, say/1, named/1, said/1,
+         filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include("ern_node.hrl").
@@ -172,10 +174,68 @@ list(#configuration{peers = Peers, keys = Keys} = Configuration) ->
 booted() ->
     init:get_argument(proto_dist) =/= error.
 
-%% The configuration the node started with.
+%% The configuration the node runs by.
 -spec configuration() -> #configuration{}.
 configuration() ->
     persistent_term:get({?MODULE, configuration}).
+
+%% Report §8.3: whether this run is a node, which its configuration says.
+-spec is_node() -> boolean().
+is_node() ->
+    persistent_term:get({?MODULE, configuration}, none) =/= none.
+
+%%
+%% The node's reload and end
+%%
+
+%% Report §8.7: hangup is a reload: `ernest.conf` read and checked again as
+%% at the start, the node's own key and `listen` unchanged, or the file
+%% refused and the configuration kept; then the peer table the rule and the
+%% dial read, the keys and the measures are the new file's, and a peer
+%% removed, or listed under another key, has its connection ended, both
+%% nodes running the loss. The node says that it read the file, and each
+%% peer added, removed or renamed, or why the file was refused.
+-spec reload() -> ok.
+reload() ->
+    #configuration{dir = ConfigDir} = Running = configuration(),
+    try changed(Running, ern_node:read(ConfigDir)) of
+        Lines -> lists:foreach(fun say/1, ["ernest.conf was read again" | Lines])
+    catch
+        throw:{cli_error, Refusal} ->
+            say(["the reload was refused, and the configuration stays as it was: ", Refusal])
+    end.
+
+changed(#configuration{dir = ConfigDir, public_key = Key, listen = Listen, peers = Peers,
+                       measures = Measures},
+        #configuration{public_key = NewKey, listen = NewListen, peers = NewPeers,
+                       measures = NewMeasures} = New) ->
+    Conf = ern_build:shown(filename:join(ConfigDir, "ernest.conf")),
+    NewKey =:= Key orelse ern_build:fail(Conf ++ ": public-key cannot change while the node runs"),
+    NewListen =:= Listen
+        orelse ern_build:fail(Conf ++ ": listen cannot change while the node runs"),
+    ern_node:measures_changed(ConfigDir, Measures, NewMeasures),
+    ok = list(New),
+    Removed = [Peer || #peer{public_key = Old} = Peer <- Peers,
+                       not lists:keymember(Old, #peer.public_key, NewPeers)],
+    lists:foreach(fun(#peer{public_key = Old}) -> erlang:disconnect_node(name(Old)) end, Removed),
+    [["the peer ", Name, " was added"]
+     || #peer{name = Name, public_key = Added} <- NewPeers,
+        not lists:keymember(Added, #peer.public_key, Peers)]
+        ++ [["the peer ", Name, " was removed"] || #peer{name = Name} <- Removed]
+        ++ [["the peer ", Name, " is now named ", NewName]
+            || #peer{name = Name, public_key = Same} <- Peers,
+               #peer{name = NewName, public_key = Same2} <- NewPeers,
+               Same =:= Same2, Name =/= NewName].
+
+%% Report §8.7: a node stops in order, so that every Down already on its
+%% way crosses before its connections close: the runtime's end has waited
+%% for the deaths its peers may watch, and the host's own question to each
+%% peer still connected, whether it is there, goes after their Downs on the
+%% connection, so that its answer comes once they have arrived; a peer that
+%% fell silent is given up by the detector, which answers it.
+-spec depart() -> ok.
+depart() ->
+    lists:foreach(fun(Node) -> _ = net_adm:ping(Node) end, nodes(connected)).
 
 %% The peer of a node's name on the carrier, or none where it is listed by
 %% no peer.

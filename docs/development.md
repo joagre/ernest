@@ -173,6 +173,8 @@ bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for readi
 bin/ern doc stdlib/list.ern                       # the module's documentation as CommonMark
 bin/ern build --short-errors examples/hello.ern   # the first line of each error only
 bin/ern config                                    # ./.ernest with a key pair
+bin/ern reload --config-dir node                  # the node running from node/ reads its ernest.conf again
+bin/ern stop --config-dir node                    # and ends, in order
 bin/ern shell                                     # a shell over the standard library
 bin/ern shell build/modules/main.erc              # a shell beside a running program
 bin/ern test build/shell/shell/editor.erc         # the module's tests
@@ -198,7 +200,6 @@ The toolchain is the report on one node. Everything the report describes type-ch
 | `:load` and `:reload` in a shell that is a node (§11.2) | MVP 3.1 | each is refused, `:load is not here yet in a shell that is a node: it arrives in MVP 3.1` and `:reload is not here yet in a shell that is a node: it arrives in MVP 3.1`; a name of a module the shell has not loaded is answered `:load Greet would put it in scope; in a shell that is a node it arrives in MVP 3.1` |
 | A node without a program, `ern run --config-dir dir` with no `.erc` (§11.2) | MVP 3.1 | refused, `a node runs a program: ern run --config-dir dir prog.erc; a node without one arrives in MVP 3.1` |
 | `Peer.Refused`, the peer's refusal of what was sent (Appendix E.27) | MVP 3.1 | no find or spawn answers it: a frame a peer cannot read ends the connection, and the operation answers `Unreachable`; MVP 3.1 answers it for a closure a peer will not load |
-| A node's end in order and its reload (§8.6, §8.7, §11.2) | MVP 3.0 | a node that ends is lost to its peers, whose monitors give `Unreachable` and not `ProgramEnd`; hangup ends a node as it ends a program, and `ern reload` and `ern stop` are no jobs yet |
 | `drain` in `ernest.conf`, and a peer's `coordinator` (§8.7) | MVP 3.2 | refused when the file is read, `drain is not here yet: it arrives in MVP 3.2, with the rolling restart`, and the same of `coordinator` |
 
 Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

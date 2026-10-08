@@ -11,6 +11,8 @@ export fn main() : Unit with Msg =
       | ["spawn"] -> spawns()
       | ["across"] -> across()
       | ["calls"] -> calls()
+      | ["ending"] -> ending()
+      | ["reload"] -> reloaded()
       | _ -> Unit
     }
 
@@ -242,4 +244,40 @@ fn notes(census : Address(Census.Msg), callee : Address(Calls.Msg), wanted : Int
         kept when kept == wanted -> kept
       | _ -> notes(census, callee, wanted)
     }
+}
+
+// Report §8.7: the store ended by `ern stop`, which a monitor made before
+// sees as ProgramEnd, and one made once the store has stopped, which the
+// test tells the desk of on its standard input, as Unreachable.
+fn ending() : Unit with Msg = {
+    let counter = Shared.found(Counter.key);
+    monitor(Process.fromAddress(counter), Died);
+    Io.println("watching");
+    ended("ended");
+    let _ = Io.readLine();
+    watched("after", Process.fromAddress(counter))
+}
+
+// Report §8.7: the store's reloads, which the test makes when the desk says
+// so and tells the desk of on its standard input: the desk removed, listed
+// again under another name, renamed, and a file refused.
+fn reloaded() : Unit with Msg = {
+    let counter = Shared.found(Counter.key);
+    monitor(Process.fromAddress(counter), Died);
+    Io.println("watching");
+    ended("removed");
+    Io.println("unlisted: " <> Io.show(Peer.find(Counter.key, 2000)));
+    Io.println("now list the desk again");
+    let _ = Io.readLine();
+    let again = Shared.found(Counter.key);
+    Io.println("listed again: "
+                   <> Io.show(Process.fromAddress(again) == Process.fromAddress(counter)));
+    Io.println("now rename the desk");
+    let _ = Io.readLine();
+    Io.println("renamed: "
+                   <> Io.show(Address.call(again, fn(reply) = Counter.Get(reply = reply), 2000)));
+    Io.println("now refuse a reload");
+    let _ = Io.readLine();
+    Io.println("refused: "
+                   <> Io.show(Address.call(again, fn(reply) = Counter.Get(reply = reply), 2000)))
 }

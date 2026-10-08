@@ -696,9 +696,21 @@ next_spawn_order() ->
 %% none after, since a spawn it is asked for then was asked by a process
 %% that is itself ending. It answers nothing more until it is stopped.
 ended_program(From, Ref) ->
-    lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows()),
+    Ended = [Pid || {Pid, _, _, _, _} <- live_rows()],
+    lists:foreach(fun(Pid) -> exit(Pid, {ern, program_end}) end, Ended),
+    %% report §8.7: a node stops in order, every Down already on its way
+    %% crossing before its connections close, so its end waits for the
+    %% deaths its peers may watch, of every process but those that trap
+    %% exits, the runtime's own resources, which no peer holds (§3.11)
+    node() =:= nonode@nohost orelse lists:foreach(fun wait_for_end/1, Ended),
     From ! {Ref, ended},
     ended_program().
+
+wait_for_end(Pid) ->
+    case erlang:process_info(Pid, trap_exit) of
+        {trap_exit, true} -> ok;
+        _ -> receive {'DOWN', _, process, Pid, _} -> ok end
+    end.
 
 ended_program() ->
     receive _ -> ended_program() end.

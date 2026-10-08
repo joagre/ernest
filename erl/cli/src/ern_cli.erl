@@ -140,7 +140,10 @@ jobs() ->
      {"run", run_options(), "file.erc [argument]...", fun run/3},
      {"test", test_options(), "file.erc | dir", fun test/3},
      {"shell", shell_options(), "[file.erc]", fun shell/3},
-     {"config", config_options(), "", fun config/3}].
+     {"config", config_options(), "", fun config/3},
+     {"reload", signal_options("the node that reads its configuration again"), "",
+      fun reload/3},
+     {"stop", signal_options("the node that ends"), "", fun stop/3}].
 
 %% Report §11: a first word that is no job; an option a job takes, given
 %% before it, is refused with where it goes.
@@ -160,7 +163,8 @@ no_job(Word) ->
     end.
 
 no_such_job(Word) ->
-    "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell and config".
+    "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell, config, reload"
+        " and stop".
 
 %% An option's whole name, before any `=`.
 option_name(Word) ->
@@ -179,7 +183,9 @@ usage(Device) ->
               "  run     run a program~n"
               "  test    run the tests of a module, or of every module under a directory~n"
               "  shell   run an interactive shell~n"
-              "  config  create the configuration directory~n~n"
+              "  config  create the configuration directory~n"
+              "  reload  have a running node read its configuration again~n"
+              "  stop    end a running node~n~n"
               "ern <job> --help lists a job's options; ern --version prints the version.~n",
               []).
 
@@ -321,7 +327,10 @@ job_usage(Spec, Name, Positional, Device) ->
 %% with the metavariable §11 gives it and --load-path's repetition, wrapped
 %% at 80 columns under the job's name.
 synopsis(Name, Spec, Positional) ->
-    Words = [option_synopsis(Option) || {Key, _, _, _, _} = Option <- Spec, Key =/= help]
+    Words = [case lists:member(Name, required_by(Key)) of
+                 true -> "--" ++ Long ++ " " ++ metavariable(Key);
+                 false -> option_synopsis(Option)
+             end || {Key, _, Long, _, _} = Option <- Spec, Key =/= help]
         ++ [Positional || Positional =/= ""],
     Head = "Usage: " ++ Name,
     Indent = lists:duplicate(length(Head) + 1, $\s),
@@ -667,6 +676,14 @@ shell_options() ->
       "where the shell finds a module's source; default the working directory"},
      main_option(), help_option()].
 
+%% Report §11.2: `ern reload` and `ern stop` name the node by its
+%% directory, so --config-dir is theirs to require.
+signal_options(What) ->
+    [config_dir_option(What), help_option()].
+
+required_by(config_dir) -> ["ern reload", "ern stop"];
+required_by(_) -> [].
+
 config_options() ->
     [config_dir_option("the directory made, ./.ernest by default"), help_option()].
 
@@ -740,6 +757,29 @@ report_tree([]) ->
     0;
 report_tree(Statuses) ->
     lists:max(Statuses).
+
+%% Report §8.7, §11.2: hangup sent to the node that runs from the
+%% directory, which reads its configuration again; the status says only
+%% that the signal was delivered.
+reload(Options, [], _ErrorDevice) ->
+    ern_node:signalled(node_dir(Options), 1),
+    0;
+reload(_Options, _Rest, _ErrorDevice) ->
+    usage_fail("reload takes no argument").
+
+%% Report §8.6, §8.7, §11.2: termination sent to the node that runs from
+%% the directory, which ends in order.
+stop(Options, [], _ErrorDevice) ->
+    ern_node:signalled(node_dir(Options), 15),
+    0;
+stop(_Options, _Rest, _ErrorDevice) ->
+    usage_fail("stop takes no argument").
+
+node_dir(Options) ->
+    case proplists:get_value(config_dir, Options) of
+        undefined -> usage_fail("--config-dir is required: it names the node");
+        ConfigDir -> ConfigDir
+    end.
 
 %% Report §11.3: the configuration directory made, and the node's public key
 %% printed, which another node's configuration lists.
@@ -833,7 +873,10 @@ as_node(Options, LoadPath, Run) ->
             ok = ern_carrier:list(Configuration),
             Stamped = is_stamped(),
             try Run(#{node => fun() -> ern_carrier:start(Configuration, Stamped) end})
-            after ern_node:stop(ConfigDir)
+            after
+                %% report §8.7: a node stops in order, then its ernest.pid goes
+                ern_carrier:depart(),
+                ern_node:stop(ConfigDir)
             end
     end.
 

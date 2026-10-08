@@ -429,7 +429,10 @@ os_exit() ->
 %% the file and the rule, as the launcher's second start says it, the first
 %% having given the host no flags. A regression test: the refusal said the
 %% host had not been started as a node
-refused_configuration_test() ->
+refused_configuration_test_() ->
+    {timeout, 60, fun refused_configuration/0}.
+
+refused_configuration() ->
     Base = tmp(),
     A = made(Base, "a", none),
     edit(A, fun(Conf) -> Conf#{<<"peers">> => #{}} end),
@@ -659,3 +662,87 @@ calls() ->
                  "echo: Some(7)", "while it waits: 1", "its callee killed: Returned",
                  "after the callee's end: 0", "timed out: None 0", "answered here: Some(42) 0",
                  "waits again: 1", "its connection lost: Returned", "after the loss: 0"]].
+
+%% `ern <job> --config-dir Dir` run as a person runs it, its status.
+signalled(Job, Dir) ->
+    Said = os:cmd(?ERN ++ " " ++ Job ++ " --config-dir " ++ Dir ++ " 2>&1; echo status $?"),
+    {match, [Status]} = re:run(Said, "status ([0-9]+)", [{capture, all_but_first, list}]),
+    {list_to_integer(Status), Said}.
+
+%% report §8.6, §8.7, §11.2: `ern stop` sends the node its directory names
+%% termination, saying only that it was delivered; the node stops in order,
+%% so that a monitor made on its process before gives ProgramEnd, and one
+%% made once it has stopped gives Unreachable; the node ends by the signal
+%% and its ernest.pid goes. A regression test, written after the code; it
+%% does not cover a peer that falls silent while the node stops
+stop_test_() ->
+    {timeout, 90, fun stop_in_order/0}.
+
+stop_in_order() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["ending"]),
+    prints(Desk, "watching"),
+    ?assertMatch({0, _}, signalled("stop", Store)),
+    ?assertEqual(143, WaitStore()),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    {Out, _} = said(Desk),
+    has(Out, "ended: ProgramEnd \"\""),
+    has(Out, "after: Unreachable \"\""),
+    ?assertNot(filelib:is_file(filename:join(Store, "ernest.pid"))),
+    {Status, Said} = signalled("stop", Store),
+    ?assertEqual(1, Status),
+    has(Said, "ernest.pid: no such file: no node runs from the directory").
+
+%% report §8.7, §11.2: `ern reload` sends the node hangup, which reads
+%% ernest.conf again: a peer removed has its connection ended and is
+%% refused after, a peer listed again under another name is accepted, a
+%% peer renamed keeps its connection, and a file that changes `listen` is
+%% refused, the configuration kept; the node says what each did. A
+%% regression test, written after the code; it does not cover `measures`
+%% changed, nor a peer whose address changed
+reload_test_() ->
+    {timeout, 90, fun reload/0}.
+
+reload() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    Third = filename:join(Base, "third"),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["reload"]),
+    prints(Desk, "watching"),
+    lists(Store, [{"third", Third, none}]),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "the peer desk was removed"),
+    prints(Desk, "now list the desk again"),
+    lists(Store, [{"third", Third, none}, {"front", Desk, none}]),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "the peer front was added"),
+    true = port_command(DeskPort, "go\n"),
+    prints(Desk, "now rename the desk"),
+    lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "the peer front is now named window"),
+    true = port_command(DeskPort, "go\n"),
+    prints(Desk, "now refuse a reload"),
+    edit(Store, fun(Conf) -> Conf#{<<"listen">> => address(free_port())} end),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "the reload was refused"),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {_, Err} = said(Store),
+    [has(Out, Line)
+     || Line <- ["removed: Unreachable \"\"", "unlisted: Left(Unreachable)", "listed again: true",
+                 "renamed: Some(0)", "refused: Some(0)"]],
+    has(Err, "ernest.conf was read again"),
+    has(Err, "the reload was refused, and the configuration stays as it was: "),
+    has(Err, "listen cannot change while the node runs"),
+    ?assertEqual(nomatch, string:find(Err, "the peer front was lost")).

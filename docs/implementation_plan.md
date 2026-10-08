@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 6 and 8 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 8 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -247,7 +247,11 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    carrying nothing back, the command's status saying only that it was delivered. A node
    detects no deadlock, which item 4 built; the host's lost connection is `Unreachable` to a
    monitor, never a fault. `ern_signals`' second's sleep after `ern` sends itself the signal
-   that ended it goes, the end waited for as what it is (CLAUDE.md, *No fixed sleep*).
+   that ended it goes, the end waited for as what it is (CLAUDE.md, *No fixed sleep*). Done
+   2026-10-08, with what the building decided in the log's *A Node's End and Its Reload*:
+   the end in order by the reaper's wait for the deaths and the host's own question to each
+   peer, no frame added; a monitor made while the node stops giving `Unknown`; a reload's
+   lines, a peer renamed among them; and the two jobs' refusals.
 8. **`Peer`.** `key`, a value that starts nothing; `offer`, under the key's name and its type's
    identity for as long as the process lives, faulting for a key a living process holds and
    for a process that is not this node's, with section 6's two causes; one `find(key, ms)` over

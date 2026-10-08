@@ -213,7 +213,8 @@ word_not_utf8_test() ->
                                                ": a word that is not UTF-8: n\\xFFme.ern\n"]),
                       ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
                                                           ?capturedOutput), Line))
-                  end, ["build", "doc", "format", "run", "test", "shell", "config"]).
+                  end, ["build", "doc", "format", "run", "test", "shell", "config", "reload",
+                        "stop"]).
 
 %% report §11.6: a file named alone is a module when its name ends in
 %% `.ern` and is otherwise one word, and those under a directory are found
@@ -646,7 +647,7 @@ synopses_are_the_reports_test_() ->
                                 binary:match(Report, unicode:characters_to_binary(
                                                        ["`", Shown, "`"])))
            end}
-     || Job <- ["build", "doc", "format", "run", "test", "shell", "config"]].
+     || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop"]].
 
 %% A job's help as it prints it, and its status.
 help_of(Job) ->
@@ -2064,7 +2065,7 @@ options_test() ->
     ?assertEqual(0, ern_cli:ern(["--version"])),
     ?assertEqual(0, ern_cli:ern(["--help"])),
     [?assertEqual(0, ern_cli:ern([Job, "--help"]))
-     || Job <- ["build", "doc", "format", "run", "test", "shell", "config"]].
+     || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop"]].
 
 %% report §11: the first word is the job, and none is refused with the jobs
 %% named; an empty first word is none. A regression test of the empty
@@ -2077,7 +2078,8 @@ job_first_test() ->
     ?assertEqual(2, length(binary:matches(Output, <<"ern: a job is required\nUsage: ern <job>">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"no job ;">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern: no job compile; the jobs are build, doc,"
-                                                " format, run, test, shell and config">>)).
+                                                " format, run, test, shell, config, reload and"
+                                                " stop">>)).
 
 %% report §11: a compiled module given first is refused with the job that
 %% runs it, an option before the job with where it goes, and a spelling of
@@ -2498,6 +2500,27 @@ node_without_program_test() ->
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"a node runs a program: ern run --config-dir dir prog.erc;"
                                         " a node without one arrives in MVP 3.1">>)).
+
+%% report §11.2, §8.7: `ern reload` and `ern stop` require --config-dir,
+%% and fail where its ernest.pid is not there or names a process that has
+%% ended, saying so; their synopsis shows the option they require. A
+%% regression test, written after the code; real nodes reload and stop in
+%% test/ern_nodes_tests.erl
+signal_jobs_test() ->
+    Dir = tmp() ++ "/.ernest",
+    ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
+    ?assertEqual(1, ern_err(["reload"])),
+    ?assertEqual(1, ern_err(["stop", "--config-dir", Dir])),
+    Ended = string:trim(os:cmd("sh -c 'echo $$'")),
+    ok = file:write_file(Dir ++ "/ernest.pid", Ended ++ "\n"),
+    ?assertEqual(1, ern_err(["reload", "--config-dir", Dir])),
+    Said = unicode:characters_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Said, Part))
+     || Part <- [<<"ern reload: --config-dir is required: it names the node">>,
+                 <<"Usage: ern reload --config-dir dir">>,
+                 <<"ernest.pid: no such file: no node runs from the directory">>,
+                 <<"ernest.pid: names a process that has ended: no node runs from the"
+                   " directory">>]].
 
 %% report §11.3: the configuration directory is its owner's alone, and one
 %% that exists is refused, whoever made it and however empty. A regression

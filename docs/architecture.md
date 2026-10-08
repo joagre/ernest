@@ -135,6 +135,7 @@ Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by
 - **`ern format`** is `ern_format:format/1`: it lexes with the comments, parses, walks the tree into a template of the layout, a function per production, and walks the template in source order with a cursor over the tokens, placing each comment beside its token; `ern_pretty` prints it in 100 columns. `ern_format:markdown/1` lays out a CommonMark text's Ernest blocks.
 - **`ern doc`** renders a page with `ern_page:page/1` from the two chunks, compiling a source in memory first; `doc_dir/2` writes a directory's pages and index. With `--man`, `ern_page:manual/1` renders it through the `roff` of `libs/markdown`, which `make` copies into `build/shell` with `libs/ansi`, which it uses. `ern(1)` is `tools/manual.ern`'s, which `make man` runs to render §11 of the report.
 - **`ern config`** writes Appendix C's file and an Ed25519 key pair (§11.3).
+- **`ern reload`** and **`ern stop`** send the node their directory's `ernest.pid` names hangup and termination, through the runtime's helper (`ern_node:signalled/2`). A node takes hangup as a reload, `ern_signals` asking `ern_carrier:reload/0`, and ends in order: the reaper waits for the deaths of the processes it ended, and `ern_carrier:depart/0` asks each peer still connected the host's own question before the connections close (§8.7).
 
 ### The shell
 

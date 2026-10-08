@@ -1,9 +1,9 @@
 %% Report §8.6: the host's termination and hangup end the program as the
 %% end of its entry process does, and the runtime prints nothing of its own
-%% about them. A callback module of OTP's erl_signal_server, in place of
-%% its default handler, which stops the node with status 0 on a
-%% termination and ignores a hangup; not a process of the toolchain's own
-%% (docs/style.md).
+%% about them; report §8.7: for a node, hangup is a reload. A callback
+%% module of OTP's erl_signal_server, in place of its default handler, which
+%% stops the node with status 0 on a termination and ignores a hangup; not
+%% a process of the toolchain's own (docs/style.md).
 -module(ern_signals).
 -behaviour(gen_event).
 
@@ -51,15 +51,16 @@ ended() ->
 %% Report §11.2: `ern` ends by the signal itself, once its output is
 %% flushed, so that a service manager counts a stop it asked for as clean,
 %% and a shell reports 128 plus its number either way. The signal's own
-%% action is restored and the signal sent again; where that cannot be
-%% done, the status stands in for it.
+%% action is restored and the signal sent again, and `ern` waits for the end
+%% it brings; where it could not be sent, the status stands in for it.
 -spec die(sigterm | sighup, integer()) -> no_return().
 die(Signal, Status) ->
     ok = os:set_signal(Signal, default),
-    Name = case Signal of sigterm -> "TERM"; sighup -> "HUP" end,
-    _ = os:cmd("kill -" ++ Name ++ " " ++ os:getpid()),
-    timer:sleep(1000),
-    erlang:halt(Status).
+    Number = case Signal of sigterm -> 15; sighup -> 1 end,
+    case ern_os:signal(Number, list_to_integer(os:getpid())) of
+        sent -> receive after infinity -> ok end;
+        _ -> erlang:halt(Status)
+    end.
 
 -spec init(term()) -> {ok, []}.
 init(_) ->
@@ -67,16 +68,26 @@ init(_) ->
 
 %% A running program ends as §8.6 says and its runner returns the signal;
 %% outside one there is nothing to end, and `ern` ends by it at once.
+%% Report §8.7: a node takes hangup as a reload, and goes on.
 -spec handle_event(term(), []) -> {ok, []}.
-handle_event(Signal, State) when Signal =:= sigterm; Signal =:= sighup ->
+handle_event(sighup, State) ->
+    case ern_carrier:is_node() of
+        true -> ern_carrier:reload();
+        false -> end_run(sighup)
+    end,
+    {ok, State};
+handle_event(sigterm, State) ->
+    end_run(sigterm),
+    {ok, State};
+handle_event(_, State) ->
+    {ok, State}.
+
+end_run(Signal) ->
     persistent_term:put({?MODULE, ended}, Signal),
     case ern_rt:signal(Signal) of
         ok -> ok;
         none -> die(Signal, status(Signal))
-    end,
-    {ok, State};
-handle_event(_, State) ->
-    {ok, State}.
+    end.
 
 -spec handle_call(term(), []) -> {ok, ok, []}.
 handle_call(_, State) ->
