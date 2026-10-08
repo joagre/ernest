@@ -136,11 +136,13 @@ service: measured
 # ern_measure (plan MVP 2.99d item 1), its whole table in
 # build/bench/library.txt. Not part of `test`, since it measures and
 # asserts nothing.
-bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam measured
+bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam measured
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
 	  -eval 'ern_measure:main(["build/bench/library.txt"])'
+	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	  -eval 'ern_node_costs:main(["build/bench/nodes"])'
 
 clean:
 	rm -rf $(EBIN) build

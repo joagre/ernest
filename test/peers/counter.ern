@@ -16,3 +16,11 @@ export let echoSlot : Peer.Key(Slot.Msg(Address(Int))) = Peer.key("echo-slot")
 export let fragile : Peer.Key(Int) = Peer.key("fragile")
 
 export let strict : Peer.Key(Int) = Peer.key("strict")
+
+// An echo on the store, which answers each address it is given with a 1,
+// reached straight and through an adapted address made on the store.
+export type EchoMsg = Ping(Address(Int))
+
+export let echo : Peer.Key(EchoMsg) = Peer.key("echo")
+
+export let echoAdapted : Peer.Key(Address(Int)) = Peer.key("echo-adapted")

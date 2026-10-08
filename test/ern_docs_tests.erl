@@ -36,10 +36,16 @@ citations_resolve_test() ->
     Dangling =
         [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
                              not resolves(Citation, report, ReportSections, GuideSections)]
+        %% a console of the guide quotes the toolchain, whose citations are
+        %% the report's (report §11.5), held to it by test/diagnostics.md
         ++ [{"guide/language.md", Citation}
-            || Citation <- cites(Guide),
+            || Citation <- cites(without_consoles(Guide)),
                not resolves(Citation, guide, ReportSections, GuideSections)],
     ?assertEqual([], Dangling).
+
+%% The document without its fenced console blocks.
+without_consoles(Document) ->
+    re:replace(Document, "```console\n.*?\n```", "", [global, dotall, {return, binary}]).
 
 %% guide/language.md §7.3, report Appendix E.25: the guide shows parts of
 %% stdlib/ordered_set.ern, its doc blocks left out, a restatement a teaching

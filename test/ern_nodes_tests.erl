@@ -559,7 +559,9 @@ find() ->
                  "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
                  "call forever: Fault(\"callee is unreachable\")"]].
 
-%% report §8.7, Appendix E.27, §8.2: a function of a module the store has
+%% report §8.7, §6.7, Appendix E.27, §8.2: work on a peer is a process
+%% spawned at the node the program names, whose spawn answers its address or
+%% a failure within the time; a function of a module the store has
 %% whole spawns there with what it captured, writing to the store's
 %% standard output; a name that is no peer's is NotListed; a function of a
 %% module whose binding has no value on the store is NotLoaded, and so is
@@ -785,3 +787,213 @@ balance() ->
                  "loads here: #(false, false, false)", "loads: Right"]],
     has(StoreOut, "the store squares 36"),
     has(StoreOut, "loads there: #(true, true, true)").
+
+%% The process number in a node's ernest.pid.
+pid(Dir) ->
+    {ok, Text} = file:read_file(filename:join(Dir, "ernest.pid")),
+    string:trim(binary_to_list(Text)).
+
+%% report §8.7, the proposal's sections 4, 7 and 8: a peer stopped stands
+%% for a silent one. Before the silence ten thousand messages arrive, none
+%% lost and none twice; the detector gives the peer up within 45 to 75
+%% seconds of its last word, the monitor on its process giving one Down,
+%% Unreachable with an empty site, a call waiting on it ending with None and
+%% a callForever faulting, and the desk's own process untouched; the stopped
+%% node, run again, learns of the loss too; and the address reaches its
+%% process again. A regression test, written after the code; the one wait
+%% here that is a time is the detector's own, which the test reads and
+%% does not choose
+silence_test_() ->
+    {timeout, 180, fun silence/0}.
+
+silence() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["silence"]),
+    prints(Desk, "now stop the store"),
+    _ = os:cmd("kill -STOP " ++ pid(Store)),
+    true = port_command(DeskPort, "go\n"),
+    prints(Desk, "now let the store run", 1000),
+    _ = os:cmd("kill -CONT " ++ pid(Store)),
+    says(Store, "the peer desk was lost", 300),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["counted: Some(10000)", "silent: Unreachable \"\"", "the call: None",
+                 "its caller: Returned", "its forever caller: Fault(\"callee is unreachable\")",
+                 "own process: Some(0)", "again: Some(10000)"]],
+    given_up_within_the_detectors_time(Out).
+
+%% A proxy on the loopback in front of a node's listener at Target, which
+%% relays what passes both ways and drops what passes the ways it is told:
+%% `{drop, ToTarget, FromTarget}`, each a Boolean, and `heal`. It answers
+%% its own port.
+proxy(Target) ->
+    {ok, Listener} = gen_tcp:listen(0, [binary, {ip, {127, 0, 0, 1}}, {active, false},
+                                       {reuseaddr, true}]),
+    {ok, Port} = inet:port(Listener),
+    Proxy = spawn(fun() -> proxied(Listener, Target, {false, false}, []) end),
+    ok = gen_tcp:controlling_process(Listener, Proxy),
+    Proxy ! accept,
+    {Port, Proxy}.
+
+proxied(Listener, Target, Drops, Relays) ->
+    receive
+        accept ->
+            Self = self(),
+            spawn(fun() ->
+                      case gen_tcp:accept(Listener) of
+                          {ok, Socket} ->
+                              ok = gen_tcp:controlling_process(Socket, Self),
+                              Self ! {accepted, Socket};
+                          {error, _} ->
+                              ok
+                      end
+                  end),
+            proxied(Listener, Target, Drops, Relays);
+        {accepted, Near} ->
+            {ok, Far} = gen_tcp:connect({127, 0, 0, 1}, Target, [binary, {active, false}]),
+            {ToTarget, FromTarget} = Drops,
+            Out = relay(Near, Far, ToTarget),
+            In = relay(Far, Near, FromTarget),
+            self() ! accept,
+            proxied(Listener, Target, Drops, [{Out, to}, {In, from} | Relays]);
+        {drop, ToTarget, FromTarget} ->
+            [Relay ! {drop, case Way of to -> ToTarget; from -> FromTarget end}
+             || {Relay, Way} <- Relays],
+            proxied(Listener, Target, {ToTarget, FromTarget}, Relays);
+        heal ->
+            [Relay ! {drop, false} || {Relay, _} <- Relays],
+            proxied(Listener, Target, {false, false}, Relays)
+    end.
+
+%% A relay of one way, which passes or drops what it reads, its close among
+%% it, since a parted network carries nothing; it ends with its socket.
+relay(From, To, Dropping) ->
+    Relay = spawn(fun() -> receive go -> relayed(From, To, Dropping) end end),
+    ok = gen_tcp:controlling_process(From, Relay),
+    Relay ! go,
+    Relay.
+
+relayed(From, To, Dropping) ->
+    case inet:setopts(From, [{active, once}]) of
+        ok ->
+            receive
+                {tcp, From, Data} ->
+                    Dropping orelse gen_tcp:send(To, Data),
+                    relayed(From, To, Dropping);
+                {tcp_closed, From} ->
+                    Dropping orelse gen_tcp:close(To);
+                {drop, Drop} ->
+                    relayed(From, To, Drop)
+            end;
+        {error, _} ->
+            ok
+    end.
+
+%% The port a node's `listen` names.
+listen_port(Dir) ->
+    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
+    [_, Port] = string:split(maps:get(<<"listen">>, json:decode(Text)), ":", trailing),
+    binary_to_integer(Port).
+
+%% Dir dials the peer of that name at the loopback's port.
+readdressed(Dir, Name, Port) ->
+    edit(Dir, fun(#{<<"peers">> := Peers} = Conf) ->
+                  Conf#{<<"peers">> := [case Peer of
+                                            #{<<"name">> := Name} ->
+                                                Peer#{<<"network-address">> => address(Port)};
+                                            _ ->
+                                                Peer
+                                        end || Peer <- Peers]}
+              end).
+
+%% A listener on the loopback that takes connections and answers nothing.
+answers_nothing() ->
+    {ok, Listener} = gen_tcp:listen(0, [binary, {ip, {127, 0, 0, 1}}, {active, false}]),
+    {ok, Port} = inet:port(Listener),
+    Holder = spawn(fun() -> receive go -> held(Listener, []) end end),
+    ok = gen_tcp:controlling_process(Listener, Holder),
+    Holder ! go,
+    Port.
+
+held(Listener, Sockets) ->
+    {ok, Socket} = gen_tcp:accept(Listener),
+    held(Listener, [Socket | Sockets]).
+
+%% report §8.7, the proposal's sections 4 and 8: a network parted through
+%% a proxy that drops what passes from the desk to the store: the store,
+%% hearing nothing, gives the desk up within the detector's time and closes
+%% the connection, so that the desk learns of the loss too, and what the
+%% silence test holds of a loss holds; the proxy healed, the address reaches
+%% its process again. A regression test, written after the code
+parted_one_way_test_() ->
+    {timeout, 180, fun() -> parted(true, false, "closed") end}.
+
+%% report §8.7, the proposal's sections 4 and 8: the same, the proxy
+%% dropping what passes both ways, so that each node gives the other up by
+%% its own detector. A regression test, written after the code
+parted_both_ways_test_() ->
+    {timeout, 180, fun() -> parted(true, true, "fell silent") end}.
+
+parted(ToStore, FromStore, DeskSays) ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    {ProxyPort, Proxy} = proxy(listen_port(Store)),
+    readdressed(Desk, <<"store">>, ProxyPort),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["silence"]),
+    prints(Desk, "now stop the store"),
+    Proxy ! {drop, ToStore, FromStore},
+    true = port_command(DeskPort, "go\n"),
+    prints(Desk, "now let the store run", 1000),
+    Proxy ! heal,
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {Out, Err} = said(Desk),
+    {_, StoreErr} = said(Store),
+    [has(Out, Line)
+     || Line <- ["counted: Some(10000)", "silent: Unreachable \"\"", "the call: None",
+                 "its forever caller: Fault(\"callee is unreachable\")", "own process: Some(0)",
+                 "again: Some(10000)"]],
+    has(StoreErr, "the peer desk was lost: it fell silent"),
+    has(Err, "the peer store was lost: it " ++ DeskSays),
+    given_up_within_the_detectors_time(Out).
+
+%% report §8.7, the proposal's section 7: a dial that nothing answers, to a
+%% listener that takes the connection and says nothing, is given up after
+%% the host's 7 seconds, and a find on that peer answers Unreachable, not
+%% Timeout, though its time is longer. A regression test, written after the
+%% code
+dial_test_() ->
+    {timeout, 90, fun dial/0}.
+
+dial() ->
+    Base = tmp(),
+    {_, DeskProgram} = peers(Base),
+    {_, Desk} = store_and_desk(Base),
+    readdressed(Desk, <<"store">>, answers_nothing()),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["dial"]))()),
+    {Out, _} = said(Desk),
+    {match, [Seconds]} = re:run(Out, "dialled: Left\\(Unreachable\\) after ([0-9]+)",
+                                [{capture, all_but_first, list}]),
+    ?assert(list_to_integer(Seconds) >= 6),
+    ?assert(list_to_integer(Seconds) =< 9).
+
+%% The seconds the desk says the detector took, held to the detector's 45 to
+%% 75 (the proposal's section 7): no fewer than 44, the desk counting whole
+%% seconds from just after the silence began, and no more than 80, the 75
+%% and the test's own steps around it, the desk's read of its standard input
+%% and the three Downs it waits for.
+given_up_within_the_detectors_time(Out) ->
+    {match, [Seconds]} = re:run(Out, "given up after: ([0-9]+)", [{capture, all_but_first, list}]),
+    ?assert(list_to_integer(Seconds) >= 44),
+    ?assert(list_to_integer(Seconds) =< 80).

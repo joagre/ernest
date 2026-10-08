@@ -124,7 +124,10 @@ make bench        what each of a few operations costs in Ernest beside the same
                   library beside the host's, at 10, 100 and 10,000, its time and what it
                   allocates, with what costs more than three times the host's and whether
                   the machine was idle, the whole table in test/build/bench/library.txt;
-                  not part of make test
+                  then, between two nodes on this machine, the host's ping over TLS and
+                  over TCP, a call to the other node's process, and a round trip to it
+                  straight and through an adapted address made there; not part of make
+                  test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make pages        write man/, the release's pages: the standard library's, the prelude's

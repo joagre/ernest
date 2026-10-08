@@ -14,6 +14,9 @@ export fn main() : Unit with Msg =
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
       | ["balance"] -> balanced()
+      | ["silence"] -> silenced()
+      | ["dial"] -> dialled()
+      | ["costs"] -> costs()
       | _ -> Unit
     }
 
@@ -312,3 +315,147 @@ fn registered(balancer : Address(Balancer.Msg), inARow : Int) : Unit with n =
         Some(Balancer.On(_)) -> registered(balancer, inARow + 1)
       | _ -> registered(balancer, 0)
     }
+
+// Report §8.7, the proposal's section 4: what a silence ends and what it
+// leaves. Before it, ten thousand messages arrive, none lost and none twice.
+// The test stops the store when the desk says so and tells the desk on its
+// standard input; the desk then waits, with a monitor on the store's
+// counter, a call and a callForever waiting on the store's sleeper, and a
+// process of its own, until the detector gives the store up, and says how
+// long that took. Once the test has let the store run again, the counter's
+// address reaches it again.
+fn silenced() : Unit with Msg = {
+    let counter = Shared.found(Counter.key);
+    let sleeper = Shared.found(Calls.sleeper);
+    List.foreach(List.range(1, 10000), fn(_) = send(counter, Counter.Add(1)));
+    Io.println("counted: "
+                   <> Io.show(Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000)));
+    let local = spawn(fn() : Unit with Counter.Msg = counted(0));
+    monitor(Process.fromAddress(counter), Died);
+    let caller = spawnMonitored(fn() : Unit with Never = {
+                                    let answer =
+                                        Address.call(sleeper,
+                                                     fn(reply) =
+                                                         Calls.Slow(ms = 600000, reply = reply),
+                                                     600000);
+                                    Io.println("the call: " <> Io.show(answer))
+                                },
+                                Died);
+    let forever = spawnMonitored(fn() : Unit with Never = {
+                                     let _ =
+                                         Address.callForever(sleeper,
+                                                             fn(reply) =
+                                                                 Calls.Slow(ms = 600000,
+                                                                            reply = reply));
+                                     Unit
+                                 },
+                                 Died);
+    Io.println("now stop the store");
+    let _ = Io.readLine();
+    let stopped = Clock.monotonic();
+    let downs = [received(), received(), received()];
+    Io.println("given up after: " <> Int.toString((Clock.monotonic() - stopped) / 1000));
+    shown("silent", downs, Process.fromAddress(counter));
+    shown("its caller", downs, Process.fromAddress(caller));
+    shown("its forever caller", downs, Process.fromAddress(forever));
+    Io.println("own process: "
+                   <> Io.show(Address.call(local, fn(reply) = Counter.Get(reply = reply), 1000)));
+    Io.println("now let the store run");
+    let _ = Io.readLine();
+    Io.println("again: "
+                   <> Io.show(Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000)))
+}
+
+fn received() : Down with Msg =
+    receive {
+        Died(down) -> down
+    }
+
+// How the process ended, by the one of the Downs that names it.
+fn shown(what : String, downs : List(Down), process : Process) : Unit with n =
+    match List.find(downs, fn(down) = down.process == process) {
+        Some(down) -> Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+      | None -> Io.println(what <> ": no Down")
+    }
+
+// A counter of the desk's own, which a loss of the store leaves alone.
+fn counted(total : Int) : Unit with Counter.Msg =
+    receive {
+        Counter.Add(amount) -> counted(total + amount)
+      | Counter.Get(reply = reply) -> {
+            answer(reply, total);
+            counted(total)
+        }
+    }
+
+// Report §8.7, the proposal's section 7: a find whose dial nothing answers,
+// the store's address a proxy that takes the connection and passes nothing,
+// is given up by the host after 7 seconds, and the find answers Unreachable
+// and not Timeout.
+fn dialled() : Unit with Msg = {
+    let started = Clock.monotonic();
+    let found = Peer.find(Counter.key, 30000);
+    Io.println("dialled: "
+                   <> Io.show(found)
+                   <> " after "
+                   <> Int.toString((Clock.monotonic() - started) / 1000))
+}
+
+// The proposal's section 9, `make bench`: the microseconds of the host's
+// round trip to the store, of a call to a process there and to one here,
+// and of a message to the store's counter, sent straight and through the
+// adapted address made on the store, each over many, a line each.
+fn costs() : Unit with Msg = {
+    let counter = Shared.found(Counter.key);
+    let brittle = Shared.found(Calls.brittle);
+    let echo = Shared.found(Counter.echo);
+    let echoAdapted = Shared.found(Counter.echoAdapted);
+    let local = spawn(fn() : Unit with Counter.Msg = counted(0));
+    let rounds = 5000;
+    Io.println("ping " <> Io.show(pings(Process.fromAddress(counter), rounds)));
+    Io.println("remote-call "
+                   <> Io.show(timed(rounds, fn() = {
+                       let _ =
+                           Address.call(brittle,
+                                        fn(reply) = Calls.Echo(n = 1, reply = reply),
+                                        5000);
+                       Unit
+                   })));
+    Io.println("local-call "
+                   <> Io.show(timed(rounds, fn() = {
+                       let _ = Address.call(local, fn(reply) = Counter.Get(reply = reply), 5000);
+                       Unit
+                   })));
+    Io.println("straight " <> Io.show(echoed(rounds, fn(back) = send(echo, Counter.Ping(back)))));
+    Io.println("adapted " <> Io.show(echoed(rounds, fn(back) = send(echoAdapted, back))))
+}
+
+// The microseconds of one run of the function, over as many runs.
+fn timed(rounds : Int, f : () -> Unit with Msg) : Float with Msg = {
+    let started = Clock.monotonic();
+    List.foreach(List.range(1, rounds), fn(_) = f());
+    Int.toFloat(Clock.monotonic() - started) * 1000.0 / Int.toFloat(rounds)
+}
+
+// The microseconds of a round trip to the store's echo, each a message
+// there, sent as the function sends it, and its answer back, over as many,
+// by a process of its own, whose end the desk waits for.
+fn echoed(rounds : Int, ping : (Address(Int)) -> Unit with Int) : Float with Msg = {
+    let started = Clock.monotonic();
+    let _ = spawnMonitored(fn() : Unit with Int = pinged(rounds, ping), Died);
+    let _ = received();
+    Int.toFloat(Clock.monotonic() - started) * 1000.0 / Int.toFloat(rounds)
+}
+
+fn pinged(left : Int, ping : (Address(Int)) -> Unit with Int) : Unit with Int =
+    if left == 0 then
+        Unit
+    else {
+        ping(self());
+        receive {
+            _ -> pinged(left - 1, ping)
+        }
+    }
+
+foreign fn pings(process : Process, count : Int) : Float with m =
+    "ern_peers_host:pings/2"

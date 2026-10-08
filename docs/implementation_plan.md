@@ -82,8 +82,7 @@ is the experiment under
 [`experiments/`](../proposals/nodes_and_code/experiments/erlang_distribution/), and
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md) holds what other systems do.
 **The report's §8.6, §8.7 and §10 were rewritten from the proposal on 2026-10-08, item 1, and
-the guide's peer chapter describes the design before it until the last item rewrites it; nothing
-is built from the report's sections until each item below builds its area.**
+the guide's peer chapter from the report on the same day, item 10.**
 
 The items, in build order, each with the report's sentences first, its tests, and a commit.
 Each builds its area as the proposal's section 6 states it, whole: the proposal is the
@@ -313,7 +312,18 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     for the refusals that name MVP 3.1, the shell's two and `ern run --config-dir dir` with no
     file; `make sections`, which lists §6.7 today for want of this milestone, naming no section
     after it; and the guide's peer chapter, here and not in item 1,
-    since its examples run only once items 3 to 9 are built. The guide moves first, decided
+    since its examples run only once items 3 to 9 are built. Done 2026-10-08 but for one part,
+    in the log's *The Tests, the Costs and the Guide*: real nodes hold the proposal's section 4
+    and the cases of its section 8, a silent peer, the network parted one way and both through
+    a proxy, and a dial nothing answers, the detector's and the dial's times read and held;
+    `make bench`'s third part measures section 9's three costs between two nodes; `make
+    sections` names nothing; and `guide/language.md`'s chapter 8 teaches peers from §8.7. The
+    one part left, a program's own test of two nodes with the second started by `Os`, needs
+    the test to write the second node's `ernest.conf`, a JSON file, which no Ernest code writes
+    by hand (CLAUDE.md, *A published specification or a general-purpose engine is a library's
+    work*): decision with the user, raised 2026-10-08 (`language_feedback.md`'s entry 93),
+    whether `libs/json` is written now, after which the test is written in Ernest, or the part
+    waits for the library. The guide moves first, decided
     with the user on 2026-10-08 (the log's *The Guide in Two Files*): `ernest_guide.md` becomes
     `guide/language.md`, its section numbers kept, with every document, test and script that
     names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold

@@ -35,6 +35,9 @@ export fn main() : Unit with Never = {
                                 fn() = Calls.serve())));
     Peer.offer(Calls.sleeper, spawn(fn() = Calls.serve()));
     Peer.offer(Calls.doomed, spawn(fn() = Calls.serve()));
+    let echoer = spawn(fn() : Unit with Counter.EchoMsg = echoes());
+    Peer.offer(Counter.echo, echoer);
+    Peer.offer(Counter.echoAdapted, via(echoer, fn(back) = Counter.Ping(back)));
     Io.println("offered");
     wait()
 }
@@ -42,4 +45,12 @@ export fn main() : Unit with Never = {
 fn wait() : Unit with Never =
     receive {
         after 60000 -> wait()
+    }
+
+fn echoes() : Unit with Counter.EchoMsg =
+    receive {
+        Counter.Ping(back) -> {
+            send(back, 1);
+            echoes()
+        }
     }

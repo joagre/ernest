@@ -1045,7 +1045,7 @@ The count is 8 because messages from one sender arrive in the order sent: both `
 
 ### 4.6 Explicit code replacement
 
-A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value: here one compiled into the program, in the shell one from a module that `:reload` compiled again, and on a peer one that a process spawned there brings, since a function does not cross nodes in a message (§8.2).
+A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value: here one compiled into the program, in the shell one from a module that `:reload` compiled again, and on a peer one that a process spawned there brings, since a function does not cross nodes in a message (§8.1, §8.4).
 
 The counter of §4.5 gains an `Upgrade` constructor. The program is three parts of one file, `counter.ern`, which replaces the one of §4.5:
 
@@ -2184,7 +2184,7 @@ $ ern run bag.erc
 A record of closures gives up what an operations record keeps:
 
 - The representation is hidden, so nothing can take two bags apart to unite them. An operation over two of them needs a design of its own, as one that goes through `toList`.
-- The value holds functions, so it has no `==` (§2.5) and does not go to another node (§8.2).
+- The value holds functions, so it has no `==` (§2.5) and does not go to another node (§8.4).
 
 Reach for an operations record where code written once must keep the representation's type, and for a record of closures where values of different representations meet.
 
@@ -2242,15 +2242,15 @@ export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.c
 
 A program reaches outside its node's Ernest code in two ways: to peers over the network, and to foreign code on the same node.
 
-Peers are the language's, and the toolchain does not run them yet: they come with MVP 3.0, the [plan](../docs/implementation_plan.md)'s milestone for peers, which a refusal names, and [`docs/development.md`](../docs/development.md)'s *What the toolchain accepts* says what a program meets until then. §8.1 and §8.2 describe what peers do, and the examples that spawn on a peer, in §8.1 and §8.4, wait for it.
+A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no key yet, and the private key and a certificate beside it. A peer is added by editing the file: its name, which the program uses, its public key, which `ern config` printed on the peer's machine, and its network address. Under `keys`, each name a service is offered under lists the peers that may offer it, in the order a find asks them (report §8.7, Appendix C). Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both run the same build. What a node says on its standard error, `ern reload` and `ern stop`, and running nodes day to day are the deployment guide's, which comes with MVP 3.1; this chapter teaches what a program writes.
 
-A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer.spawn(name, f)` takes.
+Every example here runs on a program that is no node too: without a configuration a program has no peers, and `Peer.find` and `Peer.spawn` answer `Left(NotListed)`.
 
 ### 8.1 Work on a peer
 
-Work runs on a peer in a process spawned there, and its result comes back as a message. `Peer.spawn(name, f)` spawns `f` on the peer of that name as `spawn(f)` spawns it on this node; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.3):
+Work runs on a peer in a process spawned there, and its result comes back as a message. `Peer.spawn(name, f, ms)` spawns `f` on the peer named `name` as `spawn(f)` spawns it on this node, and answers the new process's address within `ms` milliseconds, or a `Peer.Failure` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
 
-```ernest-fragment
+```ernest
 // square.ern
 type Result = Result(Int)
 
@@ -2259,26 +2259,85 @@ fn heavy(a : Int, b : Int) : Int =
 
 export fn main() : Unit with Result = {
     let me = self();
-    let _ = Peer.spawn("foo", fn() = send(me, Result(heavy(3, 4))));
-    receive {
-        Result(n) -> Io.println("foo computed " <> Int.toString(n))
+    match Peer.spawn("foo", fn() : Unit with Never = send(me, Result(heavy(3, 4))), 5000) {
+        Right(_) -> receive {
+            Result(n) -> Io.println("foo computed " <> Int.toString(n))
+        }
+      | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
     }
 }
 ```
 
-With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. The closure takes `heavy` with it, and `me` still names this process on the peer (§8.2).
+```console
+$ ern run square.erc
+no foo: NotListed
+```
 
-A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Several computations run at once as several such processes, each sending its result back.
+With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. The spawn takes with it the values the lambda captured, `me` here, and nothing more: the peer runs the same build, so it has `heavy` already, and no code crosses (report §8.7). On the peer the process has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service; `me` still names this process.
 
-### 8.2 Code shipping
+The compiler must see what the function captures, so the function a spawn on a peer starts is written where the spawn can see it: a declaration's name, or a lambda written at the spawn or bound by a `let` in the same definition. A function that came as a value, a parameter or a message, is refused (report §3.11). And the function runs on the peer only where the peer's program has run the top-level bindings of the function's module and of the modules it depends on; otherwise the spawn answers `Left(NotLoaded)`. So the work a peer runs is written in a module the peer's program depends on too, or in one with no top-level `let`.
 
-Code goes to a peer one way: in a process spawned there. `Peer.spawn(name, f)` takes `f`'s code with it, and the code every function it and its captures use; the peer uses the code it has, and fetches from the sender what it lacks, before the process starts. A failure to find it faults the caller of `Peer.spawn`, at the call. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7).
+A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Its `site` is empty for a process of another node; that node's standard error reports the fault with the site (report §6.9). Several computations run at once as several such processes, each sending its result back. Which peer to spawn on is the program's to say; the library `Balancer` picks one for it, in turn or by how busy each is (report Appendix G.5).
 
-A message to a peer carries values and no code. A function cannot go to another node, alone or inside a message, and the `send` that would take it there faults with `function cannot cross nodes` (report §3.11). Work that must run on the peer is spawned there. An adapted address of a process on your node may still go to a peer, since its function never leaves your node: what crosses is a reference to the function and the values it captured, and a value the peer sends to it comes back here to be wrapped, on delivery. So `via(self(), Wrap)` handed to a peer works. An adapted address around another node's process cannot cross, since its function would have to leave its node (report §6.5).
+### 8.2 Services across nodes
 
-In spawned code a system module's reference is the peer's, so `Io.println` prints on the peer, and so is a top-level binding the code names, so a service binding names the peer's service. An address the function captured still names the process it named on this node.
+On one node a service is a top-level binding that holds an address (§6.5). A peer cannot name your bindings, so a service that peers reach is offered under a *key*, a name and the service's message type, declared where the type is:
 
-A peer that is lost stays lost: its processes are dead to this node, monitors report `Fault("peer lost")`, and a message in flight may be lost without notice (report §10).
+```ernest
+// counter.ern
+export type Msg = Add(Int) | Get(reply : Reply(Int))
+
+export let key : Peer.Key(Msg) = Peer.key("counter")
+```
+
+```ernest
+// store.ern
+let counter : Address(Counter.Msg) = spawn(fn() = count(0))
+
+fn count(total : Int) : Unit with Counter.Msg =
+    receive {
+        Counter.Add(amount) -> count(total + amount)
+      | Counter.Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn main() : Unit with Never = {
+    Peer.offer(Counter.key, counter);
+    receive {
+        after 60000 -> Unit
+    }
+}
+```
+
+```ernest
+// desk.ern
+export fn main() : Unit with Never =
+    match Peer.find(Counter.key, 5000) {
+        Right(counter) -> {
+            send(counter, Counter.Add(5));
+            match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
+                Some(total) -> Io.println("the counter is at " <> Int.toString(total))
+              | None -> Io.println("no answer")
+            }
+        }
+      | Left(failure) -> Io.println("no store: " <> Io.show(failure))
+    }
+```
+
+```console
+$ ern run desk.erc
+no store: NotListed
+```
+
+`Peer.offer(key, address)` lets the store's peers find `counter` under the key for as long as its process lives, and faults where a living process holds the key already, so a service is one per node; a `restarting` loop keeps its address and its offer through its restarts (report §6.9). `Peer.find(key, ms)` asks the peers the desk's `ernest.conf` lists under `"counter"`, in that order, and answers the first address offered under the name at the key's message type; a peer out of reach, offering nothing, or offering the name at another type is passed over, and where none offers it the find answers the last failure met, or `Left(Timeout)`. Where a service lives is the configuration's: `"keys": {"counter": ["store"]}` on the desk, and no find names a node. The address found is used as any other: `send`, `Address.call`, `monitor` and `kill` reach the store's process as they reach one here, nothing checks a message on arrival, since both nodes run one build, and the address is as good on a third node it is sent to (report §8.4, §8.7).
+
+**A loss.** A connection breaks, a peer falls silent, or a node ends. Each node then ends what it held with the other and nothing else: every monitor on the peer's processes gives one `Down` with the reason `Unreachable` and an empty `site`, every call waiting on one of them answers `None`, and a `callForever` faults with `callee is unreachable`; what waited to be sent is dropped, and a later `send` vanishes until the two connect again. No process of your own dies of it. The address outlives the loss: once the nodes connect again, which the next operation that needs it does, the same address reaches the same process, for as long as it lives and its node has not been started again. A monitor does not outlive it: a program that goes on watching calls `monitor` again, on the process the `Down` named, and while the peer stays out of reach the new monitor answers `Unreachable` once the dial has failed. A peer that fell silent is given up in 45 to 75 seconds, and one that closed at once (report §8.7).
+
+`Unreachable` says the process may be alive, which a replacement would make two. Three rules keep that harmless: replace at `Unreachable` only work that may run twice; let a process spawned on a peer watch whoever it works for, and end when told `Unreachable`, which it is, since both nodes run the loss; and keep what must exist once on one named node, found there by its key, unavailable while that node is out of reach rather than started again elsewhere.
+
+**Order.** What one process sends another arrives in the order it was sent, through whichever addresses, with one exception: a message to an adapted address made on another node is wrapped on that node, a step more, so a message sent straight after it to the target's own address can arrive first (report §6.5, §8.7). A protocol that must keep the order sends both through the same address.
 
 ### 8.3 Foreign types and functions
 
@@ -2298,25 +2357,39 @@ In the other direction, an Ernest process's end is an Erlang exit reason, `norma
 
 A value foreign code made and Ernest does not inspect has the foreign type `Foreign.Term`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.8, Appendix E.12, Appendix E.19).
 
-### 8.4 Node-local foreign values
+### 8.4 Values bound to their node
 
-A foreign value belongs to the node that made it, and sending one to another node, alone, inside a message, or among the captures of a function spawned there, faults with `Fault("foreign value cannot cross nodes")`.
+A value crosses to another node as a value, and some cannot: a function, a foreign value, a `Foreign.Term` or an `Ets.Table` of §8.3, a resource, a socket, a listener or a program `Os.start` started, and an address or a reply whose message type holds one of these. Their types are *bound* to the node, and nothing of a bound type leaves it. Every address a program holds of another node's process came from a find or a spawn, and there the compiler refuses what would let a bound value cross: a key at a bound type, a spawn whose function captures a bound value, or one whose type is not known whole, and a spawn whose mailbox type is bound (report §3.11). So a message to another node is of a type that crosses, by construction, and nothing is checked at a `send`.
 
-An `Ets.Table` of §8.3 is such a value, a table of the node's runtime: `Ets.new()` makes one, `Ets.put` stores an entry, and `Ets.get`, the function §8.5 builds, looks one up. The closure below captures one, so shipping it to the peer `alice` faults with that cause:
+The listener below is a resource, so the lambda that captures it cannot be spawned on `alice`:
 
-```ernest-fragment
-export fn main() : Unit with Never = {
-    let table = Ets.new();
-    Ets.put(table, "answer", 42);
-    let _ =
-        Peer.spawn("alice",
-                   fn() =
-                       Io.println(Int.toString(Optional.withDefault(Ets.get(table, "answer"), 0))));
-    Unit
-}
+```ernest-rejected
+export fn main() : Unit with Never =
+    match Tcp.listen("127.0.0.1", 7000) {
+        Right(listener) -> {
+            let _ = Peer.spawn("alice", fn() : Unit with Never = serve(listener), 5000);
+            Unit
+        }
+      | Left(error) -> Io.printlnError("cannot listen: " <> Io.show(error))
+    }
+
+fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+    match Tcp.accept(listener, 60000) {
+        Right(socket) -> Tcp.close(socket)
+      | Left(_) -> Unit
+    }
 ```
 
-A program that needs such state on another node sends what the state is made of and rebuilds it there: here the entries, from which the peer fills a table of its own.
+```console
+$ ern build bound.ern
+bound.ern:4:72: the function Peer.spawn starts captures listener, whose type Address(Tcp.ListenerMsg) is bound to its node, since it holds the address of a listener
+3 |         Right(listener) -> {
+4 |             let _ = Peer.spawn("alice", fn() : Unit with Never = serve(listener), 5000);
+  |                                                                        ^^^^^^^^
+  | = help: a value of a bound type never crosses to another node; give the process what crosses (§3.11)
+```
+
+A program that needs such a thing on another node makes it there: the spawned function opens the listener on `alice`, with the address to bind captured in its place. State in a table crosses the same way, as the entries it is made of, from which the peer fills a table of its own (§8.5).
 
 ### 8.5 The shim pattern
 
@@ -2487,7 +2560,7 @@ A socket lives until `Tcp.close`, so the session closes it when its reader finds
 
 ### 8.8 Prediction exercise
 
-A process sends a service on another node `Register(fn(x) = x + 1)`, a message with a function in it. What happens, and how does the function get to run on that node?
+A service `Registry`, with `type Msg = Register((Int) -> Int)` and a binding `registry` that holds its address, runs on the peer `foo`. A program on another node declares `let key : Peer.Key(Registry.Msg) = Peer.key("registry")`, means to find the service by it, and to send `Register(fn(x) = x + 1)`. What happens, and how does the function get to the service?
 
 ## 9. Tools
 
@@ -2510,7 +2583,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
-- `ern config` makes the configuration a node with peers needs (§8), in `./.ernest` or the directory `--config-dir` names.
+- `ern config` makes the configuration a node with peers needs (§8), in `./.ernest` or the directory `--config-dir` names; `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end (report §11.2).
 
 ### 9.3 The shell
 
@@ -2576,9 +2649,9 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
 - There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
-- A function does not travel in a message between nodes: a `send` that would take one to another node faults. Code goes to a peer only with a process spawned there (§8.2).
+- A function does not travel to another node: the compiler refuses a key or a spawn that would take one, and work on a peer is a process spawned there, which carries its captured values and no code (§8.1, §8.4).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
-- Nodes talk over Ernest's own protocol, [`proposals/nodes_and_code/nodes.md`](../proposals/nodes_and_code/nodes.md), not over Erlang distribution, and ship code by content (§8.2).
+- Nodes talk over Erlang's distribution, over TLS, with no port mapper, no mesh, and a rule that accepts a peer by its listed key; every node runs one build, and no code crosses (report §8.7). The reasons are [`proposals/nodes_and_code/nodes.md`](../proposals/nodes_and_code/nodes.md)'s.
 
 ## 11. The design
 
@@ -2620,7 +2693,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§7.4.** (a) Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included. `main.ern` writes `Stack.push(Stack.empty, 1)`: another module sees the type and its operations, never the constructor, so `Stack.Stack([1])` is refused. (b) The two bags. A list's elements have one type. `hashed` is an `Operations(Set(Int), Int)` and `ordered` an `Operations(OrderedSet.Set(Int), Int)`: an operations record keeps the representation in its type, so the two records are of two types, and a list of both is refused. Both bags are a `Bag(Int)`, since a record of closures hides the representation in its functions. (c) `fn firstTwo(list : List(a)) : List(a) needs a.compare = List.take(sorted(list), 2)`. It calls `sorted` at its own type variable, so it declares the requirement and passes on the member it is given. The call writes nothing: the compiler supplies `Int.compare`.
 
-**§8.8.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `Peer.spawn(name, fn() = send(service, Register(fn(x) = x + 1)))`.
+**§8.8.** The build stops at the key: `Peer.key makes a key of Registry.Msg, which is bound to its node, since it holds a function` (§8.4). A function reaches `foo` only inside a process spawned there, and that process cannot capture the registry's address either, whose type is bound; it names the service's binding, which on `foo` is `foo`'s own: `Peer.spawn("foo", fn() : Unit with Never = send(Registry.registry, Registry.Register(fn(x) = x + 1)), 5000)`, written in a module `foo`'s program depends on too, or in one with no top-level `let` (§8.1).
 
 ## 14. Reading further
 
