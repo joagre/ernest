@@ -2431,30 +2431,23 @@ misplaced_module_test() ->
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/http.erc"])),
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/nothing.erc"])).
 
-%% report §8.3, §8.7, §11.2: a run given `--config-dir` is a node, its
-%% `ernest.pid` there while it runs and removed at its end, an end by
-%% `Os.exit` among them; a run without it writes nothing there; a directory
-%% whose `ernest.conf` is refused runs nothing
+%% report §8.7, §11.2: a run given `--config-dir` is a node, whose host the
+%% launcher boots with the carrier's flags; a host booted otherwise, as a
+%% test runs `ern` within its own, is refused, and so is a directory whose
+%% `ernest.conf` is refused, before anything runs. A run as a node is
+%% test/ern_nodes_tests.erl's
 node_run_test() ->
     Dir = tmp(),
     ConfigDir = Dir ++ "/node",
     ?assertEqual(0, ern_err(["config", "--config-dir", ConfigDir])),
-    write(Dir, "src/listing.ern",
-          "export fn main() : Unit with Never = {\n"
-          "    Io.println(Io.show(Either.map(Fs.list(Path(\"" ++ ConfigDir ++ "\"), 1000),\n"
-          "                                  fn(entries) = List.size(entries))));\n"
-          "    match Os.arguments { [] -> Unit | _ -> Os.exit(3) }\n"
-          "}\n"),
+    write(Dir, "src/hello.ern", hello()),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    Program = Dir ++ "/build/listing.erc",
+    Program = Dir ++ "/build/hello.erc",
     _ = ?capturedOutput,
-    ?assertEqual(0, ern_cli:ern(["run", "--config-dir", ConfigDir, Program])),
-    ?assertEqual(3, ern_cli:ern(["run", "--config-dir", ConfigDir, Program, "exit"])),
-    ?assertEqual(0, ern_cli:ern(["run", Program])),
-    %% the node's directory lists its ernest.pid while it runs
-    Ran = <<"Right(4)\nRight(4)\nRight(3)\n">>,
-    Output = unicode:characters_to_binary(?capturedOutput),
-    ?assertEqual(Ran, binary:part(Output, byte_size(Output), -byte_size(Ran))),
+    ?assertEqual(1, ern_err(["run", "--config-dir", ConfigDir, Program])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"ern run: the host was not started as a node, which ern"
+                                        " does where the command line holds --config-dir">>)),
     ?assertNot(filelib:is_file(ConfigDir ++ "/ernest.pid")),
     ok = file:write_file(ConfigDir ++ "/ernest.conf", "{"),
     ?assertEqual(1, ern_err(["run", "--config-dir", ConfigDir, Program])),

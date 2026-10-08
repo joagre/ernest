@@ -5,7 +5,7 @@
 %% which the launcher's entry point ends the host with.
 -module(ern_cli).
 
--export([start/0, ern/1, ern/2]).
+-export([start/0, node_flags/0, ern/1, ern/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -66,6 +66,40 @@ start() ->
     end,
     ok = ern_out:finish(ErrorDevice),
     halt(Status).
+
+%% Report §8.7: the launcher's first start of the host, where its arguments
+%% hold `--config-dir`, since the host takes a node's carrier only as it
+%% boots. The command line is parsed as its job parses it, and the flags a
+%% node's host boots with are written to standard output as shell words on
+%% one line, after the marker `ern-node-flags`; none are written where the
+%% command starts no node or is refused, which the launcher's second start
+%% then says. Nothing the job would write reaches standard output, which
+%% carries the flags alone.
+-spec node_flags() -> no_return().
+node_flags() ->
+    Out = group_leader(),
+    {ok, Null} = file:open("/dev/null", [write]),
+    group_leader(Null, self()),
+    persistent_term:put({?MODULE, flags}, true),
+    Args = init:get_plain_arguments(),
+    %% only the jobs that make a node are parsed: every other job's work,
+    %% `ern config`'s among it, is the second start's
+    Flags = case lists:member(hd(Args ++ [""]), ["run", "test", "shell"]) of
+                false -> [];
+                true ->
+                    try ern(Args, Null) of
+                        _ -> []
+                    catch
+                        throw:{node_flags, Found} -> Found;
+                        _:_ -> []
+                    end
+            end,
+    io:put_chars(Out, ["ern-node-flags " | lists:join(" ", [quoted(Flag) || Flag <- Flags])]),
+    halt(0).
+
+%% A word as the shell reads it back, in single quotes.
+quoted(Word) ->
+    ["'", string:replace(Word, "'", "'\\''", all), "'"].
 
 -spec ern([word()]) -> 0..255.
 ern(Args) ->
@@ -639,8 +673,9 @@ config_options() ->
 run(Options, [File | Words], ErrorDevice) ->
     Arguments = program_arguments(Words, 1),
     quiet_signals(),
-    {Namespace, _LoadPath, Loaded} = program(File, Options),
-    as_node(Options, fun() -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice) end);
+    {Namespace, LoadPath, Loaded} = program(File, Options),
+    as_node(Options, LoadPath,
+            fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
 run(_Options, [], _ErrorDevice) ->
     usage_fail("one .erc file argument is required").
 
@@ -660,10 +695,13 @@ test(Options, [Path], ErrorDevice) ->
     case filelib:is_dir(Path) of
         true ->
             Files = ern_build:compiled_under(Path),
-            as_node(Options, fun() -> report_tree(tree_tests(Files, Options, ErrorDevice)) end);
+            LoadPath = [ern_build:absolute(Path) | ern_build:load_path(Options)],
+            as_node(Options, LoadPath,
+                    fun(Node) -> report_tree(tree_tests(Files, Options, ErrorDevice, Node)) end);
         false ->
-            {Namespace, _LoadPath, Loaded} = program(Path, Options),
-            as_node(Options, fun() -> run_tests(Namespace, Loaded, none, ErrorDevice) end)
+            {Namespace, LoadPath, Loaded} = program(Path, Options),
+            as_node(Options, LoadPath,
+                    fun(Node) -> run_tests(Namespace, Loaded, none, ErrorDevice, Node) end)
     end;
 test(_Options, _Rest, _ErrorDevice) ->
     usage_fail("one .erc file or one directory is required").
@@ -673,18 +711,18 @@ test(_Options, _Rest, _ErrorDevice) ->
 %% own, its name before its tests' lines, and one without passed over,
 %% loaded and not run; the status of each run. A run a signal ended, or
 %% whose output could no longer be written, is the last.
-tree_tests([], _Options, _ErrorDevice) ->
+tree_tests([], _Options, _ErrorDevice, _Node) ->
     [];
-tree_tests([File | Files], Options, ErrorDevice) ->
+tree_tests([File | Files], Options, ErrorDevice, Node) ->
     {Namespace, _LoadPath, Loaded} = program(File, Options),
     case erlang:function_exported(ern_namespace:erlang_module(Namespace), '$tests', 0) of
         false ->
-            tree_tests(Files, Options, ErrorDevice);
+            tree_tests(Files, Options, ErrorDevice, Node);
         true ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
-            case run_tests(Namespace, Loaded, Name, ErrorDevice) of
+            case run_tests(Namespace, Loaded, Name, ErrorDevice, Node) of
                 Status when Status =:= 0; Status =:= 1 ->
-                    [Status | tree_tests(Files, Options, ErrorDevice)];
+                    [Status | tree_tests(Files, Options, ErrorDevice, Node)];
                 Ended ->
                     [Ended]
             end
@@ -723,48 +761,62 @@ shell(Options, Rest, ErrorDevice) ->
     end,
     %% report §8.5: the shell's own modules are initialized as a program's
     %% are, before those of the file it loads
-    Init = case Rest of
-               [] ->
-                   %% report §11.2: --main names a function of the file
-                   not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file()),
-                   host_path(ern_build:load_path(Options)),
-                   ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
-                                            source_root = ern_build:source_root(Options, ".", "."),
-                                            config_startup = config_startup(Options)}),
-                   init_fun([ErlangModule]);
-               [File] ->
-                   {Namespace, LoadPath, Loaded} = program(File, Options),
-                   Entry = shell_entry(Options, Namespace),
-                   ern_shell:loaded(#loaded{load_path = LoadPath,
-                                            source_root = ern_build:source_root(Options, File,
-                                                                                "."),
-                                            interfaces = interfaces(Loaded), entry = Entry,
-                                            config_startup = config_startup(Options)}),
-                   init_fun(Loaded ++ [ErlangModule]);
-               _ ->
-                   usage_fail("at most one .erc file argument")
-           end,
+    {Init, LoadPath} =
+        case Rest of
+            [] ->
+                %% report §11.2: --main names a function of the file
+                not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file()),
+                host_path(ern_build:load_path(Options)),
+                ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
+                                         source_root = ern_build:source_root(Options, ".", "."),
+                                         config_startup = config_startup(Options)}),
+                {init_fun([ErlangModule]), ern_build:load_path(Options)};
+            [File] ->
+                {Namespace, FileLoadPath, Loaded} = program(File, Options),
+                Entry = shell_entry(Options, Namespace),
+                ern_shell:loaded(#loaded{load_path = FileLoadPath,
+                                         source_root = ern_build:source_root(Options, File, "."),
+                                         interfaces = interfaces(Loaded), entry = Entry,
+                                         config_startup = config_startup(Options)}),
+                {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
+            _ ->
+                usage_fail("at most one .erc file argument")
+        end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
     %% report §11.2: Os.exit faults the process that calls it
-    Outcome = as_node(Options,
-                      fun() ->
+    Outcome = as_node(Options, LoadPath,
+                      fun(Node) ->
                           ern_rt:run_main(fun() -> ErlangModule:main() end, <<"Shell.main">>,
-                                          #{stdout => Sink, stderr => Sink, init => Init,
-                                            exit => fault})
+                                          Node#{stdout => Sink, stderr => Sink, init => Init,
+                                                exit => fault})
                       end),
     report_shell_outcome(ErrorDevice, Outcome).
 
-%% Report §8.3, §8.7, §11.2: a run given `--config-dir` is a node, started
-%% from that directory before anything of it runs, its `ernest.pid` removed
-%% at its end, however it ends; a run without it is no node.
-as_node(Options, Run) ->
-    case proplists:get_value(config_dir, Options) of
-        undefined ->
-            Run();
-        ConfigDir ->
-            _ = ern_node:start(ConfigDir),
-            try Run() after ern_node:stop(ConfigDir) end
+%% Report §8.3, §8.7, §11.2: a run given `--config-dir` is a node: its
+%% directory checked and read before anything of it runs, its carrier
+%% started once the bindings have their values, which the run's options
+%% carry (ern_rt:run_main/3), and its `ernest.pid` removed at its end,
+%% however it ends; a run without it is no node. Where the launcher asks for
+%% the host's flags (node_flags/0), they are answered and nothing runs.
+as_node(Options, LoadPath, Run) ->
+    case {proplists:get_value(config_dir, Options), persistent_term:get({?MODULE, flags}, false)} of
+        {undefined, _} ->
+            Run(#{});
+        {ConfigDir, true} ->
+            throw({node_flags, ern_carrier:boot_flags(ern_node:read(ConfigDir), LoadPath)});
+        {ConfigDir, false} ->
+            %% the configuration is read first: one the first start could not
+            %% read gave it no flags, and its refusal is what is said
+            Read = ern_node:read(ConfigDir),
+            ern_carrier:booted()
+                orelse ern_build:fail("the host was not started as a node, which ern does where"
+                                      " the command line holds --config-dir"),
+            Configuration = ern_node:start(ConfigDir, Read),
+            Stamped = is_stamped(),
+            try Run(#{node => fun() -> ern_carrier:start(Configuration, Stamped) end})
+            after ern_node:stop(ConfigDir)
+            end
     end.
 
 no_main_file() ->
@@ -801,13 +853,20 @@ report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Stamped) 
 reporting_options(RunOptions, ErrorDevice) ->
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
-            Stamped = not ern_tty:is_terminal(stderr) andalso not is_journal(),
+            Stamped = is_stamped(),
             RunOptions#{faults => fun(FaultReport) -> report_fault(FaultReport, Stamped) end,
                         stdout => {fd, 1}, stderr => {fd, 2}};
         device ->
             RunOptions#{faults => fun(FaultReport) -> report_fault(FaultReport, false) end,
                         stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
     end.
+
+%% Report §11.2, §8.7: whether a line on standard error begins with its
+%% time: where the program writes to the process's own standard error, and
+%% that is neither a terminal nor a journal.
+is_stamped() ->
+    persistent_term:get({?MODULE, streams}, device) =:= fds
+        andalso not ern_tty:is_terminal(stderr) andalso not is_journal().
 
 %% Report §11.2: whether standard error is a service manager's journal,
 %% which systemd says by JOURNAL_STREAM, the device and inode of the
@@ -951,7 +1010,7 @@ init_fun(Loaded) ->
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
 %% as it ends; status 1 unless every one passed.
-run_tests(Namespace, Loaded, Heading, ErrorDevice) ->
+run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
     %% terms at each change of one
@@ -961,7 +1020,8 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice) ->
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
     %% report §11.2: Os.exit faults the test that calls it
-    RunOptions = reporting_options(#{init => headed(Heading, init_fun(Loaded)), exit => fault},
+    RunOptions = reporting_options(maps:merge(#{init => headed(Heading, init_fun(Loaded)),
+                                                exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
     Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport) ->
@@ -1053,14 +1113,15 @@ returned(Ref, Outcome) ->
 cause({'Fault', Cause}) -> ern_show:controls(Cause, line);
 cause(Reason) -> atom_to_binary(Reason).
 
-run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice) ->
+run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) ->
     EntryFunction = entry_point(Options, Namespace),
     EntryModule = ern_namespace:erlang_module(Namespace),
     Init = init_fun(Loaded),
     Site = entry_site(Namespace, EntryFunction),
     Function = ern_emitter:function_atom(EntryFunction),
     %% report §8.6: a deadlock is the entry process's fault
-    RunOptions = reporting_options(#{init => Init, arguments => Arguments}, ErrorDevice),
+    RunOptions = reporting_options(maps:merge(#{init => Init, arguments => Arguments}, Node),
+                                   ErrorDevice),
     Outcome = ern_rt:run_main(fun() -> EntryModule:Function() end, Site, RunOptions),
     report_outcome(ErrorDevice, Outcome).
 

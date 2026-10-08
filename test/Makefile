@@ -15,7 +15,7 @@ ERLC_FLAGS = +debug_info -Werror
 # The suites by area (plan, MVP 2.6): `test` runs them all, side by side
 # under `make -j`, and each area has a target of its own for a change that
 # touches it alone.
-PROGRAMS = ern_integration_tests
+PROGRAMS = ern_integration_tests ern_nodes_tests
 # a launch of its own, which shares no host with the programs' runs
 MEASURE = ern_measure_tests
 DOCS = ern_docs_tests ern_style_tests

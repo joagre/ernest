@@ -71,9 +71,32 @@ unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS
 ERL_CRASH_DUMP_SECONDS=0
 export ERL_CRASH_DUMP_SECONDS
 
+# Report §8.7: a node's host takes its carrier only as it boots, so where
+# the arguments hold --config-dir the host runs once first, parsing the
+# command line as its job does and writing the flags a node's host boots
+# with after a marker, which the second start takes. It writes none where
+# the command starts no node or is refused, and the second start then says
+# what was refused; what it writes without the marker is taken for nothing.
+node=
+for word do
+    if [ "$word" = --config-dir ]; then
+        node=1
+    fi
+done
+flags=
+if [ -n "$node" ]; then
+    flags=$(erl +B -boot no_dot_erlang -noshell -noinput \
+        -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" \
+        -run ern_cli node_flags -extra "$@" 2>/dev/null) || flags=
+    case $flags in
+        "ern-node-flags "*) flags=${flags#ern-node-flags } ;;
+        *) flags= ;;
+    esac
+fi
+eval "set -- $flags -run ern_signals install -run ern_cli start -extra \"\$@\""
+
 # Report §8.6: ern takes the host's signals as the first thing the host
 # runs, before the entry's module is loaded, since until then the host's
 # own handler ends a program with status 0.
 exec erl +B -boot no_dot_erlang -noshell -noinput \
-    -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" \
-    -run ern_signals install -run ern_cli start -extra "$@"
+    -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" "$@"

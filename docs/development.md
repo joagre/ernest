@@ -99,7 +99,7 @@ make              build the helper, compile every application into its ebin/, th
 make test         build, then every area below, side by side
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
-make test-programs  the integration tests: the programs compiled and run as a user
+make test-programs  the integration tests and nodes on one machine: the programs compiled and run as a user
                   runs them, the manual pages and the installation, and that the
                   measuring machine reaches every function of the library
 make test-docs    the document tests and the style tests
@@ -196,7 +196,7 @@ The toolchain is the report on one node. Everything the report describes type-ch
 |---|---|---|
 | A session binding checked against a previous version of a type `:reload` changed (§11.2) | MVP 3.1 | the reload forgets it, `Counter.Msg changed: the binding c was checked against its previous version, which MVP 3.1 tells from the current one; the reload forgot it`, and an input that names it has as its help `c was forgotten by a reload: it was checked against a previous version of Counter.Msg, which MVP 3.1 tells from the current one` |
 | The module `Peer` (§6.2, §8.3, §8.7, Appendix E.27) | MVP 3.0 | a name of `Peer` is refused, `Peer.spawn is not here yet: the module Peer, which acts on peers, arrives in MVP 3.0` |
-| A node's carrier: its listener, its name on the carrier, its connections and its peers (§8.7) | MVP 3.0 | `--config-dir` makes a run a node, which checks and reads its directory, writes `ernest.pid` and starts the host's measures, and listens to nothing and dials no peer |
+| What a program does across nodes: a send, a call, a monitor, a `kill`, a spawn and a find (§6, §8.7) | MVP 3.0 | a node connects to its peers, says so, and refuses what the rule and the cookie refuse, and no operation of a program reaches another node's process; the gateway reads no frame yet, and ends the connection of a peer that sends one |
 | `drain` in `ernest.conf`, and a peer's `coordinator` (§8.7) | MVP 3.2 | refused when the file is read, `drain is not here yet: it arrives in MVP 3.2, with the rolling restart`, and the same of `coordinator` |
 
 Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

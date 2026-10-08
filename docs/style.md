@@ -130,6 +130,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else; the type a member belongs to is its MemberOf.
 - **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
 - **EntryPoint, EntryProcess**: the entry point and its process (§8.1, §8.6). Not `Main`.
+- **Carrier**: §8.7's carrier, the host's distribution as a node runs it, `ern_carrier`; its frames go through the **Gateway**, `ern_gateway`, a worker for each peer. Not `Dist`, `Net`.
 - **ConfigDir**: §11.3's configuration directory, `--config-dir`'s value, in the runner and the node module alike; what its `ernest.conf` says is a `#configuration{}`, and a peer it lists a `#peer{}`. Not `Dir`, `Conf`, `Config` alone.
 - **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, `Root` alone.
 - **Message**: a message. Not `Msg`.

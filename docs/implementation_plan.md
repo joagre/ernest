@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 3 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 4 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -191,7 +191,11 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    lost, and whether it fell silent or closed; a peer refused for its key, by the rule, or for
    its build, by the cookie, the handshake's line the one report of the host's the node keeps,
    the rest off; a living connection replaced by another from the same name; nothing for a
-   message, a call or a spawn.
+   message, a call or a spawn. Done 2026-10-08, with what the building decided in the log's
+   *The Carrier*: the TLS options passed to the host on the command line, no options file; the
+   gateway's frames, which no item has added yet, each one it receives faulty, its kinds
+   written by items 5, 6 and 8 with the operations that send them; a node detecting no
+   deadlock here, where it first listens, in place of item 7.
 5. **Addresses, messages and monitors across nodes.** An address the host's name for a process,
    the node, its start's number and the process's number, as good on a third node, outliving a
    loss, ended by its process's end or its node's new start, after which a send is dropped, a
@@ -228,9 +232,10 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    connection kept; `measures` started or stopped; the node's own key and `listen` immutable, a
    file that changes either or does not parse refused with the old configuration kept; the
    lines said, which peers were added and removed or why the file was refused; the signal
-   carrying nothing back, the command's status saying only that it was delivered. The deadlock
-   detector told by `--config-dir` that a monitor on a peer's process declares none, and the
-   host's lost connection `Unreachable` to it, never a fault.
+   carrying nothing back, the command's status saying only that it was delivered. A node
+   detects no deadlock, which item 4 built; the host's lost connection is `Unreachable` to a
+   monitor, never a fault. `ern_signals`' second's sleep after `ern` sends itself the signal
+   that ended it goes, the end waited for as what it is (CLAUDE.md, *No fixed sleep*).
 8. **`Peer`.** `key`, a value that starts nothing; `offer`, under the key's name and its type's
    identity for as long as the process lives, faulting for a key a living process holds and
    for a process that is not this node's, with section 6's two causes; one `find(key, ms)` over
@@ -281,6 +286,13 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     file; `make sections`, which lists §6.7 today for want of this milestone, naming no section
     after it; and the guide's peer chapter, here and not in item 1,
     since its examples run only once items 3 to 9 are built.
+
+11. **The fixed sleeps out of the tests.** CLAUDE.md's *No fixed sleep*, decided with the user
+    on 2026-10-08 as item 4's tests were written: the 33 fixed sleeps of the tests in ten files,
+    `ern_rt_tests`, `ern_reaper_tests`, `ern_tcp_tests`, `ern_os_tests`,
+    `ern_system_module_tests`, `ern_emitter_tests`, `ern_integration_tests`, `ern_service_tests`,
+    the load harness and the bench's, each made a wait on what it means, or, where an absence is
+    what a test shows, a wait derived from what it waits for with the reason beside it.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two peers offering one key by mistake are told apart by nothing but the

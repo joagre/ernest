@@ -87,7 +87,7 @@ create_test() ->
                                                                       ern_node:create(Dir)
                                                                   end), "/", trailing)))),
     %% what it makes, a node reads
-    ?assertMatch({configuration, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}}, ern_node:read(Dir)).
+    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}}, ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may say, read whole: a
 %% listener of IPv6, peers with an address, a name, or none, keys naming
@@ -105,7 +105,7 @@ read_test() ->
                                     <<"memory">> => #{<<"check-interval">> => 120000,
                                                       <<"almost-full">> => 0.9},
                                     <<"disk">> => #{<<"check-interval">> => 500}}}),
-    {configuration, Listen, _, Peers, Keys, Measures} = ern_node:read(Dir),
+    {configuration, _, Listen, _, Peers, Keys, Measures} = ern_node:read(Dir),
     ?assertEqual({{0, 0, 0, 0, 0, 0, 0, 0}, 0}, Listen),
     ?assertMatch([{peer, <<"store">>, _, {{0, 0, 0, 0, 0, 0, 0, 1}, 8654}},
                   {peer, <<"desk">>, _, none}], Peers),
@@ -116,7 +116,7 @@ read_test() ->
     %% kept for the dial, which resolves it
     with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => One,
                                   <<"network-address">> => <<"localhost:8654">>}]}),
-    ?assertMatch({configuration, none, _, [{peer, <<"store">>, _, {"localhost", 8654}}], _, _},
+    ?assertMatch({configuration, _, none, _, [{peer, <<"store">>, _, {"localhost", 8654}}], _, _},
                  ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may not say, each refused when

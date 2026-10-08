@@ -6,21 +6,11 @@
 %% names. A refusal is the runner's (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/1, start/1, stop/1, read/1]).
+-export([create/1, start/1, start/2, stop/1, read/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
-
-%% What `ernest.conf` says (report §8.7). listen: none or {Address, Port},
-%% the listener's interface and port; public_key: the DER of this node's
-%% SubjectPublicKeyInfo; peers: [#peer{}] in the file's order; keys: a
-%% key's name to its peers' names, in the order a find asks them;
-%% measures: the host's measures to start, each to its parameters.
--record(configuration, {listen = none, public_key, peers = [], keys = #{}, measures = #{}}).
-
-%% A peer as listed: address none, or {Host, Port}, Host a name or an
-%% address the host resolves at each dial.
--record(peer, {name, public_key, address = none}).
+-include("ern_node.hrl").
 
 -define(CONF, "ernest.conf").
 -define(KEY, "private-key.pem").
@@ -138,7 +128,11 @@ certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
 %% started. Answers what `ernest.conf` says.
 -spec start(file:filename()) -> #configuration{}.
 start(ConfigDir) ->
-    Configuration = read(ConfigDir),
+    start(ConfigDir, read(ConfigDir)).
+
+%% The same, of what `ernest.conf` says, read already.
+-spec start(file:filename(), #configuration{}) -> #configuration{}.
+start(ConfigDir, Configuration) ->
     pid_written(ConfigDir),
     try measures_started(ConfigDir, Configuration#configuration.measures)
     catch Class:Reason:Trace ->
@@ -352,7 +346,7 @@ configuration(ConfigDir) ->
                     _ -> fail(ConfigDir, ?CONF, "names no public-key")
                 end,
     Peers = peers(ConfigDir, maps:get(<<"peers">>, Fields, []), Family),
-    #configuration{listen = Listen, public_key = PublicKey, peers = Peers,
+    #configuration{dir = ConfigDir, listen = Listen, public_key = PublicKey, peers = Peers,
                    keys = keys(ConfigDir, maps:get(<<"keys">>, Fields, {object, []}), Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none))}.
 

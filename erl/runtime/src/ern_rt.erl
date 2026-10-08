@@ -814,13 +814,15 @@ died(Pid, Site, ExitReason) ->
 %% its receiver. The reaper is the process making the check, so its own
 %% mailbox is what is read of it. §8.6 leaves a foreign process that can
 %% deliver to the runtime. Report §11.2: nothing is a deadlock while a
-%% shell holds the terminal.
-%% What the look finds: `delivering`, where something can still deliver or
-%% a shell holds the terminal, so that no deadlock can begin before that
-%% ends; `running`, where nothing can and a process is not waiting, or
+%% shell holds the terminal; and report §8.6, nothing on a node, which can
+%% be reached from outside.
+%% What the look finds: `delivering`, where something can still deliver, a
+%% shell holds the terminal, or the program is a node, so that no deadlock
+%% can begin before that ends; `running`, where nothing can and a process is not waiting, or
 %% none is left; `deadlock`, where nothing can and every process waits.
 look() ->
-    case terminal_holder() =:= undefined andalso nothing_delivers() of
+    case terminal_holder() =:= undefined andalso not persistent_term:get({?MODULE, node}, false)
+         andalso nothing_delivers() of
         false ->
             delivering;
         true ->
@@ -1572,12 +1574,16 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% gone (§8.2); stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
 %% terminal's keys, for tests (fed/1); time => fun(() -> integer()), the
-%% clock the Clock process reads in place of the host's, for tests. Report
-%% §8.2: the standard streams carry bytes for the run, whatever the host's
-%% locale.
+%% clock the Clock process reads in place of the host's, for tests; node =>
+%% fun(() -> ok), run in the entry process after `init`, which starts a
+%% node's carrier once the bindings have their values, a node detecting no
+%% deadlock (report §8.6, §8.7). Report §8.2: the standard streams carry
+%% bytes for the run, whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
+    %% report §8.6: a node can be reached from outside, and detects no deadlock
+    persistent_term:put({?MODULE, node}, is_map_key(node, Options)),
     Launch = launched(Options),
     Reaper = erlang:spawn(fun() -> reaper_loop(#reaper{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
@@ -1664,11 +1670,15 @@ started_system(Options) ->
 entry_outcome(EntryPoint, Site, Options, Launch) ->
     Stdlib = stdlib_modules(),
     Init = maps:get(init, Options, fun() -> ok end),
+    Node = maps:get(node, Options, fun() -> ok end),
     Entry = fun() ->
                 %% report §8.6: the reaper asks whether it has died
                 ets:insert(?LAUNCH, {entry_process, erlang:self()}),
                 run_inits(Stdlib),
                 Init(),
+                %% report §8.7: a node listens once its bindings have
+                %% their values
+                Node(),
                 initializing(Site),
                 EntryPoint()
             end,

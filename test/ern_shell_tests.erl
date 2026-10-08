@@ -256,7 +256,7 @@ startup() ->
     ok = filelib:ensure_path(filename:join(Home, ".ernest")),
     %% report §8.3, §11.2: `--config-dir` makes the shell a node, so it
     %% names a configuration directory `ern config` made
-    _ = ern_node:create(filename:join(Node, ".ernest")),
+    node_dir(filename:join(Node, ".ernest")),
     ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
                          "let greeting = \"from the user file\"\nlet shared = 1\n"),
     %% the node's file binds the same name, holds a line that does not
@@ -292,7 +292,7 @@ startup_failures_named_test_() ->
 
 startup_failures_named() ->
     ConfigDir = filename:join(fresh_home(), ".ernest"),
-    _ = ern_node:create(ConfigDir),
+    node_dir(ConfigDir),
     Startup = filename:join(ConfigDir, "startup"),
     ok = file:write_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n:type  1 + \"a\"\n"
                          ":load Nope\n"),
@@ -531,7 +531,7 @@ line_mode_continues() ->
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, "fn f(x : Int) : Int =\n    x + 1\nf(2)\n1 +\n\ny\n1 +\n"),
     ConfigDir = filename:join(Dir, "conf"),
-    _ = ern_node:create(ConfigDir),
+    node_dir(ConfigDir),
     ok = file:write_file(filename:join(ConfigDir, "startup"),
                          "fn g(x : Int) : Int =\n    x * 2\n\nlet y =\n    g(4)\n2 *\n"),
     {0, Output} = ern_pty:sh(
@@ -632,7 +632,7 @@ startup_of_the_working_directory() ->
     %% started in `$HOME`, and with `$HOME/.ernest` named, the person's file
     %% runs once: its failing line is reported once
     Home = fresh_home(),
-    _ = ern_node:create(filename:join(Home, ".ernest")),
+    node_dir(filename:join(Home, ".ernest")),
     ok = file:write_file(filename:join([Home, ".ernest", "startup"]), "1 +\n"),
     Empty = filename:join(Home, "session.in"),
     ok = file:write_file(Empty, ""),
@@ -3482,3 +3482,11 @@ raw(Command, Steps, Seconds, Extra) ->
     ?assertEqual(0, Status),
     Data.
 
+%% Report §8.3, §11.2: a configuration directory `ern config` made, for a
+%% shell that is a node; it does not listen, so that the shells the tests
+%% start side by side take no port each other wants.
+node_dir(Dir) ->
+    _ = ern_node:create(Dir),
+    File = filename:join(Dir, "ernest.conf"),
+    {ok, Text} = file:read_file(File),
+    ok = file:write_file(File, json:encode(maps:remove(<<"listen">>, json:decode(Text)))).
