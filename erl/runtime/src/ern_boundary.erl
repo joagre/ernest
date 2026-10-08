@@ -82,20 +82,12 @@ check(Descriptor, Value, Cause) ->
         false -> ern_rt:fault(Cause)
     end.
 
-%% The value, or the fault Cause (report §7.4). A descriptor that is a word
-%% describes a value with no function in it and nothing to make zero but a
-%% float itself, so it is checked alone.
+%% The value as the program holds it, or the fault Cause (report §7.4).
 -spec value(descriptor(), term(), binary()) -> term().
-value(Descriptor, Value, Cause) when is_atom(Descriptor) ->
-    case matches(Descriptor, Value, #{}) of
-        true when Descriptor =:= float -> Value + 0.0;
-        true -> Value;
-        false -> ern_rt:fault(Cause)
-    end;
 value(Descriptor, Value, Cause) ->
-    case matches(Descriptor, Value, #{}) of
-        true -> armed(Descriptor, zeroed(Descriptor, Value), #{});
-        false -> ern_rt:fault(Cause)
+    case conformed(Descriptor, Value, #{}) of
+        {ok, Checked} -> Checked;
+        error -> ern_rt:fault(Cause)
     end.
 
 %% Report §8.4: an argument foreign code calls a function of the program's
@@ -104,9 +96,26 @@ value(Descriptor, Value, Cause) ->
 %% Cause.
 -spec argument(descriptor(), term(), binary(), map()) -> term().
 argument(Descriptor, Value, Cause, Bound) ->
+    case conformed(Descriptor, Value, Bound) of
+        {ok, Checked} -> Checked;
+        error -> ern_rt:fault(Cause)
+    end.
+
+%% Report §3.1, §7.4, §8.4: Value as the program holds it, armed, where it is
+%% one Descriptor describes inside the mu bindings Bound. A float matches
+%% only where it is no negative zero, which the language has not, so a value
+%% that holds one fails the first match; it is made again with 0.0 for each
+%% and matched again. Only such a value, and one that faults, is walked
+%% more than once.
+conformed(Descriptor, Value, Bound) ->
     case matches(Descriptor, Value, Bound) of
-        true -> armed(Descriptor, zeroed(Descriptor, Value, Bound), Bound);
-        false -> ern_rt:fault(Cause)
+        true -> {ok, armed(Descriptor, Value, Bound)};
+        false ->
+            Zeroed = zero(Descriptor, Value, Bound),
+            case matches(Descriptor, Zeroed, Bound) of
+                true -> {ok, armed(Descriptor, Zeroed, Bound)};
+                false -> error
+            end
     end.
 
 %% Report §7.4, §8.4: a checked value from foreign code as the program
@@ -164,81 +173,53 @@ closed(Part, Bound) when is_tuple(Part) ->
 closed(Parts, Bound) when is_list(Parts) -> [closed(Inner, Bound) || Inner <- Parts];
 closed(Other, _) -> Other.
 
-%% Report §3.1: a float entering from foreign code, the runtime's negative
-%% zero among them, is the language's; X + 0.0 is 0.0 for either zero and
-%% X otherwise. The value is already checked against the descriptor, and is
-%% rebuilt only where it holds a negative zero, which few values do.
-zeroed(Descriptor, Value) -> zeroed(Descriptor, Value, #{}).
-
-zeroed(Descriptor, Value, Bound) ->
-    case has_float([Descriptor | maps:values(Bound)])
-        andalso holds_negative_zero(Descriptor, Value, Bound) of
-        true -> zero(Descriptor, Value, Bound);
-        false -> Value
-    end.
-
-has_float(float) -> true;
-has_float(Part) when is_tuple(Part) -> lists:any(fun has_float/1, tuple_to_list(Part));
-has_float(Parts) when is_list(Parts) -> lists:any(fun has_float/1, Parts);
-has_float(_) -> false.
-
-holds_negative_zero(float, Value, _) -> Value =:= -0.0;
-holds_negative_zero({list, ElementDescriptor}, Value, Bound) ->
-    lists:any(fun(Item) -> holds_negative_zero(ElementDescriptor, Item, Bound) end, Value);
-holds_negative_zero({tuple, ElementDescriptors}, Value, Bound) ->
-    any_holds_negative_zero(ElementDescriptors, tuple_to_list(Value), Bound);
-holds_negative_zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) ->
-    maps:fold(fun(Key, Item, Acc) ->
-                  Acc orelse holds_negative_zero(KeyDescriptor, Key, Bound)
-                      orelse holds_negative_zero(ValueDescriptor, Item, Bound)
-              end, false, Value);
-holds_negative_zero({set, ElementDescriptor}, {set, Members}, Bound) ->
-    maps:fold(fun(Item, _, Acc) -> Acc orelse holds_negative_zero(ElementDescriptor, Item, Bound)
-              end, false, Members);
-holds_negative_zero({con, Constructors}, Value, Bound) when is_tuple(Value) ->
-    [Tag | Fields] = tuple_to_list(Value),
-    any_holds_negative_zero(constructor_fields(Tag, Constructors), Fields, Bound);
-holds_negative_zero({abstract, Descriptor}, Value, Bound) ->
-    holds_negative_zero(Descriptor, Value, Bound);
-holds_negative_zero({mu, Id, Descriptor}, Value, Bound) ->
-    holds_negative_zero(Descriptor, Value, Bound#{Id => Descriptor});
-holds_negative_zero({ref, Id}, Value, Bound) ->
-    holds_negative_zero(maps:get(Id, Bound), Value, Bound);
-holds_negative_zero(_, _, _) -> false.
-
-any_holds_negative_zero([Descriptor | Descriptors], [Value | Values], Bound) ->
-    holds_negative_zero(Descriptor, Value, Bound)
-        orelse any_holds_negative_zero(Descriptors, Values, Bound);
-any_holds_negative_zero([], [], _) -> false.
-
-zero(float, Value, _) -> Value + 0.0;
-zero({list, ElementDescriptor}, Value, Bound) ->
-    [zero(ElementDescriptor, Item, Bound) || Item <- Value];
-zero({tuple, ElementDescriptors}, Value, Bound) ->
-    list_to_tuple([zero(ElementDescriptor, Item, Bound)
-                   || {ElementDescriptor, Item}
-                          <- lists:zip(ElementDescriptors, tuple_to_list(Value))]);
-zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) ->
+%% Report §3.1: Value with each negative zero where Descriptor has a float
+%% made the language's 0.0, X + 0.0 being 0.0 for either zero and X
+%% otherwise. A part of another shape than its descriptor's is left as it
+%% is, for the match that follows to refuse.
+zero(float, Value, _) when is_float(Value) -> Value + 0.0;
+zero({list, ElementDescriptor}, Value, Bound) when is_list(Value) ->
+    zero_elements(ElementDescriptor, Value, Bound);
+zero({tuple, ElementDescriptors}, Value, Bound)
+  when is_tuple(Value), tuple_size(Value) =:= length(ElementDescriptors) ->
+    list_to_tuple(zero_fields(ElementDescriptors, tuple_to_list(Value), Bound));
+zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) when is_map(Value) ->
     maps:from_list([{zero(KeyDescriptor, Key, Bound), zero(ValueDescriptor, Item, Bound)}
                     || {Key, Item} <- maps:to_list(Value)]);
-zero({set, ElementDescriptor}, {set, Members}, Bound) ->
+zero({set, ElementDescriptor}, {set, Members}, Bound) when is_map(Members) ->
     {set, maps:from_list([{zero(ElementDescriptor, Item, Bound), []}
                           || Item <- maps:keys(Members)])};
-zero({con, Constructors}, Value, Bound) when is_tuple(Value) ->
+zero({con, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
     [Tag | Fields] = tuple_to_list(Value),
-    Descriptors = constructor_fields(Tag, Constructors),
-    list_to_tuple([Tag | [zero(FieldDescriptor, Item, Bound)
-                          || {FieldDescriptor, Item} <- lists:zip(Descriptors, Fields)]]);
+    case constructor_fields(Tag, Constructors) of
+        Descriptors when is_list(Descriptors), length(Descriptors) =:= length(Fields) ->
+            list_to_tuple([Tag | zero_fields(Descriptors, Fields, Bound)]);
+        _ ->
+            Value
+    end;
 zero({abstract, Descriptor}, Value, Bound) -> zero(Descriptor, Value, Bound);
 zero({mu, Id, Descriptor}, Value, Bound) -> zero(Descriptor, Value, Bound#{Id => Descriptor});
 zero({ref, Id}, Value, Bound) -> zero(maps:get(Id, Bound), Value, Bound);
 zero(_, Value, _) -> Value.
 
+%% A list's elements zeroed, an improper tail left as it is.
+zero_elements(ElementDescriptor, [Item | Items], Bound) ->
+    [zero(ElementDescriptor, Item, Bound) | zero_elements(ElementDescriptor, Items, Bound)];
+zero_elements(_, Tail, _) ->
+    Tail.
+
+zero_fields([Descriptor | Descriptors], [Value | Values], Bound) ->
+    [zero(Descriptor, Value, Bound) | zero_fields(Descriptors, Values, Bound)];
+zero_fields([], [], _) ->
+    [].
+
 %% Whether Value is one Descriptor describes, inside the mu bindings Bound.
 matches(any, _, _) -> true;
 matches(foreign, _, _) -> true;
 matches(int, Value, _) -> is_integer(Value);
-matches(float, Value, _) -> is_float(Value);
+%% a negative zero is no float of the language's (report §3.1), which
+%% conformed/3 makes 0.0
+matches(float, Value, _) -> is_float(Value) andalso Value =/= -0.0;
 matches(bool, Value, _) -> is_boolean(Value);
 matches(char, Value, _) ->
     is_integer(Value) andalso Value >= 0 andalso Value =< 16#10FFFF
@@ -385,14 +366,14 @@ proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
             ern_rt:proxy_forget(Key, erlang:self()),
             ok;
         Message ->
-            case matches(Descriptor, Message, Bound) of
-                true ->
-                    Zeroed = zeroed(Descriptor, Message, Bound),
-                    ern_rt:send(Behind, armed(Descriptor, Zeroed, Bound));
+            case conformed(Descriptor, Message, Bound) of
+                {ok, Checked} ->
+                    ern_rt:send(Behind, Checked);
                 %% report §8.4: the fault takes the message's place, and
                 %% the receiver faults at the wait that reaches it, as at a
                 %% fault of its own, which `restarting` restarts (§6.9)
-                false -> ern_rt:process_of(Behind) ! {'$ern_fault', Cause}
+                error ->
+                    ern_rt:process_of(Behind) ! {'$ern_fault', Cause}
             end,
             proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
     end.

@@ -1154,22 +1154,34 @@ no_negative_zero_test() ->
     ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\n#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\n"
                    "Some(0.0)\n0.0\n\"guard\"\n0.0\n">>, Output).
 
-%% report §3.1, §8.4: a negative zero inside a value foreign code returns
-%% is 0.0, as a float returned alone is. A regression test, written after
-%% the code: the check rebuilt every value whose type holds a float, a
-%% negative zero in it or not, which cost more than the host's work it
-%% checked; it does not show that a value holding none is not rebuilt
+%% report §3.1, §8.4: a negative zero inside a value foreign code returns,
+%% or inside a message it sends, is 0.0, as a float returned alone is. A
+%% regression test, written after the code: the check rebuilt every value
+%% whose type holds a float, a negative zero in it or not, which cost more
+%% than the host's work it checked; now a float matches only where it is
+%% no negative zero, and a value that fails so is made again. It does not
+%% show that a value holding none is walked once
 foreign_negative_zero_test() ->
     {ok, Output} = run(
         "foreign fn decoded(bytes : Bytes) : List(#(String, Float)) =\n"
         "    \"erlang:binary_to_term/1\"\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = Io.debug(decoded(<<131, 108, 0, 0, 0, 2, 104, 2, 109, 0, 0, 0, 1, 97, 70,"
+        "foreign fn term(bytes : Bytes) : Foreign.Term = \"erlang:binary_to_term/1\"\n"
+        "foreign fn send(to : Address(List(Float)), message : Foreign.Term) : Foreign.Term =\n"
+        "    \"erlang:send/2\"\n"
+        "export fn main() : Unit with List(Float) = {\n"
+        "    let pairs = decoded(<<131, 108, 0, 0, 0, 2, 104, 2, 109, 0, 0, 0, 1, 97, 70,"
         " 128, 0, 0, 0, 0, 0, 0, 0, 104, 2, 109, 0, 0, 0, 1, 98, 70, 63, 248, 0, 0, 0, 0, 0,"
-        " 0, 106>>));\n"
-        "    Unit\n"
+        " 0, 106>>);\n"
+        "    let _ = Io.debug(pairs == [#(\"a\", 0.0), #(\"b\", 1.5)]);\n"
+        "    let _ = send(self(), term(<<131, 108, 0, 0, 0, 2, 70, 128, 0, 0, 0, 0, 0, 0, 0, 70,"
+        " 63, 248, 0, 0, 0, 0, 0, 0, 106>>));\n"
+        "    receive {\n"
+        "        floats -> { let _ = Io.debug(floats == [0.0, 1.5]); Unit }\n"
+        "    }\n"
         "}\n"),
-    ?assertEqual(<<"[#(\"a\", 0.0), #(\"b\", 1.5)]\n">>, Output).
+    %% `==` is exact, and tells the host's two zeros apart, where `Io.debug`
+    %% writes both 0.0
+    ?assertEqual(<<"true\ntrue\n">>, Output).
 
 %% report §5.1: a callee is evaluated before its arguments; in `x |> e`,
 %% x is evaluated before e, a callee a call computes among it

@@ -330,11 +330,9 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     *The Module Json*); measuring it found the boundary rebuilding every value whose type holds
     a float, now rebuilt only where it holds a negative zero (*The Boundary Rebuilt Every
     Float*), and a test that failed leaving its nodes running, which `make test` now stops
-    (*Nodes a Failed Test Left Running*). Decision with the user, here: the boundary's check
-    still walks a returned value twice, its match and its search for a negative zero, 1.4 times
-    the host's decode it checks; one walk, a float matched only where it is no negative zero
-    and the value rebuilt and matched again where that fails, is about 0.75 times. The test
-    of two nodes follows. The guide moves first, decided
+    (*Nodes a Failed Test Left Running*); and, decided with the user, the check walks a value
+    once, a float matching only where it is no negative zero and a value that fails so made
+    again, 0.8 times the host's decode it checks. The test of two nodes follows. The guide moves first, decided
     with the user on 2026-10-08 (the log's *The Guide in Two Files*): `ernest_guide.md` becomes
     `guide/language.md`, its section numbers kept, with every document, test and script that
     names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold

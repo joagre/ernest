@@ -120,9 +120,11 @@ let duplicateName =
 let numbers =
     Test.Case(name = "an integer of any size, and a real nearer zero than a Float is 0.0",
               run = fn() =
-                  Test.equal(Io.show(parse("[123456789012345678901234567890, -0, -0.0, 1e-400]")),
-                             "Right(Array([Integer(123456789012345678901234567890), Integer(0), "
-                                 <> "Real(0.0), Real(0.0)]))"))
+                  Test.equal(parse("[123456789012345678901234567890, -0, -0.0, 1e-400]"),
+                             Right(Array([Integer(123456789012345678901234567890),
+                                          Integer(0),
+                                          Real(0.0),
+                                          Real(0.0)]))))
 
 let tooLarge =
     Test.Case(name = "a real larger than a Float can hold is not read",
