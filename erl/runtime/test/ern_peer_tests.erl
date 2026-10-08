@@ -81,20 +81,15 @@ foreign_offer_test() ->
                Foreign = spawn(fun() -> receive stop -> ok end end),
                ern_peer:offer({'Key', <<"foreign">>, <<"Int">>}, Foreign),
                Self ! {offered, ern_rt:offered(<<"foreign">>, <<"Int">>)},
-               Foreign ! stop,
-               Self ! {ended, withdrawn(<<"foreign">>, 1000)}
+               %% the reaper takes the offer away as it learns of the end
+               Reaper = persistent_term:get({ern_rt, reaper}),
+               ok = ern_waits:returned(Reaper, {ern_rt, unoffered, [Foreign]},
+                                       fun() -> Foreign ! stop end),
+               Self ! {ended, ern_rt:offered(<<"foreign">>, <<"Int">>)}
            end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),
     ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
-
-%% What the node offers under the name once the reaper has taken its
-%% process's end, asked until it offers nothing or the tries run out.
-withdrawn(Name, Tries) ->
-    case ern_rt:offered(Name, <<"Int">>) of
-        {found, _} when Tries > 0 -> timer:sleep(1), withdrawn(Name, Tries - 1);
-        Answer -> Answer
-    end.
 
 %% report §8.7, §6.9: a restart on a node asks its gateway, as it asks the
 %% reaper, before it reads the calls waiting on the process, so that it

@@ -110,13 +110,20 @@ process_info_test() ->
                Calling = fun() -> ern_rt:call_forever(Server, fun(Reply) -> Reply end) end,
                Caller = ern_rt:spawn(Calling, <<"M.caller:3">>),
                ern_rt:send(Quiet, first),
-               nap(),
+               %% the snapshot reads each blocked in its wait, which this
+               %% one counts as timed so that it is no deadlock (§8.6)
+               ern_rt:timed(),
+               ok = ern_waits:waiting(ern_rt:process_of(Quiet)),
+               ok = ern_waits:waiting(ern_rt:process_of(Caller)),
+               ern_rt:untimed(),
                Self ! {infos,
                        [ern_rt:info(ern_rt:process_of(Address)) || Address <- [Quiet, Caller]]},
                Self ! {live, lists:sort(ern_rt:processes())
                                  =:= lists:sort([self(), Quiet, Server, Caller])},
+               QuietRef = erlang:monitor(process, ern_rt:process_of(Quiet)),
                ern_rt:kill(Quiet),
-               nap(),
+               ern_rt:timed(),
+               receive {'DOWN', QuietRef, process, _, _} -> ern_rt:untimed() end,
                Self ! {gone, ern_rt:info(Quiet)},
                ern_rt:kill(Caller),
                ern_rt:kill(Server)
@@ -139,19 +146,40 @@ end_takes_late_spawns() ->
                   _ = ern_rt:spawn(fun() -> receive never -> ok end end, <<"w">>),
                   Spawn()
               end,
+    %% main returns once every spawner has begun, so that they spawn on as
+    %% the program ends
     RunProgram = fun() ->
                      ok = ern_rt:run_main(fun() ->
-                                              [ern_rt:spawn(Spawner, <<"s">>)
+                                              Main = erlang:self(),
+                                              [ern_rt:spawn(fun() ->
+                                                                Main ! spawning,
+                                                                Spawner()
+                                                            end, <<"s">>)
                                                || _ <- lists:seq(1, 8)],
-                                              nap(20)
+                                              [receive spawning -> ok end
+                                               || _ <- lists:seq(1, 8)]
                                           end, <<"main">>, Quiet)
                  end,
+    %% the first run starts what the host starts once
     RunProgram(),
-    timer:sleep(100),
-    Before = length(erlang:processes()),
+    %% the next runs' processes are told apart by a group leader of their
+    %% own, which every process the runtime starts inherits, and each must
+    %% end; the leader passes on what it is asked to the test's own
+    Previous = group_leader(),
+    Leader = spawn(fun Pass() -> receive Request -> Previous ! Request, Pass() end end),
+    group_leader(Leader, self()),
     [RunProgram() || _ <- lists:seq(1, 5)],
-    timer:sleep(100),
-    ?assertEqual(Before, length(erlang:processes())).
+    group_leader(Previous, self()),
+    Started = [Pid || Pid <- erlang:processes(), Pid =/= Leader,
+                      erlang:process_info(Pid, group_leader) =:= {group_leader, Leader}],
+    Alive = lists:filter(fun(Pid) ->
+                             MonitorRef = erlang:monitor(process, Pid),
+                             receive {'DOWN', MonitorRef, process, Pid, _} -> false
+                             after 5000 -> true
+                             end
+                         end, Started),
+    exit(Leader, kill),
+    ?assertEqual([], Alive).
 
 %% report Appendix E.21, §11.2: every fault reaches each subscriber as a
 %% FaultReport, a restart among them, and the runtime's reporter as it
@@ -165,7 +193,10 @@ fault_reports_test() ->
                ern_rt:faults(ern_rt:via(ern_rt:self(), fun(Report) -> {report, Report} end)),
                Limit = {'RestartLimit', 1, 60000},
                Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
-               _ = ern_rt:spawn(Twice, <<"M.twice:4">>),
+               %% monitored from its start: the reaper starts a fault's
+               %% deliveries before the Down of the process that ended
+               _ = ern_rt:spawn_monitored(Twice, fun(Down) -> {twice, Down} end,
+                                          <<"M.twice:4">>),
                Killed = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.k:5">>),
                ern_rt:kill(Killed),
                Reports = [receive {report, First} -> First end,
@@ -173,7 +204,12 @@ fault_reports_test() ->
                Self ! {reports, lists:sort([{Site, Cause, Restarted}
                                             || {'FaultReport', _, Site, Cause, Restarted, <<>>}
                                                    <- Reports])},
-               nap(100),
+               %% every report started is delivered, so one to the first
+               %% subscription would be in the mailbox
+               ern_rt:timed(),
+               receive {twice, _} -> ok end,
+               ern_waits:delivered(erlang:self()),
+               ern_rt:untimed(),
                Self ! {first, receive {first, _} -> true after 0 -> false end}
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
     ?assertEqual([{<<"M.twice:4">>, <<"division by zero">>, false},
@@ -234,23 +270,28 @@ dead_system_process_test() ->
 
 %% report §8.6: an idle program that waits on something pending is answered
 %% by the deadlock check from the counts of pending work, not by reading
-%% every process. Written after the code, to hold its cost: the order that
-%% read every process twice before anything cheaper, ten times a second,
-%% fails it.
+%% every process. Written after the code, to hold its cost: the reaper's
+%% work at each look, between two looks it is traced making, is held below
+%% what reading every process once costs here, which the order that read
+%% every process twice before anything cheaper exceeds.
 idle_check_is_cheap_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           [ern_rt:spawn(fun() -> receive never -> ok end end, <<"w">>)
-                            || _ <- lists:seq(1, 2000)],
+                           Pids = [ern_rt:process_of(
+                                     ern_rt:spawn(fun() -> receive never -> ok end end, <<"w">>))
+                                   || _ <- lists:seq(1, 2000)],
+                           {reductions, Unread} = erlang:process_info(erlang:self(), reductions),
+                           _ = [erlang:process_info(Pid, [status, reductions]) || Pid <- Pids],
+                           {reductions, Read} = erlang:process_info(erlang:self(), reductions),
                            ern_rt:source_begin(),
                            Reaper = persistent_term:get({ern_rt, reaper}),
-                           ern_rt:in_foreign(fun() -> timer:sleep(300) end),
+                           ern_rt:in_foreign(fun() -> ern_waits:looked(1) end),
                            {reductions, Before} = erlang:process_info(Reaper, reductions),
-                           ern_rt:in_foreign(fun() -> timer:sleep(1000) end),
+                           ern_rt:in_foreign(fun() -> ern_waits:looked(2) end),
                            {reductions, After} = erlang:process_info(Reaper, reductions),
                            ern_rt:source_end(),
-                           ?assert(After - Before < 10000)
+                           ?assert((After - Before) div 2 < Read - Unread)
                        end, <<"main">>, Quiet)).
 
 %% report §8.5, §8.6: an initializer of the standard library that faults
@@ -326,16 +367,22 @@ call_timeout_test() ->
 %% after the delivery, and the call waited its whole time again
 call_clock_starts_at_the_call_test() ->
     Self = self(),
+    Time = 100,
     ok = ern_rt:run_main(
            fun() ->
+               Caller = erlang:self(),
+               %% the callee answers once the caller waits, or has gone on
                Callee = ern_rt:spawn(fun() ->
                                          receive
-                                             {ask, Reply} -> nap(50), ern_rt:answer(Reply, done)
+                                             {ask, Reply} ->
+                                                 _ = ern_waits:waiting(Caller),
+                                                 ern_rt:answer(Reply, done)
                                          end
                                      end, <<"callee">>),
-               %% the adapting function runs in the caller, and takes 200 ms
-               Slow = ern_rt:via(Callee, fun(Message) -> nap(200), Message end),
-               Self ! {result, ern_rt:call(Slow, fun(Reply) -> {ask, Reply} end, 100)}
+               %% the adapting function runs in the caller, within the call,
+               %% and takes the call's whole time, the deadline the call states
+               Slow = ern_rt:via(Callee, fun(Message) -> timed_wait(Time), Message end),
+               Self ! {result, ern_rt:call(Slow, fun(Reply) -> {ask, Reply} end, Time)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     receive {result, Answer} -> ?assertEqual('None', Answer) after 2000 -> ?assert(false) end.
 
@@ -346,6 +393,7 @@ call_clock_starts_at_the_call_test() ->
 %% a regression test of what §6.6 came to state
 call_time_bounds_the_wait_alone_test() ->
     Self = self(),
+    Time = 500,
     ok = ern_rt:run_main(
            fun() ->
                Callee = ern_rt:spawn(fun() ->
@@ -353,12 +401,14 @@ call_time_bounds_the_wait_alone_test() ->
                                          receive after infinity -> ok end
                                      end, <<"callee">>),
                Caller = self(),
+               %% the making takes the call's whole time, from within the
+               %% call, whose clock has started
                Answer = ern_rt:call(Callee, fun(Reply) ->
-                                                nap(600),
+                                                timed_wait(Time),
                                                 Self ! {made, self() =:= Caller,
                                                         erlang:monotonic_time(millisecond)},
                                                 {ask, Reply}
-                                            end, 500),
+                                            end, Time),
                Self ! {result, Answer, erlang:monotonic_time(millisecond)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Made = receive
@@ -369,8 +419,8 @@ call_time_bounds_the_wait_alone_test() ->
     receive
         {result, Answer, Returned} ->
             ?assertEqual('None', Answer),
-            %% no second wait of the call's 500 ms after the making's 600
-            ?assert(Returned - Made < 400)
+            %% no second wait of the call's time after the making
+            ?assert(Returned - Made < Time)
     after 5000 -> ?assert(false)
     end.
 
@@ -404,8 +454,8 @@ deadlock_after_a_wait() ->
 %% report §8.6: every live process blocked in an untimed receive, with no
 %% timed receive, clock alarm, or foreign call pending, is a deadlock, the
 %% entry process's fault `deadlock` (§7.4); each
-%% of those is a source that can still deliver, and the program then ends
-%% by itself
+%% of those is a source that can still deliver, so the detector, looking
+%% while one is pending, finds no deadlock
 deadlock_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
     ?assertEqual({fault, <<"deadlock">>},
@@ -416,19 +466,20 @@ deadlock_test() ->
                                                       <<"s">>),
                                      receive y -> ok end
                                  end, <<"main">>, Quiet)),
+    %% each pending while the detector looks, the program waiting for the
+    %% look in a receive the detector does not count
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          ern_rt:timed(),
-                                         receive never -> ern_rt:untimed(), ok
-                                         after 250 -> ern_rt:untimed(), ok
-                                         end
+                                         ern_waits:looked(1),
+                                         ern_rt:untimed()
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          Clock = ern_rt:system_process(clock),
-                                         alarm(Clock, 250, ern_rt:self()),
-                                         receive Time when is_integer(Time) -> ok end
+                                         alarm(Clock, 10000000000000, ern_rt:self()),
+                                         ern_waits:looked(1)
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
-                                         ern_rt:in_foreign(fun() -> receive after 250 -> ok end end)
+                                         ern_rt:in_foreign(fun() -> ern_waits:looked(1) end)
                                      end, <<"main">>, Quiet)).
 
 %% report §8.6: a process waiting for the host to load a module is not
@@ -437,8 +488,8 @@ deadlock_test() ->
 %% program whose main loaded a module of the runtime at its first call, as
 %% Io.debug loads ern_show after a timed call, ended with a false deadlock
 %% whenever the detector looked during the load. Here the code server is
-%% held for 400 ms, longer than the detector's 100 ms, so the test failed
-%% every time before the fix. It covers a load made by a call, the only
+%% held until the detector has looked twice, so the test failed every time
+%% before the fix. It covers a load made by a call, the only
 %% way an Ernest process loads, and not code:ensure_loaded called directly
 loading_is_not_deadlock_test() ->
     Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "loading"),
@@ -455,7 +506,8 @@ loading_is_not_deadlock_test() ->
                        receive {hold, From} -> ok end,
                        erlang:suspend_process(CodeServer),
                        From ! held,
-                       receive after 400 -> erlang:resume_process(CodeServer) end
+                       ern_waits:looked(2),
+                       erlang:resume_process(CodeServer)
                    end),
     Self = self(),
     EntryPoint = fun() ->
@@ -484,10 +536,11 @@ call_long_time_test() ->
     Self = self(),
     Result = ern_rt:run_main(
                fun() ->
+                   Caller = erlang:self(),
+                   %% answered once the caller waits, with the long time
                    Server = ern_rt:spawn(fun() ->
                                              receive {ask, Reply} -> ok end,
-                                             ern_rt:timed(),
-                                             receive after 50 -> ern_rt:untimed() end,
+                                             ok = ern_waits:waiting(Caller),
                                              ern_rt:answer(Reply, 7)
                                          end, <<"s">>),
                    Self ! {result, ern_rt:call(Server, fun(Reply) -> {ask, Reply} end, 5000000000)}
@@ -507,7 +560,7 @@ clock_long_time_test() ->
                        fun() ->
                            Clock = ern_rt:system_process(clock),
                            alarm(Clock, 10000000000000, ern_rt:self()),
-                           alarm(Clock, 10, ern_rt:self()),
+                           alarm(Clock, 0, ern_rt:self()),
                            receive Time when is_integer(Time) -> ok end,
                            Self ! {alive, erlang:is_process_alive(Clock)}
                        end, <<"main">>, Quiet)),
@@ -532,14 +585,14 @@ spawned_row_test() ->
 
 %% report §11.2: while a shell holds the terminal no deadlock is detected;
 %% here a message the runtime cannot see coming arrives after the detector
-%% has looked several times. A regression test: in line mode nothing else
+%% has looked three times. A regression test: in line mode nothing else
 %% kept the detector away
 shell_holds_no_deadlock_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            ern_rt:hold_terminal(ern_rt:self()),
                            Self = ern_rt:self(),
-                           erlang:spawn(fun() -> timer:sleep(500), Self ! late end),
+                           erlang:spawn(fun() -> ern_waits:looked(3), Self ! late end),
                            receive late -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
@@ -760,13 +813,17 @@ host_exit_reason_test() ->
     spawn(fun() ->
               ern_rt:run_main(
                 fun() ->
-                    Self ! {waiter, ern_rt:spawn(fun() -> receive never -> ok end end,
-                                                 <<"Main.main:9">>)},
-                    receive after 200 -> ok end
+                    Waiter = ern_rt:spawn(fun() -> receive never -> ok end end,
+                                          <<"Main.main:9">>),
+                    Self ! {waiter, {Waiter, erlang:self()}},
+                    %% the program ends once the test monitors the process
+                    ern_rt:timed(),
+                    receive monitored -> ern_rt:untimed() end
                 end, <<"main">>, #{stdout => fun(_) -> ok end})
           end),
-    Waiter = wait(waiter),
+    {Waiter, EntryProcess} = wait(waiter),
     MonitorRef = erlang:monitor(process, Waiter),
+    EntryProcess ! monitored,
     receive
         {'DOWN', MonitorRef, process, Waiter, ExitReason} ->
             ?assertEqual({ern, program_end}, ExitReason)
@@ -790,8 +847,8 @@ host_ended_process_test() ->
 %% report §8.6: a subscription and a read in progress are sources that can
 %% still deliver, so a program waiting on one is not deadlocked
 sources_test() ->
-    %% a key that arrives long after the detector has looked several times
-    Key = fun() -> timer:sleep(500), "x" end,
+    %% a key that arrives after the detector has looked twice
+    Key = fun() -> ern_waits:looked(2), "x" end,
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            %% report §8.2: the subscription is answered once the mode is set
@@ -799,7 +856,7 @@ sources_test() ->
                            receive _ -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Key})),
     %% a line that takes as long to arrive
-    Slow = fun() -> timer:sleep(500), "hello\n" end,
+    Slow = fun() -> ern_waits:looked(2), "hello\n" end,
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Stdin = ern_rt:system_process(stdin),
@@ -810,48 +867,47 @@ sources_test() ->
 
 %% report §8.6, §6.5: a message an alarm delivers through `via` is in
 %% flight until its delivery process ends, `via` making no process of its
-%% own, so the program that waits for it is not deadlocked
+%% own, so the program that waits for it is not deadlocked; here the
+%% adapting function, which the delivery runs, waits for the detector to
+%% look twice
 via_in_flight_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Clock = ern_rt:system_process(clock),
-                           alarm(Clock, 400, ern_rt:via(ern_rt:self(), fun(_) -> tick end)),
+                           Slow = fun(_) -> ern_waits:looked(2), tick end,
+                           alarm(Clock, 0, ern_rt:via(ern_rt:self(), Slow)),
                            receive tick -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
 %% report §6.5: an address seen through a function is the target and the
 %% function, not a process, so adapting costs nothing that accumulates. An
 %% alarm's delivery is a process of its own until it has delivered (§6.9),
-%% so the count is read once those have ended; it was read at once, and
-%% failed when one had delivered and not yet ended
+%% so the live processes are counted once those have ended; they were
+%% counted at once, and the count failed when one had delivered and not yet
+%% ended
 via_is_not_a_process_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Before = erlang:system_info(process_count),
+               Before = alive(),
                Clock = ern_rt:system_process(clock),
                Mine = ern_rt:self(),
                lists:foreach(fun(_) ->
-                                 alarm(Clock, 1, ern_rt:via(Mine, fun(_) -> tick end))
+                                 alarm(Clock, 0, ern_rt:via(Mine, fun(_) -> tick end))
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
-               Self ! {counts, Before, settled(Before, 100)}
+               ern_rt:timed(),
+               ern_waits:delivered(erlang:self()),
+               ern_rt:untimed(),
+               Self ! {counts, Before, alive()}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait_counts(),
     ?assertEqual(Before, After).
 
-%% The process count once it is Before again, or after Tries waits of 10
-%% ms, each counted as a timed wait so that it is no deadlock (§8.6).
-settled(Before, Tries) ->
-    case erlang:system_info(process_count) of
-        Before -> Before;
-        Count when Tries =:= 0 -> Count;
-        _ ->
-            ern_rt:timed(),
-            receive after 10 -> ok end,
-            ern_rt:untimed(),
-            settled(Before, Tries - 1)
-    end.
+%% The processes alive, not those that have ended and are being removed,
+%% which the host's count of processes still holds.
+alive() ->
+    length([Pid || Pid <- erlang:processes(), erlang:is_process_alive(Pid)]).
 
 %% report §8.4, §6.5: an address handed to a foreign function arrives as
 %% the checking proxy, and the proxy names the process behind it, so what
@@ -916,12 +972,13 @@ monitor_foreign_process_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               %% it outlives the monitors, which are asked for asynchronously
-               Other = erlang:spawn(fun() -> timer:sleep(300) end),
+               %% it ends once the monitors are made and counted
+               Other = erlang:spawn(fun() -> receive go -> ok end end),
                Before = erlang:system_info(process_count),
                lists:foreach(fun(_) -> ern_rt:monitor(Other, fun(Down) -> {down, Down} end) end,
                              lists:seq(1, 20)),
                Self ! {counts, Before, erlang:system_info(process_count)},
+               Other ! go,
                receive {down, Down} -> Self ! {d, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait_counts(),
@@ -974,10 +1031,11 @@ ask_restart_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
+               EntryProcess = erlang:self(),
                Plain = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.p:1">>),
                Once = ern_rt:restarting({'RestartLimit', 0, 5000},
                                         fun() ->
-                                            Self ! {started, ern_rt:start_cause()},
+                                            EntryProcess ! {started, ern_rt:start_cause()},
                                             %% the clause the emitter gives every receive
                                             receive
                                                 '$ern_restart' -> ern_rt:restart_now();
@@ -985,27 +1043,42 @@ ask_restart_test() ->
                                             end
                                         end),
                Child = ern_rt:spawn(Once, <<"M.c:2">>),
-               nap(),
-               Self ! {asked, [ern_rt:ask_restart(ern_rt:process_of(Plain)),
-                               ern_rt:ask_restart(ern_rt:process_of(Child)),
-                               ern_rt:ask_restart(ern_rt:process_of(Child))]},
-               nap(),
-               ern_rt:ask_restart(ern_rt:process_of(Child)),
-               nap(),
+               ChildPid = ern_rt:process_of(Child),
+               %% the host's monitor orders the child's messages before its
+               %% end; the runtime's gives its Down once its row has gone
+               HostRef = erlang:monitor(process, ChildPid),
+               ern_rt:monitor(Child, fun(Down) -> {down, Down} end),
+               First = started(),
+               Asked = [ern_rt:ask_restart(ern_rt:process_of(Plain)),
+                        ern_rt:ask_restart(ChildPid),
+                        ern_rt:ask_restart(ChildPid)],
+               Second = started(),
+               ern_rt:ask_restart(ChildPid),
+               Third = started(),
                Self ! {plain, ern_rt:info(ern_rt:process_of(Plain)) =/= 'None'},
                ern_rt:kill(Child),
-               nap(),
-               Self ! {ended, ern_rt:ask_restart(ern_rt:process_of(Child))},
+               ern_rt:timed(),
+               receive {down, _} -> ok end,
+               receive {'DOWN', HostRef, process, _, _} -> ern_rt:untimed() end,
+               Self ! {starts, [First, Second, Third],
+                       [More || {started, More} <- flush()]},
+               Self ! {asked, Asked},
+               Self ! {ended, ern_rt:ask_restart(ChildPid)},
                ern_rt:kill(Plain)
            end, <<"main">>, #{}),
-    Started = [receive {started, Start} -> Start after 1000 -> timeout end || _ <- [1, 2, 3]],
-    ?assertEqual(['First', 'Asked', 'Asked'], Started),
-    ?assertEqual(none, receive {started, More} -> More after 200 -> none end),
+    ?assertEqual({['First', 'Asked', 'Asked'], []},
+                 receive {starts, Starts, Later} -> {Starts, Later} after 1000 -> timeout end),
     ?assertEqual(true, receive {plain, IsPlainAlive} -> IsPlainAlive after 1000 -> timeout end),
     %% the answer says whether the process was asked, which the supervisor
     %% counts on (Appendix E.22)
     ?assertEqual([false, true, true], receive {asked, Asked} -> Asked after 1000 -> timeout end),
     ?assertEqual(false, receive {ended, Ended} -> Ended after 1000 -> timeout end).
+
+%% The cause of the child's next start, counted as a timed wait so that it
+%% is no deadlock (§8.6).
+started() ->
+    ern_rt:timed(),
+    receive {started, Cause} -> ern_rt:untimed(), Cause end.
 
 %% report §6.9: a restart asks the system processes that hold what the
 %% process asked for at once, and one that has died holds up no restart. A
@@ -1034,13 +1107,12 @@ restart_outlives_a_dead_system_process_test() ->
     ?assertEqual(['First', 'AfterFault'],
                  [receive {started, Start} -> Start after 2000 -> timeout end || _ <- [1, 2]]).
 
-%% A pause that the check for a deadlock counts as a timed wait (§8.6).
-nap() ->
-    nap(50).
-
-nap(Ms) ->
+%% Report §6.6, §8.6: a wait of a call's time, the deadline the report
+%% states, made within the call, whose clock has started, so that the time
+%% has passed when it ends; counted as timed so that it is no deadlock.
+timed_wait(Ms) ->
     ern_rt:timed(),
-    timer:sleep(Ms),
+    receive after Ms -> ok end,
     ern_rt:untimed().
 
 %% Report Appendix E.15: an alarm as `Clock.alarm` sets one, Alarm(ms,

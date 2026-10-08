@@ -21,8 +21,10 @@ helper_ends_under_a_write_and_a_read_test() ->
                Program ! {'Write', <<"x">>, 5000, WriteReply},
                ReadReply = alias(),
                Program ! {'Read', 5000, ReadReply},
+               PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
-               closed(Helper),
+               %% the port closes once the host has seen the helper end
+               receive {'DOWN', PortRef, port, Helper, _} -> ok end,
                erlang:resume_process(Program),
                Self ! {write, answer(WriteReply)},
                Self ! {read, answer(ReadReply)}
@@ -37,16 +39,17 @@ helper_ends_under_a_write_and_a_read_test() ->
 %% answered at once, ahead of one the program had not taken, which let its
 %% writer go
 helper_answers_input_in_order_test() ->
-    Helper = helper(["sleep", "2"]),
+    Helper = helper(["sh", "-c", "echo ready; exec tail -f /dev/null"]),
     receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
-    %% more than a pipe holds, which `sleep` never reads
+    %% more than a pipe holds, which the program never reads
     true = port_command(Helper, <<"i", (binary:copy(<<"x">>, 200000))/binary>>),
     true = port_command(Helper, <<"e">>),
     true = port_command(Helper, <<"i", "y">>),
-    ?assertEqual(none, receive
-                           {Helper, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d -> answered
-                       after 300 -> none
-                       end),
+    %% the helper takes its commands in order, and answers a request for
+    %% output the program has written once it takes it, so an answer to
+    %% the last input comes first if it comes at once
+    true = port_command(Helper, <<"n">>),
+    ?assertMatch(<<"o", _/binary>>, receive {Helper, {data, Frame}} -> Frame end),
     port_close(Helper).
 
 %% Appendix E.23: an input larger than a pipe holds reaches the program
@@ -79,12 +82,13 @@ output(Helper, Output) ->
 
 %% Appendix E.23: bytes given once the program has closed its input are
 %% dropped, and the helper says so with `d`, where it says `a` of bytes the
-%% program took. The program closes its input and is given time to, so
-%% that the bytes do not reach the pipe before it is closed
+%% program took. The program closes its input and says so, so that the
+%% bytes do not reach the pipe before it is closed
 helper_says_input_was_dropped_test() ->
-    Helper = helper(["sh", "-c", "exec 0<&-; sleep 2"]),
+    Helper = helper(["sh", "-c", "exec 0<&-; echo closed; exec tail -f /dev/null"]),
     receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
-    receive after 300 -> ok end,
+    true = port_command(Helper, <<"n">>),
+    receive {Helper, {data, <<"o", _/binary>>}} -> ok end,
     true = port_command(Helper, <<"i", "x">>),
     ?assertEqual(<<"d">>, receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
     port_close(Helper).
@@ -108,7 +112,9 @@ helper_gives_the_hosts_reason_test() ->
 %% report §8.6, Appendix E.23: a program whose helper ended waits for a read
 %% to fault, and holds nothing the check for a deadlock would read as work.
 %% A regression test of the run's time limit the program once had, whose
-%% message came later and stayed, so the process never read as waiting
+%% message came later and stayed, so the process never read as waiting; it
+%% reads the program's mailbox once the program waits, and does not cover a
+%% timer set for later than that
 lost_program_holds_no_timer_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -117,9 +123,14 @@ lost_program_holds_no_timer_test() ->
                {links, Links} = process_info(Program, links),
                [Helper] = [Link || Link <- Links, is_port(Link)],
                {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+               PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
-               closed(Helper),
-               sleep(500),
+               %% the port closes once the host has seen the helper end, and
+               %% the program waits once it has taken that
+               ern_rt:timed(),
+               receive {'DOWN', PortRef, port, Helper, _} -> ok end,
+               ok = ern_waits:waiting(Program),
+               ern_rt:untimed(),
                Self ! {queued, process_info(Program, message_queue_len)},
                ReadReply = alias(),
                Program ! {'Read', 5000, ReadReply},
@@ -181,8 +192,12 @@ answered_requests_hold_no_timer_test() ->
            fun() ->
                {'Right', Program} = start(<<"cat">>, []),
                erlang:trace(Program, true, ['receive', {tracer, Self}]),
-               Self ! {answers, {write(Program, <<"x">>, 300), read(Program, 300)}},
-               sleep(800),
+               Ms = 300,
+               Self ! {answers, {write(Program, <<"x">>, Ms), read(Program, Ms)}},
+               %% an absence: a timer the requests left would fire their
+               %% milliseconds after them, and the host's timers may fire
+               %% late, so twice that
+               sleep(2 * Ms),
                ern_rt:kill(Program)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({{'Right', 'Unit'}, {'Right', {'Stdout', <<"x">>}}}, wait(answers)),
@@ -207,13 +222,25 @@ give_test() ->
            fun() ->
                EntryProcess = self(),
                Keeper = erlang:spawn(fun() -> receive stop -> ok end end),
+               %% the starter starts two, gives one, and ends: the other,
+               %% killed of that end, shows the end has been told
+               Forever = [<<"-f">>, <<"/dev/null">>],
                _ = erlang:spawn(fun() ->
-                                    {'Right', Started} = start(<<"sleep">>, [<<"5">>]),
+                                    {'Right', Started} = start(<<"tail">>, Forever),
+                                    {'Right', Kept} = start(<<"tail">>, Forever),
                                     Started ! {'Give', Keeper},
-                                    EntryProcess ! {program, Started}
+                                    EntryProcess ! {programs, Started, Kept}
                                 end),
-               Program = ern_rt:in_foreign(fun() -> receive {program, Started} -> Started end end),
-               sleep(200),
+               {Program, Unkept} =
+                   ern_rt:in_foreign(fun() -> receive {programs, Started, Kept} ->
+                                                         {Started, Kept}
+                                             end
+                                     end),
+               UnkeptRef = erlang:monitor(process, Unkept),
+               ern_rt:in_foreign(fun() ->
+                                     receive {'DOWN', UnkeptRef, process, _, _} -> ok end
+                                 end),
+               ok = ern_rt:in_foreign(fun() -> ern_waits:waiting(Program) end),
                Self ! {alive, erlang:is_process_alive(Program)},
                MonitorRef = erlang:monitor(process, Program),
                Keeper ! stop,
@@ -277,13 +304,6 @@ read(Program, Ms) ->
 write(Program, Bytes, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
 
-%% The port closes once the host has seen the helper end.
-closed(Helper) ->
-    case erlang:port_info(Helper) of
-        undefined -> ok;
-        _ -> sleep(10), closed(Helper)
-    end.
-
 %% The answer the runtime's process gives, in Ernest's form (report §8.4).
 answer(Reply) ->
     ern_rt:timed(),
@@ -293,7 +313,8 @@ answer(Reply) ->
     after 5000 -> ern_rt:untimed(), timeout
     end.
 
-%% A wait the deadlock detector counts, as the compiler's timed receive is.
+%% A wait the deadlock detector counts, as the compiler's timed receive is,
+%% for an absence, of a time derived from what it waits for.
 sleep(Ms) ->
     ern_rt:timed(),
     timer:sleep(Ms),
