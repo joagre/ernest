@@ -214,7 +214,7 @@ The items, in build order, each with the report's sentences first, its tests, an
    definition in a group changes the group's, two bodies that differ in local names or layout
    hash the same, a literal's encoding is fixed; two hashes for one definition and one hash for
    two are its cases. The compiler computes every definition's hash, a type's identity as its
-   shape with its members, a binding's with its name, a group's in source order, a lambda's by
+   shape with its `compare`, a binding's with its name, a group's in source order, a lambda's by
    its enclosing definition and position; the `.erc` carries the canonical forms and the hashes.
 3. **`ern diff` and `Code.hashes`.** The first use of the hashes, visible before any node uses
    them: `changed` and `follows`, and the keys whose identity changed.
