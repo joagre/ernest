@@ -94,28 +94,36 @@ os_run_refusals_test() ->
                  os_run("\"echo\"", "[\"a\\u{0}b\"]", "<<>>", "5000")).
 
 %% Appendix E.23: Timeout when the time runs out first, and the program,
-%% still running, killed, so the mark it would leave is never made
+%% still running, killed, so the mark it would leave is never made. An
+%% absence: the program, started before the run's time ran out, would
+%% have left its mark within its own second, so the test waits that second
+%% from the run's return
 os_run_timeout_kills_test() ->
     Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
     {ok, Output} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
     ?assertEqual(<<"Timeout\n">>, Output),
-    timer:sleep(1500),
+    timer:sleep(1000),
     ?assertNot(filelib:is_file(Mark)).
 
-%% Appendix E.23: a program whose caller dies is killed with it
+%% Appendix E.23: a program whose caller dies is killed with it. The caller
+%% says once the program has started; an absence then: the program would
+%% have left its mark within its own second, which began before it was
+%% killed, so the test waits that second from the end of the run
 os_run_dies_with_its_caller_test() ->
     Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
     {ok, _} = ern_emitter_tests:run(
-        "export fn main() : Unit with Never = {\n"
-        "    let w = spawn(fn() : Unit with Never = {\n"
-        "        let _ = Os.run(Os.Command(program = \"sh\", arguments = [\"-c\",\n"
-        "            \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>), 5000);\n"
-        "        Unit\n"
+        "type Msg = Started\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    let me = self();\n"
+        "    let w = spawn(fn() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "        arguments = [\"-c\", \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>)) {\n"
+        "        Right(p) -> { send(me, Started); let _ = Os.read(p, 5000); Unit }\n"
+        "      | Left(_) -> Unit\n"
         "    });\n"
-        "    receive { after 200 -> Unit };\n"
+        "    receive { Started -> Unit };\n"
         "    kill(w)\n"
         "}\n"),
-    timer:sleep(1500),
+    timer:sleep(1000),
     ?assertNot(filelib:is_file(Mark)).
 
 %% report §8.6, Appendix E.23: a program running is a source, so a caller
@@ -125,6 +133,23 @@ os_run_is_a_source_test() ->
                  os_run("\"sleep\"", "[\"0.5\"]", "<<>>", "5000")).
 
 %% A shell command's exit status and its output, standard error with it.
+%% Whether the host's process Pid has ended within Ms, which bounds a
+%% failure. Nothing tells this process of another program's end, so the
+%% host is asked again at once each time, each ask a program of its own.
+gone(Pid, Ms) ->
+    asked(Pid, erlang:monotonic_time(millisecond) + Ms).
+
+asked(Pid, Deadline) ->
+    case sh("kill -0 " ++ Pid) of
+        {0, _} ->
+            case erlang:monotonic_time(millisecond) < Deadline of
+                true -> asked(Pid, Deadline);
+                false -> alive
+            end;
+        _ ->
+            gone
+    end.
+
 sh(Cmd) ->
     Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary]),
     sh_collect(Port, []).
@@ -167,9 +192,14 @@ os_start_reads_in_order_test() ->
 
 %% Appendix E.23: the host takes the program's output only while a read
 %% waits, so a program that writes more than a pipe holds, and that no one
-%% reads, waits on its output and has not gone on to leave its mark
+%% reads, waits on its output and has not gone on to leave its mark. An
+%% absence: the same program, its output read, ends within the time it is
+%% timed at first, so the test waits twice that, rounded up to the
+%% millisecond, before it looks for the mark
 os_start_output_waits_for_a_read_test() ->
-    Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
+    Scratch = ern_emitter_tests:scratch(),
+    Mark = filename:join(Scratch, "mark"),
+    Timed = filename:join(Scratch, "timed"),
     {ok, Output} = ern_emitter_tests:run(
         [
         "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with m = match Os.read(p, 5000) {\n"
@@ -178,16 +208,22 @@ os_start_output_waits_for_a_read_test() ->
         "  | Left(_) -> -1\n"
         "}\n"
         "fn marked() : Bool with m = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch ", Mark, "\"],\n"
-        "    input = <<>>)) {\n"
-        "    Right(p) -> {\n"
-        "        receive { after 300 -> Unit };\n"
-        "        let before = marked();\n"
-        "        let pieces = drain(p, 0);\n"
-        "        Io.println(Io.show(#(before, pieces > 0, marked())))\n"
+        "fn writer(mark : String) : Address(Os.ProgramMsg) with m =\n"
+        "    match Os.start(Os.Command(program = \"sh\",\n"
+        "        arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch \" <> mark],\n"
+        "        input = <<>>)) {\n"
+        "        Right(p) -> p\n"
+        "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let before = Clock.monotonic();\n"
+        "    let _ = drain(writer(\"", Timed, "\"), 0);\n"
+        "    let took = Clock.monotonic() - before;\n"
+        "    let p = writer(\"", Mark, "\");\n"
+        "    receive { after 2 * (took + 1) -> Unit };\n"
+        "    let unread = marked();\n"
+        "    let pieces = drain(p, 0);\n"
+        "    Io.println(Io.show(#(unread, pieces > 0, marked())))\n"
         "}\n"]),
     ?assertEqual(<<"#(false, true, true)\n">>, Output).
 
@@ -232,8 +268,10 @@ os_program_is_a_process_test() ->
         "fn reason() : String with Msg =\n"
         "    receive { Ended(Down(reason = r, site = _)) -> Io.show(r) }\n"
         "export fn main() : Unit with Msg = {\n"
-        "    let sleeper = started(\"sleep 10 & echo $$ $! > ", Pids, "; wait\");\n"
-        "    receive { after 300 -> Unit };\n"
+        "    let sleeper = started(\"tail -f /dev/null & echo $$ $! > ", Pids,
+        "; echo written; wait\");\n"
+        "    // the process numbers are written once the shell says so\n"
+        "    let _ = Os.read(sleeper, 5000);\n"
         "    monitor(Process.fromAddress(sleeper), Ended);\n"
         "    kill(sleeper);\n"
         "    Io.println(reason());\n"
@@ -243,11 +281,9 @@ os_program_is_a_process_test() ->
         "    Io.println(reason())\n"
         "}\n"]),
     ?assertEqual(<<"Killed\nReturned\n">>, Output),
-    timer:sleep(200),
     {ok, Written} = file:read_file(Pids),
     [begin
-         {Status, _} = sh("kill -0 " ++ binary_to_list(Pid)),
-         ?assertNotEqual(0, Status)
+         ?assertEqual(gone, gone(binary_to_list(Pid), 5000))
      end || Pid <- binary:split(Written, [<<" ">>, <<"\n">>], [global, trim_all])].
 
 %% Appendix E.23, E.0 shape rule 8: a read whose milliseconds pass answers
@@ -280,9 +316,9 @@ os_exit_test() ->
                      "}\n")),
     ?assertEqual({{exit, 5}, <<>>},
                  ern_emitter_tests:run(
-                     "export fn main() : Unit with Never = {\n"
+                     "export fn main() : Unit with Unit = {\n"
                      "    let _ = spawn(fn() : Unit with Never = Os.exit(5));\n"
-                     "    receive { after 5000 -> Unit }\n"
+                     "    receive { _ -> Unit }\n"
                      "}\n")),
     ?assertEqual({{fault, <<"an exit status is from 0 to 255">>}, <<>>},
                  ern_emitter_tests:run("export fn main() : Unit with Never = Os.exit(256)\n")).
@@ -466,11 +502,13 @@ tcp_write_answers_closed_test() ->
 %% reader had not taken was held in the node.
 %%
 
-%% A writer of four megabytes, and whether it has finished after half a
-%% second in which nothing reads, then after everything is read.
+%% A writer of four megabytes, and whether it has finished while nothing
+%% reads, then after everything is read. An absence: the same writes, read
+%% as they come, are timed first, and the writer read by no one is looked
+%% at once twice that time, rounded up to the millisecond, has passed.
 paced(Setup) ->
     ern_emitter_tests:run(
-        ["type Msg = Done | Ended(Down)\n",
+        ["type Msg = Done | Ended(Down) | Gone(Down)\n",
          Setup,
          "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
          "fn writes(write : (Bytes) -> Either(Io.Error, Unit) with Never, n : Int)"
@@ -487,28 +525,36 @@ os_write_waits_test() ->
         "    Right(Os.Stdout(b)) -> drain(p, n + Bytes.size(b))\n"
         "  | _ -> n\n"
         "}\n"
-        "export fn main() : Unit with Msg = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = <<>>)) {\n"
-        "    Right(p) -> {\n"
-        "        let me = self();\n"
-        "        let _ = spawn(fn() : Unit with Never = {\n"
-        "            writes(fn(b) = Os.write(p, b, 30000), 64);\n"
-        "            Os.closeInput(p);\n"
-        "            send(me, Done)\n"
-        "        });\n"
-        "        receive { after 500 -> Unit };\n"
-        "        let early = done();\n"
-        "        let n = drain(p, 0);\n"
-        "        receive { Done -> Unit };\n"
-        "        Io.println(Io.show(#(early, n)));\n"
-        "        let late = fn() : Unit with Never = {\n"
-        "            let _ = Os.write(p, <<1>>, 5000);\n"
-        "            Unit\n"
-        "        };\n"
-        "        let _ = spawnMonitored(late, Ended);\n"
-        "        receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
+        "fn written() : Address(Os.ProgramMsg) with Msg =\n"
+        "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>)) {\n"
+        "        Right(p) -> {\n"
+        "            let me = self();\n"
+        "            let _ = spawn(fn() : Unit with Never = {\n"
+        "                writes(fn(b) = Os.write(p, b, 30000), 64);\n"
+        "                Os.closeInput(p);\n"
+        "                send(me, Done)\n"
+        "            });\n"
+        "            p\n"
+        "        }\n"
+        "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    let before = Clock.monotonic();\n"
+        "    let _ = drain(written(), 0);\n"
+        "    receive { Done -> Unit };\n"
+        "    let took = Clock.monotonic() - before;\n"
+        "    let p = written();\n"
+        "    receive { after 2 * (took + 1) -> Unit };\n"
+        "    let early = done();\n"
+        "    let n = drain(p, 0);\n"
+        "    receive { Done -> Unit };\n"
+        "    Io.println(Io.show(#(early, n)));\n"
+        "    let late = fn() : Unit with Never = {\n"
+        "        let _ = Os.write(p, <<1>>, 5000);\n"
+        "        Unit\n"
+        "    };\n"
+        "    let _ = spawnMonitored(late, Ended);\n"
+        "    receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
     ?assertMatch({match, _}, re:run(Output, "^#\\(false, 4194304\\)\nFault\\(\"callee (had ended|"
                                             "returned without answering)\"\\)\n$")).
@@ -523,38 +569,47 @@ tcp_write_waits_test() ->
         "        Right(b) -> drain(s, n + Bytes.size(b))\n"
         "      | Left(_) -> n\n"
         "    }\n"
+        "fn written(l : Address(Tcp.ListenerMsg),\n"
+        "           port : Int) : Address(Tcp.SocketMsg) with Msg = {\n"
+        "    let me = self();\n"
+        "    let _ = spawn(fn() : Unit with Never = match\n"
+        "        Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "        Right(c) -> {\n"
+        "            writes(fn(b) = Tcp.write(c, b, 30000), 64);\n"
+        "            send(me, Done)\n"
+        "        }\n"
+        "      | Left(_) -> Unit\n"
+        "    });\n"
+        "    match Tcp.accept(l, 5000) {\n"
+        "        Right(s) -> s\n"
+        "      | Left(e) -> fault(Io.show(e))\n"
+        "    }\n"
+        "}\n"
         "export fn main() : Unit with Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> {\n"
-        "            let me = self();\n"
-        "            let _ = spawn(fn() : Unit with Never = match\n"
-        "                Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "                    Right(c) -> {\n"
-        "                        writes(fn(b) = Tcp.write(c, b, 30000), 64);\n"
-        "                        send(me, Done)\n"
-        "                    }\n"
-        "                  | Left(_) -> Unit\n"
-        "                });\n"
-        "            match Tcp.accept(l, 5000) {\n"
-        "                Right(s) -> {\n"
-        "                    receive { after 500 -> Unit };\n"
-        "                    let early = done();\n"
-        "                    let n = drain(s, 0);\n"
-        "                    receive { Done -> Unit };\n"
-        "                    Tcp.close(s);\n"
-        "                    receive { after 50 -> Unit };\n"
-        "                    Io.println(Io.show(#(early, n)));\n"
-        "                    let late = fn() : Unit with Never = {\n"
-        "                        let _ = Tcp.write(s, <<1>>, 5000);\n"
-        "                        Unit\n"
-        "                    };\n"
-        "                    let _ = spawnMonitored(late, Ended);\n"
-        "                    receive {\n"
-        "                        Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r))\n"
-        "                    }\n"
-        "                }\n"
-        "              | Left(e) -> Io.println(Io.show(e))\n"
-        "            }\n"
+        "            let before = Clock.monotonic();\n"
+        "            let timed = written(l, port);\n"
+        "            let _ = drain(timed, 0);\n"
+        "            receive { Done -> Unit };\n"
+        "            let took = Clock.monotonic() - before;\n"
+        "            Tcp.close(timed);\n"
+        "            let s = written(l, port);\n"
+        "            receive { after 2 * (took + 1) -> Unit };\n"
+        "            let early = done();\n"
+        "            let n = drain(s, 0);\n"
+        "            receive { Done -> Unit };\n"
+        "            // the socket's process ends as it closes\n"
+        "            monitor(Process.fromAddress(s), Gone);\n"
+        "            Tcp.close(s);\n"
+        "            receive { Gone(_) -> Unit };\n"
+        "            Io.println(Io.show(#(early, n)));\n"
+        "            let late = fn() : Unit with Never = {\n"
+        "                let _ = Tcp.write(s, <<1>>, 5000);\n"
+        "                Unit\n"
+        "            };\n"
+        "            let _ = spawnMonitored(late, Ended);\n"
+        "            receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "        }\n"
         "      | Left(e) -> Io.println(Io.show(e))\n"
         "    }\n"

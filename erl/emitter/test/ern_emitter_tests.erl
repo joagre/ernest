@@ -3,7 +3,7 @@
 %% other tests of programs share.
 -module(ern_emitter_tests).
 
--export([run/1, run/2, run/3, run_at_terminal/1, scratch/0, write_golden/0, pair/0, funs/0,
+-export([run/1, run/2, run/3, run_at_terminal/1, scratch/0, write_golden/0, pair/0, funs/0, taken/0,
          opt/1, improper/1, remember/1, junk/1, good/1, tell/1, junk_server/0, hello_junk/0,
          hello_good/0, relay_junk/1, relay_good/1, same/1, call_nested_bad/1, call_nested_good/1,
          ask_junk/1, ask_good/1]).
@@ -853,28 +853,36 @@ negative_time_test() ->
 %% time beyond the host's longest wait, 2^32 - 1 ms, waits as any other: a
 %% message that comes after 50 ms is received, a call is answered, and a
 %% file is read. A regression test: each faulted with the host's
-%% timeout_value. It does not cover a wait that outlasts one slice of
-%% 2^32 - 1 ms, nor an alarm, which ern_rt_tests covers
+%% timeout_value. The message and the answer come once the waiting side
+%% waits, so that each wait is made with its time. It does not cover a wait
+%% that outlasts one slice of 2^32 - 1 ms, nor an alarm, which ern_rt_tests
+%% covers
 long_time_test() ->
     {ok, Output} = run(
-        "type Msg = Ping | Get(reply : Reply(Int))\n"
-        "fn later(to : Address(Msg)) : Unit with Never = {\n"
-        "    receive { after 50 -> Unit };\n"
+        "type Msg = Ping | Go | Get(reply : Reply(Int), caller : Process)\n"
+        "foreign fn waiting(process : Process) : Foreign.Term with m = \"ern_waits:waiting/1\"\n"
+        "fn later(to : Address(Msg)) : Unit with Msg = {\n"
+        "    receive { Go -> Unit };\n"
+        "    let _ = waiting(Process.fromAddress(to));\n"
         "    send(to, Ping)\n"
         "}\n"
         "fn server() : Unit with Msg = receive {\n"
-        "    Get(reply = r) -> { receive { after 50 -> Unit }; answer(r, 7) }\n"
+        "    Get(reply = r, caller = c) -> { let _ = waiting(c); answer(r, 7) }\n"
         "  | Ping -> Unit\n"
+        "  | Go -> Unit\n"
         "}\n"
         "export fn main() : Unit with Msg = {\n"
         "    let me = self();\n"
-        "    let _ = spawn(fn() = later(me));\n"
+        "    let sender = spawn(fn() = later(me));\n"
+        "    send(sender, Go);\n"
         "    receive {\n"
         "        Ping -> Io.println(\"ping\")\n"
         "      | after 5000000000 -> Io.println(\"after\")\n"
         "    };\n"
         "    let a = spawn(server);\n"
-        "    let _ = Io.debug(Address.call(a, fn(r) = Get(reply = r), 5000000000));\n"
+        "    let caller = Process.fromAddress(me);\n"
+        "    let _ = Io.debug(Address.call(a, fn(r) = Get(reply = r, caller = caller),"
+        " 5000000000));\n"
         "    match Fs.read(Path(\"../../../VERSION\"), 5000000000) {\n"
         "        Right(_) -> Io.println(\"read\")\n"
         "      | Left(_) -> Io.println(\"not read\")\n"
@@ -952,12 +960,18 @@ service_binding_test() ->
         "                     fn() : Unit with LogMsg = logger(0)))\n"
         "let started = Io.println(\"started\")\n"
         "fn note(s : String) : Unit with m = send(log, Log(s))\n"
+        "fn counted() : Int with m = match Address.call(log, fn(r) = Count(reply = r), 1000) {\n"
+        "    Some(n) -> n\n"
+        "  | None -> counted()\n"
+        "}\n"
         "export fn main() : Unit with Never = {\n"
         "    note(\"a\");\n"
         "    send(log, Crash);\n"
-        "    receive { after 100 -> Unit };\n"
+        "    // answered by the new run, whose start empties the mailbox (§6.9); a\n"
+        "    // call the restart ends is made again\n"
+        "    let _ = counted();\n"
         "    note(\"b\");\n"
-        "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
+        "    Io.println(Int.toString(counted()))\n"
         "}\n"),
     ?assertEqual(<<"started\n1\n">>, Output).
 
@@ -1009,16 +1023,18 @@ receive_or_pattern_test() ->
 receive_guard_test() ->
     {ok, Output} = run(
         "type Msg = N(Int)\n"
+        "type Seen = Ended(Down)\n"
         "fn loop(acc : Int) : Unit with Msg = receive {\n"
         "    N(k) when k > 0 -> loop(acc + k)\n"
         "  | N(_) -> Io.println(Int.toString(acc))\n"
         "}\n"
-        "export fn main() : Unit with Never = {\n"
+        "export fn main() : Unit with Seen = {\n"
         "    let p = spawn(fn() = loop(0));\n"
+        "    monitor(Process.fromAddress(p), Ended);\n"
         "    send(p, N(2));\n"
         "    send(p, N(3));\n"
         "    send(p, N(0));\n"
-        "    receive { after 100 -> Unit }\n"
+        "    receive { Ended(_) -> Unit }\n"
         "}\n"),
     ?assertEqual(<<"5\n">>, Output).
 
@@ -1377,7 +1393,8 @@ callback_fault_passes_through_test() ->
 %% report §6.9, §8.4: a restart asked for while foreign code calls the
 %% program's function is a restart, the cause of the new start `Asked`. A
 %% regression test: it was a fault of the foreign function, and the process
-%% restarted after a fault
+%% restarted after a fault. The restart is taken at the callback's wait at
+%% once; the wait's time only bounds a failure to take it
 callback_restart_passes_through_test() ->
     {ok, Output} = run(
         "type Start = First | Asked | AfterFault\n"
@@ -2176,23 +2193,26 @@ host_named_site_test() ->
 down_site_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down)\n"
-        "fn idle() : Unit with Never = receive { after 100 -> Unit }\n"
+        "fn idle() : Unit with Unit = receive { _ -> Unit }\n"
         "fn report() : Unit with Msg = receive {\n"
         "    Died(Down(site = f, reason = _)) -> Io.println(f)\n"
         "}\n"
         "fn outer() : Unit with Msg = {\n"
-        "    fn inner() : Address(Never) with Msg = spawn(idle);\n"
-        "    monitor(Process.fromAddress(inner()), Died);\n"
-        "    report();\n"
+        "    fn inner() : Address(Unit) with Msg = spawn(idle);\n"
+        "    watched(inner());\n"
         "    let viaLambda = fn() = spawn(idle);\n"
-        "    monitor(Process.fromAddress(viaLambda()), Died);\n"
-        "    report();\n"
+        "    watched(viaLambda());\n"
         "    let s = spawn;\n"
-        "    monitor(Process.fromAddress(s(idle)), Died);\n"
+        "    watched(s(idle))\n"
+        "}\n"
+        "// monitored while it waits, then killed\n"
+        "fn watched(idler : Address(Unit)) : Unit with Msg = {\n"
+        "    monitor(Process.fromAddress(idler), Died);\n"
+        "    kill(idler);\n"
         "    report()\n"
         "}\n"
         "export fn main() : Unit with Msg = outer()\n"),
-    ?assertEqual(<<"M.outer:7\nM.outer:10\nM.outer:13\n">>, Output).
+    ?assertEqual(<<"M.outer:7\nM.outer:9\nM.outer:11\n">>, Output).
 
 %% report §9.4, §9.6: spawn, the Int operators, and <> are functions and
 %% may be passed as values
@@ -2330,7 +2350,7 @@ prelude_target(QualifiedName, Text) ->
 process_functions_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down) | Tick\n"
-        "fn idle() : Unit with Never = receive { after 10000 -> Unit }\n"
+        "fn idle() : Unit with Unit = receive { _ -> Unit }\n"
         "export fn main() : Unit with Msg = {\n"
         "    let w = spawn(fn() = idle());\n"
         "    monitor(Process.fromAddress(w), Died);\n"
@@ -2569,8 +2589,10 @@ foreign_fault_restarts_test() ->
 %% value itself. A regression test: `Foreign.from` gave the address and the
 %% function as the runtime held them, unchecked
 foreign_from_crosses_as_an_argument_test() ->
+    %% the fault the proxy sends takes the message's place; where none came,
+    %% the program would end in a deadlock, which no case expects
     Main = "export fn main() : Unit with Int = {\n    let _ = ~s;\n"
-           "    receive { _ -> Unit | after 200 -> Unit }\n}\n",
+           "    receive { _ -> Unit }\n}\n",
     Typed = "foreign fn rawSend(to : Address(Int), message : String) : String =\n"
             "    \"erlang:send/2\"\n",
     Untyped = "foreign fn rawSend(to : Foreign.Term, message : String) : String =\n"
@@ -2595,22 +2617,34 @@ foreign_from_crosses_as_an_argument_test() ->
                      "    Io.println(Io.show(Foreign.toInt(Foreign.from(42))))\n")).
 
 %% report §8.2: a write to standard output returns once the stream has taken
-%% it, so a program writing to a slow stream goes at its pace
+%% it, so a program writing to a slow stream goes at its pace: after each
+%% write the stream has taken it and every write before it, which the
+%% stream counts and the program reads
 io_write_waits_test() ->
     Self = self(),
+    Taken = counters:new(1, []),
+    persistent_term:put({?MODULE, taken}, Taken),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
+        "foreign fn taken() : Int with m = \"ern_emitter_tests:taken/0\"\n"
         "export fn main() : Unit with Never = {\n"
-        "    let before = Clock.now();\n"
-        "    List.foreach(List.range(1, 10), fn(n) = Io.println(Int.toString(n)));\n"
-        "    Io.printlnError(Int.toString(Clock.now() - before))\n"
+        "    let kept = List.all(List.range(1, 10), fn(n) = {\n"
+        "        Io.println(Int.toString(n));\n"
+        "        taken() >= n\n"
+        "    });\n"
+        "    Io.printlnError(Io.show(kept))\n"
         "}\n"),
     {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     ok = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
-                         #{stdout => fun(_) -> timer:sleep(50) end,
+                         #{stdout => fun(_) -> counters:add(Taken, 1, 1) end,
                            stderr => fun(Text) -> Self ! {err, Text} end}),
-    Elapsed = receive {err, Text} -> binary_to_integer(string:trim(Text)) after 5000 -> none end,
-    ?assert(Elapsed >= 450).
+    persistent_term:erase({?MODULE, taken}),
+    ?assertEqual(<<"true\n">>, receive {err, Text} -> Text after 5000 -> none end).
+
+%% The writes io_write_waits_test's standard output has taken.
+-spec taken() -> non_neg_integer().
+taken() ->
+    counters:get(persistent_term:get({?MODULE, taken}), 1).
 
 %% report Appendix E.1: Io.writeError writes its bytes to standard error as
 %% they are, a byte that is not UTF-8 among them, and nothing to standard
@@ -2704,9 +2738,10 @@ preemption_and_precision_test() ->
     {ok, Output} = run(
         "fn spin(n : Int) : Int = spin(n + 1)\n"
         "fn power(b : Int, e : Int) : Int = if e == 0 then 1 else b * power(b, e - 1)\n"
+        "foreign fn running(process : Process) : Foreign.Term with m = \"ern_waits:running/1\"\n"
         "export fn main() : Unit with Never = {\n"
         "    let w = spawn(fn() : Unit with Never = { let _ = spin(0); Unit });\n"
-        "    receive { after 50 -> Unit };\n"
+        "    let _ = running(Process.fromAddress(w));\n"
         "    Io.println(Int.toString(power(2, 100)));\n"
         "    kill(w)\n"
         "}\n"),

@@ -16,24 +16,27 @@
         "    }\n").
 
 %% report §6.9, §9.5: a process whose function is `restarting`'s runs it
-%% again after a fault, keeping its address and its mailbox, the message
-%% being handled lost and the state its function starts from. The call is
-%% made once the crash has been handled, since a call pending at a restart
-%% ends with it (call_ends_with_callee_test_)
+%% again after a fault, keeping its address; its mailbox is emptied, the
+%% message being handled lost with the rest, and the new run starts from
+%% its function's own state. The next message is sent once a ping is
+%% answered by the new run, since a call pending at a restart ends with it
+%% (call_ends_with_callee_test_)
 restart_keeps_address_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        "type Msg = Bump | Crash | Get(reply : Reply(Int))\n"
+        "type Msg = Bump | Crash | Get(reply : Reply(Int)) | Ping(reply : Reply(Unit))\n"
         "fn loop(n : Int) : Unit with Msg = receive {\n"
         "    Bump -> loop(n + 1)\n"
         "  | Crash -> fault(\"crash\")\n"
         "  | Get(reply = r) -> { answer(r, n); loop(n) }\n"
+        "  | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
         "}\n"
+        ++ ?UP ++
         "export fn main() : Unit with Never = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
         "    let s = spawn(restarting(limit, fn() : Unit with Msg = loop(0)));\n"
         "    send(s, Bump);\n"
         "    send(s, Crash);\n"
-        "    receive { after 100 -> Unit };\n"
+        "    let _ = up(s);\n"
         "    send(s, Bump);\n"
         "    Io.println(Int.toString(Address.callForever(s, fn(r) = Get(reply = r))))\n"
         "}\n"),
@@ -43,7 +46,9 @@ restart_keeps_address_test() ->
 %% cause, which is its one death a monitor is told of; a restart is none,
 %% and a limit of no restarts ends it at the first fault. Each start says
 %% so, so that a limit of one restart is told from a limit of none, which
-%% the test could not do before
+%% the test could not do before. A second Down is looked for once every
+%% delivery started to main has ended; one the runtime had not yet started
+%% then is not seen
 restart_limit_test() ->
     Program = fun(Restarts) ->
         "type Msg = Crash | Ping(reply : Reply(Unit))\n"
@@ -57,6 +62,8 @@ restart_limit_test() ->
         "    Io.println(\"start\");\n"
         "    loop(1)\n"
         "}\n"
+        "foreign fn delivered(process : Process) : Foreign.Term with m =\n"
+        "    \"ern_waits:delivered/1\"\n"
         ++ ?UP ++
         "export fn main() : Unit with MainMsg = {\n"
         "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
@@ -68,7 +75,8 @@ restart_limit_test() ->
         "        Died(Down(reason = Fault(c), site = _)) -> Io.println(\"ended \" <> c)\n"
         "      | Died(_) -> Io.println(\"other\")\n"
         "    };\n"
-        "    receive { Died(_) -> Io.println(\"twice\") | after 100 -> Unit }\n"
+        "    let _ = delivered(Process.fromAddress(self()));\n"
+        "    receive { Died(_) -> Io.println(\"twice\") | after 0 -> Unit }\n"
         "}\n"
     end,
     ?assertEqual({ok, <<"start\nstart\nended 1\n">>}, ern_emitter_tests:run(Program("1"))),
@@ -138,7 +146,10 @@ restart_empties_the_mailbox_test() ->
 %% report §6.9, Appendix E.15, E.21: a restart cancels the process's alarm,
 %% its monitor and its subscription to faults, so the new run hears nothing
 %% of what the old one asked for. A regression test: the alarm, the Down
-%% and the fault reached the new run
+%% and the fault reached the new run. The new run is asked once main has
+%% seen the Down or the fault itself, and every delivery started to the
+%% process has ended; the alarm, which nothing else shows, is waited for
+%% twice its time, since the host's timers may fire late
 restart_cancels_what_it_asked_for_test_() ->
     {timeout, 30, fun restart_cancels_what_it_asked_for/0}.
 
@@ -146,6 +157,9 @@ restart_cancels_what_it_asked_for() ->
     Program = fun(Ask, After) ->
         "type Msg = Heard | Ask(Address(Int)) | Crash | Ping(reply : Reply(Unit))"
         " | Count(reply : Reply(Int))\n"
+        "type MainMsg = Gone(Down) | Report(Process.FaultReport)\n"
+        "foreign fn delivered(process : Process) : Foreign.Term with m =\n"
+        "    \"ern_waits:delivered/1\"\n"
         "fn loop(n : Int) : Unit with Msg =\n"
         "    receive {\n"
         "        Heard -> loop(n + 1)\n"
@@ -155,7 +169,7 @@ restart_cancels_what_it_asked_for() ->
         "      | Count(reply = r) -> { answer(r, n); loop(n) }\n"
         "    }\n"
         ++ ?UP ++
-        "export fn main() : Unit with Never = {\n"
+        "export fn main() : Unit with MainMsg = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
         "    let s = spawn(restarting(limit, fn() = loop(0)));\n"
         "    let other = spawn(fn() : Unit with Int = receive { _ -> Unit });\n"
@@ -163,23 +177,26 @@ restart_cancels_what_it_asked_for() ->
         "    send(s, Crash);\n"
         "    let _ = up(s);\n"
         "    " ++ After ++ ";\n"
-        "    receive { after 300 -> Unit };\n"
+        "    let _ = delivered(Process.fromAddress(s));\n"
         "    Io.println(Int.toString(Address.callForever(s, fn(r) = Count(reply = r))))\n"
         "}\n"
     end,
-    %% an alarm set by the old run
+    %% an alarm set by the old run, its time passed twice over
     ?assertEqual({ok, <<"0\n">>}, ern_emitter_tests:run(
-        Program("Clock.alarm(100, fn(_) = Heard)", "Unit"))),
+        Program("Clock.alarm(100, fn(_) = Heard)", "receive { after 2 * 100 -> Unit }"))),
     %% a monitor made by the old run, of a process killed after the restart
     ?assertEqual({ok, <<"0\n">>},
                  ern_emitter_tests:run(
                      Program("monitor(Process.fromAddress(other), fn(_) = Heard)",
-                             "kill(other)"))),
+                             "monitor(Process.fromAddress(other), Gone); kill(other);"
+                             " receive { Gone(_) -> Unit }"))),
     %% a subscription to faults, and a fault after the restart
     ?assertEqual({ok, <<"0\n">>},
                  ern_emitter_tests:run(
                      Program("Process.faults(fn(_) = Heard)",
-                             "let _ = spawn(fn() : Unit with Never = fault(\"other\"))"))).
+                             "Process.faults(Report);"
+                             " let _ = spawn(fn() : Unit with Never = fault(\"other\"));"
+                             " receive { Report(_) -> Unit }"))).
 
 %% report §6.9: returning and a kill end a restarting process as they end
 %% any; only a fault restarts

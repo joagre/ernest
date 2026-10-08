@@ -6,7 +6,7 @@
 %% process by tracing it, and stop tracing when they return.
 -module(ern_waits).
 
--export([until/2, waiting/1, called/3, returned/3, looked/1, delivered/1]).
+-export([until/2, waiting/1, running/1, called/3, returned/3, looked/1, delivered/1]).
 
 %% Until Test, asked of Pid's state, holds, or Pid has ended: Test is asked
 %% at first and again each time the host schedules Pid out, which is when
@@ -36,6 +36,11 @@ held(Pid, Test) ->
 -spec waiting(pid()) -> ok | ended.
 waiting(Pid) ->
     until(Pid, fun() -> erlang:process_info(Pid, status) =:= {status, waiting} end).
+
+%% Until Pid runs rather than waits, at work it was given, or has ended.
+-spec running(pid()) -> ok | ended.
+running(Pid) ->
+    until(Pid, fun() -> erlang:process_info(Pid, status) =/= {status, waiting} end).
 
 %% Until Pid has called Module:Function/Arity Count times from now, which
 %% the host shows by tracing its calls, local ones among them.
