@@ -370,7 +370,7 @@ configuration(ConfigDir) ->
             catch
                 error:_ -> fail(ConfigDir, ?CONF, "is not JSON")
             end,
-    Fields = object(ConfigDir, "the file", Value, ?FIELDS, [<<"drain">>]),
+    Fields = object(ConfigDir, "the file", Value, ?FIELDS),
     Listen = case Fields of
                  #{<<"listen">> := Text1} -> listen(ConfigDir, Text1);
                  _ -> none
@@ -385,28 +385,19 @@ configuration(ConfigDir) ->
                    keys = keys(ConfigDir, maps:get(<<"keys">>, Fields, {object, []}), Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none))}.
 
-%% A JSON object's fields as a map, each name among Known; a name a later
-%% milestone gives a meaning, among Later, refused naming that milestone.
-object(ConfigDir, What, {object, Pairs}, Known, Later) ->
+%% A JSON object's fields as a map, each name among Known.
+object(ConfigDir, What, {object, Pairs}, Known) ->
     lists:foldl(fun({Name, Item}, Acc) ->
-                    lists:member(Name, Known) orelse later(ConfigDir, What, Name, Later),
+                    lists:member(Name, Known)
+                        orelse fail(ConfigDir, ?CONF, What ++ " has the unknown field "
+                                                      ++ binary_to_list(Name)),
                     is_map_key(Name, Acc)
                         andalso fail(ConfigDir, ?CONF, What ++ " gives " ++ binary_to_list(Name)
                                                        ++ " twice"),
                     Acc#{Name => Item}
                 end, #{}, Pairs);
-object(ConfigDir, What, _, _, _) ->
+object(ConfigDir, What, _, _) ->
     fail(ConfigDir, ?CONF, What ++ " is not a JSON object").
-
-%% Report §8.7: `drain` and a peer's `coordinator` are MVP 3.2's.
-later(ConfigDir, What, Name, Later) ->
-    case lists:member(Name, Later) of
-        true ->
-            NotYet = " is not here yet: it arrives in MVP 3.2, with the rolling restart",
-            fail(ConfigDir, ?CONF, binary_to_list(Name) ++ NotYet);
-        false ->
-            fail(ConfigDir, ?CONF, What ++ " has the unknown field " ++ binary_to_list(Name))
-    end.
 
 %% Report §8.7: `listen`, an address of one interface, or `0.0.0.0` or `::`
 %% for all, and a port, 0 for one the host picks.
@@ -476,7 +467,7 @@ peers(ConfigDir, _, _) ->
     fail(ConfigDir, ?CONF, "peers is not a JSON array").
 
 peer(ConfigDir, Item, Family) ->
-    Fields = object(ConfigDir, "a peer", Item, ?PEER_FIELDS, [<<"coordinator">>]),
+    Fields = object(ConfigDir, "a peer", Item, ?PEER_FIELDS),
     Name = case Fields of
                #{<<"name">> := Text} when is_binary(Text), Text =/= <<>> -> Text;
                _ -> fail(ConfigDir, ?CONF, "a peer has no name")
@@ -574,15 +565,15 @@ keys(ConfigDir, Item, Peers) ->
 measures(_ConfigDir, none) ->
     #{};
 measures(ConfigDir, Item) ->
-    Fields = object(ConfigDir, "measures", Item, [<<"cpu">>, <<"memory">>, <<"disk">>], []),
+    Fields = object(ConfigDir, "measures", Item, [<<"cpu">>, <<"memory">>, <<"disk">>]),
     maps:from_list([{binary_to_atom(Name), measure(ConfigDir, Name, Value)}
                     || {Name, Value} <- maps:to_list(Fields)]).
 
 measure(ConfigDir, <<"cpu">>, Item) ->
-    object(ConfigDir, "measures' cpu", Item, [], []);
+    object(ConfigDir, "measures' cpu", Item, []);
 measure(ConfigDir, Name, Item) ->
     Shown = "measures' " ++ binary_to_list(Name),
-    Fields = object(ConfigDir, Shown, Item, [<<"check-interval">>, <<"almost-full">>], []),
+    Fields = object(ConfigDir, Shown, Item, [<<"check-interval">>, <<"almost-full">>]),
     maps:from_list(
       [{check_interval, interval(ConfigDir, Shown, Name, Ms)}
        || #{<<"check-interval">> := Ms} <- [Fields]]

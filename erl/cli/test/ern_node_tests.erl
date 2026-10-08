@@ -140,8 +140,7 @@ read_refusals_test() ->
          {fun() -> conf(Dir, <<"{\"peers\": [], \"peers\": []}">>) end,
           "the file gives peers twice"},
          {#{<<"port">> => 1}, "the file has the unknown field port"},
-         {#{<<"drain">> => 60000}, "drain is not here yet: it arrives in MVP 3.2, with the rolling"
-                                   " restart"},
+         {#{<<"drain">> => 60000}, "the file has the unknown field drain"},
          {#{<<"listen">> => <<"8654">>}, "listen is not address:port: \"8654\""},
          {#{<<"listen">> => <<"node.example:8654">>},
           "listen names no address: \"node.example:8654\""},
@@ -151,7 +150,7 @@ read_refusals_test() ->
          {#{<<"peers">> => #{}}, "peers is not a JSON array"},
          {#{<<"peers">> => [#{<<"public-key">> => One}]}, "a peer has no name"},
          {#{<<"peers">> => [Peer(#{<<"coordinator">> => true})]},
-          "coordinator is not here yet: it arrives in MVP 3.2, with the rolling restart"},
+          "a peer has the unknown field coordinator"},
          {#{<<"peers">> => [#{<<"name">> => <<"store">>}]}, "peer \"store\" has no public-key"},
          {#{<<"peers">> => [Peer(#{}), Peer(#{<<"public-key">> => other_key()})]},
           "two peers are named \"store\""},
