@@ -79,8 +79,8 @@ The first spawn ships the function, `count` and `Counter.Msg`, verified and load
 3. **Code arrives verified or not at all.** Every definition that crosses is checked against its hash on arrival, and a frame that fails ends the connection.
 4. **A process keeps its code.** Loading only adds; nothing a process runs is ever changed or taken from it.
 5. **No message of one version is read as another's.** What is sent through a remote address is of the type the receiver's code was compiled with, since a find compares identities before any address crosses. What is sent through a local address is of the type its process was spawned under, since a value keeps the hash it was checked under through a load: two versions of a type are two types in one scope, as they are across nodes, and the checker refuses a message of one to an address of the other.
-6. **A renamed function changes nothing that is not renamed.** Renaming a function changes no hash but its own build's name for it. A type and a binding are the exceptions (section 5).
-7. **Nodes of different builds connect, and of different `ern`, OTP or hash scheme never.**
+6. **A renamed function or type changes nothing that is not renamed.** Renaming a function or a type changes no hash but its own build's name for it. A constructor, a field and a binding are the exceptions (section 5).
+7. **Nodes of different builds connect, and of different runtime surface, OTP or hash scheme never.**
 
 ## 5. What does not hold
 

@@ -298,7 +298,7 @@ The host's cookie is the build's fingerprint: each node computes it at its start
 
 | Fault | Cause |
 |---|---|
-| an adapted address about to cross whose function captured a value of a bound type | `foreign value cannot cross nodes`, `function cannot cross nodes` or `resource cannot cross nodes`, for the value it was |
+| an offer under a key a living process holds | `counter is offered by a living process`, with the key's name |
 | `Address.callForever` on a callee whose node is out of reach | `callee is unreachable` |
 | an offer of a process that is not this node's | `an offer names a process on its own node` |
 

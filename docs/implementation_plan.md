@@ -62,9 +62,9 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | design settled 2026-10-07 |
-| MVP 3.1 | code by its hash, and the standard library's `Code` | design settled 2026-10-07 |
-| MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design settled 2026-10-07 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | design reviewed 2026-10-08 |
+| MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
+| MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.4 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
@@ -74,15 +74,15 @@ paragraph under "Done".
 ## MVP 3.0 (peers), about four weeks
 
 Designed in [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md), settled with the user on
-2026-10-07 after a read-back against its four rules; its reasons are
+2026-10-07 after a read-back against its four rules, and reviewed with mvp3.1.md and mvp3.2.md by
+six readers on 2026-10-08, every finding decided with the user (the log's *The Three Proposals
+Reviewed Before Anything Is Built*); its reasons are
 [`nodes.md`](../proposals/nodes_and_code/nodes.md), what the host showed is the experiment under
 [`experiments/`](../proposals/nodes_and_code/experiments/erlang_distribution/), and
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md) holds what other systems do.
 **The report's §8.6, §8.7 and §10 and the guide's peer chapter describe the design before the
 proposal. The report's are rewritten from it as this milestone's first item and the guide's as
-its last, and nothing is built from them until then.** Before this milestone is built, MVP 3.1's design is written the same way
-(MVP 3.1 below), so that the proposal's section 11, what MVP 3.0 leaves room for, is checked
-against a design and not a guess; MVP 3.0's items are then confirmed or corrected from it.
+its last, and nothing is built from them until then.**
 
 The items, in build order, each with the report's sentences first, its tests, and a commit.
 Each builds its area as the proposal's section 6 states it, whole: the proposal is the
@@ -90,179 +90,251 @@ specification, and this list the order.
 
 1. **The report rewritten from the proposal, and the soundness argument's section 7.**
    §6.2's one silence widened to a `send` or a `kill` to a process whose node is out of reach
-   or not listed; §6.4's order for one sender and one receiver across nodes, with the corner
-   of an adapted address made on the receiver's node (the proposal's section 4, points 1 and
-   2); §6.5's adapted address across nodes;
-   §6.6's calls across nodes; §7.4's causes; §8.3, §8.5, §8.6 and §8.7 as the proposal has
-   them, no code crossing; §9.3's `Unreachable`; §10 whole; §11.2 and §11.3 for `--config-dir`,
-   `ern config`, `ern reload` and `ern stop`; Appendix E's section for `Peer`, E.21's
-   `Process.info`, E.18 and E.23 for a resource bound to its node; Appendix F's words for a
-   node, a peer, a key and the gateway; §8.6 for a node's end, hangup a reload and termination
-   an end. The log's entries for each, pointing at `nodes.md` for the
-   argument. The rewrite leaves room for `ern run --config-dir dir` with no file, MVP 3.1's
-   bare node, and adds nothing for it. `soundness.md`'s section 7 is written here, before
-   item 2, as the proposal's section 9 asks. With them, as the build reaches each:
-   `architecture.md` for the gateway, the peer table, the helpers and the rows a call keeps; `memory.md` for what those hold and when
-   they let go; `style.md`'s glossary for peer, gateway, key, bound type and helper;
-   `test/diagnostics.md` for the compiler's refusals; the manual pages and `ern --help` for
-   `ern config`, `ern reload`, `ern stop` and `--config-dir`; and the proposal's program of
-   three nodes under `examples/`. When it is built, `mvp3.0.md`'s status line says so and the report owns
-   the rules; the proposal and `nodes.md` stay as the record, as CLAUDE.md has it.
-2. **The node.** `ern config`: the key, the certificate with the longest validity, `ernest.conf`,
-   the public key printed. The configuration: `listen`, the peers with name, key and
-   `network-address`, one family of addresses, `keys`, `measures`. The rule that accepts a peer by its
+   or not listed, and its `send` that returns at once, which to a process of another node may
+   wait for the network up to the host's buffer; §6.4's order for one sender and one receiver
+   across nodes, with the one corner of an adapted address made on the receiver's node (the
+   proposal's section 4, point 1); §6.5's adapted address across nodes, its captured values
+   crossing inside it as payload touched only on the node that made it, the requirement that
+   they can cross gone, a fault in its function the target's, and "there is no registry" beside
+   offers under keys; §6.6's calls across nodes; §6.7's shape for `Peer.spawn`; §6.9's site,
+   which crosses in a `Down` and is empty in `Unreachable`; §7.4's causes; §3.8, §3.11 and §3.9,
+   whose run-time faults become the compiler's refusals of a key, a spawn and a capture with a
+   type variable; §8.2's resolution failure, which is MVP 3.1's `NotLoaded`; §8.3, §8.5, §8.6
+   and §8.7 as the proposal has them, no code crossing; §8.4, since a peer's message is not
+   checked on arrival; §9.3's `Unreachable`, a reason only a monitor on another node's process
+   gives, a one-node program's arm for it accepted; §10 whole; §11.2 and §11.3 for
+   `--config-dir`, `ern config`, `ern reload` and `ern stop`, for a program without
+   `--config-dir` being no node with `./.ernest` its directory, and §11's job list and §11.7's
+   options; Appendix C rewritten for the directory's shape; Appendix E's section for `Peer`,
+   E.21's `Process.info`, E.18 and E.23 for a resource bound to its node; Appendix F's words
+   for a node, a peer, a key and the gateway; §8.6 for a node's end, hangup a reload and
+   termination an end, which MVP 3.2 makes the planned stop. The log's entries for each,
+   pointing at `nodes.md` for the argument. The rewrite leaves room for `ern run --config-dir
+   dir` with no file, MVP 3.1's bare node, and adds nothing for it. `soundness.md`'s section 7
+   is written here, before item 2, as the proposal's section 9 asks. With them, as the build
+   reaches each: `architecture.md` for the gateway and its workers, the peer table and the rows
+   a call keeps; `memory.md` for what those hold and when they let go; `style.md`'s glossary
+   for peer, gateway, key and bound type; `test/diagnostics.md` for the compiler's refusals;
+   the manual pages and `ern --help` for `ern config`, `ern reload`, `ern stop` and
+   `--config-dir`; and the proposal's program of three nodes under `examples/`. When it is
+   built, `mvp3.0.md`'s status line says so and the report owns the rules; the proposal and
+   `nodes.md` stay as the record, as CLAUDE.md has it.
+2. **The node.** `ern config`: the key on prime256v1, the curve the experiment proved, with
+   ed25519 in the handshake under the rule tried first and taken where it serves; the
+   certificate with the longest validity; `ernest.conf`; the public key printed. The
+   configuration: `listen`, with port 0 taking the host's choice and the node saying which it
+   bound; the peers with name, key and `network-address`, one family of addresses; `keys`, a
+   key's peers in the order a find asks them; `measures`. The rule that accepts a peer by its
    key, with the host's name check off and the certificate's dates ignored; the table in place
    of the port-mapper daemon; no mesh; the cookie as the build's fingerprint over the checksum
-   of what runs; the detector's time. `ernest.pid` and its guard; the bindings before the
-   listener; hangup a reload and termination an end, `ern stop`; the orderly end; what a
-   node says, with the host's reports off.
+   of what runs; the detector's time, watching hidden nodes as well as listening ones.
+   `ernest.pid` and its guard; the bindings before the listener; hangup a reload and
+   termination an end, `ern stop`; the orderly end; what a node says, with the host's reports
+   off but the handshake's, the one line that tells a refused build.
 3. **Messages and addresses.** The bound type in the checker: `Peer.key` of a bound type or
    of a type not fully known where it is written, a spawn whose captures are bound or have a
    type variable, and a spawn whose mailbox type is bound, refused. Serialization as the
    proposal's section 6 has it, the host's format, a constructor as its name's text, nothing
-   looked into on arrival, with a test that a correct program's messages make no new atom on
-   the node that receives them. `send` as the host's;
-   `Reason`'s `Unreachable`; a `Down` with an empty site across nodes; `kill`; the gateway for
-   an adapted address, its function's fault to the sender, its captures checked as it crosses.
-4. **Calls.** The request sent without waiting and the helper where the buffer is full,
-   `answer` the same; the note to the callee's node that a call waits, and the second at its
-   time; `callee is unreachable`.
-5. **`Peer`.** `key`, `offer` and `find` with the type's text, `find` by the key alone over the
-   key's peers, and `standing`, a find that finds again, with a loss's semantics for the gap; `spawn` and `spawnMonitored` with
-   their time, the site in the frame, `NotLoaded`, and the kill of a process whose spawner
-   stopped waiting; `Peer.Failure`; `Peer.nodes`. `ern reload` by `SIGHUP` and the table. The
-   shell as a node, its `:load` and `:reload` refused naming MVP 3.1; `ern test` as a node;
-   `Peer`'s page with its executed examples.
+   looked through before a send and nothing looked into on arrival, with a test that a correct
+   program's messages make no new atom on the node that receives them. `send` as the host's,
+   a plain send to a peer with no connection returning at once and its message queued behind
+   the dial, the sender waiting only past the host's buffer; `Reason`'s `Unreachable`; the
+   site in a `Down` across nodes; `kill`; one registered gateway per node with a worker for
+   each peer, taking the frame that opens a connection; a message to an adapted address
+   carried unconverted to the node that made it, its function's fault the target's.
+4. **Calls.** The request sent as a plain send is, the caller waiting at a full buffer and no
+   helper process, so that everything one process sends keeps its order; `answer` the same,
+   a second answer's crossing a message's cost; the note to the callee's node that a call
+   waits, and the second at its time; `callee is unreachable`.
+5. **`Peer`.** `key`; `offer`, which faults the caller for a key a living process holds; one
+   `find(key, ms)` over the key's peers in the configuration's order, each given the time left,
+   passing over `Unreachable`, `Refused`, `NotOffered` and `OtherType`, answering the first
+   address at the type's text and otherwise the last failure met or `Timeout`, and `NotListed`
+   for a key with no entry; `spawn` and `spawnMonitored` with their time, the site in the
+   frame, `NotLoaded`, and the kill of a process whose spawner stopped waiting; one
+   `Peer.Failure`, each operation's constructors stated, a connection the handshake refused
+   being `Unreachable`; `Peer.nodes` without peers marked `coordinator`. `ern reload` by
+   `SIGHUP` and the table. The shell as a node, its `:load` and `:reload` refused naming MVP
+   3.1; `ern test` as a node, two of them on one machine on port 0; `Peer`'s page with its
+   executed examples. The deadlock detector told by `--config-dir` that a monitor on a peer's
+   process declares none, and the host's lost connection `Unreachable` to it.
 6. **`Load` and `Balancer`**, in Ernest on the runtime, with `measures` starting the host's
    services: the first programs written on the design.
 7. **The tests**, with real nodes on one machine as the experiment runs them, holding the
    proposal's section 4 whole and the cases of its section 8, nodes with keys of their own, a
    peer stopped for a silent one, a node started again, a node that does not listen, a node
-   of another build and a node that ends, the parted network through the proxy among them; a
-   program's own test of two nodes with `ern config` and `Os`, as section 8 has it; the costs of
-   the proposal's section 9 measured; `docs/development.md`'s table for the refusals that
+   of another build and a node that ends, the parted network through the proxy among them,
+   and the find over a key's peers in the order, the time and the failures stated; a
+   program's own test of two nodes with `ern config` and `Os`, as section 8 has it; the costs
+   of the proposal's section 9 measured; `docs/development.md`'s table for the refusals that
    name MVP 3.1, the shell's two and `ern run --config-dir dir` with no file; and the guide's
    peer chapter, here and not in item 1, since its examples run only once items 2 to 6 are
    built.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
-the program's, and two services under one name on one node are not told apart beyond their
-types (its section 9, point 2); a connected peer may do anything on this carrier, and no
-right is narrowed (point 1); and what other systems teach beyond the carrier and the address
-rule (point 6) is `nodes.md`'s and `other_systems.md`'s, and no item's.
+the program's, and two nodes offering one key by mistake are told apart by nothing but the
+order of the finder's list (its section 5, point 4); a connected peer may do anything on this
+carrier, and no right is narrowed but the planned stop, which MVP 3.2 gives to peers marked
+`coordinator`; and what other systems teach beyond the carrier and the address rule is
+`nodes.md`'s and `other_systems.md`'s, and no item's.
 
 ---
 
 ## MVP 3.1 (code by its hash), about five weeks
 
 Designed in [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md), written from the thinking in
-[`code.md`](../proposals/nodes_and_code/code.md) and settled with the user on 2026-10-07 after
-a cross-check with `mvp3.0.md`, a fresh reader's findings and a read-back; its reasons are
-`code.md`'s part one, and what three readers found of Unison, Dhall, Nix, Git and the BEAM is
+[`code.md`](../proposals/nodes_and_code/code.md), settled with the user on 2026-10-07 after
+a cross-check with `mvp3.0.md`, a fresh reader's findings and a read-back, and reviewed with the
+other two proposals on 2026-10-08; its reasons are `code.md`'s part one, and what three readers
+found of Unison, Dhall, Nix, Git and the BEAM is
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md), section 6. It is step C of
-`code.md`'s section 1: a hash for each definition, code crossing with a spawn, versions side
-by side, a deploy a rolling restart; nothing of step D, a running process that takes new code,
-which is the milestone after this one and `code.md`'s part two. The standard library's `Code`,
-placed as a milestone of its own on 2026-10-06, is here: its six decisions are answered in the
-proposal, `Code` being two functions for the toolchain's Ernest code and the tools, `load` and
-`hashes`, with `Code.Error`, a program having nothing to load by name.
+`code.md`'s section 1: a hash for each definition, a type's identity its shape, code crossing by
+one exchange, versions side by side; nothing of step D, which is the milestone after this one
+and `code.md`'s part two. The standard library's `Code`, placed as a milestone of its own on
+2026-10-06, is here: `Code` is two functions for the toolchain's Ernest code and the tools,
+`load` and `hashes`, with `Code.Error`, a program having nothing to load by name.
 
 The items, in build order, each with the report's sentences first, its tests, and a commit:
 
 1. **The report and the soundness argument.** §8.7 rewritten from the proposal: identity by
-   hash, what crosses with a spawn, a binding's identity, nothing on a message; §11.1 for what
-   an `.erc` holds; §11.2 for a bare node, the shell's `:load` and `:reload` in a shell that is
-   a node, and `ern diff`; Appendix E's section for `Code`; `soundness.md`'s section 7 extended
-   to identity by hash. The log's entries, pointing at `code.md` for the argument.
-2. **The canonical form, and the hash.** The form's document with the scheme's version, written
-   before any hash is computed, and its test suite: the same definition hashes the same across
-   a rebuild, a renamed function keeps its dependents' hashes, a renamed type or binding
-   changes them, a moved definition in a group changes the group's, two bodies that differ in
-   local names or layout hash the same, a literal's encoding is fixed; two hashes for one
-   definition and one hash for two are its cases. The compiler computes every definition's
-   hash, a type's identity with its members, a binding's with its name, a group's in source
-   order, a lambda's by its enclosing definition and position; the `.erc` carries the canonical
-   forms and the hashes.
+   hash, a type's identity its shape and not its name, what crosses with a spawn and what a
+   node told a root fetches, a binding's identity, nothing on a message; §11.1 for what an
+   `.erc` holds; §11.2 for a bare node, for the shell's `:load` and `:reload` in a shell that
+   is a node, the reload a load of what changed with nothing purged, and for `ern diff`; §6.10's
+   cross-node sentence rewritten over a spawn that carries its code; `Fault("its code was
+   unloaded")` gone from §7.4, §8.4 and §11.2, since nothing is unloaded; §8.1, §8.5, §8.6 and
+   §11.8 for a bare node's entry process, which runs no `main` and ends by termination; §8.5
+   for `Code.load`'s fresh process at `Never`; Appendix E's section for `Code`, with
+   `Faulted(cause)`; `soundness.md`'s section 7 extended to identity by hash, and its paragraph
+   for `Code.load`. The log's entries, pointing at `code.md` for the argument.
+2. **The canonical form, and the hash.** The form's document with the scheme's version, which
+   changes with anything that runs before hashing, written before any hash is computed, and its
+   test suite: the same definition hashes the same across a rebuild, a renamed function or type
+   keeps its dependents' hashes, a renamed constructor, field or binding changes them, a moved
+   definition in a group changes the group's, two bodies that differ in local names or layout
+   hash the same, a literal's encoding is fixed; two hashes for one definition and one hash for
+   two are its cases. The compiler computes every definition's hash, a type's identity as its
+   shape with its members, a binding's with its name, a group's in source order, a lambda's by
+   its enclosing definition and position; the `.erc` carries the canonical forms and the hashes.
 3. **`ern diff` and `Code.hashes`.** The first use of the hashes, visible before any node uses
    them: `changed` and `follows`, and the keys whose identity changed.
-4. **The cookie and the key.** The cookie without the build's checksum; a key carrying its
-   type's identity in the find frame; `OtherType` by identity; `Refused`'s text.
-5. **A node's code.** The table from hash to the host's module and function; the node's own
-   build compiled through it; what arrives in one exchange compiled into one unit of the
-   host's; a build directory never changed under a running node; embedded mode and the units
-   off the code path; the node's line on its standard error at four fifths of a limit.
+4. **The cookie and the key.** The cookie without the build's checksum, `ern`'s version in it
+   until MVP 3.2 puts the runtime's surface there; a key carrying its type's identity in the
+   find frame; `OtherType` by identity; `Refused`, the peer's refusal of a closure, with its
+   text.
+5. **A node's code.** The code table from hash to the host's module and function; the node's
+   own build compiled through it; what arrives in one exchange compiled into one unit of the
+   host's, its functions named by position; a build directory never changed under a running
+   node; the units off the code path, loading otherwise as `ern run` does; the cache on disk,
+   each form with its compiled unit; the node's line on its standard error at four fifths of a
+   limit, modules, lambdas and atoms.
 6. **The exchange at a spawn.** The spawn frame with the function's hash; the request for the
    list, the list with the foreign declarations, the lacks and the code frames, each one
    definition's canonical form with its immediate references; verification on arrival,
    quarantine until the closure is complete, one atomic load, what the peer said it has pinned
-   meanwhile; the exchange in a process of its own on each node; `NotLoaded` for a foreign
-   module the peer lacks and `Refused` for a closure it cannot load; a form verified before it
-   is shipped; the forms of received and shell-typed definitions kept.
-7. **Bindings, the bare node and the shell.** Bindings' values by identity; `ern run
-   --config-dir dir` with no file, refused without `listen`; the shell's two refusals lifted,
-   a shell-typed function spawning with its code; `Balancer.measure` capturing the key.
-8. **`Code.load`**, with `Code.Error`, and the shell's `:load` and `:reload` written in Ernest
+   meanwhile; the exchange in a process of its own on each node, written so that MVP 3.2's
+   second asker, a node told a root, fits it; `NotLoaded` for a foreign module the peer lacks
+   and `Refused` for a closure it cannot load; a form verified before it is shipped; the forms
+   of received and shell-typed definitions kept.
+7. **Bindings, the bare node and the shell.** Bindings' values by identity; the one rule for
+   captures and references, a binding a spawned function names the peer's and a value to carry
+   bound to a local first; `ern run --config-dir dir` with no file, its entry process
+   evaluating the standard library's bindings and waiting, refused without `listen`; the
+   shell's two refusals lifted, a shell-typed function spawning with its code;
+   `Balancer.measure` carrying the key as a captured local.
+8. **`Code.load`**, its bindings evaluated in a fresh process at `Never` while the caller waits,
+   with `Code.Error` and `Faulted`, and the shell's `:load` and `:reload` written in Ernest
    over it, compiling staying the toolchain's.
 9. **The tests, the measurements and the guide.** Two builds of one program as nodes on one
    machine, holding the proposal's section 4 whole; a node told to load many units, once,
-   measured; what a spawn that ships code costs; the guide's chapter for code by its hash and
-   the rolling deploy; `docs/development.md`'s table for the refusals lifted; `mvp3.1.md`'s
-   status line.
+   measured, with the growth of the host's module, lambda and atom tables; what a spawn that
+   ships code costs; the guide's chapter for code by its hash and the rolling deploy by hand;
+   `docs/development.md`'s table for the refusals lifted; `mvp3.1.md`'s status line.
 
 What the plan once held for this milestone, the normalized definition, hash modules named
 `ern#<base32>`, a registry per node, a loader beside the host's with a cache on disk, versions
 coexisting by unloading, a drain and restart, a fetcher of libraries by hash, is decided
 otherwise or placed: the first three by the proposal's *The hash* and *A node's code*, the
-unloading by its limit 3 and MVP 3.2, the fetcher by MVP 3.4's library story.
+cache by *A node's code* and MVP 3.2's restart from it, the unloading by the proposal's limits
+alone, the fetcher by MVP 3.4's library story.
 
 ---
 
 ## MVP 3.2 (the ordered rolling restart), about five weeks
 
 Designed in [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), whose every question was decided
-with the user on 2026-10-07 and which was settled the same day; its reasons are
+with the user on 2026-10-07, and which the review of 2026-10-08 changed most, every finding
+decided with the user; its reasons are
 [`deploy.md`](../proposals/nodes_and_code/deploy.md), what other systems do is
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md)'s section 7, and what six
-programs showed is [`experiments/code_update/`](../proposals/nodes_and_code/experiments/code_update/README.md).
+programs and their library showed is [`experiments/code_update/`](../proposals/nodes_and_code/experiments/code_update/README.md).
 It is step D of `code.md`'s section 1: a deploy is a rolling restart the runtime orders and
-checks, no code changes in a running process, and the team writes only what no tool can know.
+checks, no code changes in a running process, a kept state outlives the restart through a file,
+and the team writes a `migrate` and a conversion where a type changed and is told which.
 What the plan held as MVP 3.1a, the runtime's surface in the cookie, is this milestone's. Each
 item builds its area as the proposal's section 6 states it, whole.
 
-1. **The report and the soundness argument.** §8.7 for the rollout and the planned stop; §11.2
-   and §11.3 for `ern deploy`, `ern stop`, `--drain` and `keys` in `ernest.conf`; Appendix E
-   for `Peer.find(key, ms)`, `Peer.standing` and E.22's refusal, `a process runs one child
-   function`; §8.6 for a node's planned stop; `soundness.md`'s paragraph for the state file and
-   `migrate`. The log's entries, pointing at `deploy.md`.
+1. **The report and the soundness argument.** §8.7 for the rollout, the planned stop and the
+   kept state; §9.5 for `kept`, a function of `restarting`'s family whose loop the runtime owns;
+   §8.6 for termination as the planned stop, the one way a node ends, and the interrupt as the
+   quick end; §11.2 for `ern deploy`, `ern status`, `ern state`, `ern diff`'s printed text and
+   a node's restart inside its host process; §11.3 for `keys`, `drain` and `coordinator` in
+   `ernest.conf`, the `build` file and `state/`; Appendix E for E.22's refusal, `a process runs
+   one child function`; Appendix F's and `style.md`'s glossary words, build, root, kept state,
+   planned stop, rollout, plan, code table and cache; `soundness.md`'s paragraphs for a kept
+   state leaving its process, for the state file and `migrate`, and for a protocol served at
+   the old identity. The log's entries, pointing at `deploy.md`.
 2. **The plan from the hashes.** `ern diff` grown into the plan: each key's row from the
-   identities of its protocol and state type in two builds, what the build holds, derived,
-   written or a hole; a protocol changed accepted only with a `forward`; a build that drops a
-   protocol accepted only when no node is older than the one that first served both; the order
-   from the keys each node offers and finds; the plan's lines and refusals printed.
-3. **What is derived.** `migrate` by the one rule, matched by name and type, defaults, drops,
-   promotions, `was` for a rename, and the reverse; `forward` for every constructor kept in
-   form; the hole the checker refuses; the new declaration in a module of its own.
-4. **The planned stop and the state file.** `ern stop` as the planned stop and the coordinator's
-   frame: keys withdrawn, the drain ended early and bounded by `--drain`, a service moved to the
-   key's next node or its state written to `state/`, the close; the file's form, the type's
-   hash then the value, written by rename, read through `migrate` at the service's start and
-   removed, written through the reverse `migrate` where the next build is older.
-5. **The cache and the surface.** A node's code on its disk by hash, fetched before the stop by
-   the exchange, a build's hashes let go when the plan no longer names it; the runtime's
-   surface named, versioned and in the cookie in place of `ern`'s version. The memory of code
-   measured here, which the plan once held as MVP 3.1a: how fast the host's module, fun and
-   export tables grow across deploys, and what the cache's letting go leaves of it.
-6. **`ern deploy`.** The coordinator in Ernest, a node like the shell: the plan and the yes, the
-   lockstep, the check by key at the plan's identities, a node that does not answer put back,
-   the way back as a rollout, nothing kept between runs.
-7. **The generated test**, `ern test --config-dir dir` where a build names the previous one:
-   the shape half, and the run half with two nodes, values generated for each state type and
+   identities of its protocol and its kept state's type in every build in flight, the `migrate`
+   found by its type and paired by the key, a protocol changed accepted where the old identity
+   is offered, a build that drops a protocol accepted only when no node is older than the one
+   that first offered both; the order over the running nodes whose root changed, services
+   before clients, each told the root of its own qualified name; what the plan prints, the
+   releases, the skipped nodes, each node's time and their sum, an older target, the way back
+   as a command, what a standing address drops, the builds the way back reaches; its
+   refusals, a node down unless `--without`, a mark, a changed configuration, a full disk,
+   and what to write.
+3. **The old shape and what the program writes.** The offer table by name and type identity;
+   the old key offered as `via(service, convert)` with a pure conversion for a gained
+   constructor, and through a forwarder of the library `Forward` for a retired request;
+   `migrate` as a member of the new type from the old and of the old from the new; `ern diff`
+   printing the `migrate` and the conversion to paste, with what needs a decision left empty;
+   the library `Standing` under `libs/`, an ordinary process over `Peer.find` and `monitor`
+   that always answers an address and ends with its caller.
+4. **The kept state, the planned stop and the state file.** `kept(key, init, step)`; termination
+   as the planned stop, from the service manager, `ern stop` and `kill -TERM` alike, accepted
+   as a frame from a peer marked `coordinator` alone: keys withdrawn, the drain until no call
+   waits in the node's table and every `kept` loop is idle or the node's time passes, each
+   kept state asked for between two steps and written, the close; a second termination ending
+   the drain early, the interrupt the quick end; the state file written, synced and renamed,
+   its hash read before its value, read by the `kept` loop in place of `init` through `migrate`
+   where the identity differs, removed once the node listens, and a failed write ending the
+   stop before the close; the `build` file, and the restart of the runtime inside its host
+   process where a next build was carried; a failed start going back to the previous build
+   once by the node's own act.
+5. **The cache and the surface.** A node restarting from its cache, every form verified against
+   its hash and nothing compiled; the fetch of the next build before the yes by the exchange's
+   second occasion, the coordinator shipping a build directory's forms; a build let go when the
+   plan has printed that no way back reaches it; the runtime's surface named, versioned, taking
+   in the standard library's identity, and in the cookie in place of `ern`'s version; a release
+   of `ern` deployed by restarting each node whose release differs, after the operator installs
+   it.
+6. **`ern deploy`, `ern status` and `ern state`.** The coordinator in Ernest, a node like the
+   shell, listed as `coordinator`: the question frame and its answer; the plan and the yes per
+   node, `next` or `all`; the lockstep, the wait for the node to be back within its time, the
+   check by key at the plan's identities; at a node not back or lost, stopping and printing
+   what stands, rolling nothing back, `ern deploy` of either build the way on or back; a
+   node's rollout mark; nothing kept between runs. `ern status`, from the same frame, and
+   `ern state`.
+7. **The generated test**, `ern test --config-dir dir` given two build directories: the shape
+   half, and the run half with two nodes, values generated for each kept state's type and
    written as state files, the rollout, the comparison by identity and round trip, the
    rollback; the generator of values for a type.
 8. **The tests, the measurements and the guide.** The proposal's section 8 whole, on three nodes
    on one machine; `experiments/code_update/`'s programs run as the generated test's first
-   subjects; the guide's chapter on a deploy, which teaches the two builds and small protocols
-   of a service's own with the shared record's number; `mvp3.2.md`'s status line.
+   subjects; the guide's chapter on a deploy, which teaches `kept`, the two builds, the old
+   shape in its module and small protocols of a service's own with the shared record's number;
+   `mvp3.2.md`'s status line.
 
 ---
 

@@ -1,6 +1,6 @@
 # The accounts system, on paper
 
-Written on 2026-10-08 by a reader of the three proposals, `mvp3.0.md`, `mvp3.1.md` and `mvp3.2.md`, in Ernest as the report defines it plus what the three add: a small web service of two nodes with an accounts store behind it, a bare node as the store's second, a one-shot client and a coordinator, deployed through a fix of logic, a change of protocol, a change of the state's type and a rollback. Where a proposal left a form unsaid the writer wrote the smallest form that let the program go on, marked `// ASSUMED`, and recorded the gap; the gaps are section W of `docs/findings.md` while the review is open. Nothing here is built or runs.
+Written on 2026-10-08 by a reader of the three proposals, `mvp3.0.md`, `mvp3.1.md` and `mvp3.2.md`, in Ernest as the report defines it plus what the three add: a small web service of two nodes with an accounts store behind it, a bare node as the store's second, a one-shot client and a coordinator, deployed through a fix of logic, a change of protocol, a change of the state's type and a rollback. Where a proposal left a form unsaid the writer wrote the smallest form that let the program go on, marked `// ASSUMED`, and recorded the gap; the gaps were section W of the review's findings, every one of which was decided with the user on 2026-10-08 and is in the proposals as they now stand (the log's *The Three Proposals Reviewed Before Anything Is Built*); the program is kept as written against the proposals of that morning. Nothing here is built or runs.
 
 ## The system
 
