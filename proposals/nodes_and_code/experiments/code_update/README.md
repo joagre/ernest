@@ -72,7 +72,7 @@ The `Upgrade` hands the state to new code through a function whose mailbox type 
 
 ## A second finding, on today's shell
 
-In the service session the reload did not list the version 1 process as holding the previous version, where the restart session's reload did. The library's loop runs `Service.run`, which the reload did not compile again, and holds version 1's `step` in its arguments; the host's `check_process_code` sees a process's code and not a function in its state (the survey's *B8*), so §11.2's listing missed it, and the reload that purges version 1 will leave it to fail at its next `Add` with the host's `undef`. The plan's standing gaps hold it; MVP 3.1 unloads nothing, which closes it.
+In the service session the reload did not list the version 1 process as holding the previous version, where the restart session's reload did. The library's loop runs `Service.run`, which the reload did not compile again, and holds version 1's `step` in its arguments; the host's `check_process_code` sees a process's code and not a function in its state (the survey's *B8*), so §11.2's listing missed it, and the reload that purges version 1 will leave it to fail at its next `Add` with the host's `undef`. MVP 3.1 unloads nothing, which closes it (the plan's MVP 3.1, item 8).
 
 ## The count
 
@@ -338,7 +338,7 @@ The counter counts to 2, is crashed, and is restarted from 0 by the group. After
 ## Findings
 
 - **A restart runs the function the child was spawned with, so an upgrade in place vanishes at the first fault.** Shown twice, by the counter after a reload and by the tally after an upgrade. Part two's 7.2 predicted it; it is now the experiment's first finding for step D: whatever upgrades a supervised process must change what its restart runs.
-- **Part two's answer does not work with today's supervisor.** A child's function run inside a process that is already a child misreads why it began and is counted as a fault. Appendix E.22 is silent on it; the plan's standing gaps hold it, with the two shapes of its answer: a refusal, or the operation step D wants, a child that replaces the function its restart runs.
+- **Part two's answer does not work with today's supervisor.** A child's function run inside a process that is already a child misreads why it began and is counted as a fault. Appendix E.22 is silent on it; decided on 2026-10-07 for the refusal (`deploy.md`, section 13; the plan's MVP 3.2, item 2), the operation by which a child replaces the function its restart runs withdrawn with every change in place.
 - **A child joins a running group at any time**, so adding a service to a tree needs nothing new. Removing one is killing it. Changing the strategy or the limit needs a new group, whose children begin afresh, which is a replace of the whole subtree.
 - **A supervisor is not a service whose `State` is its children.** Its state is the watcher's list of processes and its loop's count of recent faults, behind an abstract `Msg`, and none of it is a value a successor could take: the processes are the children themselves, which stay where they are. The tree's upgrade is therefore its children's, one by one, plus a way to change what each restart runs, and a change of strategy or limit is a new group.
 

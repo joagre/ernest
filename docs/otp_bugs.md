@@ -1,6 +1,6 @@
 # Defects found in OTP
 
-The defects of OTP that building Ernest has found, each written as a report for OTP's tracker, [github.com/erlang/otp/issues](https://github.com/erlang/otp/issues), ready to file, and reproduced with OTP alone. Filing is the user's. A report stays here until OTP has fixed its defect in a release Ernest requires. Where a defect still shows in Ernest, the plan's *Standing gaps* says how, and the decisions log why Ernest meets it as it does.
+The defects of OTP that building Ernest has found, each written as a report for OTP's tracker, [github.com/erlang/otp/issues](https://github.com/erlang/otp/issues), ready to file, and reproduced with OTP alone. Filing is the user's. A report stays here until OTP has fixed its defect in a release Ernest requires. Where a defect still shows in Ernest, the code's comment at the place says how, and the decisions log why Ernest meets it as it does.
 
 ## 1. `erl_child_setup` prints a line when the emulator ends while a port starts
 

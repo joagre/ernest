@@ -99,9 +99,9 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
         {error, Errors, _} -> compiled_without_type_pass(Forms, Options, Errors)
     end.
 
-%% A workaround of a defect of OTP's compiler, decided with the user on
-%% 2026-10-05, the plan's standing gap *OTP 29's compiler refuses a recursive
-%% call through rem*. OTP 29's compiler 10.0.5 narrows a recursive function's
+%% A workaround of a defect of OTP's compiler, decided on 2026-10-05,
+%% docs/otp_bugs.md's report 3, the compiler's validator refusing what its
+%% type pass made through rem. OTP 29's compiler 10.0.5 narrows a recursive function's
 %% parameter to a range its call's argument breaks, a `rem` whose divisor's
 %% range holds 0 among them, and its own validator then refuses valid
 %% Erlang. A module the validator refuses so is compiled again with that

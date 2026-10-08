@@ -6,8 +6,9 @@ the report in [`report/`](../report/), how the code is arranged to
 [`architecture.md`](architecture.md), and the commands and what the toolchain does not do yet
 to [`development.md`](development.md).
 
-Read "Where we are" first. The milestones to come follow in order, then what is in no
-milestone, the standing gaps, and what is done.
+Read "Where we are" first. The milestones to come follow in order, then what is done. A gap
+stands in the milestone whose item closes it, a defect of OTP's in [`otp_bugs.md`](otp_bugs.md),
+and a feature declined in the log's *Later*; nothing stands between.
 
 ---
 
@@ -250,8 +251,9 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     build and ended; the costs of the proposal's section 9 measured, the gateway's step, a
     call's five signals and TLS; the numbers of section 7 held; `docs/development.md`'s table
     for the refusals that name MVP 3.1, the shell's two and `ern run --config-dir dir` with no
-    file; and the guide's peer chapter, here and not in item 1, since its examples run only once
-    items 3 to 9 are built.
+    file; `make sections`, which lists §3.11, §6.7 and §8.7 today for want of this milestone and
+    MVP 3.1, naming none of them after it; and the guide's peer chapter, here and not in item 1,
+    since its examples run only once items 3 to 9 are built.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two peers offering one key by mistake are told apart by nothing but the
@@ -373,7 +375,11 @@ last among what uses the exchange.
    the session's names, a binding made before it keeping the type it was checked under, a
    message of one version to an address of the other a type error whose diagnostic names the
    previous version, a previous version's process running on with its key offered again only
-   once it has ended, the reload's purge and `its code was unloaded` gone, a shell-typed
+   once it has ended, the reload's purge and `its code was unloaded` gone, which closes the
+   two gaps the experiments found on 2026-10-07, a function of a previous version held in a
+   process's state that the purge did not see, and a binding of a previous version forgotten
+   where it is now kept at its own type (the log's *A Binding of a Previous Version Is
+   Forgotten*), a shell-typed
    function spawning on a peer with its code; the shell's two refusals lifted from
    `docs/development.md`'s table.
 9. **The tests, the measurements and the guide.** Two builds of one program as nodes on one
@@ -448,8 +454,9 @@ since it runs the rest.
    every initializer having its value; a state that cannot cross not written. Termination as
    the planned stop for a program that is no node, in `./.ernest`: the kept states written at
    termination or the program's own end and read at the next start, the interrupt writing
-   nothing. E.22's refusal, `a process runs one child function`, which closes the standing gap
-   of 2026-10-07.
+   nothing. E.22's refusal, `a process runs one child function`, which closes the gap the
+   supervisor experiment found on 2026-10-07 (`deploy.md`, section 13), the call being the
+   program's mistake until then.
 3. **The planned stop and the node's restart.** Termination, from the service manager, `ern stop`
    and `kill -TERM` alike, running the four steps: keys withdrawn, a find answering
    `NotOffered`; the drain until no call waits in the node's table, which the call's note fills
@@ -589,6 +596,10 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
    a running program an input opens end with the input's process, their owner (§11.2), and
    the session could own them instead, so that they live until it ends, by a way the shell
    names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
+6. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
+   2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
+   it fails again its step file in the run's directory says which expectation went unmet, and
+   the fix follows from it; diagnosed here where it recurs, and nowhere before.
 
 ---
 
@@ -651,107 +662,6 @@ Release Is for Others*), after the language was argued in MVP 2.99c:
 - **The promise**: what 1.0 holds stable, stated in the report's §0 and the release's notes.
   Until then a release may refuse a program the previous release accepted, and its notes
   point at what changed rather than list it (the log's *A Release Carries No History*).
-
----
-
-## Not in any MVP
-
-`Slot(a)`, a one-shot credit parallel to `Reply(a)`, is out on principles 2 and 5; the log
-holds its shape if the verdict is revisited. String interpolation is declined for now on
-principles 2, 3 and 4. Erlang scheduling hints are out: a priority breaks §10's rule that a
-process cannot prevent others from running, and the memory options of a spawn change no
-meaning; a program reaches either through `foreign fn` (the log's *Scheduling Hints Are the
-Host's*). A library is not found by its name: its URL is the one way to say where it comes
-from, and an index of libraries is others' to publish (the log's *A Library Is Fetched by Its
-URL*). No HTTP
-server, ever, and no database connectors: those are libraries for others to write on Appendix
-D's pattern.
-
-Three parts of the shell's later work are out (the log's *The Shell's Second Round*): the
-grey suggestion, a third way into the history beside `Up` and `C-r` (principle 2), told from
-what was typed by colour alone, which the plain mode lacks; re-running an input by number, a
-second way to name an input, which `Up` or `C-r` and `Enter` already re-run (principle 2);
-and a report of a program's quiescence at the prompt, since a later input may send to any
-waiting process, so the report would be a guess (§11.2 detects no deadlock while a shell holds
-the terminal). The rest is MVP 3.3's.
-
----
-
-## Standing gaps
-
-- **A child's function run in a process that is already a supervisor's child** (found
-  2026-10-07 by the supervisor experiment under
-  `proposals/nodes_and_code/experiments/code_update/`): `Supervisor.child(group, f)()` called
-  inside a running child reads the process's start cause, which is the outer restart's, and
-  reports a fault that did not happen, so the group may give up. Appendix E.22 is silent on
-  it. Decided with the user on 2026-10-07 (`deploy.md`, section 13): the call is refused,
-  `Fault("a process runs one child function")`, which E.22 states and `Supervisor` does
-  when step D is built; an operation by which a child replaces the function its restart runs
-  was decided the same day and withdrawn, no code changing in place. Until then the call is
-  the program's mistake, and the experiment's README says so.
-- **The shell's reload does not see a function of the previous version held in a process's
-  state** (found 2026-10-07 by the counter experiment under `proposals/nodes_and_code/experiments/code_update/`):
-  §11.2 lists the processes still running a previous version by the host's
-  `check_process_code`, which sees a process's code and not a function held in its arguments
-  (the survey's *B8*), so a library loop that holds a module's `step` is not listed, and the
-  further reload that purges the version leaves it to fail with the host's `undef` at its next
-  call rather than §7.4's `its code was unloaded`. The host offers no way to see a function in
-  another process's state. MVP 3.1 removes the purge, nothing being unloaded and no unit taking a
-  second version (`mvp3.1.md`, section 6, *A node's code*), which closes it; since 2026-10-07 §11.2
-  says the limit, as it says the host's others.
-- **The shell does not tell a previous version of a type from the current one** (found
-  2026-10-07 by an experiment while [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) was
-  read back): after a `:reload` that added a constructor to `Counter.Msg`, a message of the
-  new version sent to a binding of the old was accepted, and sat unmatched in the old
-  process's mailbox (§6.3). Since 2026-10-07 §11.2 has the reload forget such a binding,
-  naming MVP 3.1, which `reload_forgets_previous_version` in `test/ern_shell_tests.erl` holds
-  (the log's *A Binding of a Previous Version Is Forgotten*). Its fix is MVP 3.1's items 2
-  and 8, a type's identity its hash in the session's scope as everywhere (`mvp3.1.md`,
-  section 6, *The shell*), which keeps the binding, of its own type, and refuses only a
-  message of the other version.
-- **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
-  load; MVP 2.99d's item 11): its terminal script found an expected line missing; run
-  again alone it passed, and under `make test-shell` too, and it has not failed since in
-  the full runs of 2026-10-06. Undiagnosed: when it fails again, its step file in the run's directory
-  says which expectation went unmet, and the fix follows from it.
-- **§3.11, §6.7 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
-  3.0 and 3.1 material and unbuilt, since 2026-10-01 a spawn on a peer being `Peer.spawn`'s,
-  which §8.3 introduces and a test of its refusal cites; anything else it lists is a gap.
-- **A termination or hangup that comes while the host starts**, before the runtime can take
-  signals, is lost, or ends the program with status 0 and a line of OTP's own, `SIGTERM
-  received - shutting down`; on this machine on 2026-10-02 the window was about a quarter of a
-  second. §8.6 and §11.8 state it as the host's limit since 2026-10-02 (MVP 2.99b's item 6,
-  the log's *MVP 2.99b's Questions, One by One*). Its fix is OTP's, a signal held until the
-  host's signal server runs, which the user takes to OTP's maintainers (`docs/otp_bugs.md`,
-  report 2); since 2026-10-03
-  (item 9) the host installs Ernest's handler as the first thing it runs, and the second
-  outcome's window measured about 5 milliseconds where it had been about 12.
-- **A signal that ends the host while it starts a port**, for a host program, for `ern_exec`,
-  or for OTP's lookup of the host's name, leaves a line of OTP's helper on standard error,
-  `erl_child_setup: failed with error 32 on line 284`, where §8.6 has the runtime print
-  nothing (found 2026-10-01). Every run starts two such ports before `main`, and a program
-  that starts host programs meets it while it runs. A port closed while it starts would
-  leave the same line by OTP's source, and was not met in thirty tries. Its fix is OTP's: the
-  child exits silently when the host is gone, as the helper does, which the user takes to
-  OTP's maintainers (`docs/otp_bugs.md`, report 1; decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
-  nothing around it, and the gap stands until a release of OTP that Ernest requires has it.
-- **OTP 29's compiler refuses a recursive call through `rem`** (found 2026-10-05 by `make
-  test-typed`, seed 74183997, program 220): a well-typed program whose emitted Erlang is valid
-  fails to build, `emitted Erlang does not compile`, OTP's validator reporting "Internal
-  consistency check failed - please report this bug". Five lines of Erlang show it, with
-  nothing of Ernest's: `f() -> h([1000, -79], -62).`, `h([], Acc) -> Acc;` and `h([X | Rest],
-  _Acc) -> h(Rest, X rem (X - 3)).` OTP's type pass gives the accumulator the list's range,
-  -79 to 1000, where `rem`'s is -996 to 996, a divisor whose range holds 0; compiled with
-  `+no_type_opt` it builds and answers -79. Met in OTP 29's compiler 10.0.5. Its fix is OTP's,
-  which the user takes to OTP's maintainers (`docs/otp_bugs.md`, report 3). Meanwhile, decided with the user on 2026-10-05
-  (the log's *OTP's Compiler, Worked Around*), the emitter compiles a module the validator
-  refuses again with that pass off, that module alone, `ern_emitter`'s
-  `compiled_without_type_pass`, whose comment says so. Its test holds that the host still
-  refuses the shape, so that it fails, and says the workaround goes, once an OTP with the fix
-  runs it.
-- **The launchd checks** of `make service`, written for macOS in MVP 2.99b's item 10, have
-  not run, since no Mac has been at hand; 0.3.0's and 0.3.1's notes say so. They run on the
-  first Mac the project has, and a release's notes say they have not until then.
 
 ---
 
@@ -1100,7 +1010,7 @@ reported at once, and a fault at the program's end is not reported (§8.6). Four
 OTP's are written as reports in [`otp_bugs.md`](otp_bugs.md), the compiler's worked around
 meanwhile. The report's and the guide's feedback, the manual pages and the examples made to
 teach, shipped as Ernest 0.3.1. The shell's `live_region` test, unmet once, stands in
-*Standing gaps*.
+MVP 3.3.
 
 ### The shell shows a bracket's match (done 2026-10-06, ahead of MVP 3.3)
 

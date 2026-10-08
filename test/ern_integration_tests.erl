@@ -288,8 +288,8 @@ out_of_memory() ->
 %% interrupt ignored, and interrupted once the program shows by a file that
 %% it runs. An interrupt that comes while the host starts a port, as it
 %% does twice before `main`, leaves a line of OTP's helper on standard
-%% error, a gap the plan's *Standing gaps* names, a signal that ends the
-%% host while it starts a port, and is not covered here. Written after the
+%% error, a defect of OTP's, docs/otp_bugs.md's report 1, a signal that
+%% ends the host while it starts a port, and is not covered here. Written after the
 %% code, with the sentence of §11.2 that states the status.
 interrupt_test_() ->
     {timeout, 60, fun interrupt/0}.
@@ -1183,7 +1183,7 @@ signal_end() ->
 %% host's report, and ended with status 0 as if it had built everything.
 %% The tree is large enough that the signal comes while it builds, once
 %% its first module is written. It does not cover a signal that comes as
-%% the host itself starts, which the host drops (plan, Standing gaps)
+%% the host itself starts, which the host drops (docs/otp_bugs.md, report 2)
 job_signal_end_test_() ->
     {timeout, 60, fun job_signal_end/0}.
 

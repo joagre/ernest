@@ -173,8 +173,8 @@ rename(Node, {Names, Counter} = State) ->
 %% Golden tests: the emitter reproduces the hand-written targets
 %%
 
-%% report §11, and the plan's standing gap *OTP 29's compiler refuses a
-%% recursive call through rem*: a module the host's own validator refuses,
+%% report §11, and docs/otp_bugs.md's report 3, the compiler's validator
+%% refusing what its type pass made through rem: a module the host's own validator refuses,
 %% its type pass narrowing a recursive function's parameter to a range the
 %% call's argument breaks, is compiled again without that pass, and runs.
 %% Written with the workaround; the shape is the one `make test-typed`
