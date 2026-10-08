@@ -127,8 +127,8 @@ otp_version() ->
 %%
 
 %% Report §8.7: the carrier started once the bindings have their values,
-%% in the entry process: the peer table the rule and the port map read, the
-%% host's own reports of its nodes turned off, the gateway, the watch on the
+%% in the entry process, the node's peers listed (list/1): the host's own
+%% reports of its nodes turned off, the gateway, the watch on the
 %% node's connections, and the host's distribution under the node's name,
 %% listening where `listen` names an interface. A carrier that cannot
 %% start, its port taken among the reasons, ends the node as an initializer
@@ -138,9 +138,7 @@ start(_Configuration, _Stamped) when node() =/= nonode@nohost ->
     %% report §11.2: `ern test` over a directory runs each module in a
     %% runtime of its own, in one host, which is one node
     ok;
-start(#configuration{public_key = PublicKey, listen = Listen} = Configuration,
-      Stamped) ->
-    ok = list(Configuration),
+start(#configuration{public_key = PublicKey, listen = Listen}, Stamped) ->
     persistent_term:put({?MODULE, stamped}, Stamped),
     ok = logger:add_primary_filter(?MODULE, {fun ?MODULE:filter/2, []}),
     ok = ern_gateway:start(),
@@ -158,13 +156,15 @@ start(#configuration{public_key = PublicKey, listen = Listen} = Configuration,
 
 %% Report §8.7: the configuration the node runs by, and its peer table,
 %% which the rule, the port map and the lines read, each peer by its key's
-%% digest.
+%% digest, listed as the node starts, before its initializers run.
 -spec list(#configuration{}) -> ok.
-list(#configuration{peers = Peers} = Configuration) ->
+list(#configuration{peers = Peers, keys = Keys} = Configuration) ->
     persistent_term:put({?MODULE, configuration}, Configuration),
     persistent_term:put({?MODULE, peers},
                         maps:from_list([{digest(Key), Peer}
-                                        || #peer{public_key = Key} = Peer <- Peers])).
+                                        || #peer{public_key = Key} = Peer <- Peers])),
+    ern_peer:configure([{Name, name(Key)} || #peer{name = Name, public_key = Key} <- Peers],
+                       Keys).
 
 %% Whether the host was booted with the carrier's flags (boot_flags/2),
 %% which a node needs; a host booted otherwise cannot carry one.

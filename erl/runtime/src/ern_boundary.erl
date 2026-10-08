@@ -304,7 +304,7 @@ expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->
     proxy(Value, MessageDescriptor, Bound, Cause);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checking proxy
-expose({address, MessageDescriptor, Cause}, {via, _, _} = Value, Bound) ->
+expose({address, MessageDescriptor, Cause}, {via, _, _, _} = Value, Bound) ->
     proxy(Value, MessageDescriptor, Bound, Cause);
 %% an address foreign code gave goes back to it as it came
 expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;

@@ -4188,3 +4188,197 @@ example.ern:5:28: a reply-carrying value, Reply(Int), passed where pair duplicat
   |                            ^^^^
   | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
+
+## What crosses to another node (report §3.11)
+
+### A key at a message type not known where it is made (§3.11)
+
+```ernest-rejected
+fn keyOf(name : String) : Peer.Key(m) = Peer.key(name)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:41: Peer.key makes its key at a message type known whole, and here it is m
+1 | fn keyOf(name : String) : Peer.Key(m) = Peer.key(name)
+  |                                         ^^^^^^^^
+  | = help: annotate the key where it is bound, `let key : Peer.Key(Msg) = Peer.key("name")` (§3.11)
+```
+
+### A key of a type bound to its node (§3.11)
+
+```ernest-rejected
+type Msg = Run(() -> Unit)
+
+let key : Peer.Key(Msg) = Peer.key("jobs")
+```
+
+```console
+$ ern build example.ern
+example.ern:3:27: Peer.key makes a key of Msg, which is bound to its node, since it holds a function
+2 | 
+3 | let key : Peer.Key(Msg) = Peer.key("jobs")
+  |                           ^^^^^^^^
+  | = help: a key's message type crosses to the node's peers, so a process offered under it receives values that cross (§3.11)
+```
+
+### `Peer.spawn` taken as a value (§3.11)
+
+```ernest-rejected
+fn starter() : Unit = {
+    let start = Peer.spawn;
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:17: Peer.spawn is called where it is named, so that the compiler sees the function it starts
+1 | fn starter() : Unit = {
+2 |     let start = Peer.spawn;
+  |                 ^^^^^^^^^^
+  | = help: call it: `Peer.spawn(name, fn() = ..., ms)` (§3.11)
+```
+
+### A spawn on a peer of a function that came as a value (§3.11)
+
+```ernest-rejected
+fn startOn(name : String, f : () -> Unit with Never) : Unit with m = {
+    let _ = Peer.spawn(name, f, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:30: Peer.spawn starts f, a function that came as a value, whose captures the compiler does not see
+1 | fn startOn(name : String, f : () -> Unit with Never) : Unit with m = {
+2 |     let _ = Peer.spawn(name, f, 1000);
+  |                              ^
+  | = help: write the lambda at the spawn, or bind it with `let` in this definition (§3.11)
+```
+
+### A spawn on a peer of a top-level `let` (§3.11)
+
+```ernest-rejected
+let job : () -> Unit with Never = fn() = Unit
+
+fn start() : Unit with m = {
+    let _ = Peer.spawn("worker", job, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:4:34: Peer.spawn starts job, a top-level `let`, whose value may hold captures the compiler does not see
+3 | fn start() : Unit with m = {
+4 |     let _ = Peer.spawn("worker", job, 1000);
+  |                                  ^^^
+  | = help: declare it with `fn`, or write a lambda at the spawn (§3.11)
+```
+
+### A spawn on a peer of a function a call answers (§3.11)
+
+```ernest-rejected
+fn job() : () -> Unit with Never = fn() = Unit
+
+fn start() : Unit with m = {
+    let _ = Peer.spawn("worker", job(), 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:4:34: Peer.spawn starts a function written where the compiler sees what it captures: a declaration's name, or a lambda written in this definition
+3 | fn start() : Unit with m = {
+4 |     let _ = Peer.spawn("worker", job(), 1000);
+  |                                  ^^^^^
+  | = help: write the lambda at the spawn, or bind it with `let` in this definition (§3.11)
+```
+
+### A capture whose type holds a type variable (§3.11, §3.9)
+
+```ernest-rejected
+fn startWith(name : String, values : List(a)) : Unit with m = {
+    let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(Int.toString(List.size(values))),
+                       1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:89: the function Peer.spawn starts captures values, whose type List(a!) holds a type variable
+1 | fn startWith(name : String, values : List(a)) : Unit with m = {
+2 |     let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(Int.toString(List.size(values))),
+  |                                                                                         ^^^^^^
+  | = help: a value a spawn on a peer captures has a type known whole, since a type variable could stand for one bound to its node (§3.11)
+```
+
+### A capture of a type bound to its node (§3.11)
+
+```ernest-rejected
+fn startWith(name : String, describe : (Int) -> String) : Unit with m = {
+    let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(describe(1)), 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:66: the function Peer.spawn starts captures describe, a function, which is bound to its node
+1 | fn startWith(name : String, describe : (Int) -> String) : Unit with m = {
+2 |     let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(describe(1)), 1000);
+  |                                                                  ^^^^^^^^
+  | = help: a value of a bound type never crosses to another node; give the process what crosses (§3.11)
+```
+
+### A spawned process whose mailbox type is not known whole (§3.11)
+
+```ernest-rejected
+fn idle() : Unit with m =
+    receive {
+        after 1000 -> Unit
+    }
+
+fn start() : Unit with n = {
+    let _ = Peer.spawn("worker", idle, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:7:34: Peer.spawn starts a process whose mailbox type a is not known whole here
+6 | fn start() : Unit with n = {
+7 |     let _ = Peer.spawn("worker", idle, 1000);
+  |                                  ^^^^
+  | = help: give the function its mailbox type, `fn() : Unit with Never = ...` for a process that never receives (§3.11)
+```
+
+### A spawned process whose mailbox type is bound to its node (§3.11)
+
+```ernest-rejected
+type Msg = Run(Address(Tcp.SocketMsg))
+
+fn serve() : Unit with Msg =
+    receive {
+        Run(_) -> serve()
+    }
+
+fn start() : Unit with m = {
+    let _ = Peer.spawn("worker", serve, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to its node, since it holds the address of a socket
+8 | fn start() : Unit with m = {
+9 |     let _ = Peer.spawn("worker", serve, 1000);
+  |                                  ^^^^^
+  | = help: the spawn answers an address that may cross to another node, so its messages are values that cross (§3.11)
+```

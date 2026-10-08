@@ -131,6 +131,9 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
 - **EntryPoint, EntryProcess**: the entry point and its process (§8.1, §8.6). Not `Main`.
 - **Carrier**: §8.7's carrier, the host's distribution as a node runs it, `ern_carrier`; its frames go through the **Gateway**, `ern_gateway`, a worker for each peer. Not `Dist`, `Net`.
+- **Peer**: a node the configuration lists (§8.3), by its `Name` there, and by its name on the carrier, the host's `Node`, which `ern_peer` keeps beside it. Not `Remote`, `Other`.
+- **Key, Offer, Frame**: §8.7's key, `{'Key', Name, Text}`, its name and its message type's `Text`; an offer, a key's row in `ern_offers` and its process's in `ern_offered`; a frame of the runtime's, `{ern_frame, From, Body}`, which `ern_peer:frame/2` reads. Not `Service`, `Registration`, `Packet`.
+- **Maker**: the process that made an adapted address (§6.5), whose node applies its function. Not `Owner`, `Creator`.
 - **ConfigDir**: §11.3's configuration directory, `--config-dir`'s value, in the runner and the node module alike; what its `ernest.conf` says is a `#configuration{}`, and a peer it lists a `#peer{}`. Not `Dir`, `Conf`, `Config` alone.
 - **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, `Root` alone.
 - **Message**: a message. Not `Msg`.

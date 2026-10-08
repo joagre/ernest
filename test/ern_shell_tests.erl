@@ -286,7 +286,8 @@ startup() ->
 %% not run. A regression test: each was printed bare, and the file was read
 %% as empty; the release review found `:type`'s
 %% diagnostic named as though typed at the prompt, and `:load`'s refusal
-%% bare, and `:type`'s excerpt now places its argument after the command
+%% bare, and `:type`'s excerpt now places its argument after the command;
+%% the startup file is a node's, whose `:load` waits for MVP 3.1
 startup_failures_named_test_() ->
     {timeout, 60, fun startup_failures_named/0}.
 
@@ -304,7 +305,7 @@ startup_failures_named() ->
     [?assertMatch({_, _}, binary:match(Output, list_to_binary(Startup ++ Line)))
      || Line <- [":1: :set depth takes a number", ":2: no command :bogus",
                  ":3: fault: division by zero", ":5:12: both operands of `+`",
-                 ":6: no module Nope"]],
+                 ":6: :load is not here yet in a shell that is a node"]],
     ?assertMatch({_, _}, binary:match(Output, <<"5 | :type  1 + \"a\"\n  |        -">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
     ok = file:write_file(Startup, <<255, 254, "\n">>),
@@ -2706,6 +2707,32 @@ load_help() ->
                                                 Help/binary>>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown type Greet.T">>)),
     ?assertEqual(4, length(binary:matches(Output, Help))).
+
+%% report §11.2, §8.7: a shell that is a node refuses `:load` and
+%% `:reload`, naming MVP 3.1, and answers a name of a module it has not
+%% loaded with the `:load` that would put it in scope, which arrives then;
+%% a function typed at it is the shell's own, which a peer the node does
+%% not list answers NotListed. A regression test: written after the code;
+%% NotLoaded on a peer is the real nodes' (test/ern_nodes_tests.erl)
+node_shell_test_() ->
+    {timeout, 60, fun node_shell/0}.
+
+node_shell() ->
+    Dir = scratch("ern_node_shell_"),
+    node_dir(filename:join(Dir, ".ernest")),
+    ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Greet\n:reload\nGreet.hello()\nPeer.nodes()\n"
+                                    "Peer.spawn(\"far\", fn() : Unit with Never = Unit, 100)\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
+                                   ++ " --source-root " ++ Dir) ++ " < " ++ InputFile),
+    [?assertMatch({_, _}, binary:match(Output, Part))
+     || Part <- [<<":load is not here yet in a shell that is a node: it arrives in MVP 3.1">>,
+                 <<":reload is not here yet in a shell that is a node: it arrives in MVP 3.1">>,
+                 <<"help: :load Greet would put it in scope; in a shell that is a node it arrives"
+                   " in MVP 3.1">>,
+                 <<"[] : List(String)">>,
+                 <<"Left(NotListed) : Either(Peer.Failure, Address(Never))">>]].
 
 %% report §11.2, Appendix E.17: what programs write goes to the file
 %% `:output` names, appended as the live region would show it, and not to

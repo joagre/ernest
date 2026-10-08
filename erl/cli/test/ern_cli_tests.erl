@@ -951,8 +951,7 @@ prelude_namespace_test() ->
 
 %% report §4.2, Appendix E.27: the refusal names whose namespace a file at
 %% the source root takes: `Address`, a prelude type with members, is the
-%% prelude's, `Io` and `Test` the standard library's, and `Peer` too, which
-%% Appendix E.27 names before MVP 3.0's item 8 writes its module. A
+%% prelude's, `Io`, `Test` and `Peer` the standard library's. A
 %% regression test, written after the code; it does not cover a namespace
 %% that both take, such as `Int`, which is named as the prelude's.
 taken_namespace_names_owner_test() ->
@@ -2489,6 +2488,16 @@ create_config_dir_test() ->
     {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
     ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).
+
+%% report §11.2: a node runs a program until MVP 3.1, so `ern run` given
+%% a configuration directory and no file is refused naming it
+node_without_program_test() ->
+    Dir = tmp() ++ "/.ernest",
+    ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
+    ?assertEqual(1, ern_err(["run", "--config-dir", Dir])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"a node runs a program: ern run --config-dir dir prog.erc;"
+                                        " a node without one arrives in MVP 3.1">>)).
 
 %% report §11.3: the configuration directory is its owner's alone, and one
 %% that exists is refused, whoever made it and however empty. A regression

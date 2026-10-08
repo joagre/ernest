@@ -813,6 +813,13 @@ name_form(_Span, _, from,
 name_form(_Span, _, from, #own_declaration{member_of = undefined, name = from}, _Type,
           [#shown_type{type = Crossing}], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     from_value(Crossing, Context);
+%% Report §8.7: Peer.key as a value, its key's text supplied
+name_form(_Span, _, key,
+          #remote_declaration{namespace = ['Peer'], member_of = undefined, name = key},
+          _Type, [#type_text{text = Text}], Context) ->
+    {[Name], Context1} = fresh_variables(1, "Name", Context),
+    {lambda([Name], call_remote(ern_peer, key, [erl_syntax:variable(Name), type_text(Text)])),
+     Context1};
 name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
     prelude_value(Span, QualifiedName, Type, Context);
 name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, [], Context) ->
@@ -939,6 +946,22 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = from
                   supplies = [#shown_type{type = Crossing}]},
      [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     from_call(Span, Argument, Crossing, Context);
+%% Report §8.7, Appendix E.27: Peer.key makes its key with its message
+%% type's text, which the checker supplied; Peer.spawn and
+%% Peer.spawnMonitored send the spawn's site, as a spawn on this node keeps it
+%% (§6.9)
+call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
+                                                 name = key},
+                  supplies = [#type_text{text = Text}]},
+     [Argument], Context) ->
+    {[ArgumentForm], Context1} = exprs([Argument], Context),
+    {at(Span, call_remote(ern_peer, key, [ArgumentForm, type_text(Text)])), Context1};
+call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
+                                                 name = Name}},
+     Args, Context) when Name =:= spawn; Name =:= spawnMonitored ->
+    {ArgForms, Context1} = exprs(Args, Context),
+    Function = case Name of spawn -> spawn; spawnMonitored -> spawn_monitored end,
+    {at(Span, call_remote(ern_peer, Function, ArgForms ++ [site(Span, Context)])), Context1};
 call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Context1} = exprs(Args, Context),
@@ -1253,6 +1276,10 @@ site(Span,
 
 text_site(SiteParts) ->
     string_binary(unicode:characters_to_binary(SiteParts)).
+
+%% A key's message type's text, as the checker printed it.
+type_text(Text) ->
+    string_binary(unicode:characters_to_binary(Text)).
 
 %%
 %% Operators, report §4.8

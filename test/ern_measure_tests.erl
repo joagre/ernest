@@ -27,5 +27,6 @@ accounted({system, _, _, _, _}) -> true;
 accounted({within, _}) -> true;
 accounted({not_measured, Reason}) ->
     lists:member(Reason, [<<"a top-level binding, no function">>, <<"reads standard input">>,
-                          <<"reads a terminal">>, <<"ends the program, or faults the caller">>]);
+                          <<"reads a terminal">>, <<"ends the program, or faults the caller">>,
+                          <<"acts on a peer, which a run of one node cannot reach">>]);
 accounted(_) -> false.

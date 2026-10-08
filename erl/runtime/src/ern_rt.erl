@@ -5,8 +5,10 @@
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
 %% {'Down', Pid, Reason, Site} in declared field order.
 %%
-%% An Address is a pid, or {via, Function, Target} for an address seen
-%% through a function (report §6.5), which send/2 applies in the sender, or
+%% An Address is a pid, or {via, Function, Target, Maker} for an address
+%% seen through a function (report §6.5), which send/2 applies in the
+%% sender where Maker, the process that made it, is of the sender's node,
+%% and the gateway of Maker's node applies otherwise (§8.7), or
 %% {foreign, Pid, Descriptor, Bound} for an address foreign code gave
 %% (report §8.4), whose messages cross into foreign code. A Reply(a) is the
 %% alias of the call's monitor of its callee, as gen_server's call makes
@@ -45,8 +47,8 @@
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
-         restarting/2, restart_now/0, ask_restart/1, start_cause/0, spawn_order/1, init_stdlib/0,
-         init_modules/1, ordered/1]).
+         restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1, spawn_order/1,
+         init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2, ordered/1]).
 
 -export_type([address/0]).
 
@@ -58,7 +60,8 @@
 %% counts no call of them as foreign code, since the count would cost a
 %% multiple of the call (CLAUDE.md's cost rule).
 -waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, processes/0,
-                   spawn_order/1, start_cause/0, faults/1, info/1, ask_restart/1]).
+                   spawn_order/1, start_cause/0, faults/1, info/1, ask_restart/1,
+                   on_this_node/1]).
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
@@ -94,6 +97,14 @@
 %% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, and
 %% the process a deadlock faults, {deadlock_victim, Pid}
 -define(LAUNCH, ern_launch).
+%% Report §8.7: the offers of the node, {{Name, Text}, Address, Process} by
+%% the key's name and its type's text, ordered so that one name's are read
+%% together; each process's own keys, by the process, so that its end ends
+%% them; and the modules whose initializers have run, which a spawn from a
+%% peer asks for.
+-define(OFFERS, ern_offers).
+-define(OFFERED, ern_offered).
+-define(INITIALIZED, ern_initialized).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 %% How long the reaper waits without a message before it looks for a
@@ -105,8 +116,10 @@
 -define(LOOK_SOON, 100).
 -define(LOOK_LATER, 1000).
 
--type address() :: pid() | {via, fun((term()) -> term()), address()}
+-type address() :: pid() | {via, fun((term()) -> term()), address(), pid()}
                  | {foreign, pid(), term(), map()}.
+%% An adapted address holds the process that made it, whose node is the
+%% one its function runs on (report §6.5).
 %% Report §8.2: the system processes, by the names the runtime keeps them
 %% under.
 -type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
@@ -140,12 +153,17 @@ send(Address, Message) ->
 %% and the message goes straight into the target's mailbox. A fault in the
 %% function is the target's, since the function is part of the protocol the
 %% target's own via(self(), wrap) built.
-deliver({via, Function, Target}, Message) ->
+deliver({via, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
     try Function(Message) of
         Adapted -> deliver(Target, Adapted)
     catch
         Class:Error:Stack -> exit(process_of(Target), fault_exit_reason(Class, Error, Stack))
     end;
+%% report §6.5, §8.7: a message to an adapted address made on another node
+%% is carried, unconverted, to that node's gateway, which applies the
+%% function there
+deliver({via, _, _, Maker} = Address, Message) ->
+    erlang:send({ern_gateway, node(Maker)}, {ern_frame, erlang:self(), {via, Address, Message}});
 %% report §8.4: a message to a foreign address crosses into foreign code
 deliver({foreign, Pid, Descriptor, Bound}, Message) ->
     Pid ! ern_boundary:expose(Descriptor, Message, Bound);
@@ -158,7 +176,7 @@ deliver(Pid, Message) ->
 %% runtime holds of a process, its terminal, its monitors, its death,
 %% must be the process itself.
 -spec process_of(address()) -> pid().
-process_of({via, _, Target}) -> process_of(Target);
+process_of({via, _, Target, _}) -> process_of(Target);
 process_of({foreign, Pid, _, _}) -> Pid;
 process_of(Pid) -> behind(Pid).
 
@@ -202,7 +220,8 @@ is_never_given(_) ->
 %% Whether a term is an address in one of the forms the runtime holds.
 -spec is_address(term()) -> boolean().
 is_address(Pid) when is_pid(Pid) -> true;
-is_address({via, Function, Target}) when is_function(Function, 1) -> is_address(Target);
+is_address({via, Function, Target, Maker}) when is_function(Function, 1), is_pid(Maker) ->
+    is_address(Target);
 is_address({foreign, Pid, _, _}) -> is_pid(Pid);
 is_address(_) -> false.
 
@@ -235,7 +254,7 @@ self() ->
 
 -spec via(address(), fun((term()) -> term())) -> address().
 via(Target, Function) ->
-    {via, Function, Target}.
+    {via, Function, Target, erlang:self()}.
 
 %%
 %% Report §6.6
@@ -345,6 +364,8 @@ ended({'Fault', Cause}) -> fault(Cause);
 ended('Killed') -> fault(<<"callee was killed">>);
 ended('Returned') -> fault(<<"callee returned without answering">>);
 ended('Unknown') -> fault(<<"callee had ended">>);
+%% report §8.7: the callee's node was lost, and the callee may live on
+ended('Unreachable') -> fault(<<"callee is unreachable">>);
 ended('ProgramEnd') ->
     %% a signal, not an exception, which run/1 would take for a fault
     exit(erlang:self(), {ern, program_end}),
@@ -442,6 +463,9 @@ reason({ern, fault, Cause}) -> {'Fault', Cause};
 reason({ern, fault, Cause, _Trace}) -> {'Fault', Cause};
 %% report §6.9: a monitor made after the end cannot say how it ended
 reason(noproc) -> 'Unknown';
+%% report §6.9, §8.7: the process's node went out of reach, and the process
+%% may live on
+reason(noconnection) -> 'Unreachable';
 reason(Other) -> {'Fault', format("~p", [Other])}.
 
 %% The reaper: spawns on request with a monitor of its own, keeps each live
@@ -468,7 +492,15 @@ reaper_loop(Reaper, Wait) ->
         {end_program, From, Ref} ->
             ended_program(From, Ref);
         {'DOWN', _MonitorRef, process, Pid, ExitReason} ->
-            reaper_loop(down(Pid, ExitReason, Reaper))
+            reaper_loop(down(Pid, ExitReason, Reaper));
+        %% report §8.7: an offer of a process the runtime does not watch,
+        %% a foreign one, ends with it as any other does
+        {watch_offered, Pid} ->
+            _ = erlang:monitor(process, Pid, [{tag, 'OFFERED_DOWN'}]),
+            reaper_loop(Reaper);
+        {'OFFERED_DOWN', _MonitorRef, process, Pid, _ExitReason} ->
+            unoffered(Pid),
+            reaper_loop(Reaper)
     after Wait ->
         case look() of
             deadlock ->
@@ -542,6 +574,7 @@ new_run(Pid, Ref, #reaper{monitors = Monitors, monitoring = Monitoring,
 %% and its own, gone.
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
+    unoffered(Pid),
     delivered_down(Pid, ExitReason, Reaper),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
         orelse is_map_key(Pid, MonitorRefs) of
@@ -663,7 +696,7 @@ unmonitored(Caller, [Pid | Rest], Monitors, MonitorRefs) ->
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
 wrapped(Caller, Wrap, Down) ->
-    counted_link(Caller, fun() -> deliver({via, Wrap, Caller}, Down) end).
+    counted_link(Caller, fun() -> deliver({via, Wrap, Caller, erlang:self()}, Down) end).
 
 %% Report §8.6: a process that will deliver a message to the process behind
 %% Address, counted as a source from before it starts until its work is done,
@@ -1612,7 +1645,8 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 %% of (docs/memory.md).
 -spec tables() -> [atom()].
 tables() ->
-    [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?HELD, ?DELIVERIES, ?RESTARTS, ?PROXIES, ?LAUNCH].
+    [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?HELD, ?DELIVERIES, ?RESTARTS, ?PROXIES, ?LAUNCH,
+     ?OFFERS, ?OFFERED, ?INITIALIZED].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public, table_kind(Table)]) end,
@@ -1622,6 +1656,8 @@ make_tables() ->
 %% reads its own by their key's prefix.
 table_kind(?CALLEES) -> ordered_set;
 table_kind(?DELIVERIES) -> ordered_set;
+table_kind(?OFFERS) -> ordered_set;
+table_kind(?OFFERED) -> bag;
 table_kind(_) -> set.
 
 %% The reference that tags this launch, under which the runner is known,
@@ -1905,6 +1941,12 @@ start_cause() ->
         Cause -> Cause
     end.
 
+%% Appendix E.22: whether a process runs on the caller's node, where a
+%% supervisor and its children run (§8.7).
+-spec on_this_node(pid()) -> boolean().
+on_this_node(Pid) ->
+    node(Pid) =:= node().
+
 %% Appendix E.22: where a process stands in the order the runtime spawned
 %% its processes, 0 for one it did not start, which stands first.
 -spec spawn_order(pid()) -> non_neg_integer().
@@ -2085,8 +2127,96 @@ run_inits(ErlangModules) ->
                       case erlang:function_exported(ErlangModule, '$init', 0) of
                           true -> ErlangModule:'$init'();
                           false -> ok
-                      end
+                      end,
+                      %% report §8.7: a peer's spawn asks which have run; a
+                      %% caller outside a run, a test's, has no table
+                      try ets:insert(?INITIALIZED, {ErlangModule}) catch error:badarg -> true end
                   end, ErlangModules).
+
+%% Report §8.7: whether every top-level binding of a module and of every
+%% module it depends on has its value: the module's initializers have run,
+%% which they did after those of every module it depends on (§8.5), so that
+%% the table's modules are closed under dependency; or it is loaded, has no
+%% binding, and the modules it depends on are so in turn. Nothing is loaded
+%% here, since a peer asks.
+-spec initialized(module()) -> boolean().
+initialized(ErlangModule) ->
+    all_initialized([ErlangModule], #{}).
+
+all_initialized([], _Seen) ->
+    true;
+all_initialized([ErlangModule | ErlangModules], Seen) when is_map_key(ErlangModule, Seen) ->
+    all_initialized(ErlangModules, Seen);
+all_initialized([ErlangModule | ErlangModules], Seen) ->
+    Seen1 = Seen#{ErlangModule => true},
+    case ets:member(?INITIALIZED, ErlangModule) of
+        true ->
+            all_initialized(ErlangModules, Seen1);
+        false ->
+            erlang:module_loaded(ErlangModule)
+                andalso not erlang:function_exported(ErlangModule, '$init', 0)
+                andalso all_initialized(declared_dependencies(ErlangModule) ++ ErlangModules,
+                                        Seen1)
+    end.
+
+declared_dependencies(ErlangModule) ->
+    case erlang:function_exported(ErlangModule, '$deps', 0) of
+        true -> ErlangModule:'$deps'();
+        false -> []
+    end.
+
+%% Report §8.7: an offer under a key, its name and its type's text, of an
+%% address of this node's, for as long as its process lives; a key a
+%% living process holds faults the caller, and so does an address of
+%% another node's process.
+-spec offer({binary(), binary()}, address(), binary()) -> 'Unit'.
+offer(Key, Address, Name) ->
+    Process = process_of(Address),
+    node(Process) =:= node() orelse fault(<<"an offer names a process on its own node">>),
+    case ets:insert_new(?OFFERS, {Key, Address, Process}) of
+        true ->
+            ok;
+        false ->
+            case ets:lookup(?OFFERS, Key) of
+                [{_, _, Holder}] ->
+                    case erlang:is_process_alive(Holder) of
+                        true -> fault(<<Name/binary, " is offered by a living process">>);
+                        false -> ok
+                    end;
+                [] ->
+                    ok
+            end,
+            ets:insert(?OFFERS, {Key, Address, Process})
+    end,
+    ets:insert(?OFFERED, {Process, Key}),
+    %% the reaper watches every process the runtime started or opened, and
+    %% is asked to watch any other, so that its offers end with it
+    case {ets:member(?PROCESSES, Process), persistent_term:get({?MODULE, reaper}, none)} of
+        {false, Reaper} when is_pid(Reaper) -> Reaper ! {watch_offered, Process};
+        _ -> ok
+    end,
+    ?UNIT.
+
+%% Report §8.7: what this node offers under a name at a type's text: the
+%% address, or `OtherType` where it offers the name at another type only,
+%% or `NotOffered`.
+-spec offered(binary(), binary()) -> {found, address()} | 'OtherType' | 'NotOffered'.
+offered(Name, Text) ->
+    case ets:lookup(?OFFERS, {Name, Text}) of
+        [{_, Address, _}] ->
+            {found, Address};
+        [] ->
+            case ets:select(?OFFERS, [{{{Name, '_'}, '_', '_'}, [], [true]}], 1) of
+                {[_], _} -> 'OtherType';
+                '$end_of_table' -> 'NotOffered'
+            end
+    end.
+
+%% Report §8.7: a process's offers end with it.
+unoffered(Pid) ->
+    lists:foreach(fun({_, Key}) ->
+                      ets:select_delete(?OFFERS, [{{Key, '_', Pid}, [], [true]}])
+                  end, ets:take(?OFFERED, Pid)).
 
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and
@@ -2117,10 +2247,7 @@ visit(ErlangModule, ErlangModules, {Order, Seen}) ->
 %% call, since init_modules/1 runs in the entry process (report §8.6).
 dependencies_of(ErlangModule) ->
     load(ErlangModule),
-    case erlang:function_exported(ErlangModule, '$deps', 0) of
-        true -> ErlangModule:'$deps'();
-        false -> []
-    end.
+    declared_dependencies(ErlangModule).
 
 stop(Pid) ->
     MonitorRef = erlang:monitor(process, Pid),

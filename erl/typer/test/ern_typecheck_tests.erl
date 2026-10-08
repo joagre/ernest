@@ -423,47 +423,15 @@ hidden_prelude_name_test() ->
         ern_typecheck:check_string(['M'], "type Outcome = Unknown(Int)\nfn f() : Int = \"x\"\n"),
     ?assertEqual([], [Label || {_, Label} <- Others, string:find(Label, "Prelude.") =/= nomatch]).
 
-%% report §6.2, §8.3, Appendix E.27: a spawn on a peer is the module Peer's,
-%% which MVP 3.0's item 8 builds; until then a name of it is refused,
-%% naming the milestone, and its namespace is the standard library's
-peer_module_refused_test() ->
-    ?assertEqual("Peer.spawn is not here yet: the module Peer, which acts on peers,"
-                 " arrives in MVP 3.0",
-                 refusal("fn f() : Unit with m = {\n"
-                         "    let _ = Peer.spawn(\"foo\", fn() : Unit with Never = Unit);\n"
-                         "    Unit\n"
-                         "}\n")).
-
 %%
 %% What crosses to another node (report §3.11)
 %%
 
-%% A stand-in for the module Peer of report Appendix E.27, which MVP 3.0's
-%% item 8 writes: the checker's rules of §3.11 are tested against its
-%% declarations before the module is built, and against the module itself
-%% once it is.
-peer_interface() ->
-    Text = "export abstract type Key(m) = Key(name : String, text : String)\n"
-           "export type Failure = NotListed | Unreachable | Refused(String) | Timeout"
-           " | NotOffered | OtherType | NotLoaded\n"
-           "export foreign fn key(name : String) : Key(m) = \"ern_peer:key/1\"\n"
-           "export foreign fn offer(key : Key(m), address : Address(m)) : Unit with n ="
-           " \"ern_peer:offer/2\"\n"
-           "export foreign fn find(key : Key(m), ms : Int) : Either(Failure, Address(m)) with n ="
-           " \"ern_peer:find/2\"\n"
-           "export foreign fn spawn(name : String, f : () -> Unit with m, ms : Int)"
-           " : Either(Failure, Address(m)) with n = \"ern_peer:spawn/3\"\n"
-           "export foreign fn spawnMonitored(name : String, f : () -> Unit with m,"
-           " wrap : (Down) -> n, ms : Int) : Either(Failure, Address(m)) with n ="
-           " \"ern_peer:spawn_monitored/4\"\n"
-           "export foreign fn nodes() : List(String) with n = \"ern_peer:nodes/0\"\n",
-    {ok, _, Interface, _} = ern_typecheck:check_string(['Peer'], Text),
-    Interface.
-
-%% A module checked with Peer's interface given, and its first refusal.
+%% A module checked with the standard library in scope, Peer among it
+%% (Appendix E.27).
 with_peer(Text) ->
     {ok, Declarations} = ern_parser:parse_string(Text),
-    ern_typecheck:check(['M'], Declarations, [peer_interface()]).
+    ern_typecheck:check(['M'], Declarations, []).
 
 peer_ok(Text) ->
     case with_peer(Text) of
@@ -619,8 +587,10 @@ spawn_function_test() ->
 %% neither bound nor of a type that holds a type variable, and a name its
 %% body binds itself, or a top-level name it writes, is no capture
 spawn_captures_test() ->
-    ?assertEqual("the function Peer.spawn starts captures g, whose type (Int) -> Int with Never"
-                 " is bound to its node, since it holds a function",
+    %% a captured function is named, since its type at the use has the
+    %% use's effect (§3.9) and not the one its parameter declares
+    ?assertEqual("the function Peer.spawn starts captures g, a function, which is bound to its"
+                 " node",
                  peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
                               ++ spawning("", "fn() : Unit with Never = { let _ = g(1); Unit }"))),
     ?assertEqual("the function Peer.spawn starts captures socket, whose type"
@@ -634,8 +604,8 @@ spawn_captures_test() ->
                  peer_refusal("fn f(x : a) : Unit with m = {\n"
                               ++ spawning("", "fn() : Unit with Never = { let _ = [x]; Unit }"))),
     %% a local fn captured by the lambda is a function
-    ?assertEqual("the function Peer.spawn starts captures helper, whose type () -> Unit with"
-                 " Never is bound to its node, since it holds a function",
+    ?assertEqual("the function Peer.spawn starts captures helper, a function, which is bound to"
+                 " its node",
                  peer_refusal("fn f() : Unit with m = {\n"
                               ++ spawning("fn helper() : Unit with Never = Unit;\n    ",
                                           "fn() : Unit with Never = helper()"))),

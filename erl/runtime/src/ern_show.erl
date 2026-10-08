@@ -130,7 +130,8 @@ represented({set, Members}, Limits) when is_map(Members) ->
     ["Set.fromList([", join(parts(lists:sort(maps:keys(Members)), Limits, Show)), "])"];
 %% an address seen through `via` is the runtime's own term (report §6.5),
 %% and is written as every address is, by the process behind it
-represented({via, Function, _} = Address, _) when is_function(Function, 1) -> address(Address);
+represented({via, Function, _, _} = Address, _) when is_function(Function, 1) ->
+    address(Address);
 represented(Tuple, Limits) when is_tuple(Tuple), tuple_size(Tuple) > 0,
                                 is_atom(element(1, Tuple)) ->
     %% report §8.4: a constructor's atom is its source spelling, capitalized;

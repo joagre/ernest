@@ -290,6 +290,11 @@ fn children(watcher : Address(WatcherMsg)) : List(Process) with Msg =
 foreign fn askRestart(child : Process) : Bool with m =
     "ern_rt:ask_restart/1"
 
+// Report §8.7: whether a process runs on the caller's node; a supervisor
+// and its children run on one.
+foreign fn isOnThisNode(process : Process) : Bool with m =
+    "ern_rt:on_this_node/1"
+
 // Where a process stands in the order the runtime spawned its processes,
 // which `RestForOne` reads and the watcher keeps its children in.
 foreign fn spawnOrder(process : Process) : Int with m =
@@ -388,7 +393,8 @@ fn stopAll(members : List(Member)) : Unit with WatcherMsg =
 /// ### Errors
 ///
 /// Faults where `supervisor` has ended before the child joins, with the cause
-/// `the supervisor has ended`.
+/// `the supervisor has ended`, and where `supervisor` runs on another node,
+/// with the cause `a child runs on its supervisor's node`, before it joins.
 ///
 /// ### Examples
 ///
@@ -404,6 +410,10 @@ fn stopAll(members : List(Member)) : Unit with WatcherMsg =
 /// ```
 export fn child(supervisor : Address(Msg), f : () -> Unit with m) : () -> Unit with m =
     fn() = {
+        if isOnThisNode(Process.fromAddress(supervisor)) then
+            Unit
+        else
+            fault("a child runs on its supervisor's node");
         let address = self();
         let process = Process.fromAddress(address);
         let watcher = join(supervisor, process, fn() = kill(address));

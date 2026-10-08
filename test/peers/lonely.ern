@@ -1,0 +1,7 @@
+// Report §8.7: a binding the store's program does not depend on, so that its
+// module has no values there.
+
+let greeting : String = "never initialized on the store"
+
+export fn speak() : Unit with Never =
+    Io.println(greeting)

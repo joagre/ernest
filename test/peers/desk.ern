@@ -1,0 +1,100 @@
+// Report §8.7: the desk, which finds the store's services and spawns on it,
+// printing what each answers; the test ends the store where it says so.
+
+type Msg = Died(Down)
+
+let early : Either(Peer.Failure, Address(Counter.Msg)) = Peer.find(Counter.key, 100)
+
+export fn main() : Unit with Msg =
+    match Os.arguments {
+        ["find"] -> finds()
+      | ["spawn"] -> spawns()
+      | _ -> Unit
+    }
+
+fn finds() : Unit with Msg = {
+    Io.println("early: " <> Io.show(early));
+    Io.println("nodes: " <> Io.show(Peer.nodes()));
+    let counter = found(Counter.key);
+    Io.println("info: " <> Io.show(Process.info(Process.fromAddress(counter))));
+    let unlisted : Peer.Key(Int) = Peer.key("unlisted");
+    Io.println("unlisted: " <> Io.show(Peer.find(unlisted, 1000)));
+    let otherType : Peer.Key(Int) = Peer.key("counter");
+    Io.println("other type: " <> Io.show(Peer.find(otherType, 1000)));
+    let nothing : Peer.Key(Int) = Peer.key("nothing");
+    Io.println("not offered: " <> Io.show(Peer.find(nothing, 1000)));
+    let lost : Peer.Key(Int) = Peer.key("lost");
+    Io.println("unreachable: " <> Io.show(Peer.find(lost, 1000)));
+    Io.println("timeout: " <> Io.show(Peer.find(Counter.key, 0)));
+    let adder = found(Counter.adder);
+    send(adder, 3);
+    send(adder, 4);
+    Io.println("through the via: " <> Int.toString(total(counter, 7)));
+    let victim = found(Counter.victim);
+    monitor(Process.fromAddress(victim), Died);
+    kill(victim);
+    receive {
+        Died(down) -> Io.println("killed: " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+    };
+    faulted("another node's", fn() : Unit with Never = Peer.offer(Counter.key, counter));
+    faulted("twice", fn() : Unit with Int = {
+        let key : Peer.Key(Int) = Peer.key("twice");
+        Peer.offer(key, self());
+        Peer.offer(key, self())
+    });
+    monitor(Process.fromAddress(counter), Died);
+    Io.println("now end the store");
+    receive {
+        Died(down) -> Io.println("lost: " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+    };
+    Io.println("after the loss: " <> Io.show(Peer.find(Counter.key, 1000)));
+    faulted("call forever", fn() : Unit with Never = {
+        let _ = Address.callForever(counter, fn(reply) = Counter.Get(reply = reply));
+        Unit
+    })
+}
+
+fn spawns() : Unit with Msg = {
+    Io.println("spawn: " <> started(Work.squareOn("store", 7, 5000)));
+    Io.println("not listed: " <> started(Work.squareOn("nobody", 7, 5000)));
+    Io.println("not loaded: " <> started(Peer.spawn("store", Lonely.speak, 5000)));
+    Io.println("by module: " <> started(Peer.spawn("store", fn() : Unit with Never = Unit, 5000)));
+    Io.println("bindings: " <> started(Shared.tellPeers("store")));
+    match Work.watchedOn("store", Died, 5000) {
+        Right(_) -> receive {
+            Died(down) -> Io.println("monitored: " <> Io.show(down.reason))
+        }
+      | Left(failure) -> Io.println("monitored: " <> Io.show(failure))
+    };
+    Io.println("late: " <> started(Work.squareOn("store", 9, 0)))
+}
+
+fn found(key : Peer.Key(m)) : Address(m) with n =
+    match Peer.find(key, 5000) {
+        Right(address) -> address
+      | Left(failure) -> fault(Io.show(failure))
+    }
+
+// The counter's total once it is at least the one given: a message to the
+// adapted address takes a step more, on the store, and a call can pass it.
+fn total(counter : Address(Counter.Msg), least : Int) : Int with n =
+    match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
+        Some(total) when total >= least -> total
+      | Some(_) -> total(counter, least)
+      | None -> fault("no answer")
+    }
+
+// How a process that runs f ended, which a fault in it says; monitored from
+// its start, since it may end before a monitor made after the spawn.
+fn faulted(what : String, f : () -> Unit with m) : Unit with Msg = {
+    let _ = spawnMonitored(f, Died);
+    receive {
+        Died(down) -> Io.println(what <> ": " <> Io.show(down.reason))
+    }
+}
+
+fn started(answer : Either(Peer.Failure, Address(Never))) : String =
+    match answer {
+        Right(_) -> "Right"
+      | Left(failure) -> Io.show(failure)
+    }

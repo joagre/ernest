@@ -1073,13 +1073,13 @@ alarm_at_follows_the_clock() ->
                          Clock ! {'CHANGE', make_ref(), time_offset, clock_service, 0}
                      end,
                AlarmAt = fun(At, Tag) ->
-                             Address = {via, fun(Fired) -> {Tag, Fired} end, Me},
+                             Address = ern_rt:via(Me, fun(Fired) -> {Tag, Fired} end),
                              'Unit' = ern_rt:call_forever(
                                         Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply} end)
                          end,
                Start = Time(),
                AlarmAt(Start + 60000, minute),
-               alarm(Clock, 2000, {via, fun(Fired) -> {after_ms, Fired} end, Me}),
+               alarm(Clock, 2000, ern_rt:via(Me, fun(Fired) -> {after_ms, Fired} end)),
                Before = receive {minute, _} -> fired after 100 -> waiting end,
                Set(61000),
                Minute = receive {minute, Fired} -> Fired - Start after 1000 -> late end,

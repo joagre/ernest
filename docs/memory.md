@@ -24,7 +24,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 - `code`, the loaded code's;
 - `reaper`, the memory the runtime's reaper holds, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves words in its heap that the next collection frees, and read until two readings in a row agree, since the reaper wakes to look for a deadlock (§8.6), once a second while a load samples, and a look that falls between a collection and its reading leaves words that count as held;
 - `atoms`, `procs` and `ports`, the node's counts;
-- `rows`, the rows of the runtime's nine tables, `ern_processes`, `ern_calls`, `ern_callees`, `ern_faults`, `ern_held`, `ern_deliveries`, `ern_restarts`, `ern_proxies` and `ern_launch`;
+- `rows`, the rows of the runtime's twelve tables, `ern_processes`, `ern_calls`, `ern_callees`, `ern_faults`, `ern_held`, `ern_deliveries`, `ern_restarts`, `ern_proxies`, `ern_launch`, `ern_offers`, `ern_offered` and `ern_initialized`;
 - `terms`, the persistent terms.
 
 The first six rounds are the warm-up, in which heaps, caches and windows settle, the supervisors' restart window of one second among them. From the seventh on:
@@ -47,6 +47,8 @@ The loads show only what they exercise, so the code is read too, for what a long
 - anything kept for one process by another, a monitor, a subscription, a waiting request, a call's row, and whether it goes when the first one dies, not only when the second does;
 - a module or an atom made for an input at the prompt, and whether it is given back;
 - in Ernest, a service's state that grows with its requests, as a store without expiry would.
+
+A node keeps these, each with what lets it go (report §8.7): an offer's rows in `ern_offers` and `ern_offered`, until its process ends, which the reaper sees for a process the runtime started or opened and watches for any other; a row of `ern_initialized` for each module whose initializers a run has run, which the build bounds; a spawn's row in the gateway's `ern_spawns`, until its answer comes or the spawner gives up, which takes it, a later answer ending its process; the gateway's worker for each peer that sent a frame, until that peer's connection is lost; and a monitored spawn's process, held on the peer until its spawner has made the monitor or has ended.
 
 Something may be kept as long as a program holds what it stands for: a socket until `Tcp.close`, a running program until it has answered its exit status, a checking proxy (report §8.4) for as long as the address it checks, which foreign code may still hold. What nothing can use again is a defect. A limit the report states, as §11.2's history of a thousand inputs, is a rule and not a cap.
 

@@ -581,11 +581,10 @@ taken_namespaces() ->
 prelude_namespaces() ->
     lists:usort(['Prelude' | ern_prelude:member_types()]).
 
-%% The standard library's modules at the top of the hierarchy, and `Peer`,
-%% which report Appendix E.27 names and MVP 3.0's item 8 writes.
+%% The standard library's modules at the top of the hierarchy.
 stdlib_namespaces() ->
-    lists:usort(['Peer' | [hd(Interface#interface.namespace)
-                           || Interface <- ern_prelude:stdlib_interfaces()]]).
+    lists:usort([hd(Interface#interface.namespace)
+                 || Interface <- ern_prelude:stdlib_interfaces()]).
 
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces

@@ -1,0 +1,12 @@
+// Report §8.7: a binding both nodes' programs depend on, whose value is each
+// node's own.
+
+let peers : List(String) = Peer.nodes()
+
+export fn listed() : List(String) =
+    peers
+
+export fn tellPeers(name : String) : Either(Peer.Failure, Address(Never)) with m =
+    Peer.spawn(name,
+               fn() : Unit with Never = Io.println("the peers here: " <> Io.show(peers)),
+               5000)

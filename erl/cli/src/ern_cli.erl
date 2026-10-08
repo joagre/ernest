@@ -676,7 +676,11 @@ run(Options, [File | Words], ErrorDevice) ->
     {Namespace, LoadPath, Loaded} = program(File, Options),
     as_node(Options, LoadPath,
             fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
-run(_Options, [], _ErrorDevice) ->
+run(Options, [], _ErrorDevice) ->
+    %% report §11.2: a node without a program is MVP 3.1's
+    is_node(Options)
+        andalso ern_build:fail("a node runs a program: ern run --config-dir dir prog.erc; a node"
+                               " without one arrives in MVP 3.1"),
     usage_fail("one .erc file argument is required").
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
@@ -769,7 +773,8 @@ shell(Options, Rest, ErrorDevice) ->
                 host_path(ern_build:load_path(Options)),
                 ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
                                          source_root = ern_build:source_root(Options, ".", "."),
-                                         config_startup = config_startup(Options)}),
+                                         config_startup = config_startup(Options),
+                                         is_node = is_node(Options)}),
                 {init_fun([ErlangModule]), ern_build:load_path(Options)};
             [File] ->
                 {Namespace, FileLoadPath, Loaded} = program(File, Options),
@@ -777,7 +782,8 @@ shell(Options, Rest, ErrorDevice) ->
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
                                          source_root = ern_build:source_root(Options, File, "."),
                                          interfaces = interfaces(Loaded), entry = Entry,
-                                         config_startup = config_startup(Options)}),
+                                         config_startup = config_startup(Options),
+                                         is_node = is_node(Options)}),
                 {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
             _ ->
                 usage_fail("at most one .erc file argument")
@@ -792,6 +798,10 @@ shell(Options, Rest, ErrorDevice) ->
                                                 exit => fault})
                       end),
     report_shell_outcome(ErrorDevice, Outcome).
+
+%% Report §8.3: a run given `--config-dir` is a node.
+is_node(Options) ->
+    proplists:is_defined(config_dir, Options).
 
 %% Report §8.3, §8.7, §11.2: a run given `--config-dir` is a node: its
 %% directory checked and read before anything of it runs, its carrier
@@ -813,6 +823,14 @@ as_node(Options, LoadPath, Run) ->
                 orelse ern_build:fail("the host was not started as a node, which ern does where"
                                       " the command line holds --config-dir"),
             Configuration = ern_node:start(ConfigDir, Read),
+            %% report §8.7: a node carries the whole build, so that a function
+            %% a peer spawns finds its code; nothing of it is initialized
+            %% because a peer asked
+            whole_build(LoadPath),
+            %% report §8.7: its peers listed from its start, so that a find
+            %% or a spawn in an initializer is a peer's, which no connection
+            %% reaches yet
+            ok = ern_carrier:list(Configuration),
             Stamped = is_stamped(),
             try Run(#{node => fun() -> ern_carrier:start(Configuration, Stamped) end})
             after ern_node:stop(ConfigDir)
@@ -1256,6 +1274,17 @@ load(Namespace, LoadPath, Loaded, StdlibHash) ->
                     ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))
             end
     end.
+
+%% Report §8.7: every compiled module on the load path loaded, as the
+%% modules a program uses are, with the same checks, and none initialized.
+whole_build(LoadPath) ->
+    Namespaces = [Namespace
+                  || Root <- LoadPath, File <- ern_build:compiled_under(Root),
+                     {ok, #{interface := #interface{namespace = Namespace}}}
+                         <- [ern_interface:read(ern_build:read(File))]],
+    Loaded = [ErlangModule || {ErlangModule, _} <- code:all_loaded()],
+    lists:foldl(fun(Namespace, Acc) -> load(Namespace, LoadPath, Acc) end, Loaded, Namespaces),
+    ok.
 
 %% Report §11.2: a module's compiled form, found by its namespace on the
 %% load path.

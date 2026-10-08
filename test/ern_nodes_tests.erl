@@ -1,8 +1,10 @@
 %% Nodes on one machine (report §8.7, MVP 3.0): each node an `ern run
 %% --config-dir` of its own, started as a person starts one, its lines read
-%% from its standard error. A program reaches the carrier through a
-%% `foreign fn` of the host's, since `Peer` is MVP 3.0's item 8; the frame a
-%% gateway cannot read is sent by a host module on the program's load path.
+%% from its standard error. The carrier's tests dial through a `foreign fn`
+%% of the host's, which reaches the carrier and nothing of a program's; the
+%% frame a gateway cannot read is sent by a host module on the program's
+%% load path. `Peer`'s tests run the programs of `test/peers/`, one build
+%% whose store and desk are two nodes.
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -143,6 +145,20 @@ says(Dir, Part, Tries) ->
             end;
         _ when Tries > 0 ->
             timer:sleep(100), says(Dir, Part, Tries - 1)
+    end.
+
+%% Until the node's standard output holds Part.
+prints(Dir, Part) ->
+    prints(Dir, Part, 300).
+
+prints(Dir, Part, Tries) ->
+    Out = case file:read_file(Dir ++ ".out") of
+              {ok, Bytes} -> Bytes;
+              {error, _} -> <<>>
+          end,
+    case string:find(Out, Part) of
+        nomatch when Tries > 0 -> timer:sleep(100), prints(Dir, Part, Tries - 1);
+        _ -> ok
     end.
 
 %% Until the node has written its ernest.pid, which it does as it starts.
@@ -446,3 +462,102 @@ no_deadlock() ->
     {_, Err} = said(A),
     ?assertEqual(nomatch, string:find(Err, "deadlock")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
+
+%%
+%% Peer (report §8.7, Appendix E.27)
+%%
+
+%% The programs of test/peers/, one build: the store's and the desk's.
+peers(Base) ->
+    Root = filename:join(Base, "build"),
+    0 = ern_cli:ern(["build", "--build-root", Root, "peers"], group_leader()),
+    {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
+
+%% A store that listens, a desk that dials it, and a peer the desk lists,
+%% gone, whose port nothing holds; the desk's keys, each a name's peers in
+%% the order a find asks them.
+store_and_desk(Base) ->
+    {PortStore, PortGone} = {free_port(), free_port()},
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    Gone = made(Base, "gone", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}, {"gone", Gone, PortGone}]),
+    edit(Desk, fun(Conf) ->
+                   Conf#{<<"keys">> => #{<<"counter">> => [<<"gone">>, <<"store">>],
+                                         <<"adder">> => [<<"store">>],
+                                         <<"victim">> => [<<"store">>],
+                                         <<"nothing">> => [<<"store">>],
+                                         <<"lost">> => [<<"gone">>]}}
+               end),
+    {Store, Desk}.
+
+%% report §8.7, Appendix E.27, §6.5, §6.9, §6.6, E.21: a find in a node's
+%% initializer answers Unreachable, the node not yet dialling; a find over
+%% a key's peers in order passes over one that cannot be reached and answers
+%% the next's address, a key not listed NotListed, a name offered at
+%% another type OtherType, a name not offered NotOffered, a key of an
+%% unreachable peer alone Unreachable, no time Timeout; a message to an
+%% adapted address made on the store reaches its target through the store;
+%% kill crosses, and a Down from another node's process has an empty site;
+%% Process.info answers None for another node's process; an offer of
+%% another node's process and an offer under a key a living process holds
+%% fault; a lost connection gives a monitor Unreachable with an empty site,
+%% a find after it Unreachable, and a callForever on its process faults
+%% with the callee unreachable
+find_test_() ->
+    {timeout, 90, fun find/0}.
+
+find() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    WaitDesk = start(Desk, DeskProgram, ["find"]),
+    prints(Desk, "now end the store"),
+    {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
+    _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
+    ?assertEqual(137, WaitStore()),
+    ?assertEqual(0, WaitDesk()),
+    {Out, _} = said(Desk),
+    {StoreOut, _} = said(Store),
+    has(StoreOut, "the store's peers: [\"desk\"]"),
+    [has(Out, Line)
+     || Line <- ["early: Left(Unreachable)", "nodes: [\"store\", \"gone\"]", "info: None",
+                 "unlisted: Left(NotListed)", "other type: Left(OtherType)",
+                 "not offered: Left(NotOffered)", "unreachable: Left(Unreachable)",
+                 "timeout: Left(Timeout)", "through the via: 7", "killed: Killed \"\"",
+                 "another node's: Fault(\"an offer names a process on its own node\")",
+                 "twice: Fault(\"twice is offered by a living process\")",
+                 "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
+                 "call forever: Fault(\"callee is unreachable\")"]].
+
+%% report §8.7, Appendix E.27, §8.2: a function of a module the store has
+%% whole spawns there with what it captured, writing to the store's
+%% standard output; a name that is no peer's is NotListed; a function of a
+%% module whose binding has no value on the store is NotLoaded, and so is
+%% one of a module that depends on such a module, the rule being by module;
+%% a top-level binding in spawned code is the peer's; a monitored spawn is
+%% monitored from its start; a spawn given no time answers Timeout
+spawn_test_() ->
+    {timeout, 90, fun spawn_on_peer/0}.
+
+spawn_on_peer() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["spawn"]))()),
+    prints(Store, "the peers here"),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {StoreOut, _} = said(Store),
+    [has(Out, Line)
+     || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
+                 "by module: NotLoaded", "bindings: Right", "monitored: Returned",
+                 "late: Timeout"]],
+    has(StoreOut, "the store squares 49"),
+    has(StoreOut, "the peers here: [\"desk\"]"),
+    ?assertEqual(nomatch, string:find(StoreOut, "never initialized")).

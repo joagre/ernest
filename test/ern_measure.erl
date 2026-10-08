@@ -576,7 +576,8 @@ scenarios(Dir) ->
     DevNull = dev_null(),
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
-                  tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios()]).
+                  tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
+                  peer_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -812,6 +813,37 @@ tcp_scenarios(Bytes) ->
 terminal_scenarios() ->
     [{<<"Terminal.subscribe">>, {not_measured, <<"reads a terminal">>}},
      {<<"Terminal.size">>, {not_measured, <<"reads a terminal">>}}].
+
+%% Appendix E.27: a key as the compiler makes it, with its type's text; an
+%% offer and its withdrawal beside the host's two tables written and
+%% emptied; the peers' names beside the host's read of them. A find and a
+%% spawn act on a peer, which a run of one node cannot reach; MVP 3.0's
+%% item 10 measures them on real nodes.
+peer_scenarios() ->
+    Peer = 'ern@peer',
+    Me = ern_rt:self(),
+    {Name, Text} = {<<"measured">>, <<"Int">>},
+    Withdrawn = fun() ->
+                    ets:delete(ern_offers, {Name, Text}),
+                    ets:delete_object(ern_offered, {Me, {Name, Text}})
+                end,
+    Offers = ets:new(ern_measure_offers, [ordered_set, public]),
+    Offered = ets:new(ern_measure_offered, [bag, public]),
+    AcrossNodes = {not_measured, <<"acts on a peer, which a run of one node cannot reach">>},
+    [{<<"Peer.key">>, {fun() -> ern_peer:key(Name, Text) end, fun() -> {'Key', Name, Text} end}},
+     {<<"Peer.offer">>,
+      {fun() -> Peer:offer(ern_peer:key(Name, Text), Me), Withdrawn() end,
+       fun() ->
+           ets:insert_new(Offers, {{Name, Text}, Me, Me}),
+           ets:insert(Offered, {Me, {Name, Text}}),
+           ets:delete(Offers, {Name, Text}),
+           ets:delete_object(Offered, {Me, {Name, Text}})
+       end}},
+     {<<"Peer.find">>, AcrossNodes},
+     {<<"Peer.spawn">>, AcrossNodes},
+     {<<"Peer.spawnMonitored">>, AcrossNodes},
+     {<<"Peer.nodes">>, {fun() -> Peer:nodes() end,
+                         fun() -> persistent_term:get({ern_peer, names}, []) end}}].
 
 ets_scenarios() ->
     Ets = 'ern@ets',

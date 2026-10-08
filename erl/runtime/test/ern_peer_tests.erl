@@ -1,0 +1,97 @@
+%% Report §8.7, Appendix E.27, E.22: what a node's gateway does with a
+%% spawn's answer and a spawn from a peer, and a supervisor's child on
+%% another node, each where a run of real nodes cannot show it whenever it
+%% runs. Real nodes are test/ern_nodes_tests.erl's. Regression tests,
+%% written after the code: they do not cover a spawn that starts, which the
+%% real nodes do.
+-module(ern_peer_tests).
+
+-include_lib("eunit/include/eunit.hrl").
+
+%% report §8.7: a spawn's answer goes to the process that waits for it, and
+%% one that comes after the spawner stopped waiting ends the process it
+%% names
+answer_test() ->
+    ok = ern_peer:tables(),
+    try
+        Ref = make_ref(),
+        true = ets:insert(ern_spawns, {Ref, self()}),
+        Started = spawn(fun() -> receive after infinity -> ok end end),
+        ok = ern_peer:frame(self(), {answer, Ref, {spawned, Started}}),
+        ?assertEqual({Ref, {spawned, Started}}, receive {Ref, _} = Got -> Got end),
+        ?assertEqual([], ets:lookup(ern_spawns, Ref)),
+        Late = spawn(fun() -> receive after infinity -> ok end end),
+        Monitor = erlang:monitor(process, Late),
+        ok = ern_peer:frame(self(), {answer, make_ref(), {spawned, Late}}),
+        ?assertEqual({ern, killed}, receive {'DOWN', Monitor, process, Late, Why} -> Why end),
+        exit(Started, kill)
+    after
+        ets:delete(ern_spawns)
+    end.
+
+%% report §8.7: a function of a module this node has at another version,
+%% as another shell's input of the same name, starts nothing, and the
+%% spawner's gateway is answered NotLoaded; a frame of no kind the gateway
+%% reads is unreadable
+not_loaded_test() ->
+    Module = ern_peer_tests_version,
+    Function = (loaded_version(Module, 1)):version(),
+    _ = loaded_version(Module, 2),
+    true = register(ern_gateway, self()),
+    try
+        Ref = make_ref(),
+        ok = ern_peer:frame(self(), {spawn, Ref, Function, <<"M.f:1">>, false}),
+        ?assertEqual({answer, Ref, {failed, 'NotLoaded'}},
+                     receive {ern_frame, _, Body} -> Body end),
+        ?assertEqual(unreadable, ern_peer:frame(self(), {a_kind, it_has_not}))
+    after
+        unregister(ern_gateway),
+        code:purge(Module),
+        code:delete(Module),
+        code:purge(Module)
+    end.
+
+%% A module whose version/0 answers a function written in it, at the
+%% version given, loaded.
+loaded_version(Module, Version) ->
+    Forms = [{attribute, 1, module, Module}, {attribute, 2, export, [{version, 0}]},
+             {function, 3, version, 0,
+              [{clause, 3, [], [], [{'fun', 3, {clauses, [{clause, 3, [], [],
+                                                           [{integer, 3, Version}]}]}}]}]}],
+    {ok, Module, Beam} = compile:forms(Forms, []),
+    {module, Module} = code:load_binary(Module, "version", Beam),
+    Module.
+
+%% Appendix E.22: a child whose supervisor runs on another node faults
+%% before it joins
+supervisor_on_another_node_test() ->
+    Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+    ?assertEqual(false, ern_rt:on_this_node(Elsewhere)),
+    ?assert(ern_rt:on_this_node(self())),
+    Child = 'ern@supervisor':child(Elsewhere, fun() -> 'Unit' end),
+    ?assertThrow({ern, fault, <<"a child runs on its supervisor's node">>}, Child()).
+
+%% report §8.7: an offer lasts as long as its process lives, a process the
+%% runtime did not start among them, a foreign one, whose rows go with it.
+%% A regression test: such a process's offer outlived it, the reaper
+%% watching only the processes the runtime started or opened
+foreign_offer_test() ->
+    Self = self(),
+    Main = fun() ->
+               Foreign = spawn(fun() -> receive stop -> ok end end),
+               ern_peer:offer({'Key', <<"foreign">>, <<"Int">>}, Foreign),
+               Self ! {offered, ern_rt:offered(<<"foreign">>, <<"Int">>)},
+               Foreign ! stop,
+               Self ! {ended, withdrawn(<<"foreign">>, 1000)}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),
+    ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
+
+%% What the node offers under the name once the reaper has taken its
+%% process's end, asked until it offers nothing or the tries run out.
+withdrawn(Name, Tries) ->
+    case ern_rt:offered(Name, <<"Int">>) of
+        {found, _} when Tries > 0 -> timer:sleep(1), withdrawn(Name, Tries - 1);
+        Answer -> Answer
+    end.

@@ -5709,17 +5709,6 @@ lookup_global(Span, Namespace, Name, #env{globals = Globals} = Env) ->
                            false -> qualified_referent(Namespace, Name, Env)
                        end,
             {Scheme, Referent, Env};
-        _ when Namespace =:= ['Peer'] ->
-            %% Report §8.3, Appendix E.27: the module Peer, which MVP 3.0's
-            %% item 8 builds; its namespace is the standard library's, so a
-            %% name of it the interface does not hold is unknown
-            case lists:any(fun(Key) -> lists:droplast(Key) =:= Namespace end, maps:keys(Globals)) of
-                true -> fail(Span, "unknown name " ++ ern_namespace:text(QualifiedName));
-                false ->
-                    fail(Span, ern_namespace:text(QualifiedName)
-                               ++ " is not here yet: the module Peer, which acts on peers,"
-                               " arrives in MVP 3.0")
-            end;
         _ ->
             unknown(Span, "name", QualifiedName)
     end.

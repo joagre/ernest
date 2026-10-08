@@ -222,9 +222,15 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
                             "a value a spawn on a peer captures has a type known whole, since"
                             " a type variable could stand for one bound to its node (§3.11)");
         Why ->
+            %% a function's type at its use has the effect of its use's
+            %% context (§3.9), not the binding's, so it is named, not shown
+            What = case ern_types:resolve(Substituted, TypeState) of
+                       {tfn, _, _, _} -> ", a function, which is bound to its node";
+                       _ -> ", whose type " ++ Text ++ " is bound to its node, since it holds "
+                                ++ Why
+                   end,
             fail(Span, "the function " ++ Name ++ " starts captures " ++ atom_to_list(Local)
-                       ++ ", whose type " ++ Text ++ " is bound to its node, since it holds "
-                       ++ Why,
+                       ++ What,
                  "a value of a bound type never crosses to another node; give the process"
                  " what crosses (§3.11)")
     end.

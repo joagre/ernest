@@ -1,0 +1,13 @@
+// Report §8.7: functions a peer spawns, of a module with no binding, which
+// no program of the store depends on.
+
+fn square(n : Int) : Unit with Never =
+    Io.println("the store squares " <> Int.toString(n * n))
+
+export fn squareOn(name : String, n : Int, ms : Int) : Either(Peer.Failure, Address(Never)) with m =
+    Peer.spawn(name, fn() : Unit with Never = square(n), ms)
+
+export fn watchedOn(name : String,
+                    wrap : (Down) -> m,
+                    ms : Int) : Either(Peer.Failure, Address(Never)) with m =
+    Peer.spawnMonitored(name, fn() : Unit with Never = Unit, wrap, ms)

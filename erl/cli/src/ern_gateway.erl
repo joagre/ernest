@@ -2,13 +2,13 @@
 %% every frame of the runtime's from every peer, from the node's start, so
 %% that the frame which opens a connection finds it; each frame is handed to
 %% a worker for the sender's node, which ends with that node's connection.
-%% Through it go what needs a process on the receiving node: a spawn, a find
-%% and a message to an adapted address, whose frames MVP 3.0's items 5 and 8
-%% add; a frame it cannot read is faulty, and the node ends that peer's
-%% connection. A frame is {ern_frame, From, Body}, From the process on the
-%% peer that sent it, whose node is the frame's peer; a message to the
-%% gateway that names no process of another node names no connection to
-%% end, and is dropped, which the node says.
+%% Through it go what needs a process on the receiving node: a spawn and its
+%% answer, a find, and a message to an adapted address, each read by
+%% ern_peer:frame/2; a frame it cannot read is faulty, and the node ends
+%% that peer's connection. A frame is {ern_frame, From, Body}, From the
+%% process on the peer that sent it, whose node is the frame's peer; a
+%% message to the gateway that names no process of another node names no
+%% connection to end, and is dropped, which the node says.
 -module(ern_gateway).
 
 -export([start/0]).
@@ -21,6 +21,7 @@ start() ->
     Self = self(),
     Gateway = spawn(fun() ->
                         true = register(?NAME, self()),
+                        ok = ern_peer:tables(),
                         ok = net_kernel:monitor_nodes(true, [{node_type, all}]),
                         Self ! {self(), started},
                         gateway(#{})
@@ -32,16 +33,16 @@ start() ->
 gateway(Workers) ->
     receive
         {ern_frame, From, _Body} = Frame when is_pid(From), node(From) =/= node() ->
-            Peer = node(From),
-            {Worker, Workers1} = worker(Peer, Workers),
+            Node = node(From),
+            {Worker, Workers1} = worker(Node, Workers),
             Worker ! Frame,
             gateway(Workers1);
-        {nodedown, Peer, _} ->
+        {nodedown, Node, _} ->
             case Workers of
-                #{Peer := Worker} -> exit(Worker, kill);
+                #{Node := Worker} -> exit(Worker, kill);
                 _ -> ok
             end,
-            gateway(maps:remove(Peer, Workers));
+            gateway(maps:remove(Node, Workers));
         {nodeup, _, _} ->
             gateway(Workers);
         _ ->
@@ -50,21 +51,26 @@ gateway(Workers) ->
             gateway(Workers)
     end.
 
-worker(Peer, Workers) ->
+worker(Node, Workers) ->
     case Workers of
-        #{Peer := Worker} -> {Worker, Workers};
+        #{Node := Worker} -> {Worker, Workers};
         _ ->
-            Worker = spawn(fun() -> work(Peer) end),
-            {Worker, Workers#{Peer => Worker}}
+            Worker = spawn(fun() -> work(Node) end),
+            {Worker, Workers#{Node => Worker}}
     end.
 
 %% Report §8.7: a peer's frames, read in the order they came; one it cannot
 %% read ends the peer's connection, and the node says so.
-work(Peer) ->
+work(Node) ->
     receive
-        {ern_frame, _From, _Body} ->
-            ern_carrier:say([ern_carrier:named(Peer), " sent a frame this node cannot read, and"
-                             " its connection was ended"]),
-            _ = erlang:disconnect_node(Peer),
-            work(Peer)
+        {ern_frame, From, Body} ->
+            case ern_peer:frame(From, Body) of
+                ok ->
+                    ok;
+                unreadable ->
+                    ern_carrier:say([ern_carrier:named(Node), " sent a frame this node cannot"
+                                     " read, and its connection was ended"]),
+                    _ = erlang:disconnect_node(Node)
+            end,
+            work(Node)
     end.

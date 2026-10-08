@@ -1,0 +1,30 @@
+// Report §8.7: the store, which offers a counter, an adapted address of it,
+// and a process to be killed, and waits.
+
+let counter : Address(Counter.Msg) =
+    spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
+
+fn count(total : Int) : Unit with Counter.Msg =
+    receive {
+        Counter.Add(amount) -> count(total + amount)
+      | Counter.Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn main() : Unit with Never = {
+    Io.println("the store's peers: " <> Io.show(Shared.listed()));
+    Peer.offer(Counter.key, counter);
+    Peer.offer(Counter.adder, via(counter, fn(n) = Counter.Add(n)));
+    Peer.offer(Counter.victim, spawn(fn() : Unit with Int = receive {
+        _ -> Unit
+    }));
+    Io.println("offered");
+    wait()
+}
+
+fn wait() : Unit with Never =
+    receive {
+        after 60000 -> wait()
+    }

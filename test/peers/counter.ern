@@ -1,0 +1,10 @@
+// Report §8.7: the store's services, as the store offers them and the desk
+// finds them, in one build.
+
+export type Msg = Add(Int) | Get(reply : Reply(Int))
+
+export let key : Peer.Key(Msg) = Peer.key("counter")
+
+export let adder : Peer.Key(Int) = Peer.key("adder")
+
+export let victim : Peer.Key(Int) = Peer.key("victim")

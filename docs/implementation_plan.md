@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 4 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 4 and 8 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -215,7 +215,9 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    into on arrival, with a test that a correct program's messages make no new atom on the node
    that receives them. A message to an adapted address carried unconverted to the node that
    made it, whose gateway applies the function, a fault in it the target's, one step more than
-   a send; `via` across nodes.
+   a send; `via` across nodes. The two parts `Peer` uses, `Unreachable` from a lost connection
+   and an adapted address made on another node, were built with item 8, and so was
+   `Address.callForever`'s `callee is unreachable`.
 6. **Calls across nodes, and the loss.** The caller monitoring the callee while it waits; the
    request sent as a plain send is, the caller waiting at a full buffer and no helper process,
    so that everything one process sends keeps its order; `answer` the same, a second answer's
@@ -265,7 +267,12 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    (the log's *The Report Rewritten for Peers*); until then E.27 states them in prose. The
    emitter passes `Peer.key` the key's text the checker supplies, and `test/diagnostics.md`
    gains §3.11's refusals of item 2, which a program reaches only once `Peer` is here; the
-   checker's tests then take the module's interface in place of their stand-in.
+   checker's tests then take the module's interface in place of their stand-in. Done
+   2026-10-08, with item 5's two parts, and with what the building decided in the log's *The
+   Module Peer*: `NotLoaded` by module, decided with the user, a function's module checked at its
+   version, a node carrying its whole build, a node dialling only once its bindings have their
+   values, a find's answer the host's and the runtime's frames six, a foreign process's offer
+   ending with it, and the help of a shell that is a node naming MVP 3.1.
 9. **`Load` and `Balancer`**, in Ernest on the runtime: `Load`'s measures as shims, the run queue
    and the schedulers' utilisation on any node, memory and disk from the host's services, which
    answer a failure where `measures` did not start them, its page giving the host's names for
@@ -290,7 +297,16 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     for the refusals that name MVP 3.1, the shell's two and `ern run --config-dir dir` with no
     file; `make sections`, which lists §6.7 today for want of this milestone, naming no section
     after it; and the guide's peer chapter, here and not in item 1,
-    since its examples run only once items 3 to 9 are built.
+    since its examples run only once items 3 to 9 are built. The guide moves first, decided
+    with the user on 2026-10-08 (the log's *The Guide in Two Files*): `ernest_guide.md` becomes
+    `guide/language.md`, its section numbers kept, with every document, test and script that
+    names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold
+    a second file. The peer chapter teaches what a program writes, `Peer.find`, `Peer.spawn`,
+    a monitor's `Unreachable` and a program of two nodes, with one paragraph on `ern config`;
+    running nodes is `guide/deployment.md`'s, which MVP 3.1 begins. Before the chapter is
+    written, `language_feedback.md`'s entry 92 is decided with the user: whether the order a
+    program sees through an adapted address should depend on the node that made it, which item
+    8's programs met.
 
 11. **The fixed sleeps out of the tests.** CLAUDE.md's *No fixed sleep*, decided with the user
     on 2026-10-08 as item 4's tests were written: the 33 fixed sleeps of the tests in ten files,
@@ -438,8 +454,10 @@ last among what uses the exchange.
    through two further reloads; a program's own test of two builds with the other started by
    `Os`; the numbers of section 7 held; a node told to load many units measured, with the
    growth of the host's module, lambda and atom tables; what a spawn that ships code costs;
-   the guide's chapter for code by its hash and the rolling deploy by hand; `mvp3.1.md`'s
-   status line.
+   `guide/deployment.md` begun, the deployment guide, which owns running nodes: a node's
+   configuration directory whole, `ern reload` and `ern stop`, and this milestone's chapter for
+   code by its hash and the rolling deploy by hand, in place of a chapter of the language
+   guide; `mvp3.1.md`'s status line.
 
 What the plan once held for this milestone, the normalized definition, hash modules named
 `ern#<base32>`, a registry per node, a loader beside the host's with a cache on disk, versions
@@ -614,8 +632,9 @@ since it runs the rest.
     node that does not answer; a rollback through the reverse `migrate`; the cache holding the
     next build before the stop and letting an old one go; the refusal of E.22; and the generated
     test itself run over `experiments/code_update/`'s programs as its first subjects; the
-    numbers of section 7 held; the guide's chapter on a deploy, which teaches `kept`, the two
-    builds and the old shape in its module; `mvp3.2.md`'s status line, and `mvp3.0.md`'s and
+    numbers of section 7 held; the deployment guide's chapter on a deploy, which teaches
+    `kept`, the two builds and the old shape in its module, with the drain, the coordinator and
+    the ordered rolling restart; `mvp3.2.md`'s status line, and `mvp3.0.md`'s and
     `mvp3.1.md`'s for what this milestone changed in them.
 
 ---

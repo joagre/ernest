@@ -194,7 +194,7 @@ MVP 3.0's and MVP 3.1's limits stand.
 | a failed start's way back | one restart into the previous build; a second fault ends the node |
 | a service's absence at its node's restart | the restart's time: the close, the start, the first offer |
 | a build's stay in the cache | until the plan has printed that no way back reaches it |
-| the frames of this milestone | five, beside MVP 3.0's seven and MVP 3.1's four |
+| the frames of this milestone | five, beside MVP 3.0's six and MVP 3.1's four |
 | the plan's estimate | the sum of the nodes' times, the most the rollout takes |
 
 ## 8. How it is checked

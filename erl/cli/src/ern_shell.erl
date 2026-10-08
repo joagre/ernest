@@ -34,7 +34,8 @@
 %% the modules behind the session, and the scope those modules make
 %% (report §11.2), which the checker takes as its fourth argument.
 -record(session, {load_path = [], source_root = ".", last_input = 0, interfaces = [],
-                  scope = #{}, beams = #{}, source_hashes = #{}, last_holder = 0, prelude}).
+                  scope = #{}, beams = #{}, source_hashes = #{}, last_holder = 0, prelude,
+                  is_node = false}).
 %% scope: what an input may name, `values`, `types` and `constructors`, each
 %% name to its qualified name; and `previous`, the names a reload forgot,
 %% each to the type it was checked against a previous version of (§11.2)
@@ -50,6 +51,8 @@
 %% among it, built when the session starts and kept while it lives, since
 %% neither changes while it runs; the queries of completion, `:browse` and
 %% `:doc` read it rather than build it each time
+%% is_node: whether `--config-dir` made the shell a node, whose `:load` and
+%% `:reload` wait for MVP 3.1 (§11.2)
 %% A checked input: the namespace of the module it became, its typed tree,
 %% the declarations it was checked as, the module's interface, the
 %% checker's environment, its type, what it binds, and its site, the name
@@ -109,9 +112,9 @@ keep(Key, Value) ->
 
 -spec start() -> #session{}.
 start() ->
-    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces} =
-        persistent_term:get({?MODULE, loaded}, #loaded{}),
-    keep_session(#session{load_path = LoadPath, source_root = SourceRoot,
+    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces,
+            is_node = IsNode} = persistent_term:get({?MODULE, loaded}, #loaded{}),
+    keep_session(#session{load_path = LoadPath, source_root = SourceRoot, is_node = IsNode,
                           prelude = ern_typecheck:prelude_env(),
                           interfaces = [Interface || {Interface, _} <- Interfaces],
                           source_hashes = maps:from_list([{Interface#interface.namespace, Hash}
@@ -1289,8 +1292,14 @@ load_suffix(Session, Text) ->
 load_help(Session, Segments) ->
     Modules = [lists:sublist(Segments, Length) || Length <- lists:seq(length(Segments), 1, -1)],
     case lists:search(fun(Module) -> is_loadable(Session, Module) end, Modules) of
-        {value, Module} -> {ok, [":load ", lists:join(".", Module), " puts it in scope"]};
-        false -> none
+        {value, Module} when Session#session.is_node ->
+            %% report §11.2: a node's code is its build's until MVP 3.1
+            {ok, [":load ", lists:join(".", Module), " would put it in scope; in a shell that is"
+                  " a node it arrives in MVP 3.1"]};
+        {value, Module} ->
+            {ok, [":load ", lists:join(".", Module), " puts it in scope"]};
+        false ->
+            none
     end.
 
 %% Whether a module of these segments is not loaded and could be: its
@@ -1889,6 +1898,9 @@ moved_column(_, Column, _) -> Column.
 %% is refused: loading it over itself would end what runs its previous
 %% version, which `:reload` alone does, and says so.
 -spec load(#session{}, binary()) -> {'Left', binary()} | {'Right', {#session{}, binary()}}.
+load(#session{is_node = true}, _Text) ->
+    %% report §11.2: a node's code is its build's until MVP 3.1
+    {'Left', <<":load is not here yet in a shell that is a node: it arrives in MVP 3.1">>};
 load(Session, Text) ->
     without_line_feed(load_named(Session, Text)).
 
@@ -2185,6 +2197,9 @@ needed_one(Session, Namespace, Acc, Compiled) ->
 %% module is compiled before any is loaded, and where one does not compile
 %% none is, so the session goes on with every module as it was.
 -spec reload(#session{}) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
+reload(#session{is_node = true}) ->
+    %% report §11.2: a node's code is its build's until MVP 3.1
+    {'Left', <<":reload is not here yet in a shell that is a node: it arrives in MVP 3.1">>};
 reload(Session) ->
     without_line_feed(reload_changed(Session)).
 
