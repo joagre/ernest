@@ -8,7 +8,7 @@ MVP 3.1 names every definition by a hash of its content, and lets nodes of diffe
 
 It is step C of [`code.md`](code.md)'s section 1, *The four steps*, and nothing of step D; step B is not built on its own. Three things bound it:
 
-- **A hash for each definition.** The compiler computes it from a canonical form of the definition, and it is the identity of code and of types everywhere: in a spawn, in a key, on a message.
+- **A hash for each definition.** The compiler computes it from a canonical form of the definition, and it is the identity of code and of types everywhere: in a spawn, in a key, and in the checker, which tells two versions of a type apart by it; a message carries nothing of it (section 6).
 - **Code crosses by one exchange, on two occasions.** A node that lacks a hash asks for the closure's list, the node that named the hash ships what the asker lacks, and the whole closure is present before anything is done with it. The occasions are a spawn, where the spawner names the function's hash and the peer then compiles, loads and starts; and a root a node is told before a planned stop (`mvp3.2.md`), where the coordinator names it and the node compiles and writes to its cache, and loads nothing. A message ships no code; a find ships no code.
 - **No change in place.** A process never takes new code. A deploy is a rolling restart, node by node: new nodes start beside old ones, old processes run old code until they end, and a service is found by its key at whichever version it is.
 
