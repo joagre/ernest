@@ -429,9 +429,10 @@ since it runs the rest.
 1. **The report and the soundness argument.** §8.7 for the rollout, the planned stop and the
    kept state; §9.5 for `kept`, a function of `restarting`'s family whose loop the runtime owns;
    §8.6 for termination as the planned stop, the one way a node ends, the program's own end
-   the same, and the interrupt as the quick end; §11.2 for `ern deploy`, `ern stop` as
-   termination's sender, `ern status`, `ern state`, `ern diff`'s printed text and a node's
-   restart inside its host process, with §11's job list and §11.7's options for the commands;
+   the same, and the interrupt as the quick end; a section of §11's own after §11.8, no
+   section renumbered, for `ern deploy`, `ern stop` as termination's sender, `ern status`
+   and `ern state`, with §11's job list and §11.7's options for them; §11.2 for `ern diff`'s
+   printed text, beside MVP 3.1's `ern diff`, and for a node's restart inside its host process;
    §11.3 for `keys`, `drain` and `coordinator` in `ernest.conf`, the `build` file, `state/` and
    `./.ernest` for a program that is no node; Appendix E for `Peer.find` over a key's peers as
    used here and for E.22's refusal, `a process runs one child function`; Appendix F's and
