@@ -82,12 +82,12 @@ Litet exempel. Ett team med ett tjugotal noder ska ge lagertjänsten ett extra f
 4. Kör `ern deploy`. Planen visar ordningen: noderna som erbjuder `inventory` först, sedan klienterna. Noder vars kod inte ändrats hoppas över. Varje nods dräneringstid visas, och summan. Säg ja. Titta på första noden en stund. Säg `all`.
 5. Nästa sprint: ta bort `inventory_v1.ern` och det gamla erbjudandet. Planen vägrar om någon nod fortfarande kör en release som behöver det. Annars går det igenom. Expand then contract, fast verktyget håller en i örat.
 
-Så här kan det se ut i en terminal. Påhittat, men i den form verktygen är tänkta att skriva. Lagertjänsten heter `inventory` och dess tillstånd `Stock`. Nyckelns noder är *store1* och *store2*. *web1* till *web18* är klienter:
+Så här kan det se ut i en terminal. Påhittat, men i den form verktygen är tänkta att skriva. Lagertjänsten heter `inventory` och dess tillstånd `Stock`. Nyckelns noder är *store1* och *store2*. *web1* till *web18* är klienter. Rader som börjar med $ är vad operatören skriver, resten är vad verktygen svarar:
 
-    $ **ern build**
+    $ ern build
     release 42 built: 61 modules, 3 entry points
 
-    $ **ern diff build --config-dir ops**
+    $ ern diff build --config-dir ops
     release 41 to release 42
       inventory.ern   changed   Msg, Stock, step
       orders.ern      follows   placeOrder
@@ -110,17 +110,17 @@ Så här kan det se ut i en terminal. Påhittat, men i den form verktygen är t�
           | Add(sku = sku, count = count) -> Inventory.Add(sku = sku, count = count)
         }
 
-    $ **$EDITOR src/inventory_v1.ern**    # klistra in, fyll i luckan: reserved = Map.empty
-    $ **$EDITOR src/store.ern**           # erbjud nyckeln under gamla identiteten med via
-    $ **ern build**
+    $ $EDITOR src/inventory_v1.ern    # klistra in, fyll i luckan: reserved = Map.empty
+    $ $EDITOR src/store.ern           # erbjud nyckeln under gamla identiteten med via
+    $ ern build
     release 42 built: 62 modules, 3 entry points
 
-    $ **ern test --config-dir ops release-41 build**
+    $ ern test --config-dir ops release-41 build
     plan: accepted
     inventory: 200 states of release 41 through Stock.migrate and back: equal
     rollout on two nodes, and the way back: ok
 
-    $ **ern deploy build --config-dir ops**
+    $ ern deploy build --config-dir ops
     release 42 fetched into every node's cache: store1, store2, web1 .. web18 hold it whole
     plan: release 41 to release 42
       store1, store2, web1 .. web18: ern 1.2.0, scheme 1
