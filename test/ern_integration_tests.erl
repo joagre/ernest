@@ -637,12 +637,13 @@ debug_information(Dir) ->
                  lists:keymember("Dbgi", 1, Chunks)
              end].
 
-%% report §9.3, §11.2, Appendix G.2, plan MVP 3.2: every library's own
+%% report §9.3, §11.2, Appendix G.2, G.6, plan MVP 3.2: every library's own
 %% tests, run by `ern test` over the directory their compiled modules are
 %% under, as the shell's are: the Markdown library's read and lay out what
-%% G.2 says. A regression test too: the modules were run by one command
-%% joined with `&&`, which the host runs by `exec`, so only the first
-%% module's tests ran, and it has none
+%% G.2 says, and the JSON library's read and write what G.6 says. A
+%% regression test too: the modules were run by one command joined with
+%% `&&`, which the host runs by `exec`, so only the first module's tests
+%% ran, and it has none
 libs_test_() ->
     {timeout, 60, fun libs/0}.
 
@@ -652,7 +653,7 @@ libs() ->
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Markdown">>], Lines -- Passed),
+    ?assertEqual([<<"Json">>, <<"Markdown">>], Lines -- Passed),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).
 

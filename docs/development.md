@@ -47,8 +47,8 @@ proposals/         what is designed, a directory for each proposal: the proposal
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists in the order to read them
 erl/               the toolchain, as Erlang applications: lexer, parser, format,
-                   typer, runtime, emitter, cli, and utils, which holds the vendored
-                   getopt; each has src/, include/, ebin/ and test/, and the runtime
+                   typer, runtime, emitter, cli, utils, which holds the vendored
+                   getopt, and json, the primitives of libs/json; each has src/, include/, ebin/ and test/, and the runtime
                    also c_src/, the helper ern_exec's C source, and priv/, where make
                    builds it
 test/              what spans applications: the integration, document, style, guide,
@@ -70,7 +70,8 @@ shell/             the shell as Ernest source; its README.md guides a reader
                    through the code
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 libs/              the first-party libraries, each a source root a program adds
-                   with --load-path: ansi, ets, markdown, which needs ansi
+                   with --load-path: ansi, balancer, ets, json, load, markdown,
+                   which needs ansi
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; unicode_width.escript writes Terminal.columns'
                    table, for make unicode; install.sh, with strip.escript, stages,

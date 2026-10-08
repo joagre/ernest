@@ -47,8 +47,17 @@ test: programs docs guide grammar typed shell
 # it runs the areas side by side.
 beams: $(BEAMS) prepare
 
+# The nodes the programs' tests start live in one directory of the run's
+# own, and each whose ernest.pid is still there when the tests end is
+# stopped before the directory goes (report §11.2), so that a test that
+# failed or ran out of time before it stopped its nodes leaves none running.
 programs: $(BEAMS) prepare measured
-	$(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS))
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_programs_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS)); \
+	  status=$$?; \
+	  for pid in $$(find "$$dir" -name ernest.pid); do \
+	    ../bin/ern stop --config-dir "$$(dirname "$$pid")" > /dev/null 2>&1; done; \
+	  rm -rf "$$dir"; exit $$status
 	$(call EUNIT,$(MEASURE))
 
 # The load programs, the benchmark and the service checks' program, which

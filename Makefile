@@ -5,7 +5,7 @@
 # test` runs every test by area; docs/development.md names every other
 # target and what it is for.
 
-APPS = utils lexer parser format typer runtime emitter cli
+APPS = utils lexer parser format typer runtime emitter cli json
 
 # Every Ernest source of the repository, which `make format` lays out and
 # the Emacs mode's tests read (report §11.6, proposals/emacs/emacs_mode.md).

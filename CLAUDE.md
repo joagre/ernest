@@ -106,7 +106,7 @@ The rules follow the order of work, and each is stated once. *Closing an item*, 
   - There `foreign` is only what the host alone can do, *given the layers beneath it*: the shell reads its history file in Ernest because `Fs` is beneath it.
 - **The standard library and the libraries stand on the host.**
   - Where a host function does exactly an operation's work, the operation is its shim, so that Ernest runs at the host's speed wherever the host does the work.
-  - Where one almost does, Ernest closes the difference around a shim that is the host function exactly, and an Erlang adapter only where that Ernest measurably costs, with the numbers in the log.
+  - Where one almost does, Ernest closes the difference around a shim that is the host function exactly, and an Erlang adapter only where that Ernest measurably costs, with the numbers in the log, or where Ernest cannot close it: a raise it cannot foresee short of doing the host's work, or a host term no Ernest type describes.
   - Where none does, the operation is Ernest.
   - An operation Ernest writes as the host's own operators applied once, `if int < 0 then -int else int`, already runs at the host's speed, and a shim would add a call to it.
   - E.0 rule 1 is the normative half of this rule; where the two differ the report is corrected.

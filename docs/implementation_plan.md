@@ -325,7 +325,16 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     it: `libs/json` is written now, a shim over the host's JSON module with a value type of the
     library's own, `parse` and `format`, as the other libraries stand on the host (the log's
     *The Tests, the Costs and the Guide*); then the test is written in Ernest, and the part is
-    done. The guide moves first, decided
+    done. `libs/json` was written on 2026-10-08, Appendix G.6, its primitives in Erlang the
+    application `erl/json`, as E.0 rule 1 now has a difference Ernest cannot close (the log's
+    *The Module Json*); measuring it found the boundary rebuilding every value whose type holds
+    a float, now rebuilt only where it holds a negative zero (*The Boundary Rebuilt Every
+    Float*), and a test that failed leaving its nodes running, which `make test` now stops
+    (*Nodes a Failed Test Left Running*). Decision with the user, here: the boundary's check
+    still walks a returned value twice, its match and its search for a negative zero, 1.4 times
+    the host's decode it checks; one walk, a float matched only where it is no negative zero
+    and the value rebuilt and matched again where that fails, is about 0.75 times. The test
+    of two nodes follows. The guide moves first, decided
     with the user on 2026-10-08 (the log's *The Guide in Two Files*): `ernest_guide.md` becomes
     `guide/language.md`, its section numbers kept, with every document, test and script that
     names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold
@@ -340,8 +349,11 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     on 2026-10-08 as item 4's tests were written: the 33 fixed sleeps of the tests in ten files,
     `ern_rt_tests`, `ern_reaper_tests`, `ern_tcp_tests`, `ern_os_tests`,
     `ern_system_module_tests`, `ern_emitter_tests`, `ern_integration_tests`, `ern_service_tests`,
-    the load harness and the bench's, each made a wait on what it means, or, where an absence is
-    what a test shows, a wait derived from what it waits for with the reason beside it.
+    the load harness and the bench's, and the nine polls with a fixed sleep that items 4 to 10
+    added after the rule, five in `ern_nodes_tests`, three in `ern_node_costs` and one in
+    `ern_peer_tests` (the log's *Nodes a Failed Test Left Running*), each made a wait on what it
+    means, or, where an absence is what a test shows, a wait derived from what it waits for with
+    the reason beside it.
 
 12. **The milestone after this one, trimmed.** Decided with the user on 2026-10-08, the
     log's *The Milestones After 3.0, Weighed Again*: what `mvp3.1.md` and `mvp3.2.md` design
@@ -370,6 +382,18 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     its state kept, which under MVP 3.0 works only for code the peer's build already has. Written as a proposal is written: read through with the user before a line
     reaches the plan, the log or the report (CLAUDE.md, *A design is discussed in its proposal
     until the user says it is ready*).
+
+13. **What MVP 3.0 changed, read.** Decided with the user on 2026-10-08, the log's *MVP 3.0
+    Read Without a Release*: no release follows the milestone, and four of
+    [`release_review.md`](release_review.md)'s readers, run as [`full_review.md`](full_review.md)
+    runs them with its briefs, read what it changed. The report's reader, K and P as one, on the
+    most advanced model, over §3.11, §8.3, §8.7, §6.10's part for a peer, Appendix C, E.27, G.4
+    to G.6 and §11's node jobs; the argument's reader over `soundness.md`'s section 7; the code's
+    reader, C, E and S as one, over what changed in `erl/`, `stdlib/` and `libs/` since
+    `v0.3.1`, which a review run that reads only code may be where it can be given that range;
+    and the guide's reader, on the model below, over chapter 8. The findings go to
+    `findings.md` and are decided as a review's are. The principles review runs before MVP 3.1
+    where its proposal adds to the type system, and reads peers, which are built.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two peers offering one key by mistake are told apart by nothing but the
@@ -736,11 +760,10 @@ that work, when someone asks for it, or when we want it, decided 2026-09-25 (the
 program adds with `--load-path`, with `stdlib/`'s test discipline, documented in one pass to
 [`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
 user, and a section in the appendix of libraries. Own repositories come later, when there is a
-package story. Written: `libs/ets`, `libs/markdown` and `libs/ansi` (Appendix G; `libs/markdown` under
-"Done"). Named so far:
+package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/load`,
+`libs/balancer` and `libs/json` (Appendix G; `libs/markdown` under "Done", `load`, `balancer`
+and `json` in MVP 3.0). Named so far:
 
-- **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a
-  printer.
 - **`libs/base64`**, a shim over `base64`.
 - **`libs/tls`**, a shim over `ssl` and `public_key`: `listen`, `accept`, `connect`. Whether
   it answers `Tcp`'s `Address(SocketMsg)`, its foreign process then speaking an encoding private

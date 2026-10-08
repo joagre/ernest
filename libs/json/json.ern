@@ -1,0 +1,175 @@
+/// JSON text, read into a value and written from one, as RFC 8259 defines
+/// it, by the host's `json` module.
+///
+/// A program that uses the library puts it on its load path, both when it
+/// is compiled and when it is run: `--load-path` with the directory of the
+/// compiled library, `lib/ernest/build/libs/json` under the prefix Ernest is
+/// installed in. Under `/usr/local`, where Ernest is installed by default:
+///
+/// ```sh
+/// ern build --load-path /usr/local/lib/ernest/build/libs/json main.ern
+/// ern run --load-path /usr/local/lib/ernest/build/libs/json main.erc
+/// ```
+///
+/// **Numbers.** A number written with neither a fraction nor an exponent is
+/// an `Integer`, of any size, and one written with either is a `Real`: `1`
+/// is `Integer(1)`, and `1.0` and `1e0` are `Real(1.0)`. A `Real` nearer to
+/// zero than a `Float` can hold is `0.0`, and so is `-0.0`, since a `Float`
+/// has no negative zero (report §3.1); one larger than a `Float` can hold is
+/// not read.
+///
+/// **Objects.** An object is a `Map` from its members' names to their
+/// values. Where a text names a member twice, the first is kept. `format`
+/// writes the members in the order of their names' code points.
+///
+/// **Reading back.** `parse` reads what `format` writes as the value it was
+/// written from.
+///
+/// ## Examples
+///
+/// A member of an object read:
+///
+/// ```ernest
+/// match Json.parse("{\"name\": \"desk\", \"port\": 4001}") {
+///     Right(Json.Object(members)) -> Map.get(members, "port")
+///   | _ -> None
+/// }
+/// // => Some(Integer(4001))
+/// ```
+///
+/// An object written:
+///
+/// ```ernest
+/// Json.format(Json.Object(Map.fromList([#("port", Json.Integer(4001)),
+///                                       #("name", Json.Text("desk"))])))
+/// // => "{\n  \"name\": \"desk\",\n  \"port\": 4001\n}\n"
+/// ```
+///
+/// since 0.4.0
+
+/// A JSON value: `null`, `true` or `false`, a number, a string, an array or
+/// an object.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Json.parse("[null, true, 2, 2.5, \"x\", []]")
+/// // => Right(Array([Null, Boolean(true), Integer(2), Real(2.5), Text("x"), Array([])]))
+/// ```
+export type Value =
+    Null
+  | Boolean(Bool)
+  | Integer(Int)
+  | Real(Float)
+  | Text(String)
+  | Array(List(Value))
+  | Object(Map(String, Value))
+
+/// Why a text holds no JSON value, as the host's `json` finds it, which
+/// does not say where. `UnexpectedEnd` is a text that ends inside its value
+/// or holds none. `UnexpectedByte` is a byte that cannot stand where it is,
+/// the first of its character's: a second value, a comma before a closing
+/// bracket, or a character no value begins with. `UnexpectedSequence` is an
+/// escape that writes no character, or a number larger than a `Float` can
+/// hold, as the host gives it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Json.parse("[1, 2"), Json.parse("[1, 2,]"))
+/// // => #(Left(UnexpectedEnd), Left(UnexpectedByte(93)))
+/// ```
+export type Error = UnexpectedEnd | UnexpectedByte(Int) | UnexpectedSequence(Bytes)
+
+/// The value `text` writes, or why it writes none. White space may stand
+/// before the value and after it, and nothing else may.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Json.parse(" 4001 "), Json.parse("4001 4002"))
+/// // => #(Right(Integer(4001)), Left(UnexpectedByte(32)))
+/// ```
+export foreign fn parse(text : String) : Either(Error, Value) =
+    "ern_json:parse/1"
+
+/// `value` as JSON text, laid out over lines as the host's `json:format`
+/// lays it out, two spaces to a level, and ending in a line feed.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Json.format(Json.Array([Json.Integer(1), Json.Null]))
+/// // => "[1,null]\n"
+/// ```
+export foreign fn format(value : Value) : String =
+    "ern_json:format/1"
+
+//
+// The tests (report §9.3), run by `ern test` as every library's are. They
+// were written after the code, from the host's page and from what probing
+// the host showed of the edges it does not state.
+//
+
+let duplicateName =
+    Test.Case(name = "a member named twice keeps the first",
+              run = fn() =
+                  Test.equal(parse("{\"a\": 1, \"a\": 2}"),
+                             Right(Object(Map.fromList([#("a", Integer(1))])))))
+
+let numbers =
+    Test.Case(name = "an integer of any size, and a real nearer zero than a Float is 0.0",
+              run = fn() =
+                  Test.equal(Io.show(parse("[123456789012345678901234567890, -0, -0.0, 1e-400]")),
+                             "Right(Array([Integer(123456789012345678901234567890), Integer(0), "
+                                 <> "Real(0.0), Real(0.0)]))"))
+
+let tooLarge =
+    Test.Case(name = "a real larger than a Float can hold is not read",
+              run = fn() = match parse("1e400") {
+                  Left(UnexpectedSequence(_)) -> Test.Passed
+                | other -> Test.Failed(Io.show(other))
+              })
+
+let escapes =
+    Test.Case(name = "an escaped pair of surrogates is one character, and one alone is no text",
+              run = fn() =
+                  Test.equal(#(parse("\"\\ud83d\\ude00 \\u00e9\""), parse("\"\\udc00\"")),
+                             #(Right(Text("\u{1f600} é")),
+                               Left(UnexpectedSequence(String.toUtf8("\\udc00"))))))
+
+let empty =
+    Test.Case(name = "a text of white space holds no value",
+              run = fn() =
+                  Test.equal(#(parse(""), parse(" \n ")),
+                             #(Left(UnexpectedEnd), Left(UnexpectedEnd))))
+
+let order =
+    Test.Case(name = "an object's members are written in the order of their names",
+              run = fn() =
+                  Test.equal(String.lines(format(Object(Map.fromList([#("é", Null),
+                                                                      #("b", Null),
+                                                                      #("a", Null),
+                                                                      #("B", Null)])))),
+                             ["{",
+                              "  \"B\": null,",
+                              "  \"a\": null,",
+                              "  \"b\": null,",
+                              "  \"é\": null",
+                              "}"]))
+
+let readBack =
+    Test.Case(name = "parse reads what format writes as the value it was written from",
+              run = fn() = {
+                  let peer =
+                      Object(Map.fromList([#("name", Text("desk \"one\"\n")),
+                                           #("port", Integer(4001))]));
+                  let weights = Array([Real(0.1), Real(0.0), Real(1.0e300)]);
+                  let value =
+                      Object(Map.fromList([#("peers", Array([peer])),
+                                           #("weights", weights),
+                                           #("on", Boolean(false)),
+                                           #("none", Null),
+                                           #("empty", Object(Map.empty))]));
+                  Test.equal(parse(format(value)), Right(value))
+              })

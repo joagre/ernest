@@ -166,11 +166,13 @@ closed(Other, _) -> Other.
 
 %% Report §3.1: a float entering from foreign code, the runtime's negative
 %% zero among them, is the language's; X + 0.0 is 0.0 for either zero and
-%% X otherwise. The value is already checked against the descriptor.
+%% X otherwise. The value is already checked against the descriptor, and is
+%% rebuilt only where it holds a negative zero, which few values do.
 zeroed(Descriptor, Value) -> zeroed(Descriptor, Value, #{}).
 
 zeroed(Descriptor, Value, Bound) ->
-    case has_float([Descriptor | maps:values(Bound)]) of
+    case has_float([Descriptor | maps:values(Bound)])
+        andalso holds_negative_zero(Descriptor, Value, Bound) of
         true -> zero(Descriptor, Value, Bound);
         false -> Value
     end.
@@ -179,6 +181,35 @@ has_float(float) -> true;
 has_float(Part) when is_tuple(Part) -> lists:any(fun has_float/1, tuple_to_list(Part));
 has_float(Parts) when is_list(Parts) -> lists:any(fun has_float/1, Parts);
 has_float(_) -> false.
+
+holds_negative_zero(float, Value, _) -> Value =:= -0.0;
+holds_negative_zero({list, ElementDescriptor}, Value, Bound) ->
+    lists:any(fun(Item) -> holds_negative_zero(ElementDescriptor, Item, Bound) end, Value);
+holds_negative_zero({tuple, ElementDescriptors}, Value, Bound) ->
+    any_holds_negative_zero(ElementDescriptors, tuple_to_list(Value), Bound);
+holds_negative_zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) ->
+    maps:fold(fun(Key, Item, Acc) ->
+                  Acc orelse holds_negative_zero(KeyDescriptor, Key, Bound)
+                      orelse holds_negative_zero(ValueDescriptor, Item, Bound)
+              end, false, Value);
+holds_negative_zero({set, ElementDescriptor}, {set, Members}, Bound) ->
+    maps:fold(fun(Item, _, Acc) -> Acc orelse holds_negative_zero(ElementDescriptor, Item, Bound)
+              end, false, Members);
+holds_negative_zero({con, Constructors}, Value, Bound) when is_tuple(Value) ->
+    [Tag | Fields] = tuple_to_list(Value),
+    any_holds_negative_zero(constructor_fields(Tag, Constructors), Fields, Bound);
+holds_negative_zero({abstract, Descriptor}, Value, Bound) ->
+    holds_negative_zero(Descriptor, Value, Bound);
+holds_negative_zero({mu, Id, Descriptor}, Value, Bound) ->
+    holds_negative_zero(Descriptor, Value, Bound#{Id => Descriptor});
+holds_negative_zero({ref, Id}, Value, Bound) ->
+    holds_negative_zero(maps:get(Id, Bound), Value, Bound);
+holds_negative_zero(_, _, _) -> false.
+
+any_holds_negative_zero([Descriptor | Descriptors], [Value | Values], Bound) ->
+    holds_negative_zero(Descriptor, Value, Bound)
+        orelse any_holds_negative_zero(Descriptors, Values, Bound);
+any_holds_negative_zero([], [], _) -> false.
 
 zero(float, Value, _) -> Value + 0.0;
 zero({list, ElementDescriptor}, Value, Bound) ->

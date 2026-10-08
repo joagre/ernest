@@ -1154,6 +1154,23 @@ no_negative_zero_test() ->
     ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\n#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\n"
                    "Some(0.0)\n0.0\n\"guard\"\n0.0\n">>, Output).
 
+%% report §3.1, §8.4: a negative zero inside a value foreign code returns
+%% is 0.0, as a float returned alone is. A regression test, written after
+%% the code: the check rebuilt every value whose type holds a float, a
+%% negative zero in it or not, which cost more than the host's work it
+%% checked; it does not show that a value holding none is not rebuilt
+foreign_negative_zero_test() ->
+    {ok, Output} = run(
+        "foreign fn decoded(bytes : Bytes) : List(#(String, Float)) =\n"
+        "    \"erlang:binary_to_term/1\"\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let _ = Io.debug(decoded(<<131, 108, 0, 0, 0, 2, 104, 2, 109, 0, 0, 0, 1, 97, 70,"
+        " 128, 0, 0, 0, 0, 0, 0, 0, 104, 2, 109, 0, 0, 0, 1, 98, 70, 63, 248, 0, 0, 0, 0, 0,"
+        " 0, 106>>));\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"[#(\"a\", 0.0), #(\"b\", 1.5)]\n">>, Output).
+
 %% report §5.1: a callee is evaluated before its arguments; in `x |> e`,
 %% x is evaluated before e, a callee a call computes among it
 evaluation_order_test() ->
