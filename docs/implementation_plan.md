@@ -292,7 +292,11 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    by its declaration, a pick drawing two candidates at random and taking the lower, a node
    without a measure or out of reach passed over: the first programs written on the design. The
    balancer picks and the program spawns, since a spawn on a peer starts only a function written
-   at it (item 2).
+   at it (item 2). Decision with the user, raised 2026-10-08 as the item began: how a balancer
+   reaches each place's measuring process, since `Peer.find` asks a key's peers in order and
+   names no node, so that offering it under `Balancer.key` cannot serve a pick of two places;
+   recommended, the measuring process registering with the balancer, whose address and place
+   the program's spawn captures, so that `Balancer` needs no key and no binding.
 10. **The tests, the measurements and the guide.** Real nodes on one machine as the experiment
     runs them, holding the proposal's section 4 whole and the cases of its section 8: nodes
     with keys of their own, a peer stopped for a silent one, a node started again, a node that
