@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 10 done 2026-10-08, but for item 10's test of two nodes |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 10 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08; rewritten smaller by MVP 3.0's item 12 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08; set aside by MVP 3.0's item 12, its kept state and planned stop going to MVP 3.1 |
 | MVP 3.3 | the shell's second round | |
@@ -318,21 +318,15 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     a proxy, and a dial nothing answers, the detector's and the dial's times read and held;
     `make bench`'s third part measures section 9's three costs between two nodes; `make
     sections` names nothing; and `guide/language.md`'s chapter 8 teaches peers from §8.7. The
-    one part left, a program's own test of two nodes with the second started by `Os`, needs
-    the test to write the second node's `ernest.conf`, a JSON file, which no Ernest code writes
-    by hand (CLAUDE.md, *A published specification or a general-purpose engine is a library's
-    work*). Decided with the user on 2026-10-08, `language_feedback.md`'s entry 93 closed by
-    it: `libs/json` is written now, a shim over the host's JSON module with a value type of the
-    library's own, `parse` and `format`, as the other libraries stand on the host (the log's
-    *The Tests, the Costs and the Guide*); then the test is written in Ernest, and the part is
-    done. `libs/json` was written on 2026-10-08, Appendix G.6, its primitives in Erlang the
-    application `erl/json`, as E.0 rule 1 now has a difference Ernest cannot close (the log's
-    *The Module Json*); measuring it found the boundary rebuilding every value whose type holds
-    a float, now rebuilt only where it holds a negative zero (*The Boundary Rebuilt Every
-    Float*), and a test that failed leaving its nodes running, which `make test` now stops
-    (*Nodes a Failed Test Left Running*); and, decided with the user, the check walks a value
-    once, a float matching only where it is no negative zero and a value that fails so made
-    again, 0.8 times the host's decode it checks. The test of two nodes follows. The guide moves first, decided
+    last part, a program's own test of two nodes, wrote the second node's `ernest.conf`, JSON,
+    so `libs/json` was written first, decided with the user (`language_feedback.md`'s entry 93):
+    Appendix G.6, its primitives in Erlang the application `erl/json`, as E.0 rule 1 now has a
+    difference Ernest cannot close (the log's *The Module Json*). Measuring it found the
+    boundary rebuilding every value whose type holds a float, and the check now walks a value
+    once, decided with the user (*The Boundary Rebuilt Every Float*); and a test that failed
+    left its nodes running, which `make test` now stops (*Nodes a Failed Test Left Running*).
+    The test is `test/peers/pair.ern`, run as a node by `program_test_` (the log's *A
+    Program's Own Test of Two Nodes*). The guide moves first, decided
     with the user on 2026-10-08 (the log's *The Guide in Two Files*): `ernest_guide.md` becomes
     `guide/language.md`, its section numbers kept, with every document, test and script that
     names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold

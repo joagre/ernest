@@ -13,7 +13,7 @@
 %% The libraries `test/peers/`'s programs use, on every node's load path, so
 %% that every node runs one build.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["balancer", "load"]]).
+                    || Library <- ["balancer", "json", "load"]]).
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -787,6 +787,50 @@ balance() ->
                  "loads here: #(false, false, false)", "loads: Right"]],
     has(StoreOut, "the store squares 36"),
     has(StoreOut, "loads there: #(true, true, true)").
+
+%% report §8.7, §11.2, Appendix E.23, G.6: a program's own test of two
+%% nodes, `ern test --config-dir a` as a node. The harness makes two
+%% directories as `ern config` makes them, `a` listening and listing `b`
+%% under the key `pair`, and says in `pair.json` the port `b` listens on and
+%% the load path `a` runs with; the test, in Ernest, writes `b`'s
+%% `ernest.conf` listing `a`, starts `b` with `Os` on the same build, finds
+%% and calls what it offers, and ends it with `ern stop`. A regression test,
+%% written after the code; it does not cover a reload, whose end a program
+%% cannot see (§8.7: the signal carries nothing back)
+program_test_() ->
+    {timeout, 90, fun program/0}.
+
+program() ->
+    Base = tmp(),
+    _ = peers(Base),
+    {PortA, PortB} = {free_port(), free_port()},
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    lists(A, [{"b", B, PortB}]),
+    edit(A, fun(Conf) -> Conf#{<<"keys">> => #{<<"pair">> => [<<"b">>]}} end),
+    Settings = #{<<"port">> => PortB,
+                 <<"load-path">> => [list_to_binary(Library) || Library <- ?LIBRARIES]},
+    ok = file:write_file(filename:join(Base, "pair.json"), json:encode(Settings)),
+    Command = lists:flatten([?ERN, " test --config-dir a",
+                             [[" --load-path ", Library] || Library <- ?LIBRARIES],
+                             " build/pair.erc 2>&1"]),
+    %% `ern` on the path, as the test starts it by its name (Appendix E.23)
+    Path = filename:dirname(?ERN) ++ ":" ++ os:getenv("PATH"),
+    Port = open_port({spawn_executable, "/bin/sh"},
+                     [{args, ["-c", Command]}, {cd, Base}, {env, [{"PATH", Path}]},
+                      exit_status, binary, stderr_to_stdout]),
+    {Status, Output} = collected(Port, <<>>),
+    ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<"failed">>)}),
+    has(binary_to_list(Output), "a second node made, started with Os, found, called and stopped:"
+                                " passed"),
+    ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
+
+%% A port's output to its end, and its exit status.
+collected(Port, Acc) ->
+    receive
+        {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>);
+        {Port, {exit_status, Status}} -> {Status, Acc}
+    end.
 
 %% The process number in a node's ernest.pid.
 pid(Dir) ->

@@ -1,0 +1,129 @@
+// Report §8.7, §11.2, Appendix E.23, G.6: a program's own test of two
+// nodes. `ern test --config-dir a` runs its test as the node `a`, in the
+// directory the harness made: `a` and `b`, each made by `ern config`, `a`
+// listing `b` under the key `pair`; the build; and `pair.json`, which
+// names the port `b` listens on and the load path `a` was started with.
+// The test writes `b`'s `ernest.conf`, listing `a`, starts `b` with `Os`
+// on the same build, waits for it to offer its service, calls it through
+// `Peer.find`, and ends it with `ern stop`.
+
+export type Msg = Double(n : Int, reply : Reply(Int))
+
+export let key : Peer.Key(Msg) = Peer.key("pair")
+
+// The second node's program: its entry process offers itself under the
+// key, says so on its standard output, and serves.
+export fn main() : Unit with Msg = {
+    Peer.offer(key, self());
+    Io.println("offered");
+    serve()
+}
+
+fn serve() : Unit with Msg =
+    receive {
+        Double(n = n, reply = reply) -> {
+            answer(reply, 2 * n);
+            serve()
+        }
+    }
+
+//
+// The test (report §9.3), run on the first node.
+//
+
+let twoNodes =
+    Test.Case(name = "a second node made, started with Os, found, called and stopped",
+              run = fn() = Test.equal(withSecondNode(), Right(#(Some(42), 143))))
+
+// What the second node answered, and the status it ended with.
+fn withSecondNode() : Either(String, #(Optional(Int), Int)) with m = {
+    let settings <- readJson(["pair.json"]);
+    let port <- Either.andThen(member(settings, "port"), integer);
+    let loadPath <- Either.andThen(member(settings, "load-path"), texts);
+    let first <- readJson(["a", "ernest.conf"]);
+    let firstKey <- member(first, "public-key");
+    let firstAddress <- member(first, "listen");
+    let second <- readJson(["b", "ernest.conf"]);
+    let secondKey <- member(second, "public-key");
+    let peer =
+        Json.Object(Map.fromList([#("name", Json.Text("a")),
+                                  #("network-address", firstAddress),
+                                  #("public-key", firstKey)]));
+    let conf =
+        Json.Object(Map.fromList([#("listen", Json.Text("127.0.0.1:" <> Int.toString(port))),
+                                  #("public-key", secondKey),
+                                  #("peers", Json.Array([peer]))]));
+    let _ <- written(["b", "ernest.conf"], Json.format(conf));
+    let arguments = List.flatMap(loadPath, fn(directory) = ["--load-path", directory]);
+    let program <-
+        shown(Os.start(Os.Command(program = "ern",
+                                  arguments = ["run", "--config-dir", "b"]
+                                      <> arguments
+                                      <> ["build/pair.erc"],
+                                  input = <<>>)));
+    let _ <- said(program, String.toUtf8("offered"), <<>>);
+    let service <- shown(Peer.find(key, 10000));
+    let doubled = Address.call(service, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let stop = Os.Command(program = "ern", arguments = ["stop", "--config-dir", "b"], input = <<>>);
+    let _ <- shown(Os.run(stop, 10000));
+    let status <- ended(program);
+    Right(#(doubled, status))
+}
+
+// The JSON a file of the working directory holds.
+fn readJson(path : List(String)) : Either(String, Json.Value) with m = {
+    let bytes <- shown(Fs.read(Path.join(path), 10000));
+    let text <-
+        Either.fromOptional(String.fromUtf8(bytes),
+                            Path.toString(Path.join(path)) <> " is not UTF-8");
+    shown(Json.parse(text))
+}
+
+fn written(path : List(String), text : String) : Either(String, Unit) with m =
+    shown(Fs.write(Path.join(path), String.toUtf8(text), 10000))
+
+fn member(value : Json.Value, name : String) : Either(String, Json.Value) =
+    match value {
+        Json.Object(members) -> Either.fromOptional(Map.get(members, name), "no " <> name)
+      | other -> Left("not an object: " <> Io.show(other))
+    }
+
+fn integer(value : Json.Value) : Either(String, Int) =
+    match value {
+        Json.Integer(int) -> Right(int)
+      | other -> Left("not an integer: " <> Io.show(other))
+    }
+
+fn texts(value : Json.Value) : Either(String, List(String)) =
+    match value {
+        Json.Array(values) -> List.tryMap(values, fn(element) = match element {
+            Json.Text(text) -> Right(text)
+          | other -> Left("not a string: " <> Io.show(other))
+        })
+      | other -> Left("not an array: " <> Io.show(other))
+    }
+
+fn shown(either : Either(e, a)) : Either(String, a) needs e.show =
+    Either.mapLeft(either, fn(error) = Io.show(error))
+
+// Until the program has written the bytes on its standard output; each
+// read's time bounds a failure, and no success waits on it.
+fn said(program : Address(Os.ProgramMsg),
+        bytes : Bytes,
+        seen : Bytes) : Either(String, Unit) with m =
+    if Bytes.contains(seen, bytes) then
+        Right(Unit)
+    else match Os.read(program, 30000) {
+        Right(Os.Stdout(more)) -> said(program, bytes, seen <> more)
+      | Right(Os.Stderr(_)) -> said(program, bytes, seen)
+      | Right(Os.Exited(status)) -> Left("the second node ended with " <> Int.toString(status))
+      | Left(error) -> Left(Io.show(error))
+    }
+
+// The status the program ended with, once its output has ended.
+fn ended(program : Address(Os.ProgramMsg)) : Either(String, Int) with m =
+    match Os.read(program, 30000) {
+        Right(Os.Exited(status)) -> Right(status)
+      | Right(_) -> ended(program)
+      | Left(error) -> Left(Io.show(error))
+    }
