@@ -1,0 +1,35 @@
+// Report §8.7, Appendix G: measures a balancer picks by, installed on a
+// place, and the loads the host's services give there; a module with no
+// binding, so that its spawns run on any peer that has the build.
+
+// The load a place answers that is to be picked.
+fn low() : Float =
+    0.1
+
+// The load a place answers that is to be passed over.
+fn high() : Float =
+    0.9
+
+export fn lowOn(balancer : Address(Balancer.Msg),
+                name : String) : Either(Peer.Failure, Address(Balancer.Measuring)) with m =
+    Peer.spawn(name,
+               fn() : Unit with Balancer.Measuring =
+                   Balancer.serve(balancer, Balancer.On(name), low),
+               5000)
+
+export fn highHere(balancer : Address(Balancer.Msg)) : Address(Balancer.Measuring) with m =
+    spawn(fn() : Unit with Balancer.Measuring = Balancer.serve(balancer, Balancer.Here, high))
+
+// Whether each of the host's services, cpu, memory and disk, answers a load
+// on the peer, which writes it to its standard output.
+export fn loadsOn(name : String) : Either(Peer.Failure, Address(Never)) with m =
+    Peer.spawn(name, fn() : Unit with Never = Io.println("loads there: " <> loads()), 5000)
+
+export fn loads() : String with m =
+    Io.show(#(answers(Load.cpu()), answers(Load.memory()), answers(Load.disk())))
+
+fn answers(load : Optional(Float)) : Bool =
+    match load {
+        Some(fraction) -> fraction >= 0.0 && fraction <= 1.0
+      | None -> false
+    }

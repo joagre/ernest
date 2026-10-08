@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 8 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 9 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -296,7 +296,10 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    Reaches Its Measures by Their Registering*): the measuring process registers with the
    balancer, whose address and place the program's spawn captures, since `Peer.find` names no
    node and so could not reach the two places a pick draws; `Balancer` has no key and no
-   binding.
+   binding. Done 2026-10-08, with what the building decided in the log's *Load and Balancer*,
+   Appendix G.4 and G.5 stating the two: `Load`'s five measures, the services' three answering
+   `None` where they do not run; `Place` as `Here | On(String)`; a measured pick asked by a
+   process of its own, so that a slow measure holds no other pick.
 10. **The tests, the measurements and the guide.** Real nodes on one machine as the experiment
     runs them, holding the proposal's section 4 whole and the cases of its section 8: nodes
     with keys of their own, a peer stopped for a silent one, a node started again, a node that

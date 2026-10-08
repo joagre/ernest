@@ -13,6 +13,7 @@ export fn main() : Unit with Msg =
       | ["calls"] -> calls()
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
+      | ["balance"] -> balanced()
       | _ -> Unit
     }
 
@@ -91,7 +92,7 @@ fn faulted(what : String, f : () -> Unit with m) : Unit with Msg = {
     }
 }
 
-fn started(answer : Either(Peer.Failure, Address(Never))) : String =
+fn started(answer : Either(Peer.Failure, Address(m))) : String =
     match answer {
         Right(_) -> "Right"
       | Left(failure) -> Io.show(failure)
@@ -281,3 +282,33 @@ fn reloaded() : Unit with Msg = {
     Io.println("refused: "
                    <> Io.show(Address.call(again, fn(reply) = Counter.Get(reply = reply), 2000)))
 }
+
+// Appendix G: a balancer over this node and the store, in turn, then by
+// the measures installed on each, the work spawned where it picks; and the
+// loads of the host's services, which the store runs and the desk does not.
+fn balanced() : Unit with Msg = {
+    let balancer = Balancer.start([Balancer.Here, Balancer.On("store")]);
+    Io.println("in turn: "
+                   <> Io.show(#(Balancer.pick(balancer, 1000), Balancer.pick(balancer, 1000))));
+    let _ = Placing.highHere(balancer);
+    Io.println("measured: " <> started(Placing.lowOn(balancer, "store")));
+    registered(balancer, 0);
+    Io.println("picked: the store three times in a row");
+    match Balancer.pick(balancer, 1000) {
+        Some(Balancer.On(name)) -> Io.println("work: " <> started(Work.squareOn(name, 6, 5000)))
+      | _ -> Io.println("work: not on the store")
+    };
+    Io.println("loads here: " <> Placing.loads());
+    Io.println("loads: " <> started(Placing.loadsOn("store")))
+}
+
+// Until three picks in a row take the store, which they do once its
+// measure, the lower, has registered beside this node's: in turn, two
+// places alternate.
+fn registered(balancer : Address(Balancer.Msg), inARow : Int) : Unit with n =
+    if inARow == 3 then
+        Unit
+    else match Balancer.pick(balancer, 1000) {
+        Some(Balancer.On(_)) -> registered(balancer, inARow + 1)
+      | _ -> registered(balancer, 0)
+    }

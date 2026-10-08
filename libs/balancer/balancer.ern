@@ -1,0 +1,230 @@
+/// Where a program spawns its work: on this node or on one of its peers,
+/// picked in turn, or by how busy each place says it is.
+///
+/// A program that uses the library puts it on its load path, both when it
+/// is compiled and when it is run: `--load-path` with the directory of the
+/// compiled library, `lib/ernest/build/libs/balancer` under the prefix Ernest
+/// is installed in. Under `/usr/local`, where Ernest is installed by default:
+///
+/// ```sh
+/// ern build --load-path /usr/local/lib/ernest/build/libs/balancer main.ern
+/// ern run --load-path /usr/local/lib/ernest/build/libs/balancer main.erc
+/// ```
+///
+/// **A balancer** is a process, which `start` spawns over the places a
+/// program gives it: this node, `Here`, and peers by their names in
+/// `ernest.conf`, `On("store")`. `pick` asks it for a place, and the program
+/// spawns its work there, with `spawn` for `Here` and with `Peer.spawn` for a
+/// peer, since a spawn on a peer starts only a function written at it (report
+/// §3.11).
+///
+/// **Measures.** Without one, a balancer picks its places in turn. A program
+/// installs a measure on a place by spawning there a process that runs
+/// `serve`, given the balancer, the place, and a function the program
+/// declares answering a load from 0.0 to 1.0, over the library `Load` or of
+/// its own: `Peer.spawn("store", fn() : Unit with Balancer.Measuring =
+/// Balancer.serve(balancer, Balancer.On("store"), busy), 5000)`. The process
+/// registers with the balancer. Once a place has a measure, a pick draws two
+/// of the places with one at random, asks each for its load within half the
+/// pick's time, and takes the lower; a place that does not answer is passed
+/// over, and where none answers, the pick takes the next place in turn. A
+/// measure ends with its process, but for one whose node is out of reach,
+/// which is asked again at the next pick; a place's later measure replaces
+/// its earlier one.
+///
+/// ## Examples
+///
+/// A balancer over this node alone, which every pick answers:
+///
+/// ```ernest
+/// {
+///     let balancer = Balancer.start([Balancer.Here]);
+///     Balancer.pick(balancer, 1000)
+/// }
+/// // => Some(Here)
+/// ```
+///
+/// since 0.4.0
+
+/// A place work runs on: this node, or the peer of that name.
+///
+/// ### Examples
+///
+/// ```ernest
+/// [Balancer.Here, Balancer.On("store")]
+/// // => [Here, On("store")]
+/// ```
+export type Place = Here | On(String)
+
+/// What a balancer takes.
+export abstract type Msg =
+    Pick(ms : Int, reply : Reply(Place))
+  | Register(place : Place, measure : Address(Measuring))
+  | Ended(Down)
+
+/// What a place's measuring process takes.
+export abstract type Measuring = Measure(reply : Reply(Float))
+
+/// A balancer over the places, which picks among them in turn until a place
+/// has a measure.
+///
+/// ### Errors
+///
+/// A balancer given no place faults the caller with `Fault("a balancer picks
+/// among places, and none was given")`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let balancer = Balancer.start([Balancer.Here, Balancer.On("store")]);
+///     #(Balancer.pick(balancer, 1000), Balancer.pick(balancer, 1000))
+/// }
+/// // => #(Some(Here), Some(On("store")))
+/// ```
+export fn start(places : List(Place)) : Address(Msg) with m =
+    match places {
+        [] -> fault("a balancer picks among places, and none was given")
+      | next :: others -> {
+            let seed = Random.seed(Clock.monotonic());
+            spawn(fn() = balance(Turns(next = next, others = others), [], seed))
+        }
+    }
+
+// The places in turn: the next, then the others in the order they come.
+type Turns = Turns(next : Place, others : List(Place))
+
+// The places with the next one moved to the end.
+fn turned(turns : Turns) : Turns =
+    match turns.others {
+        [] -> turns
+      | following :: rest -> Turns(next = following, others = rest <> [turns.next])
+    }
+
+fn balance(turns : Turns,
+           measures : List(#(Place, Address(Measuring))),
+           seed : Random.Seed) : Unit with Msg =
+    receive {
+        Pick(ms = ms, reply = reply) -> match measures {
+            [] -> {
+                answer(reply, turns.next);
+                balance(turned(turns), measures, seed)
+            }
+          | _ -> {
+                let #(drawn, seed1) = drawnTwo(measures, seed);
+                let next = turns.next;
+                let _ = spawn(fn() : Unit with Never = chosen(drawn, next, ms / 2, reply));
+                balance(turned(turns), measures, seed1)
+            }
+        }
+      | Register(place = place, measure = measure) -> {
+            monitor(Process.fromAddress(measure), Ended);
+            let others = List.filter(measures, fn(#(registered, _)) = registered != place);
+            balance(turns, #(place, measure) :: others, seed)
+        }
+      | Ended(down) -> match down.reason {
+            Unreachable -> balance(turns, measures, seed)
+          | _ -> {
+                let living =
+                    List.filter(measures,
+                                fn(#(_, measure)) = Process.fromAddress(measure) != down.process);
+                balance(turns, living, seed)
+            }
+        }
+    }
+
+// Two of the measures at random, or every one where there are two or fewer.
+fn drawnTwo(measures : List(#(Place, Address(Measuring))),
+            seed : Random.Seed) : #(List(#(Place, Address(Measuring))), Random.Seed) = {
+    let count = List.size(measures);
+    if count <= 2 then
+        #(measures, seed)
+    else {
+        let #(first, seed1) = Random.next(seed, count);
+        let #(drawn, seed2) = Random.next(seed1, count - 1);
+        let second = if drawn >= first then drawn + 1 else drawn;
+        #(List.filterMap([first, second], fn(index) = List.get(measures, index)), seed2)
+    }
+}
+
+// The place of the lowest load the drawn measures answer within the time,
+// or the place in turn where none answers.
+fn chosen(drawn : List(#(Place, Address(Measuring))),
+          next : Place,
+          ms : Int,
+          reply : Reply(Place)) : Unit with Never = {
+    let deadline = Clock.monotonic() + ms;
+    let loads = asked(drawn, deadline);
+    answer(reply, match lowest(loads) {
+        Some(place) -> place
+      | None -> next
+    })
+}
+
+// Each measure's load, asked in turn, each within its share of the time
+// left; one that does not answer is passed over.
+fn asked(drawn : List(#(Place, Address(Measuring))),
+         deadline : Int) : List(#(Place, Float)) with Never =
+    match drawn {
+        [] -> []
+      | #(place, measure) :: rest -> {
+            let share = Int.max(0, deadline - Clock.monotonic()) / List.size(drawn);
+            match Address.call(measure, fn(reply) = Measure(reply = reply), share) {
+                Some(load) -> #(place, load) :: asked(rest, deadline)
+              | None -> asked(rest, deadline)
+            }
+        }
+    }
+
+// The place of the lowest load, the first of two that are equal.
+fn lowest(loads : List(#(Place, Float))) : Optional(Place) =
+    Optional.map(List.foldLeft(loads, None, fn(least, #(place, load)) = match least {
+                     Some(#(_, leastLoad)) when leastLoad <= load -> least
+                   | _ -> Some(#(place, load))
+                 }),
+                 fn(#(place, _)) = place)
+
+/// A place for the program's work: the balancer's pick, within `ms`
+/// milliseconds, or `None` where the balancer did not answer in time.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Balancer.pick(Balancer.start([Balancer.On("store")]), 1000)
+/// // => Some(On("store"))
+/// ```
+export fn pick(balancer : Address(Msg), ms : Int) : Optional(Place) with m =
+    Address.call(balancer, fn(reply) = Pick(ms = ms, reply = reply), ms)
+
+/// The measuring process of a place, which registers with the balancer and
+/// answers its load with `measure`, for as long as it runs.
+///
+/// ### Examples
+///
+/// A measure installed on this node, which the balancer then picks by:
+///
+/// ```ernest
+/// {
+///     let balancer = Balancer.start([Balancer.Here]);
+///     let measuring =
+///         fn() : Unit with Balancer.Measuring =
+///             Balancer.serve(balancer, Balancer.Here, fn() = 0.5);
+///     let _ = spawn(measuring);
+///     Balancer.pick(balancer, 1000)
+/// }
+/// // => Some(Here)
+/// ```
+export fn serve(balancer : Address(Msg),
+                place : Place,
+                measure : () -> Float with Measuring) : Unit with Measuring = {
+    send(balancer, Register(place = place, measure = self()));
+    measuring(measure)
+}
+
+fn measuring(measure : () -> Float with Measuring) : Unit with Measuring =
+    receive {
+        Measure(reply = reply) -> {
+            answer(reply, measure());
+            measuring(measure)
+        }
+    }

@@ -731,3 +731,28 @@ Ansi.right : (Int) -> String // the cursor right that many columns; "" for a num
 Ansi.clearBelow : String // erases from the cursor to the end of the screen
 Ansi.clearScreen : String // erases the screen and puts the cursor at its top left
 ```
+
+### Appendix G.4. `libs/load` (namespace `Load`)
+
+How busy this node is, by the host's measures, each a function of Ernest over the host's (§8.7). `runQueue` answers the processes ready to run and waiting for a scheduler, and `schedulers(ms)` the fraction of the schedulers' time spent running processes over the next `ms` milliseconds, which it waits for; both read the runtime and answer in any program. `cpu`, `memory` and `disk` read the host's services `cpu_sup`, `memsup` and `disksup`, which a node starts where its `measures` name `cpu`, `memory` and `disk` (§8.7), and answer `None` where the service does not run, as in a program that is no node: `cpu` the fraction of the processor's time busy since the previous call on the node, `memory` the fraction of the machine's memory not available, and `disk` the fraction used of the fullest of the machine's disks. Each fraction is from 0.0 to 1.0.
+
+```
+Load.runQueue : () -> Int with m+
+Load.schedulers : (Int) -> Float with m+
+Load.cpu : () -> Optional(Float) with m+
+Load.memory : () -> Optional(Float) with m+
+Load.disk : () -> Optional(Float) with m+
+```
+
+### Appendix G.5. `libs/balancer` (namespace `Balancer`)
+
+Where a program spawns its work, this node or a peer, picked in turn or by each place's measure (§8.7). `start(places)` spawns a balancer over the places, faulting with `Fault("a balancer picks among places, and none was given")` where there is none, and `pick(balancer, ms)` asks it for a place within `ms` milliseconds, `None` where it does not answer in time. The program spawns its work at the place, with `spawn` for `Here` and with `Peer.spawn` for `On(name)` (§3.11). A program installs a measure on a place by spawning there a process that runs `serve(balancer, place, measure)`, `measure` a function the program declares answering a load from 0.0 to 1.0, which registers with the balancer and answers its load when asked; the spawn's lambda captures the balancer's address and the place, and names the measure by its declaration. Without a measure the balancer picks its places in turn. With one, a pick draws two of the places that have one at random, asks each for its load within half the pick's time, and takes the lower; a place that does not answer is passed over, and where none answers, the pick takes the next place in turn. A measure ends with its process, but for one whose node is out of reach; a place's later measure replaces its earlier one.
+
+```
+type Place = Here | On(String)
+abstract type Msg // what a balancer takes
+abstract type Measuring // what a measuring process takes
+Balancer.start : (List(Place)) -> Address(Msg) with m+
+Balancer.pick : (Address(Msg), Int) -> Optional(Place) with m+
+Balancer.serve : (Address(Msg), Place, () -> Float with Measuring) -> Unit with Measuring
+```

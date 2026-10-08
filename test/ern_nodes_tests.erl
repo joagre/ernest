@@ -10,6 +10,10 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(ERN, filename:absname("../bin/ern")).
+%% The libraries `test/peers/`'s programs use, on every node's load path, so
+%% that every node runs one build.
+-define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
+                    || Library <- ["balancer", "load"]]).
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -117,7 +121,8 @@ start(Dir, Program, Arguments) ->
 started(Dir, Program, Arguments) ->
     Out = Dir ++ ".out",
     Err = Dir ++ ".err",
-    Command = lists:flatten([?ERN, " run --config-dir ", Dir, " ", Program,
+    Command = lists:flatten([?ERN, " run --config-dir ", Dir,
+                             [[" --load-path ", Library] || Library <- ?LIBRARIES], " ", Program,
                              [[" ", Argument] || Argument <- Arguments],
                              " > ", Out, " 2> ", Err]),
     Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status]),
@@ -480,7 +485,9 @@ no_deadlock() ->
 %% on the load path, so that every node runs one build.
 peers(Base) ->
     Root = filename:join(Base, "build"),
-    0 = ern_cli:ern(["build", "--build-root", Root, "peers"], group_leader()),
+    0 = ern_cli:ern(["build", "--build-root", Root]
+                    ++ lists:append([["--load-path", Library] || Library <- ?LIBRARIES])
+                    ++ ["peers"], group_leader()),
     {ok, _} = compile:file("peers/ern_peers_host.erl", [{outdir, Root}]),
     {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
 
@@ -746,3 +753,35 @@ reload() ->
     has(Err, "the reload was refused, and the configuration stays as it was: "),
     has(Err, "listen cannot change while the node runs"),
     ?assertEqual(nomatch, string:find(Err, "the peer front was lost")).
+
+%% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
+%% picks in turn until a place has a measure, and then the lower of the
+%% measures installed on each, the store's spawned there with Peer.spawn;
+%% the work goes where it picks; Load answers the host's services' loads
+%% on the store, whose measures run them, and none on the desk, whose do
+%% not. A regression test, written after the code; it does not cover a
+%% place out of reach, nor a pick of two among more than two places
+balance_test_() ->
+    {timeout, 90, fun balance/0}.
+
+balance() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    edit(Store, fun(Conf) ->
+                    Conf#{<<"measures">> => #{<<"cpu">> => #{}, <<"memory">> => #{},
+                                              <<"disk">> => #{}}}
+                end),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["balance"]))()),
+    prints(Store, "loads there"),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {StoreOut, _} = said(Store),
+    [has(Out, Line)
+     || Line <- ["in turn: #(Some(Here), Some(On(\"store\")))", "measured: Right",
+                 "picked: the store three times in a row", "work: Right",
+                 "loads here: #(false, false, false)", "loads: Right"]],
+    has(StoreOut, "the store squares 36"),
+    has(StoreOut, "loads there: #(true, true, true)").

@@ -577,7 +577,7 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios()]).
+                  peer_scenarios(), load_scenarios(), balancer_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -844,6 +844,51 @@ peer_scenarios() ->
      {<<"Peer.spawnMonitored">>, AcrossNodes},
      {<<"Peer.nodes">>, {fun() -> Peer:nodes() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}}].
+
+%% Appendix G.4: the runtime's two measures beside the host's statistics,
+%% and the host's services' three, which answer None where the service does
+%% not run, as in this launch, beside the host's look for the service.
+load_scenarios() ->
+    Load = 'ern@load',
+    WallTime = fun() ->
+                   erlang:system_flag(scheduler_wall_time, true),
+                   erlang:statistics(scheduler_wall_time),
+                   erlang:statistics(scheduler_wall_time)
+               end,
+    [{<<"Load.runQueue">>, {fun() -> Load:runQueue() end,
+                            fun() -> erlang:statistics(total_run_queue_lengths) end}},
+     {<<"Load.schedulers">>, {fun() -> Load:schedulers(0) end, WallTime}},
+     {<<"Load.cpu">>, {fun() -> Load:cpu() end, fun() -> erlang:whereis(cpu_sup) end}},
+     {<<"Load.memory">>, {fun() -> Load:memory() end, fun() -> erlang:whereis(memsup) end}},
+     {<<"Load.disk">>, {fun() -> Load:disk() end, fun() -> erlang:whereis(disksup) end}}].
+
+%% Appendix G.5: a balancer started and ended beside a process spawned and
+%% ended; a pick over a place with a measure, which asks the measure's
+%% process, beside a call that makes a call; serve is the measure's process,
+%% which the pick asks. The measure registers as its process starts, so the
+%% first of a timing's many picks may come before it and go in turn.
+balancer_scenarios() ->
+    Balancer = 'ern@balancer',
+    Measured = Balancer:start(['Here']),
+    _ = ern_rt:spawn(fun() -> Balancer:serve(Measured, 'Here', fun() -> 0.5 end) end,
+                     <<"ern_measure">>),
+    Measure = spawn(fun Answer() -> receive {From, Ref} -> From ! {Ref, 0.5}, Answer() end end),
+    Asker = spawn(fun Ask() ->
+                      receive
+                          {From, Ref} ->
+                              Inner = make_ref(),
+                              Measure ! {self(), Inner},
+                              receive {Inner, Load} -> From ! {Ref, Load} end,
+                              Ask()
+                      end
+                  end),
+    [{<<"Balancer.start">>,
+      {fun() -> ern_rt:kill(Balancer:start(['Here'])) end,
+       fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}},
+     {<<"Balancer.pick">>,
+      {fun() -> Balancer:pick(Measured, 1000) end,
+       fun() -> Ref = make_ref(), Asker ! {self(), Ref}, receive {Ref, _} -> ok end end}},
+     {<<"Balancer.serve">>, {within, <<"Balancer.pick">>}}].
 
 ets_scenarios() ->
     Ets = 'ern@ets',

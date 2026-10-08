@@ -1,0 +1,188 @@
+/// How busy this node is, by the host's measures: the processes waiting to
+/// run, the schedulers' time, and the processor, the memory and the disks
+/// the host's services watch.
+///
+/// A program that uses the library puts it on its load path, both when it
+/// is compiled and when it is run: `--load-path` with the directory of the
+/// compiled library, `lib/ernest/build/libs/load` under the prefix Ernest is
+/// installed in. Under `/usr/local`, where Ernest is installed by default:
+///
+/// ```sh
+/// ern build --load-path /usr/local/lib/ernest/build/libs/load main.ern
+/// ern run --load-path /usr/local/lib/ernest/build/libs/load main.erc
+/// ```
+///
+/// **The host's services.** `cpu`, `memory` and `disk` read the host's
+/// services `cpu_sup`, `memsup` and `disksup`, which a node starts where its
+/// `ernest.conf` names `cpu`, `memory` and `disk` under `measures` (report
+/// §8.7). Where the service does not run, as in a program that is no node,
+/// each answers `None`. `runQueue` and `schedulers` read the runtime itself,
+/// and answer in any program.
+///
+/// **A measure.** The library `Balancer` places work by a measure, a
+/// function answering a load from 0.0 to 1.0, which a program declares over
+/// these: `fn busy() : Float with m = Load.schedulers(100)`.
+///
+/// ## Examples
+///
+/// The processes waiting to run, none or more:
+///
+/// ```ernest
+/// Load.runQueue() >= 0
+/// // => true
+/// ```
+///
+/// A program that is no node runs none of the host's services:
+///
+/// ```ernest
+/// #(Load.cpu(), Load.memory(), Load.disk())
+/// // => #(None, None, None)
+/// ```
+///
+/// since 0.4.0
+
+/// The processes ready to run and waiting for a scheduler, over all of the
+/// node's schedulers, as the host counts them at the call.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Load.runQueue() >= 0
+/// // => true
+/// ```
+export fn runQueue() : Int with m =
+    count(Erl.atom("total_run_queue_lengths"))
+
+/// The fraction of the schedulers' time spent running processes over the
+/// next `ms` milliseconds, from 0.0 to 1.0, which the call waits for. The
+/// host keeps the schedulers' time while this measures it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let busy = Load.schedulers(10);
+///     busy >= 0.0 && busy <= 1.0
+/// }
+/// // => true
+/// ```
+export fn schedulers(ms : Int) : Float with m = {
+    let flag = Erl.atom("scheduler_wall_time");
+    let kept = setFlag(flag, Foreign.from(true));
+    let first = wallTimes(flag);
+    receive {
+        after ms -> Unit
+    };
+    let second = wallTimes(flag);
+    if kept then
+        Unit
+    else {
+        let _ = setFlag(flag, Foreign.from(false));
+        Unit
+    };
+    let total = spent(second, fn(#(_, _, time)) = time) - spent(first, fn(#(_, _, time)) = time);
+    if total > 0 then
+        Int.toFloat(spent(second, fn(#(_, time, _)) = time)
+                        - spent(first, fn(#(_, time, _)) = time))
+            / Int.toFloat(total)
+    else
+        0.0
+}
+
+// A part of each scheduler's times, the active or the total, summed over
+// the schedulers.
+fn spent(times : List(#(Int, Int, Int)), part : (#(Int, Int, Int)) -> Int) : Int =
+    List.foldLeft(times, 0, fn(acc, scheduler) = acc + part(scheduler))
+
+/// The fraction of the processor's time busy, from 0.0 to 1.0, since the
+/// previous call on the node, by the host's `cpu_sup`; `None` where the
+/// node's `measures` do not run it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Load.cpu()
+/// // => None
+/// ```
+export fn cpu() : Optional(Float) with m =
+    if runs("cpu_sup") then Some(utilisation() / 100.0) else None
+
+/// The fraction of the machine's memory in use, from 0.0 to 1.0, by the
+/// host's `memsup`: what is not available, of the total; `None` where the
+/// node's `measures` do not run it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Load.memory()
+/// // => None
+/// ```
+export fn memory() : Optional(Float) with m =
+    if runs("memsup") then {
+        let data = memoryData();
+        let total = valued(data, "total_memory");
+        let available = match valued(data, "available_memory") {
+            0 -> valued(data, "free_memory")
+          | known -> known
+        };
+        Some(if total > 0 then 1.0 - Int.toFloat(available) / Int.toFloat(total) else 0.0)
+    } else
+        None
+
+// The value the host's data gives under the name, or 0 where it gives none.
+fn valued(data : List(#(Foreign.Term, Int)), name : String) : Int = {
+    let key = Erl.atom(name);
+    match List.find(data, fn(#(named, _)) = named == key) {
+        Some(#(_, value)) -> value
+      | None -> 0
+    }
+}
+
+/// The fraction used of the fullest of the machine's disks, from 0.0 to
+/// 1.0, by the host's `disksup`, which reads them every half hour unless
+/// `measures` says otherwise; `None` where the node's `measures` do not run
+/// it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Load.disk()
+/// // => None
+/// ```
+export fn disk() : Optional(Float) with m =
+    if runs("disksup") then
+        Some(Int.toFloat(List.foldLeft(diskData(),
+                                       0,
+                                       fn(fullest, #(_, _, used)) = Int.max(fullest, used)))
+                 / 100.0)
+    else
+        None
+
+// Whether the host's service runs on the node, by its registered name.
+fn runs(service : String) : Bool with m =
+    registered(Erl.atom(service)) != Erl.atom("undefined")
+
+//
+// The host's functions
+//
+
+foreign fn count(item : Foreign.Term) : Int with m =
+    "erlang:statistics/1"
+
+foreign fn wallTimes(item : Foreign.Term) : List(#(Int, Int, Int)) with m =
+    "erlang:statistics/1"
+
+foreign fn setFlag(flag : Foreign.Term, value : Foreign.Term) : Bool with m =
+    "erlang:system_flag/2"
+
+foreign fn registered(name : Foreign.Term) : Foreign.Term with m =
+    "erlang:whereis/1"
+
+foreign fn utilisation() : Float with m =
+    "cpu_sup:util/0"
+
+foreign fn memoryData() : List(#(Foreign.Term, Int)) with m =
+    "memsup:get_system_memory_data/0"
+
+foreign fn diskData() : List(#(Foreign.Term, Int, Int)) with m =
+    "disksup:get_disk_data/0"
