@@ -303,10 +303,10 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold
     a second file. The peer chapter teaches what a program writes, `Peer.find`, `Peer.spawn`,
     a monitor's `Unreachable` and a program of two nodes, with one paragraph on `ern config`;
-    running nodes is `guide/deployment.md`'s, which MVP 3.1 begins. Before the chapter is
-    written, `language_feedback.md`'s entry 92 is decided with the user: whether the order a
-    program sees through an adapted address should depend on the node that made it, which item
-    8's programs met.
+    running nodes is `guide/deployment.md`'s, which MVP 3.1 begins. The chapter teaches, as §6.5
+    and §8.7 state, that across nodes nothing orders a message through an adapted address
+    against one sent to its target's own address, which the user decided on 2026-10-08 to keep
+    (`language_feedback.md`'s entry 92, the log's *The Module Peer*).
 
 11. **The fixed sleeps out of the tests.** CLAUDE.md's *No fixed sleep*, decided with the user
     on 2026-10-08 as item 4's tests were written: the 33 fixed sleeps of the tests in ten files,
@@ -418,7 +418,8 @@ last among what uses the exchange.
    staying `Unreachable`.
 7. **Bindings, captures and the bare node.** Bindings' values by identity, name and hash; a
    spawned function finding a binding where the peer's own build ran that identity and
-   `NotLoaded` otherwise; the one rule for captures and references, a binding the function names
+   `NotLoaded` otherwise, which lifts MVP 3.0's rule by module (§8.7, the log's *The Module
+   Peer*), so that a function naming no binding spawns on any peer; the one rule for captures and references, a binding the function names
    the peer's and a value to carry bound to a local first; a service one per node, key and
    identity, a second offer faulting while it lives, a node of a build offering what that build
    started and a bare node what its peers spawned on it; `ern run --config-dir dir` with no

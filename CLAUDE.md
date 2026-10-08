@@ -86,6 +86,7 @@ The rules follow the order of work, and each is stated once.
 ## Done
 
 - **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against the principles and Appendix E.0, which bind the standard library and the toolchain as well, and say what surprised.
+- **Every surprise is decided, not only said.** Each is acted on in the same item, or left with its reason, and either way recorded where its owner keeps it; one that needs the user goes to the user with a recommendation in the same report.
 - **Stop after each plan item.** Finish it with its tests, documents, conformance section and commit, report the status and any open report question, and wait: the user sees each item's design choices before the next builds on them.
 - **Done means four things:** `make test` passes; the conformance section is written; every known gap is in the plan; and the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header.
 - **Commit only after the checks pass**, never chained after them with `;`. Push only when the user says so.

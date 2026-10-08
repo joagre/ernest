@@ -528,7 +528,7 @@ find() ->
                  "unlisted: Left(NotListed)", "other type: Left(OtherType)",
                  "not offered: Left(NotOffered)", "unreachable: Left(Unreachable)",
                  "timeout: Left(Timeout)", "through the via: 7", "killed: Killed \"\"",
-                 "another node's: Fault(\"an offer names a process on its own node\")",
+                 "another node's: Fault(\"a node offers only its own processes\")",
                  "twice: Fault(\"twice is offered by a living process\")",
                  "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
                  "call forever: Fault(\"callee is unreachable\")"]].

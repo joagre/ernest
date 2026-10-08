@@ -7721,6 +7721,13 @@ MVP 3.0's item 8: `stdlib/peer.ern` over `erl/runtime/src/ern_peer.erl`, with it
 - **A defect of item 2 fixed:** the refusal of a captured function printed its type at its use, whose effect is the use's context's (§3.9), `(Int) -> String with Never` for a parameter declared `(Int) -> String`; it now names the capture a function. Found as `test/diagnostics.md` gained §3.11's refusals.
 - **`Peer.offer` and `Peer.nodes` wait on nothing**, a table and a persistent term, so the emitter does not count them as foreign code (§8.6).
 
+What the reading back found, each decided with the user the same day:
+
+- **The order through an adapted address made on another node is kept** (`language_feedback.md`'s entry 92). A message to it takes a step on the node that made it, so one sent next to the target's own address can pass it, where on one node the sender applies the function and order holds. The function's captured values are at home on the node that made the address, a table or a socket among them, so applying it anywhere else would need its captures checked at every send, which §3.11 refuses on purpose. §6.5 and §8.7 state the order; item 10's guide chapter teaches it.
+- **A rule by module lasts one milestone.** MVP 3.1 finds each binding by its hash, so a function naming no binding spawns on any peer; the plan's MVP 3.1 item says it lifts the rule by module. `NotLoaded` gains no module's name meanwhile, since that would change a type programs match on for a rule that lives one milestone.
+- **`Refused` stays, though nothing answers it until MVP 3.1**, so that a program written for MVP 3.0 still compiles when MVP 3.1 refuses a closure; `docs/development.md`'s table says so.
+- **The offer of another node's process faults with `a node offers only its own processes`.** It said `an offer names a process on its own node`, whose "its own" reads as the process's, true of every process.
+
 The tests are regression tests, written after the code. `test/ern_nodes_tests.erl` runs `test/peers/`'s store and desk as two nodes, with a third listed that never starts; `erl/runtime/test/ern_peer_tests.erl` holds the late answer, the version check, a foreign offer's end and the supervisor's check, which real nodes cannot show whenever they run. Not covered: a connection lost while a spawn waits, and a silence, which takes the detector's minute and is item 10's.
 
 ## The Guide in Two Files, 2026-10-08

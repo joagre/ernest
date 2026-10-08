@@ -300,7 +300,7 @@ The host's cookie is the build's fingerprint: each node computes it at its start
 |---|---|
 | an offer under a key a living process holds | `counter is offered by a living process`, with the key's name |
 | `Address.callForever` on a callee whose node is out of reach | `callee is unreachable` |
-| an offer of a process that is not this node's | `an offer names a process on its own node` |
+| an offer of a process that is not this node's | `a node offers only its own processes`, worded so on 2026-10-08 |
 
 ## 7. The numbers
 

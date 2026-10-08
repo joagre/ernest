@@ -2172,7 +2172,7 @@ declared_dependencies(ErlangModule) ->
 -spec offer({binary(), binary()}, address(), binary()) -> 'Unit'.
 offer(Key, Address, Name) ->
     Process = process_of(Address),
-    node(Process) =:= node() orelse fault(<<"an offer names a process on its own node">>),
+    node(Process) =:= node() orelse fault(<<"a node offers only its own processes">>),
     case ets:insert_new(?OFFERS, {Key, Address, Process}) of
         true ->
             ok;
