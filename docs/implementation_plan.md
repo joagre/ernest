@@ -63,9 +63,9 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 9 done 2026-10-08 |
-| MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
-| MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 10 done 2026-10-08, but for item 10's test of two nodes |
+| MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08; rewritten smaller by MVP 3.0's item 12 |
+| MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08; set aside by MVP 3.0's item 12, its kept state and planned stop going to MVP 3.1 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.4 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
@@ -321,9 +321,11 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     one part left, a program's own test of two nodes with the second started by `Os`, needs
     the test to write the second node's `ernest.conf`, a JSON file, which no Ernest code writes
     by hand (CLAUDE.md, *A published specification or a general-purpose engine is a library's
-    work*): decision with the user, raised 2026-10-08 (`language_feedback.md`'s entry 93),
-    whether `libs/json` is written now, after which the test is written in Ernest, or the part
-    waits for the library. The guide moves first, decided
+    work*). Decided with the user on 2026-10-08, `language_feedback.md`'s entry 93 closed by
+    it: `libs/json` is written now, a shim over the host's JSON module with a value type of the
+    library's own, `parse` and `format`, as the other libraries stand on the host (the log's
+    *The Tests, the Costs and the Guide*); then the test is written in Ernest, and the part is
+    done. The guide moves first, decided
     with the user on 2026-10-08 (the log's *The Guide in Two Files*): `ernest_guide.md` becomes
     `guide/language.md`, its section numbers kept, with every document, test and script that
     names it, and a citation of it becomes "the language guide §9.3", since `guide/` will hold
@@ -341,6 +343,31 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     the load harness and the bench's, each made a wait on what it means, or, where an absence is
     what a test shows, a wait derived from what it waits for with the reason beside it.
 
+12. **The milestone after this one, trimmed.** Decided with the user on 2026-10-08, the
+    log's *The Milestones After 3.0, Weighed Again*: what `mvp3.1.md` and `mvp3.2.md` design
+    is weighed against the principles, and most of MVP 3.2 is an operations layer and not the
+    language's, a coordinator, a plan from the hashes, lockstep, `drain`, the cache and four
+    commands, which a reader who knows Erlang expects outside the runtime (principle 1) and
+    which add concepts a few nodes listed by hand do not need (principle 5). A new
+    `mvp3.1.md` is written by copying: from the present `mvp3.1.md`, the spawn that ships code
+    by its hash, the peer that loads what it lacks and refuses with `Refused`, `NotLoaded` by
+    binding, the bare node and the shell as a node that spawns what is typed at it, and not the
+    identity by shape across builds, the type-change bookkeeping or `ern diff`, which served the
+    rollout; from `mvp3.2.md`, the planned stop, keys withdrawn, calls drained, kept states
+    written and the close, the kept state read back through `migrate` at the next start, and
+    the `Standing` library, and not the orchestration. The reasons come with them, from `code.md`
+    and `deploy.md`, each paragraph dated where it was decided. The present two files are moved
+    aside under names that say what they are, their status lines saying they were set aside on
+    the date and why, and the directory's `README.md` says which is current. The number 3.1
+    stays, since three refusals name it in their text. Then the plan's MVP 3.1 and 3.2 sections
+    are rewritten from the new proposal, 3.2's gone, and the log says why, by the principles.
+    Nothing of MVP 3.0 changes but the two refusals that name MVP 3.2, `drain` and
+    `coordinator`, which become plain unknown-field refusals with their rows gone from
+    `docs/development.md`'s table, and `mvp3.0.md`'s status line, which names what 3.2 would
+    have changed. Written as a proposal is written: read through with the user before a line
+    reaches the plan, the log or the report (CLAUDE.md, *A design is discussed in its proposal
+    until the user says it is ready*).
+
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two peers offering one key by mistake are told apart by nothing but the
 order of the finder's list (its section 5, point 4); a connected peer may do anything on this
@@ -351,6 +378,8 @@ carrier, and no right is narrowed but the planned stop, which MVP 3.2 gives to p
 ---
 
 ## MVP 3.1 (code by its hash), about five weeks
+
+**Being rewritten smaller by MVP 3.0's item 12, decided with the user on 2026-10-08; until then this section stands as designed, and nothing is built from it.**
 
 Designed in [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md), written from the thinking in
 [`code.md`](../proposals/nodes_and_code/code.md), settled on 2026-10-07 after a cross-check with
@@ -496,6 +525,8 @@ alone, the fetcher by MVP 3.4's library story.
 ---
 
 ## MVP 3.2 (the ordered rolling restart), about five weeks
+
+**Set aside by MVP 3.0's item 12, decided with the user on 2026-10-08: its planned stop and kept state go to the rewritten MVP 3.1, and the rest, which orders a rollout, is not the language's. Until item 12 rewrites the plan this section stands as designed, and nothing is built from it.**
 
 Designed in [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), whose every question was decided
 on 2026-10-07, and which the review of 2026-10-08 changed most, every finding decided; its
