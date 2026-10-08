@@ -301,3 +301,19 @@ sleep(Ms) ->
 
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.
+
+%% report §8.7: the helper sends a process a signal and says how it went,
+%% the signal 0 asking whether the process lives: this host's process
+%% lives, a process number nothing holds names none, and the first process
+%% lives and is the superuser's, which a test run as another user is not
+%% allowed to signal
+signal_test() ->
+    ?assertEqual(sent, ern_os:signal(0, list_to_integer(os:getpid()))),
+    Port = open_port({spawn_executable, os:find_executable("true")}, [exit_status]),
+    {os_pid, Gone} = erlang:port_info(Port, os_pid),
+    receive {Port, {exit_status, 0}} -> ok end,
+    ?assertEqual(none, ern_os:signal(0, Gone)),
+    case os:getenv("USER") of
+        "root" -> ok;
+        _ -> ?assertEqual(others, ern_os:signal(0, 1))
+    end.

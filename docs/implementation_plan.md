@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 and 2 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 3 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -142,24 +142,33 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    process's mailbox type are known whole where they are written; a key's text qualifies every
    name; `Peer`'s namespace is the standard library's from here; and `==` on another module's
    abstract type over a private type, which stopped the checker, reads the private type.
-3. **The node, its configuration and its start.** `ern config --config-dir dir`: the key on
-   prime256v1, the curve the experiment proved, with ed25519 in the handshake under the rule
-   tried first and taken where it serves; the self-signed certificate with a constant name and
-   the longest validity; `ernest.conf`; the public key printed; the node's name on the carrier
-   the key's digest with a constant, holding no network address; a directory made for one
-   machine and never copied. The configuration: `listen`, an interface or all, with port 0
-   taking the host's choice and the node saying which it bound, and a node without one dialling
-   only; the peers with name, key and `network-address`, a name resolved at each dial, a peer
-   without an address never dialled; one family of addresses, the other refused at reading with
-   the peer named; `keys`, a key's peers in the order a find asks them, a key not listed found
-   nowhere; `measures`, `cpu`, `memory` and `disk` with the host's parameters by their meaning,
-   none running where the section is absent, the host's own names for its services kept out
-   of the file. The start: a number of its own in every address; the bindings before the
-   listener; a faulting initializer ends the node; a directory others can write or a key
-   others can read refused; `ernest.pid` written at the start and removed at the exit, a
-   living process's refused with a line and a dead one's overwritten. A program without
-   `--config-dir` is no node, has no peers and listens to nothing.
-4. **Connections and the carrier.** One connection per pair, opened by the first operation that
+3. **The node's directory, its configuration and its start.** `ern config [--config-dir dir]`:
+   the key, ed25519, which served in a TLS 1.3 handshake under a key rule where prime256v1
+   had; the certificate the node signs itself, its name a constant and its validity from 1970
+   to the end of 9999; `ernest.conf` with `listen`, the public key, no peer and no key; the
+   public key printed; a directory made for one machine and never copied. `ernest.conf` read
+   whole and checked: `listen`, an interface or all, port 0 the host's choice, a node without
+   one dialling only; the peers with name, key and `network-address`, a name kept for the dial,
+   a peer without an address never dialled; one family of addresses, the other refused at
+   reading with the peer named; `keys`, a key's peers in the order a find asks them;
+   `measures`, `cpu`, `memory` and `disk`, `check-interval` in milliseconds and `almost-full`
+   a fraction, none running where the section is absent; a field unknown or given twice
+   refused, `drain` and a peer's `coordinator` naming MVP 3.2. The start: the directory and the
+   files it reads its user's or the superuser's and written by none beyond owner and group, the
+   key read by none but its owner; `ernest.pid` made at the start, a living process's refused
+   and a dead one's replaced, removed at the end however the run ends. A program without
+   `--config-dir` is no node. Done 2026-10-08, with what the building decided in the log's
+   *The Node's Directory*; what the plan had here of the carrier, the node's name on it, the
+   number of its start in every address and the listener after the bindings, is item 4's,
+   since a listener opens only under the rule that accepts a peer by its key.
+4. **Connections and the carrier.** The host booted with the carrier's flags: `bin/ern` runs
+   the host once where its arguments hold `--config-dir`, which parses the command line with
+   the CLI's own parser and prints the flags a node needs, or none, and then starts the host
+   with them, since the host takes its carrier only as it boots (decided with the user on
+   2026-10-08, the log's *The Node's Directory*). The node's name on the carrier the key's
+   digest with a constant, holding no network address; the number of its start in every
+   address; the listener opened once the bindings have their values, a faulting initializer
+   ending the node before it. One connection per pair, opened by the first operation that
    needs it, TLS 1.3 with a certificate on each side; the rule that accepts a peer by its key
    alone, the host's name check off and the certificate's dates ignored; no port-mapper daemon,
    the address from the configuration; connections not transitive; both dialling at once kept

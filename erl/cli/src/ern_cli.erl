@@ -609,11 +609,10 @@ read_input(Port, Acc) ->
 %% ern run, ern test, ern shell and ern config, report §11.2 and §11.3
 %%
 
-%% Report §11.2, §11.3: what each job reads of the configuration directory,
-%% `ernest.conf` from MVP 3.0 (docs/development.md).
+%% Report §8.3, §11.2, §11.3: the configuration directory, which makes a
+%% run a node and which `ern config` makes.
 config_dir_option(What) ->
-    {config_dir, undefined, "config-dir", string,
-     "the configuration directory, default ./.ernest; " ++ What}.
+    {config_dir, undefined, "config-dir", string, "the configuration directory; " ++ What}.
 
 load_path_option() ->
     {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"}.
@@ -622,27 +621,26 @@ main_option() ->
     {main, undefined, "main", string, "the entry point, a qualified exported function"}.
 
 run_options() ->
-    [config_dir_option("its ernest.conf is read from MVP 3.0"), load_path_option(), main_option(),
-     help_option()].
+    [config_dir_option("the run is a node"), load_path_option(), main_option(), help_option()].
 
 test_options() ->
-    [config_dir_option("its ernest.conf is read from MVP 3.0"), load_path_option(), help_option()].
+    [config_dir_option("the tests run on a node"), load_path_option(), help_option()].
 
 shell_options() ->
-    [config_dir_option("its startup is run; its ernest.conf is read from MVP 3.0"),
+    [config_dir_option("the shell is a node, and its startup is run"),
      load_path_option(),
      {source_root, undefined, "source-root", string,
       "where the shell finds a module's source; default the working directory"},
      main_option(), help_option()].
 
 config_options() ->
-    [config_dir_option("the directory made"), help_option()].
+    [config_dir_option("the directory made, ./.ernest by default"), help_option()].
 
 run(Options, [File | Words], ErrorDevice) ->
     Arguments = program_arguments(Words, 1),
     quiet_signals(),
     {Namespace, _LoadPath, Loaded} = program(File, Options),
-    run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice);
+    as_node(Options, fun() -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice) end);
 run(_Options, [], _ErrorDevice) ->
     usage_fail("one .erc file argument is required").
 
@@ -661,10 +659,11 @@ test(Options, [Path], ErrorDevice) ->
     quiet_signals(),
     case filelib:is_dir(Path) of
         true ->
-            report_tree(tree_tests(ern_build:compiled_under(Path), Options, ErrorDevice));
+            Files = ern_build:compiled_under(Path),
+            as_node(Options, fun() -> report_tree(tree_tests(Files, Options, ErrorDevice)) end);
         false ->
             {Namespace, _LoadPath, Loaded} = program(Path, Options),
-            run_tests(Namespace, Loaded, none, ErrorDevice)
+            as_node(Options, fun() -> run_tests(Namespace, Loaded, none, ErrorDevice) end)
     end;
 test(_Options, _Rest, _ErrorDevice) ->
     usage_fail("one .erc file or one directory is required").
@@ -700,8 +699,12 @@ report_tree([]) ->
 report_tree(Statuses) ->
     lists:max(Statuses).
 
+%% Report §11.3: the configuration directory made, and the node's public key
+%% printed, which another node's configuration lists.
 config(Options, [], _ErrorDevice) ->
-    create_config_dir(proplists:get_value(config_dir, Options, ".ernest"));
+    Public = ern_node:create(proplists:get_value(config_dir, Options, ".ernest")),
+    io:format("~ts", [Public]),
+    0;
 config(_Options, _Rest, _ErrorDevice) ->
     usage_fail("config takes no argument").
 
@@ -744,9 +747,25 @@ shell(Options, Rest, ErrorDevice) ->
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
     %% report §11.2: Os.exit faults the process that calls it
-    Outcome = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"Shell.main">>,
-                              #{stdout => Sink, stderr => Sink, init => Init, exit => fault}),
+    Outcome = as_node(Options,
+                      fun() ->
+                          ern_rt:run_main(fun() -> ErlangModule:main() end, <<"Shell.main">>,
+                                          #{stdout => Sink, stderr => Sink, init => Init,
+                                            exit => fault})
+                      end),
     report_shell_outcome(ErrorDevice, Outcome).
+
+%% Report §8.3, §8.7, §11.2: a run given `--config-dir` is a node, started
+%% from that directory before anything of it runs, its `ernest.pid` removed
+%% at its end, however it ends; a run without it is no node.
+as_node(Options, Run) ->
+    case proplists:get_value(config_dir, Options) of
+        undefined ->
+            Run();
+        ConfigDir ->
+            _ = ern_node:start(ConfigDir),
+            try Run() after ern_node:stop(ConfigDir) end
+    end.
 
 no_main_file() ->
     "--main names the function to spawn from the file the shell loads, and no file is given".
@@ -1220,45 +1239,6 @@ same_interface(Namespace, Dependency, Hash) ->
         orelse ern_build:fail(Name ++ " was compiled against another "
                               ++ ern_namespace:text(Dependency) ++ "; build "
                               ++ Name ++ " again").
-
-%% Report §11.3, Appendix C: the configuration directory itself, with a
-%% configuration of no peers and this node's key pair; the network address
-%% is a placeholder to edit. The directory is made here or not at all, so
-%% that one another made first, as this runs, is refused, and it is its
-%% owner's alone before a file is written in it, so that no one else can
-%% open a file there, the key's while it is being written among them. What
-%% another put in it before it was its owner's alone would be written
-%% through, a link among them, so it must hold nothing then, and each file
-%% is written in its place, a link there replaced and never followed. A
-%% name ending in `/` names the directory before it.
-create_config_dir(Given) ->
-    ConfigDir = filename:join([Given]),
-    ok = ern_build:make_dirs(ConfigDir),
-    case file:make_dir(ConfigDir) of
-        ok -> ok = file:change_mode(ConfigDir, 8#700);
-        {error, eexist} -> ern_build:fail(ConfigDir ++ " exists");
-        {error, Error} -> ern_build:fail(ConfigDir ++ ": " ++ file:format_error(Error))
-    end,
-    file:list_dir_all(ConfigDir) =:= {ok, []}
-        orelse ern_build:fail(ConfigDir ++ " was written to by another as it was made"),
-    Key = public_key:generate_key({namedCurve, ed25519}),
-    Private = public_key:pem_encode([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
-    %% the key names its curve, {namedCurve, Oid}, as its parameters
-    {'ECPrivateKey', _, _, Curve, PublicPoint, _} = Key,
-    Public = public_key:pem_encode(
-               [public_key:pem_entry_encode('SubjectPublicKeyInfo',
-                                            {{'ECPoint', PublicPoint}, Curve})]),
-    %% laid out as Appendix C shows it, in its order, each value as JSON
-    %% writes it; a PEM's line breaks are escapes, as in any JSON string
-    Json = ["{\n",
-            "  \"network-address\": ", json:encode(<<"127.0.0.1:8654">>), ",\n",
-            "  \"public-key\": ", json:encode(Public), ",\n",
-            "  \"peers\": []\n",
-            "}\n"],
-    ok = ern_build:write_output(filename:join(ConfigDir, "ernest.conf"), Json),
-    %% the key is its owner's alone before it is written
-    ok = ern_build:write_output(filename:join(ConfigDir, "private-key.pem"), Private, 8#600),
-    0.
 
 usage_fail(Message) ->
     throw({cli_usage, lists:flatten(Message)}).

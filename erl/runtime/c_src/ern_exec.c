@@ -43,6 +43,13 @@
  * mask in the same run, so that no program starts the helper twice for
  * them.
  *
+ * With the arguments `signal`, a signal's number and a process number, the
+ * helper sends that process the signal and exits 0 where it was sent, 1
+ * where no such process lives, and 2 where the process lives and is not
+ * this user's to signal; the signal 0 sends nothing, and so asks whether
+ * the process lives. A node reads so whether the process its ernest.pid
+ * names lives (report §8.7), which the host has no word for.
+ *
  * In every mode the helper first makes its environment the one `ern` was
  * started in (report Appendix E.23, §11): the launcher clears the host's
  * flags and tells the host to write no crash dump (report §10), the host's
@@ -346,6 +353,39 @@ static char **read_command(void)
     return command;
 }
 
+/* The number a decimal argument writes, or -1 for one that writes none:
+   digits alone, as many as a process number takes. */
+static long number_of(const char *text)
+{
+    long value = 0;
+    const char *digit;
+    if (*text == '\0' || strlen(text) > 9)
+        return -1;
+    for (digit = text; *digit != '\0'; digit++) {
+        if (*digit < '0' || *digit > '9')
+            return -1;
+        value = value * 10 + (*digit - '0');
+    }
+    return value;
+}
+
+/* `signal NUMBER PROCESS`: the signal sent, and how it went (above). A
+   process number below 1 would name a process group or every process, and
+   is refused. */
+static int send_signal(int argc, char **argv)
+{
+    long number, process;
+    if (argc != 4)
+        return 3;
+    number = number_of(argv[2]);
+    process = number_of(argv[3]);
+    if (number < 0 || number > SIGNALS || process < 1)
+        return 3;
+    if (kill((pid_t)process, (int)number) == 0)
+        return 0;
+    return errno == EPERM ? 2 : 1;
+}
+
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
@@ -374,6 +414,8 @@ int main(int argc, char **argv)
         frame('x', (const unsigned char *)"\0\0\0\0", 4);
         return 0;
     }
+    if (strcmp(argv[1], "signal") == 0)
+        return send_signal(argc, argv);
     if (strcmp(argv[1], "run") != 0)
         return 1;
     program_command = read_command();

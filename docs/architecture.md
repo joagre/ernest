@@ -17,7 +17,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | diagnostics | `ern_diagnostic`, in `utils`, beneath every stage | a `#diagnostic{}`, the source | the text of §11.5 |
 | chunks | `ern_chunk`, in `utils`, which reads the term a compiled module's chunk holds: plain data and nothing else, its new names within the room the host has for names (§11.1), so that a crafted `.erc` is refused and never run or let to fill the host | a chunk's bytes | the term, or `error` |
 | namespaces | `ern_namespace`, in `utils`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1), which the build, the emitter's module names and the shell's `:load` share | a component or a segment | the other |
-| cli | `ern_cli`; `ern_build`, the build every job reaches; `ern_shell`, the shell's front end; `ern_page`, §11.4's renderer; `ern_signals`, the handler of termination and hangup; `ern_out`, a job's standard output and standard error | command lines, shell inputs | `ern`'s jobs, a session |
+| cli | `ern_cli`; `ern_build`, the build every job reaches; `ern_node`, a node's configuration directory, made, checked and read (§8.7, §11.3); `ern_shell`, the shell's front end; `ern_page`, §11.4's renderer; `ern_signals`, the handler of termination and hangup; `ern_out`, a job's standard output and standard error | command lines, shell inputs | `ern`'s jobs, a session |
 
 The Makefiles pass `VERSION` to `erlc` as a macro, which `ern_cli` prints. The Emacs mode calls the toolchain only as `ern format -` ([`emacs_mode.md`](../proposals/emacs/emacs_mode.md)).
 

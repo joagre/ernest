@@ -10,7 +10,7 @@
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, host/0, umask/0, working_directory/0]).
+-export([loop/0, helper_failed/0, helper/0, signal/2, host/0, umask/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -80,6 +80,21 @@ helper_failed() ->
 -spec helper() -> file:filename().
 helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
+
+%% Report §8.7: the signal Number sent to the host's process Process by the
+%% helper, which the host has no word for: `sent`, `none` where no such
+%% process lives, or `others` where it lives and is another user's; the
+%% signal 0 sends nothing, and asks whether the process lives.
+-spec signal(non_neg_integer(), pos_integer()) -> sent | none | others.
+signal(Number, Process) ->
+    Port = open_port({spawn_executable, helper()},
+                     [{args, ["signal", integer_to_list(Number), integer_to_list(Process)]},
+                      exit_status]),
+    receive
+        {Port, {exit_status, 0}} -> sent;
+        {Port, {exit_status, 1}} -> none;
+        {Port, {exit_status, 2}} -> others
+    end.
 
 %% Until the helper says whether the program started, the Start is
 %% answered by nothing else, and nothing else knows the process. Report

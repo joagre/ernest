@@ -2431,6 +2431,36 @@ misplaced_module_test() ->
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/http.erc"])),
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/nothing.erc"])).
 
+%% report §8.3, §8.7, §11.2: a run given `--config-dir` is a node, its
+%% `ernest.pid` there while it runs and removed at its end, an end by
+%% `Os.exit` among them; a run without it writes nothing there; a directory
+%% whose `ernest.conf` is refused runs nothing
+node_run_test() ->
+    Dir = tmp(),
+    ConfigDir = Dir ++ "/node",
+    ?assertEqual(0, ern_err(["config", "--config-dir", ConfigDir])),
+    write(Dir, "src/listing.ern",
+          "export fn main() : Unit with Never = {\n"
+          "    Io.println(Io.show(Either.map(Fs.list(Path(\"" ++ ConfigDir ++ "\"), 1000),\n"
+          "                                  fn(entries) = List.size(entries))));\n"
+          "    match Os.arguments { [] -> Unit | _ -> Os.exit(3) }\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Program = Dir ++ "/build/listing.erc",
+    _ = ?capturedOutput,
+    ?assertEqual(0, ern_cli:ern(["run", "--config-dir", ConfigDir, Program])),
+    ?assertEqual(3, ern_cli:ern(["run", "--config-dir", ConfigDir, Program, "exit"])),
+    ?assertEqual(0, ern_cli:ern(["run", Program])),
+    %% the node's directory lists its ernest.pid while it runs
+    Ran = <<"Right(4)\nRight(4)\nRight(3)\n">>,
+    Output = unicode:characters_to_binary(?capturedOutput),
+    ?assertEqual(Ran, binary:part(Output, byte_size(Output), -byte_size(Ran))),
+    ?assertNot(filelib:is_file(ConfigDir ++ "/ernest.pid")),
+    ok = file:write_file(ConfigDir ++ "/ernest.conf", "{"),
+    ?assertEqual(1, ern_err(["run", "--config-dir", ConfigDir, Program])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"node/ernest.conf: is not JSON">>)).
+
 %% report §11.3: without --config-dir, `ern config` creates ./.ernest
 config_default_dir_test() ->
     Dir = tmp(),
@@ -2443,21 +2473,24 @@ config_default_dir_test() ->
     end,
     ?assert(filelib:is_regular(Dir ++ "/.ernest/ernest.conf")).
 
-%% report §11.3, Appendix C: the configuration directory with an empty
-%% peer list and a private key readable only by its owner, created where
-%% --config-dir names it; a second creation fails
+%% report §11.3, Appendix C: the configuration directory with no peer and
+%% no key, a private key readable only by its owner and a certificate,
+%% created where --config-dir names it, its public key printed; a second
+%% creation fails
 create_config_dir_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     {ok, Conf} = file:read_file(Dir ++ "/ernest.conf"),
-    #{<<"peers">> := [], <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>>,
-      <<"network-address">> := _} = json:decode(Conf),
+    #{<<"peers">> := [], <<"keys">> := #{}, <<"listen">> := <<"0.0.0.0:8654">>,
+      <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>> = Public} = json:decode(Conf),
+    ?assertEqual(Public, unicode:characters_to_binary(?capturedOutput)),
     %% laid out as Appendix C shows it, a key a line in its order; a
     %% regression test, it was one line with its keys sorted
-    ?assertMatch([<<"{">>, <<"  \"network-address\": \"127.0.0.1:8654\",">>,
+    ?assertMatch([<<"{">>, <<"  \"listen\": \"0.0.0.0:8654\",">>,
                   <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
-                  <<"  \"peers\": []">>, <<"}">>, <<>>],
+                  <<"  \"peers\": [],">>, <<"  \"keys\": {}">>, <<"}">>, <<>>],
                  binary:split(Conf, <<"\n">>, [global])),
+    ?assert(filelib:is_regular(Dir ++ "/certificate.pem")),
     {ok, #file_info{mode = Mode}} = file:read_file_info(Dir ++ "/private-key.pem"),
     ?assertEqual(8#600, Mode band 8#777),
     {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),
