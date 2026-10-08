@@ -1,5 +1,6 @@
 // Report §8.7: the store, which offers a counter, an adapted address of it,
-// and a process to be killed, and waits.
+// a process to be killed, a census of its atoms, two slots, and a fragile
+// process behind an adapted address whose function faults, and waits.
 
 let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
@@ -20,6 +21,14 @@ export fn main() : Unit with Never = {
     Peer.offer(Counter.victim, spawn(fn() : Unit with Int = receive {
         _ -> Unit
     }));
+    Peer.offer(Census.key, spawn(fn() = Census.serve()));
+    Peer.offer(Counter.counterSlot, spawn(fn() = Slot.serve(None)));
+    Peer.offer(Counter.echoSlot, spawn(fn() = Slot.serve(None)));
+    let fragile = spawn(fn() : Unit with Int = receive {
+        _ -> Unit
+    });
+    Peer.offer(Counter.fragile, fragile);
+    Peer.offer(Counter.strict, via(fragile, fn(n) = if n < 0 then fault("negative") else n));
     Io.println("offered");
     wait()
 }

@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 4 and 8 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 5 and 8 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -217,7 +217,9 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    made it, whose gateway applies the function, a fault in it the target's, one step more than
    a send; `via` across nodes. The two parts `Peer` uses, `Unreachable` from a lost connection
    and an adapted address made on another node, were built with item 8, and so was
-   `Address.callForever`'s `callee is unreachable`.
+   `Address.callForever`'s `callee is unreachable`. Done 2026-10-08, with nothing in the
+   runtime changed, since each operation is the host's and item 8 read the host's reasons: the
+   test of three nodes holds it, in the log's *Addresses, Messages and Monitors Across Nodes*.
 6. **Calls across nodes, and the loss.** The caller monitoring the callee while it waits; the
    request sent as a plain send is, the caller waiting at a full buffer and no helper process,
    so that everything one process sends keeps its order; `answer` the same, a second answer's

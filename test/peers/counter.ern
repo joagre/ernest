@@ -8,3 +8,11 @@ export let key : Peer.Key(Msg) = Peer.key("counter")
 export let adder : Peer.Key(Int) = Peer.key("adder")
 
 export let victim : Peer.Key(Int) = Peer.key("victim")
+
+export let counterSlot : Peer.Key(Slot.Msg(Address(Msg))) = Peer.key("counter-slot")
+
+export let echoSlot : Peer.Key(Slot.Msg(Address(Int))) = Peer.key("echo-slot")
+
+export let fragile : Peer.Key(Int) = Peer.key("fragile")
+
+export let strict : Peer.Key(Int) = Peer.key("strict")

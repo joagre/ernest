@@ -110,15 +110,20 @@ send(Node) ->
 %% A node started in the background, its standard output and standard error
 %% in files beside its directory; answers what waits for its end.
 start(Dir, Program, Arguments) ->
+    {_Port, Wait} = started(Dir, Program, Arguments),
+    Wait.
+
+%% The same, with the port whose writes are the node's standard input.
+started(Dir, Program, Arguments) ->
     Out = Dir ++ ".out",
     Err = Dir ++ ".err",
     Command = lists:flatten([?ERN, " run --config-dir ", Dir, " ", Program,
                              [[" ", Argument] || Argument <- Arguments],
                              " > ", Out, " 2> ", Err]),
     Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status]),
-    fun() ->
-        receive {Port, {exit_status, Status}} -> Status after 30000 -> timeout end
-    end.
+    {Port, fun() ->
+               receive {Port, {exit_status, Status}} -> Status after 30000 -> timeout end
+           end}.
 
 %% Until the loopback's port answers, as a node's listener does once its
 %% bindings have their values.
@@ -467,10 +472,13 @@ no_deadlock() ->
 %% Peer (report §8.7, Appendix E.27)
 %%
 
-%% The programs of test/peers/, one build: the store's and the desk's.
+%% The programs of test/peers/, one build: the store's and the desk's, with
+%% the third node's beside them, and the host module they ask of the host,
+%% on the load path, so that every node runs one build.
 peers(Base) ->
     Root = filename:join(Base, "build"),
     0 = ern_cli:ern(["build", "--build-root", Root, "peers"], group_leader()),
+    {ok, _} = compile:file("peers/ern_peers_host.erl", [{outdir, Root}]),
     {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
 
 %% A store that listens, a desk that dials it, and a peer the desk lists,
@@ -481,15 +489,22 @@ store_and_desk(Base) ->
     Store = made(Base, "store", PortStore),
     Desk = made(Base, "desk", none),
     Gone = made(Base, "gone", none),
-    lists(Store, [{"desk", Desk, none}]),
+    Third = made(Base, "third", none),
+    lists(Store, [{"desk", Desk, none}, {"third", Third, none}]),
     lists(Desk, [{"store", Store, PortStore}, {"gone", Gone, PortGone}]),
+    lists(Third, [{"store", Store, PortStore}]),
+    Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
+              <<"echo-slot">>, <<"fragile">>, <<"strict">>],
     edit(Desk, fun(Conf) ->
-                   Conf#{<<"keys">> => #{<<"counter">> => [<<"gone">>, <<"store">>],
-                                         <<"adder">> => [<<"store">>],
-                                         <<"victim">> => [<<"store">>],
-                                         <<"nothing">> => [<<"store">>],
-                                         <<"lost">> => [<<"gone">>]}}
+                   Conf#{<<"keys">> => maps:merge(
+                                          maps:from_list([{Key, [<<"store">>]} || Key <- Stored]),
+                                          #{<<"counter">> => [<<"gone">>, <<"store">>],
+                                            <<"lost">> => [<<"gone">>]})}
                end),
+    edit(Third, fun(Conf) ->
+                    Conf#{<<"keys">> => #{<<"counter-slot">> => [<<"store">>],
+                                          <<"echo-slot">> => [<<"store">>]}}
+                end),
     {Store, Desk}.
 
 %% report §8.7, Appendix E.27, §6.5, §6.9, §6.6, E.21: a find in a node's
@@ -522,7 +537,7 @@ find() ->
     ?assertEqual(0, WaitDesk()),
     {Out, _} = said(Desk),
     {StoreOut, _} = said(Store),
-    has(StoreOut, "the store's peers: [\"desk\"]"),
+    has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
     [has(Out, Line)
      || Line <- ["early: Left(Unreachable)", "nodes: [\"store\", \"gone\"]", "info: None",
                  "unlisted: Left(NotListed)", "other type: Left(OtherType)",
@@ -559,5 +574,59 @@ spawn_on_peer() ->
                  "by module: NotLoaded", "bindings: Right", "monitored: Returned",
                  "late: Timeout"]],
     has(StoreOut, "the store squares 49"),
-    has(StoreOut, "the peers here: [\"desk\"]"),
+    has(StoreOut, "the peers here: [\"desk\", \"third\"]"),
     ?assertEqual(nomatch, string:find(StoreOut, "never initialized")).
+
+%% report §8.7, §6.5, §6.9, §8.4, §3.11: a correct program's messages make
+%% no new atom on the node that receives them, a value of many shapes and
+%% one of 8 MB among them; an address is as good on a third node, which
+%% took it from the store and sends to it; an address of a node not listed
+%% takes no send and gives a monitor Unreachable; a fault in an adapted
+%% address's function is its target's; a monitor does not outlive a loss,
+%% and the address does: a send after it reaches the same process; with
+%% its node ended, a send returns at once, a monitor gives Unreachable; and
+%% once the node starts again, the address of its earlier start is dead, a
+%% call through it ending at once, a send to it dropped, a monitor giving
+%% Unknown. A regression test: the runtime hands each to the host, and
+%% this holds that it does. Not covered: a value crossing in pieces with
+%% other senders' messages between them, a send that waits at a full
+%% buffer, and a silence, which the detector finds in a minute
+across_test_() ->
+    {timeout, 120, fun across/0}.
+
+across() ->
+    Base = tmp(),
+    {StoreProgram, DeskProgram} = peers(Base),
+    ThirdProgram = filename:join(filename:dirname(DeskProgram), "third.erc"),
+    {Store, Desk} = store_and_desk(Base),
+    Third = filename:join(Base, "third"),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    WaitThird = start(Third, ThirdProgram, []),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["across"]),
+    prints(Desk, "now kill the store"),
+    {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
+    _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
+    ?assertEqual(137, WaitStore()),
+    prints(Desk, "now restart the store"),
+    %% the first start's lines kept, since the second writes its own there
+    ok = file:rename(Store ++ ".out", Store ++ ".first.out"),
+    ok = file:rename(Store ++ ".err", Store ++ ".first.err"),
+    WaitAgain = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitAgain),
+    stop(Third, WaitThird),
+    {Out, _} = said(Desk),
+    {ThirdOut, _} = said(Third),
+    [has(Out, Line)
+     || Line <- ["new atoms: 0", "through the third node: 10", "not listed: Unreachable \"\"",
+                 "adapted: Fault(\"negative\") \"\"", "severed: Unreachable \"\"",
+                 "after the loss: 15", "killed: Unreachable \"\"", "send at once: true",
+                 "out of reach: Unreachable \"\"", "old call: None true",
+                 "old monitor: Unknown \"\"", "same process: false", "fresh total: 0"]],
+    {ok, FirstErr} = file:read_file(Store ++ ".first.err"),
+    has(binary_to_list(FirstErr), "the peer desk sent a frame this node cannot read"),
+    has(ThirdOut, "sent through the third node"),
+    ?assertEqual(nomatch, string:find(ThirdOut, "the echo got")).

@@ -9,13 +9,14 @@ export fn main() : Unit with Msg =
     match Os.arguments {
         ["find"] -> finds()
       | ["spawn"] -> spawns()
+      | ["across"] -> across()
       | _ -> Unit
     }
 
 fn finds() : Unit with Msg = {
     Io.println("early: " <> Io.show(early));
     Io.println("nodes: " <> Io.show(Peer.nodes()));
-    let counter = found(Counter.key);
+    let counter = Shared.found(Counter.key);
     Io.println("info: " <> Io.show(Process.info(Process.fromAddress(counter))));
     let unlisted : Peer.Key(Int) = Peer.key("unlisted");
     Io.println("unlisted: " <> Io.show(Peer.find(unlisted, 1000)));
@@ -26,11 +27,11 @@ fn finds() : Unit with Msg = {
     let lost : Peer.Key(Int) = Peer.key("lost");
     Io.println("unreachable: " <> Io.show(Peer.find(lost, 1000)));
     Io.println("timeout: " <> Io.show(Peer.find(Counter.key, 0)));
-    let adder = found(Counter.adder);
+    let adder = Shared.found(Counter.adder);
     send(adder, 3);
     send(adder, 4);
     Io.println("through the via: " <> Int.toString(total(counter, 7)));
-    let victim = found(Counter.victim);
+    let victim = Shared.found(Counter.victim);
     monitor(Process.fromAddress(victim), Died);
     kill(victim);
     receive {
@@ -69,12 +70,6 @@ fn spawns() : Unit with Msg = {
     Io.println("late: " <> started(Work.squareOn("store", 9, 0)))
 }
 
-fn found(key : Peer.Key(m)) : Address(m) with n =
-    match Peer.find(key, 5000) {
-        Right(address) -> address
-      | Left(failure) -> fault(Io.show(failure))
-    }
-
 // The counter's total once it is at least the one given: a message to the
 // adapted address takes a step more, on the store, and a call can pass it.
 fn total(counter : Address(Counter.Msg), least : Int) : Int with n =
@@ -98,3 +93,82 @@ fn started(answer : Either(Peer.Failure, Address(Never))) : String =
         Right(_) -> "Right"
       | Left(failure) -> Io.show(failure)
     }
+
+// Report §8.7: what crosses, an address on a third node, an address of a
+// node not listed, a fault in an adapted address's function, a loss, and
+// the store's new start, which the test makes when the desk says so and
+// tells the desk of on its standard input.
+fn across() : Unit with Msg = {
+    let counter = Shared.found(Counter.key);
+    let census = Shared.found(Census.key);
+    let atomsBefore = Address.callForever(census, fn(reply) = Census.Count(reply = reply));
+    List.foreach(List.range(1, 200), fn(n) = send(census, Census.Value(shape(n))));
+    send(census, Census.Value(Census.Raw(Bytes.repeat(String.toUtf8("x"), 8000000))));
+    let atomsAfter = Address.callForever(census, fn(reply) = Census.Count(reply = reply));
+    Io.println("new atoms: " <> Int.toString(atomsAfter - atomsBefore));
+    send(Shared.found(Counter.counterSlot), Slot.Put(counter));
+    Io.println("through the third node: " <> Int.toString(total(counter, 10)));
+    let echo = Slot.take(Shared.found(Counter.echoSlot));
+    send(echo, 1);
+    watched("not listed", Process.fromAddress(echo));
+    let fragile = Shared.found(Counter.fragile);
+    monitor(Process.fromAddress(fragile), Died);
+    send(Shared.found(Counter.strict), -1);
+    ended("adapted");
+    monitor(Process.fromAddress(counter), Died);
+    sever(Process.fromAddress(counter));
+    ended("severed");
+    send(counter, Counter.Add(5));
+    Io.println("after the loss: " <> Int.toString(total(counter, 15)));
+    restarted(counter)
+}
+
+// The store ended by the test and started again: a monitor of a process of
+// a node out of reach, a send that returns at once, and an address of the
+// node's earlier start, which a call, a send and a monitor find dead.
+fn restarted(counter : Address(Counter.Msg)) : Unit with Msg = {
+    monitor(Process.fromAddress(counter), Died);
+    Io.println("now kill the store");
+    ended("killed");
+    let sent = Clock.monotonic();
+    send(counter, Counter.Add(1));
+    Io.println("send at once: " <> Io.show(Clock.monotonic() - sent < 1000));
+    watched("out of reach", Process.fromAddress(counter));
+    Io.println("now restart the store");
+    let _ = Io.readLine();
+    let called = Clock.monotonic();
+    let answer = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000);
+    Io.println("old call: "
+                   <> Io.show(answer)
+                   <> " "
+                   <> Io.show(Clock.monotonic() - called < 1000));
+    send(counter, Counter.Add(1));
+    watched("old monitor", Process.fromAddress(counter));
+    let fresh = Shared.found(Counter.key);
+    Io.println("same process: "
+                   <> Io.show(Process.fromAddress(fresh) == Process.fromAddress(counter)));
+    Io.println("fresh total: " <> Int.toString(total(fresh, 0)))
+}
+
+// A monitor of the process, and how its Down says it ended.
+fn watched(what : String, process : Process) : Unit with Msg = {
+    monitor(process, Died);
+    ended(what)
+}
+
+fn ended(what : String) : Unit with Msg =
+    receive {
+        Died(down) -> Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+    }
+
+fn shape(n : Int) : Census.Shape =
+    match n % 5 {
+        0 -> Census.Point(x = Int.toFloat(n), y = 0.5)
+      | 1 -> Census.Named(name = "n" <> Int.toString(n), tags = ["a", "b"])
+      | 2 -> Census.Nested(Some(if n % 2 == 0 then Left("left") else Right(n)))
+      | 3 -> Census.Raw(String.toUtf8(Int.toString(n)))
+      | _ -> Census.Pair(#('x', n % 2 == 0))
+    }
+
+foreign fn sever(process : Process) : Unit with m =
+    "ern_peers_host:sever/1"

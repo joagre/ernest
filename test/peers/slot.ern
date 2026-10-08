@@ -1,0 +1,22 @@
+// Report §8.7: a place where one process puts a value and others take it,
+// which hands a third node an address a node found, and a node an address
+// of a node it does not list.
+
+export type Msg(a) = Put(a) | Take(reply : Reply(a))
+
+export fn serve(held : Optional(a)) : Unit with Msg(a) =
+    match held {
+        None -> receive {
+            Put(value) -> serve(Some(value))
+        }
+      | Some(value) -> receive {
+            Put(newer) -> serve(Some(newer))
+          | Take(reply = reply) -> {
+                answer(reply, value);
+                serve(Some(value))
+            }
+        }
+    }
+
+export fn take(slot : Address(Msg(a))) : a with m =
+    Address.callForever(slot, fn(reply) = Take(reply = reply))

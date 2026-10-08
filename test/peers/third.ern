@@ -1,0 +1,26 @@
+// Report §8.7: the third node, which takes from the store's slot the
+// counter's address the desk put there and sends to it, and puts in the
+// other slot the address of a process of its own, a node the desk does not
+// list.
+
+export fn main() : Unit with Never = {
+    let echo = spawn(fn() : Unit with Int = echoes());
+    send(Shared.found(Counter.echoSlot), Slot.Put(echo));
+    let counter = Slot.take(Shared.found(Counter.counterSlot));
+    send(counter, Counter.Add(10));
+    Io.println("sent through the third node");
+    wait()
+}
+
+fn echoes() : Unit with Int =
+    receive {
+        n -> {
+            Io.println("the echo got " <> Int.toString(n));
+            echoes()
+        }
+    }
+
+fn wait() : Unit with Never =
+    receive {
+        after 60000 -> wait()
+    }
