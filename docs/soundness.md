@@ -2,7 +2,7 @@
 
 What this document argues is held to the code by three machines of `make test`, [`test/ern_grammar_programs_tests.erl`](../test/ern_grammar_programs_tests.erl), [`erl/runtime/test/ern_laws_tests.erl`](../erl/runtime/test/ern_laws_tests.erl) and [`test/ern_typed_programs_tests.erl`](../test/ern_typed_programs_tests.erl), and by the checker's tests in [`erl/typer/test/ern_typecheck_tests.erl`](../erl/typer/test/ern_typecheck_tests.erl), which cite the sections cited here.
 
-An argument that a well-typed program does not go wrong, over the rules of [`report/language.md`](../report/language.md) in its revision of 4 October 2026. It is prose and no machine checks it. It states a small calculus, the invariants a running program keeps, why each step keeps them, and then each place where two rules meet. The report owns the rules and the log their reasons. This document owns the argument alone: a change to a rule it covers rewrites the paragraph for that rule in the same commit (CLAUDE.md, *Before code*).
+An argument that a well-typed program does not go wrong, over the rules of [`report/language.md`](../report/language.md) in its revision of 8 October 2026. It is prose and no machine checks it. It states a small calculus, the invariants a running program keeps, why each step keeps them, and then each place where two rules meet. The report owns the rules and the log their reasons. This document owns the argument alone: a change to a rule it covers rewrites the paragraph for that rule in the same commit (CLAUDE.md, *Before code*).
 
 ## 1. What is argued
 
@@ -18,7 +18,7 @@ It does not argue the following.
 - **That a program ends, or that a reply is answered.** The holder of a reply may fault, be killed, wait for ever, or lie in a mailbox no `receive` matches. §6.6 covers the caller: a deadline, or the end of the process the request was sent to.
 - **That a program does not deadlock.** The runtime detects it (§8.6).
 - **Foreign code**, past the checks of §8.4, which section 2 lists.
-- **Peers** (§3.8, §3.11, §6.7, §8.3, §8.7), which are unbuilt, and **the shell's sessions** (§11.2). The plan's MVP 3.0 extends the argument to both.
+- **The shell's sessions** (§11.2), where a type is declared anew. Section 7 extends the argument to a program on several nodes, and MVP 3.1 extends it to code that crosses.
 - **That the toolchain implements the rules.** That is the tests' to hold.
 
 ## 2. What is assumed
@@ -216,8 +216,18 @@ Within a recursive group, a type of the group is named at the parameters of the 
 
 `==` on two values of one type is defined, so it cannot go wrong. The equality constraint (§3.10) keeps it from values that hold a function or an address, where the host's answer would not be the language's. The constraint travels as 6.7's restriction does: it is part of the scheme, is checked at each instance, and passes into the variables of a type a constrained variable is bound to. A foreign function has no `==` to infer it from: the mark its signature writes (§4.7) puts it on the scheme as the inference would, and from there it travels and is checked as an inferred one is. Foreign code that compares values at a variable without the mark is outside the argument as its other broken promises are; the standard library's keep Appendix E, which names the functions that require equality.
 
-## 7. What it leaves
+## 7. Across nodes
+
+MVP 3.0 runs one program on several nodes (§8.3, §8.7), and the four claims hold on each node as they hold on one. Two things are added: which two types are one across nodes, and what crosses a node.
+
+**Which two types are one.** Every node runs one build, whole, which the handshake proves before anything passes: two nodes whose builds differ never connect (§8.7). So a type on one node is the declaration of the same qualified name on every other, and the types at the two ends of a message are the same by construction; a message carries nothing of its type, and nothing is checked on arrival (§3.11, §8.4). A key holds the text of its message type as the compiler prints it, and a find answers an address only where the offering node's text is the same (§8.7); under one build the text names one declaration, so an address a find gives has the type `Address(m)` of the key, which is the mailbox type of the process it names, and I2 holds of it. A spawn's function is a reference to a place in the one build, so `Peer.spawn(name, f, ms)` with `f : () -> Unit with N` starts a process of mailbox type `N` running `f()` on the peer, which is I1 there, and answers `Address(N)`, which is I2. No other operation gives a program a remote address: every one it holds came from a find, from a spawn, or inside a message whose type was agreed by one of the two.
+
+**What crosses.** A value crosses as a value, in the host's external term format, and a type is bound to its node where a value of it could not: one that holds a function type, a foreign type, a resource, or an address or a reply of a bound type (§3.11). That no bound value crosses is by the three refusals. A key is refused at a bound type, so no remote address of a bound type comes from a find. A spawn is refused where its function's mailbox type is bound, so none comes from a spawn, and where its function captured a bound value, or one whose type holds a type variable and so might be bound, so no bound value crosses with a function. Every remote address a program holds is therefore of an unbound type, so every message sent to one is of an unbound type, and so is everything inside it. An adapted address crosses with its captured values as payload: its function is pure (6.3) and runs only on the node that made it, where those values are at home, and the message it makes is of its target's mailbox type (I2), sent on from there (§6.5). A reply crosses inside a message, to one holder, as on one node, and is answered through the host's alias, which takes one answer (§6.6); I3 holds with the processes of every node as one configuration. A `Down` with `Unreachable` is made by the watcher's node and reaches the watcher through its wrap, at its mailbox type, as every message the runtime delivers does (section 5). A `send` to a process of a node out of reach, and a `kill`, do nothing (§6.2), which keeps I1 as a send to an ended process does.
+
+**What is not argued.** That a peer keeps the rules: a peer is trusted whole (§8.7), and a value of another type it sends on purpose is met where the receiving process matches on it, outside the argument as foreign code's broken promises are. That a message arrives: a loss drops what was in flight, and the argument is of the values that do arrive.
+
+## 8. What it leaves
 
 - **The standard results it leans on** are not argued again: that Hindley-Milner inference gives each expression a type the rules of section 3 derive, and that the coverage check of §5.9 refuses a `match` that some value escapes.
 - **The checker against the rules.** The argument is of the report. The checker's tests hold each paragraph of section 6 as a case that is refused or accepted, and the typed generator's round on replies changes consumptions in programs that run, each change one the checker must refuse.
-- **Peers and sessions.** A type that crosses nodes is identified by its hash (§8.7), and a session declares a type anew (§11.2). Both are questions of which two types are one, and MVP 3.0 extends the argument to them.
+- **Sessions.** A session declares a type anew (§11.2), a question of which two types are one, which section 7 answers for nodes under one build and MVP 3.1's hashes answer for code that crosses.

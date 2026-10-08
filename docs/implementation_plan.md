@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | design reviewed 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | item 1 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -81,9 +81,9 @@ Built*); its reasons are [`nodes.md`](../proposals/nodes_and_code/nodes.md), wha
 is the experiment under
 [`experiments/`](../proposals/nodes_and_code/experiments/erlang_distribution/), and
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md) holds what other systems do.
-**The report's §8.6, §8.7 and §10 and the guide's peer chapter describe the design before the
-proposal. The report's are rewritten from it as this milestone's first item and the guide's as
-its last, and nothing is built from them until then.**
+**The report's §8.6, §8.7 and §10 were rewritten from the proposal on 2026-10-08, item 1, and
+the guide's peer chapter describes the design before it until the last item rewrites it; nothing
+is built from the report's sections until each item below builds its area.**
 
 The items, in build order, each with the report's sentences first, its tests, and a commit.
 Each builds its area as the proposal's section 6 states it, whole: the proposal is the
@@ -124,7 +124,10 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    for the compiler's refusals; the manual pages and `ern --help` for `ern config`, `ern reload`,
    `ern stop` and `--config-dir`; and the proposal's program of three nodes under `examples/`.
    When it is built, `mvp3.0.md`'s status line says so and the report owns the rules; the
-   proposal and `nodes.md` stay as the record, as CLAUDE.md has it.
+   proposal and `nodes.md` stay as the record, as CLAUDE.md has it. Done 2026-10-08: the log's
+   *The Report Rewritten for Peers* lists what the writing decided, an adapted address crossing
+   whatever node its target is on among it; the prelude's `Reason` gained `Unreachable` in the
+   same commit, since a test holds §9.3's declarations to the prelude's.
 2. **The bound type in the checker.** A type bound to its node where it holds a function type,
    a foreign type, a resource, `Ets.Table` or the address of a socket, a listener or a program
    the runtime started, or an `Address(m)` or `Reply(m)` whose `m` is bound; the three refusals,
@@ -232,6 +235,9 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    on its own node. The shell as a node, a function typed at it `NotLoaded` on a peer, its
    `:load` and `:reload` refused naming MVP 3.1; `ern run --config-dir dir` with no `.erc`
    refused naming MVP 3.1; `ern test` as a node; `Peer`'s page with its executed examples.
+   Appendix E.27's listing, its type block and its primitives sentence are written here with
+   the module, since four tests hold Appendix E's listings, types and primitives to `stdlib/`
+   (the log's *The Report Rewritten for Peers*); until then E.27 states them in prose.
 9. **`Load` and `Balancer`**, in Ernest on the runtime: `Load`'s measures as shims, the run queue
    and the schedulers' utilisation on any node, memory and disk from the host's services, which
    answer a failure where `measures` did not start them, its page giving the host's names for

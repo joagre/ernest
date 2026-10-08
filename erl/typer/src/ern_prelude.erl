@@ -266,6 +266,8 @@ declared_types() ->
     /// - `Fault(cause)`: it faulted, with that cause.
     /// - `Unknown`: it had ended before `monitor` was called, and how is not
     ///   known.
+    /// - `Unreachable`: its node went out of reach, and it may live on; a
+    ///   monitor on a process of another node alone gives it (report §8.7).
     ///
     /// Only `Fault` counts as a fault: `ern run` reports it, and `restarting`
     /// restarts after it.
@@ -279,7 +281,7 @@ declared_types() ->
     /// }
     /// // => "division by zero"
     /// ```
-    type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
+    type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable
     /// How often a process restarts, which `restarting` and `Supervisor.group`
     /// take (report §6.9). `RestartLimit(restarts, within)` restarts at most
     /// `restarts` times within `within` milliseconds, and the next fault then

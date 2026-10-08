@@ -1238,7 +1238,7 @@ spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 ```ernest-prelude
 type Down = Down(process : Process, reason : Reason, site : String)
 
-type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
+type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable
 ```
 
 `monitor(child, wrap)` puts `wrap(d)` in your mailbox when the process `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. `child` is a `Process`, the identity of a process, which `Process.fromAddress(a)` gives for an address `a`: watching a process needs no permission to send to it, so a server watches the clients it holds no address to. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
