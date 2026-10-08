@@ -1,6 +1,6 @@
 # Ernest: The Ordered Rolling Restart
 
-Status: set aside on 2026-10-08 by MVP 3.0's item 12 (the log's *The Milestones After 3.0, Weighed Again*): this was the proposal for MVP 3.2, the ordered rolling restart, and it is kept as the record of its design, not synced since. What the rewritten [`mvp3.1.md`](mvp3.1.md) keeps of it is the planned stop, the kept state with its file and `migrate`, the `Standing` library and E.22's refusal, each without a coordinator; its section 11 says what would bring the rest back. As it stood: Status: the proposal for step D of [`code.md`](code.md)'s section 1, *The four steps*, written on 2026-10-07 from the thinking that is now [`deploy.md`](deploy.md), whose every question was decided and settled the same day. The reasons for what it says are [`deploy.md`](deploy.md)'s; what other systems do is [`other_systems.md`](other_systems.md), section 7; what six programs and the library they share showed is [`experiments/code_update/`](experiments/code_update/README.md).
+Status: set aside on 2026-10-08 by MVP 3.0's item 12 (the log's *The Milestones After 3.0, Weighed Again*): this was the proposal for MVP 3.2, the ordered rolling restart, and it is kept as the record of its design, not synced since. What the rewritten [`mvp3.1.md`](../mvp3.1.md) keeps of it is the planned stop, the kept state with its file and `migrate`, the `Standing` library and E.22's refusal, each without a coordinator; its section 11 says what would bring the rest back. As it stood: Status: the proposal for step D of [`code.md`](code.md)'s section 1, *The four steps*, written on 2026-10-07 from the thinking that is now [`deploy.md`](deploy.md), whose every question was decided and settled the same day. The reasons for what it says are [`deploy.md`](deploy.md)'s; what other systems do is [`other_systems.md`](../other_systems.md), section 7; what six programs and the library they share showed is [`experiments/code_update/`](../experiments/code_update/README.md).
 
 ## 1. What it is
 
@@ -41,7 +41,7 @@ Standing.start : (Peer.Key(m), Int) -> Address(m) with n
 
 ## 3. Examples
 
-The counter of [`mvp3.0.md`](mvp3.0.md)'s section 3 runs on the store, found by `Counter.key`, with the desk and the board as clients. The store keeps its total through `kept`, so that a deploy carries it, and is otherwise as MVP 3.0 has it:
+The counter of [`mvp3.0.md`](../mvp3.0.md)'s section 3 runs on the store, found by `Counter.key`, with the desk and the board as clients. The store keeps its total through `kept`, so that a deploy carries it, and is otherwise as MVP 3.0 has it:
 
 ```ernest-fragment
 // store.ern, build 1

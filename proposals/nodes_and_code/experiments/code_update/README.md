@@ -1,6 +1,6 @@
 # The counter, written twice
 
-The experiment programs behind [`ordered_rolling_restart.md`](../../ordered_rolling_restart.md), which was `mvp3.2.md` until it was set aside on 2026-10-08, whose reasons, [`deploy.md`](../../deploy.md), summarise them in section 15; the first, written and run on 2026-10-07 on one node with the toolchain as it stands, Ernest 0.3.1: a counter with its total as its state, first as the restart alone has it, then as a step function the library runs. Row C1, a change of logic behind an unchanged protocol and state type, runs both ways; row C2, a change of the state's shape, is where the second way stops, and its diagnostic is the experiment's finding.
+The experiment programs behind [`ordered_rolling_restart.md`](../../set_aside/ordered_rolling_restart.md), which was `mvp3.2.md` until it was set aside on 2026-10-08, whose reasons, [`deploy.md`](../../set_aside/deploy.md), summarise them in section 15; the first, written and run on 2026-10-07 on one node with the toolchain as it stands, Ernest 0.3.1: a counter with its total as its state, first as the restart alone has it, then as a step function the library runs. Row C1, a change of logic behind an unchanged protocol and state type, runs both ways; row C2, a change of the state's shape, is where the second way stops, and its diagnostic is the experiment's finding.
 
 ## The files
 
