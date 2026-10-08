@@ -364,7 +364,10 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     Nothing of MVP 3.0 changes but the two refusals that name MVP 3.2, `drain` and
     `coordinator`, which become plain unknown-field refusals with their rows gone from
     `docs/development.md`'s table, and `mvp3.0.md`'s status line, which names what 3.2 would
-    have changed. Written as a proposal is written: read through with the user before a line
+    have changed. §6.10's code replacement stays as it is, a message that carries the new loop;
+    the new proposal says that code travelling with a spawn gives it its half across nodes, a
+    shell on one node shipping a new loop to a service on another and upgrading it in place,
+    its state kept, which under MVP 3.0 works only for code the peer's build already has. Written as a proposal is written: read through with the user before a line
     reaches the plan, the log or the report (CLAUDE.md, *A design is discussed in its proposal
     until the user says it is ready*).
 
