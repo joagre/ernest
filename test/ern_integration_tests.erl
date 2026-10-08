@@ -489,7 +489,7 @@ install() ->
     ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
                                                     "\n">>)),
     ?assertEqual([], dead_links(Documents)),
-    ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/main/examples/repl.ern")),
+    ?assert(links_to(Documents ++ "guide/language.md", "/blob/main/examples/repl.ern")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     InWork = fun(Command) -> sh(Command, [{cd, Base ++ "/work"}]) end,
@@ -585,7 +585,7 @@ release() ->
     %% the README beside the archive shows the logo it carries there
     ?assertEqual([], dead_links(Unpacked ++ "/")),
     Tag = "v" ++ string:trim(binary_to_list(Version)),
-    ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
+    ?assert(links_to(Documents ++ "guide/language.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
     Ern = Base ++ "/p/bin/ern",
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = sh(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),

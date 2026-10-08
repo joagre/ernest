@@ -72,13 +72,21 @@ stage() {
     kept="s|](report/|](@report@/|g"
     linked="s|](\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
     restored="s|](@report@/|](report/|g"
-    for f in report/language.md report/toolchain.md report/library.md ernest_guide.md; do
+    for f in report/language.md report/toolchain.md report/library.md; do
+        edited "$f" "share/doc/ernest/$f" "$kept; $linked; $restored"
+    done
+    # the guides, a directory below, link the same files from one level down
+    kept="s|](\\.\\./report/|](@report@/|g"
+    linked="s|](\\.\\./\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
+    restored="s|](@report@/|](../report/|g"
+    for f in guide/language.md; do
         edited "$f" "share/doc/ernest/$f" "$kept; $linked; $restored"
     done
     edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
     # the directories of the installation's own, each before the one that
     # holds it, as uninstall removes them in this order where they are empty
-    for d in share/doc/ernest/report/ share/doc/ernest/assets/ share/doc/ernest/; do
+    for d in share/doc/ernest/report/ share/doc/ernest/guide/ share/doc/ernest/assets/ \
+             share/doc/ernest/; do
         echo "$d" >> "$tree/installed"
     done
     shared emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el

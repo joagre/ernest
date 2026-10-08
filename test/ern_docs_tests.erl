@@ -18,14 +18,14 @@
 -define(REPORT, ["report/language.md", "report/toolchain.md", "report/library.md"]).
 
 %% The documents with a contents list, and the lines that bound it.
--define(CONTENTS, ?REPORT ++ ["ernest_guide.md"]).
+-define(CONTENTS, ?REPORT ++ ["guide/language.md"]).
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
 
 %% report §11, docs/development.md "Building": `make xref`
 citations_resolve_test() ->
     Report = report(),
-    Guide = ern_repository:read("ernest_guide.md"),
+    Guide = ern_repository:read("guide/language.md"),
     ReportSections = section_numbers(Report),
     GuideSections = section_numbers(Guide),
     %% docs/findings.md's lines and docs/guide_feedback.md's points cite each
@@ -36,17 +36,17 @@ citations_resolve_test() ->
     Dangling =
         [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
                              not resolves(Citation, report, ReportSections, GuideSections)]
-        ++ [{"ernest_guide.md", Citation}
+        ++ [{"guide/language.md", Citation}
             || Citation <- cites(Guide),
                not resolves(Citation, guide, ReportSections, GuideSections)],
     ?assertEqual([], Dangling).
 
-%% ernest_guide.md §7.3, report Appendix E.25: the guide shows parts of
+%% guide/language.md §7.3, report Appendix E.25: the guide shows parts of
 %% stdlib/ordered_set.ern, its doc blocks left out, a restatement a teaching
 %% document makes, and this holds each part equal to the module's lines, in
 %% the module's order
 ordered_set_shown_in_part_test() ->
-    Guide = ern_repository:read("ernest_guide.md"),
+    Guide = ern_repository:read("guide/language.md"),
     [_, Rest] = binary:split(Guide, <<"```ernest-fragment\n// stdlib/ordered_set.ern">>),
     [Block | _] = binary:split(Rest, <<"\n```">>),
     [_Named | Shown] = binary:split(Block, <<"\n">>, [global]),
@@ -80,7 +80,7 @@ parts(Lines) ->
             [Part | parts(After)]
     end.
 
-%% report/, ernest_guide.md, docs/development.md "Building": a document's
+%% report/, guide/language.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes
 contents_test() ->
@@ -147,11 +147,11 @@ anchored(Heads) ->
           end, #{}, Heads),
     Anchored.
 
-%% README.md, guide §0, CLAUDE.md *Who owns each fact*: the front
+%% README.md, the language guide §0, CLAUDE.md *Who owns each fact*: the front
 %% page's list of what Ernest adds is the guide's, word for word, so that the
 %% two cannot drift apart
 what_ernest_adds_test() ->
-    ?assertEqual(adds(ern_repository:read("ernest_guide.md")),
+    ?assertEqual(adds(ern_repository:read("guide/language.md")),
                  adds(ern_repository:read("README.md"))).
 
 adds(Document) ->
@@ -206,7 +206,7 @@ page_links(IndexText) ->
 documents() ->
     Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
     Found = [File || File <- Tracked,
-                     not lists:member(File, ["ernest_guide.md", "docs/decisions.md"]),
+                     not lists:member(File, ["guide/language.md", "docs/decisions.md"]),
                      not lists:prefix("man/", File)],
     ?assert(length(Found) > 15),
     Found.

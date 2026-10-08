@@ -1,6 +1,6 @@
 # Examples
 
-Complete Ernest programs, each larger than a section of the guide can hold. They are listed in an order to read them, from the smallest to the largest. Each file begins with a comment that says what the program does, what to look at in it, and how to run it; the chapters named beside each are the guide's, [`ernest_guide.md`](../ernest_guide.md).
+Complete Ernest programs, each larger than a section of the guide can hold. They are listed in an order to read them, from the smallest to the largest. Each file begins with a comment that says what the program does, what to look at in it, and how to run it; the chapters named beside each are the guide's, [`guide/language.md`](../guide/language.md).
 
 The commands assume `ern` on your `PATH`, the repository's `bin/` or an installation's, and are run from this directory. The tests of the repository build every program here, and run each that ends of itself and compare what it prints.
 

@@ -312,7 +312,7 @@ token_spans_test() ->
                   {int, {2, 6, {2, 8}, {2, 5}}, 12},
                   {eof, {2, 8, {2, 8}, {2, 8}}}], Tokens).
 
-%% report Appendix B, guide §1
+%% report Appendix B, the language guide §1
 hello_program_test() ->
     Source = "export fn main() : Unit with Never = Io.println(\"hello, world\")",
     ?assertEqual([export, fn, {ident, main}, '(', ')', ':', {typename, 'Unit'}, with,

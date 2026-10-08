@@ -1,16 +1,16 @@
 <picture>
   <source media="(prefers-color-scheme: dark)"
-          srcset="assets/ernest-dark.svg">
+          srcset="../assets/ernest-dark.svg">
   <source media="(prefers-color-scheme: light)"
-          srcset="assets/ernest-light.svg">
-  <img src="assets/ernest-light.svg" alt="Ernest" width="75%">
+          srcset="../assets/ernest-light.svg">
+  <img src="../assets/ernest-light.svg" alt="Ernest" width="75%">
 </picture>
 
 # Programming in Ernest
 
 This guide teaches Ernest to a programmer who has used a functional language. It assumes immutable values, sum types, pattern matching, functions as values and recursion, and shows only how Ernest writes them. Processes and messages it teaches from the start, since their types are what is new; a reader who knows Erlang will recognize the model, and §10 says what carries over. Nothing of Ernest or of its report needs reading first.
 
-Each complete program in the guide compiles as shown and prints what is shown after it, and the guide's tests run every one. Where a process fails, `ern run` reports it on standard error, and where that line falls among the program's own lines may differ from run to run. A program the compiler refuses is shown with what the compiler says of it. The examples of peers in §8 are fragments, since the toolchain does not run peers yet. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.
+Each complete program in the guide compiles as shown and prints what is shown after it, and the guide's tests run every one. Where a process fails, `ern run` reports it on standard error, and where that line falls among the program's own lines may differ from run to run. A program the compiler refuses is shown with what the compiler says of it. The examples of peers in §8 are fragments, since the toolchain does not run peers yet. The language is defined by the report, in three files under [`report/`](../report/language.md), to which the guide points where a question turns on a detail.
 
 **Contents**
 <!-- contents -->
@@ -144,7 +144,7 @@ export fn main() : Unit with Never =
     Io.println("hello, world")
 ```
 
-Compile and run, with `ern` installed as the [README](README.md) says:
+Compile and run, with `ern` installed as the [README](../README.md) says:
 
 ```console
 $ ern build hello.ern         # produces hello.erc
@@ -1304,7 +1304,7 @@ Ernest 0.3.1. :help for the commands, :quit to leave.
 kill : (Address(a)) -> Unit with m+
 ```
 
-`kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](examples/repl.ern) kills an evaluation that runs too long.
+`kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](../examples/repl.ern) kills an evaluation that runs too long.
 
 ### 5.4 Deadlock
 
@@ -1402,7 +1402,7 @@ fn oneProcess(me : Address(CountMsg)) : Bool =
 
 `oneProcess(self())` is `true`, and `via(me, Counted) == me` does not compile.
 
-**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/file_sync.ern`](examples/file_sync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
+**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/file_sync.ern`](../examples/file_sync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
 
 `Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
@@ -1875,7 +1875,7 @@ a worker answers back: passed
 
 `ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test's `run` is `() -> Test.Result with m`: it runs in a process whose mailbox type is `m`, as an entry point does (report §8.1), so it may spawn, send, call and receive. `addsTwo` receives nothing and leaves `m` open, and `ern test` runs it with `Never`; `answersBack` receives a `Reported`, so its type is `Test.Case(Reported)`, which nothing writes. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2). Given a directory, `ern test build` runs the tests of every module compiled under it, each module's name on a line before what it writes, and passes over a module that has none.
 
-**Documenting a module.** A `///` block, on lines of its own, documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 shape rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
+**Documenting a module.** A `///` block, on lines of its own, documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 shape rule 6, and [`docs/module_doc_template.md`](../docs/module_doc_template.md) shows it on an example module.
 
 **Entry point.** `ern run main.erc` runs `export fn main`, and `--main` runs another exported function that takes no arguments and returns `Unit`. A module may export several entry points, and `--main` names the one to run, here `check` of `tools.ern`:
 
@@ -2242,7 +2242,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.c
 
 A program reaches outside its node's Ernest code in two ways: to peers over the network, and to foreign code on the same node.
 
-Peers are the language's, and the toolchain does not run them yet: they come with MVP 3.0, the [plan](docs/implementation_plan.md)'s milestone for peers, which a refusal names, and [`docs/development.md`](docs/development.md)'s *What the toolchain accepts* says what a program meets until then. §8.1 and §8.2 describe what peers do, and the examples that spawn on a peer, in §8.1 and §8.4, wait for it.
+Peers are the language's, and the toolchain does not run them yet: they come with MVP 3.0, the [plan](../docs/implementation_plan.md)'s milestone for peers, which a refusal names, and [`docs/development.md`](../docs/development.md)'s *What the toolchain accepts* says what a program meets until then. §8.1 and §8.2 describe what peers do, and the examples that spawn on a peer, in §8.1 and §8.4, wait for it.
 
 A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer.spawn(name, f)` takes.
 
@@ -2524,11 +2524,11 @@ At a terminal the history is kept in `$HOME/.ernest/history`. When the shell sta
 
 ### 9.4 Emacs
 
-`emacs/ernest-mode.el` highlights Ernest, indents it as `ern format` lays it out (report §11.6), and lets `M-x compile` with `ern build` jump to each error. [`emacs/README.md`](emacs/README.md) says how to load it, and [`proposals/emacs/emacs_mode.md`](proposals/emacs/emacs_mode.md) what it leaves to your own configuration.
+`emacs/ernest-mode.el` highlights Ernest, indents it as `ern format` lays it out (report §11.6), and lets `M-x compile` with `ern build` jump to each error. [`emacs/README.md`](../emacs/README.md) says how to load it, and [`proposals/emacs/emacs_mode.md`](../proposals/emacs/emacs_mode.md) what it leaves to your own configuration.
 
 ### 9.5 Running a program as a service
 
-A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. A service here is the operating system's, not §6.5's. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd, running the web server of [`examples/web_server.ern`](examples/web_server.ern) built into `/srv/web/build`:
+A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. A service here is the operating system's, not §6.5's. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd, running the web server of [`examples/web_server.ern`](../examples/web_server.ern) built into `/srv/web/build`:
 
 ```ini
 [Unit]
@@ -2578,7 +2578,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - A function does not travel in a message between nodes: a `send` that would take one to another node faults. Code goes to a peer only with a process spawned there (§8.2).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
-- Nodes talk over Ernest's own protocol, [`proposals/nodes_and_code/nodes.md`](proposals/nodes_and_code/nodes.md), not over Erlang distribution, and ship code by content (§8.2).
+- Nodes talk over Ernest's own protocol, [`proposals/nodes_and_code/nodes.md`](../proposals/nodes_and_code/nodes.md), not over Erlang distribution, and ship code by content (§8.2).
 
 ## 11. The design
 
@@ -2624,13 +2624,13 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 ## 14. Reading further
 
-The programs under [`examples/`](examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](examples/README.md) lists them in an order to read them, with what each shows. Four of the larger:
+The programs under [`examples/`](../examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](../examples/README.md) lists them in an order to read them, with what each shows. Four of the larger:
 
-- [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
-- [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; errors as `Either` values through the lexer, the parser and the evaluator, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
-- [`examples/file_sync.ern`](examples/file_sync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
-- [`examples/web_server.ern`](examples/web_server.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
+- [`examples/snake.ern`](../examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
+- [`examples/repl.ern`](../examples/repl.ern) — small read-eval-print loop; errors as `Either` values through the lexer, the parser and the evaluator, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
+- [`examples/file_sync.ern`](../examples/file_sync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
+- [`examples/web_server.ern`](../examples/web_server.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
 
-For the language rules themselves, the report is the authority: [`report/language.md`](report/language.md), the language, [`report/toolchain.md`](report/toolchain.md), the toolchain, and [`report/library.md`](report/library.md), the standard library. Appendix F glosses every technical term.
+For the language rules themselves, the report is the authority: [`report/language.md`](../report/language.md), the language, [`report/toolchain.md`](../report/toolchain.md), the toolchain, and [`report/library.md`](../report/library.md), the standard library. Appendix F glosses every technical term.
 
-Why Ernest looks as it does, and what was tried and rejected, is in [`decisions.md`](docs/decisions.md), a dated record of the design decisions.
+Why Ernest looks as it does, and what was tried and rejected, is in [`decisions.md`](../docs/decisions.md), a dated record of the design decisions.

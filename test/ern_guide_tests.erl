@@ -35,7 +35,7 @@
 
 -export([units/1, write_diagnostics/0]).
 
--define(GUIDE, "../ernest_guide.md").
+-define(GUIDE, "../guide/language.md").
 -define(DIAGNOSTICS, "diagnostics.md").
 %% The report, in its three files (report §0): the language, the toolchain
 %% and the standard library.
@@ -52,7 +52,7 @@
 %% after it; the lines it is given on standard input; and what it shows.
 -record(launch, {invocation, compiled_file, words, inputs = [], shown}).
 
-%% ernest_guide.md, plan MVP 2.61: the guide marks enough of its examples
+%% guide/language.md, plan MVP 2.61: the guide marks enough of its examples
 %% for the check to hold something
 guide_has_checked_examples_test() ->
     {Modules, Rejected} = lists:partition(fun({Kind, _}) -> Kind =/= rejected end, units(?GUIDE)),
@@ -66,7 +66,7 @@ report_has_checked_examples_test() ->
     ?assert(length(Modules) >= 8),
     ?assert(length(Rejected) >= 1).
 
-%% report §9.3, ernest_guide.md: a declaration the guide quotes from the
+%% report §9.3, guide/language.md: a declaration the guide quotes from the
 %% prelude is the prelude's, word for word once spaces are ignored
 guide_prelude_declarations_test() ->
     prelude_declarations(?GUIDE).
@@ -105,7 +105,7 @@ normalize(Declaration) ->
 uncommented(Line) ->
     hd(binary:split(Line, <<"//">>)).
 
-%% ernest_guide.md: every complete example compiles, and every example with
+%% guide/language.md: every complete example compiles, and every example with
 %% its output shown prints that output
 %%
 %% A unit that loads no code into this node runs in parallel with the others
@@ -161,7 +161,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, Name))
      || {Name, _} <- Files, filename:extension(Name) =:= ".erl"],
-    %% guide §8.3: a program that uses a library under libs/ has it on its
+    %% the language guide §8.3: a program that uses a library under libs/ has it on its
     %% load path, as every example here may
     LoadPathOptions = lists:append([["--load-path", filename:absname(Library)]
                                     || Library <- filelib:wildcard("../build/libs/*"),

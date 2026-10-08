@@ -1,6 +1,6 @@
 # Working on Ernest
 
-For those who work on the language and its toolchain: where things are, how to build and test them, and what the toolchain does not do yet. A reader who wants to learn Ernest starts with the [guide](../ernest_guide.md) instead.
+For those who work on the language and its toolchain: where things are, how to build and test them, and what the toolchain does not do yet. A reader who wants to learn Ernest starts with the [guide](../guide/language.md) instead.
 
 The report, in three files under [`report/`](../report/), is the one normative document. How work proceeds, and which document owns which fact, is in [`CLAUDE.md`](../CLAUDE.md).
 
@@ -35,7 +35,7 @@ LICENSE, THIRD_PARTY_LICENSES  the licence, and the third-party code's
 report/            the report (normative), in three files: language.md, §0 to §10 and
                    Appendices A, B and F; toolchain.md, §11 and Appendix C; library.md,
                    Appendices D, E and G
-ernest_guide.md    the guide
+guide/             the guides: language.md, the language guide
 assets/            the logo the README, the guide and a release show, light and dark, the
                    stoat mark alone as a vector and as a
                    512-pixel avatar, and the social preview GitHub's settings take,
@@ -188,7 +188,7 @@ bin/ern build --load-path build/libs/ets --build-root build/app app
 bin/ern run --load-path build/libs/ets build/app/main.erc
 ```
 
-The shell's `:help` lists its commands; guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](../proposals/shell/shell_design.md) says how it is built.
+The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](../proposals/shell/shell_design.md) says how it is built.
 
 ## What the toolchain accepts
 

@@ -28,7 +28,7 @@ man ern
 Each path below is under the prefix, `/usr/local` unless another was given, and under the archive's own directory before it is installed.
 
 - `ern shell` starts the shell, and `:quit` leaves it.
-- `share/doc/ernest/ernest_guide.md` is the guide, *Programming in Ernest*, which teaches the language to a programmer who knows another. Start there.
+- `share/doc/ernest/guide/language.md` is the guide, *Programming in Ernest*, which teaches the language to a programmer who knows another. Start there.
 - `man ern` is the toolchain's page and `man Ernest.List` a module's; the prelude, every module of the standard library and every library has one.
 - `share/doc/ernest/report/` holds the report, the language's definition, which everything else defers to, in three files: `language.md`, `toolchain.md` and `library.md`.
 - `share/emacs/site-lisp/ernest-mode.el` is the Emacs mode.

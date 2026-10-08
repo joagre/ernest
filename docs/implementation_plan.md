@@ -901,7 +901,7 @@ and the reading behind it fixed four growths, the shell's code memory and a fals
 ([`memory.md`](memory.md); the log's *What the Loads Found*, *The Shell's Code Memory* and
 *Atoms, Counted*). A program meant to keep running runs in the foreground under a service
 manager: a stream that has gone ends it with status 141, `ern`'s fault lines carry the time
-where standard error is a file, and a stop ends it by its signal (guide §9.5; the log's
+where standard error is a file, and a stop ends it by its signal (the language guide §9.5; the log's
 *Running as a Service*). Appendix G lists the libraries under `libs/`, held to their
 interfaces (the log's *The Libraries in the Report*). A mailbox stays unbounded, and a write
 waits for its stream (the log's *Back Pressure, Again*). The list of what Ernest adds stays at
