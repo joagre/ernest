@@ -4,7 +4,7 @@
 // and subscriptions to faults, then a mark (test/ern_load.erl).
 //
 
-type WorkMsg = Ask(reply : Reply(Int)) | Stop
+type WorkMsg = Ask(reply : Reply(Int)) | Late | Stop
 
 type Msg = Ended(Down)
 
@@ -48,9 +48,11 @@ fn once() : Unit with Msg = {
     receive {
         Ended(_) -> Unit
     };
-    // a call whose answer comes after its time, and one never answered
+    // a call whose answer comes after its time, once the call has ended,
+    // and one never answered
     let laggard = spawn(slow);
     let _ = Address.call(laggard, fn(reply) = Ask(reply = reply), 1);
+    send(laggard, Late);
     send(laggard, Stop);
     let mute = spawn(silent);
     let _ = Address.call(mute, fn(reply) = Ask(reply = reply), 0);
@@ -87,7 +89,7 @@ fn slow() : Unit with WorkMsg =
     receive {
         Ask(reply = reply) -> {
             receive {
-                after 5 -> Unit
+                Late -> Unit
             };
             answer(reply, 1);
             slow()

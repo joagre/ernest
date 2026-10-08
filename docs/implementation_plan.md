@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 10 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 11 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08; rewritten smaller by MVP 3.0's item 12 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08; set aside by MVP 3.0's item 12, its kept state and planned stop going to MVP 3.1 |
 | MVP 3.3 | the shell's second round | |
@@ -338,14 +338,16 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     (`language_feedback.md`'s entry 92, the log's *The Module Peer*).
 
 11. **The fixed sleeps out of the tests.** CLAUDE.md's *No fixed sleep*, decided with the user
-    on 2026-10-08 as item 4's tests were written: the 33 fixed sleeps of the tests in ten files,
-    `ern_rt_tests`, `ern_reaper_tests`, `ern_tcp_tests`, `ern_os_tests`,
-    `ern_system_module_tests`, `ern_emitter_tests`, `ern_integration_tests`, `ern_service_tests`,
-    the load harness and the bench's, and the nine polls with a fixed sleep that items 4 to 10
-    added after the rule, five in `ern_nodes_tests`, three in `ern_node_costs` and one in
-    `ern_peer_tests` (the log's *Nodes a Failed Test Left Running*), each made a wait on what it
-    means, or, where an absence is what a test shows, a wait derived from what it waits for with
-    the reason beside it.
+    on 2026-10-08 as item 4's tests were written. Done 2026-10-08, the log's *The Tests Wait on
+    What They Mean*: about a hundred sleeps and polls in sixteen files, where the plan had
+    counted 33 in ten, each now a wait on what it means, through `erl/runtime/test/ern_waits.erl`
+    where only the host reports it; a node's output through pipes to a watcher; the terminal
+    harness waiting on output and on the child's end; an absence a time derived from what it
+    waits for; and the load harness's one pause after its collections, which nothing the host
+    reports shows, stated with its measurement. Found doing it: the sleeps hid tests' wrong
+    beliefs, a restart's emptied mailbox among them, and no defect of the runtime; and the
+    toolchain's own flush, which asks a port's queue every millisecond, keeps its poll, since
+    the host answers a port's close alike whether its reader took the bytes or had gone.
 
 12. **The milestone after this one, trimmed.** Decided with the user on 2026-10-08, the
     log's *The Milestones After 3.0, Weighed Again*: what `mvp3.1.md` and `mvp3.2.md` design

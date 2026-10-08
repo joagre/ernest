@@ -757,18 +757,25 @@ live_region() ->
 
 %% report §11.2: a fault reported while a line is typed stands above the
 %% region, and the line goes on under its prompt. A regression test: the
-%% fault line was glued onto the prompt, and the line went on with none
+%% fault line was glued onto the prompt, and the line went on with none.
+%% The process faults once `cat` has read a named pipe to its end, which
+%% the test opens once the line shows
 fault_while_typing_test_() ->
     {timeout, 60, fun fault_while_typing/0}.
 
 fault_while_typing() ->
-    Late = "spawn(fn() : Unit with Never = receive { after 1000 -> { let _ = 1 / 0; Unit } })\r",
+    Pipe = scratch_name("ern_typing_"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Late = "spawn(fn() : Unit with Never = { let _ = Os.run(Os.Command(program = \"cat\","
+           " arguments = [\"" ++ Pipe ++ "\"], input = <<>>), 60000); let _ = 1 / 0; Unit })\r",
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex(Late)},
                      {expect, "Address(Never)"},
                      {expect, "> "},
                      {send, hex("abc")},
+                     {expect, "abc"},
+                     {put, Pipe},
                      {expect, "division by zero"},
                      {send, hex("\r")},
                      {expect, "unknown name abc"},
@@ -1384,10 +1391,10 @@ command_argument() ->
                  {expect, "Http.Parser"},
                  {send, "03"},
                  {send, hex(":output ") ++ "09"},          % lists nothing, indents nothing
-                 %% nothing marks that the Tab did nothing, and the screen paints
-                 %% only its latest state, so a wrong indent would go unseen if
-                 %% the next key came at once; the wait is the harness's to make
-                 {sleep, 300},
+                 %% nothing marks that the Tab did nothing, so a key typed after
+                 %% it shows the line as the Tab left it
+                 {send, hex("x")},
+                 {expect, ":output x"},
                  {send, "03"},
                  {send, "04"}],
                 30, " --size 30x80"),
@@ -1591,8 +1598,10 @@ completion_after_forget() ->
                  {expect, "2 : Int"},
                  {expect, "> "},
                  {send, hex("zz") ++ "09"},
-                 %% nothing marks that the Tab offered nothing, as with :output
-                 {sleep, 400},
+                 %% nothing marks that the Tab offered nothing, so a key typed
+                 %% after it shows the line as the Tab left it, as with :output
+                 {send, hex("!")},
+                 {expect, "zz!"},
                  {send, "03"},
                  {send, "04"}],
                 30, " --size 60x100"),
@@ -1765,9 +1774,10 @@ input_module_unloaded() ->
         CountLoaded,
         "fn(x : Int) : Int = x + 1\n",
         "it(41)\n",
-        "let _ = spawn(fn() : Unit with Never = {"
-        " let _ = receive { after 300 -> Unit }; Io.println(\"late\") })\n",
-        "receive { after 600 -> Unit }\n"]),
+        "let late = spawn(fn() : Unit with Unit = {"
+        " let _ = receive { _ -> Unit }; Io.println(\"late\") })\n",
+        "{ monitor(Process.fromAddress(late), fn(d) = d); send(late, Unit);"
+        " receive { _ -> Unit } }\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [Before, After] = [Answer || Answer <- answers(Output, 1), Answer > 100],
     %% an expression leaves neither its module nor a holder of `it` loaded
@@ -1898,17 +1908,18 @@ declarations_kept_while_reached() ->
                                      "let h = f\n",
                                      "type T = A(Int) | B\n",
                                      "let a = A(7)\n",
-                                     "fn later() : Unit with Never = {"
-                                     " receive { after 400 -> Unit };"
+                                     "fn later() : Unit with Unit = {"
+                                     " receive { _ -> Unit };"
                                      " Io.println(\"old code ran\") }\n",
-                                     "let _ = spawn(later)\n",
+                                     "let old = spawn(later)\n",
                                      "fn f(n : Int) : Int = n * 100\n",
                                      "type T = C\n",
                                      "fn later() : Unit with Never = Unit\n",
                                      [["1 + ", integer_to_list(Index), "\n"]
                                       || Index <- lists:seq(1, 30)],
                                      "g(1)\n", "h(3)\n", "a\n", "f(1)\n",
-                                     "receive { after 600 -> Unit }\n"]),
+                                     "{ monitor(Process.fromAddress(old), fn(d) = d);"
+                                     " send(old, Unit); receive { _ -> Unit } }\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 2 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 3 : Int">>)),
@@ -2060,7 +2071,9 @@ bracket_shown() ->
     Bytes = pty(alone("../bin/ern shell"),
                 [{expect, "> "},
                  {send, hex("f(x)")},
-                 {sleep, 900},
+                 %% the cursor on the `(`, then back at the line's end
+                 {expect, "\e[3C"},
+                 {expect, "\e[6C"},
                  {send, "03"},
                  {send, "04"}],
                 30, " --size 24x80"),

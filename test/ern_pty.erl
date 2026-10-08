@@ -47,7 +47,7 @@ steps_file(Steps) ->
 step({expect, Text}) -> "expect:" ++ Text;
 step({resize, Size}) -> "resize:" ++ Size;
 step({send, Hex}) -> "send:" ++ Hex;
-step({sleep, Ms}) -> "sleep:" ++ integer_to_list(Ms).
+step({put, Path}) -> "put:" ++ Path.
 
 status(<<"timeout">>) -> timeout;
 status(Text) -> binary_to_integer(Text).

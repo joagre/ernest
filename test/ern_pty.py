@@ -19,11 +19,13 @@ line and a line beginning with # are skipped.
                   is not part of the text, as a reader does not see it
     send:HEX      write those bytes to the terminal
     resize:RxC    give the terminal a new size, as a window manager does
-    sleep:MS      wait that long, reading whatever arrives
+    put:PATH      open the named pipe PATH for writing and close it, which
+                  ends a read of it that the program under test waits on
 
 A step that waits for text is what keeps a test from racing a program
-that is slower under load than it was when the test was written; sleep is
-for the moments no text marks, such as letting a game run for a tick.
+that is slower under load than it was when the test was written; a test
+waits on what the program shows, never on a time, and where nothing on
+the screen marks a moment, a key that shows something marks it.
 Two lines are printed:
 
     status <exit code> | timeout
@@ -41,6 +43,7 @@ import os
 import pty
 import re
 import select
+import signal
 import struct
 import sys
 import termios
@@ -53,20 +56,23 @@ def step_spec(text):
         return ("expect", arg.encode("utf-8"))
     if kind == "send":
         return ("send", bytes.fromhex(arg))
-    if kind == "sleep":
-        return ("sleep", int(arg) / 1000.0)
+    if kind == "put":
+        return ("put", arg)
     if kind == "resize":
         rows, _, columns = arg.partition("x")
         return ("resize", (int(rows), int(columns)))
     raise argparse.ArgumentTypeError(
-        "a step is expect:TEXT, send:HEX, resize:RxC, or sleep:MS")
+        "a step is expect:TEXT, send:HEX, resize:RxC, or put:PATH")
 
 
 class Screen:
     """What the terminal has shown, and how far the steps have read it."""
 
-    def __init__(self, fd):
+    def __init__(self, fd, wake):
         self.fd = fd
+        # the child's end, which the terminal does not show, wakes a read
+        # through this pipe, as output does through the terminal
+        self.wake = wake
         self.seen = bytearray()
         # what has been shown as it reads, without the sequences that only
         # colour it; a sequence a read cut short waits for the next read
@@ -75,9 +81,13 @@ class Screen:
         self.cursor = 0
         self.eof = False
 
+    # Until output comes or the child ends, for at most `seconds`, which
+    # is what is left of the run's deadline and bounds a failure.
     def read(self, seconds):
-        readable, _, _ = select.select([self.fd], [], [], seconds)
-        if not readable:
+        readable, _, _ = select.select([self.fd, self.wake], [], [], max(0.0, seconds))
+        if self.wake in readable:
+            os.read(self.wake, 4096)
+        if self.fd not in readable:
             return
         try:
             data = os.read(self.fd, 65536)
@@ -162,15 +172,16 @@ def rendered(data, rows, columns):
     return "\n".join("".join(line).rstrip() for line in grid)
 
 
-# Signal the child and wait for it, reading all the while.
-def ended_by(pid, screen, signal, grace):
+# Signal the child and wait for it, reading all the while; the grace
+# bounds a failure.
+def ended_by(pid, screen, signal_number, grace):
     try:
-        os.kill(pid, signal)
+        os.kill(pid, signal_number)
     except ProcessLookupError:
         return "timeout"
     until = time.monotonic() + grace
     while time.monotonic() < until:
-        screen.read(0.05)
+        screen.read(until - time.monotonic())
         try:
             ended, wait_status = os.waitpid(pid, os.WNOHANG)
         except ChildProcessError:
@@ -181,6 +192,10 @@ def ended_by(pid, screen, signal, grace):
 
 
 def run(command, steps, timeout, size):
+    wake, woken = os.pipe()
+    os.set_blocking(woken, False)
+    signal.set_wakeup_fd(woken)
+    signal.signal(signal.SIGCHLD, lambda signal_number, frame: None)
     pid, fd = pty.fork()
     if pid == 0:
         os.execvp("/bin/sh", ["/bin/sh", "-c", command])
@@ -190,7 +205,7 @@ def run(command, steps, timeout, size):
 
     rows, _, columns = size.partition("x")
     resize(int(rows), int(columns))
-    screen = Screen(fd)
+    screen = Screen(fd, wake)
     left = list(steps)
     deadline = time.monotonic() + timeout
     while left and time.monotonic() < deadline and not screen.eof:
@@ -205,15 +220,14 @@ def run(command, steps, timeout, size):
             if screen.find(arg):
                 left.pop(0)
             else:
-                screen.read(0.02)
+                screen.read(deadline - time.monotonic())
         else:
-            until = time.monotonic() + arg
-            while time.monotonic() < until and not screen.eof:
-                screen.read(0.02)
+            with open(arg, "wb"):
+                pass
             left.pop(0)
     status = None
     while time.monotonic() < deadline and not screen.eof:
-        screen.read(0.02)
+        screen.read(deadline - time.monotonic())
         ended, wait_status = os.waitpid(pid, os.WNOHANG)
         if ended:
             status = os.waitstatus_to_exitcode(wait_status)
@@ -228,12 +242,10 @@ def run(command, steps, timeout, size):
             status = ended_by(pid, screen, 9, 2.0)
         if status is None:
             status = "timeout"
-    stop = time.monotonic() + 1.0    # whatever the program wrote as it ended
-    while not screen.eof and time.monotonic() < stop:
-        before = len(screen.seen)
-        screen.read(0.2)
-        if len(screen.seen) == before:
-            break
+    # whatever the program wrote as it ended, to the terminal's end, which
+    # comes once nothing holds it open; the deadline bounds a failure
+    while not screen.eof and time.monotonic() < deadline:
+        screen.read(deadline - time.monotonic())
     os.close(fd)
     if left:
         print("unmet %s" % " ".join(kind for kind, _ in left), file=sys.stderr)

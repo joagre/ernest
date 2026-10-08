@@ -74,13 +74,30 @@ round_inputs(Step) ->
      "let _ = spawn(fn() : Unit with Never = Io.println(\"spawned\"))"].
 
 %% Called by a load after each round, through a `foreign fn`. What the
-%% round set ending, a killed process or a delivery of its `Down`, is given
-%% a moment to end before the node is sampled. The caller then waits while
-%% a process of the harness's own samples the node: sampled by itself, the
-%% caller would be mid-work.
+%% round set ending ends before the node is sampled: each process the
+%% runtime still lists and that is no longer alive, killed by the caller,
+%% whose kills `is_process_alive` is ordered after; then the reaper, once
+%% idle, has taken their ends; and then every delivery it started, of a
+%% `Down` among them, has ended. The caller then waits while a process of
+%% the harness's own samples the node: sampled by itself, the caller would
+%% be mid-work.
 -spec mark(integer()) -> 'Unit'.
 mark(Round) ->
-    timer:sleep(200),
+    Ending = [Pid || {Pid, _, _, _, _} <- ets:tab2list(ern_processes),
+                     not erlang:is_process_alive(Pid)],
+    [begin
+         MonitorRef = erlang:monitor(process, Pid),
+         receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
+     end || Pid <- Ending],
+    Reaper = persistent_term:get({ern_rt, reaper}),
+    ok = ern_waits:until(Reaper, fun() ->
+                                     erlang:process_info(Reaper, [status, message_queue_len])
+                                         =:= [{status, waiting}, {message_queue_len, 0}]
+                                 end),
+    [begin
+         MonitorRef = erlang:monitor(process, Delivery),
+         receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end
+     end || {{_, _, Delivery}} <- ets:tab2list(ern_deliveries)],
     Caller = self(),
     Sampler = spawn(fun() -> Caller ! {self(), sample(Round)} end),
     receive
@@ -89,7 +106,12 @@ mark(Round) ->
     'Unit'.
 
 %% The node, every process but the sampler collected first, and the host
-%% given a moment to count the heaps the collections freed. The memory is
+%% given a moment to count the heaps the collections freed: it frees a
+%% collected heap's blocks later, on the scheduler that made them, and
+%% tells nothing when it has, so no event shows it and nothing it waits
+%% for gives the time. Measured on 2026-10-08: without the wait the shell's
+%% load varied by 1.2 MB from round to round, and with it by about 15 KB
+%% (the log's *The Tests Wait on What They Mean*). The memory is
 %% what is in use: it leaves out the structures the host keeps for
 %% processes to come, which it trims when it likes, the samples' own table,
 %% the sampler, and the words of every heap that hold nothing.

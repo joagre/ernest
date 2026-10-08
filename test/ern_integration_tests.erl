@@ -283,43 +283,35 @@ out_of_memory() ->
     ?assertNot(filelib:is_regular(Dir ++ "/erl_crash.dump")).
 
 %% report §8.6, §11.2: the host's interrupt ends a running program at once,
-%% printing nothing, with status 128 plus the signal's number. The run is
-%% started from here rather than by a shell, which would start it with the
-%% interrupt ignored, and interrupted once the program shows by a file that
-%% it runs. An interrupt that comes while the host starts a port, as it
-%% does twice before `main`, leaves a line of OTP's helper on standard
-%% error, a defect of OTP's, docs/otp_bugs.md's report 1, a signal that
-%% ends the host while it starts a port, and is not covered here. Written after the
-%% code, with the sentence of §11.2 that states the status.
+%% printing nothing of its own, with status 128 plus the signal's number.
+%% The run is started from here rather than by a shell, which would start
+%% it with the interrupt ignored, and interrupted once the program says that
+%% it runs, waiting then on a read of its input, which can still deliver.
+%% An interrupt that comes while the host starts a port, as it does twice
+%% before `main`, leaves a line of OTP's helper on standard error, a defect
+%% of OTP's, docs/otp_bugs.md's report 1, a signal that ends the host while
+%% it starts a port, and is not covered here. Written after the code, with
+%% the sentence of §11.2 that states the status.
 interrupt_test_() ->
     {timeout, 60, fun interrupt/0}.
 
 interrupt() ->
     Dir = "build/interrupt",
     ok = filelib:ensure_path(Dir),
-    _ = file:delete(Dir ++ "/running"),
     ok = file:write_file(Dir ++ "/waits.ern",
                          "export fn main() : Unit with Never = {\n"
-                         "    let _ = Fs.write(Path(\"running\"), <<>>, 10000);\n"
-                         "    receive { after 60000 -> Io.println(\"late\") }\n"
+                         "    Io.println(\"running\");\n"
+                         "    let _ = Io.readLine();\n"
+                         "    Io.println(\"late\")\n"
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     Program = open_port({spawn_executable, filename:absname("../bin/ern")},
                         [{args, ["run", "waits.erc"]}, {cd, Dir}, exit_status, stderr_to_stdout,
                          binary]),
     {os_pid, OsPid} = erlang:port_info(Program, os_pid),
-    ok = wait_for(Dir ++ "/running", 300),
+    ok = said_line(Program, <<"running\n">>, <<>>),
     _ = os:cmd("kill -INT " ++ integer_to_list(OsPid)),
     ?assertEqual({130, <<>>}, collect(Program, [])).
-
-%% Wait until the file exists, a tenth of a second at a time.
-wait_for(_, 0) ->
-    {error, timeout};
-wait_for(File, Tries) ->
-    case filelib:is_regular(File) of
-        true -> ok;
-        false -> timer:sleep(100), wait_for(File, Tries - 1)
-    end.
 
 %% Paper program 1 (plan, MVP 2.5): the server serves until it is
 %% stopped, so the harness starts it, makes two requests over one session,
@@ -335,7 +327,8 @@ web_server() ->
                        [exit_status, stderr_to_stdout, binary]),
     {os_pid, OsPid} = erlang:port_info(Server, os_pid),
     try
-        ?assertEqual(ok, listening(8080, 100)),
+        %% the server says so once it listens
+        ?assertEqual(ok, said_line(Server, <<"listening on 127.0.0.1:8080">>, <<>>)),
         First = request([]),
         ?assertMatch({_, _}, binary:match(First, <<"HTTP/1.1 200 OK">>)),
         ?assertMatch({_, _}, binary:match(First, <<"set-cookie: sid=">>)),
@@ -348,13 +341,16 @@ web_server() ->
         try port_close(Server) catch _:_ -> true end
     end.
 
-%% The server needs a moment to bind; a connection that is refused is retried.
-listening(_, 0) ->
-    {error, not_listening};
-listening(TcpPort, Tries) ->
-    case gen_tcp:connect("127.0.0.1", TcpPort, [binary, {active, false}], 100) of
-        {ok, Socket} -> gen_tcp:close(Socket), ok;
-        {error, _} -> timer:sleep(100), listening(TcpPort, Tries - 1)
+%% Until the program the port runs has written Line; 30 seconds bound a
+%% failure.
+said_line(Port, Line, Said) ->
+    case binary:match(Said, Line) of
+        nomatch ->
+            receive {Port, {data, Bytes}} -> said_line(Port, Line, <<Said/binary, Bytes/binary>>)
+            after 30000 -> {error, {not_said, Said}}
+            end;
+        _ ->
+            ok
     end.
 
 request(Headers) ->

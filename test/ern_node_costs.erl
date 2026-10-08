@@ -94,29 +94,24 @@ public(Dir) ->
 
 %% The store running, once it has made its offers; answers what ends it.
 started(Store, Program) ->
-    Out = Store ++ ".out",
     Command = lists:flatten([?ERN, " run --config-dir ", Store,
                              [[" ", Word] || Word <- load_path()], " ", Program,
-                             " > ", Out, " 2> ", Store, ".err"]),
-    Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status]),
-    offered(Out),
+                             " 2> ", Store, ".err"]),
+    Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
+    offered(Port, <<>>),
     fun() ->
         {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
         _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
         receive {Port, {exit_status, _}} -> ok end
     end.
 
-%% Until the store says it has made its offers.
-offered(Out) ->
-    case file:read_file(Out) of
-        {ok, Text} when byte_size(Text) > 0 ->
-            case string:find(Text, "offered") of
-                nomatch -> timer:sleep(100), offered(Out);
-                _ -> ok
-            end;
-        _ ->
-            timer:sleep(100),
-            offered(Out)
+%% Until the store says on its standard output, which the port reads, that
+%% it has made its offers.
+offered(Port, Said) ->
+    case binary:match(Said, <<"offered">>) of
+        nomatch ->
+            receive {Port, {data, Bytes}} -> offered(Port, <<Said/binary, Bytes/binary>>) end;
+        _ -> ok
     end.
 
 %% The desk's lines, `key microseconds`, as a map.
@@ -133,13 +128,15 @@ desk_costs(Desk, Program) ->
 %% timed it.
 tcp_ping() ->
     Cookie = "ern_node_costs",
+    %% the second says so once its distribution has started
     Second = open_port({spawn_executable, os:find_executable("erl")},
-                       [{args, ["-sname", "ern_costs_b", "-setcookie", Cookie, "-noinput"]},
-                        exit_status]),
+                       [{args, ["-sname", "ern_costs_b", "-setcookie", Cookie, "-noinput",
+                                "-eval", "io:format(\"up~n\")"]},
+                        exit_status, binary]),
+    receive {Second, {data, <<"up", _/binary>>}} -> ok end,
     Timing = "[_, Host] = string:split(atom_to_list(node()), \"@\"),"
              " Other = list_to_atom(\"ern_costs_b@\" ++ Host),"
-             " Up = fun Up() -> case net_adm:ping(Other) of pong -> ok;"
-             " pang -> timer:sleep(100), Up() end end, Up(),"
+             " pong = net_adm:ping(Other),"
              " Started = erlang:monotonic_time(microsecond),"
              " [pong = net_adm:ping(Other) || _ <- lists:seq(1, 5000)],"
              " io:format(\"~p~n\", [(erlang:monotonic_time(microsecond) - Started) / 5000]),"

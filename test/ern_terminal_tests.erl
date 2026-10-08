@@ -48,8 +48,8 @@ keys() ->
 
 %% report §8.2: a paste whose end the terminal does not send ends when no
 %% more of it arrives, and the keys after it are keys; an end that comes
-%% later is nothing. A regression test: the paste took in every key after
-%% it
+%% later is nothing, which a key after it, shown, marks. A regression test:
+%% the paste took in every key after it
 unended_paste_test_() ->
     {timeout, 60, fun unended_paste/0}.
 
@@ -62,10 +62,12 @@ unended_paste() ->
                        {send, "78"},                  % x
                        {expect, "char x"},
                        {send, "1b5b3230317e"},        % the paste's end, too late
-                       {sleep, 300},
+                       {send, "79"},                  % y
+                       {expect, "char y"},
                        {send, "1b"}],
                       15),
-    ?assertEqual([<<"ready 24x80">>, <<"pasted hi">>, <<"char x">>, <<"escape">>],
+    ?assertEqual([<<"ready 24x80">>, <<"pasted hi">>, <<"char x">>, <<"char y">>,
+                  <<"escape">>],
                  lines(Screen)).
 
 %% report §8.2, Appendix E.16: where standard input is not a terminal a
@@ -168,16 +170,16 @@ snake_test_() ->
 
 snake() ->
     ok = build("../examples/snake.ern", "../examples"),
-    %% the board is drawn before the first key, and a move is given a few
-    %% ticks to show: the game's own clock is what those sleeps wait for.
+    %% the board is drawn before the first key, and a move is given fifteen
+    %% of the game's ticks to show, which its status line counts.
     %% It runs the program compiled here, not one another suite left in
     %% build/, which a run of this area alone does not have
     {0, Screen} = pty("../bin/ern run --load-path ../build/libs/ansi build/examples/snake.erc",
                       [{expect, "tick "},
                        {send, "1b5b42"},    % ArrowDown
-                       {sleep, 1500},
+                       {expect, "tick 15 "},
                        {send, "1b5b44"},    % ArrowLeft
-                       {sleep, 1500},
+                       {expect, "tick 30 "},
                        {send, "1b"}],       % Escape
                       15),
     %% the frames that show the board, however many the game drew between

@@ -50,9 +50,11 @@ manager() ->
 systemd_stops() ->
     with_unit([], fun(Unit, Ended) ->
                       {0, _} = systemctl("start " ++ Unit),
-                      ok = eventually(fun() -> lists:member(<<"started">>, journal(Unit)) end),
-                      ok = eventually(fun() -> faults(journal(Unit)) =/= [] end),
-                      [Fault] = faults(journal(Unit)),
+                      Lines = journal(Unit, fun(Lines) ->
+                                                lists:member(<<"started">>, Lines)
+                                                    andalso faults(Lines) =/= []
+                                            end),
+                      [Fault] = faults(Lines),
                       ?assertMatch({match, _},
                                    re:run(Fault, "^Service\\.serve:[0-9]+ faulted: on purpose$")),
                       ?assertEqual(<<"active">>, shown(Unit, "ActiveState")),
@@ -68,7 +70,7 @@ systemd_restarts() ->
     with_unit(["once", Marker],
               fun(Unit, Ended) ->
                   {0, _} = systemctl("start " ++ Unit),
-                  ok = eventually(fun() -> lists:member(<<"started">>, journal(Unit)) end),
+                  _ = journal(Unit, fun(Lines) -> lists:member(<<"started">>, Lines) end),
                   ?assertEqual(<<"1">>, shown(Unit, "NRestarts")),
                   ?assertEqual(<<"active">>, shown(Unit, "ActiveState")),
                   {0, _} = systemctl("stop " ++ Unit),
@@ -126,10 +128,11 @@ shown(Unit, Property) ->
     string:trim(Value).
 
 %% What the unit's runs have written, a line each, as the journal holds it
-%% without the journal's own stamp.
-journal(Unit) ->
-    {0, Output} = sh("journalctl --user --unit " ++ Unit ++ " --output cat --no-pager"),
-    binary:split(Output, <<"\n">>, [global]).
+%% without the journal's own stamp, once Test holds of the lines: the
+%% journal is followed as it is written.
+journal(Unit, Test) ->
+    followed("journalctl --user --unit " ++ Unit ++ " --output cat --no-pager --follow"
+             " --lines all", Test).
 
 %%
 %% launchd. Written with the unit and not yet run: the release of MVP
@@ -143,15 +146,15 @@ journal(Unit) ->
 %% well before launchd would kill it
 launchd_stops() ->
     with_agent([], fun(Service, Out, Err) ->
-                       ok = eventually(fun() -> lists:member(<<"started">>, lines(Out)) end),
-                       ok = eventually(fun() -> faults(lines(Err)) =/= [] end),
-                       [Fault] = faults(lines(Err)),
+                       _ = lines(Out, fun(Lines) -> lists:member(<<"started">>, Lines) end),
+                       Errors = lines(Err, fun(Lines) -> faults(Lines) =/= [] end),
+                       [Fault] = faults(Errors),
                        Stamped = "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z"
                                  " Service\\.serve:[0-9]+ faulted: on purpose$",
                        ?assertMatch({match, _}, re:run(Fault, Stamped)),
                        Pid = agent_pid(Service),
                        {0, _} = sh("launchctl bootout " ++ Service),
-                       ?assertEqual(ok, eventually(fun() -> not is_running(Pid) end, 50))
+                       ?assertEqual(gone, gone(Pid))
                    end).
 
 %% report Appendix E.23, §11.8: a program that ends with `Os.exit(1)` is
@@ -160,11 +163,11 @@ launchd_restarts() ->
     Marker = filename:absname(scratch() ++ "/marker"),
     with_agent(["once", Marker],
                fun(Service, Out, _Err) ->
-                   ok = eventually(fun() -> lists:member(<<"started">>, lines(Out)) end),
+                   _ = lines(Out, fun(Lines) -> lists:member(<<"started">>, Lines) end),
                    ?assert(filelib:is_regular(Marker)),
                    Pid = agent_pid(Service),
                    {0, _} = sh("launchctl bootout " ++ Service),
-                   ?assertEqual(ok, eventually(fun() -> not is_running(Pid) end, 50))
+                   ?assertEqual(gone, gone(Pid))
                end).
 
 %% Runs Check with an agent of this user that runs the program with
@@ -236,15 +239,27 @@ agent_pid(Service) ->
     {match, [Pid]} = re:run(Printed, "\\bpid = ([0-9]+)", [{capture, all_but_first, list}]),
     Pid.
 
-is_running(Pid) ->
-    {Status, _} = sh("sh -c 'kill -0 " ++ Pid ++ "'"),
-    Status =:= 0.
+%% Whether the process Pid has ended within ten seconds, which bound a
+%% failure. Nothing tells this process of another program's end, so the
+%% host is asked again at once each time, each ask a program of its own.
+gone(Pid) ->
+    asked(Pid, erlang:monotonic_time(millisecond) + 10000).
 
-lines(File) ->
-    case file:read_file(File) of
-        {ok, Text} -> binary:split(Text, <<"\n">>, [global]);
-        {error, enoent} -> []
+asked(Pid, Deadline) ->
+    case sh("sh -c 'kill -0 " ++ Pid ++ "'") of
+        {0, _} ->
+            case erlang:monotonic_time(millisecond) < Deadline of
+                true -> asked(Pid, Deadline);
+                false -> alive
+            end;
+        _ ->
+            gone
     end.
+
+%% The lines of File, which launchd writes a stream to, once Test holds of
+%% them: the file is followed as it is written, from before it exists.
+lines(File, Test) ->
+    followed("tail -n +1 -F " ++ File ++ " 2>/dev/null", Test).
 
 %%
 %% Both
@@ -261,20 +276,30 @@ scratch() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
-%% Asks ten times a second until the answer is yes, for ten seconds, or for
-%% Tries times.
-eventually(Ask) ->
-    eventually(Ask, 100).
+%% The lines a command writes as it follows something, once Test holds of
+%% them; ten seconds bound a failure. The command is ended then.
+followed(Command, Test) ->
+    Follower = open_port({spawn, Command}, [binary, stream, exit_status]),
+    {os_pid, OsPid} = erlang:port_info(Follower, os_pid),
+    try
+        watched(Follower, Test, <<>>)
+    after
+        _ = os:cmd("kill " ++ integer_to_list(OsPid)),
+        try port_close(Follower) catch error:badarg -> true end
+    end.
 
-eventually(Ask, Tries) ->
-    case Ask() of
+watched(Follower, Test, Said) ->
+    Lines = binary:split(Said, <<"\n">>, [global]),
+    case Test(Lines) of
         true ->
-            ok;
-        false when Tries > 0 ->
-            timer:sleep(100),
-            eventually(Ask, Tries - 1);
+            Lines;
         false ->
-            timeout
+            receive
+                {Follower, {data, Bytes}} -> watched(Follower, Test, <<Said/binary, Bytes/binary>>);
+                {Follower, {exit_status, Status}} -> erlang:error({follower_ended, Status, Said})
+            after 10000 ->
+                erlang:error({not_seen, Said})
+            end
     end.
 
 sh(Command) ->

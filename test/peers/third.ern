@@ -3,7 +3,7 @@
 // other slot the address of a process of its own, a node the desk does not
 // list.
 
-export fn main() : Unit with Never = {
+export fn main() : Unit with Unit = {
     let echo = spawn(fn() : Unit with Int = echoes());
     send(Shared.found(Counter.echoSlot), Slot.Put(echo));
     let counter = Slot.take(Shared.found(Counter.counterSlot));
@@ -20,7 +20,8 @@ fn echoes() : Unit with Int =
         }
     }
 
-fn wait() : Unit with Never =
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn wait() : Unit with Unit =
     receive {
-        after 60000 -> wait()
+        _ -> wait()
     }

@@ -15,7 +15,7 @@ fn count(total : Int) : Unit with Counter.Msg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit with Unit = {
     Io.println("the store's peers: " <> Io.show(Shared.listed()));
     Peer.offer(Counter.key, counter);
     Peer.offer(Counter.adder, via(counter, fn(n) = Counter.Add(n)));
@@ -42,9 +42,10 @@ export fn main() : Unit with Never = {
     wait()
 }
 
-fn wait() : Unit with Never =
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn wait() : Unit with Unit =
     receive {
-        after 60000 -> wait()
+        _ -> wait()
     }
 
 fn echoes() : Unit with Counter.EchoMsg =

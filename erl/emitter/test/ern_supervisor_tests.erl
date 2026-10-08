@@ -78,9 +78,9 @@ rest_for_one_restarts_later_children_test() ->
 
 %% Appendix E.22: RestForOne reads the order the children were spawned in,
 %% whatever order they joined in: `a`, spawned first, joins last, once main
-%% has had `b` and `c` answer, and its fault still restarts `b` and `c`. A regression test: the order read was
-%% the order of joins, which the scheduler decides, and a race of it failed
-%% examples/services.ern
+%% has had `b` and `c` answer, and its fault still restarts `b` and `c`. A
+%% regression test: the order read was the order of joins, which the
+%% scheduler decides, and a race of it failed examples/services.ern
 rest_for_one_reads_the_order_of_spawns_test() ->
     {ok, Output} = ern_emitter_tests:run(
         ["type Msg = Ask(reply : Reply(Int)) | Boom | Go\n"

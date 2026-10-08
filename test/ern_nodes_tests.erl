@@ -82,22 +82,28 @@ program(Root) ->
 foreign fn connect(node : Foreign.Term) : Bool with m = \"net_kernel:connect_node/1\"
 foreign fn frame(node : Foreign.Term) : Unit with m = \"ern_nodes_frame:send/1\"
 
-export fn main() : Unit with Never =
+export fn main() : Unit with Unit =
     match Os.arguments {
         [\"connect\", peer] -> Io.println(\"connect: \" <> Io.show(connect(Erl.atom(peer))))
       | [\"frame\", peer] -> {
             Io.println(\"connect: \" <> Io.show(connect(Erl.atom(peer))));
             frame(Erl.atom(peer));
-            wait(2000)
+            // until the test, which has seen the connection end, says so
+            let _ = Io.readLine();
+            Unit
         }
       | [\"hold\", peer] -> {
             Io.println(\"connect: \" <> Io.show(connect(Erl.atom(peer))));
-            wait(60000)
+            held()
         }
-      | _ -> wait(60000)
+      | _ -> {
+            Io.println(\"waiting\");
+            held()
+        }
     }
 
-fn wait(ms : Int) : Unit with Never = receive { after ms -> Unit }
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn held() : Unit with Unit = receive { _ -> held() }
 ">>),
     ok = file:write_file(filename:join(Root, "ern_nodes_frame.erl"), <<"
 -module(ern_nodes_frame).
@@ -111,16 +117,20 @@ send(Node) ->
     0 = ern_cli:ern(["build", Root], group_leader()),
     filename:join(Root, "node.erc").
 
-%% A node started in the background, its standard output and standard error
-%% in files beside its directory; answers what waits for its end.
+%% A node started in the background; answers what waits for its end.
 start(Dir, Program, Arguments) ->
     {_Port, Wait} = started(Dir, Program, Arguments),
     Wait.
 
-%% The same, with the port whose writes are the node's standard input.
+%% The same, with the port whose writes are the node's standard input. Its
+%% standard output and standard error each go through a pipe that `tee`
+%% reads, which writes the stream to a file beside the node's directory and
+%% hands it to the node's watcher, so that a test waits on a line written
+%% rather than reading the file again.
 started(Dir, Program, Arguments) ->
-    Out = Dir ++ ".out",
-    Err = Dir ++ ".err",
+    Watcher = watcher(Dir),
+    [Out, Err] = [piped(Watcher, Stream, Dir ++ Suffix)
+                  || {Stream, Suffix} <- [{out, ".out"}, {err, ".err"}]],
     Command = lists:flatten([?ERN, " run --config-dir ", Dir,
                              [[" --load-path ", Library] || Library <- ?LIBRARIES], " ", Program,
                              [[" ", Argument] || Argument <- Arguments],
@@ -130,52 +140,97 @@ started(Dir, Program, Arguments) ->
                receive {Port, {exit_status, Status}} -> Status after 30000 -> timeout end
            end}.
 
-%% Until the loopback's port answers, as a node's listener does once its
-%% bindings have their values.
-listening(Port) ->
-    listening(Port, inet, 200).
+%% The pipe a stream is written to, and its reader, which writes what comes
+%% to File and tells Watcher of it, and of the stream's end.
+piped(Watcher, Stream, File) ->
+    Pipe = File ++ ".pipe",
+    _ = file:delete(Pipe),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    _ = spawn(fun() ->
+                  Reader = open_port({spawn_executable, "/bin/sh"},
+                                     [{args, ["-c", "exec tee " ++ File ++ " < " ++ Pipe]},
+                                      binary, exit_status]),
+                  teed(Reader, Watcher, Stream)
+              end),
+    Pipe.
 
-listening(Port, Family, Tries) ->
-    Address = case Family of inet -> {127, 0, 0, 1}; inet6 -> {0, 0, 0, 0, 0, 0, 0, 1} end,
-    case gen_tcp:connect(Address, Port, [Family], 100) of
-        {ok, Socket} -> gen_tcp:close(Socket);
-        {error, _} when Tries > 0 -> timer:sleep(100), listening(Port, Family, Tries - 1)
+teed(Reader, Watcher, Stream) ->
+    receive
+        {Reader, {data, Bytes}} -> Watcher ! {Stream, Bytes}, teed(Reader, Watcher, Stream);
+        {Reader, {exit_status, _}} -> Watcher ! {Stream, ended}
     end.
 
-%% Until the node's standard error holds Part.
+%% A node's watcher, registered under its directory's name: what each of
+%% its streams has said, and whether it has ended, and who waits for what.
+%% A node started again from its directory has a watcher of its own.
+watcher(Dir) ->
+    Name = watcher_name(Dir),
+    case whereis(Name) of
+        undefined -> ok;
+        Earlier -> unregister(Name), exit(Earlier, kill)
+    end,
+    Watcher = spawn(fun() -> watching(#{out => {<<>>, open}, err => {<<>>, open}}, []) end),
+    true = register(Name, Watcher),
+    Watcher.
+
+watcher_name(Dir) ->
+    list_to_atom("ern_nodes_tests " ++ Dir).
+
+watching(Streams, Waiting) ->
+    receive
+        {Stream, ended} ->
+            {Text, _} = maps:get(Stream, Streams),
+            told(Streams#{Stream := {Text, ended}}, Waiting);
+        {Stream, Bytes} when is_binary(Bytes) ->
+            {Text, State} = maps:get(Stream, Streams),
+            told(Streams#{Stream := {<<Text/binary, Bytes/binary>>, State}}, Waiting);
+        {waiting, _, _, _} = Wait ->
+            told(Streams, [Wait | Waiting]);
+        {said, _} = Wait ->
+            told(Streams, [Wait | Waiting])
+    end.
+
+%% The waits answered, the rest kept: a part once its stream holds it or
+%% has ended without it, and the whole once both streams have ended.
+told(Streams, Waiting) ->
+    watching(Streams, [Wait || Wait <- Waiting, not answered(Streams, Wait)]).
+
+answered(Streams, {waiting, Stream, Part, From}) ->
+    case maps:get(Stream, Streams) of
+        {Text, State} ->
+            case {binary:match(Text, Part), State} of
+                {nomatch, open} -> false;
+                {Found, _} -> From ! {seen, Stream, Part, Found =/= nomatch}, true
+            end
+    end;
+answered(#{out := {Out, ended}, err := {Err, ended}}, {said, From}) ->
+    From ! {said, Out, Err},
+    true;
+answered(_, {said, _}) ->
+    false.
+
+%% Until the node's standard error holds Part; 30 seconds, or Ms where a
+%% wait outlasts them, bound a failure.
 says(Dir, Part) ->
-    says(Dir, Part, 200).
+    says(Dir, Part, 30000).
 
-says(Dir, Part, Tries) ->
-    case file:read_file(Dir ++ ".err") of
-        {ok, Err} when Tries > 0 ->
-            case string:find(Err, Part) of
-                nomatch -> timer:sleep(100), says(Dir, Part, Tries - 1);
-                _ -> ok
-            end;
-        _ when Tries > 0 ->
-            timer:sleep(100), says(Dir, Part, Tries - 1)
-    end.
+says(Dir, Part, Ms) ->
+    seen(Dir, err, Part, Ms).
 
 %% Until the node's standard output holds Part.
 prints(Dir, Part) ->
-    prints(Dir, Part, 300).
+    prints(Dir, Part, 30000).
 
-prints(Dir, Part, Tries) ->
-    Out = case file:read_file(Dir ++ ".out") of
-              {ok, Bytes} -> Bytes;
-              {error, _} -> <<>>
-          end,
-    case string:find(Out, Part) of
-        nomatch when Tries > 0 -> timer:sleep(100), prints(Dir, Part, Tries - 1);
-        _ -> ok
-    end.
+prints(Dir, Part, Ms) ->
+    seen(Dir, out, Part, Ms).
 
-%% Until the node has written its ernest.pid, which it does as it starts.
-running(Dir, Tries) ->
-    case filelib:is_file(filename:join(Dir, "ernest.pid")) of
-        true -> ok;
-        false when Tries > 0 -> timer:sleep(100), running(Dir, Tries - 1)
+seen(Dir, Stream, Part, Ms) ->
+    Bytes = unicode:characters_to_binary(Part),
+    watcher_name(Dir) ! {waiting, Stream, Bytes, self()},
+    receive
+        {seen, Stream, Bytes, Seen} -> ?assert(Seen)
+    after Ms ->
+        erlang:error({not_said, Dir, Part})
     end.
 
 %% A waiting node ended by termination, which ends it with 128 and the
@@ -185,10 +240,14 @@ stop(Dir, Wait) ->
     _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(143, Wait()).
 
+%% What a node that has ended wrote, once both its streams have ended.
 said(Dir) ->
-    {ok, Out} = file:read_file(Dir ++ ".out"),
-    {ok, Err} = file:read_file(Dir ++ ".err"),
-    {binary_to_list(Out), binary_to_list(Err)}.
+    watcher_name(Dir) ! {said, self()},
+    receive
+        {said, Out, Err} -> {binary_to_list(Out), binary_to_list(Err)}
+    after 30000 ->
+        erlang:error({still_writing, Dir})
+    end.
 
 has(Text, Part) ->
     ?assertNotEqual(nomatch, string:find(Text, Part)).
@@ -209,7 +268,7 @@ connect() ->
     lists(B, [{"a", A, PortA}]),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
-    listening(PortB),
+    prints(B, "waiting"),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
     says(B, "the peer a was lost: it closed"),
@@ -238,7 +297,7 @@ unlisted() ->
     lists(A, [{"b", B, PortB}]),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
-    listening(PortB),
+    prints(B, "waiting"),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
     says(B, "was refused: no peer has its key"),
@@ -269,7 +328,7 @@ other_build() ->
     ok = file:write_file(filename:join(Other, "extra.ern"), "export fn f() : Int = 1\n"),
     Changed = program(Other),
     WaitB = start(B, Program, []),
-    listening(PortB),
+    prints(B, "waiting"),
     WaitA = start(A, Changed, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
     says(B, "it runs another build"),
@@ -302,7 +361,7 @@ replaced() ->
     edit(Copy, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
-    listening(PortB),
+    prints(B, "waiting"),
     WaitA = start(A, Program, ["hold", name(B)]),
     says(A, "the peer b connected"),
     WaitCopy = start(Copy, Program, ["hold", name(B)]),
@@ -328,7 +387,7 @@ listening() ->
     Program = program(filename:join(Base, "build")),
     WaitZ = start(Z, Program, []),
     WaitB = start(B, Program, []),
-    listening(PortB),
+    prints(B, "waiting"),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
     says(Z, "listening on port"),
@@ -360,10 +419,12 @@ faulty_frame() ->
     lists(B, [{"a", A, PortA}]),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
-    listening(PortB),
-    WaitA = start(A, Program, ["frame", name(B)]),
-    ?assertEqual(0, WaitA()),
+    prints(B, "waiting"),
+    {InputA, WaitA} = started(A, Program, ["frame", name(B)]),
     says(B, "its connection was ended"),
+    says(A, "the peer b was lost: it closed"),
+    true = port_command(InputA, "ended\n"),
+    ?assertEqual(0, WaitA()),
     stop(B, WaitB),
     {_, ErrA} = said(A),
     {_, ErrB} = said(B),
@@ -398,7 +459,7 @@ ipv6() ->
             end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
-    listening(PortB, inet6, 200),
+    prints(B, "waiting"),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
     says(B, "the peer a connected"),
@@ -461,13 +522,17 @@ no_deadlock() ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "waits.ern"),
-                         "export fn main() : Unit with Int = receive { n -> Unit }\n"),
+                         "export fn main() : Unit with Int = {\n"
+                         "    Io.println(\"waiting\");\n"
+                         "    receive { n -> Unit }\n"
+                         "}\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
     Program = filename:join(Root, "waits.erc"),
     {Micros, Plain} = timer:tc(fun() -> os:cmd(?ERN ++ " run " ++ Program ++ " 2>&1") end),
     has(Plain, "deadlock"),
     Wait = start(A, Program, []),
-    running(A, 200),
+    prints(A, "waiting"),
+    %% an absence: three times what the plain run took to find its deadlock
     timer:sleep(3 * Micros div 1000),
     {ok, Pid} = file:read_file(filename:join(A, "ernest.pid")),
     _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
@@ -860,9 +925,9 @@ silence() ->
     prints(Desk, "now stop the store"),
     _ = os:cmd("kill -STOP " ++ pid(Store)),
     true = port_command(DeskPort, "go\n"),
-    prints(Desk, "now let the store run", 1000),
+    prints(Desk, "now let the store run", 100000),
     _ = os:cmd("kill -CONT " ++ pid(Store)),
-    says(Store, "the peer desk was lost", 300),
+    says(Store, "the peer desk was lost", 30000),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
     stop(Store, WaitStore),
@@ -997,7 +1062,7 @@ parted(ToStore, FromStore, DeskSays) ->
     prints(Desk, "now stop the store"),
     Proxy ! {drop, ToStore, FromStore},
     true = port_command(DeskPort, "go\n"),
-    prints(Desk, "now let the store run", 1000),
+    prints(Desk, "now let the store run", 100000),
     Proxy ! heal,
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
