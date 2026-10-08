@@ -423,9 +423,9 @@ hidden_prelude_name_test() ->
         ern_typecheck:check_string(['M'], "type Outcome = Unknown(Int)\nfn f() : Int = \"x\"\n"),
     ?assertEqual([], [Label || {_, Label} <- Others, string:find(Label, "Prelude.") =/= nomatch]).
 
-%% report §6.2, §8.3: a spawn on a peer is the module Peer's, which MVP 3.0
-%% builds; until then a name of it is refused, naming the milestone, and a
-%% module of the program's named Peer is the program's
+%% report §6.2, §8.3, Appendix E.27: a spawn on a peer is the module Peer's,
+%% which MVP 3.0's item 8 builds; until then a name of it is refused,
+%% naming the milestone, and its namespace is the standard library's
 peer_module_refused_test() ->
     ?assertEqual("Peer.spawn is not here yet: the module Peer, which acts on peers,"
                  " arrives in MVP 3.0",
@@ -433,6 +433,243 @@ peer_module_refused_test() ->
                          "    let _ = Peer.spawn(\"foo\", fn() : Unit with Never = Unit);\n"
                          "    Unit\n"
                          "}\n")).
+
+%%
+%% What crosses to another node (report §3.11)
+%%
+
+%% A stand-in for the module Peer of report Appendix E.27, which MVP 3.0's
+%% item 8 writes: the checker's rules of §3.11 are tested against its
+%% declarations before the module is built, and against the module itself
+%% once it is.
+peer_interface() ->
+    Text = "export abstract type Key(m) = Key(name : String, text : String)\n"
+           "export type Failure = NotListed | Unreachable | Refused(String) | Timeout"
+           " | NotOffered | OtherType | NotLoaded\n"
+           "export foreign fn key(name : String) : Key(m) = \"ern_peer:key/1\"\n"
+           "export foreign fn offer(key : Key(m), address : Address(m)) : Unit with n ="
+           " \"ern_peer:offer/2\"\n"
+           "export foreign fn find(key : Key(m), ms : Int) : Either(Failure, Address(m)) with n ="
+           " \"ern_peer:find/2\"\n"
+           "export foreign fn spawn(name : String, f : () -> Unit with m, ms : Int)"
+           " : Either(Failure, Address(m)) with n = \"ern_peer:spawn/3\"\n"
+           "export foreign fn spawnMonitored(name : String, f : () -> Unit with m,"
+           " wrap : (Down) -> n, ms : Int) : Either(Failure, Address(m)) with n ="
+           " \"ern_peer:spawn_monitored/4\"\n"
+           "export foreign fn nodes() : List(String) with n = \"ern_peer:nodes/0\"\n",
+    {ok, _, Interface, _} = ern_typecheck:check_string(['Peer'], Text),
+    Interface.
+
+%% A module checked with Peer's interface given, and its first refusal.
+with_peer(Text) ->
+    {ok, Declarations} = ern_parser:parse_string(Text),
+    ern_typecheck:check(['M'], Declarations, [peer_interface()]).
+
+peer_ok(Text) ->
+    case with_peer(Text) of
+        {ok, _, _, _} -> ok;
+        {error, [#diagnostic{message = Message} | _]} -> {error, Message}
+    end.
+
+peer_refusal(Text) ->
+    {error, [#diagnostic{message = Message} | _]} = with_peer(Text),
+    Message.
+
+%% A function body that spawns Function on the peer `p` and drops what
+%% the spawn answers, after the given statements.
+spawning(Statements, Function) ->
+    "    " ++ Statements ++ "let _ = Peer.spawn(\"p\", " ++ Function ++ ", 5000);\n"
+    "    Unit\n"
+    "}\n".
+
+%% report §3.11, §3.8, Appendix E.18, E.23: a type is bound to its node
+%% where it holds a function, a foreign type, a resource, or an address or
+%% a reply whose message type is bound; the prelude's own types, which
+%% the checker keeps as foreign ones, cross, and so do a declared type's
+%% values, an address and a reply of an unbound type, and a Process
+bound_type_test() ->
+    Env = ern_typecheck:prelude_env(),
+    Binds = fun(Type) -> ern_bound:binds(Type, Env) end,
+    Int = {tcon, ['Int'], []},
+    Function = {tfn, [Int], pure, Int},
+    ?assertEqual(false, Binds(Int)),
+    ?assertEqual(false, Binds({tcon, ['List'], [{tcon, ['String'], []}]})),
+    ?assertEqual(false, Binds({tcon, ['Address'], [Int]})),
+    ?assertEqual(false, Binds({tcon, ['Reply'], [Int]})),
+    ?assertEqual(false, Binds({tcon, ['Process'], []})),
+    ?assertEqual(false, Binds({tcon, ['Never'], []})),
+    ?assertEqual(false, Binds({tcon, ['Optional'], [Int]})),
+    ?assertEqual(false, Binds({tcon, ['Down'], []})),
+    ?assertEqual("a function", Binds(Function)),
+    ?assertEqual("a function", Binds({tcon, ['Optional'], [Function]})),
+    ?assertEqual("a function", Binds({ttuple, [Int, Function]})),
+    ?assertEqual("a value of the foreign type Foreign.Term",
+                 Binds({tcon, ['Map'], [Int, {tcon, ['Foreign', 'Term'], []}]})),
+    ?assertEqual("the address of a socket",
+                 Binds({tcon, ['Address'], [{tcon, ['Tcp', 'SocketMsg'], []}]})),
+    ?assertEqual("the address of a listener",
+                 Binds({tcon, ['Address'], [{tcon, ['Tcp', 'ListenerMsg'], []}]})),
+    ?assertEqual("the address of a running program",
+                 Binds({tcon, ['Address'], [{tcon, ['Os', 'ProgramMsg'], []}]})),
+    ?assertEqual("an address whose message type holds a function",
+                 Binds({tcon, ['Address'], [Function]})),
+    ?assertEqual("a reply whose answer holds the address of a socket",
+                 Binds({tcon, ['Reply'], [{tcon, ['Address'],
+                                           [{tcon, ['Tcp', 'SocketMsg'], []}]}]})),
+    %% an abstract type's private fields, which its interface carries
+    ?assertEqual("an address whose message type holds a function",
+                 Binds({tcon, ['Address'], [{tcon, ['Supervisor', 'Msg'], []}]})).
+
+%% report §3.11, §3.9: a declared type is read through its fields, a
+%% recursive one once, with its arguments in place of its parameters
+bound_declared_type_test() ->
+    Source = "export type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))\n"
+             "export type Job = Job(run : () -> Unit with Never)\n",
+    ?assertEqual(ok, peer_ok(Source ++ "export let key : Peer.Key(Tree(Int)) ="
+                                        " Peer.key(\"tree\")\n")),
+    ?assertEqual("Peer.key makes a key of Tree(Job), which is bound to its node, since it"
+                 " holds a function",
+                 peer_refusal(Source ++ "export let key : Peer.Key(Tree(Job)) ="
+                                        " Peer.key(\"tree\")\n")).
+
+%% report §3.11, §8.7, Appendix E.27: a key is made at a message type known
+%% whole where it is written, which crosses, and holds the type's text as
+%% the compiler prints it with every name qualified, the module's own
+%% among them
+key_test() ->
+    Source = "export type Msg = Add(Int) | Get(reply : Reply(Int))\n"
+             "export type Box(a) = Box(a)\n",
+    {ok, Typed, _, _} =
+        with_peer(Source ++ "export let key : Peer.Key(Msg) = Peer.key(\"counter\")\n"
+                            "export let boxes : Peer.Key(Box(Optional(Int))) ="
+                            " Peer.key(\"boxes\")\n"),
+    ?assertEqual([[#type_text{text = "M.Msg"}], [#type_text{text = "M.Box(Optional(Int))"}]],
+                 [Supplies || #let_declaration{body = #e_call{callee = #e_var{supplies = Supplies}}}
+                                  <- Typed]),
+    ?assertEqual("Peer.key makes its key at a message type known whole, and here it is a",
+                 peer_refusal("export fn keyOf(name : String) : Peer.Key(a) = Peer.key(name)\n")),
+    ?assertEqual("Peer.key makes a key of (Int) -> Int, which is bound to its node, since it"
+                 " holds a function",
+                 peer_refusal("export let key : Peer.Key((Int) -> Int) = Peer.key(\"f\")\n")),
+    ?assertEqual("Peer.key makes a key of Address(Tcp.SocketMsg), which is bound to its node,"
+                 " since it holds the address of a socket",
+                 peer_refusal("export let key : Peer.Key(Address(Tcp.SocketMsg)) ="
+                              " Peer.key(\"s\")\n")).
+
+%% report §8.7, Appendix E.27: an offer is accepted only where the key and
+%% the address have one message type
+offer_test() ->
+    Source = "export type Msg = Add(Int)\n"
+             "export let key : Peer.Key(Msg) = Peer.key(\"counter\")\n",
+    ?assertEqual(ok, peer_ok(Source ++ "fn serve(counter : Address(Msg)) : Unit with m ="
+                                       " Peer.offer(key, counter)\n")),
+    ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Int)) : Unit with m ="
+                                               " Peer.offer(key, counter)\n")).
+
+%% report §3.11: the function a spawn on a peer starts is a lambda written
+%% in the definition, at the spawn or bound by a `let` the spawn names, or
+%% a declaration's name, and what the lambda captures crosses
+spawn_function_test() ->
+    Head = "fn work(x : Int) : Unit with Never = Unit\n"
+           "fn f(x : Int) : Unit with m = {\n",
+    ?assertEqual(ok, peer_ok(Head ++ spawning("", "fn() : Unit with Never = work(x)"))),
+    ?assertEqual(ok, peer_ok(Head ++ spawning("let job = fn() : Unit with Never = work(x);\n    ",
+                                              "job"))),
+    ?assertEqual(ok, peer_ok("fn run() : Unit with Never = Unit\n"
+                             "fn f() : Unit with m = {\n" ++ spawning("", "run"))),
+    ?assertEqual(ok, peer_ok("type Msg = Died(Down)\n"
+                             "fn run() : Unit with Never = Unit\n"
+                             "fn f() : Unit with Msg = {\n"
+                             "    let _ = Peer.spawnMonitored(\"p\", run, Died, 5000);\n"
+                             "    Unit\n"
+                             "}\n")),
+    %% a function that came as a value: a parameter, a top-level `let`, a
+    %% local fn, a call's result, and a `let` of a lambda that a later
+    %% binding of the name hides
+    ?assertEqual("Peer.spawn starts job, a function that came as a value, whose captures the"
+                 " compiler does not see",
+                 peer_refusal("fn f(job : () -> Unit with Never) : Unit with m = {\n"
+                              ++ spawning("", "job"))),
+    ?assertEqual("Peer.spawn starts run, a top-level `let`, whose value may hold captures the"
+                 " compiler does not see",
+                 peer_refusal("let run : () -> Unit with Never = fn() = Unit\n"
+                              "fn f() : Unit with m = {\n" ++ spawning("", "run"))),
+    ?assertEqual("Peer.spawn starts run, a function that came as a value, whose captures the"
+                 " compiler does not see",
+                 peer_refusal("fn f(x : Int) : Unit with m = {\n"
+                              ++ spawning("fn run() : Unit with Never = { let _ = x; Unit };\n"
+                                          "    ", "run"))),
+    ?assertEqual("Peer.spawn starts a function written where the compiler sees what it"
+                 " captures: a declaration's name, or a lambda written in this definition",
+                 peer_refusal("fn make() : () -> Unit with Never = fn() = Unit\n"
+                              "fn f() : Unit with m = {\n" ++ spawning("", "make()"))),
+    ?assertEqual("Peer.spawn starts job, a function that came as a value, whose captures the"
+                 " compiler does not see",
+                 peer_refusal("fn f(jobs : List(() -> Unit with Never)) : Unit with m = {\n"
+                              ++ spawning("let job = fn() : Unit with Never = Unit;\n"
+                                          "    let _ = match jobs { [] -> Unit"
+                                          " | job :: _ -> { let _ = Peer.spawn(\"p\", job,"
+                                          " 5000); Unit } };\n    ", "job"))),
+    %% Peer.spawn is called where it is named
+    ?assertEqual("Peer.spawn is called where it is named, so that the compiler sees the function"
+                 " it starts",
+                 peer_refusal("fn f() : Unit = { let s = Peer.spawn; Unit }\n")).
+
+%% report §3.11, §3.9: what the lambda a spawn on a peer starts captures is
+%% neither bound nor of a type that holds a type variable, and a name its
+%% body binds itself, or a top-level name it writes, is no capture
+spawn_captures_test() ->
+    ?assertEqual("the function Peer.spawn starts captures g, whose type (Int) -> Int with Never"
+                 " is bound to its node, since it holds a function",
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
+                              ++ spawning("", "fn() : Unit with Never = { let _ = g(1); Unit }"))),
+    ?assertEqual("the function Peer.spawn starts captures socket, whose type"
+                 " Address(Tcp.SocketMsg) is bound to its node, since it holds the address of a"
+                 " socket",
+                 peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit with m = {\n"
+                              ++ spawning("", "fn() : Unit with Never = { let _ = socket; Unit"
+                                              " }"))),
+    ?assertEqual("the function Peer.spawn starts captures x, whose type a! holds a type"
+                 " variable",
+                 peer_refusal("fn f(x : a) : Unit with m = {\n"
+                              ++ spawning("", "fn() : Unit with Never = { let _ = [x]; Unit }"))),
+    %% a local fn captured by the lambda is a function
+    ?assertEqual("the function Peer.spawn starts captures helper, whose type () -> Unit with"
+                 " Never is bound to its node, since it holds a function",
+                 peer_refusal("fn f() : Unit with m = {\n"
+                              ++ spawning("fn helper() : Unit with Never = Unit;\n    ",
+                                          "fn() : Unit with Never = helper()"))),
+    ?assertEqual(ok, peer_ok("fn work(x : Int) : Unit with Never = Unit\n"
+                             "fn f(n : Int) : Unit with m = {\n"
+                             ++ spawning("", "fn() : Unit with Never = {"
+                                             " let local = fn(y : Int) : Int = y + n;"
+                                             " work(local(1)) }"))).
+
+%% report §3.11: the process a spawn on a peer starts has a mailbox type
+%% known whole where it is written, which crosses
+spawn_mailbox_test() ->
+    ?assertEqual("Peer.spawn starts a process whose mailbox type a is not known whole here",
+                 peer_refusal("fn f() : Unit with m = {\n" ++ spawning("", "fn() = Unit"))),
+    ?assertEqual("Peer.spawn starts a process whose mailbox type Msg is bound to its node,"
+                 " since it holds a function",
+                 peer_refusal("type Msg = Up(f : (Int) -> Int)\n"
+                              "fn loop() : Unit with Msg = receive { Up(f = _) -> loop() }\n"
+                              "fn f() : Unit with m = {\n" ++ spawning("", "loop"))),
+    ?assertEqual(ok, peer_ok("type Msg = Add(Int)\n"
+                             "fn loop() : Unit with Msg = receive { Add(_) -> loop() }\n"
+                             "fn f() : Unit with m = {\n" ++ spawning("", "loop"))).
+
+%% report §3.10, §11.1: `==` on another module's abstract type whose fields
+%% name a private type reads the private type from the interface. A
+%% regression test: the checker stopped on it, and it does not cover the
+%% descriptor builder, which had read those types already
+equality_reads_private_types_test() ->
+    {ok, _, Interface, _} =
+        ern_typecheck:check_string(['A'], "export abstract type T = T(Inner)\n"
+                                          "type Inner = Inner(Int)\n"
+                                          "export fn make() : T = T(Inner(1))\n"),
+    {ok, Declarations} = ern_parser:parse_string("fn f(x : A.T, y : A.T) : Bool = x == y\n"),
+    ?assertMatch({ok, _, _, _}, ern_typecheck:check(['M'], Declarations, [Interface])).
 
 %% report §4.7, §3.10: a foreign function's type variable written `a=` in
 %% its parameters carries the equality constraint, as one a body compares

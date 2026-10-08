@@ -101,10 +101,12 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **MemberOf**: the type a member belongs to, `Stack` of `fn Stack.push` (§4.8), a declaration's `member_of`; of `a.compare` (§4.9), the type variable `a`. Not `Owner`, which is a resource's process.
 - **Member**: a type's member (§4.5), `compare`, `negate` or an operator; one a requirement names is a `#member{}`, and one a body writes an `#e_member{}`. Not `Method`, `Op`.
 - **Requirement**: §4.9's requirement, a `fn` declaration's `needs`, its `#member{}`s; the enclosing declarations' in force are the checker's `requirement`. Not `Needs`, `Bounds`, `Constraint`, which is §3.10's equality constraint.
-- **Supply**: what a requirement's member is supplied with at a use (§4.9), a `#known_member{}`, a `#required_member{}` or a `#shown_type{}`, a `#pending_member{}` until the definition ends; many are `supplies`. Not `Witness`, `Dictionary`, `Instance`.
+- **Supply**: what a requirement's member is supplied with at a use (§4.9), a `#known_member{}`, a `#required_member{}`, a `#shown_type{}` or a key's `#type_text{}`, a `#pending_member{}` until the definition ends; many are `supplies`. Not `Witness`, `Dictionary`, `Instance`.
 - **Derives**: §3.5's `derives compare`, a type declaration's `derives`.
 - **Restriction**: §3.9's inferred restriction; the three are `equality`, `process_only` and `not_reply_carrying`. Not `flags`, `add_flag`, `eq`, `no_reply`.
 - **Obligation**: §6.6's obligation. Not `Linear`.
+- **Bound**: §3.11's type bound to its node, and what binds it, which `ern_bound:binds` answers: a function, a foreign type, a resource, or an address or a reply of a bound type. Not `Local`, `Pinned`, `Sendable`.
+- **Capture**: a local a lambda's body names from around it (§6.6, §3.11), in the reply check and the bound check alike; many are `captures`. Not `Free`, `Closed`, `Env`.
 - **ResultType**: §4.5's result type, and "result type" in every message. Not `ret`, `Ret`, `RetT`, `R`, "return type".
 - **TypeVariable**: §3.9's type variable. A record's `vars` field is named for what it holds: a scheme's `quantified`, the type state's `variables`, the checker's `locals`.
 - **Descriptor**: a type's description at run time, in the emitter, the boundary and the runtime alike. Not `D`, `Desc`, `desc`; its tag for `Address(m)` is `address`, not `pid`.

@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-08.** [The Three Proposals Reviewed Before Anything Is Built](#the-three-proposals-reviewed-before-anything-is-built-2026-10-08). [The Coordinator's Section of the Report](#the-coordinators-section-of-the-report-2026-10-08). [The Report Rewritten for Peers](#the-report-rewritten-for-peers-2026-10-08).
+**2026-10-08.** [The Three Proposals Reviewed Before Anything Is Built](#the-three-proposals-reviewed-before-anything-is-built-2026-10-08). [The Coordinator's Section of the Report](#the-coordinators-section-of-the-report-2026-10-08). [The Report Rewritten for Peers](#the-report-rewritten-for-peers-2026-10-08). [The Bound Type in the Checker](#the-bound-type-in-the-checker-2026-10-08).
 
 **2026-10-07.** [The Peer Proposal Is MVP 3.0's Design](#the-peer-proposal-is-mvp-30s-design-2026-10-07). [A Binding of a Previous Version Is Forgotten](#a-binding-of-a-previous-version-is-forgotten-2026-10-07). [An Abstract Type's Private Fields Travel in Its Interface](#an-abstract-types-private-fields-travel-in-its-interface-2026-10-07). [The Deploy Is MVP 3.2, and the Milestones After It Renumbered](#the-deploy-is-mvp-32-and-the-milestones-after-it-renumbered-2026-10-07).
 
@@ -7641,6 +7641,22 @@ MVP 3.0's item 1: the report's sections that `mvp3.0.md`'s section 9 names rewri
 - **§6.10's example** of an `Upgrade` sent to another node now names the service and the new functions as top-level bindings and captures nothing bound, since a function is bound and a spawn whose captures are bound is refused.
 
 The guide's peer chapter still describes the design before the proposal, until item 10; `docs/development.md`'s table says what the toolchain refuses meanwhile.
+
+## The Bound Type in the Checker, 2026-10-08
+
+MVP 3.0's item 2: §3.11's bound type and its refusals in the checker, `erl/typer/src/ern_bound.erl`, with a key's supply beside `Foreign.from`'s. `nodes.md`'s section 12 argues the rule; what the building decided:
+
+- **The function a spawn on a peer starts is written where the checker sees it.** A function that arrives as a parameter, in a message or from a call carries its captures in no type, and the proposal's rule assumed a lambda. Decided with the user, by `nodes.md`'s section 12: a declaration's name or a lambda written in the definition, at the spawn or bound by a `let` the spawn names, as §6.6 reads a lambda and the name bound to it; a mark on function types was set aside by principles 2 and 5, and a check at run time because the types are gone. `Balancer` picks a place and the program spawns there, so the plan's item 9 and the proposal's placement paragraph changed.
+- **`Peer.spawn` is not taken as a value.** A call through a value would escape the check, so a use of the name other than as a callee is refused, with a help showing the call. The report was silent; §3.11 says it.
+- **A key's and a spawned mailbox's type are known whole where they are written.** A type variable left there could be made bound by a later instance: a generic loop spawned on a peer answers an address its caller could take at a mailbox type that holds a function. The key already required it; the spawn's mailbox now does too, and the help names the existing form for a process that never receives, `fn() : Unit with Never = ...`. The report was silent; §3.11 says it.
+- **A key's text qualifies every name.** The checker prints a module's own types unqualified, so a key written in `counter.ern` would have held `Msg` and one written elsewhere `Counter.Msg`, and a find between them would have answered `OtherType`. The text is printed with every name qualified, `Counter.Box(Int)`, and §8.7's example, which showed `Box(Int)`, says so.
+- **A resource is three message types.** A socket's, a listener's and a running program's addresses are bound by their message types, `Tcp.SocketMsg`, `Tcp.ListenerMsg` and `Os.ProgramMsg`, whose fields alone would let them cross; an `Ets.Table` is a foreign type, bound as one. The prelude's built-in types, which the checker keeps as foreign ones, are told apart from §3.8's foreign types by name.
+- **The check runs at the end of a top-level definition**, not at a local fn's, since a local fn's end leaves the types of what its lambdas capture from around it to the definition that encloses it.
+- **`Peer`'s namespace is the standard library's from here**, since Appendix E.27 names it: a program's module named `Peer` is refused as `Io`'s would be, so that the checks never apply to it. The checker's tests take a stand-in interface built from E.27's declarations until item 8 writes the module.
+- **A defect fixed:** `==` on another module's abstract type whose fields name a private type stopped the checker, which read the type's fields from the types in scope and not from the private types the interface carries (*An Abstract Type's Private Fields Travel in Its Interface*). The fields are now read as the descriptor builder reads them, and the bound walk shares the reading.
+- **`ern_ast:free_uses`** gives the free name nodes of an expression with what the checker set on them, and `free_names` is its names, so a capture's type is read off the node.
+
+A lambda that captures a reply is still refused at `Peer.spawn` by §6.6, which consumes one only as `spawn`'s function: a spawn on a peer may answer a failure and start nothing, and the reply would then be held by no one.
 
 ## Later
 

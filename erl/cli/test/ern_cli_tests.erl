@@ -949,18 +949,19 @@ prelude_namespace_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"takes the prelude namespace Prelude">>)).
 
-%% report §4.2: the refusal names whose namespace a file at the source root
-%% takes: `Address`, a prelude type with members, is the prelude's, `Io` and
-%% `Test` the standard library's. A regression test, written after the code; it does
-%% not cover a namespace that both take, such as `Int`, which is named as
-%% the prelude's.
+%% report §4.2, Appendix E.27: the refusal names whose namespace a file at
+%% the source root takes: `Address`, a prelude type with members, is the
+%% prelude's, `Io` and `Test` the standard library's, and `Peer` too, which
+%% Appendix E.27 names before MVP 3.0's item 8 writes its module. A
+%% regression test, written after the code; it does not cover a namespace
+%% that both take, such as `Int`, which is named as the prelude's.
 taken_namespace_names_owner_test() ->
     lists:foreach(
       fun(File) ->
           Dir = tmp(),
           write(Dir, "src/" ++ File, "export fn f() : Int = 1\n"),
           ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
-      end, ["address.ern", "io.ern", "test.ern"]),
+      end, ["address.ern", "io.ern", "test.ern", "peer.ern"]),
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _},
                  binary:match(Output, <<"address.ern takes the prelude namespace Address">>)),
@@ -968,6 +969,8 @@ taken_namespace_names_owner_test() ->
                  binary:match(Output, <<"io.ern takes the standard library namespace Io">>)),
     ?assertMatch({_, _},
                  binary:match(Output, <<"test.ern takes the standard library namespace Test">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"peer.ern takes the standard library namespace Peer">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"prelude namespace Io">>)),
     %% report §9.7: the prelude binds no system reference, so `Sys` is free
     Dir = tmp(),

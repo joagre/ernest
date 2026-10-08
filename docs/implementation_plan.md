@@ -63,7 +63,7 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | item 1 done 2026-10-08 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 and 2 done 2026-10-08 |
 | MVP 3.1 | code by its hash, and the standard library's `Code` | design reviewed 2026-10-08 |
 | MVP 3.2 | the ordered rolling restart: `ern deploy`, by its proposal | design reviewed 2026-10-08 |
 | MVP 3.3 | the shell's second round | |
@@ -135,7 +135,13 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    captures are bound or have a type variable in their type, and a spawn whose mailbox type is
    bound; `Peer.offer` accepted only where the key and the address have one message type; a
    key's text as the compiler prints it. Nothing else is checked, and nothing is looked through
-   at a send.
+   at a send. Done 2026-10-08, with what the building decided, in the log's *The Bound Type in
+   the Checker*: the function a spawn on a peer starts is a declaration's name or a lambda
+   written in the definition, at the spawn or bound by a `let` the spawn names, decided with
+   the user; `Peer.spawn` is not taken as a value; a key's message type and a spawned
+   process's mailbox type are known whole where they are written; a key's text qualifies every
+   name; `Peer`'s namespace is the standard library's from here; and `==` on another module's
+   abstract type over a private type, which stopped the checker, reads the private type.
 3. **The node, its configuration and its start.** `ern config --config-dir dir`: the key on
    prime256v1, the curve the experiment proved, with ed25519 in the handshake under the rule
    tried first and taken where it serves; the self-signed certificate with a constant name and
@@ -237,15 +243,21 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    refused naming MVP 3.1; `ern test` as a node; `Peer`'s page with its executed examples.
    Appendix E.27's listing, its type block and its primitives sentence are written here with
    the module, since four tests hold Appendix E's listings, types and primitives to `stdlib/`
-   (the log's *The Report Rewritten for Peers*); until then E.27 states them in prose.
+   (the log's *The Report Rewritten for Peers*); until then E.27 states them in prose. The
+   emitter passes `Peer.key` the key's text the checker supplies, and `test/diagnostics.md`
+   gains §3.11's refusals of item 2, which a program reaches only once `Peer` is here; the
+   checker's tests then take the module's interface in place of their stand-in.
 9. **`Load` and `Balancer`**, in Ernest on the runtime: `Load`'s measures as shims, the run queue
    and the schedulers' utilisation on any node, memory and disk from the host's services, which
    answer a failure where `measures` did not start them, its page giving the host's names for
-   the services; `Balancer.start(places)`, a place this node or a peer's name, `Balancer.spawn(balancer,
-   f, ms)`, round robin unless given a measure, `Balancer.measure(place, f)` spawning a measuring
-   process there that offers itself under `Balancer.key` and captures what it needs, a pick
-   drawing two candidates at random and taking the lower, a node without a measure or out of
-   reach passed over: the first programs written on the design.
+   the services; `Balancer.start(places)`, a place this node or a peer's name,
+   `Balancer.pick(balancer, ms)` answering the place the program spawns its work on, round robin
+   unless given a measure, a measure installed by the program spawning on each place a process
+   that runs `Balancer.serve(measure)` and offers itself under `Balancer.key`, the measure named
+   by its declaration, a pick drawing two candidates at random and taking the lower, a node
+   without a measure or out of reach passed over: the first programs written on the design. The
+   balancer picks and the program spawns, since a spawn on a peer starts only a function written
+   at it (item 2).
 10. **The tests, the measurements and the guide.** Real nodes on one machine as the experiment
     runs them, holding the proposal's section 4 whole and the cases of its section 8: nodes
     with keys of their own, a peer stopped for a silent one, a node started again, a node that
@@ -257,8 +269,8 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     build and ended; the costs of the proposal's section 9 measured, the gateway's step, a
     call's five signals and TLS; the numbers of section 7 held; `docs/development.md`'s table
     for the refusals that name MVP 3.1, the shell's two and `ern run --config-dir dir` with no
-    file; `make sections`, which lists §3.11, §6.7 and §8.7 today for want of this milestone and
-    MVP 3.1, naming none of them after it; and the guide's peer chapter, here and not in item 1,
+    file; `make sections`, which lists §6.7 today for want of this milestone, naming no section
+    after it; and the guide's peer chapter, here and not in item 1,
     since its examples run only once items 3 to 9 are built.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is

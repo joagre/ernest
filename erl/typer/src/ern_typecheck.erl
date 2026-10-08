@@ -22,8 +22,9 @@
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, lookup_type/2, described_type/2, is_reply_carrying/2,
          assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
-         foreign_implementation/1, fields/2, declared_scheme/3, session_member/3,
-         lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
+         foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, declared_fields/3,
+         session_member/3, lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2,
+         node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -1484,6 +1485,10 @@ check_group(Group, Env) ->
     {Typed, Env4} = lists:mapfoldl(fun({TypedDeclaration, Post}, Acc) ->
                                        post_checks(TypedDeclaration, Post, Acc)
                                    end, Env3, TypedAndPost),
+    %% report §3.11: a spawn on a peer, read once the whole definition is
+    %% inferred, since a local fn's end leaves the types of what its lambdas
+    %% capture from around it to the definition that encloses it
+    lists:foreach(fun(Declaration) -> ern_bound:check(Declaration, Env4) end, Typed),
     Env5 = Env4#env{type_state = ern_types:leave(Env4#env.type_state),
                     inferring = Env#env.inferring},
     %% generalize and publish; the typed AST is substituted so consumers read
@@ -2309,10 +2314,15 @@ params_and_body(#let_declaration{body = Body}) -> {[], Body}.
 %% requirement's `show` is (§4.9).
 %% Report §8.4, Appendix E.12: `Foreign.from` gives its value by the type
 %% at which the name is used, read the same way.
+%% Report §8.7, §3.11, Appendix E.27: `Peer.key` makes its key at the
+%% message type at which the name is used, read the same way, and the key
+%% holds the type's text as the compiler prints it.
 shown(Span, Referent, Type, Env) ->
     case {declared(Referent, Env), Type} of
         {{'Foreign', from}, {tfn, [Argument], _, _}} ->
             [#pending_member{span = Span, type = Argument, member = exposed, need = exposed}];
+        {{'Peer', key}, {tfn, [_], _, {tcon, ['Peer', 'Key'], [Message]}}} ->
+            [#pending_member{span = Span, type = Message, member = keyed, need = keyed}];
         _ ->
             []
     end.
@@ -3294,6 +3304,27 @@ supplied(Leaf, Env) ->
 %% own operation; and a known type its member, with that member's own
 %% requirement supplied at its type, members supplying members. Outer is the
 %% member first needed, where this one supplies another's requirement.
+supply(Span, Type, keyed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
+    %% report §3.11, §8.7: a key's message type is known whole where the key
+    %% is made, and crosses
+    Message = ern_types:substitute(ern_types:resolve(Type, TypeState), TypeState),
+    Text = ern_types:format(Message, TypeState),
+    ern_types:free_variables(Message, TypeState) =:= []
+        orelse fail(Span, "Peer.key makes its key at a message type known whole, and here it is "
+                          ++ Text, [],
+                    "annotate the key where it is bound, `let key : Peer.Key(Msg) ="
+                    " Peer.key(\"name\")` (§3.11)"),
+    case ern_bound:binds(Message, Env) of
+        false ->
+            %% every name qualified, the module's own among them, so that one
+            %% type has one text whichever module writes the key
+            {#type_text{text = ern_types:format(Message, ern_types:new())}, Env};
+        Why ->
+            fail(Span, "Peer.key makes a key of " ++ Text ++ ", which is bound to its node, since"
+                       " it holds " ++ Why, [],
+                 "a key's message type crosses to the node's peers, so a process offered under"
+                 " it receives values that cross (§3.11)")
+    end;
 supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
     %% report §8.4, Appendix E.12: Foreign.from gives its value at a type
     %% known whole, and no requirement names it, a record's fill among
@@ -4260,6 +4291,7 @@ guard_operand(Operand, _) ->
          [], "receive the message and `match` it").
 
 %% Whether a name's referent is a top-level `let`, of this module or another.
+-spec is_top_let(term(), env()) -> boolean().
 is_top_let(#own_declaration{member_of = MemberOf, name = Name},
            #env{namespace = Namespace, lets = Lets}) ->
     is_map_key(Namespace ++ [Part || Part <- [MemberOf], Part =/= undefined] ++ [Name], Lets);
@@ -4643,11 +4675,15 @@ first_lack(Lacks, [Type | Types]) ->
     end.
 
 %% The field types of a declared type's constructors, its arguments in
-%% place of its parameters; none for a built-in or a foreign type. A type
-%% with no declaration at all is the toolchain's own defect (report §11.1),
-%% and the check fails closed rather than read it as a built-in one.
+%% place of its parameters; none for a built-in or a foreign type. A
+%% private type of another module that an abstract type's fields name is
+%% read from the interface that carries it (report §11.1); a regression,
+%% where `==` on such an abstract type stopped the checker. A type with no
+%% declaration at all is the toolchain's own defect, and the check fails
+%% closed rather than read it as a built-in one.
+-spec declared_fields([atom()], [ern_types:type()], env()) -> {ok, [ern_types:type()]} | none.
 declared_fields(QualifiedName, Args, Env) ->
-    case lookup_type(QualifiedName, Env) of
+    case described_type(QualifiedName, Env) of
         #type_info{foreign = false, params = Params, constructors = [_ | _] = Constructors}
           when length(Params) =:= length(Args) ->
             Replacements = maps:from_list([{Id, Arg}
@@ -5674,8 +5710,9 @@ lookup_global(Span, Namespace, Name, #env{globals = Globals} = Env) ->
                        end,
             {Scheme, Referent, Env};
         _ when Namespace =:= ['Peer'] ->
-            %% Report §8.3: a spawn on a peer is the module Peer's, which
-            %% MVP 3.0 builds; a module of the program's may take the name
+            %% Report §8.3, Appendix E.27: the module Peer, which MVP 3.0's
+            %% item 8 builds; its namespace is the standard library's, so a
+            %% name of it the interface does not hold is unknown
             case lists:any(fun(Key) -> lists:droplast(Key) =:= Namespace end, maps:keys(Globals)) of
                 true -> fail(Span, "unknown name " ++ ern_namespace:text(QualifiedName));
                 false ->

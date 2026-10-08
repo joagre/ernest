@@ -51,6 +51,9 @@
 %% variable, which the declaration was given
 -record(shown_type, {type}).
 %% `show` at a type known whole, written by its descriptor (Appendix E.1)
+-record(type_text, {text}).
+%% a key's message type as the compiler prints it (report §8.7, Appendix
+%% E.27)
 -record(pending_member, {span, type, member, need}).
 %% before the enclosing definition ends: the member at the type, and what
 %% needs it, for the error that names it (report §11.5)
