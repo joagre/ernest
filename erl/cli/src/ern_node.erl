@@ -66,19 +66,25 @@ create(Given) ->
     Public = pem([{'SubjectPublicKeyInfo', public_der(Key), not_encrypted}]),
     Certificate = pem([{'Certificate', certificate(Key), not_encrypted}]),
     Private = pem([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
-    %% laid out as Appendix C shows it, in its order, each value as JSON
-    %% writes it; a PEM's line breaks are escapes, as in any JSON string
-    Json = ["{\n",
-            "  \"listen\": ", json:encode(<<"0.0.0.0:8654">>), ",\n",
-            "  \"public-key\": ", json:encode(Public), ",\n",
-            "  \"peers\": [],\n",
-            "  \"keys\": {}\n",
-            "}\n"],
+    %% written by the host's JSON formatter, its fields in Appendix C's
+    %% order, two spaces a level, and a line feed at its end; a PEM's line
+    %% breaks are escapes, as in any JSON string
+    Fields = [{<<"listen">>, <<"0.0.0.0:8654">>}, {<<"public-key">>, Public}, {<<"peers">>, []},
+              {<<"keys">>, #{}}],
+    Json = json:format({ordered, Fields}, fun ordered/3, #{indent => 2}),
     ok = ern_build:write_output(filename:join(ConfigDir, ?CONF), Json),
     ok = ern_build:write_output(filename:join(ConfigDir, ?CERTIFICATE), Certificate),
     %% the key is its owner's alone before it is written
     ok = ern_build:write_output(filename:join(ConfigDir, ?KEY), Private, 8#600),
     Public.
+
+%% Report Appendix C: an object whose fields keep the order given, for the
+%% host's JSON formatter, which writes a map's fields in an order of its
+%% own; every other value as the formatter writes it.
+ordered({ordered, Fields}, Encode, State) ->
+    json:format_key_value_list_checked(Fields, Encode, State);
+ordered(Value, Encode, State) ->
+    json:format_value(Value, Encode, State).
 
 %% PEM, ended by one line feed.
 pem(Entries) ->
