@@ -549,7 +549,7 @@ alone, the fetcher by MVP 3.4's library story.
 
 **Set aside by MVP 3.0's item 12, decided with the user on 2026-10-08: its planned stop and kept state go to the rewritten MVP 3.1, and the rest, which orders a rollout, is not the language's. Until item 12 rewrites the plan this section stands as designed, and nothing is built from it.**
 
-Designed in [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), whose every question was decided
+Designed in [`ordered_rolling_restart.md`](../proposals/nodes_and_code/ordered_rolling_restart.md), which was `mvp3.2.md` until item 12 moved it aside, whose every question was decided
 on 2026-10-07, and which the review of 2026-10-08 changed most, every finding decided; its
 reasons are [`deploy.md`](../proposals/nodes_and_code/deploy.md), what other systems do is
 [`other_systems.md`](../proposals/nodes_and_code/other_systems.md)'s section 7, and what six
