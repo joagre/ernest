@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-08.** [The Three Proposals Reviewed Before Anything Is Built](#the-three-proposals-reviewed-before-anything-is-built-2026-10-08). [The Coordinator's Section of the Report](#the-coordinators-section-of-the-report-2026-10-08). [The Report Rewritten for Peers](#the-report-rewritten-for-peers-2026-10-08). [The Bound Type in the Checker](#the-bound-type-in-the-checker-2026-10-08). [The Node's Directory](#the-nodes-directory-2026-10-08). [The Carrier](#the-carrier-2026-10-08).
+**2026-10-08.** [The Three Proposals Reviewed Before Anything Is Built](#the-three-proposals-reviewed-before-anything-is-built-2026-10-08). [The Coordinator's Section of the Report](#the-coordinators-section-of-the-report-2026-10-08). [The Report Rewritten for Peers](#the-report-rewritten-for-peers-2026-10-08). [The Bound Type in the Checker](#the-bound-type-in-the-checker-2026-10-08). [The Node's Directory](#the-nodes-directory-2026-10-08). [The Carrier](#the-carrier-2026-10-08). [A Peer's Down Has No Site, and Peer Comes First](#a-peers-down-has-no-site-and-peer-comes-first-2026-10-08).
 
 **2026-10-07.** [The Peer Proposal Is MVP 3.0's Design](#the-peer-proposal-is-mvp-30s-design-2026-10-07). [A Binding of a Previous Version Is Forgotten](#a-binding-of-a-previous-version-is-forgotten-2026-10-07). [An Abstract Type's Private Fields Travel in Its Interface](#an-abstract-types-private-fields-travel-in-its-interface-2026-10-07). [The Deploy Is MVP 3.2, and the Milestones After It Renumbered](#the-deploy-is-mvp-32-and-the-milestones-after-it-renumbered-2026-10-07).
 
@@ -7692,6 +7692,14 @@ MVP 3.0's item 4: a node's carrier, Erlang's distribution over TLS as `nodes.md`
 - **No fixed sleep, decided with the user.** The first version of the node tests waited fixed times for a node to listen and to end, and one failed when the suite ran side by side. They now wait on what they mean, a port that answers, a line written, a node's `ernest.pid`, its end by termination; the one wait that is a time, that a node does not fault for a deadlock, is three times what the same program took to fault as no node. CLAUDE.md states the rule for the code and the tests alike; the 33 fixed sleeps the tests held before, and `ern_signals`' one, are the plan's, MVP 3.0's item 11 and item 7.
 
 The real-node tests, `test/ern_nodes_tests.erl`, are regression tests, written after the code; they run nodes as separate `ern` processes on one machine and do not cover a silence, which takes the detector's minute and is item 10's, nor a node out of reach.
+
+## A Peer's Down Has No Site, and Peer Comes First, 2026-10-08
+
+As MVP 3.0's item 5 was begun, two things changed.
+
+**A `Down` from another node's process has an empty site**, decided with the user. The proposal had decided that the site crosses in every `Down` the process's node sends, the node "which recorded the site" giving it "with that reason". The host's monitor gives the watcher the exit reason alone: a process that returns exits `normal` (§8.4), and one killed or ended with its program takes its reason from outside, so none of them can add its site. A site where the process makes its own end would leave the field full or empty by how the process ended, which no reader predicts (principle 1); a monitor of Ernest's own, a frame to the process's node answering with the site, would add a message to an operation the host makes without one, which CLAUDE.md's cost rule refuses. An empty site costs the watcher's log the place the process was spawned; the node where a process faulted reports the fault with its site on its own standard error. §6.9 states the departure; `nodes.md`'s section 9 says why.
+
+**Item 8, `Peer`, is built before items 5 to 7.** An address foreign code gives is held behind the boundary's checking proxy (§8.4), and the standard library alone gives one unchecked, so until `Peer` a test could reach another node's process only through a proxy, which would test the proxy and not the path. Item 5's two parts `Peer` uses, `Unreachable` from a lost connection and an adapted address made on another node, come with it; the plan says so.
 
 ## Later
 

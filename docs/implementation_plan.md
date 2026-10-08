@@ -87,7 +87,12 @@ is built from the report's sections until each item below builds its area.**
 
 The items, in build order, each with the report's sentences first, its tests, and a commit.
 Each builds its area as the proposal's section 6 states it, whole: the proposal is the
-specification, and this list the order. The order is the dependency's: the checker's rules
+specification, and this list the order. Item 8, `Peer`, is built after item 4 and before items 5
+to 7 (decided on 2026-10-08): a program reaches another node's process only through an
+address the standard library gives, since one foreign code gives is held behind the
+boundary's checking proxy (§8.4), so items 5 to 7's tests of real nodes need `Peer.find`
+and `Peer.spawn` first, and item 5's two parts that `Peer` uses, `Unreachable` from a lost
+connection and an adapted address made on another node, come with it. The order is the dependency's: the checker's rules
 first, since every later item's tests are written against them; then a node that starts; then
 its connections; then what crosses, monitors, calls and the loss; then the node's end and its
 reload, which need them; then `Peer`; then what stands on `Peer`.
@@ -100,7 +105,7 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    refusal, its captured values crossing inside it as payload touched only on the node that
    made it, the requirement that they can cross gone, a fault in its function the target's,
    and "there is no registry" beside offers under keys; §6.7's shape for `Peer.spawn`; §6.9's
-   site, which crosses in a `Down` and is empty in `Unreachable`; §7.4's causes, the three
+   site, empty in a `Down` from another node's process and in `Unreachable`; §7.4's causes, the three
    faults of section 6's table, and the older peer chapter's three gone; §3.8, §3.11 and §3.9,
    whose run-time faults become the compiler's refusals of a key, a spawn and a capture with a
    type variable; §8.2's resolution failure, which is MVP 3.1's `NotLoaded`; §8.3, §8.5, §8.6
@@ -201,7 +206,7 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
    loss, ended by its process's end or its node's new start, after which a send is dropped, a
    call ends at once and a monitor gives `Unknown`; a monitor not kept through a loss, and one
    made again while the node is out of reach or not listed giving `Unreachable`; `Reason`'s
-   `Unreachable`, and a `Down`'s site crossing from the process's node. `send` as the host's: it
+   `Unreachable`, and a `Down`'s site empty from another node's process. `send` as the host's: it
    returns at once, a message to a peer with no connection queued behind the dial and dropped
    where the dial fails, the sender waiting only where the host's buffer is full and at most the
    detector's time, a large value crossing in pieces with other senders' messages between them.
