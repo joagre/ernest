@@ -24,7 +24,7 @@ Three things bound it.
 
 - **A bare node.** `ern run --config-dir dir` with no `.erc` starts a node that holds no definition of a program's. It runs the runtime and the system processes, its entry process evaluates the standard library's bindings, and the node listens and waits. It ends by termination alone. Everything it runs arrives by a spawn from a peer, with the code. Nothing is copied to its machine but `ern`. A node without `listen` is refused at its start, since it never dials. A balancer places work on it as on any peer, and installs its measure there with `Balancer.serve`. A shell whose load path holds no program is a bare node with a prompt.
 - **A function typed at the shell spawns on a peer**, with its code.
-- **`Code`**, a module of the standard library, three functions. `Code.load(path)` loads a compiled module and its closure, from the load path, into the node's code table, as `ern run` loads a program; a file that is no `.erc` of this `ern`, or one whose closure the load path lacks, answers `Left`. `Code.hashes(path)` answers a compiled module's definitions, each as its name and its hash. `Code.running(f)` answers the addresses of the processes on this node whose stack holds a frame of `f`, at the moment of the call. An upgrade is the program's own line over it: `List.each(Code.running(count), fn(p) = send(p, Counter.Upgrade(migrate = fn(n) = n, next = count2)))`. No function sends an `Upgrade` for a program.
+- **`Code`**, a module of the standard library, three functions. `Code.load(path)` loads a compiled module and its closure, from the load path, into the node's code table, as `ern run` loads a program; a file that is no `.erc` of this `ern`, or one whose closure the load path lacks, answers `Left`. `Code.hashes(path)` answers a compiled module's definitions, each as its name and its hash. `Code.running(f)` answers the addresses of the processes on this node whose stack holds a frame of `f`, at the moment of the call. It takes the function as a value, so a build that moves processes off `count` keeps `count` beside `count2`, unchanged, until the next deploy; `count`'s hash is then the old build's, and the processes are found. An upgrade is the program's own line over it: `List.each(Code.running(count), fn(p) = send(p, Counter.Upgrade(migrate = fn(n) = n, next = count2)))`. No function sends an `Upgrade` for a program.
 
 ```
 Code.load : (Path) -> Either(Io.Error, Unit) with m+
@@ -61,6 +61,41 @@ Peer.spawn("store", fn() = send(counter, Counter.Upgrade(migrate = fn(n) = n, ne
 ```
 
 The spawn ships `count2`, which the store lacks. The spawned process sends the message on the store's own node, where a function in a message is allowed (§3.11). The counter switches by a tail call, its total kept, as §6.10 has it. Under MVP 3.1 the spawn answered `NotLoaded` naming `count2`. The fix is in the running process alone: a restart of the store runs the build's `count` again.
+
+**An upgrade tool.** The same fix on every node, by a program. Build 2 keeps `count` as it was and adds `count2`; the tool is built with it and run as a node of its own, `ern run --config-dir /etc/ernest/tool upgrade.erc`, whose `ernest.conf` lists every node:
+
+```ernest
+// upgrade.ern, build 2
+
+type Msg = Moved(node : String, count : Int)
+
+fn main() : Unit with Msg = {
+    let me = self();
+    let nodes = Peer.nodes();
+    List.each(nodes, fn(node) =
+        match Peer.spawn(node, fn() = {
+            let old = Code.running(Counter.count);
+            List.each(old, fn(p) =
+                send(p, Counter.Upgrade(migrate = fn(n) = n, next = Counter.count2)));
+            send(me, Moved(node = node, count = List.length(old)))
+        }, 5000) {
+            Left(failure) -> Io.println(node <> ": " <> Io.show(failure))
+          | Right(_) -> Unit
+        });
+    told(List.length(nodes))
+}
+
+fn told(left : Int) : Unit with Msg =
+    if left == 0 then Unit
+    else receive {
+        Moved(node = node, count = count) -> {
+            Io.println(node <> ": " <> Int.toString(count) <> " moved");
+            told(left - 1)
+        }
+    }
+```
+
+On a node still at build 1 the spawn carries `count2`, the lambda and `Msg`; `count` it has, at the same hash, and `Counter.Msg` too. The spawned process finds every process on `count`, sends each its `Upgrade`, and reports back through `me`, an address the lambda captured. Each counter switches by its own tail call, its total kept; its address and its key are unchanged, so no client notices. A node whose spawn fails is printed and skipped, and the tool ends when every node has reported. Nothing of the runtime orders this: the order is the list's, the check is the program's, and a tool that waits for each node's report before the next is the same program with `told(1)` inside the loop.
 
 ## 4. What holds
 
