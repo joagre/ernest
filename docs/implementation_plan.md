@@ -22,7 +22,9 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
 of 2026-10-09*). MVP 3.1 is under way, items 1 to 5 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
 the tour and the review; the back end, ehttpd, the website and the shell's second round follow
-1.0 (the log's *The Road to 1.0, Ordered*). A release waits until the user calls it.
+1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ends with a read of what it built, its item
+9, and MVP 3.2 with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
+*Ernest 0.4.0 Ends MVP 3.2*); any other release waits until the user calls it.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
 measured, with the prelude and the emitted code, and the report's and the guide's feedback
@@ -72,8 +74,8 @@ paragraph under "Done".
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
-| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing` | design read through 2026-10-09; the principles review runs before its item 1 |
-| MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code` | design read through 2026-10-09; stands on MVP 3.1 |
+| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | design read through 2026-10-09; the principles review runs before its item 1 |
+| MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 | MVP 4.0 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
@@ -266,6 +268,49 @@ and 8 below.
    that keeps its state through `Os.terminating`, `Fs` and `Json`, a key at its type's hash and
    `OtherType`, and `Standing`; running nodes is the deployment guide's, MVP 3.2's. `mvp3.1.md`'s
    status line.
+9. **The read before MVP 3.2.** Seven readers read what MVP 3.1 built, after item 8 and `make
+   test`, and before MVP 3.2's item 1, since MVP 3.2 stands on all of it. It is MVP 3.0's read
+   again (the log's *MVP 3.0 Read Without a Release*), not the full review, and no release
+   follows it. Each reader is a fresh agent that edits nothing and writes its list to the
+   scratchpad, and reads the report beside `mvp3.1.md`'s claims of section 4 and limits of
+   section 5, so that a departure from what the proposal promised is a finding. Its lines go to
+   `docs/findings.md`, each decided with the user, a design question one at a time, its verdict
+   carried into the report, the plan or the log. MVP 3.1 is done when every line is done,
+   dropped or planned. The readers, each with what it reads and what it asks:
+   - **H, the canonical form.** Appendix H, `ern_canonical`, §11.1's recompile rule and their
+     tests: where one definition gets two hashes or two definitions get one. What runs before
+     hashing, elaboration, supplies, `derives`, an abstract type's representation and the
+     `compare` a type's identity covers; a group's order and positions; a lambda's position; a
+     literal's encoding; a session input's hash under its reused `$Input` slot; and whether the
+     form's version moves with every change that should move it. Opus.
+   - **S, the soundness argument.** `soundness.md`'s section 7 against §3.11, §6.9, §8.6, §8.7
+     and §11.2 as built: identity by hash between builds and across a reload, the previous
+     version's renamed types, a kept value of one hash, the code table's first unit, the end's
+     wait for I1 and I3, and `Standing`'s forwarding. A sentence that no longer holds is a
+     finding. Fable.
+   - **N, nodes of two builds.** `ern_code`, `ern_peer`, the gateway and the runner: the cookie
+     as the floor, the spawn frame by identity, the reach's bindings and foreign modules,
+     `NotLoaded` by function, binding and module, `OtherType`, the four host limits and their
+     line, the atoms a capture can make, and a unit the shell's load brought beside a unit of
+     the build; it runs two builds on real nodes as item 8's tests do. Opus.
+   - **V, the shell's versions.** `ern_shell`'s load and reload against §11.2 sentence by
+     sentence: units of their own, the rename to `Counter$1`, `checked_interfaces`, the reload
+     compiling again what `ern build` would, a refused load's kill, the adoption of a node's
+     build unit, `collected` beside units never unloaded, and what `docs/memory.md` says is kept
+     for the session's life; `language_feedback.md`'s entries 97 and 98 with it. Opus.
+   - **E, the end and the operator's day.** §8.6, E.23 and item 6's runtime: a node under `ern
+     stop`, a second termination, the interrupt, `Os.exit` during the wait, and a subscriber
+     that faults, restarts or never answers; a deadlock that is not one, the lines on standard
+     error, `ern test` and the shell told the same way, a service manager's stop timeout against
+     what a program writes, and `Standing` across a peer's stop and start. Opus.
+   - **W, a program across builds.** It writes `mvp3.1.md`'s section 3 whole: the counter on the
+     store, builds 1 to 3 deployed by an operator's script with `ern stop` and `ern run`, the
+     state kept through `Os.terminating`, `Fs` and `Json`, the board on `Standing`, a changed
+     protocol found as `OtherType`, and a fix in the shell. What feels against a principle goes
+     to `language_feedback.md`. Opus.
+   - **P, the principles.** MVP 3.1's report changes, `Standing`'s page and the guide's chapter
+     8 against §0, and §0 against what MVP 3.1 decided, as `docs/principles_review.md` says.
+     Fable.
 
 ---
 
@@ -378,6 +423,14 @@ tests and measurements over all of it.
    decision of this milestone: whether `Code.upgrade` returns, a function that sends a process
    its `Upgrade`, which `mvp3.2.md` set aside as a second way to write one `send` (principle 2)
    and the user reopened for the guide's reader.
+9. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`:
+   the review before a release as [`release_review.md`](release_review.md) says, its readers
+   over what MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over
+   chapter 8 and the deployment guide, and the argument's over `soundness.md`'s section 7;
+   every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module
+   and exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say
+   what a program written for 0.3.1 changes, the tag `v0.4.0` and the archive (decided with the
+   user on 2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*).
 
 ---
 
