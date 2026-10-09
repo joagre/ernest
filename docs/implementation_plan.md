@@ -460,8 +460,7 @@ termination told, which needs nothing of the hashes and comes after them so that
 deploy runs whole; then the library, and the tests over all of it.
 
 Before item 1 the principles review runs, as [`principles_review.md`](principles_review.md) says,
-over this proposal and over peers, which are built: its item 1 adds a restriction to the type
-system, P1, and MVP 3.0's item 13 placed the review here for that case.
+over this proposal and over peers, which are built, on the user's word of 2026-10-09.
 
 1. **The report and the soundness argument.** The sections the proposal's section 9 names:
    §8.7 for the floor, the cookie without the build, the key's hash beside its text and
@@ -475,13 +474,11 @@ system, P1, and MVP 3.0's item 13 placed the review here for that case.
    §11.2, from which `Fault("its code was unloaded")` goes; Appendix E.22 for the refusal, `a
    process runs one child function`; Appendix G for `Standing`; Appendix F and `style.md`'s
    glossary for hash, identity, closure, unit, code table and subscriber. The decision P1 of
-   `findings.md` is made here, under the principles review that runs before this milestone,
-   since its proposal adds to the type system: what a function captures becomes a
-   restriction of its type scheme (§3.9), so that `Peer.spawn` is an ordinary function, passed
-   as a value like `spawn`, the spawn frame's captured values are checked by their type, and
-   §3.11's list of admitted forms goes; decided with the user on 2026-10-09 as the destination,
-   designed once here with the spawn by hash, which asks the same of a captured function (the
-   log's *MVP 3.0's Findings Decided*). `soundness.md`'s section 7 is
+   the review of MVP 3.0 is built here: §3.11 admits `restarting` applied to a function it
+   already admits as the spawned function, since the prelude states what its result captures,
+   its two arguments; `Peer.spawn` stays a form, and a mark on function types that would make
+   it an ordinary function is the log's *Later* (the log's *MVP 3.0's Findings Decided*,
+   decided with the user on 2026-10-09). `soundness.md`'s section 7 is
    extended to the hashes between nodes of different builds and to identity by hash on one node
    across a load, and gains the end's paragraph. The log's entries, pointing at `code.md` and
    `nodes.md` for the argument. With them, as the build reaches each: `architecture.md` for the
