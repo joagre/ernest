@@ -474,7 +474,7 @@ and 8 below.
    and the refusals of `:load` and `:reload` in a shell that is a node lifted; §7.4, §8.4 and
    §11.2, from which `Fault("its code was unloaded")` goes; Appendix E.22 for the refusal, `a
    process runs one child function`; Appendix G for `Standing`; Appendix F and `style.md`'s
-   glossary for hash, identity, closure, unit, code table and subscriber. The decision P1 of
+   glossary for hash, identity, reach, unit, code table and subscriber. The decision P1 of
    the review of MVP 3.0 is built here: §3.11 admits `restarting` applied to a function it
    already admits as the spawned function, since the prelude states what its result captures,
    its two arguments; `Peer.spawn` stays a form, and a mark on function types that would make
@@ -532,7 +532,7 @@ and 8 below.
    a binding made before a load keeping the type it was checked under, a message of one version
    to an address of the other a type error whose diagnostic says which is of the previous
    version; a previous version's process running on, reachable through its version's addresses
-   alone, its key offered again only once it has ended; a load evaluating the closure's bindings
+   alone, its key offered again only once it has ended; a load evaluating the reach's bindings
    in a fresh process at `Never` while the session waits; a function typed at the shell with a
    hash as any definition has, `NotLoaded` on every peer until MVP 3.2; the two gaps the
    experiments of 2026-10-07 found closed, a function of a previous version held in a process's
@@ -588,15 +588,15 @@ Designed in [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), split from `mv
 [`code.md`](../proposals/nodes_and_code/code.md)'s sections 1, 3 and 5. It stands on MVP 3.1
 and changes nothing of it. The proposal is the specification and this list the order. What the
 milestone gives: a spawn whose function the peer lacks ships the lacking definitions of its
-closure, as canonical forms, verified, compiled and loaded on the peer before the process
+reach, as canonical forms, verified, compiled and loaded on the peer before the process
 starts; the bare node, `ern run --config-dir dir` with no `.erc`, which runs what its peers spawn
 on it; a function typed at the shell spawned on a peer with its code; a unit let go when no
 process runs it and the node nears a limit; `Code`, with `load`, `hashes` and `running`; and
-a table that holds no function.
+a unit a table's function holds never let go, a limit stated in place of a refusal.
 
 The items, in build order, each with the report's sentences first, its tests, and a commit.
-The order is the dependency's: the report first; the table rule, a refusal programs meet, before
-anything is let go; the exchange before the unit it fills; the let-go once units arrive; then
+The order is the dependency's: the report first; the limit a table sets on the let-go, stated
+before anything is let go; the exchange before the unit it fills; the let-go once units arrive; then
 what stands on the exchange, the bare node and the shell; `Code`, which reads the table; and the
 tests and measurements over all of it.
 
@@ -606,26 +606,26 @@ tests and measurements over all of it.
    what a node lets go and for a function typed at the shell spawned with its code; §8.1, §8.5,
    §8.6 and §11.8 for a bare node's entry process, which runs no `main` and ends by termination;
    §6.10, whose cross-node sentence is completed by a spawn that carries its code; Appendix G.1
-   for a table that holds no function; Appendix E's page for `Code`, with `Code.Hash`; Appendix F
+   for a unit a table's function holds, never let go; Appendix E's page for `Code`, its hashes
+   `String`s, and `running` a form counted as `Peer.spawn` is (§3.11, §0); Appendix F
    and `style.md`'s glossary for exchange and bare node; `soundness.md`'s section 7 extended to
    code that crosses. The log's entries, pointing at `code.md`. With them, as the build reaches
    each: `architecture.md` for the exchange's process and the let-go; `memory.md` for what a
-   node holds of received code and when it lets go; `test/diagnostics.md` for the table's
-   refusal; `docs/development.md`'s table, from which the refusal of a node without a program
+   node holds of received code and when it lets go; `docs/development.md`'s table, from which the refusal of a node without a program
    goes.
-2. **The table rule in the checker.** `Ets.Table(k, v)` accepted only where `k` and `v` hold no
-   function type, the first case of §3.11's bound check, one line and nothing at run time; its
-   diagnostic, and the programs under `examples/` and `proposals/operations/` read for a table
-   of functions, which keep their handlers in a process's state.
+2. **The limit a table sets.** A unit whose function an `Ets.Table` holds is never let go, since
+   the host's check sees a process's functions and not a table's, stated in §11.2 and G.1 and
+   counted against the limits of section 7; no refusal of the compiler's (the review of
+   2026-10-09, S7, §0's principle 5); a test that such a unit survives a sweep.
 3. **The exchange.** The spawn frame MVP 3.1's; a peer that has the hash starting at once; a
-   peer that lacks it asking for the closure's list, the sender listing the hashes the function
+   peer that lacks it asking for the reach's list, the sender listing the hashes the function
    reaches transitively, code and types, with the foreign declarations it names, the peer
    answering the hashes it lacks or `NotLoaded` for a foreign module or a binding, and the sender
    shipping the lacking definitions dependencies first, each code frame one definition's canonical
    form with its immediate references and never a compiled binary; the four frames beside MVP
-   3.0's six; each frame verified against its hash as it arrives and held apart until the closure
+   3.0's six; each frame verified against its hash as it arrives and held apart until the reach
    is complete, what the peer said it has pinned meanwhile; a faulty frame ending the connection;
-   a closure the peer cannot compile or load failing the spawn with `Refused` and the peer's
+   a reach the peer cannot compile or load failing the spawn with `Refused` and the peer's
    text; the exchange in a process of its own on each node, the gateways only passing its frames,
    the spawn's time covering it, two spawns waiting on one hash sharing one exchange.
 4. **A unit on arrival, and the let-go.** The definitions that arrive in one exchange one unit,
@@ -633,7 +633,7 @@ tests and measurements over all of it.
    through the table before the unit is compiled by the build's back end from the same forms;
    the canonical form of a received definition, and of one typed at the shell, kept beside its
    compiled code and shipped onward as the node's own; loading by the host's `prepare_loading`
-   and `atomic_load`, one batch per closure, no `-on_load`; the node's units off the code path;
+   and `atomic_load`, one batch per reach, no `-on_load`; the node's units off the code path;
    nothing on disk but the build directory, a node restarted sent the rest again. The let-go: a
    unit that arrived by an exchange or a load unloaded when no process executes it or holds a
    function of it, which `erlang:check_process_code` tells, when the node nears a limit of
@@ -649,22 +649,23 @@ tests and measurements over all of it.
    `NotLoaded`; the refusal of a node without a program lifted from `docs/development.md`'s
    table.
 6. **`Code`.** `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
-   forms and its closure's read from the load path, verified against their hashes and made a unit
+   forms and its reach's read from the load path, verified against their hashes and made a unit
    as a load of the shell's is, counted against the limits, `Left` for a file that is no `.erc`
-   of this `ern` or whose closure the load path lacks; `Code.hashes(path)`, the `.erc`'s table of
-   names and hashes; `Code.running(f)`, the host's stack of each process mapped through the table
-   to hashes, the processes with a frame of `f`'s hash or of a lambda written in `f`, typed
-   `Address(m)` since every process running `f` has `f`'s mailbox type, a snapshot; `Code.Hash`;
+   of this `ern` or whose reach the load path lacks; `Code.hashes(path)`, the `.erc`'s table of
+   names and hashes; `Code.running(f)`, a form checked as `Peer.spawn`'s function is, `f` a top-level
+   declaration of any arity whose result is `Unit with m` known whole where it is written, the
+   host's stack of each process mapped through the table to hashes, the processes with a frame of
+   `f` itself, typed `Address(m)`, a snapshot; hashes as `String`s, the digest in hexadecimal;
    the page with its executed examples, section 3's upgrade tool among them under `examples/`.
 7. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes on
    one machine: a spawn of a function typed at a shell that is a node ships exactly the lacking
    definitions, verified and loaded at once, and the process runs; a spawn onto a bare node ships
-   the program's closure once and nothing the second time, and the process offers a service the
+   the program's reach once and nothing the second time, and the process offers a service the
    program finds; `NotLoaded` for a binding and for a foreign declaration; a faulty frame ends the
    connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its
    callers, which compile on the peer; a unit whose processes have ended stays until the node
    nears a limit, is then let go and crosses again at the next spawn that needs it, and one a
-   process holds a function of stays; a table of a function type is refused; a node told to load
+   process holds a function of stays, and so does one whose function a table holds; a node told to load
    many units says so at four fifths of a limit, once, measured; the shell fixes a service on a
    peer through `Upgrade`; `Code.load`, `Code.hashes` and `Code.running` as section 8 states them.
    The measurements of section 7, and of what a spawn that ships code costs, a bare node's first
