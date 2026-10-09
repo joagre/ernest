@@ -487,7 +487,15 @@ and 8 below.
    code table and the units; `memory.md` for the three tables the host never shrinks;
    `test/diagnostics.md` for the shell's diagnostic; `docs/development.md`'s table, from which
    the shell's three refusals, `:load`, `:reload` and a key at a session type, and the reload's forgotten binding go, and whose refusal of a node
-   without a program names MVP 3.2.
+   without a program names MVP 3.2. Done 2026-10-09, the report and the argument
+   written from the proposal, the code lagging until items 2 to 7 build it (the log's *The Report
+   Rewritten for MVP 3.1*): §8.7's floor in place of the fingerprint, its definitions and their
+   hashes, the spawn and the key by hash with `NotLoaded` said on the peer's standard error;
+   §8.6's end that tells its subscribers; §11.1's canonical form and §11.2's two versions by hash;
+   §3.11's `restarting` at a spawn; E.22's refusal and E.23's `terminating` in prose until item 6
+   lists it, and G.7 for `Standing` written with item 7, since a test holds Appendix G to `libs/`; the fault of a reload gone from §6.10, §7.4 and §8.4; Appendix
+   F and the glossary; the refusal of a node without a program names MVP 3.2 in its text, the
+   table and its test. `docs/development.md`'s shell rows stay until item 5 lifts them.
 2. **The canonical form, and the hash.** The form's document with the scheme's version, written
    before any hash is computed, literals and order fixed, and its test suite first: the same
    definition hashes the same across a rebuild; a renamed function keeps its dependents' hashes

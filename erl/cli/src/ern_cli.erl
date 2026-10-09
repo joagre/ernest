@@ -699,7 +699,7 @@ run(Options, [], _ErrorDevice) ->
     %% report §11.2: a node without a program is MVP 3.1's
     is_node(Options)
         andalso ern_build:fail("a node runs a program: ern run --config-dir dir prog.erc; a node"
-                               " without one arrives in MVP 3.1"),
+                               " without one arrives in MVP 3.2"),
     usage_fail("one .erc file argument is required").
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as

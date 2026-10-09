@@ -2507,7 +2507,7 @@ node_without_program_test() ->
     ?assertEqual(1, ern_err(["run", "--config-dir", Dir])),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"a node runs a program: ern run --config-dir dir prog.erc;"
-                                        " a node without one arrives in MVP 3.1">>)).
+                                        " a node without one arrives in MVP 3.2">>)).
 
 %% report §11.2, §8.7: `ern reload` and `ern stop` require --config-dir,
 %% and fail where its ernest.pid is not there or names a process that has

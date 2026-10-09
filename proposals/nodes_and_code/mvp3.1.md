@@ -36,7 +36,7 @@ The bounds of MVP 3.0 stay: a few nodes with one owner, listed by hand, trusted 
 
 ```
 Os.terminating : ((Reply(Unit)) -> m) -> Unit with m
-Standing.start : (Peer.Key(m), Int) -> Address(m) with n
+Standing.start : (Peer.Key(m), Int) -> Address(m) with n+
 ```
 
 **What may cross** is MVP 3.0's rule. A bound type never crosses. The compiler refuses a key of a bound type, and a spawn whose captures are bound or hold a type variable. An adapted address's captures cross inside it as payload, touched only on the node that made it. No code crosses.
