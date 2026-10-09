@@ -70,6 +70,38 @@ unit_load_fills_table_test() ->
     code:purge(Unit),
     code:delete(Unit).
 
+%% report §8.7, §11.1: what a spawn on a peer names is in the table by its
+%% identity, with the function that runs it, the number of values it
+%% captured and its reach: a function by its hash, its reach the bindings
+%% and the foreign declarations it names through the functions it calls;
+%% a lambda a spawn on a peer starts by its definition's hash and its
+%% position, its reach its own; and a foreign function by its qualified
+%% name. A regression test, written after the code (MVP 3.1's item 4)
+spawnable_test() ->
+    Beam = loaded(['Tablespawn'],
+                  "let note : Int = 1\n"
+                  "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
+                  "fn noted() : Unit with Never = { let _ = note + now(); Unit }\n"
+                  "export fn calls() : Unit with Never = noted()\n"
+                  "export fn start(n : Int) : Either(Io.Error, Address(Never)) with m = {\n"
+                  "    let _ = calls;\n"
+                  "    Peer.spawn(\"p\", fn() : Unit with Never = { let _ = n; Unit }, 100)\n"
+                  "}\n"),
+    Definitions = definitions(Beam),
+    Unit = 'ern@tablespawn',
+    Note = {['Tablespawn', note], hash(['Tablespawn', note], Definitions)},
+    Reach = {[Note], [['Tablespawn', now]]},
+    ?assertEqual({Unit, calls, 0, Reach},
+                 ern_code:spawnable({hash, hash(['Tablespawn', calls], Definitions)})),
+    ?assertEqual({Unit, 'start$spawn$1', 1, {[], []}},
+                 ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 1})),
+    ?assertEqual({Unit, now, 0, {[], [['Tablespawn', now]]}},
+                 ern_code:spawnable({foreign, ['Tablespawn', now]})),
+    ?assertEqual(none, ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 2})),
+    ern_code:unloaded(Unit),
+    code:purge(Unit),
+    code:delete(Unit).
+
 %% report §8.7: a unit loaded again with other code replaces its rows, so
 %% that a definition it no longer holds is found nowhere; one loaded again
 %% with the same code is passed over; one unloaded takes its rows with it

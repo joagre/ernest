@@ -633,13 +633,15 @@ debug_information(Dir) ->
                  lists:keymember("Dbgi", 1, Chunks)
              end].
 
-%% report §9.3, §11.2, Appendix G.2, Appendix G.6, plan MVP 3.2: every library's own
-%% tests, run by `ern test` over the directory their compiled modules are
-%% under, as the shell's are: the Markdown library's read and lay out what
-%% G.2 says, and the JSON library's read and write what G.6 says. A
-%% regression test too: the modules were run by one command joined with
-%% `&&`, which the host runs by `exec`, so only the first module's tests
-%% ran, and it has none
+%% report §9.3, §11.2, Appendix G.2, G.4, G.5, G.6, plan MVP 3.2: every
+%% library's own tests, run by `ern test` over the directory their compiled
+%% modules are under, as the shell's are: the Markdown library's read and
+%% lay out what G.2 says, the Load and Balancer libraries' measure as G.4
+%% and G.5 say, the balancer's measuring process faulting as its test
+%% expects, which the run reports, and the JSON library's read and write
+%% what G.6 says. A regression test too: the modules were run by one
+%% command joined with `&&`, which the host runs by `exec`, so only the
+%% first module's tests ran, and it has none
 libs_test_() ->
     {timeout, 60, fun libs/0}.
 
@@ -647,9 +649,14 @@ libs() ->
     {Status, Output} = sh("../bin/ern test --load-path ../build/libs/ansi ../build/libs"),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
+    Faulted = [Line || Line <- Lines, binary:match(Line, <<" faulted: ">>) =/= nomatch],
+    ?assertMatch([_], [Line || Line <- Faulted,
+                               binary:match(Line, <<"Balancer.elsewhere:">>) =/= nomatch,
+                               binary:match(Line, <<"is no place of this balancer">>) =/= nomatch]),
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Json">>, <<"Markdown">>], Lines -- Passed),
+    ?assertEqual([<<"Balancer">>, <<"Json">>, <<"Load">>, <<"Markdown">>],
+                 Lines -- (Passed ++ Faulted)),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).
 
@@ -699,56 +706,6 @@ ets() ->
     {1, Sized} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/sized.erc"),
     ?assert(lists:member(<<"Sized.main faulted: the table has ended">>,
                          unstamped(binary:split(Sized, <<"\n">>, [global, trim])))).
-
-%% Appendix G.4, G.5: the libraries a peer may run functions of hold no
-%% top-level binding, so that a peer whose program does not depend on them
-%% runs them (report §8.7), and their tests are programs of their own: a
-%% measure of the schedulers takes back its own setting of the host's
-%% keeping of their time, and a measure of a place the balancer was not
-%% started over faults its process. A regression test: the measure left its
-%% setting standing where the host kept the time already, and the balancer
-%% took the measure of any place, which a pick then answered
-measures_test_() ->
-    {timeout, 60, fun measures/0}.
-
-measures() ->
-    Dir = "build/measures",
-    ok = filelib:ensure_path(Dir),
-    ok = file:write_file(Dir ++ "/measured.ern",
-                         "type Msg = Died(Down)\n"
-                         "\n"
-                         "export fn main() : Unit with Msg = {\n"
-                         "    let flag = Foreign.atom(\"scheduler_wall_time\");\n"
-                         "    let _ = setFlag(flag, Foreign.from(true));\n"
-                         "    let _ = Load.schedulers(1);\n"
-                         "    let _ = setFlag(flag, Foreign.from(false));\n"
-                         "    let kept = statistic(flag) != Foreign.atom(\"undefined\");\n"
-                         "    Io.println(\"kept: \" <> Io.show(kept));\n"
-                         "    let balancer = Balancer.start([Balancer.Here]);\n"
-                         "    let place = Balancer.On(\"elsewhere\");\n"
-                         "    let measuring = fn() : Unit with Balancer.Measuring =\n"
-                         "        Balancer.serve(balancer, place, fn() = 0.5);\n"
-                         "    let _ = spawnMonitored(measuring, Died);\n"
-                         "    receive {\n"
-                         "        Died(down) -> Io.println(\"measured: \"\n"
-                         "                                 <> Io.show(down.reason))\n"
-                         "    }\n"
-                         "}\n"
-                         "\n"
-                         "foreign fn setFlag(flag : Foreign.Term,\n"
-                         "                   value : Foreign.Term) : Bool with m =\n"
-                         "    \"erlang:system_flag/2\"\n"
-                         "\n"
-                         "foreign fn statistic(item : Foreign.Term) : Foreign.Term with m =\n"
-                         "    \"erlang:statistics/1\"\n"),
-    Libraries = " --load-path ../build/libs/load --load-path ../build/libs/balancer ",
-    0 = build("--source-root " ++ Dir ++ Libraries ++ "--build-root " ++ Dir ++ " " ++ Dir
-              ++ "/measured.ern"),
-    {0, Output} = sh("../bin/ern run" ++ Libraries ++ Dir ++ "/measured.erc"),
-    Lines = unstamped(binary:split(Output, <<"\n">>, [global, trim])),
-    ?assert(lists:member(<<"kept: false">>, Lines)),
-    ?assert(lists:member(<<"measured: Fault(\"On(\\\"elsewhere\\\") is no place of this"
-                           " balancer\")">>, Lines)).
 
 %% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the
 %% host's locale, a line without its line feed or the carriage return

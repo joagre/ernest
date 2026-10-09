@@ -2,7 +2,7 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$fun'/2]).
+-export([main/0, '$fun'/2, '$spawned'/2]).
 
 main() ->
     Counter_1 = ern_rt:spawn(fun () -> count(0) end,
@@ -61,3 +61,5 @@ countTwice(Total_13) ->
     end.
 
 '$fun'(main, 0) -> fun main/0.
+
+'$spawned'(main, []) -> main().

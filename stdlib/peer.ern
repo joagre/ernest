@@ -50,8 +50,9 @@
 /// since 0.4.0
 
 /// A key: the name a service is offered and found under, and the service's
-/// message type, which the compiler gives where the key is made. A key starts
-/// nothing, and crosses to other nodes as any value of an unbound type does.
+/// message type, its hash and its text, which the compiler gives where the
+/// key is made. A key starts nothing, and crosses to other nodes as any value
+/// of an unbound type does.
 ///
 /// ### Examples
 ///
@@ -62,12 +63,12 @@
 /// }
 /// // => Left(NotListed)
 /// ```
-export abstract type Key(m) = Key(name : String, text : String)
+export abstract type Key(m) = Key(name : String, hash : Bytes, text : String)
 
 /// A key of the name, at the message type the compiler finds where it is
 /// written, which is known whole there and crosses to other nodes. The key
-/// holds the type's text with every name qualified, `Counter.Msg`, whichever
-/// module writes it.
+/// holds the type's hash, which a find compares, and its text with every
+/// name qualified, `Counter.Msg`, whichever module writes it.
 ///
 /// ### Examples
 ///
@@ -95,29 +96,30 @@ export foreign fn offer(key : Key(m), address : Address(m)) : Unit with n =
     "ern_peer:offer/2"
 
 /// The first address a peer `ernest.conf` lists for the key's name offers under
-/// it at the key's type, within `ms` milliseconds. The peers are asked in the
-/// order the configuration lists them, each given the time left, and one that
-/// cannot be reached, offers nothing under the name, or offers it at another
-/// type is passed over; where no peer offers it, the last of these is
-/// answered, and `Left(Timeout)` where the time runs out. A find meets
-/// `NotListed`, `Unreachable`, `Timeout`, `NotOffered` and `OtherType`.
+/// it at the key's type, by its hash, within `ms` milliseconds. The peers are
+/// asked in the order the configuration lists them, each given the time left,
+/// and one that cannot be reached, offers nothing under the name, or offers it
+/// at a type of another hash, another version of the type, is passed over;
+/// where no peer offers it, the last of these is answered, and
+/// `Left(Timeout)` where the time runs out. A find meets `NotListed`,
+/// `Unreachable`, `Timeout`, `NotOffered` and `OtherType`.
 export foreign fn find(key : Key(m), ms : Int) : Either(Io.Error, Address(m)) with n =
     "ern_peer:find/2"
 
 /// A process started on the peer of that name, running `f`, its address
 /// answered within `ms` milliseconds, the opening of a connection among them.
-/// `f` is a declaration's name, or a lambda or a `fn` written in the same
-/// definition, as report §3.11 says, and what it captured crosses to the peer;
-/// the peer's own top-level bindings and system processes are those `f`
-/// reaches there. `f` runs only where the peer has its module, the one it is
-/// written in, and every binding of that module and of the modules it depends
-/// on has its value there. Otherwise the spawn answers `NotLoaded`, as it does
-/// for a function a shell typed, and for one whose module, or a module it
-/// depends on, has a binding the peer's program never ran. A process whose
-/// answer came too late is killed as it comes, and where the connection was
-/// lost meanwhile it runs on. A spawn meets `NotListed`, `Unreachable`,
-/// `Timeout` and `NotLoaded`. `spawn` is called where it is named, and is no
-/// value.
+/// `f` is a declaration's name, a lambda or a `fn` written in the same
+/// definition, or `restarting` over one of these, as report §3.11 says, and
+/// what it captured crosses to the peer; the peer's own top-level bindings and
+/// system processes are those `f` reaches there. `f` runs only where the peer
+/// holds it, by its hash, every top-level binding it reaches has its value
+/// there, and every module a foreign declaration it reaches calls is there.
+/// Otherwise the spawn answers `NotLoaded`, as it does for a function a shell
+/// typed, and the peer says on its standard error what it lacked. A binding
+/// `f` does not reach keeps it from no peer. A process whose answer came too
+/// late is killed as it comes, and where the connection was lost meanwhile it
+/// runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout` and
+/// `NotLoaded`. `spawn` is called where it is named, and is no value.
 export foreign fn spawn(name : String,
                         f : () -> Unit with m,
                         ms : Int) : Either(Io.Error, Address(m)) with n =

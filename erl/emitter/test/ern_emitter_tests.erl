@@ -284,8 +284,10 @@ let_of_function_type_remote_test() ->
 %% checked in dependency order, main against http's interface.
 golden_source("modules/" ++ _ = Name) ->
     {ok, HttpSource} = file:read_file("../../../test/programs/modules/net/http.ern"),
-    {ok, HttpTyped, HttpInterface, HttpEnv} =
-        ern_typecheck:check_string(['Net', 'Http'], HttpSource),
+    {ok, HttpTyped, Checked, HttpEnv} = ern_typecheck:check_string(['Net', 'Http'], HttpSource),
+    %% report §11.1: the interface as compiled, with its definitions' hashes
+    Canonical = ern_canonical:module(['Net', 'Http'], HttpTyped, HttpEnv, false),
+    HttpInterface = ern_canonical:interface(Checked, Canonical),
     case Name of
         "modules/net/http" ->
             emitted(['Net', 'Http'], HttpTyped, HttpEnv);

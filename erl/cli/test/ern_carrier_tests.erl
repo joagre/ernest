@@ -1,5 +1,5 @@
-%% A node's carrier (report §8.7): its name on the carrier, the build's
-%% fingerprint, the flags its host boots with, the rule that accepts a peer
+%% A node's carrier (report §8.7): its name on the carrier, the floor's
+%% cookie, the flags its host boots with, the rule that accepts a peer
 %% by its key, and the lines it says. Real nodes on one machine are
 %% test/ern_nodes_tests.erl's.
 -module(ern_carrier_tests).
@@ -44,42 +44,34 @@ name_test() ->
     Other = (configured())#configuration.public_key,
     ?assertNot(public_key:pkix_verify_hostname(Certificate, [{dns_id, ern_carrier:host(Other)}])).
 
-%% report §8.7: the build's fingerprint covers every compiled module on the
-%% load path, a host module a `foreign fn` loads from one of its
-%% directories among them, by the host's digest of its code; a module more,
-%% or one changed, changes it, and a file that is no compiled module is
-%% refused
-fingerprint_test() ->
+%% report §8.7: the cookie is the digest of the floor, the protocol's
+%% version, 2 since MVP 3.1, `ern`'s version and OTP's major release, and
+%% nothing of the build: the same for every load path, and not changed by
+%% a module built or changed. A regression test of MVP 3.0's fingerprint,
+%% which held every compiled module of the load path
+cookie_test() ->
+    {ok, Version} = file:read_file("../../../VERSION"),
+    Floor = {2, binary_to_list(string:trim(Version)), erlang:system_info(otp_release)},
+    Digest = crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
+    Cookie = ern_carrier:cookie(),
+    ?assertEqual(binary_to_list(binary:encode_hex(Digest, lowercase)), Cookie),
     Dir = tmp(),
     ok = file:write_file(filename:join(Dir, "one.ern"), "export fn f() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", Dir], group_leader())),
-    One = ern_carrier:fingerprint([Dir]),
-    ?assertEqual(One, ern_carrier:fingerprint([Dir])),
-    ?assertEqual(64, length(One)),
-    ?assertNotEqual(One, ern_carrier:fingerprint([])),
-    ok = file:write_file(filename:join(Dir, "two.ern"), "export fn g() : Int = 2\n"),
-    ?assertEqual(0, ern_cli:ern(["build", Dir], group_leader())),
-    Two = ern_carrier:fingerprint([Dir]),
-    ?assertNotEqual(One, Two),
-    ok = file:write_file(filename:join(Dir, "two.ern"), "export fn g() : Int = 3\n"),
-    ?assertEqual(0, ern_cli:ern(["build", Dir], group_leader())),
-    ?assertNotEqual(Two, ern_carrier:fingerprint([Dir])),
-    {ok, Beam} = file:read_file(code:which(ern_carrier)),
-    ok = file:write_file(filename:join(Dir, "helper.beam"), Beam),
-    ?assertNotEqual(ern_carrier:fingerprint([Dir]), Two),
-    ok = file:write_file(filename:join(Dir, "broken.erc"), <<"not a module">>),
-    ?assertThrow({cli_error, _}, ern_carrier:fingerprint([Dir])).
+    ?assertEqual(Cookie, ern_carrier:cookie()),
+    Configuration = configured(),
+    ?assert(contains(ern_carrier:boot_flags(Configuration), ["-setcookie", Cookie])).
 
 %% report §8.7: a node's host boots with TLS 1.3 over the listener's family
 %% of addresses, the node's certificate and key on each side, the rule as
 %% the verification, no port-mapper daemon, no mesh, the detector's times,
-%% the buffer, and the build's fingerprint as the cookie; the listener's
+%% the buffer, and the floor's digest as the cookie; the listener's
 %% interface is the kernel's to bind where it is one
 boot_flags_test() ->
     Configuration = configured(),
     Dir = filename:absname(Configuration#configuration.config_dir),
-    Flags = ern_carrier:boot_flags(Configuration#configuration{listen = {{127, 0, 0, 1}, 0}}, []),
-    Cookie = ern_carrier:fingerprint([]),
+    Flags = ern_carrier:boot_flags(Configuration#configuration{listen = {{127, 0, 0, 1}, 0}}),
+    Cookie = ern_carrier:cookie(),
     ?assertMatch(["-proto_dist", "inet_tls", "-ssl_dist_opt" | _], Flags),
     lists:foreach(fun(Pair) -> ?assert(contains(Flags, Pair)) end,
                   [["server_certfile", filename:join(Dir, "certificate.pem")],
@@ -96,10 +88,10 @@ boot_flags_test() ->
                    ["-kernel", "inet_dist_use_interface", "{127,0,0,1}"]]),
     ?assertNot(contains(Flags, ["client_fail_if_no_peer_cert", "true"])),
     All = ern_carrier:boot_flags(Configuration#configuration{listen = {{0, 0, 0, 0, 0, 0, 0, 0},
-                                                                         8654}}, []),
+                                                                         8654}}),
     ?assertMatch(["-proto_dist", "inet6_tls" | _], All),
     ?assertNot(lists:member("inet_dist_use_interface", All)),
-    Dialling = ern_carrier:boot_flags(Configuration#configuration{listen = none}, []),
+    Dialling = ern_carrier:boot_flags(Configuration#configuration{listen = none}),
     ?assertMatch(["-proto_dist", "inet_tls" | _], Dialling),
     ?assertNot(lists:member("inet_dist_use_interface", Dialling)).
 

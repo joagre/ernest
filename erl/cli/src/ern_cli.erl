@@ -696,7 +696,7 @@ run(Options, [File | Words], ErrorDevice) ->
     as_node(Options, LoadPath,
             fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
 run(Options, [], _ErrorDevice) ->
-    %% report §11.2: a node without a program is MVP 3.1's
+    %% report §11.2: a node without a program is MVP 3.2's
     is_node(Options)
         andalso ern_build:fail("a node runs a program: ern run --config-dir dir prog.erc; a node"
                                " without one arrives in MVP 3.2"),
@@ -857,7 +857,7 @@ as_node(Options, LoadPath, Run) ->
         {undefined, _} ->
             Run(#{});
         {ConfigDir, true} ->
-            throw({node_flags, ern_carrier:boot_flags(ern_node:read(ConfigDir), LoadPath)});
+            throw({node_flags, ern_carrier:boot_flags(ern_node:read(ConfigDir))});
         {ConfigDir, false} ->
             %% the configuration is read first: one the first start could not
             %% read gave it no flags, and its refusal is what is said

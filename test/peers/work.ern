@@ -11,3 +11,7 @@ export fn watchedOn(name : String,
                     wrap : (Down) -> m,
                     ms : Int) : Either(Io.Error, Address(Never)) with m =
     Peer.spawnMonitored(name, fn() : Unit with Never = Unit, wrap, ms)
+
+// A process that ends at once, whose spawn `make bench` times.
+export fn idleOn(name : String, ms : Int) : Either(Io.Error, Address(Never)) with m =
+    Peer.spawn(name, fn() : Unit with Never = Unit, ms)

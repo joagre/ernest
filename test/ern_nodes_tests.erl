@@ -6,15 +6,15 @@
 %% load path; a host that holds a peer's key and names itself as it likes
 %% is a bare `erl` with the host's TLS distribution and the key's files.
 %% `Peer`'s tests run the programs of `test/peers/`, one build whose store
-%% and desk are two nodes.
+%% and desk are two nodes; the tests of two builds (MVP 3.1) write a
+%% program and build it twice, one function and one type changed.
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
 
 -define(ERN, filename:absname("../bin/ern")).
-%% The libraries `test/peers/`'s programs use, on every node's load path, so
-%% that every node runs one build.
+%% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
                     || Library <- ["balancer", "json", "load"]]).
 
@@ -201,11 +201,11 @@ called(Node) ->
 ">>.
 
 %% A bare `erl` that dials the node listening on Port as Name, presenting
-%% the certificate and key given, with the build's fingerprint as the
-%% cookie, its module in Root, and waiting for a line on its standard input
-%% before it asks again where Wait says so; answers the port whose writes
-%% are its standard input and whose messages are its standard output, and
-%% the function that waits for its end and answers what it printed.
+%% the certificate and key given, with the cookie given, its module in
+%% Root, and waiting for a line on its standard input before it asks again
+%% where Wait says so; answers the port whose writes are its standard
+%% input and whose messages are its standard output, and the function that
+%% waits for its end and answers what it printed.
 client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Wait) ->
     Tls = lists:append([[Side ++ "_" ++ Option, Value]
                         || Side <- ["client", "server"],
@@ -470,7 +470,7 @@ bound(Base) ->
     lists(A, [{"b", B, none}, {"c", C, none}]),
     Root = filename:join(Base, "build"),
     Program = program(Root),
-    Cookie = ern_carrier:fingerprint([Root | ?LIBRARIES]),
+    Cookie = ern_carrier:cookie(),
     WaitA = start(A, Program, []),
     prints(A, "waiting"),
     Target = name(A),
@@ -522,9 +522,9 @@ answered(Base) ->
     ?assertEqual(nomatch, string:find(ErrA, "connected")),
     ?assertEqual(nomatch, string:find(ErrC, "connected")).
 
-%% report §8.7: two nodes of different builds fail the handshake with
-%% nothing sent, the build's fingerprint being the host's cookie, and the
-%% node that refused says so in its own words
+%% report §8.7: two nodes of different builds connect, the cookie being
+%% the floor's digest and holding nothing of the build. A regression test
+%% of MVP 3.0's fingerprint, which refused them
 other_build_test_() ->
     nodes_test(60, fun other_build/1).
 
@@ -543,13 +543,37 @@ other_build(Base) ->
     prints(B, "waiting"),
     WaitA = start(A, Changed, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
-    says(B, "it runs another build"),
     stop(B, WaitB),
     {OutA, _} = said(A),
     {_, ErrB} = said(B),
-    has(OutA, "connect: false"),
-    has(ErrB, "the peer a was refused: it runs another build"),
-    ?assertEqual(nomatch, string:find(ErrB, "**")).
+    has(OutA, "connect: true"),
+    has(ErrB, "the peer a connected"),
+    ?assertEqual(nomatch, string:find(ErrB, "refused")).
+
+%% report §8.7: a node that stands on another floor fails the handshake with
+%% nothing sent, its cookie another's, and the node that refused it says so
+%% in its own words; here a bare `erl` that holds a listed peer's key and
+%% names itself as that key gives, with another cookie
+other_floor_test_() ->
+    nodes_test(60, fun other_floor/1).
+
+other_floor(Base) ->
+    PortA = free_port(),
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    lists(A, [{"b", B, none}]),
+    Root = filename:join(Base, "build"),
+    Program = program(Root),
+    WaitA = start(A, Program, []),
+    prints(A, "waiting"),
+    {_, Other} = client(Root, name(B), key_files(B), "another-floor", PortA, name(A), false),
+    {0, OtherOut} = Other(),
+    has(OtherOut, "connect: false"),
+    says(A, "the peer b was refused: it stands on another floor, another release of ern or"
+            " another major release of OTP"),
+    stop(A, WaitA),
+    {_, ErrA} = said(A),
+    ?assertEqual(nomatch, string:find(ErrA, "**")).
 
 %% report §8.7, limit 14 of the proposal: two nodes started from copies of
 %% one directory are one node to their peers; the second's dial ends the
@@ -884,12 +908,13 @@ find(Base) ->
 
 %% report §8.7, §6.7, Appendix E.27, §8.2: work on a peer is a process
 %% spawned at the node the program names, whose spawn answers its address or
-%% a failure within the time; a function of a module the store has
-%% whole spawns there with what it captured, writing to the store's
-%% standard output; a name that is no peer's is NotListed; a function of a
-%% module whose binding has no value on the store is NotLoaded, and so is
-%% one of a module that depends on such a module, the rule being by module;
-%% a top-level binding in spawned code is the peer's; a monitored spawn is
+%% a failure within the time; a function the store holds spawns there with
+%% what it captured, writing to the store's standard output; a name that is
+%% no peer's is NotListed; a function that names a binding with no value on
+%% the store is NotLoaded, which the store says, and nothing is initialized
+%% for it; a function that names no binding spawns though its module's
+%% binding has no value there, MVP 3.1 having lifted the rule by module; a
+%% top-level binding in spawned code is the peer's; a monitored spawn is
 %% monitored from its start; a spawn given no time answers Timeout; a find
 %% and a spawn given a time past the longest wait the host takes at once
 %% wait, a regression: each failed with the host's error
@@ -905,11 +930,13 @@ spawn_on_peer(Base) ->
     prints(Store, "the peers here"),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
-    {StoreOut, _} = said(Store),
+    {StoreOut, StoreErr} = said(Store),
     [has(Out, Line)
      || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
-                 "by module: NotLoaded", "bindings: Right", "monitored: Returned",
+                 "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Timeout", "no upper bound: Right"]],
+    has(StoreErr, "the peer desk's spawn at Desk.spawns:70 was not loaded: the binding"
+                  " Lonely.greeting has no value here"),
     has(StoreOut, "the store squares 49"),
     has(StoreOut, "the store squares 64"),
     has(StoreOut, "the peers here: [\"desk\", \"third\"]"),
@@ -1103,6 +1130,199 @@ reload(Base) ->
 undecodable(Pem) ->
     [Head, Body] = binary:split(Pem, <<"\n">>),
     <<Head/binary, "\nAAAAAAAAAAAA", (binary:part(Body, 12, byte_size(Body) - 12))/binary>>.
+
+%%
+%% Two builds (report §8.7, MVP 3.1)
+%%
+
+%% A program of four modules, written in Dir and built there, as one build
+%% or as another, Changed, in which one function's body and one type's
+%% constructors differ: Twin's types, keys and functions; Aside, whose
+%% binding the server's program never runs; the server, which offers a
+%% service under each key; and the asker, which finds and spawns on the
+%% server. A host module the asker's build holds and the server's lacks is
+%% what Twin's foreign declaration calls. Answers the asker's and the
+%% server's programs.
+twins(Dir, Changed) ->
+    ok = filelib:ensure_path(Dir),
+    {Shape, Said} = case Changed of
+                        false -> {"Square(Int)", "the first build"};
+                        true -> {"Square(Int) | Circle(Int)", "the second build"}
+                    end,
+    Twin = ["// Report §8.7: what the two builds share, and the two things they do not:\n"
+            "// changed's body and Shape's constructors.\n"
+            "\n"
+            "export type Msg = Ping(Reply(Int))\n"
+            "\n"
+            "export type Shape = ", Shape, "\n"
+            "\n"
+            "export let stableKey : Peer.Key(Msg) = Peer.key(\"stable\")\n"
+            "\n"
+            "export let shapeKey : Peer.Key(Shape) = Peer.key(\"shape\")\n"
+            "\n"
+            "export fn same() : Unit with Never = Io.println(\"same ran\")\n"
+            "\n"
+            "export fn changed() : Unit with Never = Io.println(\"", Said, "\")\n"
+            "\n"
+            "export fn worked() : Unit with Never = Io.println(\"restarting ran\")\n"
+            "\n"
+            "foreign fn absent() : Unit with m = \"ern_twins_host:absent/0\"\n"
+            "\n"
+            "export fn callsAbsent() : Unit with Never = absent()\n"],
+    Aside = "// Report §8.7: a binding the server's program never runs, beside a\n"
+            "// function that names no binding.\n"
+            "\n"
+            "let note : String = \"never run on the server\"\n"
+            "\n"
+            "export fn tell() : Unit with Never = Io.println(note)\n"
+            "\n"
+            "export fn quiet() : Unit with Never = Io.println(\"quiet ran\")\n",
+    Server = "// Report §8.7: a service under each of Twin's keys, until the node ends.\n"
+             "\n"
+             "export fn main() : Unit with Unit = {\n"
+             "    let pinged = spawn(fn() : Unit with Twin.Msg = answered());\n"
+             "    Peer.offer(Twin.stableKey, pinged);\n"
+             "    let shaped = spawn(fn() : Unit with Twin.Shape = held());\n"
+             "    Peer.offer(Twin.shapeKey, shaped);\n"
+             "    Io.println(\"offered\");\n"
+             "    held()\n"
+             "}\n"
+             "\n"
+             "fn answered() : Unit with Twin.Msg = receive {\n"
+             "    Twin.Ping(reply) -> {\n"
+             "        answer(reply, 42);\n"
+             "        answered()\n"
+             "    }\n"
+             "}\n"
+             "\n"
+             "// Until the node is stopped: a node waiting for ever is no deadlock.\n"
+             "fn held() : Unit with m = receive { _ -> held() }\n",
+    Asker = "// Report §8.7: the finds and the spawns on the server, each answer a line.\n"
+            "\n"
+            "export fn main() : Unit with Never =\n"
+            "    match Os.arguments {\n"
+            "        [server] -> {\n"
+            "            found(server);\n"
+            "            spawned(server);\n"
+            "            captured(server)\n"
+            "        }\n"
+            "      | _ -> Unit\n"
+            "    }\n"
+            "\n"
+            "fn found(server : String) : Unit with Never = {\n"
+            "    let stable = match Peer.find(Twin.stableKey, 5000) {\n"
+            "        Right(address) ->\n"
+            "            Io.show(Address.call(address, fn(reply) = Twin.Ping(reply), 5000))\n"
+            "      | Left(failure) -> Io.show(failure)\n"
+            "    };\n"
+            "    Io.println(\"stable: \" <> stable);\n"
+            "    Io.println(\"shape: \" <> started(Peer.find(Twin.shapeKey, 5000)))\n"
+            "}\n"
+            "\n"
+            "fn spawned(server : String) : Unit with Never = {\n"
+            "    Io.println(\"same: \" <> started(Peer.spawn(server, Twin.same, 5000)));\n"
+            "    Io.println(\"changed: \" <> started(Peer.spawn(server, Twin.changed, 5000)));\n"
+            "    Io.println(\"binding: \" <> started(Peer.spawn(server, Aside.tell, 5000)));\n"
+            "    Io.println(\"module: \" <> started(Peer.spawn(server, Twin.callsAbsent, 5000)));\n"
+            "    let quiet = Peer.spawn(server, Aside.quiet, 5000);\n"
+            "    Io.println(\"names no binding: \" <> started(quiet))\n"
+            "}\n"
+            "\n"
+            "// The same in both builds, so that its lambdas and local fns have one\n"
+            "// identity on both nodes.\n"
+            "fn captured(server : String) : Unit with Never = {\n"
+            "    let n = 6;\n"
+            "    let lambda = Peer.spawn(server,\n"
+            "                            fn() : Unit with Never =\n"
+            "                                Io.println(\"lambda ran \" <> Int.toString(n * 7)),\n"
+            "                            5000);\n"
+            "    Io.println(\"lambda: \" <> started(lambda));\n"
+            "    fn local() : Unit with Never =\n"
+            "        Io.println(\"local ran \" <> Int.toString(n + 37));\n"
+            "    Io.println(\"local: \" <> started(Peer.spawn(server, local, 5000)));\n"
+            "    let limit = RestartLimit(restarts = 1, within = 1000);\n"
+            "    let restarted = Peer.spawn(server, restarting(limit, Twin.worked), 5000);\n"
+            "    Io.println(\"restarting: \" <> started(restarted))\n"
+            "}\n"
+            "\n"
+            "fn started(answer : Either(Io.Error, Address(m))) : String =\n"
+            "    match answer {\n"
+            "        Right(_) -> \"Right\"\n"
+            "      | Left(failure) -> Io.show(failure)\n"
+            "    }\n",
+    [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
+     || {File, Text} <- [{"twin.ern", Twin}, {"aside.ern", Aside}, {"server.ern", Server},
+                         {"asker.ern", Asker}]],
+    0 = ern_cli:ern(["build", Dir], group_leader()),
+    Changed orelse begin
+                       ok = file:write_file(filename:join(Dir, "ern_twins_host.erl"),
+                                            <<"-module(ern_twins_host).\n"
+                                              "-export([absent/0]).\n"
+                                              "absent() -> 'Unit'.\n">>),
+                       {ok, _} = compile:file(filename:join(Dir, "ern_twins_host.erl"),
+                                              [{outdir, Dir}])
+                   end,
+    {filename:join(Dir, "asker.erc"), filename:join(Dir, "server.erc")}.
+
+%% A definition's hash as the build in Dir holds it, in hexadecimal.
+hash_text(Dir, Module, QualifiedName) ->
+    {ok, Bytes} = file:read_file(filename:join(Dir, Module ++ ".erc")),
+    {ok, Definitions} = ern_canonical:read(Bytes),
+    [Hash] = [Hash || {definition, Name, _, Hash, _, _} <- Definitions, Name =:= QualifiedName],
+    binary_to_list(binary:encode_hex(Hash, lowercase)).
+
+%% report §8.7, Appendix H, §3.11, §6.9: two nodes of different builds of
+%% one program connect; a find answers the address where the key's type is
+%% one in both builds, and a call through it is answered, and `OtherType`
+%% where the type's constructors differ, its hash another; a spawn of a
+%% function both builds hold runs on the server, and one of a function
+%% whose body differs answers NotLoaded, the server saying it does not
+%% have its hash; a function that names a binding the server's program
+%% never ran answers NotLoaded, and so does one whose reach calls a host
+%% module the server lacks, the server saying which; a function that names
+%% no binding of a module whose binding the server never ran spawns,
+%% MVP 3.0's rule by module gone; a lambda and a local fn spawn by identity
+%% with what they captured, and `restarting(limit, f)` spawns. Written with
+%% the code, after it: a regression test
+two_builds_test_() ->
+    nodes_test(90, fun two_builds/1).
+
+two_builds(Base) ->
+    {AskerProgram, _} = twins(filename:join(Base, "first"), false),
+    {_, ServerProgram} = twins(filename:join(Base, "second"), true),
+    PortServer = free_port(),
+    Asker = made(Base, "asker", none),
+    Server = made(Base, "server", PortServer),
+    lists(Asker, [{"server", Server, PortServer}]),
+    lists(Server, [{"asker", Asker, none}]),
+    edit(Asker, fun(Conf) ->
+                    Conf#{<<"keys">> => #{<<"stable">> => [<<"server">>],
+                                          <<"shape">> => [<<"server">>]}}
+                end),
+    WaitServer = start(Server, ServerProgram, []),
+    prints(Server, "offered"),
+    ?assertEqual(0, (start(Asker, AskerProgram, ["server"]))()),
+    prints(Server, "restarting ran"),
+    stop(Server, WaitServer),
+    {Out, _} = said(Asker),
+    {ServerOut, ServerErr} = said(Server),
+    [has(Out, Line)
+     || Line <- ["stable: Some(42)", "shape: OtherType", "same: Right", "changed: NotLoaded",
+                 "binding: NotLoaded", "module: NotLoaded", "names no binding: Right",
+                 "lambda: Right", "local: Right", "restarting: Right"]],
+    [has(ServerOut, Line)
+     || Line <- ["same ran", "quiet ran", "lambda ran 42", "local ran 43", "restarting ran"]],
+    ?assertEqual(nomatch, string:find(ServerOut, "the first build")),
+    ?assertEqual(nomatch, string:find(ServerOut, "never run on the server")),
+    Changed = hash_text(filename:join(Base, "first"), "twin", ['Twin', changed]),
+    [has(ServerErr, Line)
+     || Line <- ["the peer asker connected",
+                 "the peer asker's spawn at Asker.spawned:25 was not loaded: this node does not"
+                 " have its function, " ++ Changed,
+                 "the peer asker's spawn at Asker.spawned:26 was not loaded: the binding"
+                 " Aside.note has no value here",
+                 "the peer asker's spawn at Asker.spawned:27 was not loaded: the module"
+                 " ern_twins_host, which Twin.absent calls, is not here"]].
 
 %% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
 %% picks in turn until a place has a measure, and then the lower of the

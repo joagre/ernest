@@ -73,8 +73,9 @@ paragraph under "Done".
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing` | design read through 2026-10-09; the principles review runs before its item 1 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code` | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.3 | the shell's second round | |
-| MVP 3.4 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
-| MVP 3.5 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
+| MVP 3.4 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
+| MVP 3.5 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
+| MVP 3.6 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 
 ---
@@ -192,7 +193,15 @@ and 8 below.
    by module refused it; nothing initialized because a peer asked; the site in the frame the
    spawner's words, shown and never compared. The Ernest tests of `Load` and `Balancer` return here from
    `test/ern_integration_tests.erl` to their modules, where a `Test.Case` binding kept their
-   functions off a peer under the rule by module (`language_feedback.md`'s entry 95).
+   functions off a peer under the rule by module (`language_feedback.md`'s entry 95). Built
+   2026-10-10 (the log's *The Spawn by Hash, Built*): the cookie the floor's digest, the protocol
+   at 2; a key `{'Key', Name, Hash, Text}`, its hash the type's canonical term's; the spawn frame
+   by identity, a lambda or local `fn` lifted to an entry its unit's `'$spawned'/2` runs over the
+   captures, `restarting` over one admitted; a function's reach of bindings and foreign modules
+   computed at build time and read in one lookup each; `NotLoaded` said on the peer's standard
+   error; the rule by module gone; a spawned body that uses a requirement's member refused; a
+   type's identity covering the `compare` its module declares, decided with the user;
+   two builds of one program on real nodes as the tests' subject.
 5. **The shell.** `:load` and `:reload` in a shell that is a node, and in any: a load adding
    hashes and moving the session's names to them; what a load brings to a node that already
    holds a unit of the module's name becoming a unit of its own, counted against item 3's limits,
@@ -386,7 +395,45 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 
 ---
 
-## MVP 3.4 (the libraries, as they are wanted)
+## MVP 3.4 (the tour)
+
+A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
+whole picture in an evening and will read neither: the report is for whoever builds or checks a
+toolchain, the guide for the programmer learning the language, and the tour a crash course. It
+is a directory of its own at the top level, its document and the programs it grows side by side,
+and the README opens on the three doors, each with the reader it is for, what it gives and how
+long it takes, so that a reader chooses one and walks in; CLAUDE.md's table of owners gains its
+row when the tour exists. One program, the counter of the guide and the proposals, grown chapter by chapter
+through every part of Ernest that matters, each shown working, from a process with a typed
+mailbox on one node to a rolling upgrade across three nodes written in Ernest. Decided with the
+user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about deployment (MVP
+3.2's item 8). It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its
+last chapters need, first of what follows, and before MVP 3.9, whose newcomer reads it.
+
+- **The outline first, written with the user**, as a design is: the chapters, the program's
+  growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
+  start from, not a decision: the counter and its client calling with a reply; faults, restarts
+  and a supervisor; a fix in the shell, two versions side by side as two types, and the service
+  moved by its own `Upgrade`; its total kept across the program's end with `Os.terminating`;
+  three nodes, a key and a find, `Standing`, a balancer; a bare node given its work with the
+  code; and the rolling upgrade, an old and a new build connected meanwhile.
+- **It narrates and points, and teaches no rule a third time**: what a rule is and why is the
+  report's and the guides', and the tour names the section.
+- **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
+- **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
+  one program grown across every feature is the language's hardest test before 1.0.
+
+## MVP 3.5 (ehttpd, and the libraries it wants)
+
+**ehttpd**, an HTTP/1.1 server written in Ernest, in a repository of its own, decided with the
+user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's own website, MVP
+3.6, and the first program built against an installed Ernest by a build of its own, which the
+examples cannot be. Its plan lives in its repository; this one records what it asks of the
+language and the libraries, and each is written as it asks, the libraries below among them.
+Named so far for it: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
+terminal, a library over `libs/http` and `Tcp`; base64; TLS on a socket; and what of `Tcp` a
+server needs beyond what E.18 gives. What writing it finds against the principles goes to
+`language_feedback.md` first, as any Ernest written here.
 
 A library not yet written waits, and is written when our work needs it, MVP 3.0 and 3.1 among
 that work, when someone asks for it, or when we want it, decided 2026-09-25 (the log's
@@ -430,32 +477,18 @@ and `json` in MVP 3.0). Named so far:
 
 ---
 
-## MVP 3.5 (the tour)
+## MVP 3.6 (the website)
 
-A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
-whole picture in an evening and will read neither: the report is for whoever builds or checks a
-toolchain, the guide for the programmer learning the language, and the tour a crash course. It
-is a directory of its own at the top level, its document and the programs it grows side by side,
-and the README names the three ways in; CLAUDE.md's table of owners gains its row when it
-exists. One program, the counter of the guide and the proposals, grown chapter by chapter
-through every part of Ernest that matters, each shown working, from a process with a typed
-mailbox on one node to a rolling upgrade across three nodes written in Ernest. Decided with the
-user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about deployment (MVP
-3.2's item 8). It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its
-last chapters need, and before MVP 3.9, whose newcomer reads it.
-
-- **The outline first, written with the user**, as a design is: the chapters, the program's
-  growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
-  start from, not a decision: the counter and its client calling with a reply; faults, restarts
-  and a supervisor; a fix in the shell, two versions side by side as two types, and the service
-  moved by its own `Upgrade`; its total kept across the program's end with `Os.terminating`;
-  three nodes, a key and a find, `Standing`, a balancer; a bare node given its work with the
-  code; and the rolling upgrade, an old and a new build connected meanwhile.
-- **It narrates and points, and teaches no rule a third time**: what a rule is and why is the
-  report's and the guides', and the tour names the section.
-- **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
-- **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
-  one program grown across every feature is the language's hardest test before 1.0.
+Ernest's website, served by ehttpd (MVP 3.5), decided with the user on 2026-10-10: what Ernest
+is, its characteristics, and the three doors of MVP 3.4, the tour, the guide and the report,
+each with the reader it is for; and a live shell, a terminal in the visitor's browser, a
+JavaScript terminal such as xterm.js, connected by WebSocket to `ern shell` behind a
+pseudo-terminal on the server. The shell runs on the server, since no full BEAM runs in a
+browser, and the shell drives a terminal through `Terminal` and so runs behind one unchanged.
+Its sandbox is the first decision of the milestone, and the operating system's and not the
+language's, since Ernest's system modules are ambient by design: one isolated container per
+visitor, with limits on time, memory, processes and network, and nothing kept when the
+visitor leaves. The site's pages are written in Markdown and rendered by `libs/markdown`.
 
 ## MVP 3.9 (the review before 1.0)
 
@@ -549,7 +582,7 @@ harness every terminal test runs through, turned `Keys` into `Terminal`, split `
 into areas, and found about twenty defects in the toolchain. The log's entries from 2026-09-20
 to 2026-09-25 hold every argument.
 
-### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 3.4)
+### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 3.5)
 
 Pure Ernest, about five hundred lines: `Markdown.parse` reads CommonMark 0.31's blocks and
 inlines, and `Markdown.render` lays them out at a width, with the terminal's styles or as
@@ -717,7 +750,7 @@ MVP 2.99b's items 1 to 3, the defects, the families' rules and the edits they as
 log, and the closure, whose counts and bench are the log's *The Principles Review Closed*.
 Each family is closed by its entry and is not reopened before 1.0 but by a program that shows
 a case it did not. What it leaves is dated: the `since` lines of what it added, written with
-`VERSION` at the release (the release review's step 5); `Udp` to MVP 3.4 (the log's
+`VERSION` at the release (the release review's step 5); `Udp` to MVP 3.5 (the log's
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A

@@ -545,7 +545,7 @@ bound_declared_type_test() ->
 %% report §3.11, §8.7, Appendix E.27: a key is made at a message type known
 %% whole where it is written, which crosses, and holds the type's text as
 %% the compiler prints it with every name qualified, the module's own
-%% among them
+%% among them, beside the type itself, whose hash the compiler gives it
 key_test() ->
     Source = "export type Msg = Add(Int) | Get(reply : Reply(Int))\n"
              "export type Box(a) = Box(a)\n",
@@ -553,7 +553,9 @@ key_test() ->
         with_peer(Source ++ "export let key : Peer.Key(Msg) = Peer.key(\"counter\")\n"
                             "export let boxes : Peer.Key(Box(Optional(Int))) ="
                             " Peer.key(\"boxes\")\n"),
-    ?assertEqual([[#type_text{text = "M.Msg"}], [#type_text{text = "M.Box(Optional(Int))"}]],
+    Box = {tcon, ['M', 'Box'], [{tcon, ['Optional'], [{tcon, ['Int'], []}]}]},
+    ?assertEqual([[#type_text{text = "M.Msg", type = {tcon, ['M', 'Msg'], []}}],
+                  [#type_text{text = "M.Box(Optional(Int))", type = Box}]],
                  [Supplies || #let_declaration{body = #e_call{callee = #e_var{supplies = Supplies}}}
                                   <- Typed]),
     ?assertEqual("Peer.key makes its key at a message type known whole, and here it is a",
@@ -653,6 +655,43 @@ spawn_function_test() ->
                  " it starts",
                  peer_refusal("fn f() : Unit = { let s = Peer.spawn; Unit }\n")).
 
+%% report §3.11, §6.9, §4.9: `restarting` applied to a function a spawn on a
+%% peer admits is admitted, its captures checked as that function's, and
+%% applied to any other refused; a lambda or a local fn whose body uses a
+%% member of the requirement in force, a function the definition was
+%% given, is refused, and a member of a requirement of a fn declared in its
+%% body is that fn's own. Regression tests, written after the code
+%% (MVP 3.1's item 4)
+spawn_restarting_and_members_test() ->
+    Limit = "let limit = RestartLimit(restarts = 1, within = 1000);\n    ",
+    ?assertEqual(ok, peer_ok("fn run() : Unit with Never = Unit\n"
+                             "fn f() : Unit with m = {\n"
+                             ++ spawning(Limit, "restarting(limit, run)"))),
+    ?assertEqual(ok, peer_ok("fn f(x : Int) : Unit with m = {\n"
+                             ++ spawning(Limit, "restarting(limit, fn() : Unit with Never ="
+                                                " { let _ = x; Unit })"))),
+    ?assertEqual("the function Peer.spawn starts captures g, a function, which is bound to its"
+                 " node",
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
+                              ++ spawning(Limit, "restarting(limit, fn() : Unit with Never ="
+                                                 " { let _ = g(1); Unit })"))),
+    ?assertEqual("Peer.spawn starts a function written where the compiler sees what it"
+                 " captures: a declaration's name, or a lambda or a `fn` written in this"
+                 " definition",
+                 peer_refusal("fn run() : Unit with Never = Unit\n"
+                              "fn f() : Unit with m = {\n"
+                              ++ spawning(Limit, "restarting(limit, restarting(limit, run))"))),
+    ?assertEqual("Peer.spawn starts a function that uses a.show, a member of the requirement in"
+                 " force, which is a function bound to its node",
+                 peer_refusal("fn f(x : a) : Unit with Never needs a.show = {\n"
+                              ++ spawning("", "fn() : Unit with Never = {"
+                                              " let y : a = fault(\"no\");"
+                                              " Io.println(Io.show(y)) }"))),
+    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n"
+                             ++ spawning("", "fn() : Unit with Never = {"
+                                             " fn shown(v : b) : String needs b.show = Io.show(v);"
+                                             " Io.println(shown(1)) }"))).
+
 %% report §3.11, §5.6: the errors the two sections state are the
 %% compiler's: a spawn on a peer of a function that came as a value,
 %% `Peer.spawn` taken as a value, and a record update with no field. A
@@ -672,6 +711,10 @@ stated_errors_test() ->
            peer_refusal("fn g(f : () -> Unit with Never) : Unit with m = {\n"
                         ++ spawning("", "f"))),
     Stated(Serialization, peer_refusal("fn g() : Unit = { let start = Peer.spawn; Unit }\n")),
+    Stated(Serialization,
+           peer_refusal("fn f(x : a) : Unit with Never needs a.show = {\n"
+                        ++ spawning("", "fn() : Unit with Never = {"
+                                        " let y : a = fault(\"no\"); Io.println(Io.show(y)) }"))),
     Stated(Construction,
            refusal("type Point = Point(x : Int, y : Int)\n"
                    "fn same(p : Point) : Point = Point(..p)\n")).

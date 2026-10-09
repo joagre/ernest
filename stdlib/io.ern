@@ -62,8 +62,9 @@
 ///   it, or it was lost while waiting.
 /// - `NotOffered`: the peer offers nothing under the key's name.
 /// - `OtherType`: the peer offers the name at another message type.
-/// - `NotLoaded`: the peer does not have the function's module, or a binding of
-///   it or of a module it depends on has no value there.
+/// - `NotLoaded`: the peer does not have the function, a binding it reaches has
+///   no value there, or a module a foreign declaration it reaches calls is not
+///   there.
 /// - `Other(text)`: another reason, in the host's words, `"address already in
 ///   use"`.
 ///

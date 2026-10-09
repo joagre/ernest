@@ -40,7 +40,8 @@
 %% §8.4, and `ern_launch` the way the terminal is read and the process a
 %% deadlock faults. A node's (§8.7): `ern_offers` and `ern_offered` hold
 %% the offers, `ern_initialized` the modules whose initializers have run,
-%% and `ern_notes` the notes of calls from other nodes.
+%% whose bindings a peer's spawn asks for, and `ern_notes` the notes of
+%% calls from other nodes.
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
@@ -103,15 +104,15 @@
 %% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, and
 %% the process a deadlock faults, {deadlock_victim, Pid}
 -define(LAUNCH, ern_launch).
-%% Report §8.7: the offers of the node, {{Name, Text}, Address, Process} by
-%% the key's name and its type's text, ordered so that one name's are read
+%% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
+%% the key's name and its type's hash, ordered so that one name's are read
 %% together
 -define(OFFERS, ern_offers).
 %% report §8.7: each process's own keys, {Process, Key}, by the process, so
 %% that its end ends its offers
 -define(OFFERED, ern_offered).
 %% report §8.7: the modules whose initializers have run, {ErlangModule},
-%% which a spawn from a peer asks for
+%% whose bindings a spawn from a peer asks for
 -define(INITIALIZED, ern_initialized).
 %% Report §8.7: the notes of calls from other nodes on this node's
 %% processes, {{CallerNode, Reply}, Callee, Caller}, by the caller's node,
@@ -551,9 +552,16 @@ reaper_loop(Reaper, Wait) ->
         {spawn, From, Ref, Function, Site, SpawnMonitors} ->
             reaper_loop(spawned(From, Ref, Function, Site, SpawnMonitors, Reaper));
         %% report §8.7: a peer's question, answered while the run's tables
-        %% are there (asked_of_run/1)
-        {asked, From, Ref, {spawn, Function, Site}} ->
-            reaper_loop(spawned(From, Ref, Function, Site, [], Reaper));
+        %% are there (asked_of_run/1): a spawn starts where every binding
+        %% its function's reach names has its value
+        {asked, From, Ref, {spawn, Function, Bindings, Site}} ->
+            case absent_binding(Bindings) of
+                none ->
+                    reaper_loop(spawned(From, Ref, Function, Site, [], Reaper));
+                Absent ->
+                    From ! {Ref, {absent, Absent}},
+                    reaper_loop(Reaper)
+            end;
         {asked, From, Ref, Question} ->
             From ! {Ref, answer_of_run(Question)},
             reaper_loop(Reaper);
@@ -1978,7 +1986,7 @@ binding(Key) ->
 %% or where a binding before it faulted (§8.5, §11.2).
 -spec binding_value(module(), term()) -> {value, term()} | absent.
 binding_value(Unit, Key) ->
-    case initialized(Unit) of
+    case ets:member(?INITIALIZED, Unit) of
         true ->
             case persistent_term:get(Key, '$unevaluated') of
                 '$unevaluated' -> absent;
@@ -1986,6 +1994,17 @@ binding_value(Unit, Key) ->
             end;
         false ->
             absent
+    end.
+
+%% Report §8.7: the first of a reach's bindings, each by its identity,
+%% without its value in the run in progress, or none. Nothing is
+%% initialized because a peer asked.
+absent_binding([]) ->
+    none;
+absent_binding([Binding | Bindings]) ->
+    case ern_code:value(Binding) of
+        {value, _} -> absent_binding(Bindings);
+        _ -> Binding
     end.
 
 %% Report §6.9: a function that runs F, and on a fault runs it again in the
@@ -2269,39 +2288,13 @@ run_inits(ErlangModules) ->
                       try ets:insert(?INITIALIZED, {ErlangModule}) catch error:badarg -> true end
                   end, ErlangModules).
 
-%% Report §8.7: whether every top-level binding of a module and of every
-%% module it depends on has its value: the module's initializers have run,
-%% which they did after those of every module it depends on (§8.5), so that
-%% the table's modules are closed under dependency; or it is loaded, has no
-%% binding, and the modules it depends on are so in turn. Nothing is loaded
-%% here, since a peer asks.
--spec initialized(module()) -> boolean().
-initialized(ErlangModule) ->
-    all_initialized([ErlangModule], #{}).
-
-all_initialized([], _Seen) ->
-    true;
-all_initialized([ErlangModule | ErlangModules], Seen) when is_map_key(ErlangModule, Seen) ->
-    all_initialized(ErlangModules, Seen);
-all_initialized([ErlangModule | ErlangModules], Seen) ->
-    Seen1 = Seen#{ErlangModule => true},
-    case ets:member(?INITIALIZED, ErlangModule) of
-        true ->
-            all_initialized(ErlangModules, Seen1);
-        false ->
-            erlang:module_loaded(ErlangModule)
-                andalso not erlang:function_exported(ErlangModule, '$init', 0)
-                andalso all_initialized(declared_dependencies(ErlangModule) ++ ErlangModules,
-                                        Seen1)
-    end.
-
 declared_dependencies(ErlangModule) ->
     case erlang:function_exported(ErlangModule, '$deps', 0) of
         true -> ErlangModule:'$deps'();
         false -> []
     end.
 
-%% Report §8.7: an offer under a key, its name and its type's text, of an
+%% Report §8.7: an offer under a key, its name and its type's hash, of an
 %% address of this node's, for as long as its process lives; a key a
 %% living process holds faults the caller, and so does an address of
 %% another node's process.
@@ -2337,12 +2330,12 @@ watch(Pid) ->
         _ -> ok
     end.
 
-%% Report §8.7: what this node offers under a name at a type's text: the
-%% address, or `OtherType` where it offers the name at another type only,
-%% or `NotOffered`.
+%% Report §8.7: what this node offers under a name at a type's hash: the
+%% address, or `OtherType` where it offers the name at a type of another
+%% hash only, or `NotOffered`.
 -spec offered(binary(), binary()) -> {found, address()} | 'OtherType' | 'NotOffered'.
-offered(Name, Text) ->
-    case ets:lookup(?OFFERS, {Name, Text}) of
+offered(Name, Hash) ->
+    case ets:lookup(?OFFERS, {Name, Hash}) of
         [{_, Address, _}] ->
             {found, Address};
         [] ->
@@ -2355,14 +2348,17 @@ offered(Name, Text) ->
 %% Report §8.7: what a peer's frame asks of the run in progress, answered
 %% by its reaper, which ends before the run's tables go (end_program/3), so
 %% that no answer reads a table that is gone: what this node offers under a
-%% name at a type's text (offered/2), whether a module's bindings have their
-%% values here (initialized/1), or a process started on this node, as
-%% spawn/2 starts one. None where no run is in progress, its reaper ended or
-%% not yet begun: as a run ends, and between two runs of `ern test` over a
-%% directory, in one host. The gateway's worker that asks waits on the
-%% reaper's end as well as on its answer, since a frame comes at any time.
--spec asked_of_run({offered, binary(), binary()} | {initialized, module()}
-                   | {spawn, fun(() -> term()), binary()}) -> {answered, term()} | none.
+%% name at a type's hash (offered/2), or a process started on this node, as
+%% spawn/2 starts one, where every binding of the function's reach, each by
+%% its identity, has its value here, else `{absent, Binding}`, the first
+%% that has none. None where no run is in
+%% progress, its reaper ended or not yet begun: as a run ends, and between
+%% two runs of `ern test` over a directory, in one host. The gateway's
+%% worker that asks waits on the reaper's end as well as on its answer,
+%% since a frame comes at any time.
+-spec asked_of_run({offered, binary(), binary()}
+                   | {spawn, fun(() -> term()), [{[atom()], binary()}], binary()}) ->
+          {answered, term()} | none.
 asked_of_run(Question) ->
     case persistent_term:get({?MODULE, reaper}, none) of
         none ->
@@ -2380,8 +2376,7 @@ asked_of_run(Question) ->
             end
     end.
 
-answer_of_run({offered, Name, Text}) -> offered(Name, Text);
-answer_of_run({initialized, ErlangModule}) -> initialized(ErlangModule).
+answer_of_run({offered, Name, Hash}) -> offered(Name, Hash).
 
 %% Report §8.7: a process's offers end with it.
 unoffered(Pid) ->

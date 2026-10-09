@@ -84,8 +84,9 @@ worker(Node, Workers) ->
 
 %% Report §8.7: a peer's frames, read in the order they came; one it cannot
 %% read, a frame whose reading fails among them, ends the peer's connection,
-%% and the node says so, the worker going on to the loss. At the loss, the
-%% spawns that wait on the peer are let go, and the worker ends.
+%% and the node says so, the worker going on to the loss; a spawn this node
+%% lacked something for, it says, naming what. At the loss, the spawns that
+%% wait on the peer are let go, and the worker ends.
 work(Node) ->
     receive
         {ern_frame, From, Body} ->
@@ -95,6 +96,11 @@ work(Node) ->
             case Read of
                 ok ->
                     ok;
+                {not_loaded, Site, Lacked} ->
+                    %% report §8.7: what this node lacked for a peer's spawn,
+                    %% the site in the spawner's words
+                    ern_carrier:say([ern_carrier:named(Node), "'s spawn at ", Site,
+                                     " was not loaded: ", Lacked]);
                 unreadable ->
                     ern_carrier:say([ern_carrier:named(Node), " sent a frame this node cannot"
                                      " read, and its connection was ended"]),

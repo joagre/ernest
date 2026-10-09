@@ -7,7 +7,8 @@
          push/2,
          pop/1,
          '$init'/0,
-         '$fun'/2]).
+         '$fun'/2,
+         '$spawned'/2]).
 
 main() ->
     Stack_1 = push(push(empty(), 1), 2),
@@ -38,3 +39,5 @@ pop({'Stack', Items_5}) ->
 '$fun'(main, 0) -> fun main/0;
 '$fun'(push, 2) -> fun push/2;
 '$fun'(pop, 1) -> fun pop/1.
+
+'$spawned'(main, []) -> main().

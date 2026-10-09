@@ -51,9 +51,10 @@
 %% variable, which the declaration was given
 -record(shown_type, {type}).
 %% `show` at a type known whole, written by its descriptor (Appendix E.1)
--record(type_text, {text}).
-%% a key's message type as the compiler prints it (report §8.7, Appendix
-%% E.27)
+-record(type_text, {text, type}).
+%% a key's message type as the compiler prints it, and the type itself,
+%% known whole, whose hash the key carries beside the text (report §8.7,
+%% Appendix E.27, Appendix H)
 -record(pending_member, {span, type, member, need}).
 %% before the enclosing definition ends: the member at the type, and what
 %% needs it, for the error that names it (report §11.5)
@@ -89,7 +90,7 @@
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
 -record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
-                    identities = #{}}).
+                    identities = #{}, reaches = #{}}).
 %% private_types: the module's private types an exported abstract type's
 %% fields name, and those theirs name, #{qualified_name() => #type_info{}}, by
 %% which a dependent describes the abstract type's values (report §8.4,
@@ -103,5 +104,8 @@
 %% and `foreign` for each foreign declaration, which has none (report
 %% §11.1, Appendix H); the compiler fills it in, and the checker's interface
 %% has none
+%% reaches: #{qualified_name() => ern_canonical:reach()}, each function's
+%% reach that names a binding or a foreign declaration, which a dependent's
+%% reaches take in (report §8.7, §11.1); the compiler fills it in too
 
 -endif.

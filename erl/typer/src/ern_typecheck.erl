@@ -20,7 +20,7 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, lookup_type/2, type_qualified_name/3, identity/2, global_scheme/2,
+         prelude_env/0, lookup_type/2, type_qualified_name/3, identity/2, reach/2, global_scheme/2,
          is_provided/2, described_type/2, is_reply_carrying/2,
          assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, declared_fields/3,
@@ -77,13 +77,18 @@
               groups = #{}, typed = [], diagnostics = [], reply_variables = [],
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
-              signature = [], definition, private_types = #{}, identities = #{}}).
+              signature = [], definition, private_types = #{}, identities = #{},
+              reaches = #{}}).
 %% private_types: the private types of the modules given, which their
 %% abstract types' fields name; the descriptor builder reads them
 %% (described_type/2), and no name resolves to one (report §4.2, §11.1)
 %% identities: the hashes of the definitions of the modules given, by
 %% qualified name, which their interfaces hold and the canonical form names
 %% them by (identity/2, report Appendix H); the checker reads none
+%% reaches: the reaches of the functions of the modules given that name a
+%% binding or a foreign declaration, by qualified name, which their
+%% interfaces hold and a dependent's reaches take in (reach/2, report
+%% §8.7, §11.1); the checker reads none
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
@@ -539,7 +544,8 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
     Env#env{types = lists:foldl(Mark, Types, Declarations)}.
 
 add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
-                         private_types = PrivateTypes, identities = Identities},
+                         private_types = PrivateTypes, identities = Identities,
+                         reaches = Reaches},
               #env{types = Types, globals = Globals} = Env) ->
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
@@ -548,6 +554,7 @@ add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
             constructors = Constructors,
             private_types = maps:merge(Env#env.private_types, PrivateTypes),
             identities = maps:merge(Env#env.identities, Identities),
+            reaches = maps:merge(Env#env.reaches, Reaches),
             lets = maps:merge(Env#env.lets,
                               maps:from_list([{QualifiedName, true} || QualifiedName <- Lets]))}.
 
@@ -699,6 +706,13 @@ type_qualified_name(Namespace, Name, Env) ->
 -spec identity([atom()], env()) -> binary() | foreign | undefined.
 identity(QualifiedName, #env{identities = Identities}) ->
     maps:get(QualifiedName, Identities, undefined).
+
+%% Report §8.7, §11.1: the reach of another module's function, the bindings
+%% and the foreign declarations it names transitively, which its interface
+%% holds; empty where it names none.
+-spec reach([atom()], env()) -> ern_canonical:reach().
+reach(QualifiedName, #env{reaches = Reaches}) ->
+    maps:get(QualifiedName, Reaches, {[], []}).
 
 %% A value's scheme by its qualified name, of a module given or the
 %% prelude, or undefined.
@@ -3414,7 +3428,8 @@ supply(Span, Type, keyed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
         false ->
             %% every name qualified, the module's own among them, so that one
             %% type has one text whichever module writes the key
-            {#type_text{text = ern_types:format(Message, ern_types:new())}, Env};
+            {#type_text{text = ern_types:format(Message, ern_types:new()), type = Message},
+             Env};
         Why ->
             fail(Span, "Peer.key makes a key of " ++ Text ++ ", which is bound to its node, since"
                        " it holds " ++ Why, [],

@@ -411,6 +411,11 @@ measures_test() ->
         ?assertEqual(undefined, whereis(memsup)),
         ?assertEqual(60000, disksup:get_check_interval()),
         ?assertEqual(95, disksup:get_almost_full_threshold()),
+        %% the CPU measure's program runs once the measure has answered, which
+        %% it does through the program; asked here so that the test waits on
+        %% that and not on the host's start of it, which a loaded machine
+        %% delays (a regression: the test raced the start)
+        _ = cpu_sup:util(),
         ?assertNotEqual([], measure_programs()),
         ok = ern_node:stop(Dir),
         ?assertEqual(false, lists:keymember(os_mon, 1, application:which_applications())),

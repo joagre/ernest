@@ -238,3 +238,25 @@ fn measuring(measure : () -> Float with Measuring) : Unit with Measuring =
             measuring(measure)
         }
     }
+
+//
+// The tests (report §9.3), run by `ern test` as every library's are. A
+// regression test, written after the code, returned here from the
+// integration tests by MVP 3.1, under which a test, a binding, keeps no
+// function of the module from a peer (report §8.7): the balancer took the
+// measure of any place, which a pick then answered.
+//
+
+let elsewhere =
+    Test.Case(name = "a measure of a place the balancer was not started over faults its process",
+              run = fn() = {
+                  let balancer = start([Here]);
+                  let measuring =
+                      fn() : Unit with Measuring = serve(balancer, On("elsewhere"), fn() = 0.5);
+                  let _ = spawnMonitored(measuring, fn(down) = down);
+                  receive {
+                      down ->
+                          Test.equal(down.reason,
+                                     Fault("On(\"elsewhere\") is no place of this balancer"))
+                  }
+              })

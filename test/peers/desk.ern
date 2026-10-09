@@ -68,7 +68,10 @@ fn spawns() : Unit with Msg = {
     Io.println("spawn: " <> started(Work.squareOn("store", 7, 5000)));
     Io.println("not listed: " <> started(Work.squareOn("nobody", 7, 5000)));
     Io.println("not loaded: " <> started(Peer.spawn("store", Lonely.speak, 5000)));
-    Io.println("by module: " <> started(Peer.spawn("store", fn() : Unit with Never = Unit, 5000)));
+    // a function that names no binding, of a module whose binding, early,
+    // the store never ran
+    Io.println("names no binding: "
+                   <> started(Peer.spawn("store", fn() : Unit with Never = Unit, 5000)));
     Io.println("bindings: " <> started(Shared.tellPeers("store")));
     match Work.watchedOn("store", Died, 5000) {
         Right(_) -> receive {
@@ -428,8 +431,9 @@ fn dialled() : Unit with Msg = {
 
 // The proposal's section 9, `make bench`: the microseconds of the host's
 // round trip to the store, of a call to a process there and to one here,
-// and of a message to the store's counter, sent straight and through the
-// adapted address made on the store, each over many, a line each.
+// of a message to the store's counter, sent straight and through the
+// adapted address made on the store, of a find of the counter, and of a
+// spawn there of a process that ends at once, each over many, a line each.
 fn costs() : Unit with Msg = {
     let counter = Shared.found(Counter.key);
     let brittle = Shared.found(Calls.brittle);
@@ -452,7 +456,17 @@ fn costs() : Unit with Msg = {
                        Unit
                    })));
     Io.println("straight " <> Io.show(echoed(rounds, fn(back) = send(echo, Counter.Ping(back)))));
-    Io.println("adapted " <> Io.show(echoed(rounds, fn(back) = send(echoAdapted, back))))
+    Io.println("adapted " <> Io.show(echoed(rounds, fn(back) = send(echoAdapted, back))));
+    Io.println("find "
+                   <> Io.show(timed(rounds, fn() = {
+                       let _ = Peer.find(Counter.key, 5000);
+                       Unit
+                   })));
+    Io.println("spawn "
+                   <> Io.show(timed(rounds, fn() = {
+                       let _ = Work.idleOn("store", 5000);
+                       Unit
+                   })))
 }
 
 // The microseconds of one run of the function, over as many runs.

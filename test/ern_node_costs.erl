@@ -4,9 +4,11 @@
 %% trip, its ping, over TLS; a call to a process there, five of the host's
 %% signals, beside a call to one here; and a round trip to the store's
 %% echo, the message sent straight and through the adapted address made on
-%% the store, whose difference is the gateway's step. Two plain nodes of the host's time its
-%% ping over TCP, which TLS is set beside. It measures and asserts nothing,
-%% so it is not part of `make test`.
+%% the store, whose difference is the gateway's step; a find of the store's
+%% counter; and a spawn on the store of a process that ends at once. Two
+%% plain nodes of the host's time its ping over TCP, which TLS is set
+%% beside. It measures and asserts nothing, so it is not part of `make
+%% test`.
 -module(ern_node_costs).
 
 -export([main/1]).
@@ -40,7 +42,11 @@ main([Dir]) ->
              none},
             {"  the same through its adapted address there", maps:get("adapted", Costs), none},
             {"  the gateway's step", maps:get("adapted", Costs) - maps:get("straight", Costs),
-             none}],
+             none},
+            {"a find of the other node's service", maps:get("find", Costs), none},
+            {"  beside the host's ping", maps:get("find", Costs) / Ping, ratio},
+            {"a spawn on the other node", maps:get("spawn", Costs), none},
+            {"  beside the host's ping", maps:get("spawn", Costs) / Ping, ratio}],
     io:format("~-48s ~12s~n", ["between two nodes on this machine", "µs or ratio"]),
     lists:foreach(fun({Name, Value, none}) -> io:format("~-48ts ~12.1f~n", [Name, Value]);
                      ({Name, Value, ratio}) -> io:format("~-48ts ~11.1fx~n", [Name, Value])

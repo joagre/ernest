@@ -3,7 +3,12 @@
 %% "ErnC" of a compiled module that holds them (§8.7, §11.1). The emitter
 %% calls module/4 and writes the chunk, and the interface carries each
 %% definition's hash by its qualified name (interface/2), by which a
-%% dependent's forms name it.
+%% dependent's forms name it, and each function's reach, the bindings and
+%% the foreign declarations it names transitively, by which a dependent's
+%% reaches take it in (§11.1). Beside them module/4 gives the emitter the
+%% hash of each type a key is made at, and the identity and the reach of
+%% each lambda and local function, by its span, which a spawn on a peer
+%% names (§8.7).
 %%
 %% A form is made in two steps. The walk writes each definition with a
 %% reference to another definition of its own module left open, `{'$own',
@@ -17,7 +22,7 @@
 -export([form_version/0, chunk_name/0, bytes/1, module/4, interface/2, lambdas/2, encode/1,
          read/1]).
 
--export_type([canonical/0]).
+-export_type([canonical/0, reach/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -32,7 +37,16 @@
 
 -type canonical() :: #{definitions := [#definition{}],
                        identities := #{[atom()] => binary() | foreign},
-                       references := [{[atom()], binary()}]}.
+                       references := [{[atom()], binary()}],
+                       reaches := #{[atom()] => reach()},
+                       functions := #{term() => {[atom()], pos_integer(), reach()}},
+                       keys := #{term() => binary()}}.
+
+%% Report §8.7, §11.1: what a function's reach names that a peer must hold
+%% for it to run there: each top-level binding by its identity, and each
+%% foreign declaration of a program by its qualified name; the standard
+%% library and the prelude, named by name, are the floor's (Appendix H).
+-type reach() :: {[{[atom()], binary()}], [[atom()]]}.
 
 %% The walk of one definition (Appendix H): env, the checker's; namespace,
 %% the module's; standard, whether the module is the standard library's
@@ -43,9 +57,13 @@
 %% has bound; segments, the locals a bitstring pattern's earlier segments
 %% bound; locals, the numbers taken; variables, each type variable, {tvar,
 %% Id} or {name, Name}, to its number; references, the other modules'
-%% definitions referenced by hash.
+%% definitions referenced by hash; functions, the span of each lambda and
+%% local function met, reversed, in the order the walk meets them, which is
+%% their positions' (lambdas/2); keys, each key's message type with its
+%% form, its own module's types left open.
 -record(walk, {env, namespace, standard, own, scope = #{}, outer, bound = #{},
-               segments = #{}, locals = 0, variables = #{}, references = []}).
+               segments = #{}, locals = 0, variables = #{}, references = [], functions = [],
+               keys = []}).
 
 -spec form_version() -> pos_integer().
 form_version() ->
@@ -69,9 +87,12 @@ hash(Term) ->
 
 %% Report §8.7, Appendix H: the module's definitions in source order, each
 %% with its form and its hash; the hash of each by its qualified name, and
-%% `foreign` for each foreign declaration; and the definitions of other
-%% modules the forms reference by hash, which the build compares (§11.1).
-%% Standard: whether the module is the standard library's own.
+%% `foreign` for each foreign declaration; the definitions of other
+%% modules the forms reference by hash, which the build compares (§11.1);
+%% each definition's reach; each lambda and local function by its span,
+%% with its enclosing definition, its position there and its reach; and the
+%% hash of each type a key is made at. Standard: whether the module is the
+%% standard library's own.
 -spec module([atom()], [tuple()], ern_typecheck:env(), boolean()) -> canonical().
 module(Namespace, Typed, Env, Standard) ->
     Own = maps:from_list([{QualifiedName, Kind}
@@ -83,19 +104,39 @@ module(Namespace, Typed, Env, Standard) ->
                  {QualifiedName, Kind} <- declared(Namespace, Declaration), Kind =/= foreign],
     Definitions = closed([{QualifiedName, Kind, Form}
                           || {QualifiedName, Kind, {Form, _}} <- Opened]),
+    References = lists:usort(lists:append([Walked#walk.references
+                                           || {_, _, {_, Walked}} <- Opened])),
+    Reaches = reaches(Definitions, maps:from_list([{Hash, ern_typecheck:reach(QualifiedName, Env)}
+                                                   || {QualifiedName, Hash} <- References])),
+    Closing = lists:foldl(fun closing/2, #{}, Definitions),
+    ByName = maps:from_list([{QualifiedName, Definition}
+                             || #definition{qualified_name = QualifiedName} = Definition
+                                    <- Definitions]),
     #{definitions => Definitions,
       identities => maps:from_list([{QualifiedName, Hash}
                                     || #definition{qualified_name = QualifiedName,
                                                    hash = Hash} <- Definitions]
                                    ++ [{QualifiedName, foreign}
                                        || QualifiedName := foreign <- Own]),
-      references => lists:usort(lists:append([References
-                                              || {_, _, {_, References}} <- Opened]))}.
+      references => References,
+      reaches => maps:from_list([{QualifiedName, maps:get(Hash, Reaches)}
+                                 || #definition{qualified_name = QualifiedName, kind = function,
+                                                hash = Hash} <- Definitions]),
+      functions => maps:from_list(
+                     lists:append([functions(maps:get(QualifiedName, ByName), Walked, Reaches)
+                                    || {QualifiedName, _, {_, Walked}} <- Opened])),
+      keys => maps:from_list([{Type, hash({ernest_type, ?FORM_VERSION, close(Form, Closing)})}
+                              || {_, _, {_, Walked}} <- Opened,
+                                 {Type, Form} <- Walked#walk.keys])}.
 
-%% Report §11.1: the interface with the hashes a dependent's forms name.
+%% Report §11.1: the interface with the hashes a dependent's forms name, and
+%% the reaches of its functions that name a binding or a foreign
+%% declaration, which a dependent's reaches take in.
 -spec interface(#interface{}, canonical()) -> #interface{}.
-interface(Interface, #{identities := Identities}) ->
-    Interface#interface{identities = Identities}.
+interface(Interface, #{identities := Identities, reaches := Reaches}) ->
+    Interface#interface{identities = Identities,
+                        reaches = maps:filter(fun(_, Reach) -> Reach =/= {[], []} end,
+                                              Reaches)}.
 
 %% What a declaration declares: a function, a binding, a type, or a foreign
 %% declaration, which has no hash (Appendix H).
@@ -118,27 +159,35 @@ qualified(Namespace, undefined, Name) -> Namespace ++ [Name];
 qualified(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 
 %% A definition's form with its own module's references open, and the
-%% other modules' definitions it references by hash.
+%% walk that made it, which holds the other modules' definitions it
+%% references by hash, its lambdas' and local functions' spans, and its
+%% keys' types.
 opened(#fn_declaration{} = Declaration, Walk) ->
-    {Form, #walk{references = References}} = function(Declaration, Walk),
-    {Form, References};
+    function(Declaration, Walk);
 opened(#let_declaration{scheme = Scheme, annotation = Annotation, body = Body}, Walk) ->
     {SchemeForm, Walk1} = scheme(Scheme, Walk),
     {AnnotationForm, Walk2} = annotation(Annotation, Walk1),
-    {BodyForm, #walk{references = References}} = expr(Body, Walk2),
-    {{binding, SchemeForm, AnnotationForm, BodyForm}, References};
+    {BodyForm, Walk3} = expr(Body, Walk2),
+    {{binding, SchemeForm, AnnotationForm, BodyForm}, Walk3};
 opened(#abstract_declaration{declaration = Declaration}, Walk) ->
     opened(Declaration, Walk);
 opened(#type_declaration{name = Name, derives = Derives},
-       #walk{namespace = Namespace, env = Env} = Walk) ->
+       #walk{namespace = Namespace, env = Env, own = Own} = Walk) ->
     #type_info{params = Params, constructors = Constructors} =
         ern_typecheck:lookup_type(Namespace ++ [Name], Env),
     %% report Appendix H: the parameters are the variables 1 to its arity
     Walk1 = lists:foldl(fun(Param, Acc) -> element(2, variable(Param, Acc)) end, Walk, Params),
-    {ConstructorForms, #walk{references = References}} =
-        lists:mapfoldl(fun constructor_declared/2, Walk1, Constructors),
-    {{type, Namespace ++ [Name], length(Params), Derives =/= undefined, ConstructorForms},
-     References}.
+    %% report §3.10, §8.7: the order the module declares for it, which
+    %% references the type in turn, so that the two are one group
+    Compare = Namespace ++ [Name, compare],
+    {CompareForm, Walk2} = case Own of
+                               #{Compare := _} -> declaration_reference(Namespace, Compare, Walk1);
+                               _ -> {none, Walk1}
+                           end,
+    {ConstructorForms, Walk3} = lists:mapfoldl(fun constructor_declared/2, Walk2, Constructors),
+    {{type, Namespace ++ [Name], length(Params), Derives =/= undefined, CompareForm,
+      ConstructorForms},
+     Walk3}.
 
 constructor_declared(#constructor_info{name = Name, fields = none}, Walk) ->
     {{Name, none}, Walk};
@@ -254,6 +303,85 @@ within(Terms) when is_list(Terms) ->
     lists:append([within(Part) || Part <- Terms]);
 within(_) ->
     [].
+
+%%
+%% Reaches, report §8.7 and §11.1
+%%
+
+%% Each definition's reach by its hash: the bindings and the foreign
+%% declarations its form names, and those of every definition it references
+%% by hash, its own module's from its form and another module's from its
+%% interface (Others); the members of a group share the group's.
+reaches(Definitions, Others) ->
+    Groups = maps:groups_from_list(fun(#definition{group = Group, hash = Hash}) ->
+                                       case Group of
+                                           none -> Hash;
+                                           {GroupHash, _} -> GroupHash
+                                       end
+                                   end, Definitions),
+    ByHash = maps:from_list([{Hash, maps:get(case Group of none -> Hash; {Of, _} -> Of end, Groups)}
+                             || #definition{hash = Hash, group = Group} <- Definitions]),
+    lists:foldl(fun(#definition{hash = Hash}, Known) -> element(2, reach(Hash, ByHash, Known)) end,
+                Others, Definitions).
+
+%% A definition's reach, with every reach found on the way known; one of
+%% another module, or a type's, which names neither, is known or empty.
+reach(Hash, ByHash, Known) ->
+    case {Known, ByHash} of
+        {#{Hash := Reach}, _} ->
+            {Reach, Known};
+        {_, #{Hash := Members}} ->
+            {Reach, Known1} = lists:foldl(fun(#definition{form = Form}, {Acc, KnownAcc}) ->
+                                              {Named, KnownAcc1} =
+                                                  named(Form, none, ByHash, KnownAcc),
+                                              {union(Acc, Named), KnownAcc1}
+                                          end, {{[], []}, Known}, Members),
+            {Reach, lists:foldl(fun(#definition{hash = Member}, Acc) -> Acc#{Member => Reach} end,
+                                Known1, Members)};
+        _ ->
+            {{[], []}, Known}
+    end.
+
+%% What a closed form's reach names: a binding by its identity, a foreign
+%% declaration of a program by its qualified name, and a definition it
+%% references by hash through that definition's reach; a member of its own
+%% group is Group's, the reach of the definition the form is part of, which
+%% a definition's own form leaves to the group's union (none).
+named({binding, QualifiedName, Hash}, _, _, Known) when is_binary(Hash) ->
+    {{[{QualifiedName, Hash}], []}, Known};
+named({foreign, QualifiedName, {scheme, _, _, _}}, _, _, Known) ->
+    {{[], [QualifiedName]}, Known};
+named({hash, Hash}, _, ByHash, Known) when is_binary(Hash) ->
+    reach(Hash, ByHash, Known);
+named({in_group, Position}, Group, _, Known) when is_integer(Position) ->
+    case Group of
+        none -> {{[], []}, Known};
+        _ -> {Group, Known}
+    end;
+named(Term, Group, ByHash, Known) when is_tuple(Term) ->
+    named(tuple_to_list(Term), Group, ByHash, Known);
+named(Terms, Group, ByHash, Known) when is_list(Terms) ->
+    lists:foldl(fun(Part, {Acc, KnownAcc}) ->
+                    {Named, KnownAcc1} = named(Part, Group, ByHash, KnownAcc),
+                    {union(Acc, Named), KnownAcc1}
+                end, {{[], []}, Known}, Terms);
+named(_, _, _, Known) ->
+    {{[], []}, Known}.
+
+union({Bindings, Foreigns}, {MoreBindings, MoreForeigns}) ->
+    {lists:umerge(Bindings, MoreBindings), lists:umerge(Foreigns, MoreForeigns)}.
+
+%% Report §8.7: each lambda and local function of a definition by its span,
+%% with the definition's qualified name, its position and its reach; the
+%% walk met them in the order of their positions.
+functions(#definition{qualified_name = QualifiedName, hash = Hash, form = Form}, Walked, Reaches) ->
+    Spans = lists:reverse(Walked#walk.functions),
+    Found = lambdas(Hash, Form),
+    length(Spans) =:= length(Found)
+        orelse erlang:error({functions_out_of_order, ern_namespace:text(QualifiedName)}),
+    Reach = maps:get(Hash, Reaches),
+    [{Span, {QualifiedName, Position, element(1, named(Function, Reach, #{}, Reaches))}}
+     || {Span, {{_, Position}, Function}} <- lists:zip(Spans, Found)].
 
 %%
 %% Functions and schemes
@@ -540,9 +668,12 @@ expr(#e_binop{operator = Operator, left = Left, right = Right, member = Member},
 expr(#e_member{supply = Supply}, Walk) ->
     {Form, Walk1} = supply(Supply, Walk),
     {{member, Form}, Walk1};
-expr(#e_lambda{params = Params, result_type = Result, effect = Effect, body = Body},
-     #walk{scope = Scope} = Walk) ->
-    {ParamForms, Walk1} = lists:mapfoldl(fun param/2, Walk, Params),
+expr(#e_lambda{span = Span, params = Params, result_type = Result, effect = Effect,
+               body = Body},
+     #walk{scope = Scope, functions = Functions} = Walk) ->
+    %% report §8.7: its position, in the order the walk meets it
+    {ParamForms, Walk1} = lists:mapfoldl(fun param/2, Walk#walk{functions = [Span | Functions]},
+                                         Params),
     {ResultForm, Walk2} = annotation(Result, Walk1),
     {EffectForm, Walk3} = annotation(Effect, Walk2),
     {BodyForm, Walk4} = expr(Body, Walk3),
@@ -588,8 +719,9 @@ operation(_, _, Member, Walk) ->
 %% A block's statement: a local function, whose name the block bound, a
 %% binding, `=` or `<-`, its expression before its pattern, or an
 %% expression.
-statement(#fn_declaration{} = Declaration, Walk) ->
-    function(Declaration, Walk);
+statement(#fn_declaration{span = Span} = Declaration, #walk{functions = Functions} = Walk) ->
+    %% report §8.7: its position, in the order the walk meets it
+    function(Declaration, Walk#walk{functions = [Span | Functions]});
 statement(#binding{pattern = Pattern, annotation = Annotation, operator = '=', expr = Expr},
           Walk) ->
     {AnnotationForm, Walk1} = annotation(Annotation, Walk),
@@ -685,8 +817,10 @@ supply(#required_member{variable = Variable, member = Member}, Walk) ->
 supply(#shown_type{type = Type}, Walk) ->
     {Form, Walk1} = type(Type, Walk),
     {{shown, Form}, Walk1};
-supply(#type_text{text = Text}, Walk) ->
-    {{text, unicode:characters_to_binary(Text)}, Walk}.
+supply(#type_text{type = Type}, Walk) ->
+    %% report §8.7: the key's message type, whose hash it carries
+    {Form, #walk{keys = Keys} = Walk1} = type(Type, Walk),
+    {{key, Form}, Walk1#walk{keys = [{Type, Form} | Keys]}}.
 
 %%
 %% Patterns, report Appendix H

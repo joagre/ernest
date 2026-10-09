@@ -2,11 +2,12 @@
 %% spawn's answer and a spawn from a peer, and a supervisor's child on
 %% another node, each where a run of real nodes cannot show it whenever it
 %% runs. Real nodes are test/ern_nodes_tests.erl's. Regression tests,
-%% written after the code: they do not cover a spawn that starts, which the
-%% real nodes do.
+%% written after the code, the spawn by identity's (MVP 3.1's item 4) among
+%% them.
 -module(ern_peer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
 
 %% report §8.7: a spawn's answer goes to the process that waits for it, and
 %% one that comes after the spawner stopped waiting ends the process it
@@ -75,7 +76,17 @@ faulty_fields_test() ->
          || Body <- [{answer, make_ref(), garbage}, {answer, make_ref(), {failed, 'Other'}},
                      {answer, make_ref(), {spawned, Elsewhere}}, {answer, nothing, {spawned, Here}},
                      {find, 1, <<"Int">>, make_ref()}, {via, {via, Via, Here, Elsewhere}, 1},
-                     {via, not_an_address, 1}, {spawn, make_ref(), not_a_function, <<"s">>, false}]]
+                     {via, not_an_address, 1},
+                     {spawn, make_ref(), not_a_function, <<"s">>, false},
+                     {spawn, make_ref(), {function, <<"short">>}, <<"s">>, false},
+                     {spawn, make_ref(), {lambda, <<0:256>>, 0, []}, <<"s">>, false},
+                     {spawn, make_ref(), {foreign, []}, <<"s">>, false},
+                     {spawn, make_ref(), {foreign, [peer, tests]}, <<"s">>, false},
+                     {spawn, make_ref(), {restarting, 'Unlimited',
+                                          {restarting, 'Unlimited', {function, <<0:256>>}}},
+                      <<"s">>, false},
+                     {spawn, make_ref(), {restarting, forever, {function, <<0:256>>}}, <<"s">>,
+                      false}]]
     after
         ets:delete(ern_spawns)
     end.
@@ -87,56 +98,119 @@ faulty_fields_test() ->
 %% which killed the gateway's worker, and then each caught any failure of
 %% the host's as no run in progress
 no_run_test() ->
-    Function = fun() -> ok end,
+    Unit = 'ern@peerquiet',
+    Hashes = loaded(['Peerquiet'], "export fn quiet() : Unit with Never = Unit\n"),
     true = register(ern_gateway, self()),
     try
         Alias = erlang:alias(),
-        ok = ern_peer:frame(self(), {find, <<"k">>, <<"Int">>, Alias}),
+        ok = ern_peer:frame(self(), {find, <<"k">>, <<0:256>>, Alias}),
         ?assertEqual({Alias, 'Unreachable'}, receive {Alias, _} = Found -> Found end),
         Ref = make_ref(),
-        ok = ern_peer:frame(self(), {spawn, Ref, Function, <<"M.f:1">>, false}),
+        Quiet = {function, maps:get(['Peerquiet', quiet], Hashes)},
+        ok = ern_peer:frame(self(), {spawn, Ref, Quiet, <<"M.f:1">>, false}),
         ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
                      receive {ern_frame, _, Body} -> Body end),
         %% the reaper of a run that has ended answers nothing
-        ?assertEqual(none, ern_rt:asked_of_run({spawn, Function, <<"M.f:1">>})),
-        ?assertEqual(none, ern_rt:asked_of_run({offered, <<"k">>, <<"Int">>})),
-        ?assertEqual(none, ern_rt:asked_of_run({initialized, ern_peer_tests}))
-    after
-        unregister(ern_gateway)
-    end.
-
-%% report §8.7: a function of a module this node has at another version,
-%% as another shell's input of the same name, starts nothing, and the
-%% spawner's gateway is answered NotLoaded; a frame of no kind the gateway
-%% reads is unreadable
-not_loaded_test() ->
-    Module = ern_peer_tests_version,
-    Function = (loaded_version(Module, 1)):version(),
-    _ = loaded_version(Module, 2),
-    true = register(ern_gateway, self()),
-    try
-        Ref = make_ref(),
-        ok = ern_peer:frame(self(), {spawn, Ref, Function, <<"M.f:1">>, false}),
-        ?assertEqual({answer, Ref, {failed, 'NotLoaded'}},
-                     receive {ern_frame, _, Body} -> Body end),
-        ?assertEqual(unreadable, ern_peer:frame(self(), {a_kind, it_has_not}))
+        ?assertEqual(none, ern_rt:asked_of_run({spawn, fun() -> ok end, [], <<"M.f:1">>})),
+        ?assertEqual(none, ern_rt:asked_of_run({offered, <<"k">>, <<0:256>>}))
     after
         unregister(ern_gateway),
-        code:purge(Module),
-        code:delete(Module),
-        code:purge(Module)
+        unloaded(Unit)
     end.
 
-%% A module whose version/0 answers a function written in it, at the
-%% version given, loaded.
-loaded_version(Module, Version) ->
-    Forms = [{attribute, 1, module, Module}, {attribute, 2, export, [{version, 0}]},
-             {function, 3, version, 0,
-              [{clause, 3, [], [], [{'fun', 3, {clauses, [{clause, 3, [], [],
-                                                           [{integer, 3, Version}]}]}}]}]}],
-    {ok, Module, Beam} = compile:forms(Forms, []),
-    {module, Module} = code:load_binary(Module, "version", Beam),
-    Module.
+-define(REACHING,
+        "let greeting : String = \"hello\"\n"
+        "export fn speak() : Unit with Never = Io.println(greeting)\n"
+        "export fn quiet() : Unit with Never = Unit\n"
+        "export fn twice() : Unit with Never = speak()\n"
+        "foreign fn missing() : Unit with m = \"ern_peer_tests_absent:f/0\"\n"
+        "export fn calls() : Unit with Never = missing()\n"
+        "export fn later(n : Int) : Either(Io.Error, Address(Never)) with m =\n"
+        "    Peer.spawn(\"p\", fn() : Unit with Never = { let _ = n + 1; Unit }, 100)\n").
+
+%% report §8.7: a spawn from a peer starts a function this node holds by its
+%% identity, a top-level function by its hash, a lambda by its definition's
+%% hash and its position with as many captured values as its entry takes,
+%% and `restarting` over one of these, where every binding its reach names
+%% has its value in the run, and every module a foreign declaration of its
+%% reach calls is here; a function that names no binding starts in a run
+%% that never initialized its module, where MVP 3.0's rule by module
+%% refused it. Otherwise it answers NotLoaded, and the frame's reading
+%% answers what this node lacked, which the gateway says: a function it
+%% does not hold, by its hash, a binding with no value, which a function it
+%% calls names, and a foreign declaration's module, or a foreign function
+%% it does not have, whose names make no atom here. Nothing is initialized
+%% because a peer asked
+spawn_by_identity_test() ->
+    Unit = 'ern@peerreach',
+    Hashes = loaded(['Peerreach'], ?REACHING),
+    [Lambda] = [{Hash, Position, Arity}
+                || {_, {lambda, Hash, Position, _, Arity, _}} <- Unit:'$code'()],
+    Identity = fun(Name) -> {function, maps:get(['Peerreach', Name], Hashes)} end,
+    Self = self(),
+    Main = fun() ->
+               true = register(ern_gateway, self()),
+               Spawn = fun(Spawned) ->
+                           Ref = make_ref(),
+                           Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>,
+                                                          false}),
+                           receive {ern_frame, _, {answer, Ref, Answer}} -> {Answer, Read} end
+                       end,
+               {LambdaHash, Position, 1} = Lambda,
+               Before = [Spawn(Identity(quiet)), Spawn(Identity(speak)), Spawn(Identity(twice)),
+                         Spawn(Identity(calls)), Spawn({function, <<7:256>>}),
+                         Spawn({lambda, LambdaHash, Position, [41]}),
+                         Spawn({restarting, {'RestartLimit', 1, 1000}, Identity(quiet)}),
+                         Spawn({foreign, [<<"Peerreach">>, <<"missing">>]}),
+                         Spawn({foreign, [<<"Peernone">>, <<"never">>]})],
+               Wrong = ern_peer:frame(self(), {spawn, make_ref(),
+                                               {lambda, LambdaHash, Position, []},
+                                               <<"M.f:1">>, false}),
+               ern_rt:init_modules([Unit]),
+               After = Spawn(Identity(twice)),
+               Self ! {spawned, Before, Wrong, After}
+           end,
+    try
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        {spawned, Before, Wrong, After} = receive {spawned, _, _, _} = Got -> Got end,
+        Hex = binary_to_list(binary:encode_hex(<<7:256>>, lowercase)),
+        Absent = "the module ern_peer_tests_absent, which Peerreach.missing calls, is not here",
+        ?assertMatch([{{spawned, _}, ok}, _, _, _, _, {{spawned, _}, ok}, {{spawned, _}, ok}, _,
+                      _], Before),
+        ?assertEqual([{{failed, 'NotLoaded'}, {not_loaded, <<"M.f:1">>, Lacked}}
+                      || Lacked <- ["the binding Peerreach.greeting has no value here",
+                                    "the binding Peerreach.greeting has no value here",
+                                    Absent, "this node does not have its function, " ++ Hex,
+                                    Absent, "this node does not have Peernone.never"]],
+                     [{Answer, {not_loaded, Site, lists:flatten(io_lib:format("~ts", [Lacked]))}}
+                      || {Answer, {not_loaded, Site, Lacked}}
+                             <- [lists:nth(Index, Before) || Index <- [2, 3, 4, 5, 8, 9]]]),
+        ?assertError(badarg, binary_to_existing_atom(<<"Peernone">>)),
+        ?assertEqual(unreadable, Wrong),
+        ?assertMatch({{spawned, _}, ok}, After)
+    after
+        unloaded(Unit)
+    end.
+
+%% A module compiled as the build compiles it, loaded and in the code table
+%% as the runner puts a unit there; its definitions' hashes by their
+%% qualified names.
+loaded(Namespace, Text) ->
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
+    Build = #{source_hash => <<>>, deps => []},
+    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    code:purge(Unit),
+    {module, Unit} = code:load_binary(Unit, "test", Beam),
+    ok = ern_code:loaded(Unit),
+    {ok, Definitions} = ern_canonical:read(Beam),
+    maps:from_list([{QualifiedName, Hash}
+                    || #definition{qualified_name = QualifiedName, hash = Hash} <- Definitions]).
+
+unloaded(Unit) ->
+    ern_code:unloaded(Unit),
+    code:purge(Unit),
+    code:delete(Unit),
+    code:purge(Unit).
 
 %% Appendix E.22: a child whose supervisor runs on another node faults
 %% before it joins
@@ -155,13 +229,13 @@ foreign_offer_test() ->
     Self = self(),
     Main = fun() ->
                Foreign = spawn(fun() -> receive stop -> ok end end),
-               ern_peer:offer({'Key', <<"foreign">>, <<"Int">>}, Foreign),
-               Self ! {offered, ern_rt:offered(<<"foreign">>, <<"Int">>)},
+               ern_peer:offer({'Key', <<"foreign">>, <<0:256>>, <<"Int">>}, Foreign),
+               Self ! {offered, ern_rt:offered(<<"foreign">>, <<0:256>>)},
                %% the reaper takes the offer away as it learns of the end
                Reaper = persistent_term:get({ern_rt, reaper}),
                ok = ern_waits:returned(Reaper, {ern_rt, unoffered, [Foreign]},
                                        fun() -> Foreign ! stop end),
-               Self ! {ended, ern_rt:offered(<<"foreign">>, <<"Int">>)}
+               Self ! {ended, ern_rt:offered(<<"foreign">>, <<0:256>>)}
            end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),

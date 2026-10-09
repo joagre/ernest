@@ -4,11 +4,13 @@
 %% module of the host's, whose '$code'/0, which the compiler writes from
 %% the canonical forms' hashes (ern_emitter), lists what it holds; loaded/1
 %% reads it into the table as the unit loads: each function by its hash,
-%% with its function and arity, each type by its hash, each top-level
+%% with its function, its arity and its reach, each lambda and local
+%% function a spawn on a peer starts by its identity, with its entry's
+%% function and arity and its reach, each type by its hash, each top-level
 %% binding by its identity, its qualified name with its hash, with the key
 %% its value is kept under (§8.5), each definition's identity by its
-%% qualified name, and each foreign declaration's implementation by its
-%% qualified name. A unit loaded again with other code replaces its rows,
+%% qualified name, and each foreign declaration's implementation and
+%% function by its qualified name. A unit loaded again with other code replaces its rows,
 %% and one unloaded takes them with it, so that the table holds what the
 %% host holds and no more (docs/memory.md).
 %%
@@ -23,15 +25,20 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, unloaded/1, function/1, value/1, identity/1, foreign/1, present/1,
-         nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+-export([loaded/1, unloaded/1, function/1, spawnable/1, value/1, identity/1, foreign/1,
+         present/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
 
--export_type([host_table/0]).
+-export_type([host_table/0, reach/0]).
 
 -define(TABLE, ern_code).
 
 %% Report §11.2: the host's tables whose limits a load nears.
 -type host_table() :: module_names | exports | lambdas | atoms.
+
+%% Report §8.7: a function's reach as its unit lists it, the bindings by
+%% their identities and the foreign declarations by their qualified names
+%% (ern_canonical).
+-type reach() :: {[{[atom()], binary()}], [[atom()]]}.
 
 -type count() :: {host_table(), non_neg_integer(), pos_integer()}.
 
@@ -65,17 +72,21 @@ fill(Unit, Version) ->
     end.
 
 %% A unit's rows for one of its declarations: a definition by its identity
-%% and its qualified name, and a foreign declaration, which has no
+%% and its qualified name, a lambda or a local function a spawn on a peer
+%% starts by its identity, and a foreign declaration, which has no
 %% identity, by its qualified name (Appendix H).
-rows(Unit, QualifiedName, {function, Hash, Function, Arity}) ->
-    [{{hash, Hash}, Unit, {function, Function, Arity}}, {{name, QualifiedName}, Unit, Hash}];
+rows(Unit, QualifiedName, {function, Hash, Function, Arity, Reach}) ->
+    [{{hash, Hash}, Unit, {function, Function, Arity, Reach}},
+     {{name, QualifiedName}, Unit, Hash}];
+rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
+    [{{lambda, Hash, Position}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, QualifiedName, {binding, Hash, Key}) ->
     [{{binding, QualifiedName, Hash}, Unit, {binding, Key}},
      {{name, QualifiedName}, Unit, {QualifiedName, Hash}}];
 rows(Unit, QualifiedName, {type, Hash}) ->
     [{{hash, Hash}, Unit, type}, {{name, QualifiedName}, Unit, Hash}];
-rows(Unit, QualifiedName, {foreign, HostModule, HostFunction}) ->
-    [{{foreign, QualifiedName}, Unit, {HostModule, HostFunction}}].
+rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
+    [{{foreign, QualifiedName}, Unit, {foreign, HostModule, HostFunction, Function, Arity}}].
 
 %% Report §8.7: a unit unloaded, its rows gone with it.
 -spec unloaded(module()) -> ok.
@@ -100,7 +111,29 @@ forget(Unit, UnitRows) ->
 -spec function(binary()) -> {module(), atom(), arity()} | none.
 function(Hash) ->
     case [{Unit, Function, Arity}
-          || {_, Unit, {function, Function, Arity}} <- lookup({hash, Hash})] of
+          || {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Hash})] of
+        [Held | _] -> Held;
+        [] -> none
+    end.
+
+%% Report §8.7: what a spawn on a peer names, by its identity: a function by
+%% its hash, a lambda or a local function by its definition's hash and its
+%% position, or a foreign function by its qualified name; the unit and the
+%% function that run it, its arity, which is how many values it captured,
+%% and its reach, the bindings and the foreign declarations it names, or
+%% none where no unit of this node holds it.
+-spec spawnable({hash, binary()} | {lambda, binary(), pos_integer()} | {foreign, [atom()]}) ->
+          {module(), atom(), arity(), reach()} | none.
+spawnable({foreign, QualifiedName} = Key) ->
+    case lookup(Key) of
+        [{_, Unit, {foreign, _, _, Function, Arity}} | _] ->
+            {Unit, Function, Arity, {[], [QualifiedName]}};
+        [] ->
+            none
+    end;
+spawnable(Key) ->
+    case [{Unit, Function, Arity, Reach}
+          || {_, Unit, {function, Function, Arity, Reach}} <- lookup(Key)] of
         [Held | _] -> Held;
         [] -> none
     end.
@@ -130,7 +163,7 @@ identity(QualifiedName) ->
 -spec foreign([atom()]) -> {module(), atom()} | none.
 foreign(QualifiedName) ->
     case lookup({foreign, QualifiedName}) of
-        [{_, _, Implementation} | _] -> Implementation;
+        [{_, _, {foreign, HostModule, HostFunction, _, _}} | _] -> {HostModule, HostFunction};
         [] -> none
     end.
 

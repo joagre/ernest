@@ -112,20 +112,65 @@ function_form_test() ->
     ?assertEqual(sha({ernest_form, 1, Expected}), hash("fn inc(x : Int) : Int = x + 1", inc)).
 
 %% report Appendix H: a type's form, its qualified name, its arity, whether
-%% it derives compare, and its constructors in declared order with their
-%% fields in declared order
+%% it derives compare, the compare its module declares, none here, and its
+%% constructors in declared order with their fields in declared order; one
+%% that derives compare names the compare derived for it, with which it is
+%% one group
 type_form_test() ->
     Float = applied('Float'),
-    Text = "type Shape = Circle(Float) | Rect(w : Float, h : Float) derives compare",
-    Expected = {type, ['T', 'Shape'], 0, true,
-                [{'Circle', {positional, Float}},
-                 {'Rect', {named, [{w, Float}, {h, Float}]}}]},
+    Text = "type Shape = Circle(Float) | Rect(w : Float, h : Float)",
+    Constructors = [{'Circle', {positional, Float}},
+                    {'Rect', {named, [{w, Float}, {h, Float}]}}],
+    Expected = {type, ['T', 'Shape'], 0, false, none, Constructors},
     ?assertEqual(Expected, form(Text, 'Shape')),
     ?assertEqual(sha({ernest_form, 1, Expected}), hash(Text, 'Shape')),
+    Derived = Text ++ " derives compare",
+    ?assertEqual({type, ['T', 'Shape'], 0, true, {in_group, 2}, Constructors},
+                 form(Derived, 'Shape')),
+    ?assertMatch(#definition{group = {_, 2}}, definition(Derived, ['Shape', compare])),
     %% the parameters are the variables 1 to its arity
-    ?assertEqual({type, ['T', 'Pair'], 2, false,
+    ?assertEqual({type, ['T', 'Pair'], 2, false, none,
                   [{'Pair', {positional, {tuple, [{variable, 1}, {variable, 2}]}}}]},
                  form("type Pair(a, b) = Pair(#(a, b))", 'Pair')).
+
+%% report Appendix H, §8.7, §3.10: a type's hash covers the compare its
+%% module declares for it, which gives its order, and no other member: a
+%% type with a written compare and one without hash apart; a change to
+%% compare's body alone changes the type's hash, the hash of a key at an
+%% ordered set of it, and the hash of a function that names it, and a
+%% change to its negate changes none; the type and its compare reference
+%% each other, and are one group, its form naming the compare by its
+%% position. Regression tests, written after the code
+type_compare_test() ->
+    Coin = fun(Order, Negation) ->
+                   "type Coin = Coin(Int)\n"
+                   "fn Coin.compare(a : Coin, b : Coin) : Ordering = " ++ Order ++ "\n"
+                   "fn Coin.negate(c : Coin) : Coin = " ++ Negation ++ "\n"
+                   "let set : Peer.Key(OrderedSet.Set(Coin)) = Peer.key(\"coins\")\n"
+                   "fn worth(c : Coin) : Int = match c { Coin(n) -> n }\n"
+           end,
+    First = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(x, y) }",
+                 "match c { Coin(n) -> Coin(-n) }"),
+    Reversed = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(y, x) }",
+                    "match c { Coin(n) -> Coin(-n) }"),
+    Negated = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(x, y) }",
+                   "match c { Coin(n) -> Coin(0 - n) }"),
+    #definition{form = TypeForm, group = {Group, 1}} = definition(First, 'Coin'),
+    #definition{group = {Group, 2}} = definition(First, ['Coin', compare]),
+    ?assertMatch({type, ['T', 'Coin'], 0, false, {in_group, 2}, _}, TypeForm),
+    ?assertNotEqual(hash("type Coin = Coin(Int)\n", 'Coin'), hash(First, 'Coin')),
+    Key = fun(Text) ->
+                  {#{keys := Keys}, _} = canonical(Text),
+                  [Hash] = maps:values(Keys),
+                  Hash
+          end,
+    [?assertNotEqual(Measure(First), Measure(Reversed))
+     || Measure <- [fun(Text) -> hash(Text, 'Coin') end, Key,
+                    fun(Text) -> hash(Text, worth) end]],
+    [?assertEqual(Measure(First), Measure(Negated))
+     || Measure <- [fun(Text) -> hash(Text, 'Coin') end, Key,
+                    fun(Text) -> hash(Text, worth) end]],
+    ?assertNotEqual(hash(First, ['Coin', negate]), hash(Negated, ['Coin', negate])).
 
 %% report Appendix H, §8.7: a mutually recursive group is hashed as one, its
 %% forms in source order, a reference within it its position, and each
@@ -385,6 +430,65 @@ local_requirement_test() ->
     {block, [{function, {scheme, [], {arrow, [{variable, 1}, {variable, 1}], pure, _},
                          [{1, compare}]},
               _, _, _, _, _} | _]} = element(7, form(Text, sorted)).
+
+%% report Appendix H, §8.7: a key's message type stands in the form of the
+%% definition that makes the key as `{key, Type}`, so that a change to the
+%% type changes that definition's hash; the type's hash, which the key
+%% carries, is that of `{ernest_type, 1, Type}`, a declared type of the
+%% program by its hash and a built-in one by its name. A regression test,
+%% written after the code (MVP 3.1's item 4)
+key_type_hash_test() ->
+    Text = fun(Msg) ->
+               "type Msg = " ++ Msg ++ "\n"
+               "let one : Peer.Key(Msg) = Peer.key(\"one\")\n"
+               "let maybe : Peer.Key(Optional(Msg)) = Peer.key(\"maybe\")\n"
+           end,
+    First = Text("Add(Int)"),
+    {#{keys := Keys}, _} = canonical(First),
+    MsgHash = hash(First, 'Msg'),
+    Msg = {applied, {hash, MsgHash}, []},
+    ?assert(holds({var, {named, ['Peer', key]}, [{key, Msg}]}, form(First, one))),
+    ?assertEqual(sha({ernest_type, 1, Msg}), maps:get({tcon, ['T', 'Msg'], []}, Keys)),
+    Optional = {applied, {named, ['Optional']}, [Msg]},
+    ?assertEqual(sha({ernest_type, 1, Optional}),
+                 maps:get({tcon, ['Optional'], [{tcon, ['T', 'Msg'], []}]}, Keys)),
+    Second = Text("Add(Int) | Sub(Int)"),
+    ?assertNotEqual(hash(First, one), hash(Second, one)),
+    {#{keys := Changed}, _} = canonical(Second),
+    ?assertNotEqual(maps:get({tcon, ['T', 'Msg'], []}, Keys),
+                    maps:get({tcon, ['T', 'Msg'], []}, Changed)).
+
+%% report §8.7, §11.1: a function's reach names each binding and each
+%% foreign declaration of a program it references, through every function
+%% it calls, its own module's and another's, whose interface holds it; a
+%% group's members share one; a lambda's and a local function's are their
+%% own, with their identities' positions, by their spans. A regression
+%% test, written after the code (MVP 3.1's item 4)
+reach_test() ->
+    {_, Interface} = canonical(['A'], "let note : Int = 1\n"
+                                      "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
+                                      "export fn noted() : Int = note + now()\n"
+                                      "export fn plain() : Int = 2\n", []),
+    NoteHash = maps:get(['A', note], Interface#interface.identities),
+    Reached = {[{['A', note], NoteHash}], [['A', now]]},
+    ?assertEqual(Reached, maps:get(['A', noted], Interface#interface.reaches)),
+    ?assertNot(maps:is_key(['A', plain], Interface#interface.reaches)),
+    Text = "let own : Int = 3\n"
+           "fn even(n : Int) : Bool = if n == 0 then true else odd(n - 1)\n"
+           "fn odd(n : Int) : Bool = if n == 0 then A.noted() == own else even(n - 1)\n"
+           "fn spawns() : Int = {\n"
+           "    let quiet = fn() : Int = A.plain();\n"
+           "    let loud = fn() : Int = own;\n"
+           "    quiet() + loud()\n"
+           "}\n",
+    {#{reaches := Reaches, functions := Functions, definitions := Definitions}, _} =
+        canonical(['B'], Text, [Interface]),
+    #definition{hash = OwnHash} = named(Definitions, own),
+    Group = {[{['A', note], NoteHash}, {['B', own], OwnHash}], [['A', now]]},
+    ?assertEqual(Group, maps:get(['B', even], Reaches)),
+    ?assertEqual(Group, maps:get(['B', odd], Reaches)),
+    ?assertEqual([{['B', spawns], 1, {[], []}}, {['B', spawns], 2, {[{['B', own], OwnHash}], []}}],
+                 lists:sort(maps:values(Functions))).
 
 %% report §11.1: the chunk of the canonical forms is written compressed, and
 %% reads back as the definitions it was written of; a regression test,

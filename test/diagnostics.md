@@ -4349,6 +4349,27 @@ example.ern:2:66: the function Peer.spawn starts captures describe, a function, 
   | = help: a value of a bound type never crosses to another node; give the process what crosses (§3.11)
 ```
 
+### A spawned function that uses a member of the requirement in force (§3.11)
+
+```ernest-rejected
+fn startWith(name : String, sample : a) : Unit with m needs a.show = {
+    let _ = Peer.spawn(name, fn() : Unit with Never = {
+        let shown : a = fault("never");
+        Io.println(Io.show(shown))
+    }, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:30: Peer.spawn starts a function that uses a.show, a member of the requirement in force, which is a function bound to its node
+1 | fn startWith(name : String, sample : a) : Unit with m needs a.show = {
+2 |     let _ = Peer.spawn(name, fn() : Unit with Never = {
+  |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: give the process what it needs as a value it captures, or spawn on this node (§3.11)
+```
+
 ### A spawned process whose mailbox type is not known whole (§3.11)
 
 ```ernest-rejected

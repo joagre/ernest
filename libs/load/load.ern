@@ -166,6 +166,25 @@ fn runs(service : String) : Bool with m =
     registered(Foreign.atom(service)) != Foreign.atom("undefined")
 
 //
+// The tests (report §9.3), run by `ern test` as every library's are. A
+// regression test, written after the code, returned here from the
+// integration tests by MVP 3.1, under which a test, a binding, keeps no
+// function of the module from a peer (report §8.7): the measure left its
+// setting of the host's keeping of the schedulers' time standing where the
+// host kept the time already.
+//
+
+let schedulersTakeBack =
+    Test.Case(name = "a measure of the schedulers takes back its own setting of the host's keeping",
+              run = fn() = {
+                  let flag = Foreign.atom("scheduler_wall_time");
+                  let _ = setFlag(flag, Foreign.from(true));
+                  let _ = schedulers(1);
+                  let _ = setFlag(flag, Foreign.from(false));
+                  Test.equal(statistic(flag) != Foreign.atom("undefined"), false)
+              })
+
+//
 // The host's functions
 //
 
@@ -173,6 +192,9 @@ foreign fn count(item : Foreign.Term) : Int with m =
     "erlang:statistics/1"
 
 foreign fn wallTimes(item : Foreign.Term) : List(#(Int, Int, Int)) with m =
+    "erlang:statistics/1"
+
+foreign fn statistic(item : Foreign.Term) : Foreign.Term with m =
     "erlang:statistics/1"
 
 foreign fn setFlag(flag : Foreign.Term, value : Foreign.Term) : Bool with m =

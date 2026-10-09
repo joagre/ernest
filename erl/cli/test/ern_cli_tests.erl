@@ -1495,7 +1495,7 @@ recompile_rule_test() ->
 %% it, as the unit's chunk of canonical forms names it, and the standard
 %% library's with them; a foreign declaration's module is found by its
 %% qualified name. A regression test, written after the code; the spawn by
-%% hash that reads the table is MVP 3.1's item 4.
+%% identity that reads the table is ern_peer_tests' and ern_nodes_tests'.
 code_table_test() ->
     Dir = tmp(),
     write(Dir, "src/geo/shape.ern",
@@ -2626,7 +2626,7 @@ create_config_dir_test() ->
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
     ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).
 
-%% report §11.2: a node runs a program until MVP 3.1, so `ern run` given
+%% report §11.2: a node runs a program until MVP 3.2, so `ern run` given
 %% a configuration directory and no file is refused naming it
 node_without_program_test() ->
     Dir = tmp() ++ "/.ernest",

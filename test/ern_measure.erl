@@ -825,30 +825,31 @@ terminal_scenarios() ->
     [{<<"Terminal.subscribe">>, {not_measured, <<"reads a terminal">>}},
      {<<"Terminal.size">>, {not_measured, <<"reads a terminal">>}}].
 
-%% Appendix E.27: a key as the compiler makes it, with its type's text; an
-%% offer and its withdrawal beside the host's two tables written and
-%% emptied; the peers' names beside the host's read of them. A find and a
-%% spawn act on a peer, which a run of one node cannot reach; MVP 3.0's
-%% item 10 measures them on real nodes.
+%% Appendix E.27: a key as the compiler makes it, with its type's hash and
+%% text; an offer and its withdrawal beside the host's two tables written
+%% and emptied; the peers' names beside the host's read of them. A find
+%% and a spawn act on a peer, which a run of one node cannot reach; `make
+%% bench`'s node part measures them on real nodes.
 peer_scenarios() ->
     Peer = 'ern@peer',
     Me = ern_rt:self(),
-    {Name, Text} = {<<"measured">>, <<"Int">>},
+    {Name, Hash, Text} = {<<"measured">>, <<0:256>>, <<"Int">>},
     Withdrawn = fun() ->
-                    ets:delete(ern_offers, {Name, Text}),
-                    ets:delete_object(ern_offered, {Me, {Name, Text}})
+                    ets:delete(ern_offers, {Name, Hash}),
+                    ets:delete_object(ern_offered, {Me, {Name, Hash}})
                 end,
     Offers = ets:new(ern_measure_offers, [ordered_set, public]),
     Offered = ets:new(ern_measure_offered, [bag, public]),
     AcrossNodes = {not_measured, <<"acts on a peer, which a run of one node cannot reach">>},
-    [{<<"Peer.key">>, {fun() -> ern_peer:key(Name, Text) end, fun() -> {'Key', Name, Text} end}},
+    [{<<"Peer.key">>, {fun() -> ern_peer:key(Name, Hash, Text) end,
+                       fun() -> {'Key', Name, Hash, Text} end}},
      {<<"Peer.offer">>,
-      {fun() -> Peer:offer(ern_peer:key(Name, Text), Me), Withdrawn() end,
+      {fun() -> Peer:offer(ern_peer:key(Name, Hash, Text), Me), Withdrawn() end,
        fun() ->
-           ets:insert_new(Offers, {{Name, Text}, Me, Me}),
-           ets:insert(Offered, {Me, {Name, Text}}),
-           ets:delete(Offers, {Name, Text}),
-           ets:delete_object(Offered, {Me, {Name, Text}})
+           ets:insert_new(Offers, {{Name, Hash}, Me, Me}),
+           ets:insert(Offered, {Me, {Name, Hash}}),
+           ets:delete(Offers, {Name, Hash}),
+           ets:delete_object(Offered, {Me, {Name, Hash}})
        end}},
      {<<"Peer.find">>, AcrossNodes},
      {<<"Peer.spawn">>, AcrossNodes},

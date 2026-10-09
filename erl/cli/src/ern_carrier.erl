@@ -2,7 +2,7 @@
 %% what hurts in it turned off. The flags the host boots with, which the
 %% launcher asks for before it starts the host (boot_flags/2); the node's
 %% name on the carrier, a constant at its key's digest (name/1, host/1);
-%% the build's fingerprint, which is the host's cookie (fingerprint/1); the
+%% the floor's digest, which is the host's cookie (cookie/0); the
 %% rule that accepts a peer by its listed key, under the name that key gives
 %% (verify/3, which the host's TLS calls); the listener started once the
 %% bindings have their values (start/2); a reload, which hangup asks for
@@ -10,7 +10,7 @@
 %% peers, one each on its standard error.
 -module(ern_carrier).
 
--export([boot_flags/2, name/1, host/1, fingerprint/1, start/1, list/1, booted/0,
+-export([boot_flags/1, name/1, host/1, cookie/0, start/1, list/1, booted/0,
          configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1,
          names_own_host/1, say/1, named/1, said/1, filter/2]).
 
@@ -18,8 +18,9 @@
 -include("ern_node.hrl").
 
 %% Report §8.7: the protocol's version, in the cookie, so that two nodes of
-%% different protocols never connect.
--define(PROTOCOL, 1).
+%% different protocols never connect: 2 since MVP 3.1, whose key and spawn
+%% frames name a type and a function by hash.
+-define(PROTOCOL, 2).
 
 %% The constant before the host of a node's name on the carrier, whose host
 %% is its key's digest and names no network address: a peer's address is
@@ -43,10 +44,10 @@
 %% each side and the rule as the verification, over the listener's family
 %% of addresses; no port-mapper daemon, a module of the runtime's answering
 %% from the configuration in its place; no mesh; the detector's times and
-%% the buffer; and the build's fingerprint as the cookie. The listener's
+%% the buffer; and the floor's digest as the cookie. The listener's
 %% interface, where it is one, is the kernel's to bind.
--spec boot_flags(#configuration{}, [file:filename()]) -> [string()].
-boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}, LoadPath) ->
+-spec boot_flags(#configuration{}) -> [string()].
+boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
     Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
     Key = ern_node:file(filename:absname(ConfigDir), key),
     Proto = case ern_node:family(Listen) of
@@ -59,7 +60,7 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}, LoadPath) ->
     ["-proto_dist", Proto, "-ssl_dist_opt" | Tls]
         ++ ["-epmd_module", "ern_epmd", "-start_epmd", "false", "-connect_all", "false",
             "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime", ?SETUP_TIME,
-            "+zdbbl", ?BUFFER, "-setcookie", fingerprint(LoadPath)]
+            "+zdbbl", ?BUFFER, "-setcookie", cookie()]
         ++ interface(Listen).
 
 %% Report §8.7: the TLS options of one side: the node's own certificate as
@@ -95,41 +96,17 @@ host(PublicKey) ->
 digest(PublicKey) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, PublicKey), lowercase)).
 
-%% Report §8.7: the build's fingerprint, the digest of the protocol's
-%% version, `ern`'s version, OTP's whole version, and every compiled module
-%% on the load path in name order, a host module a `foreign fn` loads from
-%% one of its directories among them (§11.2), each as its name and the
-%% host's digest of its code, which leaves out documentation, line numbers
-%% and attributes; the standard library is not among them, `ern`'s version
-%% standing for it.
--spec fingerprint([file:filename()]) -> string().
-fingerprint(LoadPath) ->
-    Files = lists:append([ern_build:compiled_under(Root)
-                          ++ filelib:wildcard(filename:join(Root, "*.beam"))
-                          || Root <- LoadPath]),
-    Modules = lists:usort([module_digest(File) || File <- Files]),
-    Build = {?PROTOCOL, ?VERSION, otp_version(), Modules},
-    binary_to_list(binary:encode_hex(crypto:hash(sha256, term_to_binary(Build, [deterministic])),
+%% Report §8.7: the cookie, the digest of the floor two nodes stand on:
+%% the protocol's version, `ern`'s version, which stands for the runtime's
+%% functions and the standard library, and OTP's major release, within
+%% which the host keeps its term format, its distribution and its compiled
+%% modules. Nothing of the build is in it, so that nodes of different
+%% builds connect, and the hashes tell what they share.
+-spec cookie() -> string().
+cookie() ->
+    Floor = {?PROTOCOL, ?VERSION, erlang:system_info(otp_release)},
+    binary_to_list(binary:encode_hex(crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
                                      lowercase)).
-
-%% A compiled module's name and the host's digest of its code, read from its
-%% bytes, since the host takes a name not ending in `.beam` for one that
-%% lacks it; a file that is no compiled module is refused, as a run refuses
-%% one (§11).
-module_digest(File) ->
-    {ok, Bytes} = file:read_file(File),
-    case beam_lib:md5(Bytes) of
-        {ok, {Module, Digest}} -> {Module, Digest};
-        {error, beam_lib, _} -> ern_build:fail(File ++ " is not a compiled module")
-    end.
-
-%% The host's version, OTP's whole version as its installation writes it,
-%% `29.1`, and not the release alone, `29`.
-otp_version() ->
-    Release = erlang:system_info(otp_release),
-    {ok, Text} = file:read_file(filename:join([code:root_dir(), "releases", Release,
-                                               "OTP_VERSION"])),
-    string:trim(Text).
 
 %%
 %% The node's start
@@ -402,7 +379,7 @@ said(_) ->
     none.
 
 %% Report §8.7: the host's own reports of its nodes are turned off, but the
-%% handshake's refusal of a peer for its build, by the cookie, and of a
+%% handshake's refusal of a peer for its floor, by the cookie, and of a
 %% name its key does not give, which the node says in its own words. Its
 %% reports of a distribution that could not start, the crash of
 %% `net_kernel` and the start error of `net_sup`, are among them: the
@@ -445,7 +422,8 @@ host_message(Format, Args) when is_list(Format) ->
                 false -> ignore
             end;
         {_, [Node]} when is_atom(Node) ->
-            say([named(Node), " was refused: it runs another build"]),
+            say([named(Node), " was refused: it stands on another floor, another release of"
+                               " ern or another major release of OTP"]),
             stop;
         _ ->
             stop

@@ -4,12 +4,13 @@
 %% supply of `keyed`); a spawn on a peer is read off a definition here,
 %% once the definition is inferred: its function is a declaration's name,
 %% or a lambda or a `fn` written in the definition, at the spawn or bound
-%% by a `let` the spawn names, and what that lambda or `fn` captures, and
-%% the mailbox type of the process it starts, are neither bound nor hold a
-%% type variable, but for a mailbox type that is a variable the
-%% definition's type does not hold, which is Never. Nothing else is
-%% checked, and nothing is looked through at a send. A breach is thrown as
-%% the checker's type errors are.
+%% by a `let` the spawn names, or `restarting` applied to one of these, and
+%% what that lambda or `fn` captures, and the mailbox type of the process
+%% it starts, are neither bound nor hold a type variable, but for a mailbox
+%% type that is a variable the definition's type does not hold, which is
+%% Never; nor does its body use a member of a requirement in force, a
+%% function. Nothing else is checked, and nothing is looked through at a
+%% send. A breach is thrown as the checker's type errors are.
 -module(ern_bound).
 
 -export([binds/2, check/3]).
@@ -180,20 +181,29 @@ spawn_name(_) ->
 %% are seen, each capture and the process's mailbox type neither bound nor
 %% holding a type variable, but for a mailbox type that is Never.
 spawned(Name, #e_var{type = CalleeType}, [_Peer, Function | _], Scope, {Held, Env}) ->
-    Captures = captures(Name, Function, Scope, Env),
+    Captures = restarted_captures(Name, Function, Scope, Env),
     lists:foreach(fun(Capture) -> capture_crosses(Name, Capture, Env) end, Captures),
     mailbox_crosses(Name, ern_ast:span(Function), mailbox(CalleeType, Env), Held, Env).
 
+%% Report §3.11, §6.9: `restarting` applied to a function the spawn admits
+%% captures the limit, a `RestartLimit`, which crosses, and what that
+%% function captures.
+restarted_captures(Name, #e_call{callee = #e_var{referent = {prelude, [restarting]}},
+                                 args = [_Limit, Function]}, Scope, Env) ->
+    captures(Name, Function, Scope, Env);
+restarted_captures(Name, Function, Scope, Env) ->
+    captures(Name, Function, Scope, Env).
+
 %% The locals the function captures, each once, with the type and the span
 %% of its first use: none for a top-level declaration's name.
-captures(_Name, #e_lambda{} = Lambda, _Scope, _Env) ->
-    first_uses(ern_ast:free_uses(Lambda, []));
-captures(Name, #e_var{span = Span, namespace = [], name = Local, referent = var}, Scope, _Env) ->
+captures(Name, #e_lambda{} = Lambda, _Scope, Env) ->
+    body_captures(Name, Lambda, ern_ast:free_uses(Lambda, []), Env);
+captures(Name, #e_var{span = Span, namespace = [], name = Local, referent = var}, Scope, Env) ->
     case Scope of
         #{Local := {lambda, Lambda}} ->
-            first_uses(ern_ast:free_uses(Lambda, []));
-        #{Local := {local_fn, #fn_declaration{params = Params, body = Body}}} ->
-            first_uses(ern_ast:free_uses(Body, [Local | param_names(Params)]));
+            body_captures(Name, Lambda, ern_ast:free_uses(Lambda, []), Env);
+        #{Local := {local_fn, #fn_declaration{params = Params, body = Body} = Fn}} ->
+            body_captures(Name, Fn, ern_ast:free_uses(Body, [Local | param_names(Params)]), Env);
         _ ->
             fail(Span, Name ++ " starts " ++ atom_to_list(Local) ++ ", a function that came as a"
                        " value, whose captures the compiler does not see",
@@ -215,6 +225,38 @@ captures(Name, Function, _Scope, _Env) ->
                  " declaration's name, or a lambda or a `fn` written in this definition",
          "write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this"
          " definition (§3.11)").
+
+%% Report §3.11, §4.9: the locals a lambda's or a local fn's body names, its
+%% captures, where the body uses no member of a requirement in force, which
+%% the definition was given as a function, bound to its node; a member of
+%% the requirement of a `fn` declared inside it is that fn's own.
+body_captures(Name, Function, Uses, Env) ->
+    TypeState = ern_typecheck:type_state(Env),
+    Resolved = fun(Variable) -> ern_types:resolve(Variable, TypeState) end,
+    Own = ern_ast:walk(fun(#fn_declaration{requirement = Requirement}, Acc) ->
+                           [Resolved(Variable) || #member{type = Variable} <- Requirement] ++ Acc;
+                          (_, Acc) ->
+                           Acc
+                       end, Function, []),
+    Used = ern_ast:walk(fun(#required_member{variable = Variable, member = Member}, Acc) ->
+                            [{Variable, Member} | Acc];
+                           (_, Acc) ->
+                            Acc
+                        end, Function, []),
+    case [Required || {Variable, _} = Required <- lists:reverse(Used),
+                      not lists:member(Resolved(Variable), Own)] of
+        [] ->
+            first_uses(Uses);
+        [{Variable, Member} | _] ->
+            fail(ern_ast:span(Function),
+                 %% the variable as an error names it, without a printed type's marks
+                 Name ++ " starts a function that uses "
+                     ++ string:trim(ern_types:format(Variable, TypeState), trailing, "=!+")
+                     ++ "." ++ atom_to_list(Member) ++ ", a member of the requirement in force,"
+                     " which is a function bound to its node",
+                 "give the process what it needs as a value it captures, or spawn on this node"
+                 " (§3.11)")
+    end.
 
 %% The locals among the uses, each once at its first use.
 first_uses(Uses) ->

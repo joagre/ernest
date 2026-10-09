@@ -1,16 +1,18 @@
 %% Report §8.7, Appendix E.27: the module `Peer`'s shims, and the work its
 %% frames give a node's gateway. A key holds a name and its message type's
-%% text, which the compiler supplies; an offer is a row of the runtime's,
-%% kept while its process lives; a find asks the key's peers in order
-%% through their gateways; a spawn sends the function to the peer's gateway,
-%% which starts the process through the peer's runtime and answers through
-%% the spawner's gateway, which ends a process no one waits for any more. A
+%% hash and text, which the compiler supplies; an offer is a row of the
+%% runtime's, kept while its process lives; a find asks the key's peers in
+%% order through their gateways, each comparing the hash; a spawn sends the
+%% function's identity and captures to the peer's gateway, which finds the
+%% function in the peer's code table and starts the process through the
+%% peer's runtime, or answers `NotLoaded`, and answers through the
+%% spawner's gateway, which ends a process no one waits for any more. A
 %% node's peers and keys are the carrier's to give (configure/2); a program
 %% that is no node has none. A wait has no upper bound: it is made against
 %% the moment its time ends, in slices the host takes (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, key/1, key/2, offer/2, find/2, spawn/3, spawn/4,
+-export([configure/2, tables/0, key/1, key/3, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, peers/0, frame/2, lost/1]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
@@ -22,6 +24,15 @@
 %% peer's loss reads that peer's rows alone, and an answer is taken only
 %% from the peer the spawn went to.
 -define(SPAWNS, ern_spawns).
+
+%% Report §8.7: the function a spawn frame names, as the compiler writes it
+%% (ern_emitter's spawned/2): a declaration by its hash, a foreign one by
+%% its qualified name as text, a lambda or a local fn by its definition's
+%% hash, its position and its captures, and `restarting` over one of these
+%% with its limit.
+-type spawned() :: {function, binary()} | {foreign, [binary()]}
+                 | {lambda, binary(), pos_integer(), [term()]}
+                 | {restarting, term(), spawned()}.
 
 %%
 %% What the carrier gives
@@ -52,61 +63,63 @@ node_of(Name) ->
 %% The shims
 %%
 
-%% Report §8.7: a key, its name and its message type's text, which the
-%% compiler supplies at the call; it starts nothing. key/1 is the
-%% declaration's, which no call reaches.
+%% Report §8.7, Appendix H: a key, its name, and its message type's hash
+%% and text, which the compiler supplies at the call; it starts nothing.
+%% key/1 is the declaration's, which no call reaches.
 -spec key(binary()) -> no_return().
 key(_Name) ->
-    erlang:error(key_without_text).
+    erlang:error(key_without_type).
 
--spec key(binary(), binary()) -> {'Key', binary(), binary()}.
-key(Name, Text) ->
-    {'Key', Name, Text}.
+-spec key(binary(), binary(), binary()) -> {'Key', binary(), binary(), binary()}.
+key(Name, Hash, Text) ->
+    {'Key', Name, Hash, Text}.
 
-%% Report §8.7: an offer under the key's name and its type's text, for as
+%% Report §8.7: an offer under the key's name and its type's hash, for as
 %% long as its process lives, a process of this node; a key a living process
 %% holds faults the caller.
--spec offer({'Key', binary(), binary()}, ern_rt:address()) -> 'Unit'.
-offer({'Key', Name, Text}, Address) ->
-    ern_rt:offer({Name, Text}, Address, Name).
+-spec offer({'Key', binary(), binary(), binary()}, ern_rt:address()) -> 'Unit'.
+offer({'Key', Name, Hash, _Text}, Address) ->
+    ern_rt:offer({Name, Hash}, Address, Name).
 
 %% Report §8.7: the first address offered under the key's name at its type's
-%% text by a peer `keys` lists for it, asked in order, each given the time
+%% hash by a peer `keys` lists for it, asked in order, each given the time
 %% left; a peer that cannot be reached, offers nothing under the name, or
-%% offers it at another type is passed over, the last such failure answered
-%% where no peer offers it, and `Timeout` where the time runs out.
--spec find({'Key', binary(), binary()}, integer()) -> {'Right', term()} | {'Left', atom()}.
-find({'Key', Name, Text}, Ms) ->
+%% offers it at a type of another hash is passed over, the last such
+%% failure answered where no peer offers it, and `Timeout` where the time
+%% runs out.
+-spec find({'Key', binary(), binary(), binary()}, integer()) ->
+          {'Right', term()} | {'Left', atom()}.
+find({'Key', Name, Hash, _Text}, Ms) ->
     Deadline = ern_rt:deadline(Ms),
     Nodes = [node_of(Peer) || Peer <- maps:get(Name, persistent_term:get({?MODULE, keys}, #{}),
                                                 [])],
-    found(Nodes, Name, Text, Deadline, 'NotListed').
+    found(Nodes, Name, Hash, Deadline, 'NotListed').
 
-found([], _Name, _Text, _Deadline, Last) ->
+found([], _Name, _Hash, _Deadline, Last) ->
     {'Left', Last};
 %% report §8.7: a node's carrier runs once its bindings have their values,
 %% and before that no connection opens
-found(_Nodes, _Name, _Text, _Deadline, _Last) when node() =:= nonode@nohost ->
+found(_Nodes, _Name, _Hash, _Deadline, _Last) when node() =:= nonode@nohost ->
     {'Left', 'Unreachable'};
-found([Node | Nodes], Name, Text, Deadline, _Last) ->
+found([Node | Nodes], Name, Hash, Deadline, _Last) ->
     case ern_rt:remaining(Deadline) of
         0 ->
             {'Left', 'Timeout'};
         _ ->
-            case asked(Node, Name, Text, Deadline) of
+            case asked(Node, Name, Hash, Deadline) of
                 {found, Address} -> {'Right', Address};
                 timeout -> {'Left', 'Timeout'};
-                Error -> found(Nodes, Name, Text, Deadline, Error)
+                Error -> found(Nodes, Name, Hash, Deadline, Error)
             end
     end.
 
 %% A peer's answer to a find, through an alias that takes one answer and
 %% drops a late one; `Unreachable` where its gateway cannot be reached.
-asked(Node, Name, Text, Deadline) ->
+asked(Node, Name, Hash, Deadline) ->
     Gateway = {ern_gateway, Node},
     MonitorRef = erlang:monitor(process, Gateway),
     Alias = erlang:alias([reply]),
-    erlang:send(Gateway, {ern_frame, erlang:self(), {find, Name, Text, Alias}}),
+    erlang:send(Gateway, {ern_frame, erlang:self(), {find, Name, Hash, Alias}}),
     find_answer(Alias, MonitorRef, Deadline).
 
 find_answer(Alias, MonitorRef, Deadline) ->
@@ -128,32 +141,33 @@ find_answer(Alias, MonitorRef, Deadline) ->
         end
     end.
 
-%% Report §8.7: a process started on the peer named, running the function,
-%% its address answered, or a failure, within the time; spawn/3 and
-%% spawn_monitored/4 are the declarations', which the compiler calls with
-%% the spawn's site after them.
+%% Report §8.7: a process started on the peer named, running the function
+%% the frame names, its address answered, or a failure, within the time;
+%% spawn/3 and spawn_monitored/4 are the declarations', which the compiler
+%% calls with the function's identity and captures in place of the
+%% function (ern_emitter's spawned/2) and the spawn's site after them.
 -spec spawn(binary(), fun(), integer()) -> no_return().
 spawn(_Name, _Function, _Ms) ->
     erlang:error(spawn_without_site).
 
--spec spawn(binary(), fun(), integer(), binary()) -> {'Right', pid()} | {'Left', atom()}.
-spawn(Name, Function, Ms, Site) ->
-    spawned(Name, Function, none, Ms, Site).
+-spec spawn(binary(), spawned(), integer(), binary()) -> {'Right', pid()} | {'Left', atom()}.
+spawn(Name, Spawned, Ms, Site) ->
+    spawned(Name, Spawned, none, Ms, Site).
 
 -spec spawn_monitored(binary(), fun(), fun(), integer()) -> no_return().
 spawn_monitored(_Name, _Function, _Wrap, _Ms) ->
     erlang:error(spawn_without_site).
 
--spec spawn_monitored(binary(), fun(), fun(), integer(), binary()) ->
+-spec spawn_monitored(binary(), spawned(), fun(), integer(), binary()) ->
           {'Right', pid()} | {'Left', atom()}.
-spawn_monitored(Name, Function, Wrap, Ms, Site) ->
-    spawned(Name, Function, Wrap, Ms, Site).
+spawn_monitored(Name, Spawned, Wrap, Ms, Site) ->
+    spawned(Name, Spawned, Wrap, Ms, Site).
 
 %% The spawn: its frame to the peer's gateway, whose answer comes through
 %% this node's gateway to the waiting process while it waits; a monitored
 %% spawn's process waits on the peer until its monitor is made, so that it
 %% is monitored from its start, and a failed one leaves no monitor.
-spawned(Name, Function, Wrap, Ms, Site) ->
+spawned(Name, Spawned, Wrap, Ms, Site) ->
     case node_of(Name) of
         none ->
             {'Left', 'NotListed'};
@@ -166,7 +180,7 @@ spawned(Name, Function, Wrap, Ms, Site) ->
             Gateway = {ern_gateway, Node},
             MonitorRef = erlang:monitor(process, Gateway),
             erlang:send(Gateway, {ern_frame, erlang:self(),
-                                  {spawn, Ref, Function, Site, Wrap =/= none}}),
+                                  {spawn, Ref, Spawned, Site, Wrap =/= none}}),
             Answer = spawn_answer({Node, Ref}, MonitorRef, Deadline),
             erlang:demonitor(MonitorRef, [flush]),
             started(Answer, Ref, Wrap)
@@ -215,31 +229,34 @@ peers() ->
 
 %% Report §8.7: a frame a peer sent, read by the gateway's worker for that
 %% peer, each field of it checked: a find answered at once; a spawn started
-%% through this node's runtime, or `NotLoaded`; a spawn's answer handed to
-%% the process that waits for it, where it lives, or else its process
-%% ended; a message to an adapted address this node made, its function
-%% applied here. A find or a spawn is asked of the run in progress, and one
-%% that comes while none is answers `Unreachable`: between two runs of `ern
-%% test` over a directory, in one host, and as a run ends
-%% (ern_rt:asked_of_run/1). Any other frame is one the gateway cannot read.
--spec frame(pid(), term()) -> ok | unreadable.
-frame(_From, {find, Name, Text, Alias})
-  when is_binary(Name), is_binary(Text), is_reference(Alias) ->
-    Answer = case ern_rt:asked_of_run({offered, Name, Text}) of
+%% through this node's runtime, or `NotLoaded`, with what this node lacked,
+%% which the gateway says; a spawn's answer handed to the process that
+%% waits for it, where it lives, or else its process ended; a message to an
+%% adapted address this node made, its function applied here. A find or a
+%% spawn is asked of the run in progress, and one that comes while none is
+%% answers `Unreachable`: between two runs of `ern test` over a directory,
+%% in one host, and as a run ends (ern_rt:asked_of_run/1). Any other frame
+%% is one the gateway cannot read.
+-spec frame(pid(), term()) -> ok | unreadable | {not_loaded, binary(), iodata()}.
+frame(_From, {find, Name, Hash, Alias})
+  when is_binary(Name), is_binary(Hash), is_reference(Alias) ->
+    Answer = case ern_rt:asked_of_run({offered, Name, Hash}) of
                  {answered, Offered} -> Offered;
                  none -> 'Unreachable'
              end,
     Alias ! {Alias, Answer},
     ok;
-frame(From, {spawn, Ref, Function, Site, Monitored})
-  when is_reference(Ref), is_function(Function, 0), is_binary(Site), is_boolean(Monitored) ->
-    Answer = case loaded(Function) of
-                 true -> started_here(held(Function, Ref, From, Monitored), Site);
-                 false -> {failed, 'NotLoaded'};
-                 none -> {failed, 'Unreachable'}
-             end,
-    erlang:send({ern_gateway, node(From)}, {ern_frame, erlang:self(), {answer, Ref, Answer}}),
-    ok;
+frame(From, {spawn, Ref, Spawned, Site, Monitored})
+  when is_reference(Ref), is_binary(Site), is_boolean(Monitored) ->
+    case process_function(Spawned) of
+        unreadable ->
+            unreadable;
+        Found ->
+            {Answer, Read} = spawned_here(Found, Ref, From, Monitored, Site),
+            erlang:send({ern_gateway, node(From)},
+                        {ern_frame, erlang:self(), {answer, Ref, Answer}}),
+            Read
+    end;
 frame(From, {answer, Ref, {spawned, Pid} = Answer})
   when is_reference(Ref), is_pid(Pid), node(Pid) =:= node(From) ->
     answered(From, Ref, Answer);
@@ -253,13 +270,111 @@ frame(_From, {via, {via, Function, _Target, Maker} = Via, Message})
 frame(_From, _Body) ->
     unreadable.
 
-%% A process a peer's spawn starts here, or `Unreachable` where no run is in
-%% progress to start it.
-started_here(Function, Site) ->
-    case ern_rt:asked_of_run({spawn, Function, Site}) of
-        {answered, Pid} -> {spawned, Pid};
-        none -> {failed, 'Unreachable'}
+%% A process a peer's spawn starts here, where this node holds the function
+%% and every module its reach's foreign declarations call, and the run in
+%% progress holds the value of every binding its reach names; else
+%% `NotLoaded` and what this node lacked, the first met, or `Unreachable`
+%% where no run is in progress to start it.
+spawned_here({lacked, Lacked}, _Ref, _From, _Monitored, Site) ->
+    not_loaded(Site, Lacked);
+spawned_here({found, Function, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
+    case absent_module(Foreigns) of
+        none ->
+            Held = held(Function, Ref, From, Monitored),
+            case ern_rt:asked_of_run({spawn, Held, Bindings, Site}) of
+                {answered, Pid} when is_pid(Pid) -> {{spawned, Pid}, ok};
+                {answered, {absent, Binding}} -> not_loaded(Site, absent(Binding));
+                none -> {{failed, 'Unreachable'}, ok}
+            end;
+        Lacked ->
+            not_loaded(Site, Lacked)
     end.
+
+%% Report §8.7, §11.2: `NotLoaded`, and what the gateway says, the
+%% spawner's words written with their control characters escaped; a site
+%% that is no UTF-8 is a frame no compiler writes.
+not_loaded(Site, Lacked) ->
+    {{failed, 'NotLoaded'}, {not_loaded, ern_show:controls(Site, line), Lacked}}.
+
+%% Report §8.7: the function a spawn frame names, as this node runs it: the
+%% unit that holds its identity runs it over the values it captured
+%% ('$spawned'/2), in the process, and `restarting` runs it so; with the
+%% reach it names, or what this node lacked, or unreadable where the frame
+%% names it in no way the compiler writes. A peer's names are taken as
+%% atoms only where this node has them already, so that what a peer sends
+%% makes none.
+process_function({restarting, 'Unlimited' = Limit, Inner})
+  when element(1, Inner) =/= restarting ->
+    restarting(Limit, process_function(Inner));
+process_function({restarting, {'RestartLimit', Restarts, Within} = Limit, Inner})
+  when is_integer(Restarts), is_integer(Within), element(1, Inner) =/= restarting ->
+    restarting(Limit, process_function(Inner));
+process_function({function, Hash}) when is_binary(Hash), byte_size(Hash) =:= 32 ->
+    unit_function(ern_code:spawnable({hash, Hash}), [], Hash);
+process_function({lambda, Hash, Position, Captures})
+  when is_binary(Hash), byte_size(Hash) =:= 32, is_integer(Position), Position > 0,
+       is_list(Captures) ->
+    unit_function(ern_code:spawnable({lambda, Hash, Position}), Captures, {Hash, Position});
+process_function({foreign, Names}) when is_list(Names), Names =/= [] ->
+    case lists:all(fun is_binary/1, Names) andalso existing_atoms(Names) of
+        false ->
+            unreadable;
+        none ->
+            Named = ern_show:controls(iolist_to_binary(lists:join(".", Names)), line),
+            {lacked, ["this node does not have ", Named]};
+        QualifiedName ->
+            unit_function(ern_code:spawnable({foreign, QualifiedName}), [], QualifiedName)
+    end;
+process_function(_) ->
+    unreadable.
+
+restarting(Limit, {found, Function, Reach}) ->
+    {found, ern_rt:restarting(Limit, Function), Reach};
+restarting(_, Other) ->
+    Other.
+
+%% The function a unit runs over the captures, where the unit's function
+%% takes as many as came; a function of the identity that takes another
+%% number is one no compiler writes a frame for.
+unit_function({Unit, Function, Arity, Reach}, Captures, _) when length(Captures) =:= Arity ->
+    {found, fun() -> Unit:'$spawned'(Function, Captures) end, Reach};
+unit_function({_, _, _, _}, _, _) ->
+    unreadable;
+unit_function(none, _, Identity) ->
+    {lacked, ["this node does not have its function, ", identity_text(Identity)]}.
+
+identity_text({Hash, Position}) ->
+    [binary:encode_hex(Hash, lowercase), " at ", integer_to_list(Position)];
+identity_text(Hash) when is_binary(Hash) ->
+    binary:encode_hex(Hash, lowercase);
+identity_text(QualifiedName) ->
+    lists:join(".", [atom_to_binary(Name) || Name <- QualifiedName]).
+
+existing_atoms(Names) ->
+    try [binary_to_existing_atom(Name) || Name <- Names]
+    catch error:badarg -> none
+    end.
+
+%% Report §8.7: the first foreign declaration of a reach whose module is not
+%% on this node, as what this node lacked, or none.
+absent_module([]) ->
+    none;
+absent_module([QualifiedName | QualifiedNames]) ->
+    Named = identity_text(QualifiedName),
+    case ern_code:foreign(QualifiedName) of
+        none ->
+            ["this node does not have ", Named];
+        {HostModule, _} ->
+            case ern_code:present(HostModule) of
+                true -> absent_module(QualifiedNames);
+                false -> ["the module ", atom_to_binary(HostModule), ", which ", Named,
+                          " calls, is not here"]
+            end
+    end.
+
+%% A binding of the reach without its value here, as what this node lacked.
+absent({QualifiedName, _}) ->
+    ["the binding ", identity_text(QualifiedName), " has no value here"].
 
 %% A spawn's answer, taken only from the peer the spawn went to: handed to
 %% the process that waits for it, where it lives; where it does not, or none
@@ -294,29 +409,6 @@ lost(Node) ->
 %% answer arrives.
 ended({spawned, Pid}) -> ern_rt:kill(Pid);
 ended({failed, _}) -> ok.
-
-%% Report §8.7: a function spawned on this node runs where this node has its
-%% module, which the frame names, and every binding of that module and of
-%% every module it depends on has its value here, which the run in progress
-%% answers, or none where no run is. The comparison of the module's digest
-%% with the one the function was compiled in is the host's own loading
-%% check, which no node that keeps §8.7 meets: connected nodes run one
-%% build, so a module is one version on both. It guards against a peer that
-%% breaks §8.7, as §8.4's checks guard against a faulty peer's message, and
-%% keeps a module a shell typed its own (§11.2): another shell's of the
-%% same name is another module, which this node does not have.
-loaded(Function) ->
-    {module, Module} = erlang:fun_info(Function, module),
-    {new_uniq, Version} = erlang:fun_info(Function, new_uniq),
-    case erlang:module_loaded(Module) andalso Module:module_info(md5) =:= Version of
-        true ->
-            case ern_rt:asked_of_run({initialized, Module}) of
-                {answered, Initialized} -> Initialized;
-                none -> none
-            end;
-        false ->
-            false
-    end.
 
 %% The function a spawned process runs: a monitored spawn's waits until the
 %% spawner has made its monitor, and ends where the spawner ends first.
