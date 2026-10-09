@@ -13,7 +13,7 @@
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["balancer", "load"]]).
+                    || Library <- ["balancer", "json", "load"]]).
 
 %% Prints the table, the nodes' directories under Dir, and halts.
 -spec main([string()]) -> no_return().

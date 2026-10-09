@@ -178,14 +178,17 @@ to_upper(Text) -> unicode:characters_to_binary(string:uppercase(Text)).
 
 %% Appendix E.5: the integer the text spells in the base, 2 to 36.
 %% `binary_to_integer/2` takes the base's digits and letters in either case
-%% after an optional `+` or `-`, and raises on anything else; E.5 takes no
-%% `+`, and answers `None` where the host raises, which Ernest cannot catch.
+%% after an optional `+` or `-`, raises `badarg` on anything else and
+%% `system_limit` on an integer larger than it holds; E.5 takes no `+`, and
+%% answers `None` where the host raises, which Ernest cannot catch.
 -spec to_integer(binary(), 2..36) -> {'Some', integer()} | 'None'.
 to_integer(<<"+", _/binary>>, _) ->
     'None';
 to_integer(Text, Base) ->
     try {'Some', binary_to_integer(Text, Base)}
-    catch error:badarg -> 'None'
+    catch
+        error:badarg -> 'None';
+        error:system_limit -> 'None'
     end.
 
 %% report §2.5: the float literal form, with an optional leading minus;

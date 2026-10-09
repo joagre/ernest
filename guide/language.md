@@ -2259,7 +2259,7 @@ fn heavy(a : Int, b : Int) : Int =
 
 export fn main() : Unit with Result = {
     let me = self();
-    match Peer.spawn("foo", fn() : Unit with Never = send(me, Result(heavy(3, 4))), 5000) {
+    match Peer.spawn("foo", fn() = send(me, Result(heavy(3, 4))), 5000) {
         Right(_) -> receive {
             Result(n) -> Io.println("foo computed " <> Int.toString(n))
         }
@@ -2273,9 +2273,47 @@ $ ern run square.erc
 no foo: NotListed
 ```
 
-With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. The spawn takes with it the values the lambda captured, `me` here, and nothing more: the peer runs the same build, so it has `heavy` already, and no code crosses (report §8.7). On the peer the process has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service; `me` still names this process.
+With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. Both nodes run one build: the same compiled modules on their load paths, under the same `ern` and the same OTP (report §8.7). Two nodes on one machine run from one directory here, `square.erc` on the node `a` and on `foo` a program `idle.erc` beside it whose `main` waits for a message that never comes. Each node has a configuration directory of its own:
 
-The compiler must see what the function captures, so the function a spawn on a peer starts is written where the spawn can see it: a declaration's name, or a lambda written at the spawn or bound by a `let` in the same definition. A function that came as a value, a parameter or a message, is refused (report §3.11). And the function runs on the peer only where the peer's program has run the top-level bindings of the function's module and of the modules it depends on; otherwise the spawn answers `Left(NotLoaded)`. So the work a peer runs is written in a module the peer's program depends on too, or in one that, with every module it depends on, has no top-level `let` the peer's program has not run.
+```console
+$ ern config --config-dir a
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=
+-----END PUBLIC KEY-----
+$ ern config --config-dir foo
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAbcsDUdMBCWTaHU5iYs2EHT4fDQzaUBer/dL+n5DPJrk=
+-----END PUBLIC KEY-----
+```
+
+Both directories listen on `0.0.0.0:8654` as made, so on one machine each `ernest.conf` names a port of its own. Each lists the other, the key `ern config` printed written as one JSON string, its line breaks `\n`. `a/ernest.conf`:
+
+```json
+{
+  "listen": "127.0.0.1:8654",
+  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=\n-----END PUBLIC KEY-----\n",
+  "peers": [
+    {
+      "name": "foo",
+      "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAbcsDUdMBCWTaHU5iYs2EHT4fDQzaUBer/dL+n5DPJrk=\n-----END PUBLIC KEY-----\n",
+      "network-address": "127.0.0.1:8655"
+    }
+  ],
+  "keys": {}
+}
+```
+
+`foo/ernest.conf` listens on `127.0.0.1:8655` and lists `a` by its key; it needs no address for `a`, which dials it. One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`. Then:
+
+```console
+$ ern run --config-dir foo idle.erc &
+$ ern run --config-dir a square.erc
+the peer foo connected
+foo computed 25
+$ ern stop --config-dir foo
+``` The spawn takes with it the values the lambda captured, `me` here, and nothing more: the peer runs the same build, so it has `heavy` already, and no code crosses (report §8.7). On the peer the process has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service; `me` still names this process.
+
+The compiler must see what the function captures, so the function a spawn on a peer starts is written where the spawn can see it: a declaration's name, or, in the same definition, a lambda written at the spawn or bound by a `let`, or a local `fn`. A function that came as a value, a parameter or a message, is refused (report §3.11). A process spawned so that never receives needs no annotation: where nothing else names the mailbox type of the address the spawn answers, it is `Never`. And the function runs on the peer only where the peer's program has run the top-level bindings of the function's module and of the modules it depends on; otherwise the spawn answers `Left(NotLoaded)`. So the work a peer runs is written in a module the peer's program depends on too, or in one that, with every module it depends on, has no top-level `let` the peer's program has not run.
 
 A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Its `site` is empty for a process of another node; that node's standard error reports the fault with the site (report §6.9). Several computations run at once as several such processes, each sending its result back. Which peer to spawn on is the program's to say; the library `Balancer` picks one for it, in turn or by how busy each is (report Appendix G.5).
 
@@ -2367,7 +2405,7 @@ The listener below is a resource, so the lambda that captures it cannot be spawn
 export fn main() : Unit with Never =
     match Tcp.listen("127.0.0.1", 7000) {
         Right(listener) -> {
-            let _ = Peer.spawn("alice", fn() : Unit with Never = serve(listener), 5000);
+            let _ = Peer.spawn("alice", fn() = serve(listener), 5000);
             Unit
         }
       | Left(error) -> Io.printlnError("cannot listen: " <> Io.show(error))
@@ -2382,10 +2420,10 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
 
 ```console
 $ ern build bound.ern
-bound.ern:4:72: the function Peer.spawn starts captures listener, whose type Address(Tcp.ListenerMsg) is bound to its node, since it holds the address of a listener
+bound.ern:4:54: the function Peer.spawn starts captures listener, whose type Address(Tcp.ListenerMsg) is bound to its node, since it holds the address of a listener
 3 |         Right(listener) -> {
-4 |             let _ = Peer.spawn("alice", fn() : Unit with Never = serve(listener), 5000);
-  |                                                                        ^^^^^^^^
+4 |             let _ = Peer.spawn("alice", fn() = serve(listener), 5000);
+  |                                                      ^^^^^^^^
   | = help: a value of a bound type never crosses to another node; give the process what crosses (§3.11)
 ```
 
@@ -2500,7 +2538,7 @@ A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at
 Bytes arrive in pieces that need not end where a line ends, so what follows the last line feed waits for the next piece. A server that sends each line back, and says it is still there every ten seconds:
 
 ```ernest
-type Session = Arrived(Bytes) | Gone | Tick(Int)
+type Session = Arrived(Optional(Bytes)) | Tick(Int)
 
 export fn main() : Unit with Never =
     match Tcp.listen("127.0.0.1", 7000) {
@@ -2522,24 +2560,26 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
 // The session waits on its mailbox, and its reader on the socket.
 fn session(socket : Address(Tcp.SocketMsg)) : Unit with Session = {
     let me = self();
-    let _ = spawn(fn() = reader(socket, me));
+    let _ = spawn(fn() = reader(socket, via(me, Arrived)));
     Clock.alarm(10000, Tick);
     talk(socket, <<>>)
 }
 
-fn reader(socket : Address(Tcp.SocketMsg), session : Address(Session)) : Unit with Never =
+// What the socket gives, and None once the connection has gone, sent to an
+// address that knows nothing of the session's mailbox.
+fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes))) : Unit with Never =
     match Tcp.read(socket, 60000) {
         Right(bytes) -> {
-            send(session, Arrived(bytes));
-            reader(socket, session)
+            send(recipient, Some(bytes));
+            reader(socket, recipient)
         }
-      | Left(Io.Timeout) -> reader(socket, session)
-      | Left(_) -> send(session, Gone)
+      | Left(Io.Timeout) -> reader(socket, recipient)
+      | Left(_) -> send(recipient, None)
     }
 
 fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit with Session =
     receive {
-        Arrived(bytes) -> {
+        Arrived(Some(bytes)) -> {
             let parts = Bytes.split(rest <> bytes, <<10>>);
             List.foreach(List.dropLast(parts, 1), fn(line) = {
                 let _ = Tcp.write(socket, line <> <<10>>, 5000);
@@ -2552,7 +2592,7 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit with Session =
             Clock.alarm(10000, Tick);
             talk(socket, rest)
         }
-      | Gone -> Tcp.close(socket)
+      | Arrived(None) -> Tcp.close(socket)
     }
 ```
 
@@ -2693,7 +2733,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§7.4.** (a) Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included. `main.ern` writes `Stack.push(Stack.empty, 1)`: another module sees the type and its operations, never the constructor, so `Stack.Stack([1])` is refused. (b) The two bags. A list's elements have one type. `hashed` is an `Operations(Set(Int), Int)` and `ordered` an `Operations(OrderedSet.Set(Int), Int)`: an operations record keeps the representation in its type, so the two records are of two types, and a list of both is refused. Both bags are a `Bag(Int)`, since a record of closures hides the representation in its functions. (c) `fn firstTwo(list : List(a)) : List(a) needs a.compare = List.take(sorted(list), 2)`. It calls `sorted` at its own type variable, so it declares the requirement and passes on the member it is given. The call writes nothing: the compiler supplies `Int.compare`.
 
-**§8.8.** The build stops at the key: `Peer.key makes a key of Registry.Msg, which is bound to its node, since it holds a function` (§8.4). A function reaches `foo` only inside a process spawned there, and that process cannot capture the registry's address either, whose type is bound; it names the service's binding, which on `foo` is `foo`'s own: `Peer.spawn("foo", fn() : Unit with Never = send(Registry.registry, Registry.Register(fn(x) = x + 1)), 5000)`, written in a module `foo`'s program depends on too, or in one that, with every module it depends on, has no top-level `let` `foo`'s program has not run (§8.1).
+**§8.8.** The build stops at the key: `Peer.key makes a key of Registry.Msg, which is bound to its node, since it holds a function` (§8.4). A function reaches `foo` only inside a process spawned there, and that process cannot capture the registry's address either, whose type is bound; it names the service's binding, which on `foo` is `foo`'s own: `Peer.spawn("foo", fn() = send(Registry.registry, Registry.Register(fn(x) = x + 1)), 5000)`, written in a module `foo`'s program depends on too, or in one that, with every module it depends on, has no top-level `let` `foo`'s program has not run (§8.1).
 
 ## 14. Reading further
 

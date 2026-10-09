@@ -6,15 +6,8 @@
 /// `Io.print` (report Appendix G.3). Reading keys and the terminal's size is
 /// `Terminal`'s work.
 ///
-/// A program that uses the library puts it on its load path, both when it is
-/// compiled and when it is run: `--load-path` with the directory of the
-/// compiled library, `lib/ernest/build/libs/ansi` under the prefix Ernest is
-/// installed in. Under `/usr/local`, where Ernest is installed by default:
-///
-/// ```sh
-/// ern build --load-path /usr/local/lib/ernest/build/libs/ansi main.ern
-/// ern run --load-path /usr/local/lib/ernest/build/libs/ansi main.erc
-/// ```
+/// A program puts the library on its load path when it is compiled and
+/// when it is run; report Appendix G says where an installation keeps it.
 ///
 /// **Only for a terminal.** The sequences mean something to a terminal alone;
 /// written to a file or a pipe they are kept as bytes. `Terminal.size` answers

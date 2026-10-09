@@ -1,15 +1,8 @@
 /// Where a program spawns its work: on this node or on one of its peers,
 /// picked in turn, or by how busy each place says it is.
 ///
-/// A program that uses the library puts it on its load path, both when it
-/// is compiled and when it is run: `--load-path` with the directory of the
-/// compiled library, `lib/ernest/build/libs/balancer` under the prefix Ernest
-/// is installed in. Under `/usr/local`, where Ernest is installed by default:
-///
-/// ```sh
-/// ern build --load-path /usr/local/lib/ernest/build/libs/balancer main.ern
-/// ern run --load-path /usr/local/lib/ernest/build/libs/balancer main.erc
-/// ```
+/// A program puts the library on its load path when it is compiled and
+/// when it is run; report Appendix G says where an installation keeps it.
 ///
 /// **A balancer** is a process, which `start` spawns over the places a
 /// program gives it: this node, `Here`, and peers by their names in
@@ -59,7 +52,7 @@ export type Place = Here | On(String)
 /// What a balancer takes.
 export abstract type Msg =
     Pick(ms : Int, reply : Reply(Place))
-  | Register(place : Place, measure : Address(Measuring))
+  | Register(place : Place, measure : Address(Measuring), reply : Reply(Bool))
   | Ended(Down)
 
 /// What a place's measuring process takes.
@@ -117,11 +110,16 @@ fn balance(turns : Turns,
                 balance(turned(turns), measures, seed1)
             }
         }
-      | Register(place = place, measure = measure) -> {
-            monitor(Process.fromAddress(measure), Ended);
-            let others = List.filter(measures, fn(#(registered, _)) = registered != place);
-            balance(turns, #(place, measure) :: others, seed)
-        }
+      | Register(place = place, measure = measure, reply = reply) ->
+            if place == turns.next || List.contains(turns.others, place) then {
+                answer(reply, true);
+                monitor(Process.fromAddress(measure), Ended);
+                let others = List.filter(measures, fn(#(registered, _)) = registered != place);
+                balance(turns, #(place, measure) :: others, seed)
+            } else {
+                answer(reply, false);
+                balance(turns, measures, seed)
+            }
       | Ended(down) -> match down.reason {
             Unreachable -> balance(turns, measures, seed)
           | _ -> {
@@ -197,7 +195,15 @@ export fn pick(balancer : Address(Msg), ms : Int) : Optional(Place) with m =
     Address.call(balancer, fn(reply) = Pick(ms = ms, reply = reply), ms)
 
 /// The measuring process of a place, which registers with the balancer and
-/// answers its load with `measure`, for as long as it runs.
+/// answers its load with `measure`, for as long as it runs. `measure`
+/// answers a load from 0.0 to 1.0, and a pick compares what it answers as
+/// it is given.
+///
+/// ### Errors
+///
+/// A place the balancer was not started over faults the process with
+/// `Fault("On(\"elsewhere\") is no place of this balancer")`, the place as
+/// `Io.show` writes it.
 ///
 /// ### Examples
 ///
@@ -217,8 +223,12 @@ export fn pick(balancer : Address(Msg), ms : Int) : Optional(Place) with m =
 export fn serve(balancer : Address(Msg),
                 place : Place,
                 measure : () -> Float with Measuring) : Unit with Measuring = {
-    send(balancer, Register(place = place, measure = self()));
-    measuring(measure)
+    let me = self();
+    let request = fn(reply) = Register(place = place, measure = me, reply = reply);
+    if Address.callForever(balancer, request) then
+        measuring(measure)
+    else
+        fault(Io.show(place) <> " is no place of this balancer")
 }
 
 fn measuring(measure : () -> Float with Measuring) : Unit with Measuring =

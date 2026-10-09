@@ -82,8 +82,10 @@ faulty_fields_test() ->
 
 %% report §8.7: a find or a spawn that comes while no run is in progress, as
 %% between two runs of `ern test` over a directory in one host, answers
-%% Unreachable. A regression test: each raised as it read a run's table that
-%% was gone, which killed the gateway's worker
+%% Unreachable, which the run's reaper, ended or never begun, cannot answer.
+%% A regression test: each raised as it read a run's table that was gone,
+%% which killed the gateway's worker, and then each caught any failure of
+%% the host's as no run in progress
 no_run_test() ->
     Function = fun() -> ok end,
     true = register(ern_gateway, self()),
@@ -95,8 +97,10 @@ no_run_test() ->
         ok = ern_peer:frame(self(), {spawn, Ref, Function, <<"M.f:1">>, false}),
         ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
                      receive {ern_frame, _, Body} -> Body end),
-        %% the reaper of a run that has ended starts nothing
-        ?assertEqual(none, ern_rt:spawn_for_peer(Function, <<"M.f:1">>))
+        %% the reaper of a run that has ended answers nothing
+        ?assertEqual(none, ern_rt:asked_of_run({spawn, Function, <<"M.f:1">>})),
+        ?assertEqual(none, ern_rt:asked_of_run({offered, <<"k">>, <<"Int">>})),
+        ?assertEqual(none, ern_rt:asked_of_run({initialized, ern_peer_tests}))
     after
         unregister(ern_gateway)
     end.

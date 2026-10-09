@@ -3,11 +3,14 @@
 %% from its standard error. The carrier's tests dial through a `foreign fn`
 %% of the host's, which reaches the carrier and nothing of a program's; the
 %% frame a gateway cannot read is sent by a host module on the program's
-%% load path. `Peer`'s tests run the programs of `test/peers/`, one build
-%% whose store and desk are two nodes.
+%% load path; a host that holds a peer's key and names itself as it likes
+%% is a bare `erl` with the host's TLS distribution and the key's files.
+%% `Peer`'s tests run the programs of `test/peers/`, one build whose store
+%% and desk are two nodes.
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("public_key/include/public_key.hrl").
 
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path, so
@@ -104,8 +107,10 @@ name(Dir) ->
     [{_, Der, _}] = public_key:pem_decode(public(Dir)),
     atom_to_list(ern_carrier:name(Der)).
 
+%% A node's key's digest, as a refusal names an unlisted key.
 digest(Dir) ->
-    hd(string:split(name(Dir), "@")).
+    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
+    binary_to_list(binary:encode_hex(crypto:hash(sha256, Der), lowercase)).
 
 %% The test program, built in Root: it dials a peer, sends it a frame its
 %% gateway cannot read, or waits, as its arguments say.
@@ -147,8 +152,113 @@ send(Node) ->
     'Unit'.
 ">>),
     {ok, _} = compile:file(filename:join(Root, "ern_nodes_frame.erl"), [{outdir, Root}]),
+    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), client()),
+    {ok, _} = compile:file(filename:join(Root, "ern_nodes_client.erl"), [{outdir, Root}]),
     0 = ern_cli:ern(["build", Root], group_leader()),
     filename:join(Root, "node.erc").
+
+%% A host module for a bare `erl` that holds a peer's key: its port map,
+%% which answers every name with the loopback port its command line gives,
+%% and its run, which connects to the node its command line names, says
+%% whether it could, asks the node its name over the connection, and, where
+%% its command line says it waits, asks again once a line comes on its
+%% standard input, ending at the input's end.
+client() ->
+    <<"
+-module(ern_nodes_client).
+-export([start_link/0, register_node/2, register_node/3, port_please/2, port_please/3,
+         address_please/3, listen_port_please/2, names/1, main/0]).
+start_link() -> ignore.
+register_node(_, _) -> {ok, 1}.
+register_node(_, _, _) -> {ok, 1}.
+port_please(_, _) -> {port, port(), 6}.
+port_please(_, _, _) -> {port, port(), 6}.
+address_please(_, _, _) -> {ok, {127, 0, 0, 1}, port(), 6}.
+listen_port_please(_, _) -> {ok, 0}.
+names(_) -> {error, address}.
+port() ->
+    {ok, [[Port]]} = init:get_argument(ern_nodes_port),
+    list_to_integer(Port).
+main() ->
+    {ok, [[Target]]} = init:get_argument(ern_nodes_target),
+    Node = list_to_atom(Target),
+    io:format(\"connect: ~p~n\", [net_kernel:connect_node(Node)]),
+    io:format(\"call: ~p~n\", [called(Node)]),
+    case init:get_argument(ern_nodes_wait) of
+        {ok, _} ->
+            _ = io:get_line(\"\"),
+            io:format(\"after: ~p~n\", [called(Node)]);
+        error ->
+            ok
+    end,
+    halt().
+called(Node) ->
+    try erpc:call(Node, erlang, node, [], 10000) of
+        Node -> ran
+    catch
+        error:{erpc, Reason} -> Reason
+    end.
+">>.
+
+%% A bare `erl` that dials the node listening on Port as Name, presenting
+%% the certificate and key given, with the build's fingerprint as the
+%% cookie, its module in Root, and waiting for a line on its standard input
+%% before it asks again where Wait says so; answers the port whose writes
+%% are its standard input and whose messages are its standard output, and
+%% the function that waits for its end and answers what it printed.
+client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Wait) ->
+    Tls = lists:append([[Side ++ "_" ++ Option, Value]
+                        || Side <- ["client", "server"],
+                           {Option, Value} <- [{"certfile", Certificate}, {"keyfile", Key},
+                                               {"verify", "verify_none"},
+                                               {"versions", "tlsv1.3"}]]),
+    Arguments = ["-noshell", "-pa", Root, "-name", Name, "-proto_dist", "inet_tls",
+                 "-ssl_dist_opt" | Tls]
+        ++ ["-epmd_module", "ern_nodes_client", "-start_epmd", "false", "-dist_listen", "false",
+            "-connect_all", "false", "-setcookie", Cookie,
+            "-ern_nodes_port", integer_to_list(Port), "-ern_nodes_target", Target]
+        ++ [Flag || Flag <- ["-ern_nodes_wait"], Wait]
+        ++ ["-s", "ern_nodes_client", "main"],
+    Client = open_port({spawn_executable, os:find_executable("erl")},
+                       [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
+    {Client, fun() -> collected(Client, <<>>) end}.
+
+%% The files of a node's key in its configuration directory, its
+%% certificate and its private key.
+key_files(Dir) ->
+    {filename:join(Dir, "certificate.pem"), filename:join(Dir, "private-key.pem")}.
+
+%% A certificate signed with the key of a configuration directory that names
+%% the host given, written beside the directory: the key is one node's, the
+%% host another's.
+forged(Dir, Host) ->
+    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
+    [Entry] = public_key:pem_decode(Pem),
+    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
+    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
+    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
+                                                    value = {utf8String, <<"ernest">>}}]]},
+    Tbs = #'OTPTBSCertificate'{
+             version = v3, serialNumber = 1,
+             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
+             issuer = Name, subject = Name,
+             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
+                                    notAfter = {generalTime, "99991231235959Z"}},
+             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
+                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
+                                       subjectPublicKey = #'ECPoint'{point = Point}},
+             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                                        extnValue = [{dNSName, Host}]}]},
+    File = Dir ++ ".forged.pem",
+    ok = file:write_file(File, public_key:pem_encode([{'Certificate',
+                                                        public_key:pkix_sign(Tbs, Key),
+                                                        not_encrypted}])),
+    {File, filename:join(Dir, "private-key.pem")}.
+
+%% A node's key's host on the carrier.
+host(Dir) ->
+    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
+    ern_carrier:host(Der).
 
 %% A node started in the background; answers what waits for its end.
 start(Dir, Program, Arguments) ->
@@ -339,6 +449,78 @@ unlisted(Base) ->
     ?assertEqual("", ErrA),
     has(ErrB, "a node with the key " ++ digest(A) ++ " was refused: no peer has its key"),
     ?assertEqual(nomatch, string:find(ErrB, "TLS")).
+
+%% report §8.7: a node accepts a connection from a peer whose key it lists
+%% only under the name that key gives it: a host that holds the key of the
+%% peer b and names itself otherwise is refused, and so is one that
+%% presents b's key in a certificate naming the host of c's, another peer
+%% listed; each refusal the node says. Under its own name the holder of b's
+%% key connects and its calls run, and once a reload removes b its
+%% connection ends and a call no longer runs. A regression test: a holder of
+%% a listed key connected under a name of its choosing, which a reload that
+%% removed the peer did not end, and over which a call still ran
+bound_test_() ->
+    nodes_test(90, fun bound/1).
+
+bound(Base) ->
+    PortA = free_port(),
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    C = made(Base, "c", none),
+    lists(A, [{"b", B, none}, {"c", C, none}]),
+    Root = filename:join(Base, "build"),
+    Program = program(Root),
+    Cookie = ern_carrier:fingerprint([Root | ?LIBRARIES]),
+    WaitA = start(A, Program, []),
+    prints(A, "waiting"),
+    Target = name(A),
+    {_, Ghost} = client(Root, "ghost@node.ernest", key_files(B), Cookie, PortA, Target, false),
+    {0, GhostOut} = Ghost(),
+    has(GhostOut, "connect: false"),
+    says(A, "a node named ghost@node.ernest was refused: its key gives another name"),
+    {_, Forged} = client(Root, name(C), forged(B, host(C)), Cookie, PortA, Target, false),
+    {0, ForgedOut} = Forged(),
+    has(ForgedOut, "connect: false"),
+    says(A, "the peer b was refused: its certificate names another host than its key gives"),
+    {Own, Owned} = client(Root, name(B), key_files(B), Cookie, PortA, Target, true),
+    says(A, "the peer b connected"),
+    lists(A, [{"c", C, none}]),
+    ?assertMatch({0, _}, signalled("reload", A)),
+    says(A, "the peer b was removed"),
+    true = port_command(Own, "go\n"),
+    {0, OwnOut} = Owned(),
+    stop(A, WaitA),
+    has(OwnOut, "connect: true"),
+    has(OwnOut, "call: ran"),
+    ?assertEqual(nomatch, string:find(OwnOut, "after: ran")),
+    has(OwnOut, "after: ").
+
+%% report §8.7: a node it dials must answer under the name it dialled: the
+%% address a lists for the peer b is the port of c, another peer it lists,
+%% which answers under its own name, and the dial fails, neither node
+%% connected; the host's handshake refuses the answer, and neither says
+%% anything of it
+answered_test_() ->
+    nodes_test(60, fun answered/1).
+
+answered(Base) ->
+    PortC = free_port(),
+    A = made(Base, "a", none),
+    B = made(Base, "b", none),
+    C = made(Base, "c", PortC),
+    lists(A, [{"b", B, PortC}, {"c", C, none}]),
+    lists(C, [{"a", A, none}]),
+    Program = program(filename:join(Base, "build")),
+    WaitC = start(C, Program, []),
+    prints(C, "waiting"),
+    WaitA = start(A, Program, ["connect", name(B)]),
+    ?assertEqual(0, WaitA()),
+    stop(C, WaitC),
+    {OutA, ErrA} = said(A),
+    {_, ErrC} = said(C),
+    has(OutA, "connect: false"),
+    ?assertEqual(nomatch, string:find(ErrA, "connected")),
+    ?assertEqual(nomatch, string:find(ErrC, "connected")).
 
 %% report §8.7: two nodes of different builds fail the handshake with
 %% nothing sent, the build's fingerprint being the host's cookie, and the
@@ -617,7 +799,7 @@ store_and_desk(Base) ->
     lists(Third, [{"store", Store, PortStore}]),
     Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
               <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
-              <<"doomed">>],
+              <<"doomed">>, <<"adapter">>],
     edit(Desk, fun(Conf) ->
                    Conf#{<<"keys">> => maps:merge(
                                           maps:from_list([{Key, [<<"store">>]} || Key <- Stored]),
@@ -661,7 +843,7 @@ find(Base) ->
     {StoreOut, _} = said(Store),
     has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
     [has(Out, Line)
-     || Line <- ["early: Left(Unreachable)", "nodes: [\"store\", \"gone\"]", "info: None",
+     || Line <- ["early: Left(Unreachable)", "peers: [\"store\", \"gone\"]", "info: None",
                  "unlisted: Left(NotListed)", "other type: Left(OtherType)",
                  "not offered: Left(NotOffered)", "unreachable: Left(Unreachable)",
                  "timeout: Left(Timeout)", "no upper bound: Right", "through the via: 7",
@@ -714,10 +896,13 @@ spawn_on_peer(Base) ->
 %% its node ended, a send returns at once, a monitor gives Unreachable; and
 %% once the node starts again, the address of its earlier start is dead, a
 %% call through it ending at once, a send to it dropped, a monitor giving
-%% Unknown. A regression test: the runtime hands each to the host, and
-%% this holds that it does. Not covered: a value crossing in pieces with
-%% other senders' messages between them, a send that waits at a full
-%% buffer, and a silence, which the detector finds in a minute
+%% Unknown, and an adapted address it made dropping what is sent through
+%% it, its function not applied. A regression test: the runtime hands each
+%% to the host, and this holds that it does; and the new start applied the
+%% function of an adapted address its earlier start made. Not covered: a
+%% value crossing in pieces with other senders' messages between them, a
+%% send that waits at a full buffer, and a silence, which the detector
+%% finds in a minute
 across_test_() ->
     nodes_test(120, fun across/1).
 
@@ -751,7 +936,8 @@ across(Base) ->
                  "adapted: Fault(\"negative\") \"\"", "severed: Unreachable \"\"",
                  "after the loss: 15", "killed: Unreachable \"\"", "send at once: true",
                  "out of reach: Unreachable \"\"", "old call: None true",
-                 "old monitor: Unknown \"\"", "same process: false", "fresh total: 0"]],
+                 "old monitor: Unknown \"\"", "same process: false", "fresh total: 0",
+                 "old adapted: 2"]],
     {ok, FirstErr} = file:read_file(Store ++ ".first.err"),
     has(binary_to_list(FirstErr), "the peer desk sent a frame this node cannot read"),
     has(ThirdOut, "sent through the third node"),

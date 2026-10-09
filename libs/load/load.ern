@@ -2,15 +2,8 @@
 /// run, the schedulers' time, and the processor, the memory and the disks
 /// the host's services watch.
 ///
-/// A program that uses the library puts it on its load path, both when it
-/// is compiled and when it is run: `--load-path` with the directory of the
-/// compiled library, `lib/ernest/build/libs/load` under the prefix Ernest is
-/// installed in. Under `/usr/local`, where Ernest is installed by default:
-///
-/// ```sh
-/// ern build --load-path /usr/local/lib/ernest/build/libs/load main.ern
-/// ern run --load-path /usr/local/lib/ernest/build/libs/load main.erc
-/// ```
+/// A program puts the library on its load path when it is compiled and
+/// when it is run; report Appendix G says where an installation keeps it.
 ///
 /// **The host's services.** `cpu`, `memory` and `disk` read the host's
 /// services `cpu_sup`, `memsup` and `disksup`, which a node starts where its
@@ -21,7 +14,8 @@
 ///
 /// **A measure.** The library `Balancer` places work by a measure, a
 /// function answering a load from 0.0 to 1.0, which a program declares over
-/// these: `fn busy() : Float with m = Load.schedulers(100)`.
+/// these: `fn busy() : Float with m = Load.schedulers(100)`, the schedulers'
+/// load over a window of 100 milliseconds.
 ///
 /// ## Examples
 ///
@@ -53,9 +47,10 @@
 export fn runQueue() : Int with m =
     count(Erl.atom("total_run_queue_lengths"))
 
-/// The fraction of the schedulers' time spent running processes over the
-/// next `ms` milliseconds, from 0.0 to 1.0, which the call waits for. The
-/// host keeps the schedulers' time while this measures it.
+/// The fraction of the schedulers' time spent running processes over a
+/// window of the next `window` milliseconds, from 0.0 to 1.0, which the call
+/// waits for; a window below 1 is 1. The host keeps the schedulers' time
+/// while this measures it, and as long as another process measures too.
 ///
 /// ### Examples
 ///
@@ -66,25 +61,20 @@ export fn runQueue() : Int with m =
 /// }
 /// // => true
 /// ```
-export fn schedulers(ms : Int) : Float with m = {
+export fn schedulers(window : Int) : Float with m = {
     let flag = Erl.atom("scheduler_wall_time");
-    let kept = setFlag(flag, Foreign.from(true));
+    let _ = setFlag(flag, Foreign.from(true));
     let first = wallTimes(flag);
     receive {
-        after ms -> Unit
+        after Int.max(window, 1) -> Unit
     };
     let second = wallTimes(flag);
-    if kept then
-        Unit
-    else {
-        let _ = setFlag(flag, Foreign.from(false));
-        Unit
-    };
-    let total = spent(second, fn(#(_, _, time)) = time) - spent(first, fn(#(_, _, time)) = time);
+    // the host counts each process's setting: this one's is taken back,
+    // and the time is kept while another's stands
+    let _ = setFlag(flag, Foreign.from(false));
+    let total = spent(second, totalTime) - spent(first, totalTime);
     if total > 0 then
-        Int.toFloat(spent(second, fn(#(_, time, _)) = time)
-                        - spent(first, fn(#(_, time, _)) = time))
-            / Int.toFloat(total)
+        Int.toFloat(spent(second, activeTime) - spent(first, activeTime)) / Int.toFloat(total)
     else
         0.0
 }
@@ -93,6 +83,16 @@ export fn schedulers(ms : Int) : Float with m = {
 // the schedulers.
 fn spent(times : List(#(Int, Int, Int)), part : (#(Int, Int, Int)) -> Int) : Int =
     List.foldLeft(times, 0, fn(acc, scheduler) = acc + part(scheduler))
+
+// A scheduler's times as the host gives them, #(its number, the time it
+// ran processes, the time it ran in all), since the host began to keep
+// them: the time it ran processes.
+fn activeTime(#(_, time, _) : #(Int, Int, Int)) : Int =
+    time
+
+// The time it ran in all.
+fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
+    time
 
 /// The fraction of the processor's time busy, from 0.0 to 1.0, since the
 /// previous call on the node, by the host's `cpu_sup`; `None` where the

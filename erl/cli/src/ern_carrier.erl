@@ -1,18 +1,18 @@
 %% Report §8.7: a node's carrier, Erlang's own distribution over TLS with
 %% what hurts in it turned off. The flags the host boots with, which the
 %% launcher asks for before it starts the host (boot_flags/2); the node's
-%% name on the carrier, its key's digest with a constant (name/1); the
-%% build's fingerprint, which is the host's cookie (fingerprint/1); the
-%% rule that accepts a peer by its listed key alone (verify/3, which the
-%% host's TLS calls); the listener started once the bindings have their
-%% values (start/2); a reload, which hangup asks for (reload/0); the end in
-%% order (depart/0); and the lines a node says of its peers, one each on its
-%% standard error.
+%% name on the carrier, a constant at its key's digest (name/1, host/1);
+%% the build's fingerprint, which is the host's cookie (fingerprint/1); the
+%% rule that accepts a peer by its listed key, under the name that key gives
+%% (verify/3, which the host's TLS calls); the listener started once the
+%% bindings have their values (start/2); a reload, which hangup asks for
+%% (reload/0); the end in order (depart/0); and the lines a node says of its
+%% peers, one each on its standard error.
 -module(ern_carrier).
 
--export([boot_flags/2, name/1, fingerprint/1, start/1, list/1, booted/0, configuration/0,
-         is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1, say/1, named/1, said/1,
-         filter/2]).
+-export([boot_flags/2, name/1, host/1, fingerprint/1, start/1, list/1, booted/0,
+         configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1,
+         names_own_host/1, say/1, named/1, said/1, filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include("ern_node.hrl").
@@ -21,9 +21,10 @@
 %% different protocols never connect.
 -define(PROTOCOL, 1).
 
-%% The constant after a node's digest on the carrier, which names no network
-%% address: a peer's address is the configuration's (ern_epmd).
--define(HOST, "node.ernest").
+%% The constant before the host of a node's name on the carrier, whose host
+%% is its key's digest and names no network address: a peer's address is
+%% the configuration's (ern_epmd).
+-define(NAME, "ernest").
 
 %% Report §8.7, §7: the detector's time, a tick every quarter of it, and a
 %% dial nothing answers given up after 7 seconds; what may wait to be sent
@@ -75,17 +76,27 @@ interface({Address, _}) ->
     ["-kernel", "inet_dist_use_interface", lists:flatten(io_lib:format("~w", [Address]))];
 interface(none) -> [].
 
-%% Report §8.7: a node's name on the carrier, the SHA-256 digest of its
-%% public key with a constant after it, holding no network address.
+%% Report §8.7: a node's name on the carrier, a constant at the host its
+%% public key gives, holding no network address.
 -spec name(binary()) -> atom().
 name(PublicKey) ->
-    list_to_atom(digest(PublicKey) ++ "@" ++ ?HOST).
+    list_to_atom(?NAME ++ "@" ++ host(PublicKey)).
+
+%% Report §8.7: the host a public key gives, the SHA-256 digest of the key
+%% as two labels of 32 hexadecimal digits, since a label of a host's name
+%% holds at most 63 characters (RFC 1035). Its certificate names it, the
+%% dialler's TLS sends it as the server's name (SNI), and the host's check
+%% of a certificate's name takes it as a DNS name.
+-spec host(binary()) -> string().
+host(PublicKey) ->
+    {First, Second} = lists:split(32, digest(PublicKey)),
+    First ++ "." ++ Second.
 
 digest(PublicKey) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, PublicKey), lowercase)).
 
 %% Report §8.7: the build's fingerprint, the digest of the protocol's
-%% version, `ern`'s version, the host's version, and every compiled module
+%% version, `ern`'s version, OTP's whole version, and every compiled module
 %% on the load path in name order, a host module a `foreign fn` loads from
 %% one of its directories among them (§11.2), each as its name and the
 %% host's digest of its code, which leaves out documentation, line numbers
@@ -112,7 +123,8 @@ module_digest(File) ->
         {error, beam_lib, _} -> ern_build:fail(File ++ " is not a compiled module")
     end.
 
-%% The host's version, as its installation writes it.
+%% The host's version, OTP's whole version as its installation writes it,
+%% `29.1`, and not the release alone, `29`.
 otp_version() ->
     Release = erlang:system_info(otp_release),
     {ok, Text} = file:read_file(filename:join([code:root_dir(), "releases", Release,
@@ -127,9 +139,10 @@ otp_version() ->
 %% in the entry process, the node's peers listed (list/1): the host's own
 %% reports of its nodes turned off, the gateway, the watch on the
 %% node's connections, and the host's distribution under the node's name,
-%% listening where `listen` names an interface. A carrier that cannot
-%% start, its port taken among the reasons, ends the node as an initializer
-%% that faults ends a program (§8.5), the cause naming the host's reason.
+%% listening where `listen` names an interface, its listed peers' names
+%% allowed (allow/1). A carrier that cannot start, its port taken among the
+%% reasons, ends the node as an initializer that faults ends a program
+%% (§8.5), the cause naming the host's reason.
 -spec start(#configuration{}) -> ok.
 start(_Configuration) when node() =/= nonode@nohost ->
     %% report §11.2: `ern test` over a directory runs each module in a
@@ -144,20 +157,20 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
     case net_kernel:start(name(PublicKey), #{name_domain => longnames,
                                              dist_listen => Listen =/= none}) of
         {ok, _} ->
-            ok;
+            allow([Key || #peer{public_key = Key} <- (configuration())#configuration.peers]);
         {error, Reason} ->
             ern_rt:fault(iolist_to_binary(io_lib:format("the node's carrier did not start: ~0p",
                                                         [Reason])))
     end.
 
 %% Report §8.7: the configuration the node runs by, and its peer table,
-%% which the rule, the port map and the lines read, each peer by its key's
-%% digest, listed as the node starts, before its initializers run.
+%% which the rule, the port map and the lines read, each peer by the host
+%% its key gives, listed as the node starts, before its initializers run.
 -spec list(#configuration{}) -> ok.
 list(#configuration{peers = Peers, keys = Keys} = Configuration) ->
     persistent_term:put({?MODULE, configuration}, Configuration),
     persistent_term:put({?MODULE, peers},
-                        maps:from_list([{digest(Key), Peer}
+                        maps:from_list([{host(Key), Peer}
                                         || #peer{public_key = Key} = Peer <- Peers])),
     ern_peer:configure([{Name, name(Key)} || #peer{name = Name, public_key = Key} <- Peers],
                        Keys).
@@ -184,16 +197,17 @@ is_node() ->
 
 %% Report §8.7: hangup is a reload: `ernest.conf` read and checked again as
 %% at the start, the node's own key and `listen` unchanged, or the file
-%% refused and the configuration kept; then the peer table the rule and the
-%% dial read, the keys and the measures are the new file's, and a peer
-%% removed, or listed under another key, has its connection ended, both
-%% nodes running the loss. The node says that it read the file, and each
-%% peer added, removed or renamed, or why the file was refused. Whatever
-%% fails as the file is read and checked refuses the reload, the host's
-%% reason named where it is not a refusal, so that the signal handler, in
-%% whose process this runs, never fails and the node takes every later
-%% signal; the measures, the one change made before the checks end, are
-%% restored where theirs fails (ern_node:measures_changed/3).
+%% refused and the configuration kept; then the names the host allows gain
+%% the new peers', the peer table the rule and the dial read, the keys and
+%% the measures are the new file's, and a peer removed, or listed under
+%% another key, has its connection ended, both nodes running the loss. The
+%% node says that it read the file, and each peer added, removed or
+%% renamed, or why the file was refused. Whatever fails as the file is read
+%% and checked refuses the reload, the host's reason named where it is not
+%% a refusal, so that the signal handler, in whose process this runs, never
+%% fails and the node takes every later signal; the measures, the one
+%% change made before the checks end, are restored where theirs fails
+%% (ern_node:measures_changed/3).
 -spec reload() -> ok.
 reload() ->
     #configuration{config_dir = ConfigDir} = Running = configuration(),
@@ -217,6 +231,7 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
     NewListen =:= Listen
         orelse ern_build:fail(Conf ++ ": listen cannot change while the node runs"),
     ern_node:measures_changed(ConfigDir, Measures, NewMeasures),
+    ok = allow([Added || #peer{public_key = Added} <- NewPeers]),
     ok = list(New),
     Removed = [Peer || #peer{public_key = Old} = Peer <- Peers,
                        not lists:keymember(Old, #peer.public_key, NewPeers)],
@@ -240,26 +255,37 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
 depart() ->
     lists:foreach(fun(Node) -> _ = net_adm:ping(Node) end, nodes(connected)).
 
-%% The peer of a node's name on the carrier, or none where it is listed by
-%% no peer.
--spec peer(atom() | string()) -> #peer{} | none.
-peer(Node) ->
-    Text = case Node of
-               Atom when is_atom(Atom) -> atom_to_list(Atom);
-               String -> String
-           end,
-    Digest = hd(string:split(Text, "@")),
-    maps:get(Digest, persistent_term:get({?MODULE, peers}, #{}), none).
+%% Report §8.7: the host takes a peer's connection only under a name it
+%% allows whose host the peer's certificate names (inet_tls_dist), and
+%% dials only a name it allows; the node allows each listed peer's name at
+%% its start and at each reload, and the rule a key's before it accepts the
+%% key, so that a connection that comes as the node starts is bound to its
+%% key too. The host only adds to the names it allows, and allows them only
+%% once the node is one: a peer removed is refused by the rule.
+allow(Keys) ->
+    _ = net_kernel:allow([name(Key) || Key <- Keys]),
+    ok.
+
+%% The peer listed with the key that gives a host of a name on the carrier,
+%% or none where no peer is.
+-spec peer(string()) -> #peer{} | none.
+peer(Host) ->
+    maps:get(Host, persistent_term:get({?MODULE, peers}, #{}), none).
 
 %%
 %% The rule
 %%
 
 %% Report §8.7: the rule that accepts a peer whose public key this node
-%% lists, and no other, by the key alone: a certificate's name and dates
-%% mean nothing to it, so the host's own checks of them, which come as a bad
-%% certificate, are answered by the key; an extension is the host's. A key
-%% not listed is refused, and the node says so.
+%% lists, and no other, and only under the name that key gives: its
+%% certificate names the host its key gives, and no other, which the host
+%% binds to the name the peer gives in the handshake (allow/1). A
+%% certificate's dates mean nothing to it, and its issuer is itself, so the
+%% host's checks of them, which come as a bad certificate, are answered by
+%% the key; an extension is the host's. A key not listed, and a
+%% certificate that names another host than its key gives, are refused, and
+%% the node says so. A node this node dials answers under the name dialled,
+%% which the host's handshake checks (dist_util).
 -spec verify(#'OTPCertificate'{}, term(), term()) ->
           {valid, term()} | {unknown, term()} | {fail, term()}.
 verify(_Certificate, {extension, _}, State) ->
@@ -267,10 +293,15 @@ verify(_Certificate, {extension, _}, State) ->
 verify(_Certificate, valid, State) ->
     {valid, State};
 verify(Certificate, _Event, State) ->
-    case listed(Certificate) of
-        {listed, _} ->
+    case {listed(Certificate), names_own_host(Certificate)} of
+        {{listed, #peer{public_key = Key}}, true} ->
+            ok = allow([Key]),
             {valid, State};
-        {unlisted, Digest} ->
+        {{listed, #peer{name = Name}}, false} ->
+            say(["the peer ", Name, " was refused: its certificate names another host than its"
+                                    " key gives"]),
+            {fail, other_host};
+        {{unlisted, Digest}, _} ->
             say(["a node with the key ", Digest, " was refused: no peer has its key"]),
             {fail, not_listed}
     end.
@@ -279,11 +310,26 @@ verify(Certificate, _Event, State) ->
 %% is listed for none.
 -spec listed(#'OTPCertificate'{}) -> {listed, #peer{}} | {unlisted, string()}.
 listed(Certificate) ->
-    Digest = digest(certificate_key(Certificate)),
-    case peer(Digest) of
+    Key = certificate_key(Certificate),
+    case peer(host(Key)) of
         #peer{} = Peer -> {listed, Peer};
-        none -> {unlisted, Digest}
+        none -> {unlisted, digest(Key)}
     end.
+
+%% Report §8.7: whether a certificate names the host its own key gives, and
+%% no other, as the one DNS name of its subject's alternative names, which
+%% `ern config` writes.
+-spec names_own_host(#'OTPCertificate'{}) -> boolean().
+names_own_host(#'OTPCertificate'{tbsCertificate = Tbs} = Certificate) ->
+    Extensions = case Tbs#'OTPTBSCertificate'.extensions of
+                     Listed when is_list(Listed) -> Listed;
+                     asn1_NOVALUE -> []
+                 end,
+    Hosts = case lists:keyfind(?'id-ce-subjectAltName', #'Extension'.extnID, Extensions) of
+                #'Extension'{extnValue = Names} -> [Host || {dNSName, Host} <- Names];
+                false -> []
+            end,
+    Hosts =:= [host(certificate_key(Certificate))].
 
 %% The DER of a certificate's SubjectPublicKeyInfo, as the certificate holds
 %% it.
@@ -311,9 +357,10 @@ say(Text) ->
 %% digest where it is not listed.
 -spec named(atom()) -> iodata().
 named(Node) ->
-    case peer(Node) of
+    Host = lists:last(string:split(atom_to_list(Node), "@")),
+    case peer(Host) of
         #peer{name = Name} -> ["the peer ", Name];
-        none -> ["the node ", hd(string:split(atom_to_list(Node), "@"))]
+        none -> ["the node ", [Char || Char <- Host, Char =/= $.]]
     end.
 
 %% Report §8.7: the node watches its connections, to every kind of node,
@@ -355,8 +402,8 @@ said(_) ->
     none.
 
 %% Report §8.7: the host's own reports of its nodes are turned off, but the
-%% handshake's refusal of a peer for its build, by the cookie, which the
-%% node says in its own words.
+%% handshake's refusal of a peer for its build, by the cookie, and of a
+%% name its key does not give, which the node says in its own words.
 -spec filter(logger:log_event(), term()) -> logger:filter_return().
 filter(#{msg := {report, #{label := {error_logger, _}, format := Format, args := Args}}}, _) ->
     host_message(Format, Args);
@@ -368,8 +415,13 @@ filter(_Event, _) ->
     ignore.
 
 %% A message of the host's of its nodes: the handshake's refusal for the
-%% cookie said in the node's words, and every other dropped; any other
-%% message left to the handlers.
+%% cookie, and for a name the host does not allow under the key that came,
+%% said in the node's words, and every other dropped; any other message
+%% left to the handlers.
+host_message("** Connection attempt from disallowed node ~s" ++ _, [Node]) ->
+    say(["a node named ", io_lib:format("~ts", [Node]), " was refused: its key gives another"
+                                                        " name"]),
+    stop;
 host_message(Format, Args) when is_list(Format) ->
     case {string:find(Format, "Invalid challenge"), Args} of
         {nomatch, _} ->

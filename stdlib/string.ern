@@ -412,7 +412,8 @@ foreign fn concatenated(parts : List(String)) : String =
 
 /// Reads `text` as a decimal integer. It answers `Some(n)` where `text` is
 /// digits with an optional leading `-`. Other text answers `None`, text with a
-/// space, a `+`, an `_` or a point among it.
+/// space, a `+`, an `_` or a point among it, and so does an integer the host
+/// cannot hold.
 ///
 /// ### Examples
 ///
@@ -426,7 +427,7 @@ export fn toInt(text : String) : Optional(Int) =
 /// Reads `text` as an integer in `base`, from 2 to 36. It answers `Some(n)`
 /// where `text` is digits and letters of the base, in either case, with an
 /// optional leading `-`. Other text answers `None`, a leading `+` among it, and
-/// so does a base outside 2 to 36.
+/// so do a base outside 2 to 36 and an integer the host cannot hold.
 ///
 /// ### Examples
 ///

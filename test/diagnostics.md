@@ -4255,7 +4255,7 @@ example.ern:2:30: Peer.spawn starts f, a function that came as a value, whose ca
 1 | fn startOn(name : String, f : () -> Unit with Never) : Unit with m = {
 2 |     let _ = Peer.spawn(name, f, 1000);
   |                              ^
-  | = help: write the lambda at the spawn, or bind it with `let` in this definition (§3.11)
+  | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (§3.11)
 ```
 
 ### A spawn on a peer of a top-level `let` (§3.11)
@@ -4291,11 +4291,11 @@ fn start() : Unit with m = {
 
 ```console
 $ ern build example.ern
-example.ern:4:34: Peer.spawn starts a function written where the compiler sees what it captures: a declaration's name, or a lambda written in this definition
+example.ern:4:34: Peer.spawn starts a function written where the compiler sees what it captures: a declaration's name, or a lambda or a `fn` written in this definition
 3 | fn start() : Unit with m = {
 4 |     let _ = Peer.spawn("worker", job(), 1000);
   |                                  ^^^^^
-  | = help: write the lambda at the spawn, or bind it with `let` in this definition (§3.11)
+  | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (§3.11)
 ```
 
 ### A capture whose type holds a type variable (§3.11, §3.9)
@@ -4343,19 +4343,17 @@ fn idle() : Unit with m =
         after 1000 -> Unit
     }
 
-fn start() : Unit with n = {
-    let _ = Peer.spawn("worker", idle, 1000);
-    Unit
-}
+fn start() : Either(Peer.Failure, Address(a)) with n =
+    Peer.spawn("worker", idle, 1000)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:7:34: Peer.spawn starts a process whose mailbox type a is not known whole here
-6 | fn start() : Unit with n = {
-7 |     let _ = Peer.spawn("worker", idle, 1000);
-  |                                  ^^^^
-  | = help: give the function its mailbox type, `fn() : Unit with Never = ...` for a process that never receives (§3.11)
+example.ern:7:26: Peer.spawn starts a process whose mailbox type a is not known whole here
+6 | fn start() : Either(Peer.Failure, Address(a)) with n =
+7 |     Peer.spawn("worker", idle, 1000)
+  |                          ^^^^
+  | = help: give the function its mailbox type, `fn() : Unit with Msg = ...`: an instance of this definition could make the variable a type bound to its node (§3.11)
 ```
 
 ### A spawned process whose mailbox type is bound to its node (§3.11)

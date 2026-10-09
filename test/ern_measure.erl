@@ -532,6 +532,9 @@ hosts() ->
                            end,
       <<"Bytes.split">> => fun(Bytes, Separator) -> binary:split(Bytes, Separator, [global]) end,
       <<"Bytes.contains">> => fun(Bytes, Part) -> binary:match(Bytes, Part) =/= nomatch end,
+      <<"Bytes.join">> => fun(Parts, Separator) -> iolist_to_binary(lists:join(Separator, Parts))
+                          end,
+      <<"Bytes.repeat">> => fun(Bytes, Count) -> binary:copy(Bytes, max(Count, 0)) end,
       <<"Int.toString">> => fun erlang:integer_to_binary/1,
       <<"Int.toStringBase">> => fun(Int, Base) -> integer_to_binary(Int, Base) end,
       <<"Int.abs">> => fun erlang:abs/1,
@@ -842,7 +845,7 @@ peer_scenarios() ->
      {<<"Peer.find">>, AcrossNodes},
      {<<"Peer.spawn">>, AcrossNodes},
      {<<"Peer.spawnMonitored">>, AcrossNodes},
-     {<<"Peer.nodes">>, {fun() -> Peer:nodes() end,
+     {<<"Peer.peers">>, {fun() -> Peer:peers() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}}].
 
 %% Appendix G.4: the runtime's two measures beside the host's statistics,

@@ -78,6 +78,12 @@ create_test() ->
     ?assertEqual(#'Validity'{notBefore = {utcTime, "700101000000Z"},
                              notAfter = {generalTime, "99991231235959Z"}},
                  Tbs#'OTPTBSCertificate'.validity),
+    %% report §8.7: naming as its one alternative name the host its key
+    %% gives
+    [{_, SpkiDer, _}] = public_key:pem_decode(Public),
+    ?assertEqual([#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                               extnValue = [{dNSName, ern_carrier:host(SpkiDer)}]}],
+                 Tbs#'OTPTBSCertificate'.extensions),
     %% signed by the node's own key
     [SpkiEntry] = public_key:pem_decode(Public),
     ?assert(public_key:pkix_verify(Der, public_key:pem_entry_decode(SpkiEntry))),
@@ -173,6 +179,7 @@ read_refusals_test() ->
          {#{<<"peers">> => [Peer(#{})],
             <<"keys">> => #{<<"counter">> => [<<"store">>, <<"store">>]}},
           "key \"counter\" names a peer twice"},
+         {#{<<"measures">> => []}, "measures is not a JSON object"},
          {#{<<"measures">> => #{<<"network">> => #{}}}, "measures has the unknown field network"},
          {#{<<"measures">> => #{<<"cpu">> => #{<<"check-interval">> => 60000}}},
           "measures' cpu has the unknown field check-interval"},
@@ -199,6 +206,79 @@ read_refusals_test() ->
     conf(Dir, <<"{">>),
     ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": is not JSON",
                  refusal(fun() -> ern_node:read(Dir) end)).
+
+%% report §8.7: a peer's name is not resolved when the configuration is
+%% read: a name that resolves to nothing, and one that resolves only to the
+%% other family, are kept for the dial, which resolves them and checks the
+%% family. A regression test: the reader resolved each name, so that a
+%% reload waited on the resolver, and refused a name of the other family
+%% alone. The host's own table of hosts gives the second name, for the
+%% test's run alone
+name_not_resolved_test() ->
+    Dir = made(),
+    Lookup = inet_db:res_option(lookup),
+    ok = inet_db:add_host({0, 0, 0, 0, 0, 0, 0, 1}, ["only6.ernest.invalid"]),
+    ok = inet_db:set_lookup([file | Lookup]),
+    try
+        ?assertMatch({ok, _}, inet:getaddr("only6.ernest.invalid", inet6)),
+        ?assertMatch({error, _}, inet:getaddr("only6.ernest.invalid", inet)),
+        with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => other_key(),
+                                      <<"network-address">> => <<"no.such.host.invalid:8654">>},
+                                    #{<<"name">> => <<"desk">>, <<"public-key">> => other_key(),
+                                      <<"network-address">> => <<"only6.ernest.invalid:8654">>}]}),
+        ?assertMatch({configuration, _, _, _,
+                      [{peer, <<"store">>, _, {"no.such.host.invalid", 8654}},
+                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _},
+                     ern_node:read(Dir))
+    after
+        ok = inet_db:set_lookup(Lookup),
+        ok = inet_db:del_host({0, 0, 0, 0, 0, 0, 0, 1})
+    end.
+
+%% report §8.7: the node's key is private-key.pem's, and a certificate.pem
+%% that certifies another key, or that names another host than its key
+%% gives, is refused with the file and the rule. A regression test: a
+%% certificate of the node's key named no host, which every peer then
+%% refused, and the node started
+certificate_refusals_test() ->
+    Dir = made(),
+    Certificate = filename:join(Dir, "certificate.pem"),
+    {ok, Own} = file:read_file(Certificate),
+    ok = file:write_file(Certificate, other_certificate()),
+    ?assertEqual(Certificate ++ ": certifies another key than private-key.pem",
+                 refusal(fun() -> ern_node:read(Dir) end)),
+    ok = file:write_file(Certificate, named(Dir, "a.b")),
+    ?assertEqual(Certificate ++ ": names another host than its key gives, and a peer refuses it;"
+                 " ern config makes one that names it",
+                 refusal(fun() -> ern_node:read(Dir) end)),
+    ok = file:write_file(Certificate, Own),
+    ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
+
+%% Another directory's certificate.
+other_certificate() ->
+    {ok, Pem} = file:read_file(filename:join(made(), "certificate.pem")),
+    Pem.
+
+%% A certificate in PEM of the key in Dir that names the host given.
+named(Dir, Host) ->
+    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
+    [Entry] = public_key:pem_decode(Pem),
+    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
+    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
+    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
+                                                    value = {utf8String, <<"ernest">>}}]]},
+    Tbs = #'OTPTBSCertificate'{
+             version = v3, serialNumber = 1,
+             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
+             issuer = Name, subject = Name,
+             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
+                                    notAfter = {generalTime, "99991231235959Z"}},
+             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
+                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
+                                       subjectPublicKey = #'ECPoint'{point = Point}},
+             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                                        extnValue = [{dNSName, Host}]}]},
+    public_key:pem_encode([{'Certificate', public_key:pkix_sign(Tbs, Key), not_encrypted}]).
 
 %% report §8.7: a public key in PEM whose body is no key the host's decoder
 %% reads, a peer's or the node's own, is refused with the file and the

@@ -173,8 +173,8 @@ export foreign fn spawnMonitored(name : String,
 /// ### Examples
 ///
 /// ```ernest
-/// Peer.nodes()
+/// Peer.peers()
 /// // => []
 /// ```
-export foreign fn nodes() : List(String) with n =
-    "ern_peer:nodes/0"
+export foreign fn peers() : List(String) with n =
+    "ern_peer:peers/0"

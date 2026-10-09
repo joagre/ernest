@@ -429,6 +429,20 @@ hidden_prelude_name_test() ->
 
 %% A module checked with the standard library in scope, Peer among it
 %% (Appendix E.27).
+typed_peer(Text) ->
+    {ok, Typed, _, _} = with_peer(Text),
+    {ok, Typed}.
+
+%% The calls in a typed node, every one, outermost first.
+calls(#e_call{args = Args} = Call) ->
+    [Call | calls(Args)];
+calls(Node) when is_tuple(Node) ->
+    calls(tl(tuple_to_list(Node)));
+calls(Nodes) when is_list(Nodes) ->
+    lists:append([calls(Node) || Node <- Nodes]);
+calls(_) ->
+    [].
+
 with_peer(Text) ->
     {ok, Declarations} = ern_parser:parse_string(Text),
     ern_typecheck:check(['M'], Declarations, []).
@@ -534,9 +548,31 @@ offer_test() ->
     ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Int)) : Unit with m ="
                                                " Peer.offer(key, counter)\n")).
 
+%% report §3.11, §3.8, Appendix G.1: a library's resource is a foreign type,
+%% and `Ets.Table`, which the checker names nowhere, is bound by that rule:
+%% a key of a table is refused, and so is a spawn whose function captures
+%% one
+ets_table_bound_test() ->
+    {ok, Ets} = file:read_file("../../../libs/ets/ets.ern"),
+    {ok, _, Interface, _} = ern_typecheck:check_string(['Ets'], Ets),
+    Refusal = fun(Text) ->
+                      {ok, Declarations} = ern_parser:parse_string(Text),
+                      {error, [#diagnostic{message = Message} | _]} =
+                          ern_typecheck:check(['M'], Declarations, [Interface]),
+                      Message
+              end,
+    ?assertEqual("Peer.key makes a key of Ets.Table(Int, Int), which is bound to its node, since"
+                 " it holds a value of the foreign type Ets.Table",
+                 Refusal("export let key : Peer.Key(Ets.Table(Int, Int)) = Peer.key(\"t\")\n")),
+    ?assertEqual("the function Peer.spawn starts captures table, whose type Ets.Table(Int, Int)"
+                 " is bound to its node, since it holds a value of the foreign type Ets.Table",
+                 Refusal("fn f(table : Ets.Table(Int, Int)) : Unit with m = {\n"
+                         ++ spawning("", "fn() : Unit with Never = { let _ = table; Unit }"))).
+
 %% report §3.11: the function a spawn on a peer starts is a lambda written
-%% in the definition, at the spawn or bound by a `let` the spawn names, or
-%% a declaration's name, and what the lambda captures crosses
+%% in the definition, at the spawn or bound by a `let` the spawn names, a
+%% `fn` declared in the definition, or a declaration's name, and what the
+%% lambda or the `fn` captures crosses
 spawn_function_test() ->
     Head = "fn work(x : Int) : Unit with Never = Unit\n"
            "fn f(x : Int) : Unit with m = {\n",
@@ -551,9 +587,19 @@ spawn_function_test() ->
                              "    let _ = Peer.spawnMonitored(\"p\", run, Died, 5000);\n"
                              "    Unit\n"
                              "}\n")),
+    %% a local fn, whose captures are checked as a lambda's. A regression
+    %% test: one was refused as a function that came as a value
+    ?assertEqual(ok, peer_ok("fn f(x : Int) : Unit with m = {\n"
+                             ++ spawning("fn run() : Unit with Never = { let _ = x; Unit };\n"
+                                         "    ", "run"))),
+    ?assertEqual("the function Peer.spawn starts captures g, a function, which is bound to its"
+                 " node",
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
+                              ++ spawning("fn run() : Unit with Never = { let _ = g(1); Unit };\n"
+                                          "    ", "run"))),
     %% a function that came as a value: a parameter, a top-level `let`, a
-    %% local fn, a call's result, and a `let` of a lambda that a later
-    %% binding of the name hides
+    %% call's result, and a `let` of a lambda that a later binding of the
+    %% name hides
     ?assertEqual("Peer.spawn starts job, a function that came as a value, whose captures the"
                  " compiler does not see",
                  peer_refusal("fn f(job : () -> Unit with Never) : Unit with m = {\n"
@@ -562,13 +608,9 @@ spawn_function_test() ->
                  " compiler does not see",
                  peer_refusal("let run : () -> Unit with Never = fn() = Unit\n"
                               "fn f() : Unit with m = {\n" ++ spawning("", "run"))),
-    ?assertEqual("Peer.spawn starts run, a function that came as a value, whose captures the"
-                 " compiler does not see",
-                 peer_refusal("fn f(x : Int) : Unit with m = {\n"
-                              ++ spawning("fn run() : Unit with Never = { let _ = x; Unit };\n"
-                                          "    ", "run"))),
     ?assertEqual("Peer.spawn starts a function written where the compiler sees what it"
-                 " captures: a declaration's name, or a lambda written in this definition",
+                 " captures: a declaration's name, or a lambda or a `fn` written in this"
+                 " definition",
                  peer_refusal("fn make() : () -> Unit with Never = fn() = Unit\n"
                               "fn f() : Unit with m = {\n" ++ spawning("", "make()"))),
     ?assertEqual("Peer.spawn starts job, a function that came as a value, whose captures the"
@@ -615,11 +657,24 @@ spawn_captures_test() ->
                                              " let local = fn(y : Int) : Int = y + n;"
                                              " work(local(1)) }"))).
 
-%% report §3.11: the process a spawn on a peer starts has a mailbox type
-%% known whole where it is written, which crosses
+%% report §3.11, §8.1: the process a spawn on a peer starts has a mailbox
+%% type known whole where it is written, which crosses; one that is a
+%% variable the definition's type does not hold is Never, as an entry
+%% point's is, and one it holds is refused, since an instance could make it
+%% bound. A regression test: §6.10's spawn of a lambda with no annotation
+%% was refused
 spawn_mailbox_test() ->
+    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n" ++ spawning("", "fn() = Unit"))),
+    {ok, Typed} = typed_peer("fn idle() : Unit with m = receive { after 1 -> Unit }\n"
+                             "fn f() : Unit with m = {\n" ++ spawning("", "idle")),
+    ?assertEqual(["Address(Never)"],
+                 [ern_types:format(Answer, ern_types:new())
+                  || #fn_declaration{name = f, body = Body} <- Typed,
+                     #e_call{callee = #e_var{name = spawn}, type = {tcon, ['Either'], [_, Answer]}}
+                         <- calls(Body)]),
     ?assertEqual("Peer.spawn starts a process whose mailbox type a is not known whole here",
-                 peer_refusal("fn f() : Unit with m = {\n" ++ spawning("", "fn() = Unit"))),
+                 peer_refusal("fn f() : Either(Peer.Failure, Address(a)) with m ="
+                              " Peer.spawn(\"p\", fn() = Unit, 5000)\n")),
     ?assertEqual("Peer.spawn starts a process whose mailbox type Msg is bound to its node,"
                  " since it holds a function",
                  peer_refusal("type Msg = Up(f : (Int) -> Int)\n"

@@ -2725,8 +2725,12 @@ load_help() ->
 %% `:reload`, naming MVP 3.1, and answers a name of a module it has not
 %% loaded with the `:load` that would put it in scope, which arrives then;
 %% a function typed at it is the shell's own, which a peer the node does
-%% not list answers NotListed. A regression test: written after the code;
-%% NotLoaded on a peer is the real nodes' (test/ern_nodes_tests.erl)
+%% not list answers NotListed; and it refuses a key at a type the session
+%% declares, among a type's arguments too, naming MVP 3.1, and takes one at
+%% a type of the build. A regression test: written after the code;
+%% NotLoaded on a peer is the real nodes' (test/ern_nodes_tests.erl); and
+%% two shells that were nodes found each other's keys at their own types of
+%% one name
 node_shell_test_() ->
     {timeout, 60, fun node_shell/0}.
 
@@ -2735,8 +2739,12 @@ node_shell() ->
     node_dir(filename:join(Dir, ".ernest")),
     ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
     InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Greet\n:reload\nGreet.hello()\nPeer.nodes()\n"
-                                    "Peer.spawn(\"far\", fn() : Unit with Never = Unit, 100)\n"),
+    ok = file:write_file(InputFile, ":load Greet\n:reload\nGreet.hello()\nPeer.peers()\n"
+                                    "Peer.spawn(\"far\", fn() : Unit with Never = Unit, 100)\n"
+                                    "type T = T(Int)\n"
+                                    "let k : Peer.Key(T) = Peer.key(\"t\")\n"
+                                    "let boxed : Peer.Key(List(Optional(T))) = Peer.key(\"b\")\n"
+                                    "let plain : Peer.Key(List(Int)) = Peer.key(\"p\")\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Dir) ++ " < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Part))
@@ -2745,7 +2753,11 @@ node_shell() ->
                  <<"help: :load Greet would put it in scope; in a shell that is a node it arrives"
                    " in MVP 3.1">>,
                  <<"[] : List(String)">>,
-                 <<"Left(NotListed) : Either(Peer.Failure, Address(Never))">>]].
+                 <<"Left(NotListed) : Either(Peer.Failure, Address(Never))">>,
+                 <<"plain : Peer.Key(List(Int))">>]],
+    Refusal = <<"Peer.key at a type the session declares is not here yet in a shell that is a"
+                " node: it arrives in MVP 3.1">>,
+    ?assertEqual(2, length(binary:matches(Output, Refusal))).
 
 %% report §11.2, Appendix E.17: what programs write goes to the file
 %% `:output` names, appended as the live region would show it, and not to

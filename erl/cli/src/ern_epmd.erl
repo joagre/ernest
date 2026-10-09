@@ -1,8 +1,9 @@
 %% Report §8.7: no port-mapper daemon. A node finds a peer's address in its
 %% configuration and nowhere else, so this module answers the host in the
 %% daemon's place, where `-epmd_module ern_epmd` names it (ern_carrier's
-%% boot flags): a peer's address by the name on the carrier, its key's
-%% digest, the name a peer's `network-address` holds resolved at each dial;
+%% boot flags): a peer's address by the host of its name on the carrier, its
+%% key's digest, the name a peer's `network-address` holds resolved at each
+%% dial;
 %% this node's port from `listen`; and the number of this start, which the
 %% host puts in every address. A callback module the host calls, not a
 %% process of the toolchain's own (docs/style.md).
@@ -43,28 +44,47 @@ port_please(Name, Host) ->
 
 -spec port_please(term(), term(), timeout()) ->
           {port, inet:port_number(), pos_integer()} | noport.
-port_please(Name, _Host, _Timeout) ->
-    case ern_carrier:peer(text(Name)) of
+port_please(_Name, Host, _Timeout) ->
+    case ern_carrier:peer(text(Host)) of
         #peer{address = {_, Port}} -> {port, Port, ?DISTRIBUTION};
         _ -> noport
     end.
 
-%% Report §8.7: a peer's address, a name the host resolves at each dial in
-%% the node's family, or none for a peer listed without one, or for a node
-%% listed by no peer, which is never dialled.
+%% Report §8.7: a peer's address, by the host of its name on the carrier:
+%% an address, or a name the host resolves at each dial in the node's
+%% family; none for a peer listed without one, or for a node listed by no
+%% peer, which is never dialled. A name that resolves only to the other
+%% family fails as a dial refused does, and the node says why.
 -spec address_please(term(), term(), inet:address_family()) ->
           {ok, inet:ip_address(), inet:port_number(), pos_integer()} | {error, term()}.
-address_please(Name, _Host, Family) ->
-    case ern_carrier:peer(text(Name)) of
-        #peer{address = {Host, Port}} when is_tuple(Host) ->
-            {ok, Host, Port, ?DISTRIBUTION};
-        #peer{address = {Host, Port}} ->
-            case inet:getaddr(Host, Family) of
-                {ok, Address} -> {ok, Address, Port, ?DISTRIBUTION};
-                {error, _} = Error -> Error
+address_please(_Name, Host, Family) ->
+    case ern_carrier:peer(text(Host)) of
+        #peer{address = {Address, Port}} when is_tuple(Address) ->
+            {ok, Address, Port, ?DISTRIBUTION};
+        #peer{name = Name, address = {Named, Port}} ->
+            case inet:getaddr(Named, Family) of
+                {ok, Address} ->
+                    {ok, Address, Port, ?DISTRIBUTION};
+                {error, _} = Error ->
+                    other_family(Name, Named, Family),
+                    Error
             end;
         _ ->
             {error, nxdomain}
+    end.
+
+%% Report §8.7: where a peer's name resolves only to the other family, the
+%% node says so; a name that resolves to neither is a dial refused.
+other_family(Name, Named, Family) ->
+    Other = case Family of inet -> inet6; inet6 -> inet end,
+    case inet:getaddr(Named, Other) of
+        {ok, _} ->
+            {Own, Its} = case Family of inet -> {"IPv4", "IPv6"}; inet6 -> {"IPv6", "IPv4"} end,
+            ern_carrier:say(["the peer ", Name, " was not dialled: its network-address names ",
+                             Named, ", which resolves only to ", Its, ", and this node runs over ",
+                             Own]);
+        {error, _} ->
+            ok
     end.
 
 %% Report §8.7: this node's listener's port, 0 for one the host picks.
@@ -80,7 +100,7 @@ listen_port_please(_Name, _Host) ->
 names(_Host) ->
     {error, address}.
 
-%% The host passes a name as a string, an atom or a binary.
+%% The host passes a host as a string, an atom or a binary.
 text(Name) when is_atom(Name) -> atom_to_list(Name);
 text(Name) when is_binary(Name) -> binary_to_list(Name);
 text(Name) -> Name.

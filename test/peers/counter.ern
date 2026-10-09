@@ -24,3 +24,9 @@ export type EchoMsg = Ping(Address(Int))
 export let echo : Peer.Key(EchoMsg) = Peer.key("echo")
 
 export let echoAdapted : Peer.Key(Address(Int)) = Peer.key("echo-adapted")
+
+// An adapter on the store, which answers each address it is given with an
+// adapted address of it made there, which doubles what is sent through it.
+export type AdapterMsg = Adapt(target : Address(Int), reply : Reply(Address(Int)))
+
+export let adapter : Peer.Key(AdapterMsg) = Peer.key("adapter")

@@ -29,12 +29,20 @@ certificate(#configuration{config_dir = Dir}) ->
 digest(Key) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, Key), lowercase)).
 
-%% report §8.7: a node's name on the carrier is its key's SHA-256 digest
-%% with a constant after it, holding no network address
+%% report §8.7: a node's name on the carrier is a constant at the host its
+%% key gives, the key's SHA-256 digest as two labels of 32 hexadecimal
+%% digits, holding no network address; its certificate names that host and
+%% no other, as the host's check of a name reads it
 name_test() ->
-    #configuration{public_key = Key} = configured(),
-    ?assertEqual(list_to_atom(digest(Key) ++ "@node.ernest"), ern_carrier:name(Key)),
-    ?assertEqual(64, length(digest(Key))).
+    #configuration{public_key = Key} = Configuration = configured(),
+    {First, Second} = lists:split(32, digest(Key)),
+    ?assertEqual(First ++ "." ++ Second, ern_carrier:host(Key)),
+    ?assertEqual(list_to_atom("ernest@" ++ First ++ "." ++ Second), ern_carrier:name(Key)),
+    Certificate = certificate(Configuration),
+    ?assert(ern_carrier:names_own_host(Certificate)),
+    ?assert(public_key:pkix_verify_hostname(Certificate, [{dns_id, ern_carrier:host(Key)}])),
+    Other = (configured())#configuration.public_key,
+    ?assertNot(public_key:pkix_verify_hostname(Certificate, [{dns_id, ern_carrier:host(Other)}])).
 
 %% report §8.7: the build's fingerprint covers every compiled module on the
 %% load path, a host module a `foreign fn` loads from one of its
@@ -99,7 +107,7 @@ contains(List, Part) ->
     lists:prefix(Part, List) orelse (List =/= [] andalso contains(tl(List), Part)).
 
 %% report §8.7: the rule accepts a node whose key the configuration lists,
-%% by the key alone, and refuses any other, the node's own among them
+%% and refuses any other, the node's own among them
 listed_test() ->
     Own = configured(),
     Peer = configured(),
@@ -127,7 +135,7 @@ said_test() ->
                             peers = [#peer{name = <<"store">>,
                                            public_key = Peer#configuration.public_key}]}),
     Store = ern_carrier:name(Peer#configuration.public_key),
-    Other = list_to_atom(lists:duplicate(64, $a) ++ "@node.ernest"),
+    Other = list_to_atom("ernest@" ++ lists:duplicate(32, $a) ++ "." ++ lists:duplicate(32, $a)),
     Said = fun(Event) -> iolist_to_binary(ern_carrier:said(Event)) end,
     ?assertEqual(<<"the peer store connected">>, Said({nodeup, Store, []})),
     ?assertEqual(<<"the node ", (list_to_binary(lists:duplicate(64, $a)))/binary, " connected">>,
@@ -162,3 +170,89 @@ reload_failure_test() ->
     {said, Line} = receive {said, _} = Got -> Got end,
     ?assertMatch(<<"the reload was refused, and the configuration stays as it was: ", _/binary>>,
                  Line).
+
+%% A certificate signed with the key in a configuration directory that names
+%% the host given, for the rule to refuse: the key is one node's, the host
+%% another's.
+forged(#configuration{config_dir = Dir}, Host) ->
+    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
+    [Entry] = public_key:pem_decode(Pem),
+    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
+    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
+    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
+                                                    value = {utf8String, <<"ernest">>}}]]},
+    Tbs = #'OTPTBSCertificate'{
+             version = v3, serialNumber = 1,
+             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
+             issuer = Name, subject = Name,
+             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
+                                    notAfter = {generalTime, "99991231235959Z"}},
+             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
+                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
+                                       subjectPublicKey = #'ECPoint'{point = Point}},
+             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                                        extnValue = [{dNSName, Host}]}]},
+    public_key:pkix_decode_cert(public_key:pkix_sign(Tbs, Key), otp).
+
+%% report §8.7: a certificate that names another host than its key gives is
+%% refused, though its key is listed, and the node says so; the rule's
+%% refusals are said once a run's standard error is there
+other_host_test() ->
+    Own = configured(),
+    Peer = configured(),
+    Other = configured(),
+    Forged = forged(Peer, ern_carrier:host(Other#configuration.public_key)),
+    ?assertNot(ern_carrier:names_own_host(Forged)),
+    Self = self(),
+    Peers = [#peer{name = <<"store">>, public_key = Peer#configuration.public_key},
+             #peer{name = <<"desk">>, public_key = Other#configuration.public_key}],
+    Main = fun() ->
+                   ok = ern_carrier:list(Own#configuration{peers = Peers}),
+                   Self ! {verified, ern_carrier:verify(Forged, {bad_cert, selfsigned_peer}, s)}
+           end,
+    Said = fun(Bytes) -> Self ! {said, Bytes} end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => Said, stderr => Said})),
+    ?assertEqual({verified, {fail, other_host}}, receive {verified, _} = Verified -> Verified end),
+    ?assertEqual({said, <<"the peer store was refused: its certificate names another host than"
+                          " its key gives\n">>},
+                 receive {said, _} = Line -> Line end).
+
+%% report §8.7: a peer's name is resolved at each dial, where its family is
+%% checked: a name that resolves only to the other family fails the dial
+%% as a refused one does, and the node says why; an address is given as it
+%% stands. A regression test, written after the code that moved the check
+%% from the reading of the configuration. The host's own table of hosts
+%% gives the name, for the test's run alone
+dial_family_test() ->
+    Own = configured(),
+    Peer = configured(),
+    Other = configured(),
+    Peers = [#peer{name = <<"store">>, public_key = Peer#configuration.public_key,
+                   address = {"only6.ernest.invalid", 8654}},
+             #peer{name = <<"desk">>, public_key = Other#configuration.public_key,
+                   address = {{127, 0, 0, 1}, 8655}}],
+    Lookup = inet_db:res_option(lookup),
+    ok = inet_db:add_host({0, 0, 0, 0, 0, 0, 0, 1}, ["only6.ernest.invalid"]),
+    ok = inet_db:set_lookup([file | Lookup]),
+    Self = self(),
+    Main = fun() ->
+                   ok = ern_carrier:list(Own#configuration{peers = Peers}),
+                   Dial = fun(#configuration{public_key = Key}, Family) ->
+                                  ern_epmd:address_please("ernest", ern_carrier:host(Key), Family)
+                          end,
+                   Self ! {dialled, Dial(Peer, inet), Dial(Peer, inet6), Dial(Other, inet)}
+           end,
+    Said = fun(Bytes) -> Self ! {said, Bytes} end,
+    try
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => Said, stderr => Said}))
+    after
+        ok = inet_db:set_lookup(Lookup),
+        ok = inet_db:del_host({0, 0, 0, 0, 0, 0, 0, 1})
+    end,
+    ?assertMatch({dialled, {error, _}, {ok, {0, 0, 0, 0, 0, 0, 0, 1}, 8654, _},
+                  {ok, {127, 0, 0, 1}, 8655, _}},
+                 receive {dialled, _, _, _} = Dialled -> Dialled end),
+    ?assertEqual({said, <<"the peer store was not dialled: its network-address names"
+                          " only6.ernest.invalid, which resolves only to IPv6, and this node runs"
+                          " over IPv4\n">>},
+                 receive {said, _} = Line -> Line end).

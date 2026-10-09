@@ -181,3 +181,50 @@ OTP 29, erts 17.1, on Linux x86_64.
 **Additional context**
 
 The same holds of a list argument, line 5. Splitting text at `"\n"` that has Windows line ends is where a program meets it: the parts keep a trailing `"\r"`, or lose it, by whether the cluster is cut.
+
+## 5. `memsup` closes its port while a collection is under way
+
+Not filed. Found on 2026-10-09; `erl/cli/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
+
+**Title:** memsup: "Error writing to pipe: Broken pipe" when os_mon is stopped during a memory collection
+
+**Describe the bug**
+
+When `memsup` is stopped while its port program is answering a request for memory data, the line `Error writing to pipe: Broken pipe` appears on standard error. On a stop, the process that owns the port sends the program `EXIT` and closes the port at once, whatever the program is doing (`port_shutdown/1` in `memsup.erl`, called from `get_memory_usage/3` and the other waiting loops on `close`). A program that is writing its answer then writes to a pipe whose other end is gone, and `send` and `send_tag` in `memsup.c` report the failed `write` with `perror` and exit. `memsup` asks for a collection as soon as it starts, so stopping `os_mon` just after starting it meets this nearly every time. A program that starts and stops its measures, or reloads their parameters, gets a line it did not write.
+
+**To Reproduce**
+
+`os_mon` started with `memsup` alone and stopped at once, twenty times in one emulator:
+
+```sh
+erl -noshell -eval '
+    application:load(os_mon),
+    ok = application:set_env(os_mon, start_cpu_sup, false),
+    ok = application:set_env(os_mon, start_disksup, false),
+    Run = fun() ->
+        {ok, _} = application:ensure_all_started(os_mon),
+        ok = application:stop(os_mon)
+    end,
+    [Run() || _ <- lists:seq(1, 20)],
+    halt().' > /dev/null
+```
+
+On an idle machine three runs printed the line 20, 19 and 20 times:
+
+```
+Error writing to pipe: Broken pipe
+```
+
+With `_ = memsup:get_system_memory_data()` between the start and the stop, so that the stop comes once a collection has ended, three runs printed nothing.
+
+**Expected behavior**
+
+Nothing on standard error: a stop during a collection waits for the program's answer, or tells the program to end without the program reporting the closed pipe as an error.
+
+**Affected versions**
+
+OTP 29.1, erts 17.1, os_mon 2.12, on Linux x86_64.
+
+**Additional context**
+
+The line comes from the port program, not from the emulator, so no logger filter removes it. A program that stops `os_mon` can avoid it only by finishing a collection first, `memsup:get_system_memory_data/0` among the ways, which costs a collection at every stop.

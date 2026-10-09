@@ -1,7 +1,8 @@
 // Report §8.7: the store, which offers a counter, an adapted address of it,
 // a process to be killed, a census of its atoms, two slots, a fragile
-// process behind an adapted address whose function faults, and the
-// services the desk calls, and waits.
+// process behind an adapted address whose function faults, an adapter
+// that makes adapted addresses here, and the services the desk calls, and
+// waits.
 
 let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
@@ -38,6 +39,7 @@ export fn main() : Unit with Unit = {
     let echoer = spawn(fn() : Unit with Counter.EchoMsg = echoes());
     Peer.offer(Counter.echo, echoer);
     Peer.offer(Counter.echoAdapted, via(echoer, fn(back) = Counter.Ping(back)));
+    Peer.offer(Counter.adapter, spawn(fn() = adapts()));
     Io.println("offered");
     wait()
 }
@@ -46,6 +48,14 @@ export fn main() : Unit with Unit = {
 fn wait() : Unit with Unit =
     receive {
         _ -> wait()
+    }
+
+fn adapts() : Unit with Counter.AdapterMsg =
+    receive {
+        Counter.Adapt(target = target, reply = reply) -> {
+            answer(reply, via(target, fn(n) = n * 2));
+            adapts()
+        }
     }
 
 fn echoes() : Unit with Counter.EchoMsg =

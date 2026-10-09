@@ -229,10 +229,13 @@ foreign fn replaced(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
 /// // => <<1, 0, 2>>
 /// ```
 export fn join(parts : List(Bytes), separator : Bytes) : Bytes =
-    match parts {
-        [] -> <<>>
-      | first :: rest -> List.foldLeft(rest, first, fn(acc, part) = acc <> separator <> part)
-    }
+    concatenated(interleaved(separator, parts))
+
+foreign fn interleaved(separator : Bytes, parts : List(Bytes)) : List(Bytes) =
+    "lists:join/2"
+
+foreign fn concatenated(parts : List(Bytes)) : Bytes =
+    "erlang:iolist_to_binary/1"
 
 /// `bytes` repeated `count` times. A `count` below 1 gives the empty `Bytes`.
 ///
@@ -243,10 +246,11 @@ export fn join(parts : List(Bytes), separator : Bytes) : Bytes =
 /// // => <<1, 2, 1, 2>>
 /// ```
 export fn repeat(bytes : Bytes, count : Int) : Bytes =
-    copies(bytes, count, <<>>)
+    copied(bytes, Int.max(count, 0))
 
-fn copies(bytes : Bytes, count : Int, acc : Bytes) : Bytes =
-    if count <= 0 then acc else copies(bytes, count - 1, acc <> bytes)
+// Raises on a count below 0, which `repeat` makes 0.
+foreign fn copied(bytes : Bytes, count : Int) : Bytes =
+    "binary:copy/2"
 
 /// Each byte as two hexadecimal digits, letters in upper case: `<<255, 1>>` is
 /// `"FF01"`.

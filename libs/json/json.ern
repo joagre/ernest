@@ -1,26 +1,21 @@
 /// JSON text, read into a value and written from one, as RFC 8259 defines
 /// it, by the host's `json` module.
 ///
-/// A program that uses the library puts it on its load path, both when it
-/// is compiled and when it is run: `--load-path` with the directory of the
-/// compiled library, `lib/ernest/build/libs/json` under the prefix Ernest is
-/// installed in. Under `/usr/local`, where Ernest is installed by default:
-///
-/// ```sh
-/// ern build --load-path /usr/local/lib/ernest/build/libs/json main.ern
-/// ern run --load-path /usr/local/lib/ernest/build/libs/json main.erc
-/// ```
+/// A program puts the library on its load path when it is compiled and
+/// when it is run; report Appendix G says where an installation keeps it.
 ///
 /// **Numbers.** A number written with neither a fraction nor an exponent is
-/// an `Integer`, of any size, and one written with either is a `Real`: `1`
-/// is `Integer(1)`, and `1.0` and `1e0` are `Real(1.0)`. A `Real` nearer to
-/// zero than a `Float` can hold is `0.0`, and so is `-0.0`, since a `Float`
-/// has no negative zero (report §3.1); one larger than a `Float` can hold is
-/// not read.
+/// an `Integer`, of any size the host can hold, and one written with either
+/// is a `Real`: `1` is `Integer(1)`, and `1.0` and `1e0` are `Real(1.0)`. A
+/// `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0`,
+/// since a `Float` has no negative zero (report §3.1). An integer longer than
+/// the host can hold, and a real larger than a `Float` can hold, are not
+/// read.
 ///
 /// **Objects.** An object is a `Map` from its members' names to their
 /// values. Where a text names a member twice, the first is kept. `format`
-/// writes the members in the order of their names' code points.
+/// writes the members in the order of their names' code points, an order
+/// of this library's, which the host's `json:format` leaves to its caller.
 ///
 /// **Reading back.** `parse` reads what `format` writes as the value it was
 /// written from.
@@ -70,8 +65,9 @@ export type Value =
 /// or holds none. `UnexpectedByte` is a byte that cannot stand where it is,
 /// the first of its character's: a second value, a comma before a closing
 /// bracket, or a character no value begins with. `UnexpectedSequence` is an
-/// escape that writes no character, or a number larger than a `Float` can
-/// hold, as the host gives it.
+/// escape that writes no character, a surrogate's escape without its pair's
+/// among them, or a number the host cannot hold, an integer too long or a
+/// real larger than a `Float` can hold, in the host's spelling of it.
 ///
 /// ### Examples
 ///
@@ -94,7 +90,8 @@ export foreign fn parse(text : String) : Either(Error, Value) =
     "ern_json:parse/1"
 
 /// `value` as JSON text, laid out over lines as the host's `json:format`
-/// lays it out, two spaces to a level, and ending in a line feed.
+/// lays it out, two spaces to a level, an object's members in the order of
+/// their names' code points, and ending in a line feed.
 ///
 /// ### Examples
 ///
@@ -139,6 +136,24 @@ let escapes =
                   Test.equal(#(parse("\"\\ud83d\\ude00 \\u00e9\""), parse("\"\\udc00\"")),
                              #(Right(Text("\u{1f600} é")),
                                Left(UnexpectedSequence(String.toUtf8("\\udc00"))))))
+
+let loneSurrogate =
+    Test.Case(name = "a high surrogate's escape without a low one's after it writes no character",
+              run = fn() = {
+                  let lone = Left(UnexpectedSequence(String.toUtf8("\\ud800")));
+                  Test.equal([parse("\"\\ud800\""),
+                              parse("[\"\\ud800 and more\", 1]"),
+                              parse("\"\\ud800\\n\""),
+                              parse("\"\\ud800"),
+                              parse("\"\\\\ud800\"")],
+                             [lone, lone, lone, Left(UnexpectedEnd), Right(Text("\\ud800"))])
+              })
+
+let tooLong =
+    Test.Case(name = "an integer longer than the host can hold is not read", run = fn() = {
+        let digits = String.repeat("9", 1300000);
+        Test.equal(parse(digits), Left(UnexpectedSequence(String.toUtf8(digits))))
+    })
 
 let empty =
     Test.Case(name = "a text of white space holds no value",

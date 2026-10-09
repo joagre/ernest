@@ -1,7 +1,7 @@
 // Report §8.7: a binding both nodes' programs depend on, whose value is each
 // node's own.
 
-let peers : List(String) = Peer.nodes()
+let peers : List(String) = Peer.peers()
 
 export fn listed() : List(String) =
     peers

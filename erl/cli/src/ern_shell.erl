@@ -51,8 +51,9 @@
 %% among it, built when the session starts and kept while it lives, since
 %% neither changes while it runs; the queries of completion, `:browse` and
 %% `:doc` read it rather than build it each time
-%% is_node: whether `--config-dir` made the shell a node, whose `:load` and
-%% `:reload` wait for MVP 3.1 (§11.2)
+%% is_node: whether `--config-dir` made the shell a node, whose `:load`,
+%% `:reload` and key at a type the session declares wait for MVP 3.1
+%% (§11.2)
 %% A checked input: the namespace of the module it became, its typed tree,
 %% the declarations it was checked as, the module's interface, the
 %% checker's environment, its type, what it binds, and its site, the name
@@ -315,6 +316,10 @@ input_names() ->
 input_namespace(Number) ->
     [list_to_atom("$Input" ++ integer_to_list(Number))].
 
+%% Whether a namespace is an input's, as input_namespace/1 makes one.
+is_input_namespace([Module]) -> lists:prefix("$Input", atom_to_list(Module));
+is_input_namespace(_) -> false.
+
 checked({'Right', {Session, Checked}}, PrintedName) ->
     {'Right', {keep_session(Session), Checked#checked{printed_name = PrintedName}}};
 checked(Other, _PrintedName) ->
@@ -455,7 +460,7 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
         {ok, Typed, Interface, Env} ->
             Type = input_type(Typed, Binds),
             Binds1 = generalized(Binds, Typed, Env),
-            case refused(Type, Env, Binds1, Typed) of
+            case refused(Session, Type, Env, Binds1, Typed) of
                 none ->
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
@@ -496,11 +501,58 @@ site(#startup_input{file = File, line = Line}) -> {File, Line - 1}.
 %% type is still open is refused with the annotation that would settle
 %% it, rather than entering the session as a scheme whose variables mean
 %% nothing to the inputs after it.
-refused(Type, Env, Binds, Typed) ->
+refused(Session, Type, Env, Binds, Typed) ->
     case reply_refusal(Type, Env, Binds, Typed) of
-        none -> undetermined(Type, Env, Binds, Typed);
-        Refused -> Refused
+        none ->
+            case undetermined(Type, Env, Binds, Typed) of
+                none -> session_key(Session, Typed);
+                Refused -> Refused
+            end;
+        Refused ->
+            Refused
     end.
+
+%% Report §11.2: in a shell that is a node, a key at a type that names a
+%% type the session declares, among its type arguments too, waits for MVP
+%% 3.1, since two sessions may declare one name for two types and a key is
+%% found by its type's text.
+session_key(#session{is_node = false}, _Typed) ->
+    none;
+session_key(#session{is_node = true}, Typed) ->
+    case [Span || #e_call{span = Span, callee = #e_var{referent = Referent, supplies = [_]},
+                          type = {tcon, ['Peer', 'Key'], [Message]}} <- typed_calls(Typed),
+                  Referent =:= #remote_declaration{namespace = ['Peer'], name = key},
+                  names_session_type(Message)] of
+        [] ->
+            none;
+        [Span | _] ->
+            {refused, #diagnostic{span = ern_diagnostic:span(Span),
+                                  message = "Peer.key at a type the session declares is not here"
+                                            " yet in a shell that is a node: it arrives in MVP 3.1",
+                                  help = "make the key at a type of a module of the build"}}
+    end.
+
+%% The calls in a typed tree, every one.
+typed_calls(#e_call{args = Args, callee = Callee} = Call) ->
+    [Call | typed_calls(Callee) ++ typed_calls(Args)];
+typed_calls(Node) when is_tuple(Node) ->
+    typed_calls(tl(tuple_to_list(Node)));
+typed_calls(Nodes) when is_list(Nodes) ->
+    lists:append([typed_calls(Node) || Node <- Nodes]);
+typed_calls(_) ->
+    [].
+
+%% Whether a type names a type an input of the session declared, its
+%% arguments among it.
+names_session_type({tcon, QualifiedName, Args}) ->
+    is_input_namespace(lists:droplast(QualifiedName))
+        orelse lists:any(fun names_session_type/1, Args);
+names_session_type({ttuple, Elements}) ->
+    lists:any(fun names_session_type/1, Elements);
+names_session_type({tfn, Params, _, Result}) ->
+    lists:any(fun names_session_type/1, [Result | Params]);
+names_session_type(_) ->
+    false.
 
 %% Report §6.6, §11.2: an input's value is printed and dropped, and what a
 %% `let` at the prompt binds is the session's, for any later input to use,

@@ -14,13 +14,12 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 ## Where we are
 
-**MVP 3.0 is built**, items 1 to 11 on 2026-10-08, and read by five of the review's readers on
-2026-10-08 and 2026-10-09, every finding decided in [`findings.md`](findings.md); item 14 works
-the cheap ones and closes the milestone. MVP 3.1's and MVP 3.2's designs,
-[`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
+**MVP 3.0 is done** on 2026-10-09: one program on several nodes, by its proposal, read by
+five of the review's readers and every finding worked (*Done* below). MVP 3.1's and MVP 3.2's
+designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
-2026-10-09, and their sections below are written from them. Next is item 14, then MVP 3.1 from
-its item 1. A release waits until the user calls it.
+2026-10-09, and their sections below are written from them. Next is the principles review over
+MVP 3.1's proposal, then MVP 3.1 from its item 1. A release waits until the user calls it.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
 measured, with the prelude and the emitted code, and the report's and the guide's feedback
@@ -69,8 +68,8 @@ paragraph under "Done".
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | items 1 to 13 done 2026-10-09; item 14, the findings worked, closes it |
-| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing` | design read through 2026-10-09 |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
+| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing` | design read through 2026-10-09; the principles review runs before its item 1 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code` | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.4 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -418,7 +417,11 @@ reload, which need them; then `Peer`; then what stands on `Peer`.
     `docs/findings.md` goes, as `full_review.md` says, every line done, dropped or standing in
     MVP 3.1's item 1; the milestone's paragraph is written under *Done*; and `mvp3.0.md`'s
     status line says what the findings changed. A fix whose shape its line names is built as it
-    stands; one that turns out to need a decision stops and asks.
+    stands; one that turns out to need a decision stops and asks. Done 2026-10-09, in two
+    builds and a discussion of every line that was not a plain fix (the log's *MVP 3.0's
+    Findings Decided*): 87 fixed, each with its test where it was a defect, four dropped, one
+    MVP 3.1's; what the discussion changed is in the log's entry, a listed key bound to its own
+    node name by the host's own check among it, and `findings.md` is gone.
 
 Decisions the proposal leaves as they are, named here so that none is open: a key's name is
 the program's, and two peers offering one key by mistake are told apart by nothing but the
@@ -456,6 +459,10 @@ builds only once a key and a spawn carry hashes; the shell, which needs units si
 termination told, which needs nothing of the hashes and comes after them so that section 3's
 deploy runs whole; then the library, and the tests over all of it.
 
+Before item 1 the principles review runs, as [`principles_review.md`](principles_review.md) says,
+over this proposal and over peers, which are built: its item 1 adds a restriction to the type
+system, P1, and MVP 3.0's item 13 placed the review here for that case.
+
 1. **The report and the soundness argument.** The sections the proposal's section 9 names:
    §8.7 for the floor, the cookie without the build, the key's hash beside its text and
    `OtherType` by hash, the spawn by hash with `NotLoaded` by definition and by binding, and the
@@ -480,7 +487,7 @@ deploy runs whole; then the library, and the tests over all of it.
    `nodes.md` for the argument. With them, as the build reaches each: `architecture.md` for the
    code table and the units; `memory.md` for the three tables the host never shrinks;
    `test/diagnostics.md` for the shell's diagnostic; `docs/development.md`'s table, from which
-   the shell's two refusals and the reload's forgotten binding go, and whose refusal of a node
+   the shell's three refusals, `:load`, `:reload` and a key at a session type, and the reload's forgotten binding go, and whose refusal of a node
    without a program names MVP 3.2.
 2. **The canonical form, and the hash.** The form's document with the scheme's version, written
    before any hash is computed, literals and order fixed, and its test suite first: the same
@@ -516,7 +523,9 @@ deploy runs whole; then the library, and the tests over all of it.
    its identity and `NotLoaded` naming it where the peer did not run it, and `NotLoaded` for the
    module a foreign declaration names; a function that names no binding spawning where the rule
    by module refused it; nothing initialized because a peer asked; the site in the frame the
-   spawner's words, shown and never compared.
+   spawner's words, shown and never compared. The Ernest tests of `Load` and `Balancer` return here from
+   `test/ern_integration_tests.erl` to their modules, where a `Test.Case` binding kept their
+   functions off a peer under the rule by module (`language_feedback.md`'s entry 95).
 5. **The shell.** `:load` and `:reload` in a shell that is a node, and in any: a load adding
    hashes and moving the session's names to them; what a load brings to a node that already
    holds a unit of the module's name becoming a unit of its own, counted against item 3's limits,
@@ -1072,6 +1081,31 @@ Moved*). The full review read every area on `d90a5b3`, and its 570 findings were
 before the release (*The full review's findings* above). The release review's machines ran
 on `6e07e7d` and the tag (the log's *The Release Review Before 0.3.0*), item 6's readers
 serving as its readers; a release's notes list no change (*A Release Carries No History*).
+
+### MVP 3.0 — peers (done 2026-10-09)
+
+One program on several nodes, by [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md), kept as
+the record of its design; the report's §8.3, §8.7 and §10 own the rules. A node is a program
+started with `--config-dir`, identified by its key and listing its peers by name, key and
+address; two nodes connect over TLS by the listed key alone, and only under the name the key
+gives (the log's *The Carrier*, *MVP 3.0's Findings Decided*); one build on every node, proved
+by the handshake. Addresses, monitors, calls and the loss across nodes are the host's, read
+and stated (*Addresses, Messages and Monitors Across Nodes*, *Calls Across Nodes*); the
+runtime's six frames pass through one gateway with a worker per peer; the node ends in order
+and reloads on hangup (*A Node's End and Its Reload*). `Peer` offers a service under a key and
+finds it by the configuration's order, spawns on a peer with the function's captures, and
+answers one `Failure` (*The Module Peer*); `Load`, `Balancer` and `Json` are the first
+libraries written on it (*Load and Balancer*, *The Module Json*). The real-node tests wait on
+what they mean, no sleep among them (*The Tests Wait on What They Mean*), and the guide's
+chapter 8 teaches peers. The milestone's end weighed what follows it and set the ordered
+rolling restart aside (*The Milestones After 3.0, Weighed Again*); the proposals for MVP 3.1
+and 3.2 were written and read through (*The Plan Rewritten from the Split Proposals*). Read
+without a release by five readers, 93 findings, 87 fixed in item 14, four dropped, one MVP
+3.1's (*MVP 3.0's Findings Decided*): a free mailbox type at `Peer.spawn` is `Never`, a local
+`fn` spawns as a lambda does, `Peer.nodes` became `Peer.peers`, a peer's name is resolved at
+the dial alone, an adapted address dies with its node's start, and the compiler names no
+library type. What waits: `Peer.spawn` as an ordinary function, MVP 3.1's item 1; the two
+libraries' tests back in their modules, its item 4.
 
 ### MVP 2.99d — the library stands on the host, measured (done 2026-10-06)
 

@@ -53,7 +53,7 @@
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1, spawn_order/1,
-         init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2, spawn_for_peer/2,
+         init_stdlib/0, init_modules/1, offer/3, offered/2, asked_of_run/1,
          note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
@@ -168,12 +168,20 @@ send(Address, Message) ->
 %% function, not a process of its own, so sending applies the function here
 %% and the message goes straight into the target's mailbox. A fault in the
 %% function is the target's, since the function is part of the protocol the
-%% target's own via(self(), wrap) built.
+%% target's own via(self(), wrap) built. Report §8.7: one made by an earlier
+%% start of this node is dead, and a message to it is dropped, its function
+%% not applied, whether it came from a peer's frame or a send here.
 deliver({via, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
-    try Function(Message) of
-        Adapted -> deliver(Target, Adapted)
-    catch
-        Class:Error:Stack -> exit(process_of(Target), fault_exit_reason(Class, Error, Stack))
+    case is_of_this_start(Maker) of
+        true ->
+            try Function(Message) of
+                Adapted -> deliver(Target, Adapted)
+            catch
+                Class:Error:Stack ->
+                    exit(process_of(Target), fault_exit_reason(Class, Error, Stack))
+            end;
+        false ->
+            ok
     end;
 %% report §6.5, §8.7: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, which applies the
@@ -185,6 +193,17 @@ deliver({foreign, Pid, Descriptor, Bound}, Message) ->
     Pid ! ern_boundary:expose(Descriptor, Message, Bound);
 deliver(Pid, Message) ->
     Pid ! Message.
+
+%% Report §8.7: whether a process of this node's name is of this start: a
+%% living one is, and one that is not is where its start's number, which the
+%% host puts last in a process's external form (NEW_PID_EXT), is this
+%% start's, erlang:system_info(creation).
+is_of_this_start(Pid) ->
+    erlang:is_process_alive(Pid) orelse begin
+        Bytes = term_to_binary(Pid),
+        binary:decode_unsigned(binary:part(Bytes, byte_size(Bytes), -4))
+            =:= erlang:system_info(creation)
+    end.
 
 %% The process an address names, through any number of adaptations and
 %% through the checking proxy of §8.4: an address that has crossed into
@@ -531,6 +550,13 @@ reaper_loop(Reaper, Wait) ->
     receive
         {spawn, From, Ref, Function, Site, SpawnMonitors} ->
             reaper_loop(spawned(From, Ref, Function, Site, SpawnMonitors, Reaper));
+        %% report §8.7: a peer's question, answered while the run's tables
+        %% are there (asked_of_run/1)
+        {asked, From, Ref, {spawn, Function, Site}} ->
+            reaper_loop(spawned(From, Ref, Function, Site, [], Reaper));
+        {asked, From, Ref, Question} ->
+            From ! {Ref, answer_of_run(Question)},
+            reaper_loop(Reaper);
         {adopt, Pid, Site, From, Ref} ->
             adopted(Pid, Site, From, Ref),
             reaper_loop(Reaper);
@@ -2303,29 +2329,36 @@ offered(Name, Text) ->
             end
     end.
 
-%% Report §8.7: a process a peer's spawn starts on this node, as spawn/2
-%% starts one, or none where no run is in progress to start it, its reaper
-%% ended or not yet begun: as a run ends, and between two runs of `ern test`
-%% over a directory, in one host. The gateway's worker that asks waits on
-%% the reaper's end as well as on its answer, since a frame comes at any
-%% time.
--spec spawn_for_peer(fun(() -> term()), binary()) -> pid() | none.
-spawn_for_peer(Function, Site) ->
+%% Report §8.7: what a peer's frame asks of the run in progress, answered
+%% by its reaper, which ends before the run's tables go (end_program/3), so
+%% that no answer reads a table that is gone: what this node offers under a
+%% name at a type's text (offered/2), whether a module's bindings have their
+%% values here (initialized/1), or a process started on this node, as
+%% spawn/2 starts one. None where no run is in progress, its reaper ended or
+%% not yet begun: as a run ends, and between two runs of `ern test` over a
+%% directory, in one host. The gateway's worker that asks waits on the
+%% reaper's end as well as on its answer, since a frame comes at any time.
+-spec asked_of_run({offered, binary(), binary()} | {initialized, module()}
+                   | {spawn, fun(() -> term()), binary()}) -> {answered, term()} | none.
+asked_of_run(Question) ->
     case persistent_term:get({?MODULE, reaper}, none) of
         none ->
             none;
         Reaper ->
             MonitorRef = erlang:monitor(process, Reaper),
             Ref = make_ref(),
-            Reaper ! {spawn, erlang:self(), Ref, Function, Site, []},
+            Reaper ! {asked, erlang:self(), Ref, Question},
             receive
-                {Ref, Pid} ->
+                {Ref, Answer} ->
                     erlang:demonitor(MonitorRef, [flush]),
-                    Pid;
+                    {answered, Answer};
                 {'DOWN', MonitorRef, process, _, _} ->
                     none
             end
     end.
+
+answer_of_run({offered, Name, Text}) -> offered(Name, Text);
+answer_of_run({initialized, ErlangModule}) -> initialized(ErlangModule).
 
 %% Report §8.7: a process's offers end with it.
 unoffered(Pid) ->

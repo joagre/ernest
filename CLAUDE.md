@@ -39,7 +39,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`assets/README.md`](assets/README.md) | the logo files |
 | [`tools/release/README.md`](tools/release/README.md) | what a reader of the release archive, or of an installation, needs first |
 | [`docs/language_feedback.md`](docs/language_feedback.md) | what writing Ernest has felt against the principles, each line until a plan item decides it |
-| `docs/findings.md` | a review's findings while they are open, each line until a plan item decides it |
+| `findings.md` in `docs/`, while a review's findings are open | the findings, each line until a plan item decides it; it goes when every line is done, dropped or planned |
 
 **Proposals.** [`proposals/`](proposals/) holds what is designed, a directory for each: the proposal, its reasons, what other systems do, and its experiments or programs. Each directory's `README.md` says what its files are and which is current. Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not. A built proposal is kept as the record of its design, its status line saying so, and does not change again, a component's design note excepted. `proposals/operations/` is built, with three programs the tests still run; `proposals/nodes_and_code/` holds MVP 3.0 to 3.2, its README naming which is current. `proposals/scratch/` holds a copy written for one reader outside the project, in that reader's terms, citing nothing; nothing points at it, and it goes when its reader is done.
 

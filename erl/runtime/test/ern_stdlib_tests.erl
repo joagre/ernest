@@ -272,6 +272,11 @@ string_test() ->
     ?assertEqual('None', String:toInt(<<"1a">>)),
     ?assertEqual('None', String:toInt(<<"-">>)),
     ?assertEqual('None', String:toInt(<<>>)),
+    %% report Appendix E.5: an integer the host cannot hold is None. A
+    %% regression test: the host's system_limit faulted the caller
+    Huge = binary:copy(<<"9">>, 1300000),
+    ?assertEqual('None', String:toInt(Huge)),
+    ?assertEqual('None', String:toIntBase(<<"-", Huge/binary>>, 16)),
     %% report Appendix E.5, E.0 rule 1: the digits are read in Ernest, a long
     %% numeral in halves joined by a power of the base, so its value is the
     %% host's at every length past the forty digits read in one pass; a `+`

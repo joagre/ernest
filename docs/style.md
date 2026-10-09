@@ -136,6 +136,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Key, Offer, Frame**: §8.7's key, `{'Key', Name, Text}`, its name and its message type's `Text`; an offer, a key's row in `ern_offers` and its process's in `ern_offered`; a frame of the runtime's, `{ern_frame, From, Body}`, which `ern_peer:frame/2` reads. Not `Service`, `Registration`, `Packet`.
 - **Maker**: the process that made an adapted address (§6.5), whose node applies its function. Not `Owner`, `Creator`.
 - **Note**: §8.7's note of a call from another node, a row of `ern_notes` beside its row of `ern_callees`; the frame of the first is `call_waits`, of the second `call_over`, and an answer that lets a note go is `unnoted`. Not `Ticket`, `Pending`, `Registration`.
+- **Host**: in a node's name on the carrier, the part after `@`, its key's digest as two labels, which `ern_carrier:host/1` makes and a certificate names (§8.7); the runtime Ernest runs on is "the host" in prose and comments, never a variable. Not `Hostname`, `Domain`.
 - **ConfigDir**: §11.3's configuration directory, `--config-dir`'s value, in the runner and the node module alike; what its `ernest.conf` says is a `#configuration{}`, and a peer it lists a `#peer{}`. Not `Dir`, `Conf`, `Config` alone.
 - **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, `Root` alone.
 - **Message**: a message. Not `Msg`.

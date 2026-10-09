@@ -18,8 +18,8 @@
 -define(CERTIFICATE, "certificate.pem").
 -define(PID_FILE, "ernest.pid").
 
-%% The certificate's name, the same for every node, since a peer is known
-%% by its key alone (report §8.7).
+%% The certificate's subject, the same for every node, since a peer is known
+%% by its key and the host its key gives (report §8.7).
 -define(NAME, <<"ernest">>).
 
 %% Report §8.7, Appendix E.27: what `ernest.conf` may say.
@@ -54,7 +54,7 @@ create(Given) ->
     %% rule (the log's *The Node's Directory*)
     Key = public_key:generate_key({namedCurve, ed25519}),
     Public = pem([{'SubjectPublicKeyInfo', public_der(Key), not_encrypted}]),
-    Certificate = pem([{'Certificate', certificate(Key), not_encrypted}]),
+    Certificate = pem([{'Certificate', signed_certificate(Key), not_encrypted}]),
     Private = pem([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     %% written by the host's JSON formatter, its fields in Appendix C's
     %% order, two spaces a level, and a line feed at its end; a PEM's line
@@ -93,13 +93,15 @@ point_der(PublicPoint) ->
                              algorithm = #'AlgorithmIdentifier'{algorithm = ?'id-Ed25519'},
                              subjectPublicKey = PublicPoint}).
 
-%% Report §8.7: a certificate the node signs itself, its name a constant
-%% and its validity the longest RFC 5280 writes, from 1970 to the end of
-%% 9999, since a peer is known by its key alone and a certificate's name and
-%% dates mean nothing to it; its serial number is drawn, as a certificate's
+%% Report §8.7: a certificate the node signs itself, its subject a constant,
+%% naming as its one alternative name the host its key gives, which binds
+%% the key to the node's name on the carrier, and its validity the longest
+%% RFC 5280 writes, from 1970 to the end of 9999, since a certificate's dates
+%% mean nothing to a node; its serial number is drawn, as a certificate's
 %% is.
-certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
+signed_certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
     {PublicPoint, _} = crypto:generate_key(eddsa, ed25519, Private),
+    Host = ern_carrier:host(point_der(PublicPoint)),
     Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
                                                     value = {utf8String, ?NAME}}]]},
     <<Serial:63, _:1>> = crypto:strong_rand_bytes(8),
@@ -115,7 +117,8 @@ certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
                  #'OTPSubjectPublicKeyInfo'{
                     algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
                     subjectPublicKey = #'ECPoint'{point = PublicPoint}},
-             extensions = asn1_NOVALUE},
+             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                                        extnValue = [{dNSName, Host}]}]},
     public_key:pkix_sign(Tbs, Key).
 
 %%
@@ -166,7 +169,8 @@ file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 %% superuser's and written by none beyond its owner and group, as the
 %% shell's startup files are (§11.2), and the key read by none but its
 %% owner, as ssh reads one; the file JSON, every field known; the key the
-%% one `ernest.conf` names and the certificate's.
+%% one `ernest.conf` names and the certificate's, and the certificate naming
+%% the host the key gives.
 -spec read(file:filename()) -> #configuration{}.
 read(ConfigDir) ->
     User = ern_os:user(),
@@ -178,8 +182,12 @@ read(ConfigDir) ->
     Own = public_der(Key),
     Own =:= Configuration#configuration.public_key
         orelse fail(ConfigDir, ?CONF, "public-key is not the key of " ++ ?KEY),
-    certificate_key(ConfigDir) =:= Own
+    Certificate = certificate(ConfigDir),
+    certified_key(Certificate) =:= Own
         orelse fail(ConfigDir, ?CERTIFICATE, "certifies another key than " ++ ?KEY),
+    ern_carrier:names_own_host(Certificate)
+        orelse fail(ConfigDir, ?CERTIFICATE, "names another host than its key gives, and a peer"
+                                             " refuses it; ern config makes one that names it"),
     lists:any(fun(#peer{public_key = Peer}) -> Peer =:= Own end,
               Configuration#configuration.peers)
         andalso fail(ConfigDir, ?CONF, "a peer has this node's own key, and a node is no peer"
@@ -228,30 +236,39 @@ private_key(ConfigDir) ->
         _ -> fail(ConfigDir, ?KEY, "is not one key in PEM")
     end.
 
-certificate_key(ConfigDir) ->
+%% The node's certificate, an ed25519 certificate in PEM.
+certificate(ConfigDir) ->
     Pem = ern_build:read(file(ConfigDir, certificate)),
     Decoded = try public_key:pem_decode(Pem) of
-                  [{'Certificate', Der, not_encrypted}] -> certified_point(Der);
+                  [{'Certificate', Der, not_encrypted}] -> decoded_certificate(Der);
                   _ -> none
               catch _:_ -> none
               end,
     case Decoded of
-        {point, Point} -> point_der(Point);
+        #'OTPCertificate'{} = Certificate -> Certificate;
         none -> fail(ConfigDir, ?CERTIFICATE, "is not one certificate in PEM");
         not_ed25519 -> fail(ConfigDir, ?CERTIFICATE, "is not an ed25519 certificate in PEM")
     end.
 
-%% The public point a certificate's DER certifies, or not_ed25519 where it
-%% does not decode to a key of a curve.
-certified_point(Der) ->
-    Info = try (public_key:pkix_decode_cert(Der, otp))#'OTPCertificate'.tbsCertificate
-                   #'OTPTBSCertificate'.subjectPublicKeyInfo
-           catch _:_ -> none
-           end,
-    case Info of
-        #'OTPSubjectPublicKeyInfo'{subjectPublicKey = #'ECPoint'{point = Point}} -> {point, Point};
-        _ -> not_ed25519
+%% A certificate's DER decoded, or not_ed25519 where it does not decode to
+%% one that certifies a key of a curve.
+decoded_certificate(Der) ->
+    Decoded = try public_key:pkix_decode_cert(Der, otp) catch _:_ -> none end,
+    case Decoded of
+        #'OTPCertificate'{tbsCertificate = Tbs} ->
+            case Tbs#'OTPTBSCertificate'.subjectPublicKeyInfo of
+                #'OTPSubjectPublicKeyInfo'{subjectPublicKey = #'ECPoint'{}} -> Decoded;
+                _ -> not_ed25519
+            end;
+        none ->
+            not_ed25519
     end.
+
+%% The DER of the SubjectPublicKeyInfo a certificate certifies.
+certified_key(#'OTPCertificate'{tbsCertificate = Tbs}) ->
+    #'OTPSubjectPublicKeyInfo'{subjectPublicKey = #'ECPoint'{point = Point}} =
+        Tbs#'OTPTBSCertificate'.subjectPublicKeyInfo,
+    point_der(Point).
 
 %% Report §8.7: `ernest.pid` holds this node's process number from its
 %% start, made only where no file is there, so that two nodes started at
@@ -538,10 +555,10 @@ peer(ConfigDir, Item, Family) ->
               end,
     #peer{name = Name, public_key = Key, address = Address}.
 
-%% Report §8.7: a peer's address, `host:port`, the host a name or an
-%% address of the node's family; a name that resolves only to the other
-%% family is refused, and one that resolves to neither is resolved again at
-%% each dial.
+%% Report §8.7: a peer's address, `host:port`, the host an address of the
+%% node's family or a name, which is not resolved here: the host resolves
+%% it at each dial, where its family is checked (ern_epmd), so that reading
+%% the file waits on no resolver.
 address(ConfigDir, Shown, Text, Family) when is_binary(Text) ->
     case endpoint(Text) of
         {ok, Host, Port} when Port > 0 ->
@@ -551,10 +568,6 @@ address(ConfigDir, Shown, Text, Family) when is_binary(Text) ->
                                 Family),
                     {Address, Port};
                 {error, _} ->
-                    Other = case Family of inet -> inet6; inet6 -> inet end,
-                    Only = element(1, inet:getaddrs(Host, Family)) =:= error
-                        andalso element(1, inet:getaddrs(Host, Other)) =:= ok,
-                    same_family(ConfigDir, Shown, Text, not Only, Family),
                     {Host, Port}
             end;
         _ ->

@@ -11,11 +11,11 @@
 -module(ern_peer).
 
 -export([configure/2, tables/0, key/1, key/2, offer/2, find/2, spawn/3, spawn/4,
-         spawn_monitored/4, spawn_monitored/5, nodes/0, frame/2, lost/1]).
+         spawn_monitored/4, spawn_monitored/5, peers/0, frame/2, lost/1]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
 %% persistent term read, which the emitter does not count as foreign code.
--waits_on_nothing([offer/2, nodes/0]).
+-waits_on_nothing([offer/2, peers/0]).
 
 %% A spawn waiting for its answer, {{Node, Ref}, Waiting}, by the peer's
 %% node and the spawn's reference: the waiting process. Ordered, so that a
@@ -28,7 +28,7 @@
 %%
 
 %% Report §8.7: the peers this node lists, each with its name on the
-%% carrier, and their names in the configuration's order, which nodes/0
+%% carrier, and their names in the configuration's order, which peers/0
 %% answers; and the keys, each with its peers' names in the order a find
 %% asks them.
 -spec configure([{binary(), node()}], #{binary() => [binary()]}) -> ok.
@@ -205,8 +205,8 @@ started({failed, Failure}, _Ref, _Wrap) ->
     {'Left', Failure}.
 
 %% Report §8.7: the peers this node lists, in the configuration's order.
--spec nodes() -> [binary()].
-nodes() ->
+-spec peers() -> [binary()].
+peers() ->
     persistent_term:get({?MODULE, names}, []).
 
 %%
@@ -218,24 +218,25 @@ nodes() ->
 %% through this node's runtime, or `NotLoaded`; a spawn's answer handed to
 %% the process that waits for it, where it lives, or else its process
 %% ended; a message to an adapted address this node made, its function
-%% applied here. A find or a spawn that comes while no run is in progress
-%% answers `Unreachable`: a run's tables are gone between two runs of `ern
-%% test` over a directory, in one host, and its reaper as it ends. Any other
-%% frame is one the gateway cannot read.
+%% applied here. A find or a spawn is asked of the run in progress, and one
+%% that comes while none is answers `Unreachable`: between two runs of `ern
+%% test` over a directory, in one host, and as a run ends
+%% (ern_rt:asked_of_run/1). Any other frame is one the gateway cannot read.
 -spec frame(pid(), term()) -> ok | unreadable.
 frame(_From, {find, Name, Text, Alias})
   when is_binary(Name), is_binary(Text), is_reference(Alias) ->
-    Answer = try ern_rt:offered(Name, Text)
-             catch error:badarg -> 'Unreachable'
+    Answer = case ern_rt:asked_of_run({offered, Name, Text}) of
+                 {answered, Offered} -> Offered;
+                 none -> 'Unreachable'
              end,
     Alias ! {Alias, Answer},
     ok;
 frame(From, {spawn, Ref, Function, Site, Monitored})
   when is_reference(Ref), is_function(Function, 0), is_binary(Site), is_boolean(Monitored) ->
-    Answer = try loaded(Function) of
+    Answer = case loaded(Function) of
                  true -> started_here(held(Function, Ref, From, Monitored), Site);
-                 false -> {failed, 'NotLoaded'}
-             catch error:badarg -> {failed, 'Unreachable'}
+                 false -> {failed, 'NotLoaded'};
+                 none -> {failed, 'Unreachable'}
              end,
     erlang:send({ern_gateway, node(From)}, {ern_frame, erlang:self(), {answer, Ref, Answer}}),
     ok;
@@ -255,9 +256,9 @@ frame(_From, _Body) ->
 %% A process a peer's spawn starts here, or `Unreachable` where no run is in
 %% progress to start it.
 started_here(Function, Site) ->
-    case ern_rt:spawn_for_peer(Function, Site) of
-        none -> {failed, 'Unreachable'};
-        Pid -> {spawned, Pid}
+    case ern_rt:asked_of_run({spawn, Function, Site}) of
+        {answered, Pid} -> {spawned, Pid};
+        none -> {failed, 'Unreachable'}
     end.
 
 %% A spawn's answer, taken only from the peer the spawn went to: handed to
@@ -296,15 +297,22 @@ ended({failed, _}) -> ok.
 
 %% Report §8.7: a function spawned on this node runs where this node has its
 %% module, the version the function was compiled in, and every binding of
-%% that module and of every module it depends on has its value here. One
-%% build has one version of each of its modules; a module a shell typed is
-%% the shell's own, and another shell's of the same name is another module.
+%% that module and of every module it depends on has its value here, which
+%% the run in progress answers, or none where no run is. One build has one
+%% version of each of its modules; a module a shell typed is the shell's
+%% own, and another shell's of the same name is another module.
 loaded(Function) ->
     {module, Module} = erlang:fun_info(Function, module),
     {new_uniq, Version} = erlang:fun_info(Function, new_uniq),
-    erlang:module_loaded(Module)
-        andalso Module:module_info(md5) =:= Version
-        andalso ern_rt:initialized(Module).
+    case erlang:module_loaded(Module) andalso Module:module_info(md5) =:= Version of
+        true ->
+            case ern_rt:asked_of_run({initialized, Module}) of
+                {answered, Initialized} -> Initialized;
+                none -> none
+            end;
+        false ->
+            false
+    end.
 
 %% The function a spawned process runs: a monitored spawn's waits until the
 %% spawner has made its monitor, and ends where the spawner ends first.

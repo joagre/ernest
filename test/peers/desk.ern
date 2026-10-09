@@ -22,7 +22,7 @@ export fn main() : Unit with Msg =
 
 fn finds() : Unit with Msg = {
     Io.println("early: " <> Io.show(early));
-    Io.println("nodes: " <> Io.show(Peer.nodes()));
+    Io.println("peers: " <> Io.show(Peer.peers()));
     let counter = Shared.found(Counter.key);
     Io.println("info: " <> Io.show(Process.info(Process.fromAddress(counter))));
     let unlisted : Peer.Key(Int) = Peer.key("unlisted");
@@ -136,8 +136,13 @@ fn across() : Unit with Msg = {
 
 // The store ended by the test and started again: a monitor of a process of
 // a node out of reach, a send that returns at once, and an address of the
-// node's earlier start, which a call, a send and a monitor find dead.
+// node's earlier start, which a call, a send and a monitor find dead, and
+// an adapted address its earlier start made, which drops what is sent
+// through it: the process here it adapts takes first what the same is
+// sent through one the new start made, after it.
 fn restarted(counter : Address(Counter.Msg)) : Unit with Msg = {
+    let first = spawnMonitored(firstTaken, Died);
+    let doubled = adapted(first);
     monitor(Process.fromAddress(counter), Died);
     Io.println("now kill the store");
     ended("killed");
@@ -158,8 +163,24 @@ fn restarted(counter : Address(Counter.Msg)) : Unit with Msg = {
     let fresh = Shared.found(Counter.key);
     Io.println("same process: "
                    <> Io.show(Process.fromAddress(fresh) == Process.fromAddress(counter)));
-    Io.println("fresh total: " <> Int.toString(total(fresh, 0)))
+    Io.println("fresh total: " <> Int.toString(total(fresh, 0)));
+    send(doubled, 21);
+    send(adapted(first), 1);
+    receive {
+        Died(_) -> Unit
+    }
 }
+
+// The first message this process takes, printed.
+fn firstTaken() : Unit with Int =
+    receive {
+        n -> Io.println("old adapted: " <> Int.toString(n))
+    }
+
+// An adapted address of the target, made on the store, which doubles.
+fn adapted(target : Address(Int)) : Address(Int) with n =
+    Address.callForever(Shared.found(Counter.adapter),
+                        fn(reply) = Counter.Adapt(target = target, reply = reply))
 
 // A monitor of the process, and how its Down says it ended.
 fn watched(what : String, process : Process) : Unit with Msg = {

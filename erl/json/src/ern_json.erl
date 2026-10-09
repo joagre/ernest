@@ -18,15 +18,24 @@
 %% no decoder, are seen. It answers the text left after the value, which
 %% `json:decode/1` refuses as an invalid byte, its first. An object keeps a
 %% name's first member, the last in the list `maps:from_list/1` is given.
+%% An integer longer than the host holds, on which `binary_to_integer/1`
+%% raises `system_limit`, is an unexpected sequence, as a real larger than
+%% a `Float` is; and so is a high surrogate's escape that no low one's
+%% follows, which the host answers otherwise (lone_surrogate/2).
 -spec parse(binary()) -> {'Right', value()} | {'Left', error()}.
 parse(Text) ->
     try json:decode(Text, ok, decoders()) of
         {Term, ok, <<>>} -> {'Right', value(Term)};
         {_, ok, <<Byte, _/binary>>} -> {'Left', {'UnexpectedByte', Byte}}
     catch
-        error:unexpected_end -> {'Left', 'UnexpectedEnd'};
-        error:{invalid_byte, Byte} -> {'Left', {'UnexpectedByte', Byte}};
-        error:{unexpected_sequence, Bytes} -> {'Left', {'UnexpectedSequence', Bytes}}
+        throw:{too_long, Digits} ->
+            {'Left', {'UnexpectedSequence', Digits}};
+        error:unexpected_end ->
+            {'Left', lone_surrogate(Text, 'UnexpectedEnd')};
+        error:{invalid_byte, Byte}:Trace ->
+            {'Left', lone_surrogate(Text, {'UnexpectedByte', Byte}, position(Trace))};
+        error:{unexpected_sequence, Bytes} ->
+            {'Left', {'UnexpectedSequence', Bytes}}
     end.
 
 decoders() ->
@@ -34,9 +43,87 @@ decoders() ->
       array_finish => fun(Acc, OldAcc) -> {{'Array', lists:reverse(Acc)}, OldAcc} end,
       object_push => fun(Name, Member, Acc) -> [{Name, value(Member)} | Acc] end,
       object_finish => fun(Acc, OldAcc) -> {{'Object', maps:from_list(Acc)}, OldAcc} end,
-      integer => fun(Digits) -> {'Integer', binary_to_integer(Digits)} end,
+      integer => fun integer/1,
       float => fun(Digits) -> {'Real', binary_to_float(Digits)} end,
       null => 'Null'}.
+
+integer(Digits) ->
+    try {'Integer', binary_to_integer(Digits)}
+    catch error:system_limit -> throw({too_long, Digits})
+    end.
+
+%% The offset of the byte the host's decoder could not read, which its
+%% raise carries as the error's position.
+position([{_, _, _, Info} | _]) ->
+    maps:get(position, maps:get(cause, proplists:get_value(error_info, Info, #{}), #{}), none);
+position(_) ->
+    none.
+
+%% Appendix G.6: an escape of a high surrogate that no low one's follows
+%% writes no character, UnexpectedSequence of its six bytes, as the host
+%% answers a lone low surrogate. The host instead answers it as the text's
+%% end where fewer than an escape's bytes follow it, and as the byte after
+%% it where more do; so where the host answers either, the text is read for
+%% such an escape, string by string and an escape by its bytes, and the
+%% host's answer stands where there is none, or where the byte the host
+%% names is not the one after it.
+lone_surrogate(Text, Found) ->
+    case lone_escape(Text, 0) of
+        {Escape, _After} -> {'UnexpectedSequence', Escape};
+        none -> Found
+    end.
+
+lone_surrogate(Text, Found, Position) ->
+    case lone_escape(Text, 0) of
+        {Escape, Position} -> {'UnexpectedSequence', Escape};
+        _ -> Found
+    end.
+
+%% The first lone high surrogate's escape outside, and the offset of the
+%% byte after it, or none.
+lone_escape(<<$", Rest/binary>>, Offset) -> in_string(Rest, Offset + 1);
+lone_escape(<<_, Rest/binary>>, Offset) -> lone_escape(Rest, Offset + 1);
+lone_escape(<<>>, _) -> none.
+
+in_string(<<$", Rest/binary>>, Offset) ->
+    lone_escape(Rest, Offset + 1);
+in_string(<<"\\u", Hex:4/binary, Rest/binary>>, Offset) ->
+    case {surrogate(Hex), Rest} of
+        {high, <<"\\u", Low:4/binary, After/binary>>} ->
+            case surrogate(Low) of
+                low -> in_string(After, Offset + 12);
+                _ -> in_string(Rest, Offset + 6)
+            end;
+        {high, _} ->
+            case is_escape_begun(Rest) of
+                true -> none;
+                false -> {<<"\\u", Hex/binary>>, Offset + 6}
+            end;
+        _ ->
+            in_string(Rest, Offset + 6)
+    end;
+in_string(<<$\\, _, Rest/binary>>, Offset) ->
+    in_string(Rest, Offset + 2);
+in_string(<<_, Rest/binary>>, Offset) ->
+    in_string(Rest, Offset + 1);
+in_string(<<>>, _) ->
+    none.
+
+%% Whether the text ends inside an escape a low surrogate's could be.
+is_escape_begun(<<>>) -> true;
+is_escape_begun(<<"\\">>) -> true;
+is_escape_begun(<<"\\u", Part/binary>>) -> byte_size(Part) < 4;
+is_escape_begun(_) -> false.
+
+%% Four hexadecimal digits as a high or a low surrogate, or neither.
+surrogate(Hex) ->
+    try binary_to_integer(Hex, 16) of
+        Unit when Unit >= 16#D800, Unit =< 16#DBFF -> high;
+        Unit when Unit >= 16#DC00, Unit =< 16#DFFF -> low;
+        _ -> neither
+    catch
+        error:badarg -> neither
+    end.
 
 %% A string and a boolean as `Json.Value`'s; every other value a decoder
 %% built already is one.

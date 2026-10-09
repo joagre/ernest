@@ -1487,14 +1487,19 @@ check_group(Group, Env) ->
                                    end, Env3, TypedAndPost),
     %% report §3.11: a spawn on a peer, read once the whole definition is
     %% inferred, since a local fn's end leaves the types of what its lambdas
-    %% capture from around it to the definition that encloses it
-    lists:foreach(fun(Declaration) -> ern_bound:check(Declaration, Env4) end, Typed),
-    Env5 = Env4#env{type_state = ern_types:leave(Env4#env.type_state),
+    %% capture from around it to the definition that encloses it; a spawned
+    %% process's mailbox type that is a variable none of the group's types
+    %% holds is Never
+    Held = lists:append([ern_types:free_variables(Variable, Env4#env.type_state)
+                         || {_, Variable} <- Placeholders]),
+    Env5 = lists:foldl(fun(Declaration, Acc) -> ern_bound:check(Declaration, Held, Acc) end,
+                       Env4, Typed),
+    Env6 = Env5#env{type_state = ern_types:leave(Env5#env.type_state),
                     inferring = Env#env.inferring},
     %% generalize and publish; the typed AST is substituted so consumers read
     %% resolved types off the nodes
     Publish = fun(Declaration, Acc) -> publish(Declaration, Placeholder(Declaration), Acc) end,
-    lists:mapfoldl(Publish, Env5, Typed).
+    lists:mapfoldl(Publish, Env6, Typed).
 
 %% A member's placeholder among the globals, its definition under inference.
 declare_placeholder({{MemberOf, Name}, Variable}, Env) ->

@@ -7,18 +7,10 @@
 /// The shell's `:doc` shows documentation with `render`, and `ern doc` writes
 /// manual pages with `roff`.
 ///
-/// A program that uses the library puts it on its load path, both when it is
-/// compiled and when it is run: `--load-path` with the directory of the
-/// compiled library, `lib/ernest/build/libs/markdown` under the prefix Ernest
-/// is installed in. It styles text with `libs/ansi`, which a run needs on the
-/// load path beside it (report Appendix G.2). Under `/usr/local`, where Ernest
-/// is installed by default:
-///
-/// ```sh
-/// ern build --load-path /usr/local/lib/ernest/build/libs/markdown main.ern
-/// ern run --load-path /usr/local/lib/ernest/build/libs/markdown \
-///     --load-path /usr/local/lib/ernest/build/libs/ansi main.erc
-/// ```
+/// A program puts the library on its load path when it is compiled and
+/// when it is run; report Appendix G says where an installation keeps it.
+/// It styles text with `libs/ansi`, which a run needs on the load path
+/// beside it (report Appendix G.2).
 ///
 /// **What it reads.** `parse` reads headings, paragraphs, code blocks, block
 /// quotes, lists and thematic breaks, and inside them code spans, emphasis,
