@@ -1,16 +1,16 @@
 # Ernest: MVP 3.2, Code with a Spawn
 
-Status: the proposal for MVP 3.2, split on 2026-10-09 from [`mvp3.1.md`](mvp3.1.md), on which it stands: MVP 3.1 gives every definition its hash, and this lets the code cross with a spawn to a peer that lacks it. It is read through before a line of it reaches the plan, the log or the report, and changes only by a question raised against it. What was tried and set aside is [`code.md`](code.md)'s section 8. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s sections 13, 15 and 17; what other systems do is [`other_systems.md`](other_systems.md), sections 6 and 7.
+Status: the proposal for MVP 3.2, under discussion. It was split on 2026-10-09 from [`mvp3.1.md`](mvp3.1.md), on which it stands: MVP 3.1 gives every definition its hash, and this lets the code cross with a spawn to a peer that lacks it. Nothing of it reaches the plan, the log or the report before the read-through ends, and it changes only by a question raised against it. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s; what was set aside is code.md's section 8; what other systems do, the README names.
 
 ## 1. What it is
 
 MVP 3.2 lets a spawn carry its code to a peer that lacks it.
 
-A process on one node spawns a process on a peer. The function may be one the peer does not have: one typed at the shell, or one of a program the peer was never given. The code crosses with the spawn, named by its hash, verified on arrival, and compiled on the peer. A node that runs no program, the bare node, runs whatever its peers spawn on it. Nothing of MVP 3.1 changes.
+A process on one node spawns a process on a peer. The function may be one the peer does not have: one typed at the shell, or one of a program the peer was never given. The spawn frame carries the function's hash and its captured values, as in MVP 3.1. A peer that has the hash starts the process. A peer that lacks it asks for the function's closure, every definition the function reaches: the sender lists their hashes, the peer names the ones it lacks, and the sender ships those, each as its canonical form, the compiler's typed tree, never compiled code. The peer verifies each against its hash, compiles them all with its own back end, loads them at once, and then starts the process. Nothing is loaded lazily: a process starts only once its whole closure is on the node. The next spawn of the same function ships nothing. A node that runs no program, the bare node, runs whatever its peers spawn on it. Nothing of MVP 3.1 changes.
 
 Three things bound it.
 
-- **Code crosses with a spawn, and nowhere else.** A find ships nothing. A message ships nothing. The shell's load is the session's.
+- **Code crosses with a spawn, and nowhere else.** Only what the peer lacks crosses. A find ships nothing. A message ships nothing. The shell's load is the session's.
 - **A peer runs what it is sent, trusted as the peer is.** A peer that may spawn on a node may run anything on it.
 - **The memory of code is what runs.** A unit no process runs is let go when the node nears a limit, and comes again when asked.
 
@@ -18,7 +18,7 @@ Three things bound it.
 
 ## 2. What a program sees
 
-**The operations** are MVP 3.1's, with one difference: a spawn on a peer carries its code where the peer lacks it. `NotLoaded` then means a binding's value the peer did not run, or the module a foreign declaration names, and never a function. `Refused` means that the peer could not load what was sent, and its text says why. A connection the handshake refused is `Unreachable`, as in MVP 3.0.
+**The operations** are MVP 3.1's, with one difference: a spawn on a peer whose function the peer lacks ships the definitions of the function's closure that the peer lacks, as canonical forms, and the peer compiles and loads them before the process starts. `NotLoaded` then means a binding's value the peer did not run, or the module a foreign declaration names, and never a function. `Refused` means that the peer could not load what was sent, and its text says why. A connection the handshake refused is `Unreachable`, as in MVP 3.0.
 
 **What is new.**
 
@@ -32,7 +32,7 @@ Code.hashes : (Path) -> Either(Io.Error, List(#(String, Code.Hash))) with m+
 Code.running : ((s) -> Unit with m) -> List(Address(m)) with n
 ```
 
-**What may cross** is MVP 3.1's rule, with one addition: the function a spawn starts crosses with its code, where the peer lacks it.
+**What may cross** is MVP 3.1's rule, with one addition: the definitions of a spawned function's closure that the peer lacks cross, as canonical forms.
 
 **Captures and references** are MVP 3.1's. On a bare node every binding of the program's is one the peer did not run, so a function spawned there names the standard library's bindings and carries the rest as captured locals.
 
