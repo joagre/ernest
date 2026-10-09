@@ -55,7 +55,7 @@ The counter of [`mvp3.0.md`](mvp3.0.md)'s section 3 runs on the store, and the d
 type Msg =
     Add(Int)
   | Get(reply : Reply(Int))
-  | Terminating(reply : Reply(Unit))
+  | Terminating(Reply(Unit))
 
 let total : Path = Path("total.json")
 
@@ -75,7 +75,7 @@ fn count(n : Int) : Unit with Msg =
             answer(reply, n);
             count(n)
         }
-      | Terminating(reply = reply) -> {
+      | Terminating(reply) -> {
             let _ = Fs.write(total, String.toUtf8(Json.format(Json.Integer(n))), 5000);
             answer(reply, Unit)
         }

@@ -13,7 +13,7 @@
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2,
-         reload/1, version/0, write/1, screen/1, to_screen/1,
+         reload/1, version/0, write/1, screen/1, to_screen/1, flush_screen/0,
          leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -2859,6 +2859,24 @@ to_screen(Bytes) ->
     case persistent_term:get({?MODULE, screen}, undefined) of
         undefined -> file:write(standard_io, Bytes);
         Address -> ern_rt:send(Address, shown(Bytes))
+    end.
+
+%% Report §8.6, §11.2: what the screen has been sent, written before the
+%% program ends, since a program the session ran may write while the end
+%% waits for its subscribers, after the session has ended; the screen
+%% answers Flush once it has written what came before it. A screen that has
+%% ended has nothing left to write.
+-spec flush_screen() -> ok.
+flush_screen() ->
+    case persistent_term:get({?MODULE, screen}, undefined) of
+        undefined ->
+            ok;
+        Screen ->
+            try ern_rt:call_forever(Screen, fun(Reply) -> {'Flush', Reply} end) of
+                _ -> ok
+            catch
+                throw:{ern, fault, _} -> ok
+            end
     end.
 
 %% Report §11.2: the text the screen shows of what a program wrote, with

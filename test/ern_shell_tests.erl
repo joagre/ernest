@@ -3205,6 +3205,28 @@ node_takes_its_build_unit() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from greet.ern\n"
                                                 "> \"hi\" : String\n> false : Bool\n">>)).
 
+%% report §8.6, §11.2, Appendix E.23: in the shell a program is told of its
+%% end as one `ern run` runs is: a subscriber an input spawned is told when
+%% the session ends, and what it prints and the end's lines are shown
+%% before `ern` ends. Written after the code (MVP 3.1's item 6)
+shell_told_of_the_end_test_() ->
+    {timeout, 60, fun shell_told_of_the_end/0}.
+
+shell_told_of_the_end() ->
+    InputFile = scratch_file("ern_told_"),
+    ok = file:write_file(InputFile,
+                         ["type Msg = Terminating(Reply(Unit))\n",
+                          "fn keeper() : Unit with Msg = { Os.terminating(Terminating); receive {",
+                          " Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }",
+                          " } }\n",
+                          "spawn(keeper)\n:quit\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    %% what the subscriber prints and what the runtime says come by two
+    %% streams, which nothing orders one against the other (§11.2)
+    ?assertMatch({_, _}, binary:match(Output, <<"told\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber input 3:1 answered\n">>)).
+
 demo(Value) ->
     ["export fn answer() : Int = ", integer_to_list(Value), "\n\n",
      "export fn tick() : Unit with Unit = {\n",

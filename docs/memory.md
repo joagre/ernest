@@ -24,7 +24,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 - `code`, the loaded code's;
 - `reaper`, the memory the runtime's reaper holds, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves words in its heap that the next collection frees, and read until two readings in a row agree, since the reaper wakes to look for a deadlock (§8.6), once a second while a load samples, and a look that falls between a collection and its reading leaves words that count as held;
 - `atoms`, `procs` and `ports`, the node's counts;
-- `rows`, the rows of the runtime's thirteen tables, `ern_processes`, `ern_calls`, `ern_callees`, `ern_faults`, `ern_held`, `ern_deliveries`, `ern_restarts`, `ern_proxies`, `ern_launch`, `ern_offers`, `ern_offered`, `ern_initialized` and `ern_notes`, and of the code table, `ern_code`;
+- `rows`, the rows of the runtime's fourteen tables, `ern_processes`, `ern_calls`, `ern_callees`, `ern_faults`, `ern_terminating`, `ern_held`, `ern_deliveries`, `ern_restarts`, `ern_proxies`, `ern_launch`, `ern_offers`, `ern_offered`, `ern_initialized` and `ern_notes`, and of the code table, `ern_code`;
 - `terms`, the persistent terms.
 
 The first six rounds are the warm-up, in which heaps, caches and windows settle, the supervisors' restart window of one second among them. From the seventh on:

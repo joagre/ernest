@@ -28,26 +28,28 @@
 %% no timed receive or clock alarm pending, no process inside foreign code,
 %% and no source held that can still deliver.
 %%
-%% Thirteen tables hold a launch's state, each described where it is
+%% Fourteen tables hold a launch's state, each described where it is
 %% defined. `ern_processes` has a row {Pid, Site, Timers, Foreign,
 %% SpawnOrder} per process the runtime started or adopted, where Timers
 %% counts the timed receives the process is in, Foreign its foreign calls,
 %% and SpawnOrder its place in the order of spawns. `ern_calls` and
 %% `ern_callees` hold the pending calls, `ern_faults` the subscriptions to
-%% faults, `ern_held` the sources and the processes the system modules
-%% opened, `ern_deliveries` the deliveries in flight, `ern_restarts` the
-%% restarts a process may be asked, `ern_proxies` the checking proxies of
-%% §8.4, and `ern_launch` the way the terminal is read and the process a
-%% deadlock faults. A node's (§8.7): `ern_offers` and `ern_offered` hold
-%% the offers, `ern_initialized` the modules whose initializers have run,
-%% whose bindings a peer's spawn asks for, and `ern_notes` the notes of
-%% calls from other nodes.
+%% faults, `ern_terminating` the subscriptions to the program's end,
+%% `ern_held` the sources and the processes the system modules opened,
+%% `ern_deliveries` the deliveries in flight, `ern_restarts` the restarts a
+%% process may be asked, `ern_proxies` the checking proxies of §8.4, and
+%% `ern_launch` the way the terminal is read, the process a deadlock faults
+%% and whether the end waits for its subscribers. A node's (§8.7):
+%% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
+%% modules whose initializers have run, whose bindings a peer's spawn asks
+%% for, and `ern_notes` the notes of calls from other nodes.
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
          self/0, via/2, call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2,
-         monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3,
-         proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1,
+         monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, terminating/1,
+         proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/2,
+         forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
@@ -68,7 +70,7 @@
 %% multiple of the call (CLAUDE.md's cost rule).
 -waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, processes/0,
                    spawn_order/1, start_cause/0, faults/1, info/1, ask_restart/1,
-                   on_this_node/1]).
+                   on_this_node/1, terminating/1]).
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
@@ -86,6 +88,9 @@
 %% of its own, so that a fault reads the subscriptions and not every
 %% process's row
 -define(FAULTS, ern_faults).
+%% Appendix E.23: each subscription to the program's end, {Subscriber,
+%% Address}, by the subscriber, the latest of each, which the end reads
+-define(TERMINATING, ern_terminating).
 %% report §8.6: what a system process, a listener, a socket or a running
 %% program holds that can still deliver, {{source, Holder}, Count}, and the
 %% processes the system modules opened, {{opened, Pid}}: few rows, so that
@@ -101,8 +106,10 @@
 %% report §8.4: each checking proxy, {{proxy, Key}, Proxy}, and what it
 %% stands in front of, {{behind, Proxy}, Pid, Address, Key}
 -define(PROXIES, ern_proxies).
-%% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, and
-%% the process a deadlock faults, {deadlock_victim, Pid}
+%% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, the
+%% process a deadlock faults, {deadlock_victim, Pid}, and while the end
+%% waits for its subscribers, the runner that waits, {ending, Runner,
+%% Launch}
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
 %% the key's name and its type's hash, ordered so that one name's are read
@@ -711,10 +718,12 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
 %% reason ProgramEnd as every live process does, its fault not reported. A
 %% fault the entry's end causes comes after that end, so the entry found
 %% dead here is the program's end, whatever order the two signals came in.
-%% The entry process's own end is its own.
+%% The entry process's own end is its own, and so is a subscriber's while
+%% the end waits for it.
 ended_with_program(Pid, ExitReason) ->
+    IsWaitedFor = ets:member(?LAUNCH, ending) andalso ets:member(?TERMINATING, Pid),
     case {reason(ExitReason), ets:lookup(?LAUNCH, entry_process)} of
-        {{'Fault', _}, [{_, Entry}]} when Entry =/= Pid ->
+        {{'Fault', _}, [{_, Entry}]} when Entry =/= Pid, not IsWaitedFor ->
             case erlang:is_process_alive(Entry) of
                 true -> ExitReason;
                 false -> {ern, program_end}
@@ -895,6 +904,20 @@ faults(Address) ->
     try ets:insert(?FAULTS, {process_of(Address), Address}) catch _:_ -> true end,
     ?UNIT.
 
+%% Appendix E.23, report §8.6: Os.terminating, the caller subscribed to the
+%% program's end, Address being the caller seen through its wrap. A process
+%% holds one subscription, the latest, which ends when it dies (the
+%% reaper's DOWN). One made while the end waits is told at once: the runner
+%% that waits is told of it, and tells it.
+-spec terminating(address()) -> 'Unit'.
+terminating(Address) ->
+    try ets:insert(?TERMINATING, {process_of(Address), Address}) catch _:_ -> true end,
+    case ets_lookup(?LAUNCH, ending) of
+        [{ending, Runner, Launch}] -> Runner ! {subscribed, Launch};
+        [] -> ok
+    end,
+    ?UNIT.
+
 %% Report §11.2, Appendix E.21: a fault, which each subscriber is sent as a
 %% FaultReport, each delivery a process of its own as a monitor's is, and
 %% which `ern run`'s reporter, the runtime's own subscriber, is given as it
@@ -924,9 +947,10 @@ live_rows() ->
     ets:tab2list(?PROCESSES).
 
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
-%% subscription to faults it held ends with it.
+%% subscription to faults or to the program's end it held ends with it.
 died(Pid, Site, ExitReason) ->
     ets:delete(?FAULTS, Pid),
+    ets:delete(?TERMINATING, Pid),
     ets:delete(?RESTARTS, Pid),
     case reason(ExitReason) of
         {'Fault', _} -> report(Pid, Site, ExitReason, false);
@@ -954,16 +978,16 @@ died(Pid, Site, ExitReason) ->
 %% mailbox is what is read of it. §8.6 leaves a foreign process that can
 %% deliver to the runtime. Report §11.2: nothing is a deadlock while a
 %% shell holds the terminal; and report §8.6, nothing on a node, which can
-%% be reached from outside.
+%% be reached from outside, nor while the end waits for its subscribers.
 %%
 %% What the look finds: `delivering`, where something can still deliver, a
-%% shell holds the terminal, or the program is a node, so that no deadlock
-%% can begin before that ends; `running`, where nothing can and a process
+%% shell holds the terminal, the program is a node, or the end waits, so
+%% that no deadlock can begin before that ends; `running`, where nothing can and a process
 %% is not waiting, or none is left; `deadlock`, where nothing can and every
 %% process waits.
 look() ->
     case terminal_holder() =:= undefined andalso not persistent_term:get({?MODULE, node}, false)
-         andalso nothing_delivers() of
+         andalso not ets:member(?LAUNCH, ending) andalso nothing_delivers() of
         false ->
             delivering;
         true ->
@@ -1733,7 +1757,10 @@ run_main(EntryPoint, Site, Options) ->
     Encodings = bytes_out(),
     System = started_system(Options),
     Ended = try
-                {ended, entry_outcome(EntryPoint, Site, Options, Launch)}
+                Told = told(entry_outcome(EntryPoint, Site, Options, Launch), Launch,
+                            maps:get(say, Options, fun said/1)),
+                passed_on(System, Options),
+                {ended, Told}
             catch
                 Class:Error:Stack -> {raised, Class, Error, Stack}
             end,
@@ -1743,6 +1770,125 @@ run_main(EntryPoint, Site, Options) ->
         persistent_term:erase({?MODULE, reporter}),
         restore_encodings(Encodings)
     end.
+
+%% Report §8.6: before the program ends, each subscriber of Os.terminating
+%% is told (Appendix E.23), and the end waits until each has answered,
+%% ended or restarted, nothing of the runtime's own timing the wait. While
+%% it waits, what began the end stands, but for an Os.exit, which ends the
+%% program at once with its status, and a second termination, which ends
+%% it at once; a deadlock is not looked for (look/0). A subscription made
+%% while it waits is told at once (terminating/1). Report §11.2: the wait
+%% is said, once with how many it waits for, and each subscriber as it
+%% answers, ends or restarts, by Say, the runner's own line on standard
+%% error. The outcome the program ends with.
+told(Outcome, Launch, Say) ->
+    true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
+    Waited = case untold(#{}) of
+                 [] ->
+                     Outcome;
+                 Untold ->
+                     Count = length(Untold),
+                     Say(["the end waits for ", integer_to_list(Count),
+                          case Count of 1 -> " subscriber"; _ -> " subscribers" end]),
+                     Told = tell_all(Launch, Untold, #{}),
+                     waited(Outcome, Launch, Say, Told, terminations(Outcome))
+             end,
+    ets:delete(?LAUNCH, ending),
+    Waited.
+
+%% The terminations the program has had: one where one began the end.
+terminations({signal, _}) -> 1;
+terminations(_) -> 0.
+
+%% The end's wait, Told holding each subscriber told, waiting with its
+%% teller and its spawn site, or done. Where none waits, a subscription
+%% whose word is still on its way to the runner is told too, and the wait
+%% is over once there is none.
+waited(Outcome, Launch, Say, Told, Terminations) ->
+    case [Subscriber || Subscriber := {waiting, _, _} <- Told] of
+        [] ->
+            case untold(Told) of
+                [] -> Outcome;
+                Untold -> waited(Outcome, Launch, Say, tell_all(Launch, Untold, Told), Terminations)
+            end;
+        _ ->
+            receive
+                {said, Launch, Subscriber, How} ->
+                    {waiting, _, Site} = maps:get(Subscriber, Told),
+                    Say(["the subscriber ", Site, " ", How]),
+                    waited(Outcome, Launch, Say, Told#{Subscriber := done}, Terminations);
+                {subscribed, Launch} ->
+                    waited(Outcome, Launch, Say, tell_all(Launch, untold(Told), Told),
+                           Terminations);
+                {exit, Launch, Status} ->
+                    cut_short(Told),
+                    {exit, Status};
+                {signal, Launch, _} when Terminations >= 1 ->
+                    cut_short(Told),
+                    Outcome;
+                {signal, Launch, _} ->
+                    waited(Outcome, Launch, Say, Told, Terminations + 1)
+            end
+    end.
+
+%% The subscribers not told yet: each live process the runtime started
+%% whose subscription stands, with its address and its spawn site.
+untold(Told) ->
+    [{Subscriber, Address, Site}
+     || {Subscriber, Address} <- ets:tab2list(?TERMINATING), not is_map_key(Subscriber, Told),
+        [{_, Site, _, _, _}] <- [ets_lookup(?PROCESSES, Subscriber)]].
+
+%% Each of them told, by a teller of its own.
+tell_all(Launch, Untold, Told) ->
+    Runner = erlang:self(),
+    lists:foldl(fun({Subscriber, Address, Site}, Acc) ->
+                    Teller = erlang:spawn_link(fun() ->
+                                                   tell(Runner, Launch, Subscriber, Address)
+                                               end),
+                    Acc#{Subscriber => {waiting, Teller, Site}}
+                end, Told, Untold).
+
+%% Report §8.6: a subscriber told, `wrap(reply)` delivered to it by a
+%% process of its own, as a monitor's Down is, a fault in the wrap the
+%% subscriber's (§6.5); the answer waited for as a caller waits for its
+%% callee's, which the subscriber's end or its restart ends (§6.6, §6.9).
+tell(Runner, Launch, Subscriber, Address) ->
+    Reply = pending(Address),
+    deliver(Address, Reply),
+    How = receive
+              {Reply, answered, _} -> <<"answered">>;
+              {Reply, _} -> <<"answered">>;
+              {Reply, restarted, _} -> <<"restarted without answering">>;
+              {'DOWN', Reply, process, _, _} -> <<"ended without answering">>
+          end,
+    settled(Reply),
+    Runner ! {said, Launch, Subscriber, How}.
+
+%% The tellers still waiting, ended, where an Os.exit or a second
+%% termination cuts the wait short.
+cut_short(Told) ->
+    lists:foreach(fun(Teller) ->
+                      erlang:unlink(Teller),
+                      exit(Teller, kill)
+                  end, [Teller || _ := {waiting, Teller, _} <- Told]).
+
+%% Report §8.6, §11.2: where the sinks pass what they are given to a
+%% process of the program's, as the shell's pass it to its screen, what
+%% the program wrote while the end waited is written before the end ends
+%% that process: standard output and standard error first take what was
+%% sent them, and then the runner's `flush` writes what they passed on.
+passed_on(System, #{flush := Flush}) ->
+    lists:foreach(fun(Name) -> sink_flushed(proplists:get_value(Name, System)) end,
+                  [stdout, stderr]),
+    Flush();
+passed_on(_System, _Options) ->
+    ok.
+
+%% Report §11.2: a line on standard error, where the runner was given no
+%% function of its own to say it with.
+said(Text) ->
+    system_process(stderr) ! iolist_to_binary([Text, "\n"]),
+    ok.
 
 %% Report §8.6: a stream that could not be written as the program's output
 %% was flushed is what ended the program, in place of what ended it.
@@ -1754,8 +1900,8 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 %% describes and `make load` counts the rows of (docs/memory.md).
 -spec tables() -> [atom()].
 tables() ->
-    [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?HELD, ?DELIVERIES, ?RESTARTS, ?PROXIES, ?LAUNCH,
-     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
+    [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?RESTARTS,
+     ?PROXIES, ?LAUNCH, ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public, table_kind(Table)]) end,
@@ -2479,7 +2625,9 @@ flush_launch(Launch) ->
         {fault, Launch, _} -> flush_launch(Launch);
         {exit, Launch, _} -> flush_launch(Launch);
         {gone, Launch, _} -> flush_launch(Launch);
-        {signal, Launch, _} -> flush_launch(Launch)
+        {signal, Launch, _} -> flush_launch(Launch);
+        {subscribed, Launch} -> flush_launch(Launch);
+        {said, Launch, _, _} -> flush_launch(Launch)
     after 0 ->
         ok
     end.

@@ -2,9 +2,10 @@
 /// other programs run from it.
 ///
 /// Use `arguments`, `environment` and `workingDirectory` to read what the
-/// program was started with, and `exit` to end it with a status. Use `run` to
-/// run another program to its end and read all it wrote, and `start` with
-/// `read` and `write` to talk to one while it runs.
+/// program was started with, `exit` to end it with a status, and `terminating`
+/// to be told before it ends. Use `run` to run another program to its end and
+/// read all it wrote, and `start` with `read` and `write` to talk to one while
+/// it runs.
 ///
 /// **No shell.** A program is found as the host finds a command: a name without
 /// `/` is looked for in the directories of `PATH`. Each argument reaches it as
@@ -216,6 +217,42 @@ foreign fn hostDirectory() : String with m =
 /// ```
 export foreign fn exit(status : Int) : a with m =
     "ern_rt:exit_program/1"
+
+/// Tells the calling process of the program's end before it comes: at the end,
+/// `wrap(reply)` is put in its mailbox, and the program ends once the process
+/// has answered `reply`, or has ended. The end comes when the entry process
+/// ends, at `Os.exit`, or at a termination from outside, which the machine's
+/// service manager, `ern stop` and `kill -TERM` send (report §8.6).
+///
+/// The process writes there what it is to keep, with `Fs`, in the form it
+/// chooses, and reads it at its next start; the runtime keeps nothing. Every
+/// other process runs while the end waits, and nothing times the wait: a
+/// process that never answers holds the program until a second termination or
+/// the interrupt, which end it at once. The runtime says on standard error that
+/// the end waits, and for whom.
+///
+/// A process holds one subscription: a second call replaces the first, and its
+/// `wrap` is used from then on. A subscription ends with its process. One made
+/// while the end waits is told at once. In the shell and under `ern test`, a
+/// process is told the same way.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     Os.terminating(fn(reply) = reply);
+///     receive {
+///         reply -> answer(reply, Unit)
+///     }
+/// }
+/// ```
+///
+/// since 0.4.0
+export fn terminating(wrap : (Reply(Unit)) -> m) : Unit with m =
+    subscribe(via(self(), wrap))
+
+foreign fn subscribe(address : Address(Reply(Unit))) : Unit with m =
+    "ern_rt:terminating/1"
 
 /// Starts the program and answers its address, or `Left` with why it could not
 /// start.

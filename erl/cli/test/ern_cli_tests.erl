@@ -1157,6 +1157,32 @@ test_runner_unicode_test() ->
     Output = unicode:characters_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Output, <<"dash: failed: a — b\n"/utf8>>)).
 
+%% report §8.6, §11.2, Appendix E.23: under `ern test` a program is told of
+%% its end as one `ern run` runs is: a subscriber a test spawned is told
+%% once the tests have run, and the run ends once it has answered. Written
+%% after the code (MVP 3.1's item 6)
+test_told_of_the_end_test() ->
+    Dir = tmp(),
+    File = write(Dir, "told.ern",
+                 "type Msg = Terminating(Reply(Unit))\n"
+                 "fn keeper() : Unit with Msg = {\n"
+                 "    Os.terminating(Terminating);\n"
+                 "    receive {\n"
+                 "        Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }\n"
+                 "    }\n"
+                 "}\n"
+                 "let started = Test.Case(name = \"started\", run = fn() = {\n"
+                 "    let _ = spawn(keeper);\n"
+                 "    Test.Passed\n"
+                 "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    %% standard error is the test's too, where the end's lines go
+    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "told.erc")], group_leader())),
+    Output = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Output, Line))
+     || Line <- [<<"started: passed\n">>, <<"told\n">>, <<"the end waits for 1 subscriber\n">>,
+                 <<"the subscriber Told.started:9 answered\n">>]].
+
 %% report Appendix E.24, §11.2: a test runs in a process whose mailbox type
 %% is its own, so one may receive what a process it spawned sends it.
 %% Written after the code

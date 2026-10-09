@@ -20,7 +20,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is under way, items 1 to 5 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
+of 2026-10-09*). MVP 3.1 is under way, items 1 to 6 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
 the tour and the review; the back end, ehttpd, the website and the shell's second round follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ends with a read of what it built, its item
 9, and MVP 3.2 with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
@@ -237,7 +237,12 @@ and 8 below.
    meanwhile, and a peer finding, calling and sending to the node; a subscription made during the
    end told at once; a subscriber that faults while it writes reported; the interrupt and a
    second termination ending at once; a program that is no node, a test under `ern test` and the
-   shell told the same way; no bound of the runtime's own on the wait.
+   shell told the same way; no bound of the runtime's own on the wait. Done 2026-10-10 (the log's
+   *Termination Told, Built*): `Os.terminating` over a table of the runtime's, each subscriber
+   told by a process that waits on its reply as a call waits on its callee; the runner's wait
+   between the first end and the end, which an `Os.exit` or a second termination cuts short;
+   the lines on standard error; §8.6, §11.2 and E.23 made precise first, a subscriber's restart
+   no answer and a hangup a termination where the program is no node.
 7. **`Standing`, and the refusal.** The library under `libs/`: `Standing.start(key, ms)`, a
    process with the mailbox `Message(m) | Went(Down)` and the caller given `via` of it with
    `Message`, finding the key within `ms`, holding the address, monitoring the service and
@@ -276,7 +281,9 @@ and 8 below.
    section 5, so that a departure from what the proposal promised is a finding. Its lines go to
    `docs/findings.md`, each decided with the user, a design question one at a time, its verdict
    carried into the report, the plan or the log. MVP 3.1 is done when every line is done,
-   dropped or planned. The readers, each with what it reads and what it asks:
+   dropped or planned. Decided with it, a named decision of this item: whether the end's lines
+   on standard error are a node's alone, as the proposal had them (`language_feedback.md`'s
+   entry 100). The readers, each with what it reads and what it asks:
    - **H, the canonical form.** Appendix H, `ern_canonical`, §11.1's recompile rule and their
      tests: where one definition gets two hashes or two definitions get one. What runs before
      hashing, elaboration, supplies, `derives`, an abstract type's representation and the

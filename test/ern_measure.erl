@@ -725,7 +725,10 @@ os_scenarios(Bytes) ->
        HostRun("true")}},
      {<<"Os.give">>, {fun() -> Os:give(Echo, 'ern@process':fromAddress(ern_rt:self())) end,
                       fun() -> erlang:port_connect(HostEcho, erlang:self()) end}},
-     {<<"Os.exit">>, {not_measured, <<"ends the program, or faults the caller">>}}].
+     {<<"Os.exit">>, {not_measured, <<"ends the program, or faults the caller">>}},
+     %% a row of the runtime's, as Process.faults's is, which the host has
+     %% no counterpart of
+     {<<"Os.terminating">>, {fun() -> Os:terminating(fun(Reply) -> Reply end) end, none}}].
 
 %% Reads what a program or a socket gives back until Size bytes are in.
 echoed(Read, Size) ->

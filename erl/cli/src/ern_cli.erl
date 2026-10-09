@@ -835,7 +835,8 @@ shell(Options, Rest, ErrorDevice) ->
                       fun(Node) ->
                           ern_rt:run_main(fun() -> ErlangModule:main() end, <<"Shell.main">>,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
-                                                exit => fault})
+                                                exit => fault,
+                                                flush => fun ern_shell:flush_screen/0})
                       end),
     report_shell_outcome(ErrorDevice, Outcome).
 
@@ -914,14 +915,15 @@ stamp(false) ->
 %% The options of a launch that reports its faults. From the command line the
 %% program writes to the process's own standard output and standard error,
 %% through ports that learn when a stream has gone (report §8.2), and a
-%% fault line carries its time where standard error is neither a terminal
-%% nor a journal (§11.2); in a test, standard error is the test's device.
+%% fault line, and the runtime's line of the end's wait (§8.6), carries
+%% its time where standard error is neither a terminal nor a journal
+%% (§11.2); in a test, standard error is the test's device.
 reporting_options(RunOptions, ErrorDevice) ->
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
             Stamped = is_stamped(),
             RunOptions#{faults => fun(FaultReport) -> report_fault(FaultReport, Stamped) end,
-                        stdout => {fd, 1}, stderr => {fd, 2}};
+                        say => fun ern_carrier:say/1, stdout => {fd, 1}, stderr => {fd, 2}};
         device ->
             RunOptions#{faults => fun(FaultReport) -> report_fault(FaultReport, false) end,
                         stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
