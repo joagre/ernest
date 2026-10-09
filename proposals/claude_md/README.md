@@ -1,6 +1,6 @@
 # CLAUDE.md consolidated
 
-Status: a proposal, written on 2026-10-09, for a consolidated `CLAUDE.md`, every rule kept. [`CLAUDE.md`](CLAUDE.md) here is the draft as it would stand at the repository's root; this note says what moved where. Nothing of it is in force until the user copies it over the root's file.
+Status: built, on 2026-10-09, and kept as the record: the consolidated `CLAUDE.md`, every rule kept, written on 2026-10-09 and copied over the root's file the same day. [`CLAUDE.md`](CLAUDE.md) here is the draft as it was copied; this note says what moved where.
 
 ## What changed in form, and nothing in substance
 
