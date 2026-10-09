@@ -1,12 +1,16 @@
 # Ernest: MVP 3.1, Code by Its Hash
 
-Status: the proposal for MVP 3.1, written on 2026-10-08 by MVP 3.0's item 12 from two proposals set aside the same day, [`set_aside/builds_side_by_side.md`](set_aside/builds_side_by_side.md) and [`set_aside/ordered_rolling_restart.md`](set_aside/ordered_rolling_restart.md), rewritten on its read-through with the user, and split on 2026-10-09 into this, identity, and [`mvp3.2.md`](mvp3.2.md), code that crosses with a spawn, which builds on it. It is read through before a line of it reaches the plan, the log or the report, and changes only by a question raised against it. What was tried and set aside is [`code.md`](code.md)'s section 8. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s sections 4, 6, 14 and 15; what other systems do is [`other_systems.md`](other_systems.md), sections 6 and 7; what six programs showed of a change of code in place is [`experiments/code_update/`](experiments/code_update/README.md).
+Status: the proposal for MVP 3.1, under discussion. It was written on 2026-10-08 by MVP 3.0's item 12, from the two proposals under [`set_aside/`](set_aside/), and split on 2026-10-09 from [`mvp3.2.md`](mvp3.2.md), which builds on it. Nothing of it reaches the plan, the log or the report before the read-through ends, and it changes only by a question raised against it. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s; what was set aside is code.md's section 8; what other systems do and what the experiments showed, the README names.
 
 ## 1. What it is
 
-MVP 3.1 gives every definition an identity, its hash, and tells a program of its termination before the end.
+MVP 3.1 does two things. It gives every definition a hash, which names it on every node. And it tells a program that it is about to end.
 
-With the hash, nodes of different builds connect. A key says by hash which type it is at, and a spawn says by hash which function it starts, so a peer answers exactly where it lacks something. The shell's `:load` and `:reload` work in a shell that is a node, and two versions of a type in one session are two types. No code crosses yet: that is [`mvp3.2.md`](mvp3.2.md). A process that subscribes to the program's termination is told of it, in its own mailbox type. It writes what it keeps and answers. The program ends once every subscriber has answered.
+The hash lets nodes of different builds work together. Two nodes connect whatever build each runs. A key names its type by hash, so a find answers `OtherType` where the two builds disagree about the type. A spawn names its function by hash, so a peer answers `NotLoaded` where it lacks the function. No code crosses from one node to another yet; that is [`mvp3.2.md`](mvp3.2.md).
+
+The same hash lets the shell's `:load` and `:reload` work in a shell that is a node. A reload loads the new version of a module beside the old. Two versions of a type are two types in one session, and the checker keeps them apart.
+
+A process that wants to know of the program's end calls `Os.terminating`. At the end the runtime sends it a message of its own mailbox type. The process writes what it keeps and answers. The program ends once every subscriber has answered.
 
 Four things bound it.
 
@@ -114,7 +118,7 @@ MVP 3.0's limits stand, every one.
 3. **A spawn starts only what the peer has.** A function the peer lacks, at its hash, is `NotLoaded`; a function typed at the shell is on no peer. Code crosses in MVP 3.2.
 4. **A spawned function finds no binding the peer did not run.** It names the standard library's bindings and carries the rest as captured locals, or the peer answers `NotLoaded`.
 5. **A foreign declaration's implementation is outside the hashes.** A `foreign fn` names a host module, which is each node's own. A module of OTP's or of `ern`'s is on every node. A library's own Erlang is where the library is.
-6. **A load counts.** Each `:load` and `:reload` makes a unit, and nothing a session loaded is unloaded while the session runs. A session that loads much says so on its standard error when it nears a limit of the host's (section 7).
+6. **A load counts.** Each `:load` and `:reload` makes a unit, and nothing a session loaded is unloaded while the session runs. An input's module is unloaded once the input has its answer and its number given again, as today, so inputs do not count. A session that loads much says so on its standard error when it nears a limit of the host's (section 7).
 7. **What a program keeps is its own.** The runtime holds no state and reads none back. A process told of the end writes what it wants, in the form it wants, and reads it at its next start. A changed shape is its own reading code. A process that is not told keeps nothing: one that did not subscribe, or one that faults before the end.
 8. **The end waits for its subscribers and for nothing else.** A request in flight at the end is lost, as at any loss. A message that reaches a subscriber after it answered is lost with the process. A subscriber that neither answers nor ends holds the program until a second termination, the interrupt, or the service manager's patience, which kills. Nothing withdraws a key before the end: a peer finds, calls and sends to a process told of the end, until the end.
 9. **A retry is the program's.** A call that answered `None` may or may not have run, so a request must be harmless when run twice.
@@ -147,7 +151,7 @@ MVP 3.0's limits stand, every one.
 | the cookie | the protocol's version, `ern`'s version and OTP's major release; no build |
 | the spawn frame | MVP 3.0's, with the function's hash in place of its module and place |
 | the frames of this milestone | none beside MVP 3.0's six |
-| atoms a node can make in its life | 1,048,576, the host's, never reclaimed: every unit's name and every function's |
+| atoms a node can make in its life | 1,048,576, the host's, never reclaimed; a load adds its unit's name, and a function's name only where the program had none; nothing a correct peer sends makes one |
 | module names a node can load in its life | 65,536, the host's (OTP 29); a unit per load |
 | lambdas a node can load in its life | 524,288, the host's, never reclaimed (OTP 28 and later) |
 | a node says it nears a limit at | four fifths of any of the three |
