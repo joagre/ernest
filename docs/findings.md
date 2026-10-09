@@ -8,32 +8,32 @@ A line per finding, by family, naming its reader's letter and number and carryin
 
 | | Where | Sentence | Proposed by | Decision |
 |---|---|---|---|---|
-| S1 | §7.4 | A request a rule of this report refuses, which the program alone could have kept, faults the process that made it; an argument the host cannot take whole is `Left(Invalid)`; one outside the function's own domain is `None` or is corrected as this section says; what the world refuses is a value with its cause. No value is corrected unsaid. | L Family 1; P3, P4 (S3); K20 | to decide |
-| S2 | §10 and E.0 rule 1 | What the runtime adds to an operation of the host costs a fraction of it, never a multiple, and grows with nothing but the operation's own input; a system process costs its message where the process holds what the operation needs, and none where the host answers without one. | L Family 2; P1's S6 in part | to decide |
-| S3 | §11.2 | The runtime writes on standard error, unasked, what a program cannot learn and an operator must, a fault, a node's connections and their loss, the host's failure that ends the program; nothing of a program's own act, and nothing the host says of itself. | L Family 3 | to decide |
-| S4 | E.0 preamble | A module is the standard library's where its functions are E.0's to admit and refuse, and a library's where it is over a published specification or a policy, where it needs what §10 refuses the standard library, or where its only user is another library. | L Family 4; P48 (a type enters by rule 1 or by a rule of §3 to §9 naming it) | to decide |
-| S5 | §11 | A job reads from the directory it is started in only what its command line names; nothing there configures a job or runs in it unasked, and a program is a node only where `--config-dir` says so. | L Family 5 | to decide |
-| S6 | §0, principle 5 | Every function the prelude or a library names is a value; what cannot be is a form of the grammar and a word of §2.4, counted as one. | P2 (S2); K19, P63 | to decide |
-| S7 | §0, principle 5 | No rule of the language exists for the runtime's or a library's convenience: a cost the runtime cannot bear is a limit the report states, never a form the compiler refuses. | P9, P16, P40 (P1's S6) | to decide |
-| S8 | §0, principle 2 | A reserved word has one meaning wherever it stands; where one word opens a narrower form, the narrower rule says what bounds it. | P6 (S4); W24; L70 | to decide |
-| S9 | §0, principle 3 | What a call supplies without writing it is a member alone, reached by a type as an operator is; everything else a call writes. | P5 (S5); W2 | to decide |
-| S10 | §9 | The prelude is §9's list; a rule elsewhere that names a library function names it as the library's, by its namespace. | P8 (S9); K10 | to decide |
-| S11 | §0, principle 3 | A wait on another process ends by a time the program writes or by that process's end; the runtime chooses no time of its own. | P1's S8 (the end that waits, `callForever`); P61; L73 | to decide |
-| S12 | §0, principle 1 | A literal is spelled as Erlang spells it; where Erlang has no spelling, the report states the one it takes. | P15 (S10) | to decide |
-| S13 | §0, principle 2 | A literal form, and `if` beside `match` on `Bool`, enter where the reader of principle 1 writes them; a function stands beside the operator that is its spelling, and no other pair. | P1's S1 (P13, P14) | to decide |
-| S14 | §0, principle 3 | A program's text says what it does; its configuration says where; a program that is no node writes nothing of it. | P1's S7 | to decide |
-| S15 | E.0 rule 1 | Where a function of the host does exactly an operation's work on a value the language owns, the operation is a shim as on any other value. | P2's 1 (P44); K's restatement of rule 1 | fix: the rule says so already (E.0 rule 1, MVP 2.99d), and E.2's five loops are the defect; see P44 |
-| S16 | E.0 rule 2 | A map adds `keys`, `values`, `update`, `merge` and `mergeWith`; `remove` takes what `get` takes. | P2's 2 and 3 (P55, P45) | to decide |
-| S17 | E.0 rule 3 | A numeric policy is the one §2.5 and §3.1 give the language's literals and arithmetic, ties to even among them. | P2's 5 | to decide |
-| S18 | E.0 rule 4 | A function whose body is calls of functions already here and the language's operators, with no case of its own, is a composition whatever its length; the pairs rule 4 names move to rule 2's vocabulary. | P2's 6; K's restatement of rule 4 | to decide |
-| S19 | E.0 shape rule 1 | A time that is the operation's own subject, an alarm's, comes first; one that bounds a wait comes last. | P2's 8 | to decide |
-| S20 | E.0 shape rule 2 | A function that starts a process of the module's and answers its address is `start`; one that makes an entry of the file system is `make`. `contains` takes a run of the container's own type; `size` counts the units its section names. | P2's 9; K17 | to decide |
-| S21 | E.0 shape rule 3 | An encoding's two directions stand in the module of the type encoded; a conversion is named by the other type and exists once. | P2's 10 (P56); K18 | to decide |
-| S22 | E.0 shape rule 4 | A fault a section gives is for a misuse the text alone shows, never for a value the caller could not know before the call. | P2's 11 | to decide |
-| S23 | E.0 shape rule 5 | A function is pure where its result depends on its arguments alone and it changes nothing; one that reads or changes what is outside its arguments while it runs carries `with m`. | K's restatement of shape rule 5 | to decide |
-| S24 | E.0 shape rule 8 | `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)`; a wait is bounded by milliseconds last unless the wait's failure ends the program or the runtime holds the answer; `callForever` is the one named exception. | P2's 12 (P43, L64); K's restatement of shape rule 8 | to decide |
-| S25 | E.0 rule 1 | Its value is the host's: the operation reads or writes what the host owns, or is work a host function does exactly. | K's restatement of rule 1 | to decide |
-| S26 | E.0 rule 3 | No policy is buried in it: a choice its result depends on is an argument, or its section states it whole. | K's restatement of rule 3 | to decide |
+| S1 | §7.4 | A request a rule of this report refuses, which the program alone could have kept, faults the process that made it; an argument the host cannot take whole is `Left(Invalid)`; one outside the function's own domain is `None` or is corrected as this section says; what the world refuses is a value with its cause. No value is corrected unsaid. | L Family 1; P3, P4 (S3); K20 | accepted: §7.4, replacing "a refused request faults" |
+| S2 | §10 and E.0 rule 1 | What the runtime adds to an operation of the host costs a fraction of it, never a multiple, and grows with nothing but the operation's own input; a system process costs its message where the process holds what the operation needs, and none where the host answers without one. | L Family 2; P1's S6 in part | accepted: §10 two bullets and E.0 rule 1's clause; the two prelude ratios of L58 then get their verdict |
+| S3 | §11.2 | The runtime writes on standard error, unasked, what a program cannot learn and an operator must, a fault, a node's connections and their loss, the host's failure that ends the program; nothing of a program's own act, and nothing the host says of itself. | L Family 3 | accepted: §11.2 |
+| S4 | E.0 preamble | A module is the standard library's where its functions are E.0's to admit and refuse, and a library's where it is over a published specification or a policy, where it needs what §10 refuses the standard library, or where its only user is another library. | L Family 4; P48 (a type enters by rule 1 or by a rule of §3 to §9 naming it) | accepted, three: the module's place by the configuration clause and not by its users, the type's admission, rule 3's clause on a link |
+| S5 | §11 | A job reads from the directory it is started in only what its command line names; nothing there configures a job or runs in it unasked, and a program is a node only where `--config-dir` says so. | L Family 5 | accepted: §11 |
+| S6 | §0, principle 5 | Every function the prelude or a library names is a value; what cannot be is a form of the grammar and a word of §2.4, counted as one. | P2 (S2); K19, P63 | accepted, reworded: a function that is no value is a primitive named where the report states it and counted; not a form of the grammar |
+| S7 | §0, principle 5 | No rule of the language exists for the runtime's or a library's convenience: a cost the runtime cannot bear is a limit the report states, never a form the compiler refuses. | P9, P16, P40 (P1's S6) | accepted: principle 5; mvp3.2.md's table rule goes, a stated limit in its place |
+| S8 | §0, principle 2 | A reserved word has one meaning wherever it stands; where one word opens a narrower form, the narrower rule says what bounds it. | P6 (S4); W24; L70 | refused: §0's host paragraph and S2 decide it, and §6.3 states the bound; the guide gains W24's sentence |
+| S9 | §0, principle 3 | What a call supplies without writing it is a member alone, reached by a type as an operator is; everything else a call writes. | P5 (S5); W2 | refused: §4.9 and E.0 shape rule 1 are the sentence; P5 and W2 kept |
+| S10 | §9 | The prelude is §9's list; a rule elsewhere that names a library function names it as the library's, by its namespace. | P8 (S9); K10 | accepted as a change to §9 (report): the list is the prelude, and a rule naming a library function names it as the library's |
+| S11 | §0, principle 3 | A wait on another process ends by a time the program writes or by that process's end; the runtime chooses no time of its own. | P1's S8 (the end that waits, `callForever`); P61; L73 | refused: the runtime chooses stated times, the detector's, the dial's, a socket's bound; P61 to round two, L73 and W4 kept |
+| S12 | §0, principle 1 | A literal is spelled as Erlang spells it; where Erlang has no spelling, the report states the one it takes. | P15 (S10) | refused: the literals are neither reader's; P15 to round two |
+| S13 | §0, principle 2 | A literal form, and `if` beside `match` on `Bool`, enter where the reader of principle 1 writes them; a function stands beside the operator that is its spelling, and no other pair. | P1's S1 (P13, P14) | refused: principle 2's clauses and §9.6 hold it; P13 to round two as a question of fact, P14 kept |
+| S14 | §0, principle 3 | A program's text says what it does; its configuration says where; a program that is no node writes nothing of it. | P1's S7 | refused: §8.3 and §8.7 are the rule, and a design is not a principle |
+| S15 | E.0 rule 1 | Where a function of the host does exactly an operation's work on a value the language owns, the operation is a shim as on any other value. | P2's 1 (P44); K's restatement of rule 1 | refused: rule 1's own text keeps an operation on a value the language owns in Ernest within its line, and the reply discipline decides `reverse`; see P44 |
+| S16 | E.0 rule 2 | A map adds `keys`, `values`, `update`, `merge` and `mergeWith`; `remove` takes what `get` takes. | P2's 2 and 3 (P55, P45) | accepted: the map's five words; `remove` takes the index or key `get` takes, a set its element; `List.remove` by index, report and code |
+| S17 | E.0 rule 3 | A numeric policy is the one §2.5 and §3.1 give the language's literals and arithmetic, ties to even among them. | P2's 5 | refused: rule 4 and principle 2 refuse a second rounding; E.9 states its own |
+| S18 | E.0 rule 4 | A function whose body is calls of functions already here and the language's operators, with no case of its own, is a composition whatever its length; the pairs rule 4 names move to rule 2's vocabulary. | P2's 6; K's restatement of rule 4 | accepted, both: rule 4 by "no case of its own"; the pairs as rule 2's vocabulary, two-constructor predicates and a stream's line and bytes forms; `Io.debug` by name |
+| S19 | E.0 shape rule 1 | A time that is the operation's own subject, an alarm's, comes first; one that bounds a wait comes last. | P2's 8 | accepted: shape rule 1 |
+| S20 | E.0 shape rule 2 | A function that starts a process of the module's and answers its address is `start`; one that makes an entry of the file system is `make`. `contains` takes a run of the container's own type; `size` counts the units its section names. | P2's 9; K17 | accepted, both: `start` and `make`; `contains` and `size` on a type read through `toList` |
+| S21 | E.0 shape rule 3 | An encoding's two directions stand in the module of the type encoded; a conversion is named by the other type and exists once. | P2's 10 (P56); K18 | accepted: shape rule 3; E.20's own sentence goes |
+| S22 | E.0 shape rule 4 | A fault a section gives is for a misuse the text alone shows, never for a value the caller could not know before the call. | P2's 11 | refused: S1 says it where shape rule 4 points |
+| S23 | E.0 shape rule 5 | A function is pure where its result depends on its arguments alone and it changes nothing; one that reads or changes what is outside its arguments while it runs carries `with m`. | K's restatement of shape rule 5 | accepted: shape rule 5 as a definition; the preface's exception for libraries goes |
+| S24 | E.0 shape rule 8 | `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)`; a wait is bounded by milliseconds last unless the wait's failure ends the program or the runtime holds the answer; `callForever` is the one named exception. | P2's 12 (P43, L64); K's restatement of shape rule 8 | accepted: shape rule 8 restated; `Peer.Failure` goes and `Io.Error` gains its constructors, reversing P5 of MVP 3.0's review with L64's reason |
+| S25 | E.0 rule 1 | Its value is the host's: the operation reads or writes what the host owns, or is work a host function does exactly. | K's restatement of rule 1 | accepted: rule 1 as a definition, the list its examples; E.22 admitted by rule 3 |
+| S26 | E.0 rule 3 | No policy is buried in it: a choice its result depends on is an argument, or its section states it whole. | K's restatement of rule 3 | accepted: rule 3 as a definition |
 
 ## Round two: the families
 
@@ -51,18 +51,18 @@ A line per finding, by family, naming its reader's letter and number and carryin
 
 | | Finding | Decision |
 |---|---|---|
-| P44 | `List.reverse`, `contains`, `indexed`, `zip` and `unzip` are Ernest loops where the host does each exactly; E.0 rule 1 as decided in MVP 2.99d makes them shims. | fix: the five become shims, E.2 names them, `make bench` measures them |
-| L58 | `spawnMonitored` at 7 times and a `monitor` of an ended process at 15.6 times the host's stand with no verdict, since the report has no line to measure them against. | S2, then decided |
-| L68 | A `Down`'s site refused as a frame the host's operation lacks, a call's note frame added for a rule of §6.6: the sentence that admits a frame for a rule of the report is written nowhere. | S2 |
-| L59 | `Path.<>` kept at 2.4 times the host's; "the prelude's line" of 2 is CLAUDE.md's "a fraction", which the report does not state. | S2 |
-| P9, P40 | MVP 3.2's table rule, `Ets.Table(k, v)` refused where it holds a function, exists so that a unit may be let go: a rule of the language for the runtime's convenience, and a compiler that names one library's type. | S7, then decided for the proposal |
+| P44 | `List.reverse`, `contains`, `indexed`, `zip` and `unzip` are Ernest loops where the host does each exactly; E.0 rule 1 as decided in MVP 2.99d makes them shims. | kept, after a build showed the cost: a shim narrows the scheme to `a!`, so a list of replies could no longer be reversed, which the log's *No Mark Lifts a Foreign Function's Restriction* (2026-10-06) decided for `reverse` already, a closed family; the other four measure within rule 1's line as Ernest, 0.95 to 1.4 times the host's, and stay by the rule's own text |
+| L58 | `spawnMonitored` at 7 times and a `monitor` of an ended process at 15.6 times the host's stand with no verdict, since the report has no line to measure them against. | planned: MVP 3.1's item 8 measures the two against §10's rule, each to end at a fraction or as a message by design with its reason in the log |
+| L68 | A `Down`'s site refused as a frame the host's operation lacks, a call's note frame added for a rule of §6.6: the sentence that admits a frame for a rule of the report is written nowhere. | kept: S2 admits a frame where the node holds what the rule of §6.6 needs |
+| L59 | `Path.<>` kept at 2.4 times the host's; "the prelude's line" of 2 is CLAUDE.md's "a fraction", which the report does not state. | kept: S2 is the line, a fraction, and the ratio stands under it |
+| P9, P40 | MVP 3.2's table rule, `Ets.Table(k, v)` refused where it holds a function, exists so that a unit may be let go: a rule of the language for the runtime's convenience, and a compiler that names one library's type. | decided by S7: the table rule goes from mvp3.2.md, and a stated limit replaces it, a unit a table's function holds is never let go |
 | P16 | §8.7's `measures` and §6.9's restart-asked-for paragraph exist for a library. | kept: `measures` decided on 2026-10-09 (P6 of MVP 3.0's review), the node starts the host's services whoever reads them; the restart paragraph is §6.9's since the runtime makes the restart |
 
 ### 3. What the runtime writes unasked
 
 | | Finding | Decision |
 |---|---|---|
-| P61 | The end of MVP 3.1 waits for its subscribers without bound and in silence, where shape rule 8 names an unbounded wait. | S3 and S11, then decided for the proposal: the node says which subscriber it waits for, once, after a time §8.6 states |
+| P61 | The end of MVP 3.1 waits for its subscribers without bound and in silence, where shape rule 8 names an unbounded wait. | report, on mvp3.1.md: when termination arrives the node says once that it waits for its subscribers and how many, and says each as it answers or ends; no timer of the runtime's |
 | K14 | §8.7 gives a carrier that cannot start no cause text, where §7.4 gives every fault its text. | fix: §7.4 states the text, §8.7 points at it |
 
 ### 4. Standard library or library
@@ -72,9 +72,9 @@ A line per finding, by family, naming its reader's letter and number and carryin
 | P48 | No rule of E.0 admits a type; E.25 and E.26 stand by §3.10's mention. | S4 |
 | L67 | `Load.runQueue` was admitted to Appendix E by rule 1 and is a library three weeks later with no sentence saying why. | S4 |
 | L4 | `Fs.removeAll` was removed on danger and a count, which no rule of E.0 names. | S4: rule 3's clause on a link |
-| P49 | `Erl` is a namespace for one function, `atom`, beside `Foreign`. | to decide |
-| P57 | `Terminal.columns` reads ECMA-48's sequences in the standard library, where rule 2 makes a specification a library's. | to decide |
-| P58 | `Float.toString` is called a primitive and is an adapter in `ern`'s Erlang, with no numbers in the log. | to decide |
+| P49 | `Erl` is a namespace for one function, `atom`, beside `Foreign`. | report: `Foreign.atom`, E.19 folded into E.12, shape rule 3's example changed; 28 namespaces |
+| P57 | `Terminal.columns` reads ECMA-48's sequences in the standard library, where rule 2 makes a specification a library's. | kept: a terminal is the specification, and the module that drives it skips what the terminal does not show to measure what it shows; stated on E.16's page, no clause in rule 2 |
+| P58 | `Float.toString` is called a primitive and is an adapter in `ern`'s Erlang, with no numbers in the log. | fix by measurement, as rule 1 says: the layout in Ernest over the host's shortest form as a private primitive, measured; the adapter stays only with its numbers in the log and E.9 saying the host's function is private beneath it |
 
 ### 5. What a job takes from where it is started
 
@@ -87,11 +87,11 @@ A line per finding, by family, naming its reader's letter and number and carryin
 | | Finding | Decision |
 |---|---|---|
 | P1 | `Code.running(f)` as proposed is unsound: a lambda written in `f` and spawned has a mailbox type of its own, and an `f` whose mailbox type is a variable lets the caller choose the type of every process listed. | fix, in mvp3.2.md: a frame of `f` itself alone, and `f`'s mailbox type known whole where `running` is written, as `Peer.key` is refused otherwise |
-| P41 | `Code.running` admits one arity, `((s) -> Unit with m)`, where §6.10 writes a loop with whatever state it carries. | to decide, with P1's fix |
-| P52 | `Code.Hash` is abstract with no `toString`, so `Code.hashes` answers values a program cannot show; `load` and `hashes` have no caller in the proposal; `running` is `with n` where `Process.live` is `with m+`. | fix: `running` is `with n+`; to decide: `Hash` as text or with `toString`, and whether `load` and `hashes` wait for a caller |
-| P19 | `Standing`'s forwarder drops a send while the service is away, against §6.2's one silence; and for a program that is no node, a subscriber waiting with nothing in flight while the end waits is a deadlock §8.6 gives to an entry process that has died. | to decide, for mvp3.1.md |
-| P53 | `Standing.start`'s `ms` does two jobs, bounds a find and spaces the retries, where shape rule 8 makes it bound one request. | to decide, with P19 |
-| P59 | "closure" in mvp3.1.md names a definition with everything it references, where the reader of principle 1 knows a closure as a function with its captured environment, and §3.11 speaks of captures. | to decide: another word |
+| P41 | `Code.running` admits one arity, `((s) -> Unit with m)`, where §6.10 writes a loop with whatever state it carries. | report, on mvp3.2.md: `Code.running` is a form checked as `Peer.spawn`'s function is, taking a top-level declaration's name of any arity whose result is `Unit with m`, counted as a primitive by S6 |
+| P52 | `Code.Hash` is abstract with no `toString`, so `Code.hashes` answers values a program cannot show; `load` and `hashes` have no caller in the proposal; `running` is `with n` where `Process.live` is `with m+`. | fix: `running` is `with n+`; report, on mvp3.2.md: `Hash` is a `String`, the digest in hexadecimal; `load` and `hashes` stay, the deploy tool their caller |
+| P19 | `Standing`'s forwarder drops a send while the service is away, against §6.2's one silence; and for a program that is no node, a subscriber waiting with nothing in flight while the end waits is a deadlock §8.6 gives to an entry process that has died. | kept for the drop, a policy stated whole on the library's page; report, on mvp3.1.md: a deadlock during the end is no fault, the end waits as section 5 says |
+| P53 | `Standing.start`'s `ms` does two jobs, bounds a find and spaces the retries, where shape rule 8 makes it bound one request. | report, on mvp3.1.md: the forwarder finds again when a message arrives while the service is away, each find bounded by `ms`, and waits on no clock of its own |
+| P59 | "closure" in mvp3.1.md names a definition with everything it references, where the reader of principle 1 knows a closure as a function with its captured environment, and §3.11 speaks of captures. | report, on the proposals: "reach", a definition's reach being the definition with everything it references, transitively |
 | P20, P60 | The proposals' examples name `List.each` and `List.length`, which the library lacks (`foreach`, `size`), and `Peer.peers`, which §8.3's list of `Peer`'s operations does not name. | fix |
 | K1 | E.27's `Refused(text)` is a failure no rule gives and the runtime never answers, so every `match` on a `Failure` covers a case no program meets. | kept: `docs/development.md`'s table lists it as MVP 3.2's, the peer's refusal of a closure; E.27 says so until then |
 | K5 | §8.7's "a peer whose module is of another version answers `NotLoaded`" is unreachable under §8.7's own handshake, every module being in the fingerprint. | fix: the version clause goes; the frame names the module, and a peer that lacks it answers `NotLoaded` |
@@ -107,23 +107,23 @@ A line per finding, by family, naming its reader's letter and number and carryin
 
 | | Finding | Decision |
 |---|---|---|
-| P10 | `Address.call` and `callForever` are qualified where `send`, `answer`, `kill`, `monitor`, `via` and `spawn` are bare. | to decide |
-| P12 | A local `fn` and a `let`-bound lambda overlap and differ in a table: recursion, shadowing, a requirement, a reply's capture. | to decide |
-| P13 | A prelude type's members are declared two ways, `export fn Int.+` prefixed, `compare` and `negate` unprefixed, where a user type writes `fn Coin.compare`. | S13, then decided |
+| P10 | `Address.call` and `callForever` are qualified where `send`, `answer`, `kill`, `monitor`, `via` and `spawn` are bare. | kept: `call` and `callForever` are the two operations of the type `Address`, whose namespace §4.2 takes for them, as `List`'s is for `map` |
+| P12 | A local `fn` and a `let`-bound lambda overlap and differ in a table: recursion, shadowing, a requirement, a reply's capture. | kept: a `fn` is a declaration and a lambda a value, which §5.4 states, and each difference follows from it |
+| P13 | A prelude type's members are declared two ways, `export fn Int.+` prefixed, `compare` and `negate` unprefixed, where a user type writes `fn Coin.compare`. | kept: §4.2 states the two spellings, and each is forced, `fn Int.compare` in `int.ern` being the module's own qualified name, which §4.2 refuses, and an operator declarable only in the member form; the derivation goes to the log |
 | P14 | `let _ = e` stands beside `e;` for a `Unit` value (W19 counts it eleven times in the guide). | S13, then decided |
 | P15 | The raw string's backtick comes from no language the reader knows. | S12, then decided |
-| P18 | `Prelude.` is written only where a name is hidden, which makes `Prelude` a reserved name §2.4 does not count. | to decide |
-| P21 | A named constructor is no function value, by §3.5's "there is no canonical order", though the same sentence makes the order the type's identity. | to decide |
+| P18 | `Prelude.` is written only where a name is hidden, which makes `Prelude` a reserved name §2.4 does not count. | kept: `Prelude` is counted among the taken namespaces, and §4.2 states the rule |
+| P21 | A named constructor is no function value, by §3.5's "there is no canonical order", though the same sentence makes the order the type's identity. | kept: applying a named-field constructor by position would hide the names the type declared (principle 3), and §3.5 says the order is no contract |
 | P5, W2 | Two mechanisms for code written once over several types, the requirement and the operations record, overlapping at `compare`; the guide teaches the pair four ways. | S9, then decided |
 | P6, W24, L70 | One word `when`, two guards: a `receive` guard calls nothing, a `match` guard is any pure expression; the way around removes the message. | S8, then decided |
-| W8 | `type Word = String` compiles and means a nullary constructor named `String`, where the ML reader predicts an alias. | to decide |
-| W12 | A constructor with one positional field is a function, one with named fields is not; wrap constructors are single-positional for it. | to decide, with P21 |
+| W8 | `type Word = String` compiles and means a nullary constructor named `String`, where the ML reader predicts an alias. | report: a constructor named as a type in scope is refused, its help saying there are no type aliases (§3.1); a checker rule with its test |
+| W12 | A constructor with one positional field is a function, one with named fields is not; wrap constructors are single-positional for it. | kept, with P21 |
 | W13 | The pipe fills the outermost call; a lambda is not an operand. | kept: §5.7, principle 4; the guide's sentence stays |
 | W25 | No partial application, so a lambda. | kept: §5.2 |
 | P17, K8 | §11.5 says `=` is written on a foreign type's parameter alone; §4.7 writes it in a foreign function's parameters too. | fix |
 | K11 | §2.4 names `needs` and `derives` as read by position; Appendix A reads `compare`, `negate` and `show` by position too. | fix: §2.4 names them |
 | K3 | Appendix A admits `C(..e)` with no field, which §5.6 forbids for an update and needs for a fill; the compiler refuses it with a text the report lacks. | fix: §5.6 states the error |
-| K7 | A type parameter no field holds, `Peer.Key(m)`, is in no position of §3.9. | fix: §3.9, a type argument whose parameter occurs in no field is a value position |
+| K7 | A type parameter no field holds, `Peer.Key(m)`, is in no position of §3.9. | fix: §3.9, a type argument whose parameter occurs in no field is a value position; built, the checker read it as an effect position, and §4.7 gained the clause that a foreign function's not-reply-carrying falls on no such parameter, since it holds no values |
 | K12 | §4.9 does not say what `a.show` is in a body. | fix |
 
 ### 8. The prelude
@@ -132,7 +132,7 @@ A line per finding, by family, naming its reader's letter and number and carryin
 |---|---|---|
 | P8 | §9's criterion as written admits thirteen functions and four types §9 does not list. | S10 |
 | K10 | §4.2's taken namespaces are "every type that has a member in §9, as `Int` and `Address` do"; `Address` has no member. | fix: "every type whose namespace §9 fills" |
-| K2 | §9.4, §9.5, §6.2 and §6.6 list the prelude's types without the marks §11.5 prints; §6.2 and §6.6 restate §9 verbatim, where the drift lives. | fix: the marks as the compiler prints them, and a test holding §9's listing to the compiler; to decide: §6.2 and §6.6 point at §9 instead of restating it |
+| K2 | §9.4, §9.5, §6.2 and §6.6 list the prelude's types without the marks §11.5 prints; §6.2 and §6.6 restate §9 verbatim, where the drift lives. | fix: the marks as the compiler prints them, built, with `marked_prelude_test` holding §9.4 to §9.6, §6.2 and §6.6 to the compiler; report: §6.2 and §6.6 point at §9 and restate no listing, so one copy exists |
 
 ### 9. The library's vocabulary
 
@@ -140,28 +140,28 @@ A line per finding, by family, naming its reader's letter and number and carryin
 |---|---|---|
 | P43, L64 | `Peer.Failure` beside `Io.Error`: the two cannot share a `match` arm, and a block that reads a file and finds a peer converts one into the other, the ceremony *The Error of Input and Output* refused. | S24, then decided again |
 | P45 | `List.remove` is by value where `List.get` is by index. | S16 |
-| P46 | `Char.isDigit` accepts digits nothing else in the library reads; `isAsciiDigit` beside it. | to decide |
+| P46 | `Char.isDigit` accepts digits nothing else in the library reads; `isAsciiDigit` beside it. | kept: two questions, the category Nd by the host's table and the ten digits a number's text holds; the page says which function reads which |
 | P47 | `Json.parse` keeps a repeated member's first value; every `fromList` keeps the last. | fix: the last |
-| P50 | `Int.div` and `Int.rem` pair an operator with its `Optional` form; `Float` has no such pair, and rule 4 names no such pair. | to decide |
-| P51 | `List.foldRight`'s step takes the element first; every other step takes the accumulator first. | to decide |
-| P54 | A socket ends two ways, `close` and `kill`; a program by `kill` alone. | to decide |
+| P50 | `Int.div` and `Int.rem` pair an operator with its `Optional` form; `Float` has no such pair, and rule 4 names no such pair. | report: rule 2's vocabulary names the pair, an operator that faults comes with its `Optional` form in its type's module, and `Float.div` enters, `None` where `/` faults |
+| P51 | `List.foldRight`'s step takes the element first; every other step takes the accumulator first. | report and code: the step is `(b, a) -> b`, its uses in the library and the guide turned |
+| P54 | A socket ends two ways, `close` and `kill`; a program by `kill` alone. | fix: one sentence of E.23, a program ends by its own exit or by `kill`, and has no `close` since nothing of it is left half open |
 | P55 | Rule 2's map vocabulary lacks `update` and `mergeWith`, which E.3 and E.26 share. | S16 |
 | P56, K18 | `Bytes.fromHex` stands where shape rule 3 does not put it; E.20 states a shape rule of its own. | S21 |
-| P62 | `dropLast` has no mirror `takeLast`. | to decide |
+| P62 | `dropLast` has no mirror `takeLast`. | report: `takeLast` enters rule 2's sequence vocabulary and E.2, beside `dropLast` |
 | K17 | Shape rule 2's text exceptions are wrong for `Bytes`. | S20 |
 | K13 | `Io.Error`'s `Refused` is answered by no function the report names. | fix: E.18 at `Tcp.connect` |
 | K4 | E.17 carries four sentences for a recursive removal no function of E.17 makes, and one on a file's mode that states what a program does. | fix: the sentences go |
 | P42 | `Load.cpu`'s page misstates the host's measure, which is per calling process and since boot at a first call. | fix: the page says so |
-| W20 | `Io.Error` has no text; the guide says a program speaks in its own words and writes `Io.show(error)` five times. | guide |
+| W20 | `Io.Error` has no text; the guide says a program speaks in its own words and writes `Io.show(error)` five times. | guide: the guide's sentence matches its examples, a program writes an `Io.Error` with `Io.show` or in its own words by a `match` |
 
 ### 10. Replies and waits
 
 | | Finding | Decision |
 |---|---|---|
-| W3 | The reply discipline forces five shapes the guide must teach: no `<-` in a handler that holds a reply, a list where a map is predicted, no field selection, a process of its own for a call in `main`, `fault` by its type. | to decide: each a rule of §6.6, kept or changed |
-| W4 | Every wait on another party takes a time and nothing delivers what a read answers: retry loops, a sleep idiom, a reader process twice. | S11 and S24, then decided |
-| W5 | An alarm fires once and cannot be cancelled: two functions, an id idiom, a stale-`Expired` clause in every receive. | to decide |
-| L73 | §6.2's `send` to another node waits while the host's buffer is full, with no limit and no name saying so, against shape rule 8's own clause. | S11, then decided |
+| W3 | The reply discipline forces five shapes the guide must teach: no `<-` in a handler that holds a reply, a list where a map is predicted, no field selection, a process of its own for a call in `main`, `fault` by its type. | kept, all five: §6.6 doing its one job, argued one by one in *The Type System Argued*; the map by *No Mark Lifts a Foreign Function's Restriction*; the guide's paragraphs are `guide` lines |
+| W4 | Every wait on another party takes a time and nothing delivers what a read answers: retry loops, a sleep idiom, a reader process twice. | kept: shape rule 8, decided in *The Waits Family's Rules*; S11 refused |
+| W5 | An alarm fires once and cannot be cancelled: two functions, an id idiom, a stale-`Expired` clause in every receive. | kept: E.15, a cancel could not take back a message delivered |
+| L73 | §6.2's `send` to another node waits while the host's buffer is full, with no limit and no name saying so, against shape rule 8's own clause. | kept: the host's rule taken and stated in §6.2, §0's host paragraph |
 | K9 | §6.6 never names a `receive`'s `after` clause as a branch the reply check reads. | fix |
 
 ### 11. Processes, monitors and restarts
@@ -169,12 +169,12 @@ A line per finding, by family, naming its reader's letter and number and carryin
 | | Finding | Decision |
 |---|---|---|
 | P7 | "A monitor is the one link between processes; there is no other" (§6.9) is false three times: a resource dies with its owner, `callForever` faults with its callee, a fault in an adapted address's function is the target's. | fix: §6.9 and §7.3 say what holds |
-| P11, W14 | `kill` takes an address, `monitor` a `Process`; `Process.fromAddress` six times in the guide. | to decide, with the sentence P11 proposes for §6.5 |
-| W1 | A `Down` has no order with its process's messages; the guide teaches the race four times. | to decide |
-| W15 | `via`: a fault in its function strikes the target though it ran in the sender; one step more across nodes. | kept: §6.5, decided twice (the log's *The Silence Family's Rules*, *The Module Peer*) |
-| W16 | A restart in place keeps the address and loses the mailbox; a sibling that never waits is never restarted; no graceful stop. | to decide |
-| W17 | The program spawns supervisor and children itself; recovery is taught three ways. | kept: E.22, decided in *The `Supervisor`'s Shape* |
-| L62, L74 | A socket's unsent bytes are bounded by 3 minutes the host lacks, where memory is not bounded; the sentence that tells them apart, §6.9's owner paragraph, is cited by neither. | log |
+| P11, W14 | `kill` takes an address, `monitor` a `Process`; `Process.fromAddress` six times in the guide. | report: §6.5 gains the sentence, an address is the permission to send to a process and to kill it; a `Process` is its identity, which a `Down` carries and a monitor watches |
+| W1 | A `Down` has no order with its process's messages; the guide teaches the race four times. | kept: §6.9's departure, stated; the runtime's own `Down` works across restarts and nodes alike |
+| W15 | `via`: a fault in its function strikes the target though it ran in the sender; one step more across nodes. | kept: §6.5, decided twice |
+| W16 | A restart in place keeps the address and loses the mailbox; a sibling that never waits is never restarted; no graceful stop. | kept: §6.9 and E.22; the graceful stop is MVP 3.1's `Os.terminating` for the program's end |
+| W17 | The program spawns supervisor and children itself; recovery is taught three ways. | kept: E.22, *The `Supervisor`'s Shape* |
+| L62, L74 | A socket's unsent bytes are bounded by 3 minutes the host lacks, where memory is not bounded; the sentence that tells them apart, §6.9's owner paragraph, is cited by neither. | log: §6.9's owner paragraph named as the rule each is an instance of |
 | K15 | §8.7 ends a process "as soon as its answer arrives" by a way §6.9 does not list. | fix: killed |
 
 ### 12. The guide
@@ -182,26 +182,26 @@ A line per finding, by family, naming its reader's letter and number and carryin
 | | Finding | Decision |
 |---|---|---|
 | W23 | §7.1 says a module's code names its own declarations "by either name"; §4.2 says the plain name alone. | fix |
-| W7 | An open mailbox type has three defaults; `: Unit` means pure, so every `main` writes `with Never`. | to decide |
-| W9 | Three marks in printed types, none writable but one, taught in five places. | kept: §11.5; the guide's five places become one, `guide` |
-| W10 | Operators and selectors resolve by operand type with no default; a block `let` generalizes only a lambda. | kept: §4.8, §3.9 |
+| W7 | An open mailbox type has three defaults; `: Unit` means pure, so every `main` writes `with Never`. | guide: one rule since 2026-10-09, `Never` for a spawn and the entry point; §4.1's paragraph and transcript say so |
+| W9 | Three marks in printed types, none writable but one, taught in five places. | guide: one place |
+| W10 | Operators and selectors resolve by operand type with no default; a block `let` generalizes only a lambda. | kept: §4.8 and §3.9 |
 | W11 | Code replacement is demonstrated with code the program held from the start. | kept until MVP 3.2's spawn with code reaches the guide |
-| W18 | A service program that lives sixty seconds, and a peer that runs a dummy. | kept until MVP 3.2's bare node; `guide`: the store waits in `main` as §8.6 says, not sixty seconds |
+| W18 | A service program that lives sixty seconds, and a peer that runs a dummy. | kept until MVP 3.1: a `main` of mailbox type `Never` waits by `Os.terminating` and its message; the guide's store takes that shape in MVP 3.1's item 8 |
 | W21 | One sum type per block, bridged by `Either.fromOptional`. | kept: §5.5 |
-| W22 | Calling Erlang's `{ok, V} | {error, R}` needs an Erlang helper. | to decide |
+| W22 | Calling Erlang's `{ok, V} | {error, R}` needs an Erlang helper. | later: a conversion in `Foreign` for the host's `{ok, V} | {error, R}`, when a second program meets the convention outside the guide's example |
 | W26 to W36 | Bitstrings' host order and catch-all, `..` on one constructor, an abstract type exported, unbounded mailboxes, keys or lines, `Io.debug` impure, a spawn site that does not cross, a PEM key as one JSON string, "service" twice, `let me = self()` nine times, examples annotated where the report's are not. | kept, each by its section; W36 `guide` |
-| W's list | The rules of the report the guide never teaches and never uses, by section. | guide: read when the guide is next written to, no rule changes for it |
+| W's list | The rules of the report the guide never teaches and never uses, by section. | guide: read when the guide is next written to; no rule changes for being untaught |
 
 ### 13. The log
 
 | | Finding | Decision |
 |---|---|---|
 | L22, L23 | Two entries name MVP 3.0 for a condition MVP 3.2 now owns. | log |
-| L40 | Whether `ern build` writes `Dbgi` into a user's module is open with no owner. | to decide |
-| L42 | §5.1's left-to-right order rests on a host behaviour its manual leaves open, pinned by a test. | log: stated in the entry; the host paragraph names the case |
+| L40 | Whether `ern build` writes `Dbgi` into a user's module is open with no owner. | planned: MVP 3.1's item 2, which decides what an `.erc` holds, decides whether a user's module carries debug information |
+| L42 | §5.1's left-to-right order rests on a host behaviour its manual leaves open, pinned by a test. | log: the host paragraph names the case |
 | L50 | The missing JSON library that kept `ern config` in Erlang exists now. | log |
-| L53 to L55 | Three entries describe a deploy the plan set aside and carry no superseded mark. | log |
-| L72 | One host defect worked around against two that were not; the sentence that tells them apart, a defect that stops a well-typed program from building, is unwritten. | log |
+| L53 to L55 | Three entries describe a deploy the plan set aside and carry no superseded mark. | log: superseded marks |
+| L72 | One host defect worked around against two that were not; the sentence that tells them apart, a defect that stops a well-typed program from building, is unwritten. | log: the reason restated where it stands, the project's rule and not the report's |
 | L75, L76, L77 | Reversals and likenesses recorded with their reasons. | log, no change |
 
 ### 14. The soundness argument
@@ -216,7 +216,7 @@ A line per finding, by family, naming its reader's letter and number and carryin
 
 ### What "consistent" means
 
-K: the word is in neither the report nor the argument; what stands for it is principle 1's prediction, principle 2's one way, and one build on every node. Agreement between two of the report's own sentences is required nowhere and kept by tests outside the report; the authority ordering lives in CLAUDE.md, so a reader with the report alone resolves a conflict by guessing. To decide: whether §0 states the ordering, Appendix A over the prose and §0 over an ambiguity.
+K: the word is in neither the report nor the argument; what stands for it is principle 1's prediction, principle 2's one way, and one build on every node. Agreement between two of the report's own sentences is required nowhere and kept by tests outside the report; the authority ordering lives in CLAUDE.md, so a reader with the report alone resolves a conflict by guessing. Decided: `sentence`, in the report's preface, which each file opens with: where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
 ---
 

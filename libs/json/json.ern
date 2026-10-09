@@ -13,9 +13,10 @@
 /// read.
 ///
 /// **Objects.** An object is a `Map` from its members' names to their
-/// values. Where a text names a member twice, the first is kept. `format`
-/// writes the members in the order of their names' code points, an order
-/// of this library's, which the host's `json:format` leaves to its caller.
+/// values. Where a text names a member twice, the last is kept, as
+/// `Map.fromList` keeps a later pair. `format` writes the members in the
+/// order of their names' code points, an order of this library's, which the
+/// host's `json:format` leaves to its caller.
 ///
 /// **Reading back.** `parse` reads what `format` writes as the value it was
 /// written from.
@@ -108,11 +109,14 @@ export foreign fn format(value : Value) : String =
 // the host showed of the edges it does not state.
 //
 
+// A regression test of the principles review's P47 (2026-10-09): the first
+// was kept, where every `fromList` keeps the last; the three members show
+// that the last wins wherever the others stand.
 let duplicateName =
-    Test.Case(name = "a member named twice keeps the first",
+    Test.Case(name = "a member named twice keeps the last, as Map.fromList does",
               run = fn() =
-                  Test.equal(parse("{\"a\": 1, \"a\": 2}"),
-                             Right(Object(Map.fromList([#("a", Integer(1))])))))
+                  Test.equal(parse("{\"a\": 1, \"b\": 0, \"a\": 2}"),
+                             Right(Object(Map.fromList([#("a", Integer(2)), #("b", Integer(0))])))))
 
 let numbers =
     Test.Case(name = "an integer of any size, and a real nearer zero than a Float is 0.0",

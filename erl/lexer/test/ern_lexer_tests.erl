@@ -37,11 +37,14 @@ reserved_words_test() ->
                  tokens("type abstract with foreign match when receive after or as "
                         "if then else fn let export")).
 
-%% report §2.4: `needs` and `derives` are identifiers, which the parser
-%% reads as Appendix A's words where they stand (the full review's P17,
-%% 2026-10-04)
+%% report §2.4: `needs`, `derives`, `compare`, `negate` and `show` are
+%% identifiers, which the parser reads as Appendix A's words where they
+%% stand (the full review's P17, 2026-10-04; the principles review's K11,
+%% 2026-10-09, which named the last three in §2.4)
 words_read_by_position_test() ->
-    ?assertEqual([{ident, needs}, {ident, derives}], tokens("needs derives")).
+    ?assertEqual([{ident, needs}, {ident, derives}, {ident, compare}, {ident, negate},
+                  {ident, show}],
+                 tokens("needs derives compare negate show")).
 
 %% report §2.4, §2.5
 literals_true_false_test() ->

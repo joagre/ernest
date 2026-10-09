@@ -137,16 +137,17 @@ export foreign fn find(key : Key(m), ms : Int) : Either(Failure, Address(m)) wit
 
 /// A process started on the peer of that name, running `f`, its address
 /// answered within `ms` milliseconds, the opening of a connection among them.
-/// `f` is a function's name or a lambda written in the same definition, and
-/// what it captured crosses to the peer; the peer's own top-level bindings and
-/// system processes are those `f` reaches there. `f` runs only where the peer
-/// has its module, the one it is written in, at the version it was compiled
-/// in, and every binding of that module and of the modules it depends on has
-/// its value there. Otherwise the spawn answers `NotLoaded`, as it does for a
-/// function a shell typed, and for one whose module, or a module it depends
-/// on, has a binding the peer's program never ran. A process whose answer came
-/// too late is ended as it comes, and where the connection was lost meanwhile
-/// it runs on.
+/// `f` is a declaration's name, or a lambda or a `fn` written in the same
+/// definition, as report §3.11 says, and what it captured crosses to the peer;
+/// the peer's own top-level bindings and system processes are those `f`
+/// reaches there. `f` runs only where the peer has its module, the one it is
+/// written in, and every binding of that module and of the modules it depends
+/// on has its value there. Otherwise the spawn answers `NotLoaded`, as it does
+/// for a function a shell typed, and for one whose module, or a module it
+/// depends on, has a binding the peer's program never ran. A process whose
+/// answer came too late is killed as it comes, and where the connection was
+/// lost meanwhile it runs on. `spawn` is called where it is named, and is no
+/// value.
 export foreign fn spawn(name : String,
                         f : () -> Unit with m,
                         ms : Int) : Either(Failure, Address(m)) with n =

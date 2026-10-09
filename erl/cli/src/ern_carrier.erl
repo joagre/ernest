@@ -403,10 +403,23 @@ said(_) ->
 
 %% Report §8.7: the host's own reports of its nodes are turned off, but the
 %% handshake's refusal of a peer for its build, by the cookie, and of a
-%% name its key does not give, which the node says in its own words.
+%% name its key does not give, which the node says in its own words. Its
+%% reports of a distribution that could not start, the crash of
+%% `net_kernel` and the start error of `net_sup`, are among them: the
+%% carrier's fault says it (§7.4).
 -spec filter(logger:log_event(), term()) -> logger:filter_return().
 filter(#{msg := {report, #{label := {error_logger, _}, format := Format, args := Args}}}, _) ->
     host_message(Format, Args);
+filter(#{msg := {report, #{label := {proc_lib, crash}, report := [Crash | _]}}}, _) ->
+    case proplists:get_value(initial_call, Crash) of
+        {net_kernel, init, _} -> stop;
+        _ -> ignore
+    end;
+filter(#{msg := {report, #{label := {supervisor, _}, report := Report}}}, _) ->
+    case proplists:get_value(supervisor, Report) of
+        {local, net_sup} -> stop;
+        _ -> ignore
+    end;
 filter(#{msg := {Format, Args}}, _) when is_list(Format), is_list(Args) ->
     host_message(Format, Args);
 filter(#{meta := #{domain := [otp, ssl | _]}}, _) ->

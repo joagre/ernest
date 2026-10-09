@@ -225,6 +225,19 @@ port_out_of_range_test() ->
     ?assertEqual(Refused, wait(connected)),
     ?assertEqual({fault, <<"deadlock">>}, Result).
 
+%% Appendix E.18: a connect to a port where nothing listens, which the far
+%% end refuses, answers `Refused`. A regression test of the principles
+%% review's K13 (2026-10-09), which stated the answer at `Tcp.connect`;
+%% the code gave it already
+connect_refused_test() ->
+    {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Held),
+    ok = gen_tcp:close(Held),
+    Self = self(),
+    ok = ern_rt:run_main(fun() -> Self ! {connected, connect(Port, 2000)} end,
+                         <<"main">>, quiet()),
+    ?assertEqual({'Left', 'Refused'}, wait(connected)).
+
 %% Appendix E.18: a host that holds U+0000 names none, `Invalid`, by
 %% `listen` and `connect` alike, and the program is still found deadlocked
 %% after. A regression test: the host raised an exit the worker did not

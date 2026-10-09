@@ -868,11 +868,11 @@ try_declare_constructors(TypeDeclaration, {Env, Found, Constructed}) ->
     end.
 
 %% Report §3.9: a type argument is a value position where its parameter
-%% occurs in a value position of the type's fields; one of a built-in or
-%% foreign type always is. The type state is given the types that have a
-%% parameter that is not.
+%% occurs in a value position of the type's fields, or in no field at all;
+%% one of a built-in or foreign type always is. The type state is given the
+%% types that have a parameter that is not.
 effect_param_state(#env{types = Types, type_state = TypeState}) ->
-    IsValue = param_occurrences(Types, fun in_value/3),
+    IsValue = param_occurrences(Types, fun in_value/3, fun in_no_field/1),
     HasEffectParam = fun(_, TypeIsValue) -> lists:member(false, TypeIsValue) end,
     ern_types:set_effect_params(maps:filter(HasEffectParam, IsValue), TypeState).
 
@@ -882,20 +882,47 @@ effect_param_state(#env{types = Types, type_state = TypeState}) ->
 %% outside function types, foreign types' arguments and the built-in types'
 %% but a List's element, which carries a reply as reply_in/3 reads it.
 with_reply_params(#env{types = Types} = Env) ->
-    Env#env{reply_params = param_occurrences(Types, fun in_reply/3)}.
+    Env#env{reply_params = param_occurrences(Types, fun in_reply/3,
+                                             fun(#type_info{params = Params}) ->
+                                                 [false || _ <- Params]
+                                             end)}.
 
 %% For each declared type with parameters, whether each parameter occurs in
-%% its fields as Occurs says. A parameter may occur only as an argument of
-%% another type, or of its own, so the occurrences are a least fixpoint over
-%% every declared type in scope. A type whose constructors failed to
-%% declare has no fields to read.
-param_occurrences(Types, Occurs) ->
+%% its fields as Occurs says, or holds from the start as Given says. A
+%% parameter may occur only as an argument of another type, or of its own,
+%% so the occurrences are a least fixpoint over every declared type in
+%% scope. A type whose constructors failed to declare has no fields to read.
+param_occurrences(Types, Occurs, Given) ->
     Declared = maps:from_list([{QualifiedName, TypeInfo}
                                || QualifiedName := #type_info{foreign = false,
                                                               params = [_ | _]} = TypeInfo
                                       <- Types]),
-    None = maps:map(fun(_, #type_info{params = Params}) -> [false || _ <- Params] end, Declared),
-    param_fixpoint(Declared, Occurs, None).
+    param_fixpoint(Declared, Occurs, maps:map(fun(_, TypeInfo) -> Given(TypeInfo) end, Declared)).
+
+%% Report §3.9: whether each of a type's parameters occurs in no field of
+%% the type, `m` of `Peer.Key(m)`, which makes it a value position.
+in_no_field(#type_info{params = Params} = TypeInfo) ->
+    Fields = field_types(TypeInfo),
+    [not lists:any(fun(FieldType) -> mentions(Id, FieldType) end, Fields)
+     || {tvar, Id} <- Params].
+
+%% The types of a type's fields, of every constructor.
+field_types(#type_info{constructors = Constructors}) ->
+    lists:append([FieldTypes
+                  || #constructor_info{scheme = #scheme{type = Type}} <- Constructors,
+                     {tfn, FieldTypes, _, _} <- [Type]]).
+
+%% Does variable Id stand anywhere in the type, an effect among it?
+mentions(Id, {tvar, Id}) ->
+    true;
+mentions(Id, {tcon, _, Args}) ->
+    lists:any(fun(Arg) -> mentions(Id, Arg) end, Args);
+mentions(Id, {ttuple, Elements}) ->
+    lists:any(fun(Element) -> mentions(Id, Element) end, Elements);
+mentions(Id, {tfn, Params, Effect, Result}) ->
+    lists:any(fun(Part) -> mentions(Id, Part) end, [Effect, Result | Params]);
+mentions(_, _) ->
+    false.
 
 param_fixpoint(Declared, Occurs, Occurring) ->
     Occurring1 = maps:map(fun(QualifiedName, TypeOccurring) ->
@@ -909,11 +936,8 @@ param_fixpoint(Declared, Occurs, Occurring) ->
 
 %% One step of the fixpoint for one type: a parameter occurs where it did,
 %% or where Occurs finds it in a field.
-type_occurring(#type_info{params = Params, constructors = Constructors}, TypeOccurring, Occurs,
-               Occurring) ->
-    Fields = lists:append([FieldTypes
-                           || #constructor_info{scheme = #scheme{type = Type}} <- Constructors,
-                              {tfn, FieldTypes, _, _} <- [Type]]),
+type_occurring(#type_info{params = Params} = TypeInfo, TypeOccurring, Occurs, Occurring) ->
+    Fields = field_types(TypeInfo),
     [Occurred orelse lists:any(fun(FieldType) -> Occurs(Id, FieldType, Occurring) end, Fields)
      || {Occurred, {tvar, Id}} <- lists:zip(TypeOccurring, Params)].
 
@@ -1796,7 +1820,8 @@ signature_shape(#foreign_fn_declaration{span = Span, params = Params,
                              end, TypeState, Marked),
     Env1 = bound(Placeholder, Type,
                  Env#env{type_state = not_reply_carrying_params(Type,
-                                                                foreign_effect(Type, TypeState1))}),
+                                                                foreign_effect(Type, TypeState1),
+                                                                Env)}),
     placeholder_requirement(Declaration, Placeholder, shown_requirement(Declaration, Type, Env),
                             Env1);
 signature_shape(_, _, Env) ->
@@ -1946,26 +1971,38 @@ param_type(#param{annotation = Syntax}, AnnotationVariables, Env) ->
 %% code may copy a value it is given or drop it, so a type variable whose
 %% values a parameter holds is not reply-carrying: one the parameter's type
 %% reaches through tuples and type arguments, and not under an address, a
-%% reply or a function type, whose values the parameter does not hold. A
-%% regression: `Foreign.from(r)` dropped a reply, and `Ets.put(t, k, r)`
-%% stored one.
-not_reply_carrying_params({tfn, Params, _, _}, TypeState) ->
+%% reply or a function type, whose values the parameter does not hold, nor
+%% under a declared type's parameter that occurs in no field, `m` of
+%% `Peer.Key(m)`. A regression: `Foreign.from(r)` dropped a reply, and
+%% `Ets.put(t, k, r)` stored one.
+not_reply_carrying_params({tfn, Params, _, _}, TypeState, #env{types = Types}) ->
     lists:foldl(fun(Id, Acc) ->
                     ern_types:add_restriction({tvar, Id}, not_reply_carrying, Acc)
                 end, TypeState,
-                [Id || Param <- Params, Id <- held_variables(Param, TypeState)]).
+                [Id || Param <- Params, Id <- held_variables(Param, TypeState, Types)]).
 
-held_variables(Type, TypeState) ->
+held_variables(Type, TypeState, Types) ->
     case ern_types:resolve(Type, TypeState) of
         {tvar, Id} -> [Id];
         {tcon, ['Address'], _} -> [];
         {tcon, ['Reply'], _} -> [];
         {tcon, QualifiedName, Args} ->
-            lists:append([held_variables(Arg, TypeState)
-                          || Arg <- ern_types:value_args(QualifiedName, Args, TypeState)]);
+            lists:append([held_variables(Arg, TypeState, Types)
+                          || Arg <- held_args(QualifiedName, Args, TypeState, Types)]);
         {ttuple, Elements} ->
-            lists:append([held_variables(Element, TypeState) || Element <- Elements]);
+            lists:append([held_variables(Element, TypeState, Types) || Element <- Elements]);
         _ -> []
+    end.
+
+%% The arguments of a type whose values it holds: those in a value
+%% position, but for one whose parameter occurs in no field (report §3.9).
+held_args(QualifiedName, Args, TypeState, Types) ->
+    InValue = ern_types:value_args(QualifiedName, Args, TypeState),
+    case Types of
+        #{QualifiedName := #type_info{foreign = false, params = [_ | _]} = TypeInfo} ->
+            InValue -- [Arg || {Arg, true} <- lists:zip(Args, in_no_field(TypeInfo))];
+        _ ->
+            InValue
     end.
 
 set_declaration_scheme(#fn_declaration{} = Declaration, Scheme) ->
@@ -4002,7 +4039,7 @@ infer(#e_not{span = Span, expr = Operand} = Expr, Env) ->
     {Expr#e_not{expr = TypedOperand, type = ?BOOL}, ?BOOL, Env2};
 infer(#e_selection{span = Span, expr = Operand, field = Field, field_span = FieldSpan} = Expr,
       Env) ->
-    {TypedOperand, OperandType, Env1} = infer(Operand, Env),
+    {TypedOperand, OperandType, Env1} = selection_operand(Operand, Field, Env),
     %% report §11.5: a selection's error stands at the selector
     ErrorSpan = case FieldSpan of
                     undefined -> Span;
@@ -5687,6 +5724,25 @@ lookup_outside(Span, Name, Env) ->
                    end,
             unknown_name(Span, Name, Help)
     end.
+
+%% A selection's operand. Report §4.9: `a.show` names nothing in a body,
+%% and where `a` is a type variable of the signature the help names
+%% `Io.show`, which writes the value under `needs a.show`, and not a
+%% member, which `show` is not.
+selection_operand(#e_var{namespace = [], name = Name} = Operand, show, Env) ->
+    try
+        infer(Operand, Env)
+    catch
+        throw:{type_error, #diagnostic{unknown_name = Name} = Diagnostic}
+          when is_map_key(Name, Env#env.annotation_variables) ->
+            Variable = atom_to_list(Name),
+            throw({type_error,
+                   Diagnostic#diagnostic{help = Variable ++ ".show names nothing in a body;"
+                                         " under needs " ++ Variable ++ ".show, write the"
+                                         " value with Io.show (§4.9)"}})
+    end;
+selection_operand(Operand, _Field, Env) ->
+    infer(Operand, Env).
 
 %% This module's own declaration, QualifiedName being its namespace, the
 %% type it is a member of, and the name.

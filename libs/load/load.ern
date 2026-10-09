@@ -95,8 +95,11 @@ fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
     time
 
 /// The fraction of the processor's time busy, from 0.0 to 1.0, since the
-/// previous call on the node, by the host's `cpu_sup`; `None` where the
-/// node's `measures` do not run it.
+/// calling process's previous call, by the host's `cpu_sup`, which keeps the
+/// time of each process's call; `None` where the node's `measures` do not run
+/// it. At a process's first call, and its first since the service started
+/// again, the host does not promise the value, which is on most systems the
+/// fraction since the machine started.
 ///
 /// ### Examples
 ///

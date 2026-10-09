@@ -737,6 +737,35 @@ refused_after_start(Base) ->
     ?assertEqual(nomatch, string:find(Said, "ran")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
+%% report §7.4, §8.7: a node whose carrier cannot start, its port taken,
+%% ends before `main` runs, its entry process faulting with the cause §7.4
+%% states, under the entry point's site, and with nothing of the host's
+%% reports on its standard output. A regression test of the principles
+%% review's K14 (2026-10-09), which stated the cause in §7.4: the fault was
+%% reported under the last initializer's site, `Terminal.widths`, and the
+%% host's crash report of its distribution was written on standard output
+carrier_not_started_test_() ->
+    nodes_test(60, fun carrier_not_started/1).
+
+carrier_not_started(Base) ->
+    {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Held),
+    A = made(Base, "a", Port),
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "prog.ern"),
+                         "export fn main() : Unit with Never = Io.println(\"ran\")\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    Program = filename:join(Root, "prog.erc"),
+    Out = filename:join(Base, "out"),
+    Said = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out
+                  ++ "; echo status $?"),
+    ok = gen_tcp:close(Held),
+    has(Said, "Prog.main faulted: the node's carrier did not start: "),
+    has(Said, "status 1"),
+    ?assertEqual({ok, <<>>}, file:read_file(Out)),
+    ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
+
 %% report §8.6: a node detects no deadlock, since it can be reached from
 %% outside: a node that waits for a message that never comes waits, where
 %% the same program run as no node faults; termination ends it. That the

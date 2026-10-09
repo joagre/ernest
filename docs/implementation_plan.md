@@ -459,9 +459,10 @@ builds only once a key and a spawn carry hashes; the shell, which needs units si
 termination told, which needs nothing of the hashes and comes after them so that section 3's
 deploy runs whole; then the library, and the tests over all of it.
 
-Before item 1 the principles review runs, as [`principles_review.md`](principles_review.md) says,
-over this proposal and over peers, which are built, on the user's word of 2026-10-09.
-
+The principles review ran on 2026-10-09 over this proposal and over peers, on the user's word (the
+log's *The Principles Review of 2026-10-09*); its sentences and decisions are carried through the
+report, the guide and the code before item 1, and what it gave this milestone stands in items 2
+and 8 below.
 1. **The report and the soundness argument.** The sections the proposal's section 9 names:
    §8.7 for the floor, the cookie without the build, the key's hash beside its text and
    `OtherType` by hash, the spawn by hash with `NotLoaded` by definition and by binding, and the
@@ -502,7 +503,8 @@ over this proposal and over peers, which are built, on the user's word of 2026-1
    its constructor's over its arguments'; a built-in type's its name; the scheme's version in
    every hash. The `.erc` carries the forms and the hashes; a library under `libs/` is hashed
    as a program's code is. What an abstract type's hash covers beyond its declaration is decided
-   here and recorded in the form's document and the log.
+   here and recorded in the form's document and the log, and so is whether a user's module carries
+   the host's debug information (the review's L40).
 3. **A node's code.** The code table from each hash to the unit and function that hold it; the
    build's units one per source module, made by the back end from the canonical forms through
    the table, a reference to a definition of the unit a local call and one to another unit's a
@@ -566,7 +568,11 @@ over this proposal and over peers, which are built, on the user's word of 2026-1
    subscription made during the end told at once, a program that is no node, a test and the shell
    told the same way, a peer finding and calling a node whose subscribers are being told;
    `Standing`'s cases and E.22's refusal; a program's own test of two builds with the other
-   started by `Os`. The measurements of section 7, and of what hashing costs a build and a load.
+   started by `Os`. The measurements of section 7, and of what hashing costs a build and a load; and, against
+   §10's cost rule, `spawnMonitored` at 7 times the host's and a `monitor` of an ended process at
+   15.6, each to end at a fraction or as a message by design with its reason in the log (the
+   review's L58). The guide's store waits in `main` for its termination message in place of sixty
+   seconds (W18).
    `guide/deployment.md` begun, the deployment guide, which owns running nodes: a node's
    configuration directory whole, `ern reload` and `ern stop`, a deploy by stop all and start
    all with a service that keeps its state through `Os.terminating`, `Fs` and `Json`, and the

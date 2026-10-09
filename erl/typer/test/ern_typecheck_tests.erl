@@ -124,6 +124,34 @@ effect_only_type_argument_test() ->
                          "fn run(h : V(e), x : Int) : Unit with e = h.f(x)\n"
                          "fn usePure() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
+%% report §3.9: a type argument whose parameter occurs in no field of its
+%% type is a value position, as `m` of `Peer.Key(m)`: a variable that
+%% stands there and after `with` ranges over types alone, so a function
+%% with it is no pure caller's, and it prints as a value variable. A
+%% regression test of the principles review's K7 (2026-10-09): the report
+%% left such a parameter in no position, and the checker took it for an
+%% effect position, accepting usePure and printing P(e)
+phantom_type_argument_test() ->
+    Source = "type P(e) = P(n : Int)\n"
+             "fn run(p : P(e), f : (Int) -> Unit with e) : Unit with e = f(p.n)\n",
+    ?assertEqual("run needs a process, and usePure is pure",
+                 refusal(Source ++ "fn usePure() : Unit = run(P(n = 1), fn(x) = Unit)\n")),
+    ?assertEqual(ok, ok(Source ++ "fn useBox(a : Address(Int)) : Unit with Int ="
+                        " run(P(n = 1), fn(x) = send(a, x))\n")),
+    ?assertEqual("the body does not have the declared result type: expected Int, found P(a)",
+                 refusal("type P(e) = P(n : Int)\n"
+                         "fn make() : P(e) = P(n = 1)\n"
+                         "fn f() : Int = make()\n")),
+    %% a value of the type holds no value of the variable, so a foreign
+    %% function's parameter of it leaves the variable reply-carrying (§4.7),
+    %% as `Peer.offer`'s key does
+    {ok, _, #interface{values = Values}, Env} =
+        check("export type P(e) = P(n : Int)\n"
+              "export foreign fn put(p : P(a), to : Address(a)) : Unit = \"m:put/2\"\n"),
+    ?assertEqual("(P(a), Address(a)) -> Unit",
+                 ern_types:format_scheme(maps:get(['M', put], Values),
+                                         ern_typecheck:type_state(Env))).
+
 %% report §5.4, §0 principle 3: `let _ = e` discards a value whatever `e`
 %% is, a pure one among them, since the `_` shows it unused, and a pure call
 %% may still fault; an expression statement not of type Unit is refused. A
@@ -624,6 +652,29 @@ spawn_function_test() ->
     ?assertEqual("Peer.spawn is called where it is named, so that the compiler sees the function"
                  " it starts",
                  peer_refusal("fn f() : Unit = { let s = Peer.spawn; Unit }\n")).
+
+%% report §3.11, §5.6: the errors the two sections state are the
+%% compiler's: a spawn on a peer of a function that came as a value,
+%% `Peer.spawn` taken as a value, and a record update with no field. A
+%% regression test of the principles review's K19 and K3 (2026-10-09):
+%% §3.11 stated its rules and no error, and §5.6 no error for the update
+stated_errors_test() ->
+    {ok, Report} = file:read_file("../../../report/language.md"),
+    [_, AfterSerialization] = binary:split(Report, <<"### 3.11 Serialization">>),
+    [Serialization, _] = binary:split(AfterSerialization, <<"\n## 4.">>),
+    [_, AfterConstruction] = binary:split(Report, <<"### 5.6 Construction">>),
+    [Construction, _] = binary:split(AfterConstruction, <<"\n### 5.7">>),
+    Stated = fun(Section, Message) ->
+                 ?assertNotEqual({nomatch, Message},
+                                 {binary:match(Section, list_to_binary(Message)), Message})
+             end,
+    Stated(Serialization,
+           peer_refusal("fn g(f : () -> Unit with Never) : Unit with m = {\n"
+                        ++ spawning("", "f"))),
+    Stated(Serialization, peer_refusal("fn g() : Unit = { let start = Peer.spawn; Unit }\n")),
+    Stated(Construction,
+           refusal("type Point = Point(x : Int, y : Int)\n"
+                   "fn same(p : Point) : Point = Point(..p)\n")).
 
 %% report §3.11, §3.9: what the lambda a spawn on a peer starts captures is
 %% neither bound nor of a type that holds a type variable, and a name its
@@ -1943,6 +1994,20 @@ reply_test() ->
     ?assertEqual(ok,
                  ok(Source ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                     " 1000)")).
+
+%% report §6.6: a `receive`'s `after` clause is a branch, on which an
+%% obligation open before the `receive` is consumed as on any other. A
+%% regression test of the principles review's K9 (2026-10-09), which
+%% named the clause in §6.6; the checker held it already
+reply_after_clause_test() ->
+    Source = "type Msg = Go | Halt\n",
+    ?assertEqual("the reply-carrying value r is not consumed on this path",
+                 refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Msg = receive {\n"
+                         "    Go -> answer(r, 1)\n  | Halt -> answer(r, 0)\n"
+                         "  | after 10 -> Unit\n}\n")),
+    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Msg = receive {\n"
+                        "    Go -> answer(r, 1)\n  | Halt -> answer(r, 0)\n"
+                        "  | after 10 -> answer(r, 2)\n}\n")).
 
 %% report §4.2: a type's member is written `T.name`, within the type's own
 %% members too; no lookup step finds it unqualified. A regression test,
@@ -3360,6 +3425,17 @@ member_not_declared_test() ->
                   "a is a type variable of the signature; its member, as a.compare, is named"
                   " under a requirement, needs a.compare"},
                  refusal_and_help("fn f(x : a, y : a) : Ordering = a.compare(x, y)")).
+
+%% report §4.9: `a.show` names nothing in a body, and the help for it names
+%% `Io.show`, which writes the value under `needs a.show`. A regression
+%% test of the principles review's K12 (2026-10-09): the help named
+%% `a.compare`, a member, where the declaration already wrote `needs a.show`
+show_named_in_body_test() ->
+    ?assertEqual({"unknown name a",
+                  "a.show names nothing in a body; under needs a.show, write the value with"
+                  " Io.show (§4.9)"},
+                 refusal_and_help("fn describe(x : a) : String needs a.show = a.show(x)")),
+    ?assertEqual(ok, ok("fn describe(x : a) : String needs a.show = Io.show(x)")).
 
 %% report §4.9: a call writes nothing for a requirement: at a known type
 %% the compiler supplies the type's member, at a type variable the

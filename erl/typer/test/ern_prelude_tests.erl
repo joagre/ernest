@@ -19,11 +19,10 @@ values_test() ->
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
     %% marks of the restrictions the compiler infers, `a=`, `a!` and `m+`,
-    %% are left out of the comparison on both sides, §9 writing only §9.4's
-    %% `Io.show` and `Io.debug`'s, which §3.9 sends the reader to, and
-    %% Appendix E's listings being held to them by ern_doc_tests'
-    %% listings_are_the_interfaces_test (report §3.9, §11.5); a module's
-    %% section writes its own types unqualified (§4.2)
+    %% are left out of the comparison on both sides, §9's being held to the
+    %% compiler's by marked_prelude_test below, and Appendix E's listings by
+    %% ern_doc_tests' listings_are_the_interfaces_test (report §3.9, §11.5);
+    %% a module's section writes its own types unqualified (§4.2)
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     Compiled = [{ern_namespace:text(QualifiedName), printed(QualifiedName, Scheme, TypeState)}
                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces(),
@@ -35,6 +34,30 @@ values_test() ->
                           || {QualifiedName, Text, _} <- ern_prelude:values()]
                          ++ Compiled),
     same(Report, Tables).
+
+%% report §9.4, §9.5, §9.6, §6.2, §6.6, §3.9, §11.5: each type §9 lists, and
+%% §6.2 and §6.6 with it, is the type the compiler prints, its inferred
+%% restrictions marked, as the shell's `:type` prints it. A regression
+%% test of the principles review's K2 (2026-10-09): `send`, `spawn`,
+%% `answer`, `Address.call`, `Address.callForever`, `kill`, `restarting` and
+%% `Io.debug` were listed without the `+` the compiler prints
+marked_prelude_test() ->
+    Lines = code_lines(section("### 9.4", "### 9.7"))
+        ++ code_lines(section("### 6.2", "### 6.3"))
+        ++ code_lines(section("### 6.6", "### 6.7")),
+    Env = ern_typecheck:prelude_env(),
+    TypeState = ern_typecheck:type_state(Env),
+    Schemes = maps:from_list(
+                [{ern_namespace:text(QualifiedName), Scheme}
+                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces(),
+                    {QualifiedName, Scheme} <- maps:to_list(Values)]
+                ++ [{ern_namespace:text(QualifiedName), Scheme}
+                    || {QualifiedName, Scheme} <- ern_typecheck:prelude_values(Env)]),
+    Listed = lists:append([written_signature(Line) || Line <- Lines]),
+    ?assert(length(Listed) > 30),
+    Printed = [{Name, normalize(ern_types:format_scheme(maps:get(Name, Schemes), TypeState))}
+               || {Name, _} <- Listed],
+    same(Listed, Printed).
 
 %% report Appendix E.0 rule 9: no exported function of the standard library
 %% takes a `Bool` that chooses a behaviour; `Bool`'s own module takes the
@@ -409,21 +432,25 @@ libraries([Heading | Lines]) ->
         _ -> libraries(Lines)
     end.
 
-%% A signature line, `Name, Name : Type // comment`, as {name, type} pairs;
-%% any other line as [].
-signature([First | _] = Line) when First =/= $\s, First =/= $= , First =/= $| ->
+%% A signature line, `Name, Name : Type // comment`, as {name, type} pairs,
+%% the type without its marks; any other line as [].
+signature(Line) ->
+    [{Name, normalize(unmarked(Type))} || {Name, Type} <- written_signature(Line)].
+
+%% The same, the type as written, its marks kept.
+written_signature([First | _] = Line) when First =/= $\s, First =/= $= , First =/= $| ->
     case re:split(Line, "\\s+:\\s+", [unicode, {return, list}, {parts, 2}]) of
         [Names, TypeAndComment] ->
             NamePattern = "[A-Za-z][\\w.]*(\\.[-+*/%<>]+)?",
             case re:run(Names, "^" ++ NamePattern ++ "(,\\s*" ++ NamePattern ++ ")*$", [unicode]) of
                 {match, _} ->
-                    Type = normalize(unmarked(hd(string:split(TypeAndComment, "//")))),
+                    Type = normalize(hd(string:split(TypeAndComment, "//"))),
                     [{string:trim(Name), Type} || Name <- string:split(Names, ",", all)];
                 nomatch -> []
             end;
         _ -> []
     end;
-signature(_) -> [].
+written_signature(_) -> [].
 
 %% Type declarations in the lines, comments stripped, one string each: a
 %% declaration starts at a `type` line and continues over indented lines.

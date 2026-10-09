@@ -296,11 +296,15 @@ ended({spawned, Pid}) -> ern_rt:kill(Pid);
 ended({failed, _}) -> ok.
 
 %% Report §8.7: a function spawned on this node runs where this node has its
-%% module, the version the function was compiled in, and every binding of
-%% that module and of every module it depends on has its value here, which
-%% the run in progress answers, or none where no run is. One build has one
-%% version of each of its modules; a module a shell typed is the shell's
-%% own, and another shell's of the same name is another module.
+%% module, which the frame names, and every binding of that module and of
+%% every module it depends on has its value here, which the run in progress
+%% answers, or none where no run is. The comparison of the module's digest
+%% with the one the function was compiled in is the host's own loading
+%% check, which no node that keeps §8.7 meets: connected nodes run one
+%% build, so a module is one version on both. It guards against a peer that
+%% breaks §8.7, as §8.4's checks guard against a faulty peer's message, and
+%% keeps a module a shell typed its own (§11.2): another shell's of the
+%% same name is another module, which this node does not have.
 loaded(Function) ->
     {module, Module} = erlang:fun_info(Function, module),
     {new_uniq, Version} = erlang:fun_info(Function, new_uniq),

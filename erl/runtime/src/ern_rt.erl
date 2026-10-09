@@ -1815,10 +1815,11 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
                 ets:insert(?LAUNCH, {entry_process, erlang:self()}),
                 run_inits(Stdlib),
                 Init(),
-                %% report §8.7: a node listens once its bindings have
-                %% their values
-                Node(),
+                %% report §8.7, §7.4: a node listens once its bindings
+                %% have their values, a carrier that cannot start faulting
+                %% the entry process, under its own site (§6.9)
                 initializing(Site),
+                Node(),
                 EntryPoint()
             end,
     EntryProcess = spawn_with_monitors(Entry, Site,
