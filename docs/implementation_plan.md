@@ -74,7 +74,7 @@ paragraph under "Done".
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code` | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.4 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
-| MVP 3.5 | the tour: one program grown through every part of Ernest, from one node to a rolling upgrade, for the reader who reads nothing else | outline to be written with the user |
+| MVP 3.5 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 
 ---
@@ -432,8 +432,12 @@ and `json` in MVP 3.0). Named so far:
 
 ## MVP 3.5 (the tour)
 
-A third guide, `guide/tour.md`, for the reader who will read neither the report nor the other
-two guides: one program, the counter of the guide and the proposals, grown chapter by chapter
+A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
+whole picture in an evening and will read neither: the report is for whoever builds or checks a
+toolchain, the guide for the programmer learning the language, and the tour a crash course. It
+is a directory of its own at the top level, its document and the programs it grows side by side,
+and the README names the three ways in; CLAUDE.md's table of owners gains its row when it
+exists. One program, the counter of the guide and the proposals, grown chapter by chapter
 through every part of Ernest that matters, each shown working, from a process with a typed
 mailbox on one node to a rolling upgrade across three nodes written in Ernest. Decided with the
 user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about deployment (MVP
@@ -448,7 +452,7 @@ last chapters need, and before MVP 3.9, whose newcomer reads it.
   three nodes, a key and a find, `Standing`, a balancer; a bare node given its work with the
   code; and the rolling upgrade, an old and a new build connected meanwhile.
 - **It narrates and points, and teaches no rule a third time**: what a rule is and why is the
-  language guide's or the deployment guide's, and the tour names the section.
+  report's and the guides', and the tour names the section.
 - **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
   one program grown across every feature is the language's hardest test before 1.0.
