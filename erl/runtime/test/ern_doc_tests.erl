@@ -100,7 +100,10 @@ check_examples(Namespace, Source, Docs) ->
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
     Original = code:which(ErlangModule),
     {module, ErlangModule} = code:load_binary(ErlangModule, "doc examples", Beam),
-    ExampleModule = example_module(Outside, [Interface | Libraries]),
+    %% report §11.1: a module that uses another is compiled against its
+    %% interface as compiled, which holds its definitions' hashes
+    {ok, #{interface := Compiled}} = ern_interface:read(Beam),
+    ExampleModule = example_module(Outside, [Compiled | Libraries]),
     try
         %% Appendix E.0 shape rule 6: each example runs on its own, and the value
         %% it ends with is the last line it prints; what it prints itself,

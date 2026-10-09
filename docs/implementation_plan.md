@@ -496,7 +496,7 @@ and 8 below.
    lists it, and G.7 for `Standing` written with item 7, since a test holds Appendix G to `libs/`; the fault of a reload gone from §6.10, §7.4 and §8.4; Appendix
    F and the glossary; the refusal of a node without a program names MVP 3.2 in its text, the
    table and its test. `docs/development.md`'s shell rows stay until item 5 lifts them.
-2. **The canonical form, and the hash.** The form's document with the scheme's version, written
+2. **The canonical form, and the hash.** The form's document with the form's version, written
    before any hash is computed, literals and order fixed, and its test suite first: the same
    definition hashes the same across a rebuild; a renamed function keeps its dependents' hashes
    and a renamed constructor changes them; a moved definition in a group changes the group's;
@@ -509,11 +509,18 @@ and 8 below.
    and its constructors in order with their fields' names and types' hashes; a binding's
    identity its qualified name with its hash; a group one hash in source order with each
    member's position; a lambda's its enclosing definition's and its position; an applied type's
-   its constructor's over its arguments'; a built-in type's its name; the scheme's version in
+   its constructor's over its arguments'; a built-in type's its name; the form's version in
    every hash. The `.erc` carries the forms and the hashes; a library under `libs/` is hashed
    as a program's code is. What an abstract type's hash covers beyond its declaration is decided
    here and recorded in the form's document and the log, and so is whether a user's module carries
-   the host's debug information (the review's L40).
+   the host's debug information (the review's L40). Done 2026-10-09 (the log's *The Canonical Form, Built*):
+   Appendix H states the form node by node, the hash SHA-256 of the host's deterministic
+   external term format of `{ernest_form, 1, Form}`; `ern_canonical` computes it and the `.erc`
+   carries forms and hashes in a chunk of their own, compressed, which `ern_chunk` reads under
+   deflate's own bound; 22 tests written before the code; a clean build twice gives byte-identical
+   forms, 582 definitions over 32 modules, at one percent of the build's time; §11.1 recompiles a
+   dependent whose forms reference a changed hash; a user's module keeps the host's debug
+   information, which `make dialyzer` reads and an installation strips (L40 closed).
 3. **A node's code.** The code table from each hash to the unit and function that hold it; the
    build's units one per source module, made by the back end from the canonical forms through
    the table, a reference to a definition of the unit a local call and one to another unit's a

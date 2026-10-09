@@ -20,7 +20,8 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, lookup_type/2, described_type/2, is_reply_carrying/2,
+         prelude_env/0, lookup_type/2, type_qualified_name/3, identity/2, global_scheme/2,
+         is_provided/2, described_type/2, is_reply_carrying/2,
          assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, declared_fields/3,
          session_member/3, lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2,
@@ -76,10 +77,13 @@
               groups = #{}, typed = [], diagnostics = [], reply_variables = [],
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
-              signature = [], definition, private_types = #{}}).
+              signature = [], definition, private_types = #{}, identities = #{}}).
 %% private_types: the private types of the modules given, which their
 %% abstract types' fields name; the descriptor builder reads them
 %% (described_type/2), and no name resolves to one (report §4.2, §11.1)
+%% identities: the hashes of the definitions of the modules given, by
+%% qualified name, which their interfaces hold and the canonical form names
+%% them by (identity/2, report Appendix H); the checker reads none
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
@@ -535,7 +539,7 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
     Env#env{types = lists:foldl(Mark, Types, Declarations)}.
 
 add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
-                         private_types = PrivateTypes},
+                         private_types = PrivateTypes, identities = Identities},
               #env{types = Types, globals = Globals} = Env) ->
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
@@ -543,6 +547,7 @@ add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
     Env#env{types = maps:merge(Types, InterfaceTypes), globals = maps:merge(Globals, Values),
             constructors = Constructors,
             private_types = maps:merge(Env#env.private_types, PrivateTypes),
+            identities = maps:merge(Env#env.identities, Identities),
             lets = maps:merge(Env#env.lets,
                               maps:from_list([{QualifiedName, true} || QualifiedName <- Lets]))}.
 
@@ -679,6 +684,33 @@ lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = T
 
 -spec lookup_type([atom()], env()) -> #type_info{} | undefined.
 lookup_type(QualifiedName, #env{types = Types}) -> maps:get(QualifiedName, Types, undefined).
+
+%% Report §4.2, Appendix H: the qualified name of the type an annotation
+%% writes as Namespace and Name, which the check has resolved once already
+%% and so resolves.
+-spec type_qualified_name([atom()], atom(), env()) -> [atom()].
+type_qualified_name(Namespace, Name, Env) ->
+    {QualifiedName, _} = lookup_type_name({1, 1, {1, 1}}, Namespace, Name, Env),
+    QualifiedName.
+
+%% Report §11.1, Appendix H: the hash of another module's definition, which
+%% its interface holds, `foreign` for its foreign declaration, or undefined
+%% where the modules given hold none of that name.
+-spec identity([atom()], env()) -> binary() | foreign | undefined.
+identity(QualifiedName, #env{identities = Identities}) ->
+    maps:get(QualifiedName, Identities, undefined).
+
+%% A value's scheme by its qualified name, of a module given or the
+%% prelude, or undefined.
+-spec global_scheme([atom()], env()) -> #scheme{} | undefined.
+global_scheme(QualifiedName, #env{globals = Globals}) ->
+    maps:get(QualifiedName, Globals, undefined).
+
+%% Report §4.2: whether a namespace's first segment is one the toolchain
+%% provides, the prelude's or the standard library's.
+-spec is_provided(atom(), env()) -> boolean().
+is_provided(Name, #env{provided = Provided}) ->
+    lists:member(Name, Provided).
 
 %% Report §8.4, §11.1, Appendix E.1: a type as a value of it is described,
 %% printed or checked: one in scope, or a private type of another module

@@ -2,12 +2,13 @@
 
 Revision of 9 October 2026.
 
-This file holds the report's §11 and Appendix C. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
+This file holds the report's §11 and Appendices C and H. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
 **Contents**
 <!-- contents -->
 - [11. Toolchain](#11-toolchain)
 - [Appendix C. Configuration](#appendix-c-configuration)
+- [Appendix H. The canonical form](#appendix-h-the-canonical-form)
 <!-- /contents -->
 
 ## 11. Toolchain
@@ -16,7 +17,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 ### 11.1 `ern build` (compiler)
 
-`ern build [--source-root src-root] [--build-root build-root] [--load-path dir]... [--emit-erl] [--short-errors] file.ern | src-dir` compiles a module to `file.erc`, or every module under `src-dir`, as below. That file carries the inferred types of the module's exported declarations, each function's requirement (§4.9), which of them are values rather than functions (§4.6), and the private types an exported abstract type's fields name, and those theirs name, by which a dependent describes the abstract type's values where they are printed or checked (Appendix E.1, §8.4) and which it cannot name (§4.2); dependent modules are checked against them. A module depends on each module a qualified name in its source names, and on each module that declares a type the interface of a module it depends on names; the compiler checks it against the interfaces of them all, and the `.erc` records them. The `.erc` records beside them each definition's *canonical form* and its hash (§8.7): the typed tree after checking, its locals numbered by position, its layout and comments gone, every name resolved and every type written out, a reference to another definition being that definition's hash and a reference to a foreign declaration its qualified name and type, its literals in one fixed encoding. The scheme's version is in every hash, and changes with any change to what runs before hashing, the form and the checker among it. A build directory is never changed under a running node; a new build goes in a directory of its own (§8.7). It carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. It also records the path from `build-root` to its source. Given `src-dir`, `ern build` compiles every `.ern` under it in dependency order, mirroring the source tree into `build-root` and creating directories as needed. A cycle among the modules (§4.1) is reported with the modules in it. A module that does not compile does not stop the others: every module is compiled but one that uses a module that failed, and every failure is reported. A module so left uncompiled is reported in a line of its own, `Main is not compiled, since it uses Util, which failed`. A module is recompiled when its source or the path from `build-root` to it has changed, when the interface of a module it depends on has changed, when any interface of the standard library has changed, or when it was compiled by another build of `ern`, another version or the same version's code changed; a change confined to a dependency's bodies does not recompile its dependents. A module outside the source root is read from its `.erc` under `build-root`, then under each `--load-path` root, found by namespace as §11.2 finds it. A `.erc` that holds another namespace than the build names is not written over: a single-file build under another source root is refused with the option that names the root. A `.erc` is stale when the path it records, taken from the root it lies under, names a file under the source root that no longer exists. A stale `.erc` is not read: a module that uses it is an error, `no module Util: build/util.erc was compiled from src/util.ern, which no longer exists`. Cross-module references link at load, against `.erc` files under `build-root` and the `--load-path` roots. `--emit-erl` writes the module's Erlang source as `.erl` instead, for reading; it carries no interface.
+`ern build [--source-root src-root] [--build-root build-root] [--load-path dir]... [--emit-erl] [--short-errors] file.ern | src-dir` compiles a module to `file.erc`, or every module under `src-dir`, as below. That file carries the inferred types of the module's exported declarations, each function's requirement (§4.9), which of them are values rather than functions (§4.6), and the private types an exported abstract type's fields name, and those theirs name, by which a dependent describes the abstract type's values where they are printed or checked (Appendix E.1, §8.4) and which it cannot name (§4.2); dependent modules are checked against them. A module depends on each module a qualified name in its source names, and on each module that declares a type the interface of a module it depends on names; the compiler checks it against the interfaces of them all, and the `.erc` records them. The `.erc` records beside them, compressed, each definition's *canonical form* and its hash (§8.7), which Appendix H states whole: the typed tree after checking, its locals numbered by position, its layout and comments gone, every name resolved and every type written out, a reference to another definition being that definition's identity and a reference to a foreign declaration its qualified name and type, its literals in one fixed encoding. The form's version is in every hash, and changes with any change to what runs before hashing, the form and the checker among it. The interface holds the hash of each of the module's definitions by its qualified name, by which a dependent's forms name it, and marks each foreign declaration. A build directory is never changed under a running node; a new build goes in a directory of its own (§8.7). It carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. It also records the path from `build-root` to its source. Given `src-dir`, `ern build` compiles every `.ern` under it in dependency order, mirroring the source tree into `build-root` and creating directories as needed. A cycle among the modules (§4.1) is reported with the modules in it. A module that does not compile does not stop the others: every module is compiled but one that uses a module that failed, and every failure is reported. A module so left uncompiled is reported in a line of its own, `Main is not compiled, since it uses Util, which failed`. A module is recompiled when its source or the path from `build-root` to it has changed, when the interface of a module it depends on has changed, when the hash of another module's definition that its forms reference has changed, when any interface of the standard library has changed, or when it was compiled by another build of `ern`, another version or the same version's code changed; a change confined to a dependency's bodies recompiles only a dependent whose forms reference a definition whose hash the change changed. A module outside the source root is read from its `.erc` under `build-root`, then under each `--load-path` root, found by namespace as §11.2 finds it. A `.erc` that holds another namespace than the build names is not written over: a single-file build under another source root is refused with the option that names the root. A `.erc` is stale when the path it records, taken from the root it lies under, names a file under the source root that no longer exists. A stale `.erc` is not read: a module that uses it is an error, `no module Util: build/util.erc was compiled from src/util.ern, which no longer exists`. Cross-module references link at load, against `.erc` files under `build-root` and the `--load-path` roots. `--emit-erl` writes the module's Erlang source as `.erl` instead, for reading; it carries no interface.
 
 **Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's source root (§4.2) uses that root. Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ern build`. In single-file mode without `--source-root`, a file's namespace is its path from the current directory: `ern build net/http.ern` compiles `Net.Http`, and `ern build app/net/http.ern` compiles `App.Net.Http`. Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and to `build/stdlib` beside the toolchain for the standard library's own source root (§4.2), where its modules are built.
 
@@ -181,3 +182,107 @@ A failure of `ern` itself exits with status 70. A job whose standard output or s
 ```
 
 `listen` is what this node's listener binds to, and is left out on a node that only dials; a peer's `network-address` is left out where the peer is never dialled (§8.7). `keys` lists, under a key's name, the peers that may offer it, in the order a find asks them. `measures`, absent here, names the host's measures that run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it by their meaning, `check-interval`, `almost-full` (§8.7): `"measures": {"cpu": {}, "memory": {"check-interval": 60000, "almost-full": 0.8}, "disk": {"check-interval": 1800000, "almost-full": 0.9}}`. The private key is in the same directory, `private-key.pem`, readable only by its owner, beside the certificate the node signs itself, `certificate.pem`, whose name is a constant and whose validity runs from 1970 to the end of 9999. A freshly created file lists no peer and no key.
+
+## Appendix H. The canonical form
+
+A definition's canonical form (§8.7, §11.1) is a term of the host's, and its hash is the SHA-256 of the bytes `term_to_binary(Term, [deterministic, {minor_version, 2}])` gives it: the host's external term format, as the major release of OTP the floor names documents it (§8.7). The term holds no map, so its bytes follow from the format's rules for atoms, integers, floats, binaries, tuples and lists. This appendix states the term node by node, so that another toolchain that writes the same terms computes the same hashes. Two definitions whose forms are one term are one definition.
+
+**The version.** The form's version is 1. It changes with any change to what runs before hashing: this appendix, the checker, and the elaboration the form records, the supplies of §4.9 among it.
+
+**What is hashed.** A definition is a function, a top-level binding or a type of a module; a `foreign fn` and a `foreign type` are no definitions and have no hash. A module's definitions fall into the strongly connected components of the graph whose edges are their references to one another by hash (**References**). A definition in a component of its own is hashed as `{ernest_form, 1, Form}`. A component of two or more definitions, a mutually recursive group, is hashed as `{ernest_form, 1, {group, Forms}}`, its members' forms in source order; the hash of the member at position `p`, counted from 1, is the SHA-256 of `{ernest_member, 1, GroupHash, p}`, written as above. A lambda's or a local function's identity is the pair `{Hash, Position}` of its enclosing definition's hash and its position among the definition's lambdas and local functions, counted from 1 in the order the walk meets them.
+
+**Definitions.**
+
+```
+{function, Scheme, Params, Annotation, Annotation, Needs, Expr}
+{binding, Scheme, Annotation, Expr}
+{type, QualifiedName, Arity, Derives, Constructors}
+```
+
+A function, top-level or local, holds its scheme, its parameters, the annotations of its result type and of its mailbox type, its requirement as written, and its body. A binding holds its scheme, its annotation and its initializer. A function's own name and a binding's are not in their forms. A type holds its qualified name, the number of its parameters, `true` where it derives `compare` and `false` otherwise, and its constructors in declared order, each `{Name, none}`, `{Name, {positional, Type}}` or `{Name, {named, [{Field, Type}]}}`, its fields in declared order; its parameters are the variables 1 to its arity, in order. An abstract type's hash covers its constructors as any type's does, since a value crosses with its representation. Whether a declaration is exported, and whether a type is abstract, is not in its form.
+
+A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality`, `not_reply_carrying` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` (§4.9). A parameter is `{param, Pattern, Annotation}`. An `Annotation` is `none` where nothing is written, and otherwise the type written, its names resolved. `Needs` lists the `needs` clause's members as written, each `{needs, Type, Member}`.
+
+**References.**
+
+```
+{local, Number}
+{hash, Hash}
+{binding, QualifiedName, Hash}
+{in_group, Position}
+{named, QualifiedName}
+{foreign, QualifiedName, Scheme}
+```
+
+A local is its number. A function or a type of a program is its hash, a binary of 32 bytes; a top-level binding is its qualified name with its hash; a member of the definition's own group, itself among them, is its position. Whatever the standard library or the prelude declares, a definition or a foreign declaration, a built-in type, and a foreign type are their qualified names, wherever they are referenced, the library's own modules among them. A foreign function a program declares is its qualified name with its scheme, numbered on its own. A member that an operator, a negation or a supply resolves to is the function that declares it (§4.8). A qualified name is a list of atoms, and a name, a field, a member and an operator an atom.
+
+**Types.**
+
+```
+{variable, Number}
+{applied, Reference, Types}
+{tuple, Types}
+{arrow, Types, Effect, Type}
+```
+
+A type applied to its arguments names its constructor's reference, `{applied, {named, ['Int']}, []}` for `Int`. An arrow's `Effect` is `pure` or a type.
+
+**The walk.** The walk visits a term's parts in the order the term lists them, depth first. Locals are numbered from 1 in each definition in the order the walk binds them, as parameters, in patterns and as local functions. A block binds its local functions' names, in the order they are declared, as the walk enters it, and then walks its statements. A use of a local is the number of the binding in scope. A pattern's alternatives bind the numbers its first alternative gave. A size in a bitstring pattern names the locals in scope where the pattern begins and those its bitstring's earlier segments bind. Type variables are numbered from 1 in each definition in the order the walk first meets them, one the checker made by itself and one an annotation writes by its name. The walk begins at the definition's scheme, which lists its quantified variables in the order they first stand in its type. A foreign function's scheme, in a reference, is numbered by itself.
+
+**Expressions.**
+
+```
+{literal, Kind, Value}
+{var, Reference, Supplies}
+{var, Reference, Supplies, Type}
+{construct, Constructor, Arguments}
+{tuple, Exprs}
+{list, Exprs}
+{bitstring, Segments}
+{block, Statements}
+{call, Expr, Exprs}
+{piped_call, Expr, Exprs}
+{select, Expr, Reference, Field}
+{not, Expr}
+{negate, Expr, Operation}
+{operator, Operator, Expr, Expr, Operation}
+{member, Supply}
+{lambda, Params, Annotation, Annotation, Expr}
+{if, Expr, Expr, Expr}
+{match, Expr, Clauses}
+{receive, Clauses, After}
+```
+
+A literal's `Kind` is `int`, `float`, `char`, `string` or `bool`, and its `Value` the host's integer, the host's float, the character's code point, the string's UTF-8 as a binary, or `true` or `false`. A use of `Address.call` or `Address.callForever` holds the type of the answer, against which the reply is checked (§6.6); every other name is `{var, Reference, Supplies}`, its supplies those of its declaration's requirement and of `Io.show`, `Foreign.from` and `Peer.key`. A `Constructor` is `{constructor, Reference, Position}`, its type's reference and its position among the type's constructors, counted from 1. A construction's `Arguments` are `none`, `{positional, Expr}` or `{named, Base, [{field, Field, Expr}]}`, the fields in the order written and `Base` `none` or the expression after `..`; a fill and a path in an update are the constructions the checker reads them as (§5.6). A `Segment` is `{segment, Kind, Size, Unit, Endian, Sign, Value}`, §5.11's specifiers with their defaults: `Size` is `none`, `{const, Count}` or `{expr, Expr}`. A pipe whose callee is not a name, a constructor or a lambda is `{piped_call, ...}`, since its first argument is evaluated before its callee (§5.1); every other call is `{call, ...}`. A selection holds the reference of the type its field is selected from. An `Operation` is the supply of the member an operator or a negation resolves to; `{runtime, Type}` for an arithmetic operator, `<>`, an ordering and a negation that the runtime applies itself, at its operand's type, which it holds; and `runtime` for `==`, `!=`, `&&`, `||` and `::`.
+
+A statement is an expression, a function, `{bind, Annotation, Expr, Pattern}` for `let p = e`, or `{unwrap, Reference, Annotation, Expr, Pattern}` for `let p <- e`, its reference `Either`'s or `Optional`'s. A clause is `{clause, Pattern, Guard, Expr}`, its guard `none` or an expression, and `After` is `none` or `{after, Expr, Expr}`.
+
+**Patterns.**
+
+```
+wildcard
+{local, Number}
+{literal, Kind, Value}
+{construct, Constructor, Arguments}
+{tuple, Patterns}
+{list, Patterns}
+{cons, Pattern, Pattern}
+{as, Pattern, {local, Number}}
+{alternatives, Patterns}
+{bitstring, Segments}
+```
+
+A pattern's `Arguments` are `none`, `{positional, Pattern}` or `{fields, Patterns}`, a named constructor's fields in declared order, `wildcard` where the pattern leaves one out. A segment's `Value` is a pattern.
+
+**Supplies.**
+
+```
+{known, Reference, Supplies}
+{required, Type, Member}
+{shown, Type}
+{text, Text}
+```
+
+A known type's member is the reference of the function that declares it, with its own requirement supplied; a member of the requirement in force is its type variable and its name; `show` at a type known whole, and the type `Foreign.from` gives its value at, is that type; and a key's message type is the text the compiler prints of it (§8.7), as a binary.
+
+**What is left out.** Spans, layout, comments and doc blocks; the names of locals and of annotation variables; the namespace a name was written with; a node's inferred type, but where this appendix places one; and the order a pattern writes a constructor's fields in.

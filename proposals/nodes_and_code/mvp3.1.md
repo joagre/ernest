@@ -125,7 +125,7 @@ MVP 3.0's limits stand, every one.
 
 ## 6. How it works
 
-**The hash.** The canonical form is the typed tree after checking: local variables numbered by position, layout and comments gone, every name resolved, types written out. A reference to another definition is the hash of what it names, and nothing else. A reference to a foreign declaration, which has no hash, is its qualified name and its type; each node resolves it for itself. A function's own name and its source positions are not in its hash, so two functions with one body are one definition. A binding's identity is its qualified name with its definition's hash, since a binding is a thing that exists on a node, and two bindings with one initializer are two. A type's hash covers its qualified name, its parameters by position, and its constructors in declared order with their fields' names and the hashes of their types. A mutually recursive group is the strongly connected component of the dependency graph, hashed as one in source order; each member's identity is the group's hash and its position in it. A lambda's identity is its enclosing definition's hash and its position in it. An applied type's identity is its constructor's hash over its arguments' identities; a built-in type's is its name. The scheme's version is mixed into every hash, and changes with any change to what runs before hashing, the canonical form and the checker among it. The canonical form is written down, literals and order fixed, before any hash is computed. The site a spawn frame carries is the spawner's build's words, shown and never compared.
+**The hash.** The canonical form is the typed tree after checking: local variables numbered by position, layout and comments gone, every name resolved, types written out. A reference to another definition is the hash of what it names, and nothing else. A reference to a foreign declaration, which has no hash, is its qualified name and its type; each node resolves it for itself. A function's own name and its source positions are not in its hash, so two functions with one body are one definition. A binding's identity is its qualified name with its definition's hash, since a binding is a thing that exists on a node, and two bindings with one initializer are two. A type's hash covers its qualified name, its parameters by position, and its constructors in declared order with their fields' names and the hashes of their types. A mutually recursive group is the strongly connected component of the dependency graph, hashed as one in source order; each member's identity is the group's hash and its position in it. A lambda's identity is its enclosing definition's hash and its position in it. An applied type's identity is its constructor's hash over its arguments' identities; a built-in type's is its name. The form's version is mixed into every hash, and changes with any change to what runs before hashing, the canonical form and the checker among it. The canonical form is written down, literals and order fixed, before any hash is computed. The site a spawn frame carries is the spawner's build's words, shown and never compared.
 
 **The cookie and the floor.** The cookie is the digest of the protocol's version, `ern`'s version and OTP's major release, `erlang:system_info(otp_release)`. The build is not in it, and MVP 3.0's fingerprint goes. What the hashes leave out agrees by the cookie: the runtime's functions and the standard library, which code calls by name, and every foreign declaration over a module of OTP's or of `ern`'s.
 
@@ -147,7 +147,7 @@ MVP 3.0's limits stand, every one.
 
 | What | Value |
 |---|---|
-| a definition's hash | SHA-256 over its canonical form, the scheme's version mixed in |
+| a definition's hash | SHA-256 over its canonical form, the form's version mixed in |
 | the cookie | the protocol's version, `ern`'s version and OTP's major release; no build |
 | the spawn frame | MVP 3.0's, with the function's hash in place of its module and place |
 | the frames of this milestone | none beside MVP 3.0's six |
@@ -169,7 +169,7 @@ A program's own test of two nodes needs nothing new: `ern test --config-dir dir`
 
 Every question the proposal was written through is decided. What remains is the build's:
 
-- the canonical form's document, with the scheme's version, written before any hash is computed; what an abstract type's hash covers beyond its declaration is its to decide;
+- the canonical form's document, with the form's version, written before any hash is computed; what an abstract type's hash covers beyond its declaration is its to decide;
 - the measurements of section 7, and of what hashing costs a build and a load;
 - the soundness argument's section 7, extended to the hashes between nodes of different builds and to identity by hash on one node across a load;
 - the report's sentences: §8.7 for the floor, the key's hash, and the spawn by hash with `NotLoaded` by definition and by binding; §8.6 for the end that tells its subscribers and waits for their answers; Appendix E.23 for `Os.terminating`; §11.1 for what an `.erc` holds; §11.2 for the shell's reload; Appendix E.22 for the refusal; Appendix G for `Standing`; and the glossary's words, hash, identity, reach, unit and code table, in Appendix F and in `docs/style.md`;

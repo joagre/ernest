@@ -88,7 +88,8 @@
 %% The compiled interface of a module: what other modules see (report §4.2,
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
--record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{}}).
+-record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
+                    identities = #{}}).
 %% private_types: the module's private types an exported abstract type's
 %% fields name, and those theirs name, #{qualified_name() => #type_info{}}, by
 %% which a dependent describes the abstract type's values (report §8.4,
@@ -97,5 +98,10 @@
 %% which the emitter calls through their getter (report §4.6, §8.5)
 %% namespace: qualified_name(); types: #{qualified_name() => #type_info{}};
 %% values: #{qualified_name() => #scheme{}} for exported fn, let, and foreign fn
+%% identities: #{qualified_name() => binary() | foreign}, the hash of each of
+%% the module's definitions, by which a dependent's canonical forms name it,
+%% and `foreign` for each foreign declaration, which has none (report
+%% §11.1, Appendix H); the compiler fills it in, and the checker's interface
+%% has none
 
 -endif.

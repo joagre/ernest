@@ -1,8 +1,9 @@
 %% The compiler: typed AST to Erlang abstract format, then to a BEAM module
 %% with the interface as the chunk "ErnI" (report §11.1): the
 %% canonical interface, a hash of the source, and per dependency the hash
-%% of the interface compiled against; and the documentation as EEP 48's
-%% chunk "Docs" (§11.4). Values follow report §8.4.
+%% of the interface compiled against; the documentation as EEP 48's
+%% chunk "Docs" (§11.4); and each definition's canonical form and hash as
+%% the chunk "ErnC" (§8.7, Appendix H). Values follow report §8.4.
 %%
 %% Report §5.1's left-to-right order of a call's arguments, a tuple's and a
 %% list's elements and an operator's operands rests on the host compiler's,
@@ -87,11 +88,19 @@ compile(Namespace, Declarations, Interface, Env) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
     Forms = forms(Namespace, Declarations, Env, Build),
-    Facts = maps:without([source, session_offset, standard], Build),
-    Chunk = ern_interface:encode(Facts, Interface),
+    %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
+    %% the hashes in the interface, by which a dependent's forms name its
+    %% definitions, and the hashes of other modules' definitions its own
+    %% forms name, which the recompile rule compares
+    Canonical = ern_canonical:module(Namespace, Declarations, Env,
+                                     maps:get(standard, Build, false)),
+    #{references := References} = Canonical,
+    Facts = (maps:without([source, session_offset, standard], Build))#{references => References},
+    Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
-    Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
+    Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs},
+              {ern_canonical:chunk_name(), ern_canonical:encode(Canonical)}],
     %% report §11: the host's compiler takes nothing from the environment
     Options = [return_errors, debug_info, {extra_chunks, Chunks}],
     case compile:noenv_forms(Forms, Options) of

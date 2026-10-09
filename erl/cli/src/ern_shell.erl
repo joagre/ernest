@@ -673,6 +673,9 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Descriptor = ern_descriptor:describe(Type, Env, []),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    %% report §11.1: the interface as compiled, with the hash of each of its
+    %% definitions, by which a later input's forms name them
+    {ok, #{interface := Compiled}} = ern_interface:read(Beam),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     keep(free, kept(free, []) -- [Namespace]),
     record_uses(ErlangModule, Beam, Checked),
@@ -689,7 +692,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                Outcome = try
                              Value = value(ErlangModule, Binds),
                              BoundSession = bind(Session1, Binds, Namespace, Value, Type, Env,
-                                                 Interface),
+                                                 Compiled),
                              {'Ok', keep_session(BoundSession), Serial,
                               #value{term = Value, descriptor = Descriptor}}
                          catch
@@ -2792,17 +2795,22 @@ erase_cut() ->
 %% already makes for another module's value.
 bind(Session, declarations, _Namespace, _Value, _Type, _Env, Interface) ->
     joined(Session, Interface);
-bind(Session, it, _Namespace, Value, Type, Env, _Interface) ->
+bind(Session, it, Namespace, Value, Type, Env, Interface) ->
     case is_open(Type, Env) of
         true -> Session;
-        false -> bound(Session, [{it, Value, Type}], Env)
+        false -> bound(Session, [{it, Value, Type}], Env, entry_hash(Namespace, Interface))
     end;
-bind(Session, {names, Names}, _Namespace, Value, Type, Env, _Interface) ->
-    bound(Session, components(Names, Value, Type, Env), Env);
-bind(Session, {lambda, Name, Scheme}, _Namespace, Value, _Type, Env, _Interface) ->
-    bound(Session, [{Name, Value, Scheme}], Env);
-bind(Session, {name, Name}, _Namespace, Value, Type, Env, _Interface) ->
-    bound(Session, [{Name, Value, Type}], Env).
+bind(Session, {names, Names}, Namespace, Value, Type, Env, Interface) ->
+    bound(Session, components(Names, Value, Type, Env), Env, entry_hash(Namespace, Interface));
+bind(Session, {lambda, Name, Scheme}, Namespace, Value, _Type, Env, Interface) ->
+    bound(Session, [{Name, Value, Scheme}], Env, entry_hash(Namespace, Interface));
+bind(Session, {name, Name}, Namespace, Value, Type, Env, Interface) ->
+    bound(Session, [{Name, Value, Type}], Env, entry_hash(Namespace, Interface)).
+
+%% Report §8.7, Appendix H: a name the session binds is a binding, whose
+%% definition is the input that computed it.
+entry_hash(Namespace, #interface{identities = Identities}) ->
+    maps:get(Namespace ++ [?ENTRY], Identities).
 
 %% Each name a pattern bound, with its value and type: the whole of the
 %% input's value for one name, a component of its tuple for more.
@@ -2831,10 +2839,10 @@ is_open(Type, Env) ->
 
 %% The names an input binds, held by one module, a getter for each, which
 %% needs the session's modules whose functions the values hold and whose
-%% types their types name.
-bound(Session, [], _Env) ->
+%% types their types name; each a binding of the input's hash, Hash.
+bound(Session, [], _Env, _Hash) ->
     Session;
-bound(#session{last_holder = LastHolder} = Session, Bindings, Env) ->
+bound(#session{last_holder = LastHolder} = Session, Bindings, Env, Hash) ->
     {HolderNamespace, Session1} =
         case free_namespace(holder) of
             {ok, Freed} ->
@@ -2852,7 +2860,9 @@ bound(#session{last_holder = LastHolder} = Session, Bindings, Env) ->
     Values = maps:from_list([{HolderNamespace ++ [Name], binding_scheme(Type, TypeState)}
                              || {Name, _, Type} <- Bindings]),
     Interface = #interface{namespace = HolderNamespace, values = Values,
-                           lets = [HolderNamespace ++ [Name] || Name <- Names]},
+                           lets = [HolderNamespace ++ [Name] || Name <- Names],
+                           identities = maps:from_list([{HolderNamespace ++ [Name], Hash}
+                                                        || Name <- Names])},
     FunctionModules = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [],
                                   Bindings),
     Needs = [HeldModule || HeldModule <- FunctionModules, is_session_module(HeldModule)]

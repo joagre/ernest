@@ -12,11 +12,12 @@
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 6).
+-define(FORMAT, 7).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
-                   deps := [{[atom()], binary()}], compiler => binary(),
-                   stdlib => binary() | none, source_path => binary()}.
+                   deps := [{[atom()], binary()}], references => [{[atom()], binary()}],
+                   compiler => binary(), stdlib => binary() | none,
+                   source_path => binary()}.
 
 -spec chunk_name() -> binary().
 chunk_name() ->
@@ -37,11 +38,13 @@ read(Beam) ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk)
             try ern_chunk:term(Chunk) of
                 {ok, #{format := ?FORMAT,
-                       interface := {interface, Namespace, Types, Values, Lets, PrivateTypes}}
+                       interface := {interface, Namespace, Types, Values, Lets, PrivateTypes,
+                                     Identities}}
                        = Read} ->
                     Interface = #interface{namespace = Namespace, types = maps:from_list(Types),
                                            values = maps:from_list(Values), lets = Lets,
-                                           private_types = maps:from_list(PrivateTypes)},
+                                           private_types = maps:from_list(PrivateTypes),
+                                           identities = maps:from_list(Identities)},
                     {ok, Read#{interface => Interface}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
@@ -53,16 +56,20 @@ read(Beam) ->
             {error, "not a compiled module"}
     end.
 
+%% The hash a dependent records, which leaves the definitions' hashes out:
+%% a change to a dependency's bodies recompiles a dependent only where it
+%% changes a hash the dependent's forms reference, which the build compares
+%% (report §11.1).
 -spec hash(#interface{}) -> binary().
 hash(Interface) ->
-    crypto:hash(sha256, term_to_binary(canonical(Interface, strip))).
+    crypto:hash(sha256, term_to_binary(canonical(Interface#interface{identities = #{}}, strip))).
 
 %% Quantified variables renumbered and maps as sorted lists, so that equal
 %% interfaces have equal bytes (report §11.1). VariableNames, keep or
 %% strip: the hash leaves the variables' names out, since a renamed
 %% annotation changes no dependent.
 canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets,
-                     private_types = PrivateTypes},
+                     private_types = PrivateTypes, identities = Identities},
           VariableNames) ->
     {interface, Namespace,
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
@@ -73,7 +80,8 @@ canonical(#interface{namespace = Namespace, types = Types, values = Values, lets
      %% report §11.1: a change to what an abstract type's fields name changes
      %% how a dependent describes its values, so it is in the hash
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
-                 || {QualifiedName, TypeInfo} <- maps:to_list(PrivateTypes)])}.
+                 || {QualifiedName, TypeInfo} <- maps:to_list(PrivateTypes)]),
+     lists:sort(maps:to_list(Identities))}.
 
 %% A type's parameters numbered by place, and its constructors' schemes
 %% over the same numbers; the names its declaration writes are left out of

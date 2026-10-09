@@ -3,26 +3,55 @@
 %% meets, for ever, and a function or a process of what says it is one. So
 %% a chunk is read as bytes first: it holds data alone, the terms the
 %% compiler writes, and no more names new to the host than half of what the
-%% host has room left for, so that no one chunk can be what fills it.
+%% host has room left for, so that no one chunk can be what fills it. A
+%% compressed chunk, as the canonical forms are written (§11.1), is
+%% inflated first and its bytes read the same way.
 -module(ern_chunk).
 
 -export([term/1]).
 
+%% Deflate's own greatest ratio of inflated to compressed bytes: a match
+%% copies at most 258 bytes and is coded in no fewer than two bits, so no
+%% stream inflates past 1032 times its size. The bound is the format's, not
+%% a number chosen here.
+-define(DEFLATE_RATIO, 1032).
+
 -spec term(binary()) -> {ok, term()} | error.
-term(<<131, Body/binary>> = Chunk) ->
+term(<<131, 80, Size:32, Compressed/binary>>) ->
+    %% the host's compressed term: its inflated size, then the zlib stream;
+    %% a size past deflate's ratio is a lie, refused before anything is
+    %% inflated, and an inflated term is never inflated again
+    case Size =< ?DEFLATE_RATIO * byte_size(Compressed) of
+        true -> inflated(Size, Compressed);
+        false -> error
+    end;
+term(<<131, Body/binary>>) ->
+    plain(Body);
+term(_) ->
+    error.
+
+%% What deflate inflates is bounded by its ratio whatever the size claims,
+%% so the stream is inflated whole and must be the size it claimed.
+inflated(Size, Compressed) ->
+    try zlib:uncompress(Compressed) of
+        Body when byte_size(Body) =:= Size -> plain(Body);
+        _ -> error
+    catch
+        error:_ -> error
+    end.
+
+plain(Body) ->
     try names(Body, #{}) of
         {Names, <<>>} ->
             case fits(Names) of
-                true -> {ok, binary_to_term(Chunk)};
+                true -> {ok, binary_to_term(<<131, Body/binary>>)};
                 false -> error
             end;
         _ ->
             error
     catch
         error:function_clause -> error
-    end;
-term(_) ->
-    error.
+    end.
 
 %% The names in the term that begins Bytes, and the bytes after it. Each
 %% clause is a tag of the host's external term format; a tag the compiler

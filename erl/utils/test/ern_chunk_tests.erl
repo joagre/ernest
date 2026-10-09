@@ -17,7 +17,8 @@ not_data_test() ->
     ?assertEqual(error, ern_chunk:term(term_to_binary(fun erlang:halt/0))),
     ?assertEqual(error, ern_chunk:term(term_to_binary({ok, self()}))),
     ?assertEqual(error, ern_chunk:term(term_to_binary(make_ref()))),
-    ?assertEqual(error, ern_chunk:term(term_to_binary(lists:duplicate(1000, a), [compressed]))),
+    ?assertEqual(error, ern_chunk:term(term_to_binary({lists:duplicate(1000, a), fun erlang:halt/0},
+                                                      [compressed]))),
     Whole = term_to_binary({a, [1, 2, 3]}),
     ?assertEqual(error, ern_chunk:term(binary:part(Whole, 0, byte_size(Whole) - 1))),
     ?assertEqual(error, ern_chunk:term(<<Whole/binary, 0>>)),
@@ -39,3 +40,28 @@ too_many_names() ->
                               [[119, byte_size(Name), Name] || Name <- Names], 106]),
     ?assertEqual(error, ern_chunk:term(Chunk)),
     ?assertEqual(Before, erlang:system_info(atom_count)).
+
+%% report §11.1: a compressed chunk, as the canonical forms are written, is
+%% read as data as a plain one is
+compressed_data_test() ->
+    Term = {1, [{definition, ['T', f], function, <<0:256>>, {literal, int, 42}, none}
+                || _ <- lists:seq(1, 50)]},
+    Chunk = term_to_binary(Term, [compressed]),
+    ?assertMatch(<<131, 80, _/binary>>, Chunk),
+    ?assertEqual({ok, Term}, ern_chunk:term(Chunk)).
+
+%% report §11.1: a compressed chunk whose inflated size is past deflate's own
+%% ratio, 1032 to 1, is refused before it is inflated, and one that inflates
+%% to another size than it claims, or within itself to a second compressed
+%% term, is refused too. A regression test, written with the compressed
+%% chunk: nothing else bounds what an inflated chunk may take of memory
+compressed_bound_test() ->
+    <<131, 80, Size:32, Compressed/binary>> =
+        term_to_binary(lists:duplicate(100000, 0), [compressed]),
+    Past = 1032 * byte_size(Compressed) + 1,
+    ?assertEqual(error, ern_chunk:term(<<131, 80, Past:32, Compressed/binary>>)),
+    ?assertEqual(error, ern_chunk:term(<<131, 80, (Size - 1):32, Compressed/binary>>)),
+    ?assertMatch({ok, _}, ern_chunk:term(<<131, 80, Size:32, Compressed/binary>>)),
+    <<131, Inner/binary>> = term_to_binary(lists:duplicate(1000, 0), [compressed]),
+    Nested = zlib:compress(Inner),
+    ?assertEqual(error, ern_chunk:term(<<131, 80, (byte_size(Inner)):32, Nested/binary>>)).

@@ -13,6 +13,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
 
 %%
@@ -1410,10 +1411,16 @@ module_cycle_leaves_no_table_test() ->
     ?assertEqual(Tables, length(ets:all())).
 
 %% report §11.1: a module is recompiled when its source, a dependency's
-%% interface, the standard library's interfaces, or the compiler changed, and
-%% not when only a dependency's bodies changed
+%% interface, the hash of a definition its forms reference, the standard
+%% library's interfaces, or the compiler changed, and not when a
+%% dependency's bodies changed only where its forms reference nothing
 recompile_rule_test() ->
     Dir = pair(tmp()),
+    write(Dir, "src/net/http.ern",
+          "export type Request = Request(method : String, path : String)\n"
+          "export fn parse(s : String) : Optional(Request) =\n"
+          "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
+          "export fn version() : Int = 1\n"),
     Args = ["--build-root", Dir ++ "/build", Dir ++ "/src"],
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     {ok, Main1} = file:read_file(Dir ++ "/build/main.erc"),
@@ -1421,24 +1428,49 @@ recompile_rule_test() ->
     %% nothing changed: nothing rewritten
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
-    %% a body change in the dependency: it is rebuilt, its dependent is not
-    write(Dir, "src/net/http.ern",
-          "export type Request = Request(method : String, path : String)\n"
-          "export fn parse(s : String) : Optional(Request) =\n"
-          "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\"))\n"
-          "    else None\n"),
-    ?assertEqual(0, ern_cli:ern(["build" | Args])),
-    {ok, Http2} = file:read_file(Dir ++ "/build/net/http.erc"),
-    ?assertNotEqual(Http1, Http2),
-    ?assertEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
-    %% an interface change in the dependency: the dependent is rebuilt
+    %% a body change in the dependency that the dependent's forms do not
+    %% name: it is rebuilt, its dependent is not
     write(Dir, "src/net/http.ern",
           "export type Request = Request(method : String, path : String)\n"
           "export fn parse(s : String) : Optional(Request) =\n"
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
           "export fn version() : Int = 2\n"),
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
-    ?assertNotEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
+    {ok, Http2} = file:read_file(Dir ++ "/build/net/http.erc"),
+    ?assertNotEqual(Http1, Http2),
+    ?assertEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
+    %% a body change to what the dependent's forms name changes its hash:
+    %% the dependent is rebuilt, its forms naming the new hash (Appendix H)
+    write(Dir, "src/net/http.ern",
+          "export type Request = Request(method : String, path : String)\n"
+          "export fn parse(s : String) : Optional(Request) =\n"
+          "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\"))\n"
+          "    else if s == \"\" then None else None\n"
+          "export fn version() : Int = 2\n"),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    {ok, Main2} = file:read_file(Dir ++ "/build/main.erc"),
+    ?assertNotEqual(Main1, Main2),
+    {ok, Http3} = file:read_file(Dir ++ "/build/net/http.erc"),
+    {ok, HttpDefinitions} = ern_canonical:read(Http3),
+    {ok, #{references := References}} = ern_interface:read(Main2),
+    ?assertEqual(lists:sort([{QualifiedName, Hash}
+                             || #definition{qualified_name = QualifiedName, hash = Hash}
+                                    <- HttpDefinitions,
+                                lists:member(lists:last(QualifiedName), [parse, 'Request'])]),
+                 References),
+    {ok, MainDefinitions} = ern_canonical:read(Main2),
+    ?assertMatch([#definition{qualified_name = ['Main', main]}], MainDefinitions),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    ?assertEqual({ok, Main2}, file:read_file(Dir ++ "/build/main.erc")),
+    %% an interface change in the dependency: the dependent is rebuilt
+    write(Dir, "src/net/http.ern",
+          "export type Request = Request(method : String, path : String)\n"
+          "export fn parse(s : String) : Optional(Request) =\n"
+          "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\"))\n"
+          "    else if s == \"\" then None else None\n"
+          "export fn version() : String = \"2\"\n"),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    ?assertNotEqual({ok, Main2}, file:read_file(Dir ++ "/build/main.erc")),
     {ok, Main3} = file:read_file(Dir ++ "/build/main.erc"),
     %% a module built against other standard library interfaces is rebuilt
     ok = file:write_file(Dir ++ "/build/main.erc",
@@ -1457,6 +1489,53 @@ recompile_rule_test() ->
                          forge(Main3, fun(Chunk) -> Chunk#{compiler => <<?VERSION>>} end)),
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
+
+%% report §8.7, §11.1, Appendix H: a library under its own root is hashed as
+%% a program's code is, and a program built against it with --load-path
+%% names its definitions by the hashes its `.erc` holds; so do the
+%% libraries the repository builds, `Markdown` naming `Ansi`'s
+library_hashed_test() ->
+    Dir = tmp(),
+    write(Dir, "lib/util.ern", "export fn twice(n : Int) : Int = n * 2\n"),
+    write(Dir, "app/main.ern", "export fn main() : Unit with Never = "
+                               "Io.println(Io.show(Util.twice(21)))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/lib-build", Dir ++ "/lib"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--load-path", Dir ++ "/lib-build", "--build-root",
+                                 Dir ++ "/app-build", Dir ++ "/app"])),
+    {ok, Util} = file:read_file(Dir ++ "/lib-build/util.erc"),
+    {ok, Main} = file:read_file(Dir ++ "/app-build/main.erc"),
+    {ok, [#definition{qualified_name = ['Util', twice], hash = Twice}]} = ern_canonical:read(Util),
+    {ok, [#definition{form = Form}]} = ern_canonical:read(Main),
+    <<131, Named/binary>> = term_to_binary({hash, Twice}),
+    ?assertMatch({_, _}, binary:match(term_to_binary(Form), Named)),
+    {ok, #{references := [{['Util', twice], Twice}]}} = ern_interface:read(Main),
+    Read = fun(ErlangModule) ->
+                   {ok, Bytes} = file:read_file(code:which(ErlangModule)),
+                   Bytes
+           end,
+    {ok, AnsiDefinitions} = ern_canonical:read(Read('ern@ansi')),
+    {ok, #{references := References}} = ern_interface:read(Read('ern@markdown')),
+    Ansi = [Reference || {['Ansi' | _], _} = Reference <- References],
+    ?assertNotEqual([], Ansi),
+    ?assertEqual([], Ansi -- [{QualifiedName, Hash}
+                              || #definition{qualified_name = QualifiedName, hash = Hash}
+                                     <- AnsiDefinitions]).
+
+%% report §11.2, Appendix H: a module the shell compiles from its source, as
+%% `:load` does, holds its forms and hashes as a built one does, a module
+%% it uses named by the hash the session holds
+shell_load_hashed_test() ->
+    Dir = tmp(),
+    write(Dir, "geo.ern", "export fn area(w : Int, h : Int) : Int = w * h\n"),
+    write(Dir, "room.ern", "export fn floor() : Int = Geo.area(3, 4)\n"),
+    {ok, ['Geo'], Geo, _} = ern_build:compile_source(Dir ++ "/geo.ern", Dir, [Dir], #{}),
+    {ok, #{interface := GeoInterface}} = ern_interface:read(Geo),
+    {ok, ['Room'], Room, _} = ern_build:compile_source(Dir ++ "/room.ern", Dir, [Dir],
+                                                         #{['Geo'] => GeoInterface}),
+    {ok, [#definition{hash = Area}]} = ern_canonical:read(Geo),
+    ?assertEqual(Area, maps:get(['Geo', area], GeoInterface#interface.identities)),
+    {ok, #{references := [{['Geo', area], Area}]}} = ern_interface:read(Room),
+    {ok, [#definition{qualified_name = ['Room', floor]}]} = ern_canonical:read(Room).
 
 %% report §11.1: a module is recompiled when the code of the compiler that
 %% built it changed, so the modules hashed are every module of the toolchain
