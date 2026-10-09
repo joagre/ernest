@@ -677,6 +677,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     %% definitions, by which a later input's forms name them
     {ok, #{interface := Compiled}} = ern_interface:read(Beam),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
+    unit_loaded(ErlangModule),
     keep(free, kept(free, []) -- [Namespace]),
     record_uses(ErlangModule, Beam, Checked),
     %% report §11.2: an input that declares keeps its module for `:doc`;
@@ -775,9 +776,16 @@ kind_of_namespace([Segment]) ->
         _ -> holder
     end.
 
+%% Report §8.7, §11.2: a module the session loaded, in the code table as it
+%% loads, and each of the host's limits the load has brought near said.
+unit_loaded(ErlangModule) ->
+    ern_code:loaded(ErlangModule),
+    ern_cli:say_limits().
+
 %% Deleted, and purged unless a process still runs it.
 unload(ErlangModule) ->
     code:delete(ErlangModule),
+    ern_code:unloaded(ErlangModule),
     case code:soft_purge(ErlangModule) of
         true -> purged;
         false -> unpurged
@@ -2130,6 +2138,7 @@ withdraw_all(CompiledModules) ->
 withdraw(Namespace, Beam) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     code:delete(ErlangModule),
+    ern_code:unloaded(ErlangModule),
     end_unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)]),
     code:purge(ErlangModule),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
@@ -2671,6 +2680,7 @@ install(#session{interfaces = Interfaces, source_hashes = SourceHashes} = Sessio
         Hash) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
+    unit_loaded(ErlangModule),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
     Session#session{interfaces = Others ++ [Interface],
@@ -2855,8 +2865,11 @@ bound(#session{last_holder = LastHolder} = Session, Bindings, Env, Hash) ->
     TypeState = ern_typecheck:type_state(Env),
     [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bindings],
     Names = [Name || {Name, _, _} <- Bindings],
+    Code = [{HolderNamespace ++ [Name], {binding, Hash, {ErlangModule, Name}}} || Name <- Names],
     {module, ErlangModule} =
-        code:load_binary(ErlangModule, atom_to_list(ErlangModule), holder(ErlangModule, Names)),
+        code:load_binary(ErlangModule, atom_to_list(ErlangModule),
+                         holder(ErlangModule, Names, Code)),
+    unit_loaded(ErlangModule),
     Values = maps:from_list([{HolderNamespace ++ [Name], binding_scheme(Type, TypeState)}
                              || {Name, _, Type} <- Bindings]),
     Interface = #interface{namespace = HolderNamespace, values = Values,
@@ -2905,7 +2918,11 @@ collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams} = Sess
     Live = reached(Named ++ Old, Uses, #{}),
     Dead = [Namespace || ErlangModule := {Namespace, _, _} <- Uses,
                          not is_map_key(ErlangModule, Live)],
-    lists:foreach(fun(Namespace) -> code:delete(ern_namespace:erlang_module(Namespace)) end, Dead),
+    lists:foreach(fun(Namespace) ->
+                      ErlangModule = ern_namespace:erlang_module(Namespace),
+                      code:delete(ErlangModule),
+                      ern_code:unloaded(ErlangModule)
+                  end, Dead),
     Purgeable = fun(Namespace) -> code:soft_purge(ern_namespace:erlang_module(Namespace)) end,
     {Purged, StillRun} = lists:partition(Purgeable, Unpurged ++ Dead),
     [persistent_term:erase(Key) || Namespace <- Purged,
@@ -3046,23 +3063,28 @@ value_key(Namespace, QualifiedName) ->
 %% input's process is an Ernest process waiting with it. It is marked as a
 %% foreign call in progress, which is what it is, so that `Deadlock` is not
 %% declared over a binding being made.
-holder(ErlangModule, Names) ->
-    ern_rt:in_foreign(fun() -> holder_beam(ErlangModule, Names) end).
+holder(ErlangModule, Names, Code) ->
+    ern_rt:in_foreign(fun() -> holder_beam(ErlangModule, Names, Code) end).
 
-holder_beam(ErlangModule, Names) ->
+%% Report §8.7: each name's getter, and what the module holds, each binding
+%% by its identity with the key its value is kept under, which the code
+%% table reads as it loads, as it reads a compiled module's (ern_emitter).
+holder_beam(ErlangModule, Names, Code) ->
     Get = fun(Name) ->
               erl_syntax:application(
                 erl_syntax:module_qualifier(erl_syntax:atom(persistent_term),
                                             erl_syntax:atom(get)),
                 [erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)])])
           end,
+    Functions = [ern_emitter:function_atom(Name) || Name <- Names] ++ ['$code'],
     Forms = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)]),
              erl_syntax:attribute(erl_syntax:atom(export),
                                   [erl_syntax:list(
-                                     [erl_syntax:arity_qualifier(
-                                        erl_syntax:atom(ern_emitter:function_atom(Name)),
-                                        erl_syntax:integer(0))
-                                      || Name <- Names])])
+                                     [erl_syntax:arity_qualifier(erl_syntax:atom(Function),
+                                                                 erl_syntax:integer(0))
+                                      || Function <- Functions])]),
+             erl_syntax:function(erl_syntax:atom('$code'),
+                                 [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])
              | [erl_syntax:function(erl_syntax:atom(ern_emitter:function_atom(Name)),
                                     [erl_syntax:clause([], none, [Get(Name)])])
                 || Name <- Names]],

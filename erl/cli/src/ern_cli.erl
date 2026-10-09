@@ -6,7 +6,7 @@
 %% the host with.
 -module(ern_cli).
 
--export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0]).
+-export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, say_limits/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -1074,7 +1074,18 @@ report_shell_outcome(ErrorDevice, Other) -> report_outcome(ErrorDevice, Other).
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.
 init_fun(Loaded) ->
-    fun() -> ern_rt:init_modules(lists:reverse(Loaded)) end.
+    fun() ->
+        ern_rt:init_modules(lists:reverse(Loaded)),
+        say_limits()
+    end.
+
+%% Report §11.2: each of the host's limits on what a runtime loads that the
+%% loads so far have brought to four fifths, said once, as a node's line is
+%% (§8.7): at a run's start, once its units are loaded, and at each load of
+%% the shell's.
+-spec say_limits() -> ok.
+say_limits() ->
+    lists:foreach(fun ern_carrier:say/1, ern_code:nearing()).
 
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
@@ -1320,7 +1331,10 @@ load(Namespace, LoadPath, Loaded, StdlibHash) ->
             same_stdlib(Namespace, Chunk, StdlibHash),
             code:purge(ErlangModule),
             case code:load_binary(ErlangModule, File, Beam) of
-                {module, ErlangModule} -> [ErlangModule | Loaded1];
+                {module, ErlangModule} ->
+                    %% report §8.7: in the code table as it loads
+                    ern_code:loaded(ErlangModule),
+                    [ErlangModule | Loaded1];
                 {error, Error} ->
                     ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))
             end

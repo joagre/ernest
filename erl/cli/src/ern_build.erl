@@ -14,7 +14,7 @@
          compile_order/3, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, compiler_modules/0,
          sweep_pages/5, compile_source/4, absolute/1, relative/2, write_whole/2,
-         write_output/2, write_output/3, read/1, make_dirs/1, fail/1]).
+         write_output/2, write_output/3, read/1, make_dirs/1, refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").

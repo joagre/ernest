@@ -133,7 +133,7 @@ sample(Round) ->
       atoms => erlang:system_info(atom_count),
       processes => erlang:system_info(process_count),
       ports => erlang:system_info(port_count),
-      rows => lists:sum([rows(Table) || Table <- ern_rt:tables()]),
+      rows => lists:sum([rows(Table) || Table <- [ern_code | ern_rt:tables()]]),
       terms => maps:get(count, persistent_term:info())}.
 
 %% The bytes of a process's heaps that hold nothing. The host sizes a heap

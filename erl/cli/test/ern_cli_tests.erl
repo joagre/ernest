@@ -1490,6 +1490,54 @@ recompile_rule_test() ->
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
 
+%% report §8.7: a run holds every definition of its build in the code
+%% table, each found by its identity in the unit and the function that hold
+%% it, as the unit's chunk of canonical forms names it, and the standard
+%% library's with them; a foreign declaration's module is found by its
+%% qualified name. A regression test, written after the code; the spawn by
+%% hash that reads the table is MVP 3.1's item 4.
+code_table_test() ->
+    Dir = tmp(),
+    write(Dir, "src/geo/shape.ern",
+          "export type Shape = Square(Int) | Rect(w : Int, h : Int)\n"
+          "export fn area(shape : Shape) : Int = match shape {\n"
+          "    Square(side) -> side * side\n"
+          "  | Rect(w = w, h = h) -> w * h\n"
+          "}\n"
+          "fn even(n : Int) : Bool = if n == 0 then true else odd(n - 1)\n"
+          "fn odd(n : Int) : Bool = if n == 0 then false else even(n - 1)\n"
+          "export fn isEven(n : Int) : Bool = even(n)\n"
+          "export let unit : Shape = Square(1)\n"
+          "export foreign fn sum(list : List(Int)) : Int = \"lists:sum/1\"\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit with Never =\n"
+          "    Io.println(Io.show(Geo.Shape.area(Geo.Shape.unit)))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    Held = fun(Unit, File) ->
+                   {ok, Beam} = file:read_file(Dir ++ "/build/" ++ File),
+                   {ok, Definitions} = ern_canonical:read(Beam),
+                   [{Definition, Unit} || Definition <- Definitions]
+           end,
+    Definitions = Held('ern@geo@shape', "geo/shape.erc") ++ Held('ern@main', "main.erc"),
+    ?assertEqual(7, length(Definitions)),
+    lists:foreach(
+      fun({#definition{qualified_name = QualifiedName, kind = function, hash = Hash}, Unit}) ->
+              ?assertEqual(Hash, ern_code:identity(QualifiedName)),
+              {Unit, Function, Arity} = ern_code:function(Hash),
+              ?assert(lists:member({Function, Arity}, Unit:module_info(functions)));
+         ({#definition{qualified_name = QualifiedName, kind = binding, hash = Hash}, _}) ->
+              ?assertEqual({QualifiedName, Hash}, ern_code:identity(QualifiedName));
+         ({#definition{qualified_name = QualifiedName, kind = type, hash = Hash}, _}) ->
+              ?assertEqual(Hash, ern_code:identity(QualifiedName)),
+              ?assertEqual(none, ern_code:function(Hash))
+      end, Definitions),
+    ?assertEqual({lists, sum}, ern_code:foreign(['Geo', 'Shape', sum])),
+    %% the standard library's definitions, which its units hold as a
+    %% program's do
+    Map = ern_code:identity(['List', map]),
+    ?assertMatch({'ern@list', map, 2}, ern_code:function(Map)).
+
 %% report §8.7, §11.1, Appendix H: a library under its own root is hashed as
 %% a program's code is, and a program built against it with --load-path
 %% names its definitions by the hashes its `.erc` holds; so do the

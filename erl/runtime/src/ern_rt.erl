@@ -52,8 +52,8 @@
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
-         restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1, spawn_order/1,
-         init_stdlib/0, init_modules/1, offer/3, offered/2, asked_of_run/1,
+         binding_value/2, restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1,
+         spawn_order/1, init_stdlib/0, init_modules/1, offer/3, offered/2, asked_of_run/1,
          note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
@@ -1178,7 +1178,9 @@ undefined_lambda(ErlangModule, Function, Args) ->
     error_handler:undefined_lambda(ErlangModule, Function, Args).
 
 load(ErlangModule) ->
-    in_foreign(fun() -> code:ensure_loaded(ErlangModule) end).
+    in_foreign(fun() -> code:ensure_loaded(ErlangModule) end),
+    %% report §8.7: a unit loaded on demand is in the code table as it loads
+    ern_code:loaded(ErlangModule).
 
 count(Field, Increment) ->
     try ets:update_counter(?PROCESSES, erlang:self(), {Field, Increment}) of
@@ -1970,6 +1972,22 @@ binding(Key) ->
         Value -> Value
     end.
 
+%% Report §8.7: a top-level binding's value, kept under Key, in the run in
+%% progress, as a peer's spawn finds it (ern_code:value/1): its value where
+%% the initializers of its unit have run, and absent where they have not,
+%% or where a binding before it faulted (§8.5, §11.2).
+-spec binding_value(module(), term()) -> {value, term()} | absent.
+binding_value(Unit, Key) ->
+    case initialized(Unit) of
+        true ->
+            case persistent_term:get(Key, '$unevaluated') of
+                '$unevaluated' -> absent;
+                Value -> {value, Value}
+            end;
+        false ->
+            absent
+    end.
+
 %% Report §6.9: a function that runs F, and on a fault runs it again in the
 %% same process, until the limit's restarts within its milliseconds have
 %% happened, when the next fault ends the process with its cause, or after
@@ -2223,7 +2241,11 @@ stdlib_modules() ->
                                       || Dir <- code:get_path(),
                                          filename:basename(Dir) =:= "stdlib"])),
     ErlangModules = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
-    lists:foreach(fun(ErlangModule) -> code:ensure_loaded(ErlangModule) end, ErlangModules),
+    %% report §8.7: each in the code table as it loads
+    lists:foreach(fun(ErlangModule) ->
+                      code:ensure_loaded(ErlangModule),
+                      ern_code:loaded(ErlangModule)
+                  end, ErlangModules),
     ordered(ErlangModules).
 
 %% Report §8.5: the top-level lets of the modules given and of the modules

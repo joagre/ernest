@@ -23,6 +23,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
 
 %% The elements past which a list or a tuple literal is built an element at
 %% a time, so that the host's limit of values live at a call is never met.
@@ -87,14 +88,15 @@ compile(Namespace, Declarations, Interface, Env) ->
                 session_offset => non_neg_integer(), standard => boolean()}) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
-    Forms = forms(Namespace, Declarations, Env, Build),
     %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
     %% the hashes in the interface, by which a dependent's forms name its
     %% definitions, and the hashes of other modules' definitions its own
     %% forms name, which the recompile rule compares
     Canonical = ern_canonical:module(Namespace, Declarations, Env,
                                      maps:get(standard, Build, false)),
-    #{references := References} = Canonical,
+    #{definitions := Definitions, references := References} = Canonical,
+    Code = code(Namespace, Declarations, Definitions),
+    Forms = forms(Namespace, Declarations, Env, Build#{code => Code}),
     Facts = (maps:without([source, session_offset, standard], Build))#{references => References},
     Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
@@ -152,9 +154,11 @@ forms(Namespace, Declarations, Env, Build) ->
     TestsFunction = tests_function(Lets),
     DependenciesFunction = dependencies_function(Dependencies),
     FunFunction = fun_function(Declarations),
+    CodeFunction = code_function(maps:get(code, Build, none)),
     Exports = [export(Declaration) || Declaration <- Declarations, exported(Declaration)]
         ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
-        ++ [{'$deps', 0} || DependenciesFunction =/= []] ++ [{'$fun', 2} || FunFunction =/= []],
+        ++ [{'$deps', 0} || DependenciesFunction =/= []] ++ [{'$fun', 2} || FunFunction =/= []]
+        ++ [{'$code', 0} || CodeFunction =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
     Clashes = [{Function, Arity}
@@ -178,7 +182,8 @@ forms(Namespace, Declarations, Env, Build) ->
                                                      erl_syntax:integer(Arity))
                                                    || {Function, Arity} <- Exports])])],
     Functions = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
-        ++ DependenciesFunction ++ FunFunction ++ lists:reverse(Context2#emit_context.lifted),
+        ++ DependenciesFunction ++ FunFunction ++ CodeFunction
+        ++ lists:reverse(Context2#emit_context.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
 %% Each top-level name as the Erlang function it compiles to, a `let` as
@@ -239,6 +244,52 @@ fun_function(Declarations) ->
 %% loads.
 nameable(#fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name));
 nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name)).
+
+%% Report §8.7: what the module holds, which the code table reads as the
+%% module loads (ern_code): each definition by its qualified name, with its
+%% hash, from its canonical form, and the function that holds it, or for a
+%% binding the key its value is kept under (§8.5); and each foreign
+%% declaration's implementation, which the canonical forms name by its
+%% qualified name alone. A literal '$code'/0 answers, so that a load reads it
+%% without decoding the module's chunks, which costs more than the load.
+%% The forms for reading, `--emit-erl` and the golden files, have no hashes
+%% and no such function.
+code(Namespace, Declarations, Definitions) ->
+    Hashes = maps:from_list([{QualifiedName, Hash}
+                             || #definition{qualified_name = QualifiedName, hash = Hash}
+                                    <- Definitions]),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
+    lists:append([declaration_code(Namespace, ErlangModule, Declaration, Hashes)
+                  || Declaration <- Declarations]).
+
+declaration_code(Namespace, _, #fn_declaration{member_of = MemberOf, name = Name} = Declaration,
+                 Hashes) ->
+    QualifiedName = Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name],
+    {Function, Arity} = export(Declaration),
+    [{QualifiedName, {function, maps:get(QualifiedName, Hashes), Function, Arity}}];
+declaration_code(Namespace, ErlangModule, #let_declaration{name = Name}, Hashes) ->
+    QualifiedName = Namespace ++ [Name],
+    Key = {ErlangModule, function_name(undefined, Name)},
+    [{QualifiedName, {binding, maps:get(QualifiedName, Hashes), Key}}];
+declaration_code(Namespace, _, #type_declaration{name = Name}, Hashes) ->
+    QualifiedName = Namespace ++ [Name],
+    [{QualifiedName, {type, maps:get(QualifiedName, Hashes)}}];
+declaration_code(Namespace, ErlangModule, #abstract_declaration{declaration = Declaration},
+                 Hashes) ->
+    declaration_code(Namespace, ErlangModule, Declaration, Hashes);
+declaration_code(Namespace, _, #foreign_fn_declaration{member_of = MemberOf, name = Name,
+                                                        implementation = Implementation}, _) ->
+    {ok, {HostModule, HostFunction, _}} = ern_typecheck:foreign_implementation(Implementation),
+    [{Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name],
+      {foreign, HostModule, HostFunction}}];
+declaration_code(_, _, _, _) ->
+    [].
+
+code_function(none) ->
+    [];
+code_function(Code) ->
+    [erl_syntax:function(erl_syntax:atom('$code'),
+                         [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])].
 
 %% Report §8.5: the modules this one depends on, whose top-level
 %% bindings are evaluated before its own.

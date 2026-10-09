@@ -317,6 +317,18 @@ large_number_test() ->
                  " to read",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
+%% report §8.7: a configuration directory the host cannot read as one,
+%% a path through a file, is refused naming the path and the host's
+%% reason. A regression test: `ern_build:refused/2` was not exported, so
+%% this path made `ern` fail with an internal error. Not covered: a
+%% directory the host refuses for another reason than its shape
+unreadable_directory_test() ->
+    Through = filename:join(tmp(), "plain"),
+    ok = file:write_file(Through, <<"x">>),
+    Message = refusal(fun() -> ern_node:read(filename:join(Through, "node")) end),
+    ?assertNotMatch({accepted, _}, Message),
+    ?assertNotEqual(nomatch, string:find(Message, "not a directory")).
+
 %% report §8.7: a node refuses a configuration directory, or a file of it
 %% that it reads, that anyone beyond its owner and group may write, as the
 %% shell's startup files are refused, and a key any but its owner may read

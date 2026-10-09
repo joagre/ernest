@@ -291,7 +291,8 @@ golden: all
 # Dialyzer reads only a .beam (docs/release_review.md). The table of the
 # host's applications the toolchain calls is built once, into
 # build/dialyzer.plt, and Dialyzer checks it against the host at each run.
-DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools
+DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools \
+		os_mon
 dialyzer: all
 	@test -f build/dialyzer.plt || \
 	  dialyzer --build_plt --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)

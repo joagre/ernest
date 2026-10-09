@@ -6053,7 +6053,8 @@ exported_value(_, _) -> false.
 is_value(QualifiedName, #env{lets = Lets}) ->
     maps:is_key(QualifiedName, Lets).
 
--spec resolve_type(ern_types:type(), env()) -> ern_types:type().
+%% A type, or an effect, which may be pure, as the substitution makes it.
+-spec resolve_type(ern_types:type() | pure, env()) -> ern_types:type() | pure.
 resolve_type(Type, #env{type_state = TypeState}) -> ern_types:substitute(Type, TypeState).
 
 -spec node_type(tuple()) -> ern_types:type().
