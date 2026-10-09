@@ -96,7 +96,7 @@ found([Node | Nodes], Name, Text, Deadline, _Last) ->
             case asked(Node, Name, Text, Deadline) of
                 {found, Address} -> {'Right', Address};
                 timeout -> {'Left', 'Timeout'};
-                Failure -> found(Nodes, Name, Text, Deadline, Failure)
+                Error -> found(Nodes, Name, Text, Deadline, Error)
             end
     end.
 
@@ -189,9 +189,9 @@ spawn_answer({_, Ref} = Key, MonitorRef, Deadline) ->
 %% answer, or the loss's `Unreachable` (lost/1), is on its way here and is
 %% taken; otherwise none will come, and a late one ends the process it
 %% names.
-given_up({_, Ref} = Key, Failure) ->
+given_up({_, Ref} = Key, Error) ->
     case ets:take(?SPAWNS, Key) of
-        [_] -> {failed, Failure};
+        [_] -> {failed, Error};
         [] -> receive {Ref, Answer} -> Answer end
     end.
 
@@ -201,8 +201,8 @@ started({spawned, Pid}, Ref, Wrap) ->
     ern_rt:monitor(Pid, Wrap),
     Pid ! {ern_go, Ref},
     {'Right', Pid};
-started({failed, Failure}, _Ref, _Wrap) ->
-    {'Left', Failure}.
+started({failed, Error}, _Ref, _Wrap) ->
+    {'Left', Error}.
 
 %% Report §8.7: the peers this node lists, in the configuration's order.
 -spec peers() -> [binary()].
@@ -243,8 +243,8 @@ frame(From, {spawn, Ref, Function, Site, Monitored})
 frame(From, {answer, Ref, {spawned, Pid} = Answer})
   when is_reference(Ref), is_pid(Pid), node(Pid) =:= node(From) ->
     answered(From, Ref, Answer);
-frame(From, {answer, Ref, {failed, Failure} = Answer})
-  when is_reference(Ref), Failure =:= 'NotLoaded' orelse Failure =:= 'Unreachable' ->
+frame(From, {answer, Ref, {failed, Error} = Answer})
+  when is_reference(Ref), Error =:= 'NotLoaded' orelse Error =:= 'Unreachable' ->
     answered(From, Ref, Answer);
 frame(_From, {via, {via, Function, _Target, Maker} = Via, Message})
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node() ->

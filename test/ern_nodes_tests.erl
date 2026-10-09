@@ -122,16 +122,16 @@ foreign fn frame(node : Foreign.Term) : Unit with m = \"ern_nodes_frame:send/1\"
 
 export fn main() : Unit with Unit =
     match Os.arguments {
-        [\"connect\", peer] -> Io.println(\"connect: \" <> Io.show(connect(Erl.atom(peer))))
+        [\"connect\", peer] -> Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))))
       | [\"frame\", peer] -> {
-            Io.println(\"connect: \" <> Io.show(connect(Erl.atom(peer))));
-            frame(Erl.atom(peer));
+            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
+            frame(Foreign.atom(peer));
             // until the test, which has seen the connection end, says so
             let _ = Io.readLine();
             Unit
         }
       | [\"hold\", peer] -> {
-            Io.println(\"connect: \" <> Io.show(connect(Erl.atom(peer))));
+            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
             held()
         }
       | _ -> {
@@ -1139,7 +1139,7 @@ balance(Base) ->
     has(StoreOut, "the store squares 36"),
     has(StoreOut, "loads there: #(true, true, true)").
 
-%% report §8.7, §11.2, Appendix E.23, G.6: a program's own test of two
+%% report §8.7, §11.2, Appendix E.23, Appendix G.6: a program's own test of two
 %% nodes, `ern test --config-dir a` as a node. The harness makes two
 %% directories as `ern config` makes them, `a` listening and listing `b`
 %% under the key `pair`, and says in `pair.json` the port `b` listens on and

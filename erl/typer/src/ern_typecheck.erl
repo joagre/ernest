@@ -165,6 +165,7 @@ check(Namespace, Parsed, Interfaces, SessionScope) ->
     try
         one_clause(Parsed),
         declared_twice(Declarations),
+        no_alias(Declarations, Env),
         host_names(Declarations),
         {Env1, TypeDiagnostics} = declare_types(Declarations, Env),
         %% report §11.5: the module's types print unqualified, except those
@@ -292,6 +293,27 @@ declared_twice(Declarations) ->
         {{Kind, Key}, First, Second} ->
             fail(Second, atom_to_list(Kind) ++ " " ++ key_text(Key) ++ " is declared twice",
                  [{ern_diagnostic:span(First), "first declared here"}], undefined)
+    end.
+
+%% Report §3.1: there are no type aliases, so a constructor named as a type
+%% in scope other than its own, `type Word = String`, is an error at the
+%% constructor, whose help says so. A type in scope is one the module
+%% declares, the session's at the shell's prompt (§11.2), or the prelude's.
+no_alias(Declarations, #env{types = Types} = Env) ->
+    Own = [Name || Declaration <- Declarations, {type, Name, _} <- declaration_names(Declaration)],
+    InScope = fun(Name) ->
+                  lists:member(Name, Own) orelse is_map_key([Name], Types)
+                      orelse session_name(types, Name, Env) =/= error
+              end,
+    case [{Span, Name} || #type_declaration{name = TypeName, constructors = Constructors}
+                              <- declared_types(Declarations),
+                          #constructor{span = Span, name = Name} <- Constructors,
+                          Name =/= TypeName, InScope(Name)] of
+        [] ->
+            ok;
+        [{Span, Name} | _] ->
+            fail(Span, "constructor " ++ atom_to_list(Name) ++ " is named as the type "
+                 ++ atom_to_list(Name), [], "there are no type aliases (§3.1)")
     end.
 
 %% Report §11.1: the host holds a name of at most 255 characters, so a
@@ -6043,49 +6065,13 @@ unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = E
                     settle(Span, TypeState, Env#env{type_state = TypeState1})
             end;
         {error, Reason} ->
-            Help = case {RuleHelp, not_an_alias(Expected, Actual, Env)} of
-                       {undefined, undefined} ->
-                           differing_help(Reason, Expected, Actual, TypeState);
-                       {undefined, Alias} -> Alias;
+            Help = case RuleHelp of
+                       undefined -> differing_help(Reason, Expected, Actual, TypeState);
                        _ -> RuleHelp
                    end,
             fail(Span, unify_message(RuleText, Reason, Expected, Actual, TypeState),
                  labels(Origin), Help)
     end.
-
-%% Report §3.5, §11.5: `type Word = String` declares a type whose one value
-%% is the constructor `String`, and not another name for the type `String`;
-%% where one of the two meets the other, the help says so.
-not_an_alias(Expected, Actual, #env{type_state = TypeState} = Env) ->
-    Resolved = {ern_types:resolve(Expected, TypeState), ern_types:resolve(Actual, TypeState)},
-    case {one_named(Resolved, Env), one_named(swap(Resolved), Env)} of
-        {{Wrapper, Other}, _} -> alias_help(Wrapper, Other, TypeState);
-        {_, {Wrapper, Other}} -> alias_help(Wrapper, Other, TypeState);
-        _ -> undefined
-    end.
-
-swap({First, Second}) -> {Second, First}.
-
-%% The first type where its one constructor is nullary and named as the
-%% second type is.
-one_named({{tcon, TypeQualifiedName, _} = Type, {tcon, OtherQualifiedName, _} = Other},
-          #env{types = Types}) ->
-    Name = lists:last(OtherQualifiedName),
-    case maps:get(TypeQualifiedName, Types, undefined) of
-        #type_info{constructors = [#constructor_info{name = Name, fields = none}]} ->
-            {Type, Other};
-        _ -> none
-    end;
-one_named(_, _) ->
-    none.
-
-alias_help(Wrapper, {tcon, OtherQualifiedName, _} = Other, TypeState) ->
-    WrapperText = ern_types:format(Wrapper, TypeState),
-    Name = atom_to_list(lists:last(OtherQualifiedName)),
-    OtherText = ern_types:format(Other, TypeState),
-    "`type " ++ WrapperText ++ " = " ++ Name ++ "` declares a type whose one value is `" ++ Name
-    ++ "`, not another name for " ++ OtherText ++ "; there are no type aliases, and a wrapper is"
-    " `type " ++ WrapperText ++ " = " ++ WrapperText ++ "(" ++ OtherText ++ ")`".
 
 %% Whether the rigid variables are still distinct variables.
 rigid_kept(Rigid, TypeState) ->

@@ -17,7 +17,7 @@ export type Action =
   | Processes
   | Quit
   | Reload
-  | Set
+  | Settings
   | Type
 
 /// Report §11.2: what completes after a command's name. A path is an
@@ -101,7 +101,7 @@ export let commands =
              takes = Nothing,
              about = "every loaded module whose source has changed"),
      Command(name = "set",
-             action = Set,
+             action = Settings,
              placeholder = "",
              takes = Allows(SettingWords),
              about = settingsAbout),

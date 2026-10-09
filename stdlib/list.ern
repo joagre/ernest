@@ -14,9 +14,8 @@
 /// length. A list built one element at a time is built in front, and
 /// `reverse`d once at the end.
 ///
-/// **Equality.** `contains`, `remove` and `unique` compare elements with
-/// `==`, so the element type needs equality: a list of functions has none
-/// of the three.
+/// **Equality.** `contains` and `unique` compare elements with `==`, so the
+/// element type needs equality: a list of functions has neither.
 ///
 /// **Replies.** A list may hold a `Reply`, which must be answered exactly once
 /// (report §6.6). A function that drops or copies elements, `size`, `filter`
@@ -119,20 +118,23 @@ export fn get(list : List(a), index : Int) : Optional(a) =
       | head :: rest -> if index == 0 then Some(head) else get(rest, index - 1)
     }
 
-/// The list without the first element that is `==` to `element`. Later
-/// elements equal to it stay. A list without such an element is answered as
-/// it is.
+/// The list without the element at `index`, counting from 0, as `get`
+/// counts. A list with no element there, past its end or at an index below
+/// 0, is answered as it was. The list is walked to the index. To remove an
+/// element by its value, `filter` keeps the others.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// List.remove([1, 2, 1], 1)
-/// // => [2, 1]
+/// #(List.remove(["a", "b", "c"], 1), List.remove(["a", "b"], 2))
+/// // => #(["a", "c"], ["a", "b"])
 /// ```
-export fn remove(list : List(a), element : a) : List(a) =
-    match list {
+export fn remove(list : List(a), index : Int) : List(a) =
+    if index < 0 then
+        list
+    else match list {
         [] -> []
-      | head :: rest -> if head == element then rest else head :: remove(rest, element)
+      | head :: rest -> if index == 0 then rest else head :: remove(rest, index - 1)
     }
 
 /// The list of `f(x)` for each element `x`, in order. `f` is called for the
@@ -191,21 +193,21 @@ export fn foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with 
       | head :: rest -> foldLeft(rest, step(acc, head), step)
     }
 
-/// The elements folded into one value, from the last. `step(x, acc)` is
+/// The elements folded into one value, from the last. `step(acc, x)` is
 /// called with the given `acc` for the last element, and with what `step`
-/// answered for the one after it for the rest. The empty list answers
-/// `acc`.
+/// answered for the one after it for the rest. The accumulator comes first,
+/// as in `foldLeft`. The empty list answers `acc`.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// List.foldRight(["a", "b"], "", fn(s, acc) = s <> acc)
+/// List.foldRight(["a", "b"], "", fn(acc, text) = text <> acc)
 /// // => "ab"
 /// ```
-export fn foldRight(list : List(a), acc : b, step : (a, b) -> b with e) : b with e =
+export fn foldRight(list : List(a), acc : b, step : (b, a) -> b with e) : b with e =
     match list {
         [] -> acc
-      | head :: rest -> step(head, foldRight(rest, acc, step))
+      | head :: rest -> step(foldRight(rest, acc, step), head)
     }
 
 /// Calls `f` for each element, in order, for its effect, and answers `Unit`.
@@ -312,6 +314,20 @@ export fn drop(list : List(a), count : Int) : List(a) =
         [] -> []
       | _ :: rest -> drop(rest, count - 1)
     }
+
+/// The last `count` elements, or all of them where there are fewer. A
+/// `count` below 0 takes none. The whole list is walked to find them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.takeLast([1, 2, 3], 2), List.takeLast([1, 2, 3], 5))
+/// // => #([2, 3], [1, 2, 3])
+/// ```
+///
+/// since 0.4.0
+export fn takeLast(list : List(a), count : Int) : List(a) =
+    if count <= 0 then [] else drop(list, size(list) - count)
 
 /// The list without its last `count` elements, or empty where there are
 /// fewer. A `count` below 0 drops none.

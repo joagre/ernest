@@ -18,8 +18,9 @@ and a feature declined in the log's *Later*; nothing stands between.
 five of the review's readers and every finding worked (*Done* below). MVP 3.1's and MVP 3.2's
 designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
-2026-10-09, and their sections below are written from them. Next is the principles review over
-MVP 3.1's proposal, then MVP 3.1 from its item 1. A release waits until the user calls it.
+2026-10-09, and their sections below are written from them. The principles review ran the same day over
+MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
+of 2026-10-09*). Next is MVP 3.1 from its item 1. A release waits until the user calls it.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
 measured, with the prelude and the emitted code, and the report's and the guide's feedback
@@ -62,7 +63,7 @@ paragraph under "Done".
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
 | MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | done 2026-10-03 |
-| The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
+| The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01, and again 2026-10-09 before MVP 3.1 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | done 2026-10-05, tag `v0.3.0` |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |

@@ -633,7 +633,7 @@ debug_information(Dir) ->
                  lists:keymember("Dbgi", 1, Chunks)
              end].
 
-%% report §9.3, §11.2, Appendix G.2, G.6, plan MVP 3.2: every library's own
+%% report §9.3, §11.2, Appendix G.2, Appendix G.6, plan MVP 3.2: every library's own
 %% tests, run by `ern test` over the directory their compiled modules are
 %% under, as the shell's are: the Markdown library's read and lay out what
 %% G.2 says, and the JSON library's read and write what G.6 says. A
@@ -718,11 +718,11 @@ measures() ->
                          "type Msg = Died(Down)\n"
                          "\n"
                          "export fn main() : Unit with Msg = {\n"
-                         "    let flag = Erl.atom(\"scheduler_wall_time\");\n"
+                         "    let flag = Foreign.atom(\"scheduler_wall_time\");\n"
                          "    let _ = setFlag(flag, Foreign.from(true));\n"
                          "    let _ = Load.schedulers(1);\n"
                          "    let _ = setFlag(flag, Foreign.from(false));\n"
-                         "    let kept = statistic(flag) != Erl.atom(\"undefined\");\n"
+                         "    let kept = statistic(flag) != Foreign.atom(\"undefined\");\n"
                          "    Io.println(\"kept: \" <> Io.show(kept));\n"
                          "    let balancer = Balancer.start([Balancer.Here]);\n"
                          "    let place = Balancer.On(\"elsewhere\");\n"

@@ -40,8 +40,8 @@
 ///
 /// since 0.1.0
 
-/// Why an operation of a system module failed. Every system module answers
-/// `Left` with one of these:
+/// Why an operation of a system module, or of `Peer`, failed. Every system
+/// module and `Peer` answer `Left` with one of these:
 ///
 /// - `NotFound`: the file or the host is not there.
 /// - `Denied`: access was refused.
@@ -56,6 +56,14 @@
 ///   them, with its bytes.
 /// - `Invalid`: an argument the host cannot take, one that holds U+0000, a port
 ///   out of range or a time it cannot hold among them.
+/// - `NotListed`: `ernest.conf` lists no peer for a key's name, or no peer of
+///   the name.
+/// - `Unreachable`: no connection to the peer could be opened, the peer refused
+///   it, or it was lost while waiting.
+/// - `NotOffered`: the peer offers nothing under the key's name.
+/// - `OtherType`: the peer offers the name at another message type.
+/// - `NotLoaded`: the peer does not have the function's module, or a binding of
+///   it or of a module it depends on has no value there.
 /// - `Other(text)`: another reason, in the host's words, `"address already in
 ///   use"`.
 ///
@@ -79,6 +87,11 @@ export type Error =
   | Exists
   | NotUtf8(Bytes)
   | Invalid
+  | NotListed
+  | Unreachable
+  | NotOffered
+  | OtherType
+  | NotLoaded
   | Other(String)
 
 // What standard input takes.
@@ -90,11 +103,11 @@ type OutMsg = Write(bytes : Bytes, reply : Reply(Unit))
 
 // Report §8.2: the system references, the runtime's addresses of standard
 // output, standard error and standard input, bound at each start.
-let stdout : Address(OutMsg) = system(Erl.atom("stdout"))
+let stdout : Address(OutMsg) = system(Foreign.atom("stdout"))
 
-let stderr : Address(OutMsg) = system(Erl.atom("stderr"))
+let stderr : Address(OutMsg) = system(Foreign.atom("stderr"))
 
-let stdin : Address(StdinMsg) = system(Erl.atom("stdin"))
+let stdin : Address(StdinMsg) = system(Foreign.atom("stdin"))
 
 foreign fn system(name : Foreign.Term) : Address(a) with m =
     "ern_rt:system_process/1"

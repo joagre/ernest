@@ -20,7 +20,7 @@ separator() ->
 %% holds one code point's bytes inside another's, so each match begins and
 %% ends where code points do, and each part is UTF-8: a separator or a dot
 %% is one though a combining mark follows it, as the runtime reads a path.
-%% Its option is an atom, which Ernest makes only through `Erl.atom` at
+%% Its option is an atom, which Ernest makes only through `Foreign.atom` at
 %% each call.
 -spec parts(binary(), binary()) -> [binary()].
 parts(Text, Mark) -> binary:split(Text, Mark, [global]).

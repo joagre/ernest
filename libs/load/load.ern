@@ -45,7 +45,7 @@
 /// // => true
 /// ```
 export fn runQueue() : Int with m =
-    count(Erl.atom("total_run_queue_lengths"))
+    count(Foreign.atom("total_run_queue_lengths"))
 
 /// The fraction of the schedulers' time spent running processes over a
 /// window of the next `window` milliseconds, from 0.0 to 1.0, which the call
@@ -62,7 +62,7 @@ export fn runQueue() : Int with m =
 /// // => true
 /// ```
 export fn schedulers(window : Int) : Float with m = {
-    let flag = Erl.atom("scheduler_wall_time");
+    let flag = Foreign.atom("scheduler_wall_time");
     let _ = setFlag(flag, Foreign.from(true));
     let first = wallTimes(flag);
     receive {
@@ -134,7 +134,7 @@ export fn memory() : Optional(Float) with m =
 
 // The value the host's data gives under the name, or 0 where it gives none.
 fn valued(data : List(#(Foreign.Term, Int)), name : String) : Int = {
-    let key = Erl.atom(name);
+    let key = Foreign.atom(name);
     match List.find(data, fn(#(named, _)) = named == key) {
         Some(#(_, value)) -> value
       | None -> 0
@@ -163,7 +163,7 @@ export fn disk() : Optional(Float) with m =
 
 // Whether the host's service runs on the node, by its registered name.
 fn runs(service : String) : Bool with m =
-    registered(Erl.atom(service)) != Erl.atom("undefined")
+    registered(Foreign.atom(service)) != Foreign.atom("undefined")
 
 //
 // The host's functions

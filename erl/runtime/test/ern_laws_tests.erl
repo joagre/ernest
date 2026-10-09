@@ -44,7 +44,8 @@ list_laws_test_() ->
     laws([{"size and isEmpty", fun ints/1, fun list_size/1},
           {"contains", fun ints_and_int/1, fun list_contains/1},
           {"get by index from 0", fun ints_and_int/1, fun list_get/1},
-          {"remove the first occurrence", fun ints_and_int/1, fun list_remove/1},
+          {"remove the element at the index, none outside the list", fun ints_and_int/1,
+           fun list_remove/1},
           {"map, filter, filterMap", fun ints_and_int/1, fun list_map_filter/1},
           {"foldLeft from the left, foldRight from the right", fun ints/1, fun list_folds/1},
           {"foreach meets the elements in order", fun ints/1, fun list_foreach/1},
@@ -53,6 +54,8 @@ list_laws_test_() ->
           {"take and drop split the list, below 0 being 0", fun ints_and_int/1,
            fun list_take_drop/1},
           {"dropLast keeps all but the last n", fun ints_and_int/1, fun list_drop_last/1},
+          {"takeLast keeps the last n, and dropLast the rest", fun ints_and_int/1,
+           fun list_take_last/1},
           {"span: the longest prefix that satisfies, and the rest", fun ints_and_int/1,
            fun list_span/1},
           {"partition: each in order", fun ints_and_int/1, fun list_partition/1},
@@ -81,8 +84,11 @@ list_get({List, Index}) ->
                end,
     ?LIST:get(List, Index) =:= Expected.
 
-list_remove({List, X}) ->
-    ?LIST:remove(List, X) =:= lists:delete(X, List).
+list_remove({List, Index}) when Index >= 0, Index < length(List) ->
+    {Before, [_ | After]} = lists:split(Index, List),
+    ?LIST:remove(List, Index) =:= Before ++ After;
+list_remove({List, Index}) ->
+    ?LIST:remove(List, Index) =:= List.
 
 list_map_filter({List, Pivot}) ->
     Keep = above(Pivot),
@@ -93,7 +99,7 @@ list_map_filter({List, Pivot}) ->
 
 list_folds(List) ->
     ?LIST:foldLeft(List, [], fun(Acc, X) -> [X | Acc] end) =:= lists:reverse(List)
-        andalso ?LIST:foldRight(List, [], fun(X, Acc) -> [X | Acc] end) =:= List.
+        andalso ?LIST:foldRight(List, [], fun(Acc, X) -> [X | Acc] end) =:= List.
 
 list_foreach(List) ->
     met(fun(Visit) -> ?LIST:foreach(List, Visit) end) =:= List.
@@ -115,6 +121,11 @@ list_take_drop({List, Count}) ->
 list_drop_last({List, Count}) ->
     Kept = max(length(List) - max(Count, 0), 0),
     ?LIST:dropLast(List, Count) =:= lists:sublist(List, Kept).
+
+list_take_last({List, Count}) ->
+    Taken = ?LIST:takeLast(List, Count),
+    ?LIST:dropLast(List, Count) ++ Taken =:= List
+        andalso length(Taken) =:= min(max(Count, 0), length(List)).
 
 list_span({List, Pivot}) ->
     ?LIST:span(List, above(Pivot)) =:= lists:splitwith(above(Pivot), List).

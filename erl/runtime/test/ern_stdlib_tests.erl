@@ -29,6 +29,13 @@ list_test() ->
     ?assertEqual([1], List:dropLast([1, 2, 3], 2)),
     ?assertEqual([], List:dropLast([1, 2], 5)),
     ?assertEqual([1, 2], List:dropLast([1, 2], -1)),
+    %% report Appendix E.2, E.0 rule 2: takeLast beside dropLast, the last n,
+    %% all where there are fewer, none for a count below 0. A regression test
+    %% of the principles review's P62 (2026-10-09)
+    ?assertEqual([2, 3], List:takeLast([1, 2, 3], 2)),
+    ?assertEqual([1, 2, 3], List:takeLast([1, 2, 3], 5)),
+    ?assertEqual([], List:takeLast([1, 2, 3], -1)),
+    ?assertEqual([], List:takeLast([], 1)),
     ?assertEqual(true, List:contains([1, 2], 2)),
     ?assertEqual({'Some', 2}, List:find([1, 2, 3], fun(X) -> X > 1 end)),
     ?assertEqual('None', List:find([1], fun(X) -> X > 1 end)),
@@ -58,8 +65,11 @@ list_test() ->
     ?assertEqual({'Right', 3}, List:tryFold([1, 2], 0, fun(A, X) -> {'Right', A + X} end)),
     Bounded = fun(A, X) when A + X > 2 -> {'Left', big}; (A, X) -> {'Right', A + X} end,
     ?assertEqual({'Left', big}, List:tryFold([1, 2, 3], 0, Bounded)),
+    %% report Appendix E.2: foldRight's step takes the accumulator first, as
+    %% foldLeft's does. A regression test of the principles review's P51
+    %% (2026-10-09), the element came first
     ?assertEqual(<<"ab">>, List:foldRight([<<"a">>, <<"b">>], <<>>,
-                                          fun(X, Acc) -> <<X/binary, Acc/binary>> end)),
+                                          fun(Acc, X) -> <<X/binary, Acc/binary>> end)),
     ?assertEqual([1, 2, 3], List:sort([3, 1, 2], fun 'ern@int':compare/2)),
     %% report Appendix E.2: sort is stable, and orders a long list as
     %% Erlang's does
@@ -68,7 +78,16 @@ list_test() ->
                  List:sort([{1, a}, {2, c}, {1, b}], ByFirst)),
     Many = [(N * 7919) rem 1009 || N <- lists:seq(1, 2000)],
     ?assertEqual(lists:sort(Many), List:sort(Many, fun 'ern@int':compare/2)),
-    ?assertEqual([1, 3, 2], List:remove([1, 2, 3, 2], 2)),
+    %% report Appendix E.2, E.0 rule 2: remove takes the index get takes,
+    %% and leaves the list as it was where there is no element there. A
+    %% regression test of the principles review's P45 (2026-10-09), it took
+    %% an element and removed its first occurrence
+    ?assertEqual([1, 3, 2], List:remove([1, 2, 3, 2], 1)),
+    ?assertEqual([2, 3], List:remove([1, 2, 3], 0)),
+    ?assertEqual([1, 2], List:remove([1, 2, 3], 2)),
+    ?assertEqual([1, 2], List:remove([1, 2], 2)),
+    ?assertEqual([1, 2], List:remove([1, 2], -1)),
+    ?assertEqual([], List:remove([], 0)),
     ?assertEqual([{1, a}, {2, b}], List:zip([1, 2, 3], [a, b])),
     ?assertEqual([1, 1, 2, 2], List:flatMap([1, 2], fun(X) -> [X, X] end)),
     ?assertEqual([2, 3, 4], List:range(2, 4)),
@@ -442,9 +461,10 @@ bytes_text_test() ->
     ?assertEqual('None', Bytes:fromHex(<<"0">>)),
     ?assertEqual('None', Bytes:fromHex(<<"0g">>)).
 
-%% report Appendix E.19
-erl_test() ->
-    ?assertEqual(ready, 'ern@erl':atom(<<"ready">>)).
+%% report Appendix E.12: `Foreign.atom`, `Erl.atom` until Appendix E.19
+%% went into E.12
+foreign_atom_test() ->
+    ?assertEqual(ready, 'ern@foreign':atom(<<"ready">>)).
 
 %% report Appendix E.7
 bool_test() ->
@@ -515,6 +535,17 @@ float_test() ->
     ?assertEqual(0.5, Float:'/'(1.0, 2.0)),
     ?assertThrow({ern, fault, <<"float arithmetic error">>}, Float:'/'(1.0, 0.0)),
     ?assertThrow({ern, fault, <<"float arithmetic error">>}, Float:'*'(1.0e308, 10.0)),
+    %% report Appendix E.9, E.0 rule 2: div is `/` answered as an Optional,
+    %% None where `/` faults, a zero divisor or a quotient past the range,
+    %% and no negative zero (§3.1). A regression test of the principles
+    %% review's P50 (2026-10-09)
+    ?assertEqual({'Some', 0.25}, Float:'div'(1.0, 4.0)),
+    ?assertEqual({'Some', -2.0}, Float:'div'(1.0, -0.5)),
+    ?assertEqual('None', Float:'div'(1.0, 0.0)),
+    ?assertEqual('None', Float:'div'(0.0, 0.0)),
+    ?assertEqual('None', Float:'div'(1.0e300, 1.0e-300)),
+    {'Some', Zero} = Float:'div'(-1.0e-300, 1.0e300),
+    ?assertEqual(<<0:64>>, <<Zero/float>>),
     ?assertEqual(1.5, Float:abs(-1.5)),
     ?assertEqual(0.0, Float:abs(0.0)),
     ?assertEqual(2.0, Float:abs(2.0)),

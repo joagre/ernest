@@ -802,7 +802,7 @@ reader_and_screen_ends() ->
                  " Some(info) -> String.startsWith(info.site, \"" ++ Site ++ "\")"
                  " | None -> false });"
                  " let _ = spawn(fn() = receive { after 300 -> List.foreach(found,"
-                 " fn(p) = { let _ = stop(p, Erl.atom(\"kill\")); Unit }) });"
+                 " fn(p) = { let _ = stop(p, Foreign.atom(\"kill\")); Unit }) });"
                  " receive { after 20000 -> 1 } }\r"
              end,
     {0, ReaderEnded} = ern_pty:run(alone("../bin/ern shell"),
@@ -1796,7 +1796,7 @@ input_numbers_reused_test_() ->
 
 input_numbers_reused() ->
     InputFile = scratch_file("ern_atoms_"),
-    Info = "info(Erl.atom(\"atom_count\"))\n",
+    Info = "info(Foreign.atom(\"atom_count\"))\n",
     ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int with m ="
                                      " \"erlang:system_info/1\"\n", Info,
                                      [["1 + ", integer_to_list(Index), "\n"]
@@ -1819,7 +1819,7 @@ declarations_let_go_test_() ->
 
 declarations_let_go() ->
     InputFile = scratch_file("ern_decls_"),
-    Info = "info(Erl.atom(\"atom_count\"))\n",
+    Info = "info(Foreign.atom(\"atom_count\"))\n",
     Round = fun(Index) ->
                 ["fn f(n : Int) : Int = n * ", integer_to_list(Index), "\n",
                  "type Shape = Circle(Int) | Square(Int)\n",
@@ -1843,7 +1843,7 @@ expressions_leave_no_code_test_() ->
 
 expressions_leave_no_code() ->
     InputFile = scratch_file("ern_code_"),
-    Code = "memory(Erl.atom(\"code\"))\n",
+    Code = "memory(Foreign.atom(\"code\"))\n",
     ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                                      " \"erlang:memory/1\"\n",
                                      [["1 + ", integer_to_list(Index), "\n"]
@@ -1884,7 +1884,7 @@ expressions_again_leave_no_code_test_() ->
 
 expressions_again_leave_no_code() ->
     InputFile = scratch_file("ern_again_"),
-    Code = "memory(Erl.atom(\"code\"))\n",
+    Code = "memory(Foreign.atom(\"code\"))\n",
     Spawn = "spawn(fn() = Unit)\n",
     ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                                      " \"erlang:memory/1\"\n",
@@ -2753,7 +2753,7 @@ node_shell() ->
                  <<"help: :load Greet would put it in scope; in a shell that is a node it arrives"
                    " in MVP 3.1">>,
                  <<"[] : List(String)">>,
-                 <<"Left(NotListed) : Either(Peer.Failure, Address(Never))">>,
+                 <<"Left(NotListed) : Either(Io.Error, Address(Never))">>,
                  <<"plain : Peer.Key(List(Int))">>]],
     Refusal = <<"Peer.key at a type the session declares is not here yet in a shell that is a"
                 " node: it arrives in MVP 3.1">>,
@@ -2956,7 +2956,7 @@ stored_values_go() ->
                          ["foreign fn info() : Foreign.Term = \"persistent_term:info/0\"\n",
                           "foreign fn get(key : Foreign.Term, map : Foreign.Term) : Int ="
                           " \"maps:get/2\"\n",
-                          "fn terms() : Int = get(Foreign.from(Erl.atom(\"count\")), info())\n",
+                          "fn terms() : Int = get(Foreign.from(Foreign.atom(\"count\")), info())\n",
                           "let before = terms()\n:load Bad\nterms() - before\n",
                           ":load Demo\nlet loaded = terms()\n",
                           write_source(Dir, "demo.ern", "export let kept : Int = 1\n"),

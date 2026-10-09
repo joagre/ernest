@@ -1,15 +1,18 @@
-%% The shims behind Float.toString, pow, and exp (report Appendix E.9):
+%% The shims behind Float.toString, div, pow, and exp (report Appendix E.9):
 %% Erlang prints the shortest form only when asked, and raises badarith
 %% where §3.1 names the fault.
 -module(ern_float).
 
--export([to_string/1, text/1, pow/2, exp/1, atan2/2]).
+-export([to_string/1, text/1, divide/2, pow/2, exp/1, atan2/2]).
 
 %% Report Appendix E.9: the shortest digits that read back as the same
 %% value, which float_to_list/2's `short` gives, written plain from 0.0001
 %% to below 1.0e16 and as one digit, the point, the rest and the exponent
 %% beyond, the exponent's sign only when negative. `Io.debug` and the shell
-%% print a Float the same way (ern_show).
+%% print a Float the same way (ern_show), so the layout is written once,
+%% here: the same layout in Ernest over the host's shortest form measured
+%% 0.93 times this one, both near eight times the host's alone (the
+%% principles review's P58, 2026-10-09).
 -spec to_string(float()) -> binary().
 to_string(Float) -> list_to_binary(text(Float)).
 
@@ -47,6 +50,17 @@ plain(Digits, Point) ->
 
 scientific([First | Rest], Point) ->
     [First, $. | case Rest of [] -> "0"; _ -> Rest end] ++ "e" ++ integer_to_list(Point - 1).
+
+%% Report Appendix E.9: `/` where it gives a finite quotient, and `None`
+%% where it would fault (§3.1), a zero divisor or a quotient past the finite
+%% range, which the host's badarith alone tells, short of dividing twice.
+%% There is no negative zero: a negative quotient too small for the range is
+%% the host's `-0.0`, which adding `0.0` makes the one zero.
+-spec divide(float(), float()) -> {'Some', float()} | 'None'.
+divide(Dividend, Divisor) ->
+    try {'Some', Dividend / Divisor + 0.0}
+    catch error:badarith -> 'None'
+    end.
 
 %% Report §3.1: a result the finite range cannot hold is the float fault,
 %% not Erlang's badarith; Float.pow keeps the domain out before it gets here.

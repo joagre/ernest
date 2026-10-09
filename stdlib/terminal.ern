@@ -78,9 +78,7 @@ export type Event =
   | Resized(Size)
 
 // What the terminal takes.
-type Msg =
-    Subscribe(address : Address(Event), reply : Reply(Either(Io.Error, Unit)))
-  | ReadSize(reply : Reply(Either(Io.Error, Size)))
+type Msg = Subscribe(address : Address(Event), reply : Reply(Either(Io.Error, Unit)))
 
 // How a code point counts, where the table lists it.
 type Width = Zero | Wide | Pictographic
@@ -90,7 +88,7 @@ type Ranges = Empty | Branch(low : Int, high : Int, width : Width, below : Range
 
 // Report §8.2: the system reference, the runtime's address of the terminal,
 // bound at each start.
-let reference : Address(Msg) = system(Erl.atom("terminal"))
+let reference : Address(Msg) = system(Foreign.atom("terminal"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:system_process/1"
@@ -130,8 +128,8 @@ export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
 ///   | Right(Terminal.Size(rows = rows)) -> rows
 /// }
 /// ```
-export fn size() : Either(Io.Error, Size) with m =
-    Address.callForever(reference, fn(reply) = ReadSize(reply = reply))
+export foreign fn size() : Either(Io.Error, Size) with m =
+    "ern_tty:size/0"
 
 /// The columns `text` takes at a terminal, counted by grapheme, for lining text
 /// up.

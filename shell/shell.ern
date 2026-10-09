@@ -367,6 +367,11 @@ fn trouble(error : Io.Error) : String =
       | Io.Exists -> "the file exists already"
       | Io.NotUtf8(_) -> "the file is not UTF-8"
       | Io.Invalid -> "the path is not one the host can take"
+      | Io.NotListed -> "no peer is listed for it"
+      | Io.Unreachable -> "the peer could not be reached"
+      | Io.NotOffered -> "the peer offers nothing under the name"
+      | Io.OtherType -> "the peer offers it at another type"
+      | Io.NotLoaded -> "the peer does not have the module"
       | Io.Other(text) -> text
     }
 
@@ -775,7 +780,7 @@ fn obey(state : State,
             Left(text) -> refused(state, screen, text)
           | Right(text) -> answered(state, screen, [text])
         }
-      | Shell.Command.Set -> Continue(State(..state, settings = set(state, screen, argument)))
+      | Shell.Command.Settings -> Continue(State(..state, settings = set(state, screen, argument)))
       | Shell.Command.Processes -> match sessionProcesses(state.own) {
             [] -> answered(state, screen, ["no process of the session's is running"])
           | sites -> answered(state, screen, sites)

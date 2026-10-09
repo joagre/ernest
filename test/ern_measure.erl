@@ -344,7 +344,7 @@ others(Params, Size, Types) ->
     [value(Param, min(Size, 10), Types) || Param <- Params].
 
 %% A function whose subject cannot grow: an atom holds 255 characters.
-small('ern@erl', atom) -> true;
+small('ern@foreign', atom) -> true;
 small(_, _) -> false.
 
 member(compare) -> fun 'ern@int':compare/2;
@@ -465,7 +465,8 @@ hosts() ->
       <<"List.filterMap">> => fun(List, F) -> lists:filtermap(fun(X) -> some(F(X)) end, List) end,
       <<"List.foldLeft">> => fun(List, Acc, Step) -> lists:foldl(fun(X, A) -> Step(A, X) end,
                                                                  Acc, List) end,
-      <<"List.foldRight">> => fun(List, Acc, Step) -> lists:foldr(Step, Acc, List) end,
+      <<"List.foldRight">> => fun(List, Acc, Step) -> lists:foldr(fun(X, A) -> Step(A, X) end,
+                                                                  Acc, List) end,
       <<"List.foreach">> => fun(List, F) -> lists:foreach(F, List) end,
       <<"List.any">> => fun(List, Test) -> lists:any(Test, List) end,
       <<"List.all">> => fun(List, Test) -> lists:all(Test, List) end,
@@ -473,9 +474,16 @@ hosts() ->
       <<"List.last">> => fun(List) -> lists:last(List) end,
       <<"List.take">> => fun(List, Count) -> lists:sublist(List, Count) end,
       <<"List.drop">> => fun(List, Count) -> lists:nthtail(min(Count, length(List)), List) end,
+      <<"List.takeLast">> => fun(List, Count) ->
+                                     lists:nthtail(max(length(List) - max(Count, 0), 0), List)
+                             end,
       <<"List.span">> => fun(List, Test) -> lists:splitwith(Test, List) end,
       <<"List.partition">> => fun(List, Test) -> lists:partition(Test, List) end,
-      <<"List.remove">> => fun(List, X) -> lists:delete(X, List) end,
+      <<"List.remove">> => fun(List, Index) when Index >= 0, Index < length(List) ->
+                                   {Before, [_ | After]} = lists:split(Index, List),
+                                   Before ++ After;
+                              (List, _) -> List
+                           end,
       <<"List.reverse">> => fun lists:reverse/1,
       <<"List.sort">> => fun(List, Compare) ->
                                  lists:sort(fun(A, B) -> Compare(A, B) =/= 'Greater' end, List)

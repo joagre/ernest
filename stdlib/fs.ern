@@ -113,7 +113,7 @@ type Msg =
 
 // Report §8.2: the system reference, the runtime's address of the file system,
 // bound at each start.
-let reference : Address(Msg) = system(Erl.atom("fs"))
+let reference : Address(Msg) = system(Foreign.atom("fs"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:system_process/1"

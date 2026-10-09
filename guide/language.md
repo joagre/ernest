@@ -372,7 +372,7 @@ Three shapes of constructor, with different usage:
 - **Positional** (`Some(a)`): one value, and the constructor is also a function, `(a) -> Optional(a)`, so it can be passed: `List.map(xs, Some)`. A constructor takes one positional value or named fields; several values without names are a tuple, `Point(#(Int, Int))`.
 - **Named fields** (`Person(name : String, age : Int)`): construction uses the field syntax (`Person(name = "Alice", age = 30)`). Not a function value.
 
-There are no type aliases. `type Word = String` declares a type whose one value is a nullary constructor named `String`, and no other name for `String`; a type that holds a string is a wrapper, `type Word = Word(String)`, and the compiler's help says so where the two meet.
+There are no type aliases, and `type Word = String` is refused: it would declare a nullary constructor named `String`, and the compiler refuses a constructor named as a type in scope other than its own (report §3.1). A type that holds a string is a wrapper, `type Word = Word(String)`.
 
 ### 2.4 Named fields, selection, and `..` update
 
@@ -444,14 +444,14 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (report §3.10), so a map keyed by addresses is a type error at its first operation; key it by the process behind each address instead (§5.5). In a printed type, a variable that needs equality is marked `=`: `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (report §3.10), so a map keyed by addresses is a type error at its first operation; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
 ```ernest
 type Money = Money(Int)
 
-fn Money.compare(Money(left) : Money, Money(right) : Money) : Ordering =
+fn Money.compare(Money(left), Money(right)) : Ordering =
     Int.compare(left, right)
 
 export fn main() : Unit with Never =
@@ -576,22 +576,22 @@ Ernest 0.3.1. :help for the commands, :quit to leave.
 
 The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Path`, and a few more, `Random` among them, and the system modules `Io`, `Clock`, `Terminal`, `Fs`, `Tcp`, and `Os`, through which a program uses the runtime's system processes. It is always on the load path, where a program's compiled modules are found (§9.1). The names every module may use without a module's name before them, `Some`, `Left`, `spawn` and `send` among them, are the *prelude*'s (report §9). The library's rules let you guess a name before looking it up (report Appendix E.0):
 
-- **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
+- **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`, and `remove` takes what `get` takes, `Map.remove(m, k)` and `List.remove(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
-- **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
-- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
+- **A conversion is named by the other type.** Where one type is built from the other, or the other is its encoding, both directions are that type's module's, `String.fromList` and `String.toList`, `Bytes.toHex` and `Bytes.fromHex`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
+- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program writes an `Io.Error` with `Io.show`, as a value, `Other("address already in use")`, or in its own words by a `match` over its constructors.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
 
 Four more rules concern processes, and are for after §4:
 
-- **Pure unless the value lives in a process.** A function carries `with m` in four cases and nowhere else: where it reaches a system process; where it spawns a process, as `Supervisor.group` does; where it asks the runtime about its processes, as `Process.live` does; and where it reads the time, as `Clock.monotonic` does (report Appendix E.0 shape rule 5). Every function that calls a function it takes is as pure as the function it is given (§3.5).
+- **Pure where the result depends on the arguments alone.** A function that reads or changes what is outside its arguments while it runs carries `with m`: one that reaches a system process, one that spawns, as `Supervisor.group` does, one that asks the runtime about its processes, as `Process.live` does, one that reads the time, as `Clock.monotonic` does, and one that reads the node's peers, as `Peer.peers` does (report Appendix E.0 shape rule 5). Every function that calls a function it takes is as pure as the function it is given (§3.5).
 - **A system process is used through its module**, never by `send`.
-- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
+- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. `Timeout` is `Io.Error`'s, whichever module answers it, `Peer.find` among them. There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
 - **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message is pure, and the one that takes it, `Clock.alarm` or `Terminal.subscribe`, acts through a process all the same. `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
-**Marks in a printed type.** A printed type marks a type variable that needs equality `k=` and one that may not carry a reply `a!` (§2.5, §4.2), and a process-only effect variable that stands only after `with`, never as the type of a value, `m+` (§3.5, report §11.5).
+**Marks in a printed type.** A printed type marks what the compiler infers of a type variable, and an annotation writes no mark. `k=` needs equality (§2.5): `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. `a!` may not hold a reply (§4.2): `List.size : (List(a!)) -> Int` drops the list's elements. `m+` is a process-only effect variable (§3.5) that stands only after `with`, never as the type of a value: `send : (Address(a), a) -> Unit with m+`, and a function of yours that calls `send` prints so too. An effect variable that is also a callback's result type, `monitor`'s `(Down) -> m`, is a type, so never pure, and is printed without the mark. The one mark a program writes is `=` on a foreign declaration's type variable, since the compiler cannot see what the Erlang compares (§8.3, report §11.5).
 
 ### 2.10 A word counter, by hand
 
@@ -738,7 +738,7 @@ An effect variable may stand for a mailbox type or for pure. One that also appea
 
 **Process-only.** The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-**In a printed type.** A printed type marks a process-only effect variable with `+` where it stands only after `with`, never as the type of a value: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. The variable may stand there more than once, each marked: `restarting : (RestartLimit, () -> Unit with n+) -> () -> Unit with n+`. Where the variable is also a callback's result type, as in `monitor`'s `(Down) -> m` (§5.2), it is a type and so never pure, and is printed without the mark (report §11.5).
+A printed type marks a process-only effect variable `+` (§2.9): `:type send` prints `send : (Address(a), a) -> Unit with m+`, and each place the variable stands is marked, `restarting : (RestartLimit, () -> Unit with n+) -> () -> Unit with n+`.
 
 ### 3.6 The word counter as functions
 
@@ -814,20 +814,14 @@ fn count(total : Int) : Unit with CounterMsg =
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. It can say so itself, with the mailbox type `Never` on its lambda: `spawn(fn() : Unit with Never = work())`. Its address is then an `Address(Never)`, to which nothing can be sent. Where it does not say, the next rule applies. The `main` of hello-world is such a process (§1.1).
-
-**When nothing settles the mailbox.** `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit with n`, and the address an `Address(n)`. A pure function fits wherever one with a mailbox type is expected, so a pure function is spawned too. Its mailbox is then whatever the address is used as, and the first `send` to the address fixes it. Where nothing fixes it the type stays open. In a block that does no harm, and the address of a process nothing sends to may stay open. A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3). The shell shows an open mailbox as a type variable, and the process that receives nothing as `Never`:
+**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit with n`, and the address an `Address(n)`. A pure function fits wherever one with a mailbox type is expected, so a pure function is spawned too, and the first `send` to its address fixes `n`. Where nothing fixes it, the process receives nothing and its mailbox type is `Never`, one rule for every process: one spawned here or on a peer (§8.1), and `main` (§1.1). A process may say so itself, `spawn(fn() : Unit with Never = work())`, and its address is then an `Address(Never)`, to which nothing can be sent. A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3); the shell shows the open type and keeps `it` as it was:
 
 ```console
 $ ern shell
 Ernest 0.3.1. :help for the commands, :quit to leave.
-> :type spawn
-spawn : (() -> Unit with n) -> Address(n) with m+
 > spawn(fn() : Unit = Unit)
 <address 84> : Address(a)
 `it` is unchanged: this input did not determine the type of its value
-> spawn(fn() : Unit with Never = Unit)
-<address 87> : Address(Never)
 ```
 
 ### 4.2 A reply is answered once
@@ -865,7 +859,7 @@ Since each reply is counted, a reply-carrying value is never copied or dropped:
 - `_` cannot stand for one in a pattern.
 - No field is selected from one, since the selection would drop the other fields. One is not the base of a record update, since the update would drop the field it replaces. A pattern takes such a value apart.
 
-In a printed type, a variable marked `!` is one that may not hold a reply: `dup : (a!) -> #(a!, a!)` for a function that copies its argument, and `List.size : (List(a!)) -> Int` for one that drops a list's elements.
+A printed type marks a variable that may not hold a reply `!` (§2.9): `dup : (a!) -> #(a!, a!)` for a function that copies its argument.
 
 **A reply in a lambda.** Capturing a reply in a lambda hands the obligation to the lambda. The lambda is then used exactly once itself: called once, or given straight to `spawn`.
 
@@ -891,7 +885,7 @@ fn waitForData() : Optional(Int) with Inbox =
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
 
 If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 
@@ -1891,18 +1885,18 @@ An abstract type keeps its representation to its module: every definition in the
 // stack.ern  (namespace Stack)
 export abstract type Stack(a) = Stack(List(a))
 
-export let empty : Stack(a) = Stack([])
+export let empty = Stack([])
 
-export fn push(Stack(items) : Stack(a), item : a) : Stack(a) =
+export fn push(Stack(items), item) =
     Stack(item :: items)
 
-export fn pop(Stack(items) : Stack(a)) : Optional(#(a, Stack(a))) =
+export fn pop(Stack(items)) =
     match items {
         [] -> None
       | item :: rest -> Some(#(item, Stack(rest)))
     }
 
-export fn size(Stack(items) : Stack(a)) : Int =
+export fn size(Stack(items)) =
     List.size(items)
 ```
 
@@ -2167,7 +2161,7 @@ fn hashed(set : Set(a)) : Bag(a) =
 
 export fn main() : Unit with Never =
     List.foreach([ordered(OrderedSet.empty), hashed(Set.empty)], fn(bag) = {
-        let filled = bag.put(2).put(1).put(2);
+        let filled = List.foldLeft([2, 1, 2], bag, fn(acc, x) = acc.put(x));
         Io.println(Io.show(#(List.size(filled.toList()), filled.contains(1))))
     })
 ```
@@ -2248,7 +2242,7 @@ Every example here runs on a program that is no node too: without a configuratio
 
 ### 8.1 Work on a peer
 
-Work runs on a peer in a process spawned there, and its result comes back as a message. `Peer.spawn(name, f, ms)` spawns `f` on the peer named `name` as `spawn(f)` spawns it on this node, and answers the new process's address within `ms` milliseconds, or a `Peer.Failure` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
+Work runs on a peer in a process spawned there, and its result comes back as a message. `Peer.spawn(name, f, ms)` spawns `f` on the peer named `name` as `spawn(f)` spawns it on this node, and answers the new process's address within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
 
 ```ernest
 // square.ern
@@ -2387,13 +2381,13 @@ export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"
 ```
 
-External callers write `Ets.Table` and `Ets.toList`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:tab2list/1`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7). A `foreign fn` whose Erlang compares the values of a type variable marks the variable the same way, once, in its parameters: `foreign fn member(element : a=, list : List(a)) : Bool = "lists:member/2"` cannot be given a function.
+External callers write `Ets.Table` and `Ets.toList`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:tab2list/1`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7). A `foreign fn` whose Erlang compares the values of a type variable marks the variable the same way, once, in its parameters, the one mark a program writes (§2.9): `foreign fn member(element : a=, list : List(a)) : Bool = "lists:member/2"` cannot be given a function.
 
 The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 
 In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, fault, Cause, Trace}` for a runtime failure or a foreign raise, `{ern, killed}` and `{ern, program_end}` among them, which Erlang code that monitors it reads; report §8.4 lists them all.
 
-A value foreign code made and Ernest does not inspect has the foreign type `Foreign.Term`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.8, Appendix E.12, Appendix E.19).
+A value foreign code made and Ernest does not inspect has the foreign type `Foreign.Term`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Foreign.atom(name)` is how an Erlang atom is passed (report §3.8, Appendix E.12).
 
 ### 8.4 Values bound to their node
 
@@ -2490,7 +2484,7 @@ $ ern run build/store.erc
 found 42
 ```
 
-A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign.Term` is given one by `Foreign.from(value)`, which gives the value as an argument of its type crosses, so the type must be known where `Foreign.from` is written; `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
+A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign.Term` is given one by `Foreign.from(value)`, which gives the value as an argument of its type crosses, so the type must be known where `Foreign.from` is written; `Foreign.atom(name)` makes an atom (report Appendix E.12).
 
 `libs/ets` is such a library, report Appendix G.1, which Appendix D shows with a shorter documentation, and a program adds it with `--load-path`. A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 2), and report Appendix G lists the libraries there are.
 
@@ -2686,7 +2680,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - There are no registered names, and addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, through a service binding, a top-level binding that holds one (§6.5), or, from another node, by the key it is offered under (§8.2).
-- There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
+- There are no atoms in the language: constructors are the tags. `Foreign.atom` makes one for a foreign call.
 - There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - A function does not travel to another node: the compiler refuses a key or a spawn that would take one, and work on a peer is a process spawned there, which carries its captured values and no code (§8.1, §8.4).

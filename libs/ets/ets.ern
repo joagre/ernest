@@ -76,7 +76,7 @@ export foreign type Table(k=, v)
 /// process ends or the table is closed. The types of its keys and values
 /// are those of its first use, or of an annotation.
 export fn new() : Table(k, v) with m =
-    rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
+    rawNew(Foreign.atom("ernest"), [Foreign.atom("set"), Foreign.atom("public")])
 
 foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) with m =
     "ets:new/2"
@@ -141,7 +141,7 @@ foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
 ///
 /// Faults on a table that has ended, with the cause `the table has ended`.
 export fn size(table : Table(k, v)) : Int with m =
-    match Foreign.toInt(rawInfo(table, Erl.atom("size"))) {
+    match Foreign.toInt(rawInfo(table, Foreign.atom("size"))) {
         Some(count) -> count
       | None -> fault("the table has ended")
     }

@@ -2,8 +2,10 @@
 %% answers Subscribe with Left(NotATerminal) where standard input is not a
 %% terminal, claiming nothing, and otherwise by remembering the address;
 %% it sends every key pressed to each subscriber as a Terminal.Event,
-%% through a courier of the subscriber's own that applies its wrap, answers
-%% ReadSize with the terminal's size, and sends Resized when that size changes.
+%% through a courier of the subscriber's own that applies its wrap, and
+%% sends Resized when the terminal's size changes. Terminal.size reads the
+%% size from the host without the process (size/0), since the host answers
+%% it without one (Appendix E.0 rule 1).
 %% The terminal is put in the mode the keys need when the first subscriber
 %% arrives, since keys and lines are the same terminal and a program does
 %% one or the other, and restore/0 puts it back when the program ends
@@ -26,7 +28,7 @@
 %% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
 
--export([loop/2, restore/0, is_terminal/1, more/2, decode/1, flush/1]).
+-export([loop/2, size/0, restore/0, is_terminal/1, more/2, decode/1, flush/1]).
 
 %% What waits for more to arrive: the characters of an escape that may
 %% still grow into a sequence, or a paste under way, its text so far
@@ -57,7 +59,7 @@ loop(_, false) ->
     refusing().
 
 %% Report §8.2: where standard input is not a terminal, a subscription is
-%% refused and claims nothing, and the size is asked of standard output.
+%% refused and claims nothing.
 refusing() ->
     receive
         {'Subscribe', Address, Reply} ->
@@ -65,8 +67,6 @@ refusing() ->
                 true -> ern_rt:refuse(Reply, ern_rt:shell_holds());
                 false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
             end;
-        {'ReadSize', Reply} ->
-            ern_rt:answer(Reply, measured(size_now()));
         {new_run, Pid, Ref} ->
             %% report §6.9: where nothing is subscribed, a restart ends nothing
             Pid ! {Ref, fresh}
@@ -89,9 +89,6 @@ loop(Subscribers, Reader, Pending, Size) ->
             Left = unsubscribe(Pid, Subscribers, Reader),
             Pid ! {Ref, fresh},
             loop(Left, Reader, Pending, Size);
-        {'ReadSize', Reply} ->
-            ern_rt:answer(Reply, measured(size_now())),
-            loop(Subscribers, Reader, Pending, Size);
         {chars, Chars} ->
             {Decoded, Left} = more(Pending, Chars),
             deliver(Decoded, Subscribers),
@@ -229,10 +226,16 @@ size_now() ->
         _ -> none
     end.
 
-%% Report Appendix E.16: the host has no size for a device that is not a
-%% terminal, nor for a terminal with no rows or no columns.
-measured(none) -> {'Left', 'NotATerminal'};
-measured(Size) -> {'Right', Size}.
+%% Report Appendix E.16, E.0 rule 1: Terminal.size, the size the host
+%% answers, read without the terminal's process. The host has no size for
+%% a device that is not a terminal, nor for a terminal with no rows or no
+%% columns.
+-spec size() -> {'Right', {'Size', pos_integer(), pos_integer()}} | {'Left', 'NotATerminal'}.
+size() ->
+    case size_now() of
+        none -> {'Left', 'NotATerminal'};
+        Size -> {'Right', Size}
+    end.
 
 %% The reader runs once a program has asked for keys, and not before: a
 %% program that reads lines never leaves the terminal's line mode, and a

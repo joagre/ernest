@@ -1049,6 +1049,20 @@ example.ern:1:21: constructor Red is declared twice
   |                     ^^^
 ```
 
+### A constructor named as a type (§3.1)
+
+```ernest-rejected
+type Word = String
+```
+
+```console
+$ ern build example.ern
+example.ern:1:13: constructor String is named as the type String
+1 | type Word = String
+  |             ^^^^^^
+  | = help: there are no type aliases (§3.1)
+```
+
 ### A field named twice in a constructor (§3.5)
 
 ```ernest-rejected
@@ -4343,14 +4357,14 @@ fn idle() : Unit with m =
         after 1000 -> Unit
     }
 
-fn start() : Either(Peer.Failure, Address(a)) with n =
+fn start() : Either(Io.Error, Address(a)) with n =
     Peer.spawn("worker", idle, 1000)
 ```
 
 ```console
 $ ern build example.ern
 example.ern:7:26: Peer.spawn starts a process whose mailbox type a is not known whole here
-6 | fn start() : Either(Peer.Failure, Address(a)) with n =
+6 | fn start() : Either(Io.Error, Address(a)) with n =
 7 |     Peer.spawn("worker", idle, 1000)
   |                          ^^^^
   | = help: give the function its mailbox type, `fn() : Unit with Msg = ...`: an instance of this definition could make the variable a type bound to its node (§3.11)

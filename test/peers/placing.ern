@@ -11,7 +11,7 @@ fn high() : Float =
     0.9
 
 export fn lowOn(balancer : Address(Balancer.Msg),
-                name : String) : Either(Peer.Failure, Address(Balancer.Measuring)) with m =
+                name : String) : Either(Io.Error, Address(Balancer.Measuring)) with m =
     Peer.spawn(name,
                fn() : Unit with Balancer.Measuring =
                    Balancer.serve(balancer, Balancer.On(name), low),
@@ -22,7 +22,7 @@ export fn highHere(balancer : Address(Balancer.Msg)) : Address(Balancer.Measurin
 
 // Whether each of the host's services, cpu, memory and disk, answers a load
 // on the peer, which writes it to its standard output.
-export fn loadsOn(name : String) : Either(Peer.Failure, Address(Never)) with m =
+export fn loadsOn(name : String) : Either(Io.Error, Address(Never)) with m =
     Peer.spawn(name, fn() : Unit with Never = Io.println("loads there: " <> loads()), 5000)
 
 export fn loads() : String with m =

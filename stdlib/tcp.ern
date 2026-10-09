@@ -132,7 +132,7 @@ type Msg =
 
 // Report §8.2: the system reference, the runtime's address of the TCP process,
 // bound at each start.
-let reference : Address(Msg) = system(Erl.atom("tcp"))
+let reference : Address(Msg) = system(Foreign.atom("tcp"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:system_process/1"

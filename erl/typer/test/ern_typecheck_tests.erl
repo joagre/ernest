@@ -724,7 +724,7 @@ spawn_mailbox_test() ->
                      #e_call{callee = #e_var{name = spawn}, type = {tcon, ['Either'], [_, Answer]}}
                          <- calls(Body)]),
     ?assertEqual("Peer.spawn starts a process whose mailbox type a is not known whole here",
-                 peer_refusal("fn f() : Either(Peer.Failure, Address(a)) with m ="
+                 peer_refusal("fn f() : Either(Io.Error, Address(a)) with m ="
                               " Peer.spawn(\"p\", fn() = Unit, 5000)\n")),
     ?assertEqual("Peer.spawn starts a process whose mailbox type Msg is bound to its node,"
                  " since it holds a function",
@@ -1344,11 +1344,38 @@ type_declarations_test() ->
     ?assertEqual("List takes 1 type argument, not 2", refusal("fn f(x : List(Int, Int)) = x")),
     %% prelude names may be shadowed (report §4.2)
     ?assertEqual("(M.Key) -> Bool",
-                 type_of("export type Key = Up | Down\nexport fn isDown(k) = match k"
-                         " { Down -> true"
-                         " | Up -> false }", isDown)),
+                 type_of("export type Key = Up | Less\nexport fn isLess(k) = match k"
+                         " { Less -> true"
+                         " | Up -> false }", isLess)),
     ?assertEqual("field a is declared twice",
                  refusal("type T = T(a : Int, a : Int)")).
+
+%% report §3.1: there are no type aliases, so a constructor named as a type
+%% in scope other than its own is refused at the constructor, a prelude
+%% type, one the module declares, one of the session's at the prompt
+%% (§11.2), and one with a field alike; a constructor named as its own type
+%% is not. A regression test of the principles review's W8 (2026-10-09):
+%% `type Word = String` declared a constructor `String` and was accepted
+no_alias_test() ->
+    ?assertEqual({"constructor String is named as the type String",
+                  "there are no type aliases (§3.1)"},
+                 refusal_and_help("type Word = String")),
+    ?assertMatch({error, [#diagnostic{span = {1, 13, _}}]}, check("type Word = String")),
+    ?assertEqual("constructor List is named as the type List",
+                 refusal("type Numbers = List(Int)")),
+    ?assertEqual("constructor Down is named as the type Down",
+                 refusal("type Key = Up | Down")),
+    ?assertEqual("constructor Shape is named as the type Shape",
+                 refusal("type Shape = Circle(Float)\ntype Drawing = Shape(Int) | Empty")),
+    ?assertEqual("constructor Point is named as the type Point",
+                 refusal("type Thing = Point\nforeign type Point")),
+    ?assertMatch({ok, _, _, _}, check("type Path = Path(String)\ntype Word = Word(String)")),
+    {ok, _, Interface, _} = ern_typecheck:check_string(['Session1'],
+                                                       "export type Shape = Circle(Float)"),
+    {ok, Declarations} = ern_parser:parse_string("type Drawing = Shape(Int)"),
+    Session = #{types => #{'Shape' => ['Session1', 'Shape']}},
+    ?assertMatch({error, [#diagnostic{message = "constructor Shape is named as the type Shape"}]},
+                 ern_typecheck:check(['M'], Declarations, [Interface], Session)).
 
 %% report §4.2, §5.4: a module declares each top-level name once, private or
 %% exported, and a block each local fn name once; two adjacent ones are the
@@ -2868,21 +2895,6 @@ local_helper_over_an_operator_test() ->
                         " { fn add(a : Int, b : Int) = a + b; add(x, 1) }")),
     ?assertEqual(ok, ok("fn f(x : Int) : Int = List.foldLeft([x, 1], 0, fn(acc, n) = acc + n)")).
 
-%% report §3.5, §11.5: `type Word = String` declares a type whose one value
-%% is a nullary constructor, and no alias, and a mismatch between the two
-%% types says so in its help, either way round; a type whose constructor
-%% names no type in the mismatch has no such help. A regression test,
-%% written with the help
-not_an_alias_test() ->
-    Help = fun(Source) -> {error, [#diagnostic{help = Given} | _]} = check(Source), Given end,
-    Alias = "`type Word = String` declares a type whose one value is `String`, not another"
-            " name for String; there are no type aliases, and a wrapper is"
-            " `type Word = Word(String)`",
-    Word = "type Word = String\n",
-    ?assertEqual(Alias, Help(Word ++ "fn f() : Word = \"x\"")),
-    ?assertEqual(Alias, Help(Word ++ "fn f(w : Word) : Int = String.size(w)")),
-    ?assertEqual(undefined, Help("type Word = Word(String)\nfn f() : Word = \"x\"")).
-
 %% report §5.7, Appendix A: a construction is a value and no call, so the
 %% pipe applies a bare constructor and does not fill a construction. A
 %% regression test: the refusals named the callee or a missing field and
@@ -3568,12 +3580,14 @@ fill_test() ->
 %% a constructor of the same name notwithstanding, and `..Prelude.N` is
 %% refused, naming the namespace to write. A regression test of the full
 %% review's P3 (2026-10-04): a constructor `Set` took the fill from `Set`
-%% away, and `..Prelude.Set` read as a namespace that holds nothing
+%% away, and `..Prelude.Set` read as a namespace that holds nothing. A
+%% constructor `Set` is refused since the principles review's W8 (§3.1), so
+%% the constructor beside the fill is `OrderedSet`, a namespace and no type
 fill_beside_a_constructor_test() ->
-    Ops = "type Mode = Set | Plain\n"
+    Ops = "type Mode = OrderedSet | Plain\n"
           "type Ops(s, a) = Ops(fromList : (List(a)) -> s, toList : (s) -> List(a))\n",
-    ?assertEqual(ok, ok(Ops ++ "let hashed : Ops(Set(Int), Int) = Ops(..Set)\n"
-                        "let mode : Mode = Set\n")),
+    ?assertEqual(ok, ok(Ops ++ "let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)\n"
+                        "let mode : Mode = OrderedSet\n")),
     ?assertEqual({"`Prelude.Set` names no namespace: `Prelude.` reaches one of the prelude's"
                   " names", "write the namespace after `..` as it is, `..Set` (§5.6)"},
                  refusal_and_help(Ops ++ "let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)\n")).

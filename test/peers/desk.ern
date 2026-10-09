@@ -3,7 +3,7 @@
 
 type Msg = Died(Down)
 
-let early : Either(Peer.Failure, Address(Counter.Msg)) = Peer.find(Counter.key, 100)
+let early : Either(Io.Error, Address(Counter.Msg)) = Peer.find(Counter.key, 100)
 
 export fn main() : Unit with Msg =
     match Os.arguments {
@@ -99,7 +99,7 @@ fn faulted(what : String, f : () -> Unit with m) : Unit with Msg = {
     }
 }
 
-fn started(answer : Either(Peer.Failure, Address(m))) : String =
+fn started(answer : Either(Io.Error, Address(m))) : String =
     match answer {
         Right(_) -> "Right"
       | Left(failure) -> Io.show(failure)

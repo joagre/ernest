@@ -911,7 +911,7 @@ foreign_shown_as_foreign_test() ->
           "foreign type Handle\n\n"
           "foreign fn handle() : Handle = \"erlang:self/0\"\n\n"
           "export fn main() : Unit with Never =\n"
-          "    Io.println(Io.show(#(Foreign.from(1), [Erl.atom(\"a\")], handle())))\n"),
+          "    Io.println(Io.show(#(Foreign.from(1), [Foreign.atom(\"a\")], handle())))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"#(<foreign>, [<foreign>], <foreign>)\n">>,
@@ -1377,8 +1377,16 @@ double_dash_test() ->
 %% module written in Ernest
 stdlib_namespace_test() ->
     Dir = tmp(),
-    write(Dir, "src/erl.ern", "export fn atom(s : String) : String = s\n"),
+    write(Dir, "src/foreign.ern", "export fn atom(s : String) : String = s\n"),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
+
+%% report §4.2, Appendix E.19: `Erl` went into `Foreign`, and its namespace
+%% is no longer taken, so `erl.ern` at a source root is a program's own. A
+%% regression test of the principles review's P49 (2026-10-09)
+erl_namespace_free_test() ->
+    Dir = tmp(),
+    write(Dir, "src/erl.ern", "export fn atom(s : String) : String = s\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.1, §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->

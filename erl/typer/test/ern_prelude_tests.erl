@@ -35,16 +35,18 @@ values_test() ->
                          ++ Compiled),
     same(Report, Tables).
 
-%% report §9.4, §9.5, §9.6, §6.2, §6.6, §3.9, §11.5: each type §9 lists, and
-%% §6.2 and §6.6 with it, is the type the compiler prints, its inferred
-%% restrictions marked, as the shell's `:type` prints it. A regression
-%% test of the principles review's K2 (2026-10-09): `send`, `spawn`,
-%% `answer`, `Address.call`, `Address.callForever`, `kill`, `restarting` and
-%% `Io.debug` were listed without the `+` the compiler prints
+%% report §9.4, §9.5, §9.6, §3.9, §11.5: each type §9 lists is the type the
+%% compiler prints, its inferred restrictions marked, as the shell's `:type`
+%% prints it. A regression test of the principles review's K2 (2026-10-09):
+%% `send`, `spawn`, `answer`, `Address.call`, `Address.callForever`, `kill`,
+%% `restarting` and `Io.debug` were listed without the `+` the compiler
+%% prints. §6.2 and §6.6 point at §9 and list none (report §6.2, §6.6),
+%% so that §9's is the one copy
 marked_prelude_test() ->
-    Lines = code_lines(section("### 9.4", "### 9.7"))
-        ++ code_lines(section("### 6.2", "### 6.3"))
-        ++ code_lines(section("### 6.6", "### 6.7")),
+    Lines = code_lines(section("### 9.4", "### 9.7")),
+    ?assertEqual([], code_lines(section("### 6.2", "### 6.3"))
+                     ++ [Line || Line <- code_lines(section("### 6.6", "### 6.7")),
+                                 written_signature(Line) =/= []]),
     Env = ern_typecheck:prelude_env(),
     TypeState = ern_typecheck:type_state(Env),
     Schemes = maps:from_list(

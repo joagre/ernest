@@ -13,8 +13,8 @@
 /// names no node.
 ///
 /// A find and a spawn wait at most the milliseconds they are given, and answer
-/// the address or a `Failure`, which the program matches on; neither faults for
-/// what the network or a peer does. A program that is no node has no peers, so
+/// the address or an `Io.Error`, which the program matches on; neither faults
+/// for what the network or a peer does. A program that is no node has no peers, so
 /// they answer `NotListed`; a node dials only once its bindings have their
 /// values, so in an initializer they answer `Unreachable`.
 ///
@@ -64,38 +64,6 @@
 /// ```
 export abstract type Key(m) = Key(name : String, text : String)
 
-/// Why a find or a spawn answered no address.
-///
-/// - `NotListed`: `ernest.conf` lists no peer for the key's name, or no peer of
-///   the name.
-/// - `Unreachable`: no connection could be opened, the peer refused it, or it
-///   was lost while waiting.
-/// - `Refused(text)`: the peer refused what was sent, with its reason.
-/// - `Timeout`: no answer came in time.
-/// - `NotOffered`: the peer offers nothing under the key's name.
-/// - `OtherType`: the peer offers the name at another message type.
-/// - `NotLoaded`: the peer does not have the function's module, or a binding of
-///   it or of a module it depends on has no value there.
-///
-/// A find meets `NotListed`, `Unreachable`, `Timeout`, `NotOffered` and
-/// `OtherType`, and a spawn `NotListed`, `Unreachable`, `Timeout`, `Refused` and
-/// `NotLoaded`.
-///
-/// ### Examples
-///
-/// ```ernest
-/// Peer.NotListed
-/// // => NotListed
-/// ```
-export type Failure =
-    NotListed
-  | Unreachable
-  | Refused(String)
-  | Timeout
-  | NotOffered
-  | OtherType
-  | NotLoaded
-
 /// A key of the name, at the message type the compiler finds where it is
 /// written, which is known whole there and crosses to other nodes. The key
 /// holds the type's text with every name qualified, `Counter.Msg`, whichever
@@ -131,8 +99,9 @@ export foreign fn offer(key : Key(m), address : Address(m)) : Unit with n =
 /// order the configuration lists them, each given the time left, and one that
 /// cannot be reached, offers nothing under the name, or offers it at another
 /// type is passed over; where no peer offers it, the last of these is
-/// answered, and `Left(Timeout)` where the time runs out.
-export foreign fn find(key : Key(m), ms : Int) : Either(Failure, Address(m)) with n =
+/// answered, and `Left(Timeout)` where the time runs out. A find meets
+/// `NotListed`, `Unreachable`, `Timeout`, `NotOffered` and `OtherType`.
+export foreign fn find(key : Key(m), ms : Int) : Either(Io.Error, Address(m)) with n =
     "ern_peer:find/2"
 
 /// A process started on the peer of that name, running `f`, its address
@@ -146,11 +115,12 @@ export foreign fn find(key : Key(m), ms : Int) : Either(Failure, Address(m)) wit
 /// for a function a shell typed, and for one whose module, or a module it
 /// depends on, has a binding the peer's program never ran. A process whose
 /// answer came too late is killed as it comes, and where the connection was
-/// lost meanwhile it runs on. `spawn` is called where it is named, and is no
+/// lost meanwhile it runs on. A spawn meets `NotListed`, `Unreachable`,
+/// `Timeout` and `NotLoaded`. `spawn` is called where it is named, and is no
 /// value.
 export foreign fn spawn(name : String,
                         f : () -> Unit with m,
-                        ms : Int) : Either(Failure, Address(m)) with n =
+                        ms : Int) : Either(Io.Error, Address(m)) with n =
     "ern_peer:spawn/3"
 
 /// As `spawn`, the caller monitoring the process from its start: `wrap(d)` is
@@ -165,7 +135,7 @@ export foreign fn spawn(name : String,
 export foreign fn spawnMonitored(name : String,
                                  f : () -> Unit with m,
                                  wrap : (Down) -> n,
-                                 ms : Int) : Either(Failure, Address(m)) with n =
+                                 ms : Int) : Either(Io.Error, Address(m)) with n =
     "ern_peer:spawn_monitored/4"
 
 /// The names of the peers this node lists, in the configuration's order. The

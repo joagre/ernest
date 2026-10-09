@@ -114,6 +114,21 @@ export fn min(left : Float, right : Float) : Float =
 export fn max(left : Float, right : Float) : Float =
     if left > right then left else right
 
+/// The quotient `dividend / divisor`, rounded to the nearest `Float`, or
+/// `None` where `/` would fault: a `divisor` of 0.0, or a quotient too large
+/// to be finite.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Float.div(1.0, 4.0), Float.div(1.0, 0.0), Float.div(1.0e300, 1.0e-300))
+/// // => #(Some(0.25), None, None)
+/// ```
+///
+/// since 0.4.0
+export foreign fn div(dividend : Float, divisor : Float) : Optional(Float) =
+    "ern_float:divide/2"
+
 /// The shortest digits that read back as the same value, always with a
 /// fraction: `100.0`, not `100`. From 0.0001 to below 1.0e16 they are written
 /// plain, and beyond as one digit, the point, the rest and the exponent:

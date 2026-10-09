@@ -173,7 +173,7 @@ fn step(world : World) : World = {
                 else
                     #(next :: head :: List.dropLast(rest, 1), score);
                 let moved = Player(..player, body = body, moved = direction, score = score1);
-                #(Map.put(acc, player.id, moved), List.remove(apples, next))
+                #(Map.put(acc, player.id, moved), List.filter(apples, fn(apple) = apple != next))
             }
         };
     let #(moved, left) = Map.foldLeft(world.players, #(world.players, world.apples), movePlayer);

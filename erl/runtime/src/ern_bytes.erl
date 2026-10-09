@@ -1,5 +1,5 @@
 %% The shims behind Bytes (report Appendix E.20, E.0 rule 1) whose host
-%% function takes an atom, which Ernest makes only through `Erl.atom` at
+%% function takes an atom, which Ernest makes only through `Foreign.atom` at
 %% each call, or raises where E.20 answers `None`, which Ernest cannot
 %% catch.
 -module(ern_bytes).

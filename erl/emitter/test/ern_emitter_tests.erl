@@ -2386,11 +2386,11 @@ recursive_function_value_test() ->
         "    Io.println(Int.toString(c.next().next().n))\n"
         "}\n")).
 
-%% Appendix E.19: a text longer than 255 characters makes no atom, and
-%% `Erl.atom` faults as a foreign function that raises does (report §7.4)
-erl_atom_too_long_test() ->
+%% Appendix E.12: a text longer than 255 characters makes no atom, and
+%% `Foreign.atom` faults as a foreign function that raises does (report §7.4)
+foreign_atom_too_long_test() ->
     {Result, _} = run("export fn main() : Unit with Never = {\n"
-                      "    let _ = Erl.atom(String.padStart(\"\", 256, \"a\"));\n"
+                      "    let _ = Foreign.atom(String.padStart(\"\", 256, \"a\"));\n"
                       "    Unit\n"
                       "}\n"),
     ?assertMatch({fault, <<"foreign function erlang:binary_to_atom/1 raised error:system_limit">>,
@@ -2427,10 +2427,10 @@ work_makes_no_atoms() ->
         "}\n"
         "export fn main() : Unit with Msg = {\n"
         "    work();\n"
-        "    let before = info(Erl.atom(\"atom_count\"));\n"
+        "    let before = info(Foreign.atom(\"atom_count\"));\n"
         "    work();\n"
         "    work();\n"
-        "    Io.println(Io.show(info(Erl.atom(\"atom_count\")) - before))\n"
+        "    Io.println(Io.show(info(Foreign.atom(\"atom_count\")) - before))\n"
         "}\n"]),
     ?assertEqual(<<"0\n">>, Output).
 

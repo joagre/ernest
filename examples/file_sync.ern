@@ -204,6 +204,11 @@ fn errorText(error : Io.Error) : String =
       | Io.Exists -> "exists"
       | Io.NotUtf8(_) -> "not UTF-8"
       | Io.Invalid -> "invalid argument"
+      | Io.NotListed -> "no peer listed"
+      | Io.Unreachable -> "unreachable"
+      | Io.NotOffered -> "not offered"
+      | Io.OtherType -> "offered at another type"
+      | Io.NotLoaded -> "not loaded"
       | Io.Other(text) -> text
     }
 

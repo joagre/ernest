@@ -6,7 +6,7 @@ let peers : List(String) = Peer.peers()
 export fn listed() : List(String) =
     peers
 
-export fn tellPeers(name : String) : Either(Peer.Failure, Address(Never)) with m =
+export fn tellPeers(name : String) : Either(Io.Error, Address(Never)) with m =
     Peer.spawn(name,
                fn() : Unit with Never = Io.println("the peers here: " <> Io.show(peers)),
                5000)
