@@ -1,6 +1,6 @@
 # Ernest: MVP 3.2, Code with a Spawn
 
-Status: the proposal for MVP 3.2, under discussion. It was split on 2026-10-09 from [`mvp3.1.md`](mvp3.1.md), on which it stands: MVP 3.1 gives every definition its hash, and this lets the code cross with a spawn to a peer that lacks it. Nothing of it reaches the plan, the log or the report before the read-through ends, and it changes only by a question raised against it. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s; what was set aside is code.md's section 8; what other systems do, the README names.
+Status: the proposal for MVP 3.2, read through with the user on 2026-10-09, from which the plan's MVP 3.2 section is written. It was split on 2026-10-09 from [`mvp3.1.md`](mvp3.1.md), on which it stands: MVP 3.1 gives every definition its hash, and this lets the code cross with a spawn to a peer that lacks it. It changes only by a question raised against it, and the plan with it. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s; what was set aside is code.md's section 8; what other systems do, the README names.
 
 ## 1. What it is
 
@@ -71,7 +71,7 @@ type Msg = Moved(node : String, count : Int)
 
 fn main() : Unit with Msg = {
     let me = self();
-    let nodes = Peer.nodes();
+    let nodes = Peer.peers();
     List.each(nodes, fn(node) =
         match Peer.spawn(node, fn() = {
             let old = Code.running(Counter.count);

@@ -1,61 +1,61 @@
 # Findings: MVP 3.0 read without a release
 
-The plan's MVP 3.0, item 13 (the log's *MVP 3.0 Read Without a Release*). Three of [`release_review.md`](release_review.md)'s readers, run on 2026-10-08 as [`full_review.md`](full_review.md) runs them, over commit `a6612bf9`: the report's reader, K and P as one, on the most advanced model, over §3.11, §8.3, §8.7, §6.10's peer part, §11's node jobs, §11.3, Appendix C, E.27 and G.4 to G.6; the argument's reader, A, on the most advanced model, over `soundness.md`'s section 7 beside the report; and the guide's reader, U, on the model below, over chapter 8, its examples run. The code's reader has not run: whether it reads the code whole, as `full_review.md`'s C, E and S do, or what changed since `v0.3.1`, is a decision of the user's, named in the plan's item 13. Each reader read cold, its brief and its files and nothing that argues for them, and edited nothing; the scratch programs the lines name are under the session's scratchpad, `readers/kp`, `readers/arg` and `readers/u`.
+The plan's MVP 3.0, item 13 (the log's *MVP 3.0 Read Without a Release*). Three of [`release_review.md`](release_review.md)'s readers, run on 2026-10-08 as [`full_review.md`](full_review.md) runs them, over commit `a6612bf9`: the report's reader, K and P as one, on the most advanced model, over §3.11, §8.3, §8.7, §6.10's peer part, §11's node jobs, §11.3, Appendix C, E.27 and G.4 to G.6; the argument's reader, A, on the most advanced model, over `soundness.md`'s section 7 beside the report; and the guide's reader, U, on the model below, over chapter 8, its examples run. The code's reader ran on 2026-10-09 over what changed since `v0.3.1`, in two parts, C over `erl/` and `test/`, and E and S as one over `stdlib/`, `libs/`, `shell/` and the node's code, the range chosen since the full review had read the code whole on 2026-10-05; its lines stand after the guide's. Each reader read cold, its brief and its files and nothing that argues for them, and edited nothing; the scratch programs the lines name are under the session's scratchpad, `readers/kp`, `readers/arg` and `readers/u`.
 
-A line per finding, by area, each naming its reader's letter and number and carrying its decision: `cheap`, fixed in the item that works through the list; a milestone's number, planned there; `done`; or `dropped`, with the reason. The decisions are given as the list is worked, design questions with the user one at a time; until then a line's decision is `to decide`. Each reader's whole list stands below the lines.
+A line per finding, by area, each naming its reader's letter and number and carrying its decision: `cheap`, fixed in the plan's MVP 3.0 item 14, the shape of the fix in the line; a milestone's number, planned there; `done`; or `dropped`, with the reason. Every line was decided on 2026-10-09 (the log's *MVP 3.0's Findings Decided*). Each reader's whole list stands below the lines.
 
 ## The argument
 
 | | Finding | Decision |
 |---|---|---|
-| A1 | Two shells that are nodes, each declaring a `type T` at the prompt, connect under one fingerprint, offer and find a key at it by its text, and a `Put("boom")` reaches a `receive` typed `Put(Int)`, which faulted in `+`: claim 1 breaks for a shell that is a node, and section 7's "under one build the text names one declaration" is false there. Shown by two shells. | to decide |
-| A2 | The standard library is outside the fingerprint, so two nodes of one `ern` version with different standard libraries connect, and a standard library type may be two declarations under one text. | to decide |
-| A3 | "A declaration's name, which captures nothing" misreads §5.4, where a local `fn` is a declaration and captures; the toolchain refuses the case, as a function that came as a value, against the report's letter. | to decide |
-| A4 | "No bound value crosses" is contradicted two sentences later: an adapted address's captures, which may be bound values, cross as payload; what holds is that nothing on the other node reaches them. | to decide |
-| A5 | §6.10's cross-node `Upgrade` example is refused by the rule section 7 restates, the lambda's mailbox type being a variable; `with Never` builds. | to decide |
-| A6 | How a peer tells that it lacks a session's module, "at the version the function was compiled in", is a claim of the runtime no section states; the frame of §8.7 carries no version. | to decide |
-| A7 | §11.2 says modules are loaded "on demand"; the argument needs the load path read whole at the fingerprint, which the runtime does and no sentence states. | to decide |
-| A8 | I3 does not count the callee node's note, which holds a reply; a third place beside the expression and the message. | to decide |
-| A9 | The sources of a remote address leave out the values a spawned function captured. | to decide |
-| A10 | Section 8 cites MVP 3.1's hashes, outside the report, and omits what A1 shows section 7 does not answer. | to decide |
+| A1 | Two shells that are nodes, each declaring a `type T` at the prompt, connect under one fingerprint, offer and find a key at it by its text, and a `Put("boom")` reaches a `receive` typed `Put(Int)`, which faulted in `+`: claim 1 breaks for a shell that is a node, and section 7's "under one build the text names one declaration" is false there. Shown by two shells. | cheap: a shell that is a node refuses `Peer.key` at a type that names a session declaration, naming MVP 3.1 as `:load` does (§11.2, `docs/development.md`'s table); `soundness.md`'s section 7 then holds for the shell node too, and section 8 says so |
+| A2 | The standard library is outside the fingerprint, so two nodes of one `ern` version with different standard libraries connect, and a standard library type may be two declarations under one text. | cheap: section 7 names the assumption beside "a peer is trusted whole": every node runs one installation of `ern`, which its version names, the standard library in it |
+| A3 | "A declaration's name, which captures nothing" misreads §5.4, where a local `fn` is a declaration and captures; the toolchain refuses the case, as a function that came as a value, against the report's letter. | cheap: §3.11 and section 7 say "a top-level `fn` or `foreign fn` declaration" |
+| A4 | "No bound value crosses" is contradicted two sentences later: an adapted address's captures, which may be bound values, cross as payload; what holds is that nothing on the other node reaches them. | cheap: §3.11, §6.5 and section 7 say a bound value is never used on another node, and that an adapted address's captures cross as payload no operation on another node reaches (with K15) |
+| A5 | §6.10's cross-node `Upgrade` example is refused by the rule section 7 restates, the lambda's mailbox type being a variable; `with Never` builds. | cheap: §3.11 takes a free mailbox type at `Peer.spawn` as `Never`, as §6.2 does for `spawn` and §8.1 for the entry point, in the checker; a variable constrained elsewhere but not known whole stays refused; §6.10's example then compiles (with K1) |
+| A6 | How a peer tells that it lacks a session's module, "at the version the function was compiled in", is a claim of the runtime no section states; the frame of §8.7 carries no version. | cheap: §8.7's spawn sentence says the frame names the function's module and its version, and that a peer with the module at another version answers `NotLoaded`; section 7 cites it. MVP 3.1's hash replaces both |
+| A7 | §11.2 says modules are loaded "on demand"; the argument needs the load path read whole at the fingerprint, which the runtime does and no sentence states. | cheap: §11.2 and §8.7 say a node reads every module of its load path at its start, and the fingerprint is of those (with K5) |
+| A8 | I3 does not count the callee node's note, which holds a reply; a third place beside the expression and the message. | cheap: one sentence of section 7, the note holds the reply only to end the call and is counted with the caller |
+| A9 | The sources of a remote address leave out the values a spawned function captured. | cheap: section 7 adds the values a function spawned on a peer captured |
+| A10 | Section 8 cites MVP 3.1's hashes, outside the report, and omits what A1 shows section 7 does not answer. | cheap: section 8 cites nothing outside the report, and names what section 7 leaves |
 
 ## The report
 
 | | Finding | Decision |
 |---|---|---|
-| P1 | `Peer.spawn` and `Peer.spawnMonitored` are not values, and their function is a declaration's name or a same-definition lambda, both only for the capture check; `restarting(Unlimited, work)` cannot be spawned on a peer without a wrapping lambda. | to decide |
-| P2 | The compiler names four library types as resources in §3.11, and `key` is a fourth value the compiler makes; no rule lets a library say its type is bound. | to decide |
-| P3 | A node cannot find its own offer and `Peer.spawn` cannot name the running node, so placement-independent code writes two operations, and G.5's `Place` exists for that alone. | to decide |
-| P4 | In a spawned function a top-level name is the peer's and a captured one the spawner's, stated; but §6.10 calls two `fn` declarations "top-level bindings", which Appendix F reserves for a `let`. | to decide |
-| P5 | `Peer.Failure` overlaps `Io.Error` (`Refused`, `Timeout`) and `Reason` (`Unreachable`), unexplained. | to decide |
-| P6 | `measures` is a rule of the normative report, in §8.7 and Appendix C, serving the informative G.4 alone. | to decide |
-| P7 | `Load.schedulers(ms)` puts milliseconds last for a window, E.0 shape rule 8's shape for a bounded wait; `memory`'s minutes rule is one measure's. | to decide |
-| P8 | `./.ernest` for a program that is no node is a concept no job reads. | to decide |
-| P9 | `Peer.nodes` answers "the names of the peers" where §8.3 makes a node this runtime and a peer another. | to decide |
+| P1 | `Peer.spawn` and `Peer.spawnMonitored` are not values, and their function is a declaration's name or a same-definition lambda, both only for the capture check; `restarting(Unlimited, work)` cannot be spawned on a peer without a wrapping lambda. | MVP 3.1, item 1: whether what a function captures becomes a restriction of its type scheme (§3.9), so that `Peer.spawn` takes a function value, or the form stays; the spawn by hash carries captured values and asks the same of a capture that is a function. The form stays meanwhile, stated |
+| P2 | The compiler names four library types as resources in §3.11, and `key` is a fourth value the compiler makes; no rule lets a library say its type is bound. | cheap: `Ets.Table` is a `foreign type`, bound by §3.8's rule already, so its name goes from §3.11 and from the checker's list; the three resource message types are processes the runtime starts and stay |
+| P3 | A node cannot find its own offer and `Peer.spawn` cannot name the running node, so placement-independent code writes two operations, and G.5's `Place` exists for that alone. | dropped: a find that answered the node's own offer, or a spawn that named the running node, would make one operation of a local one and one over the network (principle 3); a local `send` and `spawn` stay total and free, and a program for either place writes it as G.5 does (the log's *MVP 3.0's Findings Decided*, and *Later*) |
+| P4 | In a spawned function a top-level name is the peer's and a captured one the spawner's, stated; but §6.10 calls two `fn` declarations "top-level bindings", which Appendix F reserves for a `let`. | cheap: §8.7 says "a top-level `let` and a declaration's name are the peer's"; §6.10 says "names the service and the new functions by their declarations" |
+| P5 | `Peer.Failure` overlaps `Io.Error` (`Refused`, `Timeout`) and `Reason` (`Unreachable`), unexplained. | dropped: `Io.Error` is the system modules' error, and `Peer.Failure` names what a node answers, `NotListed`, `NotOffered`, `OtherType`, `NotLoaded`, which `Other(text)` would hide in a string; two constructor names recurring is a likeness of words (the log's *MVP 3.0's Findings Decided*) |
+| P6 | `measures` is a rule of the normative report, in §8.7 and Appendix C, serving the informative G.4 alone. | dropped: the rule is the node's, whose configuration starts the host's services, stated whoever reads them; G.4 reads them and is informative as every library is |
+| P7 | `Load.schedulers(ms)` puts milliseconds last for a window, E.0 shape rule 8's shape for a bounded wait; `memory`'s minutes rule is one measure's. | cheap: `Load.schedulers`'s parameter is named `window` on its page, and a window below 1 ms faults as §7.4 says of a duration (with K22); `check-interval`'s whole-minute rule holds for `memory` and `disk` alike (with K9) |
+| P8 | `./.ernest` for a program that is no node is a concept no job reads. | cheap: §11.3 and Appendix F drop `./.ernest` as a program's directory; a program without `--config-dir` is no node, and `ern config` without it makes `./.ernest`, which a later `--config-dir ./.ernest` names |
+| P9 | `Peer.nodes` answers "the names of the peers" where §8.3 makes a node this runtime and a peer another. | cheap: `Peer.nodes` becomes `Peer.peers`, in E.27, `stdlib/peer.ern`, the guide, the tests and `mvp3.2.md`'s example |
 | P10 | Principle 4: nothing; no grammar added. | done |
-| K1 | §6.10's example does not compile (A5). | to decide |
-| K2 | A peer's `public-key` that does not decode crashes `ern` at start, `internal error … asn1 … wrong_tag`, exit 70, and on `ern reload` crashes the signal handler, after which the node takes no signal: `ern stop` exits 0 and the node runs on. | to decide |
-| K3 | A reload's line has no time and names no peer added, removed or renamed, and the host's `Undefined handle_info in ern_signals … {'EXIT',#Port<…>,normal}` warning is printed on standard output at every reload; `os_mon`'s `cpu_sup … Erlang has closed` line at the end with `cpu` measured. | to decide |
-| K4 | `ern test --config-dir dir` with a test that waits forever hangs, where `ern test` says `faulted: deadlock`; §11.2's "the run goes on" and §8.6's "a node detects no deadlock" meet without a sentence. | to decide |
-| K5 | A node refuses to start for a `.erc` on its load path the program never uses, whose dependency is missing, `cannot find module Load`; `ern run` without a configuration runs. | to decide |
-| K6 | `Refused` is among what a find passes over in §8.7 and not in E.27, and no sentence has a peer answer it to a spawn. | to decide |
-| K7 | Appendix B says a message to a worker on another node faults the sender; §3.11 refuses the address as bound, so no process on another node can hold it. | to decide |
-| K8 | §8.3's "every node runs the same compiled program, whole" is false: nodes of one build run different programs, and `NotLoaded` by binding happens only then. | to decide |
-| K9 | The node checks rules the report does not state (a key naming no peer, a nameless peer, `measures` not an object, two peers with one key), and accepts `disk`'s `check-interval` of 90000 where it refuses `memory`'s, the host counting minutes for both. | to decide |
-| K10 | A reload refuses a file that parses and changes neither key nor listen, for a rule of the configuration; §8.7 states two reasons. | to decide |
-| K11 | `ernest.pid` outlives a refused start. | to decide |
-| K12 | §8.7's terms without a glossary line: fingerprint, handshake, detector, tick, frame, note, offer, the start's number, dial, measure, carrier; "key" is three things. | to decide |
-| K13 | `Peer.key` at a type not known whole asks for an annotation, absent from §3.9's list; "where it is written" is loose, a later use in the definition fixing the type. | to decide |
-| K14 | "The peer has its module" means "on its load path". | to decide |
-| K15 | "A value of a bound type never crosses" beside "crosses with the values its function captured as payload" (A4). | to decide |
-| K16 | The loss arithmetic: four ticks of 15 s is 60, not 45 to 75. | to decide |
-| K17 | Resolution at read time is best-effort and unsaid: a name that does not resolve is accepted. | to decide |
-| K18 | Appendix C leaves `measures`' shape to be guessed. | to decide |
-| K19 | §9's criterion admits the `Peer` functions and `Peer.Key(m)`; its list omits them. | to decide |
-| K20 | §11.2's "starts the host twice" and the refusal of `ern run --config-dir dir` with no `.erc` state no rule a program sees. | to decide |
-| K21 | G.6's error words and the host's answers differ: `\ud800` answers `UnexpectedEnd`, `1e400` `UnexpectedSequence(<<"1.0e400">>)`. | to decide |
-| K22 | `Load.schedulers(0)` and `(-5)` answer a number; what a zero window measures is unsaid. | to decide |
-| K23 | Silences: the node's `public-key` against `certificate.pem`; which host version the fingerprint digests and whether a `.beam` is in it; an adapted address made on a node since restarted; `Peer.offer` in a program that is no node, accepted and unfindable; a `measure` outside 0.0 to 1.0. | to decide |
+| K1 | §6.10's example does not compile (A5). | cheap: with A5 |
+| K2 | A peer's `public-key` that does not decode crashes `ern` at start, `internal error … asn1 … wrong_tag`, exit 70, and on `ern reload` crashes the signal handler, after which the node takes no signal: `ern stop` exits 0 and the node runs on. | cheap: a `public-key` that does not decode breaks a rule of §8.7's paragraph, refused at start and at reload naming the file and the rule; the signal handler never crashes, and a test holds both |
+| K3 | A reload's line has no time and names no peer added, removed or renamed, and the host's `Undefined handle_info in ern_signals … {'EXIT',#Port<…>,normal}` warning is printed on standard output at every reload; `os_mon`'s `cpu_sup … Erlang has closed` line at the end with `cpu` measured. | cheap: the reload line carries its time and each peer added, removed or renamed; the signal handler takes the port's exit silently; `os_mon`'s line at the end is not written |
+| K4 | `ern test --config-dir dir` with a test that waits forever hangs, where `ern test` says `faulted: deadlock`; §11.2's "the run goes on" and §8.6's "a node detects no deadlock" meet without a sentence. | cheap: §11.2 says that on a node a test that waits forever is not found, since a node detects no deadlock (§8.6) |
+| K5 | A node refuses to start for a `.erc` on its load path the program never uses, whose dependency is missing, `cannot find module Load`; `ern run` without a configuration runs. | cheap: with A7, §8.7's **Connections** says the fingerprint reads each module of the load path and refuses a module whose dependency the path lacks |
+| K6 | `Refused` is among what a find passes over in §8.7 and not in E.27, and no sentence has a peer answer it to a spawn. | cheap: `Refused` goes from §8.7's find sentence; E.27 and `docs/development.md`'s row already say no operation answers it until MVP 3.1 |
+| K7 | Appendix B says a message to a worker on another node faults the sender; §3.11 refuses the address as bound, so no process on another node can hold it. | cheap: Appendix B says a worker on another node cannot be given it, `Address(WorkerMsg)` being bound (§3.11) |
+| K8 | §8.3's "every node runs the same compiled program, whole" is false: nodes of one build run different programs, and `NotLoaded` by binding happens only then. | cheap: §8.3 says "Every node runs one build (§8.7)" |
+| K9 | The node checks rules the report does not state (a key naming no peer, a nameless peer, `measures` not an object, two peers with one key), and accepts `disk`'s `check-interval` of 90000 where it refuses `memory`'s, the host counting minutes for both. | cheap: §8.7 states each refusal the node makes, a key naming no peer, a peer without a name, `measures` not an object, two peers with one key; `disk`'s `check-interval` is held to whole minutes as `memory`'s is |
+| K10 | A reload refuses a file that parses and changes neither key nor listen, for a rule of the configuration; §8.7 states two reasons. | cheap: §8.7's reload sentence says "a file that breaks a rule of **Its configuration**, or that changes either" |
+| K11 | `ernest.pid` outlives a refused start. | cheap: `ernest.pid` is written once the node will run, or removed on a refused start, with a test |
+| K12 | §8.7's terms without a glossary line: fingerprint, handshake, detector, tick, frame, note, offer, the start's number, dial, measure, carrier; "key" is three things. | cheap: Appendix F gains fingerprint, handshake, detector, tick, frame, note, offer, the start's number, dial, measure and carrier; the node's key, a `keys` entry and a service key each have their words in §8.7 |
+| K13 | `Peer.key` at a type not known whole asks for an annotation, absent from §3.9's list; "where it is written" is loose, a later use in the definition fixing the type. | cheap: §3.9's list gains `Peer.key`, and §8.7 says "once its definition is inferred (§4.8)" |
+| K14 | "The peer has its module" means "on its load path". | cheap: §8.7 says "on its load path (§11.2)" |
+| K15 | "A value of a bound type never crosses" beside "crosses with the values its function captured as payload" (A4). | cheap: with A4 |
+| K16 | The loss arithmetic: four ticks of 15 s is 60, not 45 to 75. | cheap: §8.7 gives the host's figure as the host states it, found between 45 and 75 seconds after the last traffic, since the silence begins anywhere in an interval |
+| K17 | Resolution at read time is best-effort and unsaid: a name that does not resolve is accepted. | cheap: with S2, a name is not resolved when read, and §8.7 says its family is checked at each dial, where the name is resolved |
+| K18 | Appendix C leaves `measures`' shape to be guessed. | cheap: Appendix C shows `measures` with `cpu`, `memory` and `disk` |
+| K19 | §9's criterion admits the `Peer` functions and `Peer.Key(m)`; its list omits them. | cheap: §9 names `Peer`'s functions and `Peer.Key(m)` as the library's, as it names `Io.show` |
+| K20 | §11.2's "starts the host twice" and the refusal of `ern run --config-dir dir` with no `.erc` state no rule a program sees. | cheap: the two sentences go from §11.2 |
+| K21 | G.6's error words and the host's answers differ: `\ud800` answers `UnexpectedEnd`, `1e400` `UnexpectedSequence(<<"1.0e400">>)`. | cheap: `Json.parse` answers `UnexpectedSequence` for a lone surrogate escape, as G.6 says, and G.6 says a number the host cannot read is answered in the host's spelling |
+| K22 | `Load.schedulers(0)` and `(-5)` answer a number; what a zero window measures is unsaid. | cheap: with P7 |
+| K23 | Silences: the node's `public-key` against `certificate.pem`; which host version the fingerprint digests and whether a `.beam` is in it; an adapted address made on a node since restarted; `Peer.offer` in a program that is no node, accepted and unfindable; a `measure` outside 0.0 to 1.0. | cheap: five sentences, one each: the node's key is `key.pem`, and a `public-key` that differs from the certificate's is refused with the file and the rule; the fingerprint digests the host's release and every `.erc` and `.beam` on the load path; an adapted address carries its maker's start number, so a message to one made by an earlier start is dropped; `Peer.offer` in a program that is no node is accepted and nothing finds it; a measure outside 0.0 to 1.0 is taken as its nearer bound |
 
 P's counts, against the counts of 2026-09-28: reserved words 18, unchanged; words read by position 13, or 16 with Appendix A's `compare`, `negate`, `show`; taken top-level namespaces 29, `Peer` the one added, 35 with Appendix G's six; prelude functions 33, or 38 with the five `Peer` functions §9's criterion admits; prelude types 21, or 22 with `Peer.Key(m)`; primitives outside §9 7, three added by nodes; concepts 116 by Appendix F's 141 entries without the toolchain's, the library's and "primitive", 19 of them nodes', 11 of those without an entry. The reader's table of the rules, each with what it buys and what would be lost, is in its list below; it names as buying little or existing only for another: P1's two restrictions, §8.3's "same program, whole", §6.10's remote `Upgrade` under one build, the read-time family check, `measures`, `./.ernest`, §11.2's "host twice", G.5's `Place`, and E.27's `Refused`.
 
@@ -63,24 +63,61 @@ P's counts, against the counts of 2026-09-28: reserved words 18, unchanged; word
 
 | | Finding | Decision |
 |---|---|---|
-| U1 | §6.3: "The loss of a peer faults every process on it" is false; nothing faults but a `callForever`. | to decide |
-| U2 | §8.2: a node's end gives `Unreachable`; the report and the run say `ProgramEnd`. | to decide |
-| U3 | §0's "Distribution by content, planned" says code crosses by hash; the report and the guide say no code crosses, and the roadmap is the plan's. | to decide |
-| U4 | The preface says the toolchain does not run peers yet. | to decide |
-| U5 | §8.1 and §8.8: "a module with no top-level `let`" is enough for a peer; a module it depends on may have one. Shown. | to decide |
-| U6 | §4.1 writes `Peer.spawn(name, f)`, two arguments. | to decide |
-| U7 | §8.3's list of exit reasons is written as complete and lacks `{ern, fault, Cause, Trace}`, `{ern, closed}` and `{ern, code_unloaded}`. | to decide |
-| U8 | §8.2's loss paragraph: "No process of your own dies of it" beside a `callForever` that faults. | to decide |
-| U9 | §8's intro defers to a deployment guide "which comes with MVP 3.1", which does not exist, for what §9.2 teaches. | to decide |
-| U10 | §8.7's socket reader is written over `Address(Session)` where §5.5's, which it cites, knows nothing of its listener's mailbox: a job taught two ways. | to decide |
-| U11 | §10 sends the reader to `proposals/nodes_and_code/nodes.md` for the reasons. | to decide |
-| U12 | The chapter never says what the peer runs, nor what "the same build" means, nor the two-node setup on one machine. | to decide |
-| U13 | "No time means no limit" reads as the opposite of what is meant. | to decide |
-| U14 | A listener's site is `Tcp.listen`, not `Tcp.accept`. | to decide |
-| U15 | `Foreign.from` compared with `Io.show`, which takes a type variable. | to decide |
-| U16 | §10 omits the key as the third way a process is reached. | to decide |
-| U17 | A value that does not fit a segment's width fails to match in a pattern and faults only when built. | to decide |
-| U18 | "Two ways" out of a node's Ernest code; bytes and TCP are a third. | to decide |
+| U1 | §6.3: "The loss of a peer faults every process on it" is false; nothing faults but a `callForever`. | cheap |
+| U2 | §8.2: a node's end gives `Unreachable`; the report and the run say `ProgramEnd`. | cheap |
+| U3 | §0's "Distribution by content, planned" says code crosses by hash; the report and the guide say no code crosses, and the roadmap is the plan's. | cheap: §0's bullet says what is built, one build on every node, values cross and code does not, a bound value refused at a key or a spawn; the Unison clause goes |
+| U4 | The preface says the toolchain does not run peers yet. | cheap |
+| U5 | §8.1 and §8.8: "a module with no top-level `let`" is enough for a peer; a module it depends on may have one. Shown. | cheap |
+| U6 | §4.1 writes `Peer.spawn(name, f)`, two arguments. | cheap |
+| U7 | §8.3's list of exit reasons is written as complete and lacks `{ern, fault, Cause, Trace}`, `{ern, closed}` and `{ern, code_unloaded}`. | cheap |
+| U8 | §8.2's loss paragraph: "No process of your own dies of it" beside a `callForever` that faults. | cheap |
+| U9 | §8's intro defers to a deployment guide "which comes with MVP 3.1", which does not exist, for what §9.2 teaches. | cheap: the MVP clause and the deferral go; §9.2 and the report's §8.7 and §11.2 are pointed at |
+| U10 | §8.7's socket reader is written over `Address(Session)` where §5.5's, which it cites, knows nothing of its listener's mailbox: a job taught two ways. | cheap: §8.7's reader is written over `Address(Optional(Bytes))` with `via(me, Arrived)`, as §5.5's is |
+| U11 | §10 sends the reader to `proposals/nodes_and_code/nodes.md` for the reasons. | cheap |
+| U12 | The chapter never says what the peer runs, nor what "the same build" means, nor the two-node setup on one machine. | cheap: a paragraph with the two-node setup on one machine and its console |
+| U13 | "No time means no limit" reads as the opposite of what is meant. | cheap |
+| U14 | A listener's site is `Tcp.listen`, not `Tcp.accept`. | cheap |
+| U15 | `Foreign.from` compared with `Io.show`, which takes a type variable. | cheap |
+| U16 | §10 omits the key as the third way a process is reached. | cheap |
+| U17 | A value that does not fit a segment's width fails to match in a pattern and faults only when built. | cheap |
+| U18 | "Two ways" out of a node's Ernest code; bytes and TCP are a third. | cheap |
+
+## The code
+
+| | Finding | Decision |
+|---|---|---|
+| C1 | A reload that raises anything but a refusal removes the signal handler, so the node no longer answers `ern stop`; `ern_carrier:reload/0` catches only `cli_error`. | cheap: `reload/0` catches every class, says the reload was refused, and keeps the configuration; a test holds it |
+| C2 | A configuration file that is there but cannot be read makes `ern` crash with an internal error, status 70, not a refusal. | cheap: each file is read through a helper that refuses with the file and the rule |
+| C3 | A reload's measures keep the parameters of the file before it, since `os_mon` is stopped and never unloaded. | cheap: `application:unload(os_mon)` after the stop, with a test |
+| C4 | A frame the gateway's worker cannot handle kills the worker silently; the connection stays up and every later frame from that peer is lost, against §8.7's faulty frame. | cheap: an exception in `work/1` is `unreadable` and ends the connection; `frame/2` checks each frame's fields; a find or spawn while no run is in progress answers `Unreachable` |
+| C5 | `Peer.find` and `Peer.spawn` with a time past the host's limit fault with `timeout_value`, and the spawn leaks its row. | cheap: wait in slices against the deadline, as `ern_rt:waited_answer/3` does |
+| C6 | A spawner killed while it waits leaves its row, and a late answer does not end the process on the peer. | cheap: the process is ended when the waiter is gone; the row holds the peer's node and goes on its loss |
+| C7 | A node refused after its start has begun leaves `ernest.pid` behind (with K11). | cheap: with K11 |
+| C8 | A spawner can wait forever when the connection is lost as its answer is handed over, the gateway killing the worker mid-frame. | cheap: the gateway sends the worker `stop` in place of a kill |
+| C9 | `ern_waits:until/2` hangs when the process ends while it waits, though it promises `ended`. | cheap: a monitor beside the trace |
+| C10 | A node test that fails leaves its nodes running for good. | cheap: a cleanup that kills every `ernest.pid` under the test's base directory, in `try ... after` |
+| C11 | The checker refuses a block-local `fn` as the spawned function with a message that calls it a value. | cheap: with A3, §3.11 says a top-level declaration, and the refusal says a local `fn` is not one |
+| C12 | A note for a callee the runtime does not watch is never let go when that callee dies unanswered. | cheap: the reaper watches a callee missing from the process table, as `offer/3` does |
+| C13 | Comments in `ern_rt` that no longer hold: nine tables for thirteen, a note's comment inside another's, two first lines for `tables/0`, paragraphs run together. | cheap |
+| C14 | A refusal comment in `ern_node` and a test comment that no longer hold, naming a milestone no case names. | cheap |
+| C15 | `ern_cli`'s header lists the jobs without `reload` and `stop`, and a cross-reference names a function that was renamed. | cheap |
+| C16 | One fact in two places: `family/1` in `ern_node` and `ern_carrier`, the directory's file names spelled out in `ern_carrier`, the UTC stamp built twice. | cheap: each in its owner |
+| C17 | Names against the glossary: `Pid` for the path of `ernest.pid`, `Process` for a host process number, `Monitor` for a `MonitorRef`, `dir` for the `ConfigDir`, `Text1` for another value, `quoted/1` for shell and JSON quoting. | cheap |
+| C18 | A refusal's wording is broken, `measures' memory' check-interval`, which a test enshrines. | cheap |
+| C19 | `read/1` gets the user's id by the second element of the whole host snapshot, starting the helper at every start and reload for the uid alone. | cheap: the uid alone |
+| C20 | A fixed wait in `test/ern_load.erl`, `timer:sleep(100)`, which nothing derives from what it waits for. | dropped: item 11 kept it, the one pause after the load harness's collections, which nothing the host reports shows, with its measurement beside it (the log's *The Tests Wait on What They Mean*); item 14 checks that the comment states the measurement |
+| E1 | `Json.parse` faults on a numeral of some 1.2 million digits, the host's `system_limit`, in place of `Left`. | cheap: the integer decoder catches `system_limit` and answers `UnexpectedSequence`, and G.6 says so |
+| E2 | `String.toInt` and `toIntBase` fault on a huge input in place of `None`. | cheap: the shim catches `system_limit` as it catches `badarg`, and E.5 says so |
+| E3 | `Balancer.pick` can answer a place the balancer was never started over, since a measuring process may register any place. | cheap: `Balancer.serve` for a place the balancer was not started over faults the serving process, naming the place; G.5 says so |
+| E4 | `Load.schedulers` leaves the host's wall-time flag counted up when another process had it on, state no collection reclaims. | cheap: every `setFlag(true)` is paired with `setFlag(false)` |
+| E5 | `Bytes.join` and `Bytes.repeat` are quadratic loops where their `String` twins became shims; host functions do exactly the work. | cheap: shims on `binary:copy/2` and `iolist_to_binary(lists:join(...))`, measured in `make bench`'s table |
+| E6 | `Load.spent` projects a three-tuple by bare position, which position is active and which total invisible. | cheap: a named record or a comment |
+| E7 | The load-path paragraph is restated verbatim in the three new library headers. | cheap: one owner, Appendix G's introduction, which the three point at |
+| E8 | `Json.format`'s object ordering is the shim's law, not the host's, said nowhere. | cheap: a sentence on the page |
+| E9 | The host's `Int` is not unbounded, faulting near 1.2 million digits, and the contracts cannot say it; nothing else of the changed Ernest asked for a workaround. | cheap: with E1 and E2, the sentence goes where E.5's `toInt` and G.6's `parse` state their errors |
+| S1 | Exposure: a holder of a listed key may connect under any node name, since `verify/3` accepts by the key alone, so a peer removed by `ern reload` keeps a connection opened under a fabricated name, and one peer may present another's digest. | cheap: `verify/3` requires the handshake's node name to equal the name of the certificate's key, so a listed key is its own node alone; a test with a client under a fabricated name |
+| S2 | Hardening: a peer's host name is resolved when the configuration is read, so a reload can block on DNS. | cheap: with K17, a name is not resolved when read; its family is checked at each dial, where §8.7 already resolves it, and K17's sentence says so |
+| S3 | Hardening: a huge numeral in `ernest.conf` crashes the start with `system_limit` in place of a refusal. | cheap: the reader catches it and refuses with the file and the rule |
 
 ---
 
@@ -390,3 +427,338 @@ What works as the chapter says: §8.1 `square.ern` prints `no foo: NotListed` al
 **U17. Line 2486:** "a value that does not fit its segment's width faults". Report §5.11: a literal that does not fit is a compile-time error, and in a pattern a value that does not fit fails to match; only building one faults. Fix: "…faults when it is built, and fails to match in a pattern".
 
 **U18. Line 2243:** "A program reaches outside its node's Ernest code in two ways". §8.6 and §8.7, bytes and TCP to any host, are a third way. Fix: "in three ways", naming the third.
+
+---
+
+
+# Reader C: the Erlang code and tests changed since v0.3.1 (erl/, test/)
+
+Read whole: ern_node.erl and ern_node.hrl, ern_carrier.erl, ern_gateway.erl, ern_epmd.erl, ern_signals.erl, ern_cli.erl (the changed parts and what they call), ern_peer.erl, ern_rt.erl, the diff of ern_boundary.erl, ern_bound.erl, the diff of ern_typecheck.erl, ern_json.erl, ern_waits.erl, ern_peers_host.erl, ern_peer_tests.erl, the comments and cases of ern_node_tests.erl and ern_carrier_tests.erl, and the helpers of ern_nodes_tests.erl. The diff of ern_shell.erl was skimmed. Every finding below was checked against HEAD (358014eb). Where a command shows the finding, it was run in the scratch directory. Every node I started was stopped or killed.
+
+## Defects
+
+**C1. A reload that raises anything but a refusal removes ern's signal handler, so the node no longer answers `ern stop`.**
+- Where: ern_signals.erl:73-78 runs `ern_carrier:reload()` inside the gen_event handler. ern_carrier.erl:199-206 catches only `throw:{cli_error, Refusal}`.
+- What happens: any other exception crashes the handler, and gen_event deletes it. SIGTERM and SIGHUP are still set to `handle`, but no handler is left to act on them, so both are ignored. No line is said either.
+- Exceptions that reach it today include:
+  - the bare `{ok, _} = file:read_file` matches of C2;
+  - `ern_os:host()`'s `ern_rt:fault`, a `{ern, fault, _}` throw (ern_node.erl:163).
+- Shown:
+  ```
+  ern run --config-dir node waits.erc &      # a node that waits
+  chmod 000 node/ernest.conf; ern reload --config-dir node    # status 0, the node says nothing
+  chmod 600 node/ernest.conf; ern stop --config-dir node      # status 0
+  ```
+  The node was still running three seconds after the stop, and only `kill -KILL` ended it.
+- Fix: in `reload/0`, catch every class. Say the reload was refused, naming the host's reason for a non-refusal, and keep the configuration as it was.
+
+**C2. A configuration file that is there but cannot be read makes `ern` crash with an internal error, not a refusal.**
+- Where: ern_node.erl:208 (`{ok, Pem} = file:read_file(... ?KEY)`), :222 (the certificate) and :358 (`ernest.conf`).
+- What happens: `owned/4` checks the type, the owner and the write bits, but not that the owner can read the file. A key at mode 000 passes `owned` and then fails the match. Separately, `ern_os:host()` can raise a fault, not a `cli_error`, from the same `read/1`.
+- Shown: `chmod 000 a/private-key.pem; ern run --config-dir a prog.erc` prints `ern: internal error: exception error: no match of right hand side value {error,eacces} in function ern_node:private_key/1` and exits with status 70. The same happens for certificate.pem, at line 222.
+- Fix: read each file through one helper that turns `{error, E}` into `ern_build:refused(Path, E)`.
+
+**C3. A reload's measures keep the parameters of the file before it.**
+- Where: ern_node.erl:339-344, with `measures_changed/3` at 291-300.
+- What happens:
+  - The comment says "the application's own defaults are loaded first, and then set over".
+  - On a reload, os_mon is only stopped, not unloaded, so `application:load(os_mon)` answers `already_loaded`.
+  - `application:set_env` values from the earlier file stay set.
+  - So a reload from `"memory": {"check-interval": 120000}` to `"memory": {}` keeps the 2-minute interval, not the host's default. The same holds for each `almost-full`.
+- Shown: `erl -noshell -eval 'application:load(os_mon), application:set_env(os_mon, memory_check_interval, 2), application:stop(os_mon), io:format("~p ~p~n", [application:load(os_mon), application:get_env(os_mon, memory_check_interval)]), halt().'` prints `{error,{already_loaded,os_mon}} {ok,2}`.
+- Fix: `application:unload(os_mon)` after the stop in `measures_changed/3`, so each start loads the defaults.
+
+**C4. A frame the gateway's worker cannot handle kills the worker silently, and every later frame from that peer is lost until the connection drops.**
+- Where: ern_peer.erl:209-230 matches only each frame's tag. ern_gateway.erl:74-96 spawns each worker unlinked, and `worker/2` keeps handing frames to its pid after it has died.
+- What happens: the report's rule is that "a frame the gateway cannot read is faulty, and the node ends the connection" (§8.7). Instead, a frame that raises leaves the connection up and black-holes the peer's find, spawn, spawn answer and adapted-address frames.
+- How it is reached today: under `ern test dir --config-dir`, between two runs, the runtime's tables are gone. A peer's find (`ern_rt:offered`) or spawn (`ern_rt:initialized`) then raises badarg. A malformed `{answer, Ref, X}` raises function_clause in `ended/1`. If the waiting row exists, the bad answer is passed on and faults the spawner in `started/3`, a spawn faulting for what a peer did.
+- Shown, with no run in progress: `ern_peer:frame(self(), {find, <<"k">>, <<"Int">>, self()})` gives `{'EXIT',{badarg,_}}`. With the spawns table present, `ern_peer:frame(self(), {answer, make_ref(), garbage})` gives `{'EXIT',{function_clause,_}}`.
+- Fix:
+  - in `work/1`, treat an exception from `ern_peer:frame/2` as `unreadable`, which ends the connection;
+  - check each frame's fields in `frame/2`'s guards;
+  - answer `Unreachable` for a find or spawn that arrives while no run is in progress.
+
+**C5. `Peer.find` and `Peer.spawn` with a time past the host's limit fail with a runtime error, and the spawn leaks a row.**
+- Where: ern_peer.erl:116 (`after Ms`) and :172 (`after left(Deadline)`).
+- What happens:
+  - The host's `receive ... after` takes at most 16#FFFFFFFF ms; ern_rt keeps `?SLICE` and `remaining/1` for exactly this (E.0 rule 8: a time has no upper bound).
+  - Both waits pass the whole time, so a larger one raises `timeout_value`. That is a fault, where the module promises a spawn and a find fault for nothing.
+  - The spawn has already inserted its `ern_spawns` row (line 156). The gateway owns that table and outlives the run, so the row is never removed.
+- Shown: a node listing peer `b` under key `k` runs `Peer.spawn("b", fn() : Unit with Never = Unit, 5000000000)`. It printed `Big.main faulted: error:timeout_value` from `ern_peer:spawn_answer/3 (ern_peer.erl:172)` and exited with status 1.
+- Fix: wait in slices of at most `?SLICE` against the deadline, as `ern_rt:waited_answer/3` does, through an exported `ern_rt:remaining/1`.
+
+**C6. A spawner killed while it waits leaves its row, and the answer that comes later does not end the process on the peer.**
+- Where: ern_peer.erl:156 and :220-225 (`[{_, Waiting}] -> Waiting ! {Ref, Answer}`).
+- What happens:
+  - The row is removed only by the waiter's own `given_up/2` or by an answer.
+  - If the waiting process is killed or faults while it waits, its row stays. When the answer arrives it is sent to a dead process.
+  - For a spawn that is not monitored, the peer's process runs on, unowned, while the connection lasts. ern_peer's own comment (line 232) says "a process the spawner no longer waits for is ended as its answer arrives".
+  - If no answer ever comes (the connection was lost first), the row is memory no collection reclaims.
+- Shown by reading.
+- Fix: on an answer, end the process where `Waiting` is not alive. Keep the peer's node in the row and drop its rows on `nodedown` in the gateway.
+
+**C7. A node refused after its start has begun leaves `ernest.pid` behind.**
+- Where: ern_cli.erl:865-880.
+- What happens:
+  - `ern_node:start/2` writes `ernest.pid` and starts the measures at line 865.
+  - `whole_build(LoadPath)` (869) and `ern_carrier:list/1` run before the `try ... after` that removes the file (875).
+  - A refusal from `whole_build` is common: one stale module anywhere on the load path triggers it. It skips the removal, although §8.7 and this function's own comment say the pid file goes "however it ends".
+- Shown: in a build of prog, A and B, B was rebuilt with a new export. Then `ern run build/prog.erc` printed `ran`, but `ern run --config-dir ../node build/prog.erc` printed `ern run: A was compiled against another B; build A again` and exited with status 1. `node/ernest.pid` remained, naming the dead host.
+- Fix: open the `try ... after ern_node:stop(ConfigDir)` directly after `ern_node:start/2`.
+
+**C8. A spawner can wait forever when the connection is lost as its answer is handed over.**
+- Where: ern_gateway.erl:54-56 (`exit(Worker, kill)` on nodedown) and ern_peer.erl:179-183 (`[] -> receive {Ref, Answer} -> Answer end`, with no time limit).
+- What happens:
+  - The worker takes the row (line 221), and only then sends to the waiting process (222).
+  - A `kill` that lands between the two leaves no row and no message.
+  - The spawner's DOWN, from the same loss, then enters `given_up/2`, finds no row, and waits for an answer that will never come.
+- Shown by reading; the window is narrow.
+- Fix: on nodedown, have the gateway send the worker `stop`, which it takes after the frames before it, rather than killing it mid-frame.
+
+**C9. `ern_waits:until/2` hangs when the process ends while it waits, though it promises `ended`.**
+- Where: erl/runtime/test/ern_waits.erl:30, `receive {trace, Pid, out, _} -> ...`.
+- What happens: with only the `running` flag, a process that exits is traced as `in` and never as `out`, so the receive never matches.
+- Shown: `Pid = spawn(fun() -> receive go -> ok end end)`, then `ern_waits:until(Pid, fun() -> false end)` in another process, then `Pid ! go`. Three seconds later the waiter was still in `ern_waits:held/2`, with `[{trace,Pid,in,_}]` in its mailbox.
+- Fix: monitor `Pid` as well and answer `ended` on its `DOWN`, or trace `exiting` and match `out_exited`.
+
+**C10. A node test that fails leaves its nodes running for good.**
+- Where: test/ern_nodes_tests.erl:130-141 starts each node through `/bin/sh -c "ern run ..."`. No test has a cleanup, so `kill -TERM` (lines 240, 538) runs only on success, and `kill -STOP` at 926 leaves a stopped node on a failure before `-CONT`.
+- What happens: a node detects no deadlock (§8.6), so a node whose test failed, or was cut off by eunit's timeout, waits indefinitely, and so does its `tee`.
+- Shown: an `erl` that opened the same `sh -c "ern run --config-dir ... waits.erc ..."` port and then halted. Its node was still listed by `ps` afterwards, and I stopped it with `ern stop`.
+- Fix: wrap each test in `{setup, ..., Cleanup}` or `try ... after`, and have the cleanup kill every `ernest.pid` under the test's base directory.
+
+**C11. The checker refuses a block-local `fn` as the spawned function, and its message describes it wrongly.**
+- Where: ern_bound.erl:131-133 marks the block's `fn` names as `value`, and :177-186 refuses them.
+- What happens:
+  - §3.11 admits "the name of a `fn` ... declaration, which captures nothing". It is silent on a `fn` declared inside the definition.
+  - The checker refuses such a function, saying it "came as a value, whose captures the compiler does not see". It did not come as a value, and its captures are as visible as a lambda's.
+- Shown:
+  ```
+  fn main() : Unit with Never = {
+      fn work() : Unit with Never = Io.println("working");
+      let r = Peer.spawn("b", work, 1000); ... }
+  ```
+  `ern build` refuses it with `Peer.spawn starts work, a function that came as a value, whose captures the compiler does not see`.
+- Fix: decide it in the report. Either treat a local `fn` as a `let`-bound lambda, checking its captures, or refuse it with a message of its own that names a local `fn`.
+
+**C12. A note for a callee the runtime does not watch is never let go when that callee dies without answering.** (By reading.)
+- Where: ern_rt.erl:2295-2299 (`note_call`) and :2324 (`drop_callee_notes`, run only from the reaper's `down/3` for monitored processes).
+- What happens:
+  - A foreign process's address of an unbound type crosses (§3.11), and can be called from another node.
+  - If that process dies unanswered, the caller's `DOWN` runs `closed/1`, which sends no second note.
+  - The callee's node never learns of the death, so its `ern_notes` and `ern_callees` rows stay.
+- Fix: in `note_call`, ask the reaper to watch a callee missing from `?PROCESSES`, as `offer/3` does with `watch_offered`, and drop its notes on that `DOWN`.
+
+## Clarity
+
+**C13. Comments in ern_rt that no longer hold or are misplaced.**
+- ern_rt.erl:31 says "Nine tables hold a launch's state". `tables/0` (1704) lists thirteen, and the header's list leaves out `ern_offers`, `ern_offered`, `ern_initialized` and `ern_notes`.
+- The comment at 103-107 describes three tables, but `?NOTES`, with its own comment, sits between `?OFFERS` and `?OFFERED`/`?INITIALIZED` (108-115).
+- Lines 1700-1702 are two stacked first lines for `tables/0`.
+- The `address()` type's comment (129-130) runs straight into the system processes' comment.
+- Lines 906-912 run two paragraphs together, "...reached from outside. / What the look finds:".
+- Fix: update the header to thirteen tables, regroup the macros with their comments, and drop the extra lines.
+
+**C14. A refusal comment and a test comment that no longer hold.**
+- ern_node.erl:24-25: "what a later milestone adds to it, which is refused until then". No field is treated apart; every unknown field gets "has the unknown field X".
+- ern_node_tests.erl:123-124: "a field a later milestone gives a meaning names that milestone". No case does (`drain` and `coordinator` are plain unknown fields).
+- Fix: drop both clauses, or add the later fields with the MVP named in the error text (CLAUDE.md, *Defects and gaps*).
+
+**C15. ern_cli's header and a cross-reference are out of date.**
+- ern_cli.erl:1-3 lists the jobs as "build and doc ..., run, test and shell (§11.2), and config (§11.3)". It leaves out `reload` and `stop`, which this change added.
+- Line 28 cites `(reporting/2)`; the function is `reporting_options/2`.
+- Fix: name all nine jobs and correct the reference.
+
+**C16. One fact kept in two places.**
+- `family/1` appears in both ern_node.erl:448 and ern_carrier.erl:79.
+- ern_carrier.erl:50-51 and 212 spell `"certificate.pem"`, `"private-key.pem"` and `"ernest.conf"`, although ern_node says it is "the one owner of its shape".
+- The UTC time stamp, `calendar:system_time_to_rfc3339(...)` with `" "`, is written out in both ern_cli.erl:900 and ern_carrier.erl:302.
+- Fix:
+  - export the family and the file paths from ern_node (or store the family in `#configuration{}`);
+  - write the stamp once, in a function both modules call.
+
+**C17. Names that depart from docs/style.md's glossary or name two things one way.**
+- In ern_node.erl:148, 240-285, `Pid` names the path of `ernest.pid`, as in `taken(Pid)` and `living(Pid)`. The glossary says Pid is the host's process. An OS process number there is `Process`, which the glossary reserves for the Ernest value.
+- `Monitor` holds a monitor reference at ern_peer.erl:106, 158 and 255, and at ern_peer_tests.erl:24. The glossary says `MonitorRef`.
+- The configuration directory is `#configuration.dir` (ern_node.hrl) and `Dir` in `ern_carrier:boot_flags/2`. The glossary says ConfigDir, "Not `Dir`".
+- In ern_node.erl:375 and 482, `Text1` is not a later step of `Text` but another value. A numbered name is "nothing else".
+- `quoted/1` in ern_cli means shell quoting and in ern_node JSON quoting.
+- Fix: rename them to `PidFile`, `MonitorRef`, `config_dir`/`ConfigDir`, `ListenText`/`AddressText`, and `shell_quoted`/`json_quoted`.
+
+**C18. A refusal's wording is broken.**
+- ern_node.erl:585-594 builds `"measures' memory' check-interval is not ..."`, and ern_node_tests.erl enshrines it. "memory'" is not a possessive.
+- Fix: `Shown ++ "'s check-interval"`, giving "measures' memory's check-interval", or "the check-interval of measures' memory".
+
+**C19. `read/1` gets the user's id by the second element of the whole host snapshot.**
+- Where: ern_node.erl:163, `element(2, ern_os:host())`.
+- What it costs: a helper process, every environment variable, a persistent-term write of the umask, and a fault-class failure (C2). It costs this at every start and every reload, only for the uid, and the positional read hides what the value is.
+- Fix: add an `ern_os` function that answers the user's id alone, or match `{'Host', User, _}`.
+
+**C20. A fixed wait with a chosen number.**
+- Where: test/ern_load.erl:122, `timer:sleep(100)`.
+- What is wrong: CLAUDE.md allows a time only "derived from what it waits for, never a number chosen". The comment argues why 100 ms is enough, from one measurement, but nothing derives it.
+- Fix: derive it, for example from a second sample that agrees with the first, or record the exception in the log as the rule asks.
+
+---
+
+
+# Reader ES — findings
+
+Repository read cold at HEAD. Scope: Ernest sources changed since v0.3.1 (Part E),
+the node's new Erlang code (Part S). I edited nothing.
+
+---
+
+## PART E — the Ernest code
+
+### Defects
+
+**E1. `Json.parse` faults instead of answering `Left` on a long numeral (untrusted-input DoS).**
+`libs/json/json.ern:93` (`parse`), `erl/json/src/ern_json.erl:37`
+(`integer => fun(Digits) -> {'Integer', binary_to_integer(Digits)} end`).
+The page and report both say a number with no fraction or exponent is "an `Integer`, of any
+size." The host's `binary_to_integer/1` raises `error:system_limit` at roughly 1.2 million
+digits, and `json:decode` does not catch it, so the whole `parse` call faults rather than
+returning an `Error`. Since `Json` is meant for data that comes from a file or the network,
+a crafted text crashes the parsing process.
+Shown: a program that runs `Json.parse(String.repeat("9", 1300000))` faults with
+`foreign function ern_json:parse/1 raised error:system_limit` (reproduced with `ern run`).
+Fix: in `ern_json:parse/1` catch `error:system_limit` from the integer decoder and return
+`{'Left', {'UnexpectedSequence', Digits}}` (the same error the host already gives for a
+too-large real), or reword the report/page to admit the host's integer ceiling.
+
+**E2. `String.toInt`, `String.toIntBase` and `Bytes.fromList` fault on a huge input instead of
+answering `None`/the declared result.** `stdlib/string.ern:443` (`integer` →
+`ern_string:to_integer/2`, `binary_to_integer/2`). `to_integer/2` catches `error:badarg` but
+not `error:system_limit`, so a string of ~1.3M digits faults the caller
+(`foreign function ern_string:to_integer/2 raised error:system_limit`) rather than returning
+`None`. The report has `toInt : (String) -> Optional(Int)` with no fault listed.
+Shown: `String.toInt(String.repeat("9", 1300000))` faults under `ern run`.
+Fix: widen the `catch` in `ern_string:to_integer/2` to `error:badarg; error:system_limit -> 'None'`.
+
+**E3. `Balancer.pick` can return a place the balancer was never started over.**
+`libs/balancer/balancer.ern:120` (`Register` accepts any `place`) and `:152` (`chosen`
+answers a measured place directly). `start` builds its round-robin set from the given
+`places`, but `serve`/`Register` records whatever place the measuring process names, and a
+pick that draws measures returns that place verbatim. So a typo —
+`Balancer.serve(balancer, Balancer.On("elsewhere"), busy)` where the balancer was started
+over `[Here, On("a"), On("b")]` — makes every measured pick answer `Some(On("elsewhere"))`.
+Shown: a program that starts a balancer over three places, installs one measure on an
+unlisted place, and calls `pick` six times prints `[Some(On("elsewhere")), ...]`.
+Nothing in the page warns of this. Fix: in `Register`, ignore a `place` not in the
+balancer's started set (keep the set in the loop's state and drop unknown registrations),
+or document that a measure defines a pickable place.
+
+**E4. `Load.schedulers` leaves the node-global `scheduler_wall_time` flag enabled when another
+process already had it on.** `libs/load/load.ern:69-82`. `setFlag(flag, true)` increments the
+calling process's wall-time counter and returns the old global state in `kept`; when
+`kept` is `true` the function returns without ever calling `setFlag(flag, false)`, so the
+counter it just added is never released. The host keeps the measurement enabled "as long as
+there is at least one process alive with a counter value larger than zero," so a process
+that calls `schedulers` while measurement is already on leaves the flag raised after the
+original enabler stops — CPU overhead the host's own page warns against leaving on, and a
+state no collection reclaims until the process dies. Fix: decrement unconditionally —
+always pair the enabling `setFlag(true)` with a `setFlag(false)` after measuring, regardless
+of `kept` (the global stays on only while some other counter is non-zero, which is correct).
+
+**E5. `Bytes.join` and `Bytes.repeat` are still quadratic hand-written loops, while the twin
+`String` operations were turned into host shims.** `stdlib/bytes.ern:231-235` (`join` folds
+`acc <> separator <> part`) and `:238-241` (`repeat` folds `acc <> bytes`). Each `<>`
+copies the whole accumulator, so both cost the square of the output size. The same release
+replaced `String.repeat` with `binary:copy/2` and `String.join` with
+`lists:join/2` + `iolist_to_binary`. A host function does exactly this work for bytes too
+(`binary:copy/2`; `iolist_to_binary(lists:join(sep, parts))`), so by E.0 rule 1 and the
+cost principle these should be shims. Fix: make `Bytes.repeat` a `binary:copy/2` shim and
+`Bytes.join` an `iolist_to_binary`/`lists:join` composition, as `String` now is.
+
+### Clarity — shorter, clearer, or names that do not say what they are
+
+**E6. `Load.spent` reads tuple fields by bare position with throwaway patterns.**
+`libs/load/load.ern:83-86,94`. The three-int tuple is projected with
+`fn(#(_, _, time)) = time` for one field and `fn(#(_, time, _)) = time` for another, so the
+reader must count tuple positions to know that position 2 is active time and position 3 is
+total. A named record (`#scheduler{id, active, total}`) or at least a comment at the tuple's
+origin would say what the numbers are. Not wrong, but the meaning is invisible at the call.
+
+**E7. `Load` repeats the installation paragraph, verbatim, in three library headers.**
+`libs/load/load.ern:5-13`, `libs/balancer/balancer.ern:4-12`, `libs/json/json.ern:4-12`
+carry the identical "put it on its load path … `--load-path` … Under `/usr/local`" block.
+This is a documented restatement across modules; a single owner (one library-usage note the
+headers point at) would keep it from drifting. Low priority — module docs are teaching text.
+
+**E8. `Json` object round-trip relies on an undocumented sort in the Erlang primitive.**
+`erl/json/src/ern_json.erl:61-63` sorts members with `lists:keysort(1, ...)` so `format`
+writes "in the order of their names' code points." The page states the order but the sort
+lives only in the shim; the law is fine, just note that `format`'s ordering is the shim's,
+not the host `json:format`'s (the host leaves object order to the program). No change needed
+beyond awareness; the behaviour matches the page.
+
+### The language made the code harder than it should be
+
+**E9. Nothing found that the language forced into a workaround.** The changed Ernest reads
+as a thinning: most hand-written loops (`List.size`, `List.sort`, `Map.*`, `Set.*`,
+`String.split/join/toInt`, `Bytes.indexOf/split/replace/toHex/fromHex`, `Path.split`) became
+host shims or short compositions, which is the shimming rule working as intended. The one
+place the language shows a seam is E1/E2: the host's `Int` is not truly "of any size"
+(it faults at ~1.2M digits), and the Ernest contracts (`Optional(Int)`, `Either(Error, …)`)
+cannot express that ceiling, so the code either catches the host's `system_limit` or leaks a
+fault. That is a report-silence to close (see E1 fix), not a workaround in the code.
+
+---
+
+## PART S — security of the node's code
+
+Core check is sound: `ern_carrier:verify/3` refuses a TLS peer whose public key no `#peer{}`
+lists (`{fail, not_listed}`), and the server sets `fail_if_no_peer_cert`. A party holding no
+listed key cannot connect. The findings below concern parties that do, or did, hold a listed
+key, and the configuration/boundary surface.
+
+**S1. (Exposure) De-listing a peer and reloading does not sever a connection the peer opened
+under a non-canonical node name — revocation via `ern reload` is defeated.**
+`erl/cli/src/ern_carrier.erl:208-228` (`changed/2` disconnects only `name(Old)` =
+`<keydigest>@node.ernest`) together with `verify/3:266-273`, which accepts a peer by the
+cert's **key alone** and never binds it to the node name asserted in the handshake. The
+carrier name is `name(PublicKey)` for the node's own dialing, but an inbound dialer chooses
+its own name; the node accepts it as long as the presented key is listed. A key-holder who
+connects under a fabricated name (e.g. `ghost@node.ernest`) is accepted, and when the
+operator later removes that peer from `ernest.conf` and reloads, `changed/2` calls
+`disconnect_node(name(Old))` on the canonical digest name — not on the fabricated name — so
+the existing connection stays up. Over it, ordinary Erlang distribution gives full node
+access.
+Shown (in an isolated scratch dir, both nodes and the client killed afterwards): node A lists
+peer B; a client presenting B's key and the build cookie connects as `ghost@node.ernest`;
+A logs "the node ghost connected"; B is then removed from `ernest.conf` and `ern reload` is
+run ("the peer b was removed"); the client remains `connected=true` and an `erpc:call` to
+`os:cmd` still runs on A after the removal. (The build cookie is not a secret — any
+compatible build computes it — so the only secret required is the peer's private key.)
+The report §8.7 promises "a peer removed … has its connection ended," which this does not
+deliver for a connection under a name other than the key's canonical digest.
+Fix: in `verify/3`, bind identity to the key — reject the connection unless the handshake's
+node name equals `name(certificate_key)` — so a listed key can only ever be its own canonical
+node; then `disconnect_node(name(Old))` reliably severs it, and `named/1`/logs cannot be
+spoofed. (This also closes peer-to-peer impersonation: today a holder of peer B's key can
+present peer C's digest as its node name and be logged and treated as C.)
+
+**S2. (Hardening) `ern_node:address/4` resolves peer host names via `inet:getaddrs` during
+configuration read and reload, so a reload can block on DNS.** `erl/cli/src/ern_node.erl`
+`address/4` (the `same_family`/`getaddrs` branch). A peer whose `network-address` is a name
+is resolved while `ernest.conf` is parsed — which runs synchronously inside `reload/0` on the
+hangup path. A slow or hostile resolver for a listed host name stalls the reload (and thus
+the handling of SIGHUP). The input is a listed peer's text, so this is hardening, not an
+exposure; but a reload that can hang on the network is worth a bounded resolve or deferring
+the family check to dial time.
+
+**S3. (Hardening) Config JSON integers are read with `binary_to_integer` and fault on a huge
+numeral.** `erl/cli/src/ern_node.erl` `configuration/1` uses `json:decode` with only
+object decoders, so numbers fall to the host default (`binary_to_integer`), which raises
+`error:system_limit` on a ~1.2M-digit value; `measures`' `check-interval` would then fault
+the node start rather than giving the clean `fail/3` diagnostic. `ernest.conf` is an
+owner-only trusted file, so this is hardening (same host ceiling as E1/E2), but the node's
+"every field checked" promise reads as total and this one path can crash instead of refuse.
+
+No exposure was found in `ern_signals`, in `ern_epmd` (it only answers from the trusted
+configuration), in the `ern_boundary` value-arming path for peer frames, or in
+`ern_gateway`'s frame dispatch (unreadable frames end the connection and are logged; the
+`when node(From) =/= node()` guards hold). `ern_node:read/owned` correctly refuses a
+directory or file that is another user's, world-writable, or (for the key) group/other
+readable, matching report §8.7/§11.2.
