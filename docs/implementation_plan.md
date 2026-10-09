@@ -20,7 +20,9 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). Next is MVP 3.1 from its item 1. A release waits until the user calls it.
+of 2026-10-09*). MVP 3.1 is under way, items 1 to 4 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
+the tour and the review; the back end, ehttpd, the website and the shell's second round follow
+1.0 (the log's *The Road to 1.0, Ordered*). A release waits until the user calls it.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
 measured, with the prelude and the emitted code, and the report's and the guide's feedback
@@ -72,11 +74,12 @@ paragraph under "Done".
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing` | design read through 2026-10-09; the principles review runs before its item 1 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code` | design read through 2026-10-09; stands on MVP 3.1 |
-| MVP 3.3 | the shell's second round | |
-| MVP 3.4 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
-| MVP 3.5 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
-| MVP 3.6 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
+| MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
+| MVP 4.0 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
+| MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
+| MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
+| MVP 4.3 | the shell's second round | |
 
 ---
 
@@ -367,35 +370,7 @@ tests and measurements over all of it.
 
 ---
 
-## MVP 3.3 (the shell's second round), about three weeks
-
-The shell's later work that its parts' merits take, decided with the user 2026-09-30 (the
-log's *The Shell's Second Round*), in this order. The first three need nothing of MVP 3.0 or
-3.1 and may be taken earlier where the user wants them.
-
-1. **Readline's remaining keys**, about a day: the kill ring with `M-y` cycling the earlier
-   kills, `C-t` and `M-t` transposing, and `M-u`, `M-l` and `M-c` for case, each a change to
-   `Shell.Editor`'s pure `edit`, with key-stream tests.
-2. **`:trace f`**, about two days: each call of `f` and each return printed, the values by
-   their types (§11.2).
-3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
-   constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
-   check an unfinished input, designed first.
-4. **A shell attached to a running node**, about a week: each input run on the peer, over MVP
-   3.0's peers and MVP 3.1's shipping of code. The shell's design does not assume it runs on
-   the node whose code it evaluates.
-5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
-   a running program an input opens end with the input's process, their owner (§11.2), and
-   the session could own them instead, so that they live until it ends, by a way the shell
-   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
-6. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
-   2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
-   it fails again its step file in the run's directory says which expectation went unmet, and
-   the fix follows from it; diagnosed here where it recurs, and nowhere before.
-
----
-
-## MVP 3.4 (the tour)
+## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
 whole picture in an evening and will read neither: the report is for whoever builds or checks a
@@ -408,7 +383,8 @@ through every part of Ernest that matters, each shown working, from a process wi
 mailbox on one node to a rolling upgrade across three nodes written in Ernest. Decided with the
 user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about deployment (MVP
 3.2's item 8). It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its
-last chapters need, first of what follows, and before MVP 3.9, whose newcomer reads it.
+last chapters need, and before MVP 3.9, whose newcomer reads it: it is the language's hardest
+test, so what it finds is found before the promise of 1.0 (the log's *The Road to 1.0, Ordered*).
 
 - **The outline first, written with the user**, as a design is: the chapters, the program's
   growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
@@ -423,11 +399,44 @@ last chapters need, first of what follows, and before MVP 3.9, whose newcomer re
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
   one program grown across every feature is the language's hardest test before 1.0.
 
-## MVP 3.5 (ehttpd, and the libraries it wants)
+## MVP 3.9 (the review before 1.0)
+
+What a promise of stability needs and a first release could leave out (the log's *The First
+Release Is for Others*), after the language was argued in MVP 2.99c:
+
+- **The full review**, when the user says so: every reader over the whole of its area
+  ([`full_review.md`](full_review.md)), and its findings worked.
+- **The numbering decided once.** Whether the report's section numbers have drifted enough since
+  0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
+  citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
+  numbers kept for good (the log's *The Language Argued Before Peers*).
+- **The promise**: what 1.0 holds stable, stated in the report's §0 and the release's notes.
+  Until then a release may refuse a program the previous release accepted, and its notes
+  point at what changed rather than list it (the log's *A Release Carries No History*).
+
+---
+
+## MVP 4.0 (a back end to BEAM's own instructions)
+
+The first milestone after Ernest 1.0, decided with the user on 2026-10-10 (the log's *The Road
+to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format, writing the
+BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
+record instructions among them), with Ernest's proven types written as the loader's typed
+registers, so that the JIT emits code without the run-time type tests the Erlang compiler must
+keep. It changes no rule of the language, and it makes the soundness argument load-bearing for
+the VM's memory safety: a value from outside, a peer's message, foreign code's return, is fully
+checked before its register is typed, which §8.4's checks and the argument's section 7 must
+then be read as carrying. Conditions before it is built: the language promised (MVP 3.9), OTP
+pinned for the long term, and `make bench`'s numbers for what the type tests cost today, which
+decide whether it is worth its cost. A first, safe step to measure against: a type guard at each
+function's entry, from which the Erlang compiler's own inference types the body. Its design is a
+proposal first, discussed with the user, as MVP 3.1's was.
+
+## MVP 4.1 (ehttpd, and the libraries it wants)
 
 **ehttpd**, an HTTP/1.1 server written in Ernest, in a repository of its own, decided with the
 user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's own website, MVP
-3.6, and the first program built against an installed Ernest by a build of its own, which the
+4.2, and the first program built against an installed Ernest by a build of its own, which the
 examples cannot be. Its plan lives in its repository; this one records what it asks of the
 language and the libraries, and each is written as it asks, the libraries below among them.
 Named so far for it: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
@@ -477,10 +486,10 @@ and `json` in MVP 3.0). Named so far:
 
 ---
 
-## MVP 3.6 (the website)
+## MVP 4.2 (the website)
 
-Ernest's website, served by ehttpd (MVP 3.5), decided with the user on 2026-10-10: what Ernest
-is, its characteristics, and the three doors of MVP 3.4, the tour, the guide and the report,
+Ernest's website, served by ehttpd (MVP 4.1), decided with the user on 2026-10-10: what Ernest
+is, its characteristics, and the three doors of MVP 3.3, the tour, the guide and the report,
 each with the reader it is for; and a live shell, a terminal in the visitor's browser, a
 JavaScript terminal such as xterm.js, connected by WebSocket to `ern shell` behind a
 pseudo-terminal on the server. The shell runs on the server, since no full BEAM runs in a
@@ -490,20 +499,31 @@ language's, since Ernest's system modules are ambient by design: one isolated co
 visitor, with limits on time, memory, processes and network, and nothing kept when the
 visitor leaves. The site's pages are written in Markdown and rendered by `libs/markdown`.
 
-## MVP 3.9 (the review before 1.0)
+## MVP 4.3 (the shell's second round), about three weeks
 
-What a promise of stability needs and a first release could leave out (the log's *The First
-Release Is for Others*), after the language was argued in MVP 2.99c:
+The shell's later work that its parts' merits take, decided with the user 2026-09-30 (the
+log's *The Shell's Second Round*), in this order. The first three need nothing of MVP 3.0 or
+3.1 and may be taken earlier where the user wants them.
 
-- **The full review**, when the user says so: every reader over the whole of its area
-  ([`full_review.md`](full_review.md)), and its findings worked.
-- **The numbering decided once.** Whether the report's section numbers have drifted enough since
-  0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
-  citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
-  numbers kept for good (the log's *The Language Argued Before Peers*).
-- **The promise**: what 1.0 holds stable, stated in the report's §0 and the release's notes.
-  Until then a release may refuse a program the previous release accepted, and its notes
-  point at what changed rather than list it (the log's *A Release Carries No History*).
+1. **Readline's remaining keys**, about a day: the kill ring with `M-y` cycling the earlier
+   kills, `C-t` and `M-t` transposing, and `M-u`, `M-l` and `M-c` for case, each a change to
+   `Shell.Editor`'s pure `edit`, with key-stream tests.
+2. **`:trace f`**, about two days: each call of `f` and each return printed, the values by
+   their types (§11.2).
+3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
+   constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
+   check an unfinished input, designed first.
+4. **A shell attached to a running node**, about a week: each input run on the peer, over MVP
+   3.0's peers and MVP 3.1's shipping of code. The shell's design does not assume it runs on
+   the node whose code it evaluates.
+5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
+   a running program an input opens end with the input's process, their owner (§11.2), and
+   the session could own them instead, so that they live until it ends, by a way the shell
+   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
+6. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
+   2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
+   it fails again its step file in the run's directory says which expectation went unmet, and
+   the fix follows from it; diagnosed here where it recurs, and nowhere before.
 
 ---
 
@@ -582,7 +602,7 @@ harness every terminal test runs through, turned `Keys` into `Terminal`, split `
 into areas, and found about twenty defects in the toolchain. The log's entries from 2026-09-20
 to 2026-09-25 hold every argument.
 
-### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 3.5)
+### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 4.1)
 
 Pure Ernest, about five hundred lines: `Markdown.parse` reads CommonMark 0.31's blocks and
 inlines, and `Markdown.render` lays them out at a width, with the terminal's styles or as
@@ -718,7 +738,7 @@ own left unchecked, and a check lasts as long as the process behind it (§8.4); 
 adds to a host call is measured by `make bench`, and supervision stays in the reaper.
 `RestartLimit` gained `Unlimited` (§6.9), `Io.Error`'s `Other` says the host's words (E.1),
 and a supervisor's group restarts whole (E.22). Erlang's scheduling hints and a registry of
-libraries are out, and the shell's later work is MVP 3.3's. A load samples a node at rest,
+libraries are out, and the shell's later work is MVP 4.3's. A load samples a node at rest,
 the loads flat within 15 KB ([`memory.md`](memory.md)), and make runs `ern build` every
 time, its own rule deciding by content (§11.1).
 
@@ -750,7 +770,7 @@ MVP 2.99b's items 1 to 3, the defects, the families' rules and the edits they as
 log, and the closure, whose counts and bench are the log's *The Principles Review Closed*.
 Each family is closed by its entry and is not reopened before 1.0 but by a program that shows
 a case it did not. What it leaves is dated: the `since` lines of what it added, written with
-`VERSION` at the release (the release review's step 5); `Udp` to MVP 3.5 (the log's
+`VERSION` at the release (the release review's step 5); `Udp` to MVP 4.1 (the log's
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
@@ -852,9 +872,9 @@ reported at once, and a fault at the program's end is not reported (§8.6). Four
 OTP's are written as reports in [`otp_bugs.md`](otp_bugs.md), the compiler's worked around
 meanwhile. The report's and the guide's feedback, the manual pages and the examples made to
 teach, shipped as Ernest 0.3.1. The shell's `live_region` test, unmet once, stands in
-MVP 3.3.
+MVP 4.3.
 
-### The shell shows a bracket's match (done 2026-10-06, ahead of MVP 3.3)
+### The shell shows a bracket's match (done 2026-10-06, ahead of MVP 4.3)
 
 A `)`, `]` or `}` typed at the prompt stands the cursor on the bracket it closes for half a
 second or until the next key, as Readline's `blink-matching-paren` does, and a mismatch shows
