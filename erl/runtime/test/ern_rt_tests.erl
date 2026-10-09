@@ -711,20 +711,6 @@ endless_alarm_test() ->
 %% An atom whose text is no integer, which the compiler cannot see through.
 zero_text() -> list_to_atom("zero").
 
-%% report §7.3, §7.4, §11.2: a process whose code the shell unloads dies
-%% with the fault that says so; the shell ends it as `exit/2` does here
-unloaded_code_test() ->
-    Self = self(),
-    ok = ern_rt:run_main(
-           fun() ->
-               Old = ern_rt:spawn(fun() -> receive never -> ok end end,
-                                  <<"Main.main:3">>),
-               ern_rt:monitor(Old, fun(Down) -> {down, Down} end),
-               exit(Old, {ern, code_unloaded}),
-               receive {down, Down} -> Self ! {d, Down} end
-           end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertMatch({'Down', _, {'Fault', <<"its code was unloaded">>}, <<"Main.main:3">>}, wait(d)).
-
 %% report §6.5: via adapts a message on its way to the target
 via_test() ->
     Self = self(),
@@ -778,8 +764,7 @@ clock_now_reads_the_host() ->
 %% report §8.4: a process's end is a host term, since foreign code may
 %% observe it: normal, {ern, fault, Text}, {ern, fault, Text, Trace} for a
 %% failure of the runtime, {ern, killed}, {ern, program_end}; a socket's
-%% {ern, closed} is ern_tcp_tests', and the shell's {ern, code_unloaded}
-%% the shell's tests'
+%% {ern, closed} is ern_tcp_tests'
 host_exit_reason_test() ->
     Self = self(),
     ok = ern_rt:run_main(

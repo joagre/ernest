@@ -815,8 +815,7 @@ shell(Options, Rest, ErrorDevice) ->
                 host_path(ern_build:load_path(Options)),
                 ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
                                          source_root = ern_build:source_root(Options, ".", "."),
-                                         config_startup = config_startup(Options),
-                                         is_node = is_node(Options)}),
+                                         config_startup = config_startup(Options)}),
                 {init_fun([ErlangModule]), ern_build:load_path(Options)};
             [File] ->
                 {Namespace, FileLoadPath, Loaded} = program(File, Options),
@@ -824,8 +823,7 @@ shell(Options, Rest, ErrorDevice) ->
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
                                          source_root = ern_build:source_root(Options, File, "."),
                                          interfaces = interfaces(Loaded), entry = Entry,
-                                         config_startup = config_startup(Options),
-                                         is_node = is_node(Options)}),
+                                         config_startup = config_startup(Options)}),
                 {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
             _ ->
                 usage_fail("at most one .erc file argument")

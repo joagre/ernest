@@ -4,7 +4,7 @@
 
 -compile({no_auto_import, [{put, 2}]}).
 
--export([main/0, '$init'/0, '$fun'/2, '$spawned'/2]).
+-export([main/0, '$init'/0, '$spawned'/2]).
 
 services() -> ern_rt:binding({ern@services, services}).
 
@@ -120,8 +120,6 @@ stored(Key_25) ->
                                                           end),
                                      <<"Services.audit:59">>)),
     ok.
-
-'$fun'(main, 0) -> fun main/0.
 
 '$spawned'(main, []) -> main().
 

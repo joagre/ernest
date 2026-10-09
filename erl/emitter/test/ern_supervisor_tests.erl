@@ -11,18 +11,21 @@
 %% which main subscribes; a call to a child after its fault is answered by
 %% the group restarted whole (Appendix E.22), and one a restart ends,
 %% which empties the child's mailbox (report §6.9), is made again by
-%% `askUntil`, so nothing else is waited for. `delivered` waits for every
-%% delivery the runtime has started to the process, so that a report
-%% already started is in its mailbox.
+%% `askUntil`, so nothing else is waited for. A count is read by `Peek`,
+%% which changes nothing, so that a call made again after its time ran out
+%% under load, and answered all the same, reads what one call would.
+%% `delivered` waits for every delivery the runtime has started to the
+%% process, so that a report already started is in its mailbox.
 supervised(Strategy, Limit, Names, Main) ->
     ern_emitter_tests:run(
-        ["type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
          "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.",
          Strategy, ", ", Limit, "))\n",
          [["let ", Name, " : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"]
           || Name <- Names],
          "fn count(n : Int) : Unit with Msg = receive {\n"
          "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+         "  | Peek(reply = r) -> { answer(r, n); count(n) }\n"
          "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
          "}\n"
          "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
@@ -31,7 +34,12 @@ supervised(Strategy, Limit, Names, Main) ->
          "        Some(n) -> n\n"
          "      | None -> askUntil(c)\n"
          "    }\n"
-         "fn show(c : Address(Msg)) : String with m = Int.toString(askUntil(c))\n"
+         "fn peekUntil(c : Address(Msg)) : Int with m =\n"
+         "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
+         "        Some(n) -> n\n"
+         "      | None -> peekUntil(c)\n"
+         "    }\n"
+         "fn show(c : Address(Msg)) : String with m = Int.toString(peekUntil(c))\n"
          "fn faulted() : Unit with Process.FaultReport = receive { _ -> Unit }\n"
          "foreign fn delivered(process : Process) : Foreign.Term with m =\n"
          "    \"ern_waits:delivered/1\"\n",
@@ -83,7 +91,7 @@ rest_for_one_restarts_later_children_test() ->
 %% scheduler decides, and a race of it failed examples/services.ern
 rest_for_one_reads_the_order_of_spawns_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        ["type Msg = Ask(reply : Reply(Int)) | Boom | Go\n"
+        ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Go\n"
          "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group("
          "Supervisor.RestForOne, ", ?LIMIT, "))\n"
          "let a : Address(Msg) = spawn(fn() : Unit with Msg = {\n"
@@ -94,16 +102,17 @@ rest_for_one_reads_the_order_of_spawns_test() ->
          "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
          "fn count(n : Int) : Unit with Msg = receive {\n"
          "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+         "  | Peek(reply = r) -> { answer(r, n); count(n) }\n"
          "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
          "}\n"
          "fn ask(c : Address(Msg)) : Int with m ="
          " Address.callForever(c, fn(r) = Ask(reply = r))\n"
-         "fn askUntil(c : Address(Msg)) : Int with m =\n"
-         "    match Address.call(c, fn(r) = Ask(reply = r), 1000) {\n"
+         "fn peekUntil(c : Address(Msg)) : Int with m =\n"
+         "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
          "        Some(n) -> n\n"
-         "      | None -> askUntil(c)\n"
+         "      | None -> peekUntil(c)\n"
          "    }\n"
-         "fn show(c : Address(Msg)) : String with m = Int.toString(askUntil(c))\n"
+         "fn show(c : Address(Msg)) : String with m = Int.toString(peekUntil(c))\n"
          "export fn main() : Unit with Process.FaultReport = {\n"
          "    let _ = ask(b); let _ = ask(c);\n"
          "    send(a, Go);\n"
@@ -199,7 +208,7 @@ kill_stops_in_reverse_order_test() ->
 %% limit, its children restarted with it, their addresses kept
 nested_group_restarts_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
@@ -208,6 +217,7 @@ nested_group_restarts_in_place_test() ->
         "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "fn count(n : Int) : Unit with Msg = receive {\n"
         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+        "  | Peek(reply = r) -> { answer(r, n); count(n) }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
         "}\n"
         "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
@@ -218,12 +228,12 @@ nested_group_restarts_in_place_test() ->
         "    // the child's fault, and the nested group's at its limit\n"
         "    receive { _ -> Unit };\n"
         "    receive { _ -> Unit };\n"
-        "    Io.println(Int.toString(askUntil(a)) <> \" \" <> Int.toString(askUntil(b)))\n"
+        "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> Int.toString(peekUntil(b)))\n"
         "}\n"
-        "fn askUntil(c : Address(Msg)) : Int with m =\n"
-        "    match Address.call(c, fn(r) = Ask(reply = r), 1000) {\n"
+        "fn peekUntil(c : Address(Msg)) : Int with m =\n"
+        "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
         "        Some(n) -> n\n"
-        "      | None -> askUntil(c)\n"
+        "      | None -> peekUntil(c)\n"
         "    }\n"),
     ?assertEqual(<<"0 0\n">>, Output).
 
@@ -236,7 +246,7 @@ nested_group_restarts_in_place_test() ->
 %% third's; every other wait is for a fault's report
 count_survives_restart_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
@@ -245,6 +255,7 @@ count_survives_restart_in_place_test() ->
         "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "fn count(n : Int) : Unit with Msg = receive {\n"
         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+        "  | Peek(reply = r) -> { answer(r, n); count(n) }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
         "}\n"
         "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
@@ -275,12 +286,17 @@ count_survives_restart_in_place_test() ->
         "    reported();\n"
         "    // answered once the group has restarted whole\n"
         "    let _ = askUntil(a);\n"
-        "    Io.println(Int.toString(askUntil(b)))\n"
+        "    Io.println(Int.toString(peekUntil(b)))\n"
         "}\n"
         "fn askUntil(c : Address(Msg)) : Int with m =\n"
         "    match Address.call(c, fn(r) = Ask(reply = r), 1000) {\n"
         "        Some(n) -> n\n"
         "      | None -> askUntil(c)\n"
+        "    }\n"
+        "fn peekUntil(c : Address(Msg)) : Int with m =\n"
+        "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
+        "        Some(n) -> n\n"
+        "      | None -> peekUntil(c)\n"
         "    }\n"),
     ?assertEqual(<<"0\n">>, Output).
 
@@ -371,12 +387,14 @@ group_runs_once_after_its_end_test() ->
 %% while without waiting, so that a restart asked of one then waits; on
 %% Crash they compute so and then fault. `running` waits until a child
 %% computes, `reportOf` for a child's fault's report, and `askUntil` asks
-%% again where a restart ended the call.
+%% again where a restart ended the call, as `peekUntil` reads a count.
 crunching(Main) ->
     ern_emitter_tests:run(
-        ["type Msg = Ask(reply : Reply(Int)) | Boom | Crunch | Crash\n", Main,
+        ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Crunch | Crash\n",
+         Main,
          "fn count(n : Int) : Unit with Msg = receive {\n"
          "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+         "  | Peek(reply = r) -> { answer(r, n); count(n) }\n"
          "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
          "  | Crunch -> { let _ = spin(50000000); count(n) }\n"
          "  | Crash -> { let z = spin(50000000); let _ = 1 / z; Unit }\n"
@@ -387,6 +405,11 @@ crunching(Main) ->
          "    match Address.call(c, fn(r) = Ask(reply = r), 1000) {\n"
          "        Some(n) -> n\n"
          "      | None -> askUntil(c)\n"
+         "    }\n"
+         "fn peekUntil(c : Address(Msg)) : Int with m =\n"
+         "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
+         "        Some(n) -> n\n"
+         "      | None -> peekUntil(c)\n"
          "    }\n"
          "fn reportOf(c : Address(Msg)) : Unit with Process.FaultReport = {\n"
          "    let child = Process.fromAddress(c);\n"
@@ -415,7 +438,7 @@ sibling_faulting_first_counts_as_restarted_test() ->
         "    let _ = running(Process.fromAddress(b));\n"
         "    send(a, Boom);\n"
         "    reportOf(a);\n"
-        "    Io.println(Int.toString(askUntil(a)))\n"
+        "    Io.println(Int.toString(peekUntil(a)))\n"
         "}\n"),
     ?assertEqual(<<"0\n">>, Output).
 

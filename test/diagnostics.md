@@ -2581,6 +2581,30 @@ input 1:1:1: fromList needs a.compare, at a type variable no requirement can nam
   | = help: apply it at a known type, or declare a `fn` with the requirement
 ```
 
+### A value of a type's previous version at the prompt (§11.2, §8.7)
+
+```console
+$ ern shell
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int)\n"), 1000)
+Right(Unit) : Either(Io.Error, Unit)
+> :load Counter
+Counter, compiled from counter.ern
+> let inc = Counter.Inc
+inc : (Int) -> Counter.Msg
+> Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int) | Reset\n"), 1000)
+Right(Unit) : Either(Io.Error, Unit)
+> :reload
+Counter, compiled again
+Counter.Msg changed: the binding inc is of its previous version, Counter$1.Msg
+> let m : Counter.Msg = inc(1)
+input 6:1:23: the value does not have the declared type: expected Counter.Msg, found Counter$1.Msg
+1 | let m : Counter.Msg = inc(1)
+  |         ----------- declared Counter.Msg here
+  |                       ^^^^^^
+  | = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
+```
+
 ### A derived compare over a field without one (§3.5)
 
 ```ernest-rejected

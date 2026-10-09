@@ -2,7 +2,7 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$fun'/2, '$spawned'/2]).
+-export([main/0, '$spawned'/2]).
 
 main() ->
     Opponent_2 = ern_rt:spawn_monitored(fun () -> pong()
@@ -48,8 +48,6 @@ pong() ->
             pong();
         'Stop' -> 'Unit'
     end.
-
-'$fun'(main, 0) -> fun main/0.
 
 '$spawned'(main, []) -> main();
 '$spawned'(pong, []) -> pong().

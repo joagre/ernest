@@ -13,14 +13,10 @@
 %% report §3.9: a function that never returns is meant, which Dialyzer is told
 -dialyzer(no_return).
 
--export([main/0, '$fun'/2, '$spawned'/2]).
+-export([main/0, '$spawned'/2]).
 
 main() ->
     'ern@io':println(<<"hello, world">>).
-
-%% A function of this module taken as a value by another is a fun made here,
-%% which keeps this version when the module is loaded again (report §11.2).
-'$fun'(main, 0) -> fun main/0.
 
 %% A function of this module a spawn on a peer may start, by its name, run
 %% in the calling process over what it captured, as the peer's code table

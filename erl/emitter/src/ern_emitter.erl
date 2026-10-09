@@ -55,12 +55,15 @@
 %% and the variables in force at it, which its captures are, for a spawn on
 %% a peer that names it (§3.11). entries: each lambda's or local fn's
 %% identity a spawn on a peer starts => its entry, the function of the
-%% module that runs it over its captures (§8.7, §11.1).
+%% module that runs it over its captures (§8.7, §11.1). units: each
+%% namespace whose unit is not its module's Erlang name => its unit, which
+%% the shell gives where a reload brought a module's version as a unit of
+%% its own (report §11.2).
 -record(emit_context, {namespace, erlang_module, env, declaration, variables = #{},
                        counter = 0, locals = #{}, lifted = [], top_names = #{},
                        descriptors = #{}, pattern_guards = [], session_offset = false,
                        standard = false, members = #{}, outer, canonical, let_lambdas = #{},
-                       entries = #{}}).
+                       entries = #{}, units = #{}}).
 %% A spawn on a peer's entry (report §8.7, §11.1): the function's name and
 %% arity, the enclosing definition's qualified name, the identity's hash
 %% and position, and the reach, which the module's '$code'/0 lists.
@@ -90,7 +93,10 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% marks an input of the shell, which is compiled and not written, and is
 %% not kept, with the line offset its spawn sites are written with;
 %% `standard` marks a module of the standard library's own source root.
-%% The declarations are the checker's, so every rule a program can break has
+%% `units` names the unit of each namespace whose unit is not its module's
+%% Erlang name, the module's own among them, as the shell gives them where
+%% a reload brought a version as a unit of its own (report §11.2), and is
+%% not kept. The declarations are the checker's, so every rule a program can break has
 %% been checked: what the emitter cannot emit, or emits and the host does not
 %% compile, is a defect of the toolchain, raised as one, which `ern` reports
 %% as its own failure (report §11).
@@ -98,7 +104,8 @@ compile(Namespace, Declarations, Interface, Env) ->
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
-                session_offset => non_neg_integer(), standard => boolean()}) ->
+                session_offset => non_neg_integer(), standard => boolean(),
+                units => #{[atom()] => atom()}}) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
     %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
@@ -109,7 +116,8 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
                                      maps:get(standard, Build, false)),
     #{references := References} = Canonical,
     Forms = forms(Namespace, Declarations, Env, Build#{code => true, canonical => Canonical}),
-    Facts = (maps:without([source, session_offset, standard], Build))#{references => References},
+    Facts = (maps:without([source, session_offset, standard, units], Build))
+        #{references => References},
     Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
@@ -156,7 +164,8 @@ forms(Namespace, Declarations, Env) ->
 %% the forms for reading compute.
 -spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
 forms(Namespace, Declarations, Env, Build) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
+    Units = maps:get(units, Build, #{}),
+    ErlangModule = maps:get(Namespace, Units, ern_namespace:erlang_module(Namespace)),
     Dependencies = [Dependency || {Dependency, _} <- maps:get(deps, Build, [])],
     Standard = maps:get(standard, Build, false),
     Canonical = case Build of
@@ -166,23 +175,22 @@ forms(Namespace, Declarations, Env, Build) ->
     Context = #emit_context{namespace = Namespace, erlang_module = ErlangModule, env = Env,
                             top_names = top_names(Declarations),
                             session_offset = maps:get(session_offset, Build, false),
-                            standard = Standard, canonical = Canonical},
+                            standard = Standard, canonical = Canonical, units = Units},
     {DeclarationFunctions, Context1} = lists:mapfoldl(fun declaration/2, Context, Declarations),
     Lets = [Declaration || #let_declaration{} = Declaration <- Declarations],
     {InitFunction, Context2} = init_function(Lets, Context1),
     TestsFunction = tests_function(Lets),
-    DependenciesFunction = dependencies_function(Dependencies),
-    FunFunction = fun_function(Declarations),
+    DependenciesFunction = dependencies_function(Dependencies, Context),
     Entries = maps:values(Context2#emit_context.entries),
     SpawnedFunction = spawned_function(Declarations, Entries),
     CodeFunction = case Build of
-                       #{code := true} -> code_function(code(Namespace, Declarations, Canonical,
-                                                             Entries));
+                       #{code := true} -> code_function(code(Namespace, ErlangModule,
+                                                             Declarations, Canonical, Entries));
                        _ -> []
                    end,
     Exports = [export(Declaration) || Declaration <- Declarations, exported(Declaration)]
         ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
-        ++ [{'$deps', 0} || DependenciesFunction =/= []] ++ [{'$fun', 2} || FunFunction =/= []]
+        ++ [{'$deps', 0} || DependenciesFunction =/= []]
         ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
@@ -207,7 +215,7 @@ forms(Namespace, Declarations, Env, Build) ->
                                                      erl_syntax:integer(Arity))
                                                    || {Function, Arity} <- Exports])])],
     Functions = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
-        ++ DependenciesFunction ++ FunFunction ++ SpawnedFunction ++ CodeFunction
+        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction
         ++ lists:reverse(Context2#emit_context.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
@@ -246,27 +254,8 @@ tests_function(Lets) ->
 is_test_case({tcon, ['Test', 'Case'], [_]}) -> true;
 is_test_case(_) -> false.
 
-%% Report §11.2, §6.10: '$fun'/2 answers an exported function of this
-%% module as a fun of the version that answers, so that a function value
-%% another module takes from this one keeps the code it was taken from when
-%% the module is loaded again; an external fun would reach the newest.
-fun_function(Declarations) ->
-    Clauses = [erl_syntax:clause([erl_syntax:atom(Function), erl_syntax:integer(Arity)], none,
-                                 [erl_syntax:implicit_fun(erl_syntax:atom(Function),
-                                                          erl_syntax:integer(Arity))])
-               || Declaration <- Declarations, exported(Declaration),
-                  not is_record(Declaration, let_declaration), nameable(Declaration),
-                  {Function, Arity} <- [export(Declaration)]],
-    case Clauses of
-        [] -> [];
-        _ -> [erl_syntax:function(erl_syntax:atom('$fun'), Clauses)]
-    end.
-
 %% Report §2.3: a function whose own name holds `$`, the entry of an input
-%% at the shell's prompt, is named by no program, so none takes it as a
-%% value. It has no clause: each clause is a function the host keeps an
-%% entry for as long as the node lives, for every version of the module it
-%% loads.
+%% at the shell's prompt, is named by no program.
 nameable(#fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name));
 nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name)).
 
@@ -281,8 +270,8 @@ nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_l
 %% load reads it without decoding the module's chunks, which costs more
 %% than the load. The forms for reading, `--emit-erl` and the golden files,
 %% have no such function.
-code(Namespace, Declarations, #{identities := Hashes, reaches := Reaches}, Entries) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
+code(Namespace, ErlangModule, Declarations, #{identities := Hashes, reaches := Reaches},
+     Entries) ->
     lists:append([declaration_code(Namespace, ErlangModule, Declaration, Hashes, Reaches)
                   || Declaration <- Declarations])
         ++ lists:sort([{QualifiedName, {lambda, Hash, Position, Function, Arity, Reach}}
@@ -351,12 +340,12 @@ code_function(Code) ->
     [erl_syntax:function(erl_syntax:atom('$code'),
                          [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])].
 
-%% Report §8.5: the modules this one depends on, whose top-level
-%% bindings are evaluated before its own.
-dependencies_function([]) ->
+%% Report §8.5: the units of the modules this one depends on, whose
+%% top-level bindings are evaluated before its own.
+dependencies_function([], _Context) ->
     [];
-dependencies_function(Dependencies) ->
-    Modules = erl_syntax:list([erl_syntax:atom(ern_namespace:erlang_module(Dependency))
+dependencies_function(Dependencies, Context) ->
+    Modules = erl_syntax:list([erl_syntax:atom(unit(Dependency, Context))
                                || Dependency <- Dependencies]),
     [erl_syntax:function(erl_syntax:atom('$deps'),
                          [erl_syntax:clause([], none, [Modules])])].
@@ -947,8 +936,8 @@ name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
 name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, [], Context) ->
     {own_value(MemberOf, Name, Context), Context};
 name_form(_, _, _, #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name},
-          Type, [], #emit_context{env = Env} = Context) ->
-    {remote_value(Declaring, MemberOf, Name, Type, Env), Context};
+          Type, [], Context) ->
+    {remote_value(Declaring, MemberOf, Name, Type, Context), Context};
 %% Report §4.9: a declaration with a requirement taken as a value is the
 %% function with its members supplied
 name_form(Span, Namespace, Name, Referent, Type, Supplies, Context) ->
@@ -993,14 +982,13 @@ own_value(MemberOf, Name, #emit_context{top_names = TopNames}) ->
         Arity -> erl_syntax:implicit_fun(Local, erl_syntax:integer(Arity))
     end.
 
-remote_value(Declaring, MemberOf, Name, Type, Env) ->
-    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name),
+remote_value(Declaring, MemberOf, Name, Type, #emit_context{env = Env} = Context) ->
+    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name, Context),
     case {is_value(Declaring, MemberOf, Name, Env), Type} of
         {false, {tfn, Params, _, _}} ->
-            %% report §11.2: a function of another module as a value keeps
-            %% the version it was taken from
-            call_remote(HostModule, '$fun',
-                        [erl_syntax:atom(HostFunction), erl_syntax:integer(length(Params))]);
+            %% report §11.2: a unit never takes a second version, so the
+            %% function keeps the code it was taken from
+            remote_fun(HostModule, HostFunction, length(Params));
         _ ->
             call_remote(HostModule, HostFunction, [])
     end.
@@ -1013,9 +1001,18 @@ arity_of(_, Span) -> fail(Span, "a function used as a value must have a function
 is_value(Declaring, MemberOf, Name, Env) ->
     ern_typecheck:is_value(Declaring ++ [MemberOf || MemberOf =/= undefined] ++ [Name], Env).
 
-%% Another Ernest module's declaration as a function of its Erlang module.
-remote_name(Declaring, MemberOf, Name) ->
-    {ern_namespace:erlang_module(Declaring), function_name(MemberOf, Name)}.
+%% Another Ernest module's declaration as a function of its unit.
+remote_name(Declaring, MemberOf, Name, Context) ->
+    {unit(Declaring, Context), function_name(MemberOf, Name)}.
+
+%% Report §11.2: the unit a module's namespace calls, its Erlang name but
+%% where the shell gave it another, a reload's version being a unit of its
+%% own.
+unit(Namespace, #emit_context{units = Units}) ->
+    case Units of
+        #{Namespace := Unit} -> Unit;
+        _ -> ern_namespace:erlang_module(Namespace)
+    end.
 
 closure(LiftedName, Captures, Arity, Context) ->
     {Params, Context1} = fresh_variables(Arity, "Argument", Context),
@@ -1114,7 +1111,7 @@ call(Span,
     {WrittenForms, Context1} = exprs(Args, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
     ArgForms = WrittenForms ++ SupplyForms,
-    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name),
+    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name, Context),
     %% report §4.6: calling a `let` applies what its getter answers;
     %% calling a `fn` is the call itself
     case is_value(Declaring, MemberOf, Name, Env) of
@@ -1219,15 +1216,15 @@ member_arity(negate) -> 1;
 member_arity(_) -> 2.
 
 %% A member of a declared type as a function value: a local function of
-%% this module's, or another module's as it was taken (report §11.2).
-member_value(QualifiedName, Member, Arity, #emit_context{namespace = Namespace, env = Env}) ->
+%% this module's, or another module's unit's (report §11.2).
+member_value(QualifiedName, Member, Arity,
+             #emit_context{namespace = Namespace, env = Env} = Context) ->
     MemberOf = lists:last(QualifiedName),
     MemberQualifiedName = ern_typecheck:session_member(QualifiedName, Member, Env),
-    Function = erl_syntax:atom(function_name(MemberOf, Member)),
+    Function = function_name(MemberOf, Member),
     case lists:droplast(lists:droplast(MemberQualifiedName)) of
-        Namespace -> erl_syntax:implicit_fun(Function, erl_syntax:integer(Arity));
-        Declaring -> call_remote(ern_namespace:erlang_module(Declaring), '$fun',
-                                 [Function, erl_syntax:integer(Arity)])
+        Namespace -> erl_syntax:implicit_fun(erl_syntax:atom(Function), erl_syntax:integer(Arity));
+        Declaring -> remote_fun(unit(Declaring, Context), Function, Arity)
     end.
 
 %% Report §4.6: a call of the module's own declaration, a `let` through
@@ -1509,15 +1506,13 @@ member_call([_] = QualifiedName, Name, Args, #emit_context{namespace = Namespace
         QualifiedName -> erl_syntax:application(erl_syntax:atom(function_atom(Name)), Args);
         _ -> call_remote(ern_namespace:erlang_module(QualifiedName), function_atom(Name), Args)
     end;
-member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env}) ->
+member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env} = Context) ->
     MemberOf = lists:last(QualifiedName),
     %% report §11.2: at the prompt a later input may have declared it
     MemberQualifiedName = ern_typecheck:session_member(QualifiedName, Name, Env),
     case lists:droplast(lists:droplast(MemberQualifiedName)) of
         Namespace -> erl_syntax:application(erl_syntax:atom(function_name(MemberOf, Name)), Args);
-        Declaring ->
-            call_remote(ern_namespace:erlang_module(Declaring), function_name(MemberOf, Name),
-                        Args)
+        Declaring -> call_remote(unit(Declaring, Context), function_name(MemberOf, Name), Args)
     end.
 
 %% <<A/binary, B/binary>>, with a string literal as a plain segment and an

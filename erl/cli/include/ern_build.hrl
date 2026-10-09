@@ -9,8 +9,7 @@
 %% What the runner loaded before the shell started (report §11.2): the load
 %% path, the source root a module's source is found under, the interfaces
 %% of the loaded modules each with its source's hash, the #entry_point{} to
-%% spawn beside the prompt or none, the startup file of the
-%% configuration directory `--config-dir` names, or none, and whether that
-%% option made the shell a node.
+%% spawn beside the prompt or none, and the startup file of the
+%% configuration directory `--config-dir` names, or none.
 -record(loaded, {load_path = [], source_root = ".", interfaces = [], entry = none,
-                 config_startup = none, is_node = false}).
+                 config_startup = none}).

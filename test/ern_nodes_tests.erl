@@ -271,13 +271,26 @@ start(Dir, Program, Arguments) ->
 %% hands it to the node's watcher, so that a test waits on a line written
 %% rather than reading the file again.
 started(Dir, Program, Arguments) ->
+    launched(Dir, [?ERN, " run --config-dir ", Dir,
+                   [[" --load-path ", Library] || Library <- ?LIBRARIES], " ", Program,
+                   [[" ", Argument] || Argument <- Arguments]]).
+
+%% A shell that is a node, its source root SourceRoot, reading its inputs
+%% from the port's writes, in line mode; its HOME a directory of its own,
+%% so that no person's startup file runs.
+shell_started(Dir, SourceRoot) ->
+    Home = Dir ++ ".home",
+    ok = filelib:ensure_path(Home),
+    launched(Dir, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Dir, " --source-root ",
+                   SourceRoot]).
+
+%% A node started by the command Words, its standard input the port's
+%% writes.
+launched(Dir, Words) ->
     Watcher = watcher(Dir),
     [Out, Err] = [piped(Watcher, Stream, Dir ++ Suffix)
                   || {Stream, Suffix} <- [{out, ".out"}, {err, ".err"}]],
-    Command = lists:flatten([?ERN, " run --config-dir ", Dir,
-                             [[" --load-path ", Library] || Library <- ?LIBRARIES], " ", Program,
-                             [[" ", Argument] || Argument <- Arguments],
-                             " > ", Out, " 2> ", Err]),
+    Command = lists:flatten([Words, " > ", Out, " 2> ", Err]),
     Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status]),
     {Port, fun() ->
                receive {Port, {exit_status, Status}} -> Status after 30000 -> timeout end
@@ -1323,6 +1336,61 @@ two_builds(Base) ->
                  " Aside.note has no value here",
                  "the peer asker's spawn at Asker.spawned:27 was not loaded: the module"
                  " ern_twins_host, which Twin.absent calls, is not here"]].
+
+%% report §11.2, §8.7: a shell that is a node loads a module, and a peer
+%% of the build that holds the module spawns a function of it there by its
+%% hash, the value of the binding its reach names found, as on a node that
+%% runs a program; a function typed at the shell has a hash and no peer
+%% holds it, so a spawn of it answers NotLoaded, which the peer says. Written
+%% after the code (MVP 3.1's item 5): a peer found no value of a binding the
+%% shell's load had evaluated
+shell_node_test_() ->
+    nodes_test(90, fun shell_node/1).
+
+shell_node(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "greet.ern"),
+                         "let greeting : String = \"hello from the shell's load\"\n\n"
+                         "export fn hello() : Unit with Never = Io.println(greeting)\n"),
+    ok = file:write_file(filename:join(Root, "store.ern"),
+                         "// A spawn on the shell's node once a line comes.\n"
+                         "\n"
+                         "export fn main() : Unit with Unit = {\n"
+                         "    Io.println(\"ready\");\n"
+                         "    let _ = Io.readLine();\n"
+                         "    let spawned = match Peer.spawn(\"desk\", Greet.hello, 5000) {\n"
+                         "        Right(_) -> \"Right\"\n"
+                         "      | Left(failure) -> Io.show(failure)\n"
+                         "    };\n"
+                         "    Io.println(\"spawned: \" <> spawned);\n"
+                         "    held()\n"
+                         "}\n"
+                         "\n"
+                         "fn held() : Unit with m = receive { _ -> held() }\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
+    prints(Store, "ready"),
+    {DeskInput, WaitDesk} = shell_started(Desk, Root),
+    true = port_command(DeskInput, ":load Greet\n"
+                                   "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+    prints(Desk, "Left(NotLoaded) : Either(Io.Error, Address(Never))"),
+    true = port_command(StoreInput, "go\n"),
+    prints(Store, "spawned: Right"),
+    prints(Desk, "hello from the shell's load"),
+    true = port_command(DeskInput, ":quit\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {DeskOut, _} = said(Desk),
+    {_, StoreErr} = said(Store),
+    has(DeskOut, "Greet, compiled from greet.ern"),
+    has(StoreErr, "the peer desk's spawn at input 2:1 was not loaded: this node does not have"
+                  " its function").
 
 %% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
 %% picks in turn until a place has a measure, and then the lower of the

@@ -54,8 +54,8 @@
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          binding_value/2, restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1,
-         spawn_order/1, init_stdlib/0, init_modules/1, offer/3, offered/2, asked_of_run/1,
-         note_call/3, drop_note/1, drop_notes/1, ordered/1]).
+         spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2,
+         asked_of_run/1, note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -527,9 +527,6 @@ reason(normal) -> 'Returned';
 reason({ern, closed}) -> 'Returned';
 reason({ern, killed}) -> 'Killed';
 reason({ern, program_end}) -> 'ProgramEnd';
-%% report §7.3, §11.2: a process still in a version of a module the shell
-%% has replaced twice
-reason({ern, code_unloaded}) -> {'Fault', <<"its code was unloaded">>};
 reason({ern, fault, Cause}) -> {'Fault', Cause};
 %% report §6.9, §11.2: the host's stack is the report's, never the cause's
 reason({ern, fault, Cause, _Trace}) -> {'Fault', Cause};
@@ -2283,10 +2280,16 @@ run_inits(ErlangModules) ->
                           true -> ErlangModule:'$init'();
                           false -> ok
                       end,
-                      %% report §8.7: a peer's spawn asks which have run; a
-                      %% caller outside a run, a test's, has no table
-                      try ets:insert(?INITIALIZED, {ErlangModule}) catch error:badarg -> true end
+                      initialized(ErlangModule)
                   end, ErlangModules).
+
+%% Report §8.7, §11.2: a unit whose top-level bindings have been
+%% evaluated, by a run's start or the shell's load, so that a peer's spawn
+%% finds their values. A caller outside a run, a test's, has no table.
+-spec initialized(module()) -> ok.
+initialized(Unit) ->
+    try ets:insert(?INITIALIZED, {Unit}) catch error:badarg -> true end,
+    ok.
 
 declared_dependencies(ErlangModule) ->
     case erlang:function_exported(ErlangModule, '$deps', 0) of

@@ -2,7 +2,7 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$fun'/2, '$spawned'/2]).
+-export([main/0, '$spawned'/2]).
 
 main() ->
     ern@list:foreach([<<"a=12">>,
@@ -36,7 +36,7 @@ parse(Line_6) ->
 
 keyOf(Chars_14) ->
     {Letters_15, Rest_16} = ern@list:span(Chars_14,
-                                          ern@char:'$fun'(isAlpha, 1)),
+                                          fun ern@char:isAlpha/1),
     case not ern@list:isEmpty(Letters_15) of
         true ->
             {'Right', {ern@string:fromList(Letters_15), Rest_16}};
@@ -56,7 +56,5 @@ number(Chars_20, Line_21) ->
         {'Some', Value_22} -> {'Right', Value_22};
         'None' -> {'Left', <<"bad number: ", Line_21/binary>>}
     end.
-
-'$fun'(main, 0) -> fun main/0.
 
 '$spawned'(main, []) -> main().

@@ -2,7 +2,7 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$fun'/2, '$spawned'/2]).
+-export([main/0, '$spawned'/2]).
 
 main() ->
     Counter_1 = ern_rt:spawn(fun () -> count(0) end,
@@ -59,7 +59,5 @@ countTwice(Total_13) ->
         {'Upgrade', Migrate_16, Next_17} ->
             Next_17(Migrate_16(Total_13))
     end.
-
-'$fun'(main, 0) -> fun main/0.
 
 '$spawned'(main, []) -> main().

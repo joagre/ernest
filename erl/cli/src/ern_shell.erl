@@ -35,10 +35,9 @@
 %% (report §11.2), which the checker takes as its fourth argument.
 -record(session, {load_path = [], source_root = ".", last_input = 0, interfaces = [],
                   scope = #{}, beams = #{}, source_hashes = #{}, last_holder = 0, prelude,
-                  is_node = false}).
+                  units = #{}, versions = #{}, previous = []}).
 %% scope: what an input may name, `values`, `types` and `constructors`, each
-%% name to its qualified name; and `previous`, the names a reload forgot,
-%% each to the type it was checked against a previous version of (§11.2)
+%% name to its qualified name
 %% last_input: the highest input number given; last_holder: the highest
 %% `$Bindings` number given; a number freed is given again first, from the
 %% kept row `free` (free_namespace/1)
@@ -51,9 +50,13 @@
 %% among it, built when the session starts and kept while it lives, since
 %% neither changes while it runs; the queries of completion, `:browse` and
 %% `:doc` read it rather than build it each time
-%% is_node: whether `--config-dir` made the shell a node, whose `:load`,
-%% `:reload` and key at a type the session declares wait for MVP 3.1
-%% (§11.2)
+%% units: the unit each namespace runs as where it is not the module's
+%% Erlang name: a version a reload brought, `ern@counter$2`, and a
+%% previous version's namespace, its unit (§8.7, §11.2); versions: each
+%% reloaded module's version, counted from 1, its first load; previous:
+%% the interfaces of previous versions, `Counter$1`, of the types a reload
+%% changed, which what the session held before it names, and which the
+%% checker is given beside the loaded modules' (§11.2)
 %% A checked input: the namespace of the module it became, its typed tree,
 %% the declarations it was checked as, the module's interface, the
 %% checker's environment, its type, what it binds, and its site, the name
@@ -65,6 +68,9 @@
 %% names a `let` with a pattern binds, `it` for an expression, or
 %% `declarations`; a name is tagged, so that no name stands for a tag.
 %% printed_name: the name the input's module prints with (input_names/0).
+%% A module a load or a reload brings: its namespace, the unit it is, its
+%% compiled form and the hash of the source it was compiled from (§11.2).
+-record(compiled, {namespace, unit, beam, source_hash}).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -80,9 +86,8 @@
 %% process when a persistent term is replaced or erased. Its rows are the
 %% session as it stands (keep_session/1), the holders' and the inputs'
 %% numbers free to give again and the modules not yet purged (release/3,
-%% collected/1), what each session module needs (uses/0), each input's
-%% name (input_site/2), and the values of a reloaded module's dropped lets
-%% (dropped_lets/3). A binding's value
+%% collected/1), what each session module needs (uses/0), and each input's
+%% name (input_site/2). A binding's value
 %% is §8.5's store, a persistent term, as a module's is, so that a later
 %% input reads it as it reads another module's value; its release when it
 %% is replaced, `it` at almost every input, scans every process, a cost
@@ -113,9 +118,9 @@ keep(Key, Value) ->
 
 -spec start() -> #session{}.
 start() ->
-    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces,
-            is_node = IsNode} = persistent_term:get({?MODULE, loaded}, #loaded{}),
-    keep_session(#session{load_path = LoadPath, source_root = SourceRoot, is_node = IsNode,
+    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces} =
+        persistent_term:get({?MODULE, loaded}, #loaded{}),
+    keep_session(#session{load_path = LoadPath, source_root = SourceRoot,
                           prelude = ern_typecheck:prelude_env(),
                           interfaces = [Interface || {Interface, _} <- Interfaces],
                           source_hashes = maps:from_list([{Interface#interface.namespace, Hash}
@@ -316,10 +321,6 @@ input_names() ->
 input_namespace(Number) ->
     [list_to_atom("$Input" ++ integer_to_list(Number))].
 
-%% Whether a namespace is an input's, as input_namespace/1 makes one.
-is_input_namespace([Module]) -> lists:prefix("$Input", atom_to_list(Module));
-is_input_namespace(_) -> false.
-
 checked({'Right', {Session, Checked}}, PrintedName) ->
     {'Right', {keep_session(Session), Checked#checked{printed_name = PrintedName}}};
 checked(Other, _PrintedName) ->
@@ -453,14 +454,14 @@ input_entry(Expr) ->
     [#fn_declaration{span = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [],
                      body = Expr}].
 
-check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, InputOrigin,
-             Input, Declarations, Binds) ->
-    case ern_typecheck:check(Namespace, Declarations, Interfaces,
+check_module(#session{scope = Scope} = Session, Namespace, InputOrigin, Input, Declarations,
+             Binds) ->
+    case ern_typecheck:check(Namespace, Declarations, checked_interfaces(Session),
                              Scope#{input_names => input_names()}) of
         {ok, Typed, Interface, Env} ->
             Type = input_type(Typed, Binds),
             Binds1 = generalized(Binds, Typed, Env),
-            case refused(Session, Type, Env, Binds1, Typed) of
+            case refused(Type, Env, Binds1, Typed) of
                 none ->
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
@@ -475,6 +476,13 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
                                 [previous_hinted(Session, load_hinted(Session, Diagnostic))
                                  || Diagnostic <- Diagnostics])}
     end.
+
+%% Report §11.2: the interfaces the checker is given in the session: the
+%% loaded modules', the inputs' and the holders', and the previous
+%% versions' of the types a reload changed, which what the session held
+%% before it names.
+checked_interfaces(#session{interfaces = Interfaces, previous = Previous}) ->
+    Interfaces ++ Previous.
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
 %% input's entry point's own over its result, the variables it quantifies
@@ -501,58 +509,11 @@ site(#startup_input{file = File, line = Line}) -> {File, Line - 1}.
 %% type is still open is refused with the annotation that would settle
 %% it, rather than entering the session as a scheme whose variables mean
 %% nothing to the inputs after it.
-refused(Session, Type, Env, Binds, Typed) ->
+refused(Type, Env, Binds, Typed) ->
     case reply_refusal(Type, Env, Binds, Typed) of
-        none ->
-            case undetermined(Type, Env, Binds, Typed) of
-                none -> session_key(Session, Typed);
-                Refused -> Refused
-            end;
-        Refused ->
-            Refused
+        none -> undetermined(Type, Env, Binds, Typed);
+        Refused -> Refused
     end.
-
-%% Report §11.2: in a shell that is a node, a key at a type that names a
-%% type the session declares, among its type arguments too, waits for MVP
-%% 3.1, since two sessions may declare one name for two types and a key is
-%% found by its type's text.
-session_key(#session{is_node = false}, _Typed) ->
-    none;
-session_key(#session{is_node = true}, Typed) ->
-    case [Span || #e_call{span = Span, callee = #e_var{referent = Referent, supplies = [_]},
-                          type = {tcon, ['Peer', 'Key'], [Message]}} <- typed_calls(Typed),
-                  Referent =:= #remote_declaration{namespace = ['Peer'], name = key},
-                  names_session_type(Message)] of
-        [] ->
-            none;
-        [Span | _] ->
-            {refused, #diagnostic{span = ern_diagnostic:span(Span),
-                                  message = "Peer.key at a type the session declares is not here"
-                                            " yet in a shell that is a node: it arrives in MVP 3.1",
-                                  help = "make the key at a type of a module of the build"}}
-    end.
-
-%% The calls in a typed tree, every one.
-typed_calls(#e_call{args = Args, callee = Callee} = Call) ->
-    [Call | typed_calls(Callee) ++ typed_calls(Args)];
-typed_calls(Node) when is_tuple(Node) ->
-    typed_calls(tl(tuple_to_list(Node)));
-typed_calls(Nodes) when is_list(Nodes) ->
-    lists:append([typed_calls(Node) || Node <- Nodes]);
-typed_calls(_) ->
-    [].
-
-%% Whether a type names a type an input of the session declared, its
-%% arguments among it.
-names_session_type({tcon, QualifiedName, Args}) ->
-    is_input_namespace(lists:droplast(QualifiedName))
-        orelse lists:any(fun names_session_type/1, Args);
-names_session_type({ttuple, Elements}) ->
-    lists:any(fun names_session_type/1, Elements);
-names_session_type({tfn, Params, _, Result}) ->
-    lists:any(fun names_session_type/1, [Result | Params]);
-names_session_type(_) ->
-    false.
 
 %% Report §6.6, §11.2: an input's value is printed and dropped, and what a
 %% `let` at the prompt binds is the session's, for any later input to use,
@@ -671,7 +632,8 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                       type = Type, binds = Binds, site = {InputName, Offset}} = Checked,
     Serial, Address) ->
     Descriptor = ern_descriptor:describe(Type, Env, []),
-    Build = #{source_hash => <<>>, deps => [], session_offset => Offset},
+    Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
+              units => Session#session.units},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
     %% report §11.1: the interface as compiled, with the hash of each of its
     %% definitions, by which a later input's forms name them
@@ -793,31 +755,17 @@ unload(ErlangModule) ->
 
 %% The modules whose functions a value holds, in its data or in a
 %% function's captures.
-fun_modules(Value, Acc) ->
-    [ErlangModule || {ErlangModule, _} <- held_functions(Value, [])] ++ Acc.
-
-%% Each function a value holds, in its data or in a function's captures,
-%% as its module and the version of the module's code it runs: the code's
-%% md5 for a function the code made, which runs that version for as long as
-%% it is held (report §6.10), and `current` for a function named by its
-%% module and name, which runs whichever version is current.
-held_functions(Function, Acc) when is_function(Function) ->
+fun_modules(Function, Acc) when is_function(Function) ->
     {module, ErlangModule} = erlang:fun_info(Function, module),
-    case erlang:fun_info(Function, type) of
-        {type, local} ->
-            {new_uniq, Version} = erlang:fun_info(Function, new_uniq),
-            {env, Captured} = erlang:fun_info(Function, env),
-            held_functions(Captured, [{ErlangModule, Version} | Acc]);
-        {type, external} ->
-            [{ErlangModule, current} | Acc]
-    end;
-held_functions(Tuple, Acc) when is_tuple(Tuple) ->
-    held_functions(tuple_to_list(Tuple), Acc);
-held_functions([Head | Rest], Acc) ->
-    held_functions(Rest, held_functions(Head, Acc));
-held_functions(Map, Acc) when is_map(Map) ->
-    held_functions(maps:to_list(Map), Acc);
-held_functions(_, Acc) ->
+    {env, Captured} = erlang:fun_info(Function, env),
+    fun_modules(Captured, [ErlangModule | Acc]);
+fun_modules(Tuple, Acc) when is_tuple(Tuple) ->
+    fun_modules(tuple_to_list(Tuple), Acc);
+fun_modules([Head | Rest], Acc) ->
+    fun_modules(Rest, fun_modules(Head, Acc));
+fun_modules(Map, Acc) when is_map(Map) ->
+    fun_modules(maps:to_list(Map), Acc);
+fun_modules(_, Acc) ->
     Acc.
 
 %% An input that declares runs nothing, having no top-level value to
@@ -1129,8 +1077,8 @@ scheme(QualifiedName, #session{interfaces = Interfaces}) ->
 
 %% The state a session name's type is printed under: the session's types
 %% print unqualified, as they do in an input (report §11.2).
-session_type_state(#session{scope = Scope, interfaces = Interfaces, prelude = Prelude}) ->
-    TypeState = ern_typecheck:scope_state(Interfaces, Prelude),
+session_type_state(#session{scope = Scope, prelude = Prelude} = Session) ->
+    TypeState = ern_typecheck:scope_state(checked_interfaces(Session), Prelude),
     ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [], input_names(),
                         TypeState).
 
@@ -1215,7 +1163,8 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
                        (load_suffix(Session, Text))/binary>>};
         Found ->
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
-            ScopeState = ern_typecheck:scope_state(Interfaces ++ [Last], Prelude),
+            ScopeState = ern_typecheck:scope_state(checked_interfaces(Session) ++ [Last],
+                                                   Prelude),
             TypeState = ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [],
                                             input_names(), ScopeState),
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
@@ -1355,10 +1304,6 @@ load_suffix(Session, Text) ->
 load_help(Session, Segments) ->
     Modules = [lists:sublist(Segments, Length) || Length <- lists:seq(length(Segments), 1, -1)],
     case lists:search(fun(Module) -> is_loadable(Session, Module) end, Modules) of
-        {value, Module} when Session#session.is_node ->
-            %% report §11.2: a node's code is its build's until MVP 3.1
-            {ok, [":load ", lists:join(".", Module), " would put it in scope; in a shell that is"
-                  " a node it arrives in MVP 3.1"]};
         {value, Module} ->
             {ok, [":load ", lists:join(".", Module), " puts it in scope"]};
         false ->
@@ -1418,8 +1363,8 @@ appeared(Session, Segments) ->
         {Declaring, Name} ->
             case {ern_page:declared_since(Declaring, Name), ern_page:since(Declaring)} of
                 {undefined, undefined} -> 'None';
-                {undefined, Version} -> {'Some', unicode:characters_to_binary(Version)};
-                {Version, _} -> {'Some', unicode:characters_to_binary(Version)}
+                {undefined, Since} -> {'Some', unicode:characters_to_binary(Since)};
+                {Since, _} -> {'Some', unicode:characters_to_binary(Since)}
             end;
         none ->
             'None'
@@ -1541,10 +1486,11 @@ declared_type(Session, Input) ->
 %% scope in a module of its own that does not enter the session, and not
 %% taken as a value, which a declaration with a requirement is not without
 %% a type for its variable (report §4.9).
-declared_scheme(#session{interfaces = Interfaces, scope = Scope}, Text) ->
+declared_scheme(#session{scope = Scope} = Session, Text) ->
     maybe
         {ok, it, #e_var{namespace = Namespace, name = Name}} ?= input(Text),
-        {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], Interfaces, Scope),
+        {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], checked_interfaces(Session),
+                                               Scope),
         {ok, Scheme} ?= ern_typecheck:declared_scheme(Namespace, Name, Env),
         {ok, Scheme, Env}
     else
@@ -1903,25 +1849,6 @@ load_hinted(Session, #diagnostic{unknown_namespace = [_ | _] = Namespace,
 load_hinted(_Session, Diagnostic) ->
     Diagnostic.
 
-%% Report §11.2: a name a reload forgot is answered why, `c was forgotten
-%% by a reload: it was checked against a previous version of Counter.Msg,
-%% which MVP 3.1 tells from the current one`.
-previous_hinted(#session{scope = Scope},
-                #diagnostic{unknown_name = Name, help = undefined} = Diagnostic)
-  when Name =/= undefined ->
-    case maps:get(previous, Scope, #{}) of
-        #{Name := Root} ->
-            Diagnostic#diagnostic{
-              help = lists:flatten([atom_to_list(Name), " was forgotten by a reload: it was"
-                                    " checked against a previous version of ",
-                                    ern_namespace:text(Root),
-                                    ", which MVP 3.1 tells from the current one"])};
-        _ ->
-            Diagnostic
-    end;
-previous_hinted(_Session, Diagnostic) ->
-    Diagnostic.
-
 %% Report §11.2: a typed input is the file `input`; an input from a startup
 %% file is named by the file, its positions moved to the line it stands on
 %% there and, on its first line, to the column it begins in, and its lines
@@ -1958,12 +1885,8 @@ moved_column(_, Column, _) -> Column.
 %% written; a module with no source there is loaded from its compiled
 %% form, on the load path. Afterwards it is in scope by its qualified
 %% name, as every loaded module is (§4.2). A module the session has loaded
-%% is refused: loading it over itself would end what runs its previous
-%% version, which `:reload` alone does, and says so.
+%% is refused: `:reload` alone brings another version of it.
 -spec load(#session{}, binary()) -> {'Left', binary()} | {'Right', {#session{}, binary()}}.
-load(#session{is_node = true}, _Text) ->
-    %% report §11.2: a node's code is its build's until MVP 3.1
-    {'Left', <<":load is not here yet in a shell that is a node: it arrives in MVP 3.1">>};
 load(Session, Text) ->
     without_line_feed(load_named(Session, Text)).
 
@@ -2024,9 +1947,15 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
         none ->
             case compiled_of(Session, Namespace) of
                 {ok, File, Beam, Hash} ->
-                    with_needed(Session, [{Namespace, Beam, Hash}],
-                                <<Name/binary, ", from ",
-                                  (unicode:characters_to_binary(relative(File, Session)))/binary>>);
+                    case compiled_unit(Namespace, File, Beam, Hash, Session) of
+                        {ok, Compiled} ->
+                            with_needed(Session, [Compiled],
+                                        <<Name/binary, ", from ",
+                                          (unicode:characters_to_binary(
+                                             relative(File, Session)))/binary>>);
+                        {error, Refusal} ->
+                            {'Left', <<Refusal/binary, "\n">>}
+                    end;
                 {error, Refusal} ->
                     {'Left', <<Refusal/binary, "\n">>};
                 none ->
@@ -2081,11 +2010,11 @@ with_needed(Session, CompiledModules, Answer) ->
 %% library, than the session holds; none, or the refusal.
 refused_compiled(Session, All) ->
     StdlibHash = ern_build:stdlib_hash(),
-    Interfaces = [Interface || {_, Beam, _} <- All,
+    Interfaces = [Interface || #compiled{beam = Beam} <- All,
                                {ok, #{interface := Interface}} <- [ern_interface:read(Beam)]]
         ++ Session#session.interfaces ++ ern_prelude:stdlib_interfaces(),
     Refusals = lists:append([compiled_refusals(Namespace, Beam, Interfaces, StdlibHash)
-                             || {Namespace, Beam, _} <- All]),
+                             || #compiled{namespace = Namespace, beam = Beam} <- All]),
     case Refusals of
         [] -> none;
         [First | _] -> First
@@ -2108,80 +2037,105 @@ compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
 held_interfaces(Namespace, Interfaces) ->
     [Interface || #interface{namespace = Found} = Interface <- Interfaces, Found =:= Namespace].
 
-%% The modules installed and their bindings evaluated, and `:load`'s answer.
+%% Report §11.2: the modules installed and their bindings evaluated, and
+%% `:load`'s answer; a binding that faults leaves nothing loaded.
 installed(Session, All, Answer) ->
+    Brought = brought(All),
     Session1 = install(Session, All),
     case initialize(in_order(All)) of
         ok ->
+            initialized(All),
             {'Right', {keep_session(Session1), Answer}};
-        {fault, Site, Cause} ->
-            withdraw_all(All),
-            {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
+        {fault, _, Site, Cause, _} ->
+            Killed = withdraw(Brought, All),
+            {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded",
+                       (killed_text(Killed))/binary, "\n">>}
     end.
 
 %% Report §8.5, §11.2: the modules in the order their bindings are
-%% evaluated, each after those it depends on.
+%% evaluated, each after those it depends on, by the units they are.
 in_order(CompiledModules) ->
-    ErlangModules = [ern_namespace:erlang_module(Namespace)
-                     || {Namespace, _, _} <- CompiledModules],
-    ByErlangModule = maps:from_list(lists:zip(ErlangModules, CompiledModules)),
-    [maps:get(ErlangModule, ByErlangModule) || ErlangModule <- ern_rt:ordered(ErlangModules)].
+    ByUnit = maps:from_list([{Unit, Compiled}
+                             || #compiled{unit = Unit} = Compiled <- CompiledModules]),
+    [maps:get(Unit, ByUnit)
+     || Unit <- ern_rt:ordered([Unit || #compiled{unit = Unit} <- CompiledModules])].
 
-%% Report §11.2: the modules a failed `:load` or `:reload` had loaded, each
-%% gone with the processes its bindings started, which end as a reload ends
-%% those of a previous version, and with the values its bindings stored
-%% (§8.5), so that the session is as it was.
-withdraw_all(CompiledModules) ->
-    [withdraw(Namespace, Beam) || {Namespace, Beam, _} <- CompiledModules],
-    ok.
+%% Report §8.7: the units a load brought to the node, those it held no
+%% code of before; a unit the node held, of its build, is the node's.
+brought(CompiledModules) ->
+    [Compiled || #compiled{unit = Unit} = Compiled <- CompiledModules, is_free(Unit)].
 
-withdraw(Namespace, Beam) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    code:delete(ErlangModule),
-    ern_code:unloaded(ErlangModule),
-    end_unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)]),
-    code:purge(ErlangModule),
-    {ok, #{interface := Interface}} = ern_interface:read(Beam),
-    lists:foreach(fun persistent_term:erase/1, let_keys(ErlangModule, Interface)).
+%% Report §11.2: what a refused `:load` or `:reload` brought goes, with the
+%% values its bindings stored (§8.5), so that the session is as it was: each
+%% unit it brought is deleted, each process that runs its code killed
+%% (§6.9) and waited for, and the unit then purged. A unit the node held
+%% before is the node's, and keeps its code. Its keys are read while its
+%% code is current. The spawn sites of the processes killed.
+withdraw(Brought, All) ->
+    Keys = [Key || #compiled{unit = Unit} <- All, {_, Key} <- maps:values(unit_bindings(Unit))],
+    Units = [Unit || #compiled{unit = Unit} <- Brought],
+    lists:foreach(fun(Unit) ->
+                      code:delete(Unit),
+                      ern_code:unloaded(Unit)
+                  end, Units),
+    Running = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
+                              lists:any(fun(Unit) -> erlang:check_process_code(Pid, Unit) end,
+                                        Units)],
+    killed([Pid || {Pid, _} <- Running]),
+    lists:foreach(fun code:purge/1, Units),
+    lists:foreach(fun persistent_term:erase/1, Keys),
+    [Site || {_, Site} <- Running].
 
-%% The keys §8.5's store holds a module's top-level lets under, as its
-%% interface lists them.
-let_keys(ErlangModule, #interface{lets = Lets}) ->
-    [{ErlangModule, ern_emitter:function_name(undefined, lists:last(QualifiedName))}
-     || QualifiedName <- Lets].
-
-%% Report §7.3, §11.2: each process ends with its code unloaded, and is
-%% waited for before its code is purged, since the purge kills one that has
-%% not yet taken the signal, which would end `Killed`.
-end_unloaded(Pids) ->
+%% Report §6.9: each process killed, and waited for before its code is
+%% purged, since the purge kills one that has not yet taken the signal
+%% itself.
+killed(Pids) ->
     MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
-    lists:foreach(fun(Pid) -> exit(Pid, {ern, code_unloaded}) end, Pids),
+    lists:foreach(fun ern_rt:kill/1, Pids),
     lists:foreach(fun(MonitorRef) -> receive {'DOWN', MonitorRef, process, _, _} -> ok end end,
                   MonitorRefs).
 
+%% Report §11.2: the refusal names the processes it killed by their spawn
+%% sites.
+killed_text([]) ->
+    <<>>;
+killed_text(Sites) ->
+    unicode:characters_to_binary([", and ", processes_at(Sites), counted(Sites, " was", " were"),
+                                  " killed"]).
+
+%% Report §8.5, §8.7: a unit's top-level bindings, each by its qualified
+%% name, with its hash and the key its value is kept under, as its
+%% '$code'/0 lists them.
+unit_bindings(Unit) ->
+    case erlang:function_exported(Unit, '$code', 0) of
+        true -> maps:from_list([{QualifiedName, {Hash, Key}}
+                                || {QualifiedName, {binding, Hash, Key}} <- Unit:'$code'()]);
+        false -> #{}
+    end.
+
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
-%% first, each module's evaluated in a process of the shell's own, whose
-%% fault is this answer's and not a fault report's; ok, or the module whose
-%% binding faulted and its cause.
+%% first, each module's evaluated in a fresh process of the shell's own, at
+%% `Never`, while the session waits; its fault is this answer's and not a
+%% fault report's. ok, or the module whose binding faulted, its site, its
+%% cause and the modules after it.
 initialize([]) ->
     ok;
-initialize([{Namespace, _, _} | Rest]) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    case erlang:function_exported(ErlangModule, '$init', 0) of
-        true -> initialize(Namespace, ErlangModule, Rest);
+initialize([#compiled{unit = Unit} = Compiled | Rest]) ->
+    case erlang:function_exported(Unit, '$init', 0) of
+        true -> initialize(Compiled, Rest);
         false -> initialize(Rest)
     end.
 
-%% A binding's fault is :load's to report, so the process catches it and
+%% A binding's fault is the load's to report, so the process catches it and
 %% ends without one, and no subscriber of Process.faults hears of it twice;
 %% a kill, which nothing catches, is seen by the monitor. The fault is
 %% named by the binding's site, which '$init' gave the process (report
 %% §8.5, §11.2), and a kill by the module.
-initialize(Namespace, ErlangModule, Rest) ->
+initialize(#compiled{namespace = Namespace, unit = Unit} = Compiled, Rest) ->
     Self = self(),
     Ref = make_ref(),
     Init = fun() ->
-               Result = try ErlangModule:'$init'() of
+               Result = try Unit:'$init'() of
                             _ -> ok
                         catch
                             Class:Error:Stack ->
@@ -2196,22 +2150,21 @@ initialize(Namespace, ErlangModule, Rest) ->
         {Ref, ok} ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
             initialize(Rest);
-        {Ref, {fault, _, _} = Fault} ->
+        {Ref, {fault, Site, Cause}} ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
-            Fault;
+            {fault, Compiled, Site, Cause, Rest};
         {Ref, {'Down', _, Reason, _}} ->
-            {fault, unicode:characters_to_binary(ern_namespace:text(Namespace)),
+            {fault, Compiled, unicode:characters_to_binary(ern_namespace:text(Namespace)),
              case Reason of
                  {'Fault', Cause} -> Cause;
                  Other -> atom_to_binary(Other)
-             end}
+             end, Rest}
     end.
 
-%% Report §11.2: a reloaded module's binding that faulted, which with the
-%% bindings after it keeps what the previous version gave them.
-kept_values_line(Site, Cause) ->
-    <<(binding_fault(Site, Cause))/binary, "; it and the bindings after it keep the values of the"
-      " previous version">>.
+%% Report §8.7: the units whose bindings a load evaluated, so that a peer's
+%% spawn finds their values, as it finds a run's.
+initialized(CompiledModules) ->
+    lists:foreach(fun(#compiled{unit = Unit}) -> ern_rt:initialized(Unit) end, CompiledModules).
 
 binding_fault(Site, Cause) ->
     <<Site/binary, " faulted: ", (ern_show:controls(Cause, line))/binary>>.
@@ -2220,9 +2173,9 @@ binding_fault(Site, Cause) ->
 %% each found as the runner finds it, by namespace on the load path, and
 %% loaded before them, the modules it uses first.
 needed(Session, CompiledModules) ->
-    Compiled = [Namespace || {Namespace, _, _} <- CompiledModules],
-    lists:foldl(fun({_, Beam, _}, Found) -> needed(Session, Beam, Found, Compiled) end, {ok, []},
-                CompiledModules).
+    Compiled = [Namespace || #compiled{namespace = Namespace} <- CompiledModules],
+    lists:foldl(fun(#compiled{beam = Beam}, Found) -> needed(Session, Beam, Found, Compiled) end,
+                {ok, []}, CompiledModules).
 
 %% What one module uses that neither the session nor the modules compiled
 %% with it, Compiled, provide.
@@ -2234,36 +2187,153 @@ needed(#session{source_hashes = Loaded} = Session, Beam, {ok, _} = Found, Compil
                         Error;
                    ({Namespace, _}, {ok, Acc}) ->
                         case is_map_key(Namespace, Loaded) orelse lists:member(Namespace, Compiled)
-                             orelse lists:keymember(Namespace, 1, Acc) of
+                             orelse lists:keymember(Namespace, #compiled.namespace, Acc) of
                             true -> {ok, Acc};
                             false -> needed_one(Session, Namespace, Acc, Compiled)
                         end
                 end, Found, DependencyHashes).
 
 needed_one(Session, Namespace, Acc, Compiled) ->
+    Refused = fun(Refusal) -> {error, <<Refusal/binary, "\n">>} end,
     case compiled_of(Session, Namespace) of
-        {ok, _, Beam, Hash} ->
-            case needed(Session, Beam, {ok, Acc}, Compiled) of
-                {ok, Acc1} -> {ok, Acc1 ++ [{Namespace, Beam, Hash}]};
-                Error -> Error
+        {ok, File, Beam, Hash} ->
+            case compiled_unit(Namespace, File, Beam, Hash, Session) of
+                {ok, Unit} ->
+                    case needed(Session, Beam, {ok, Acc}, Compiled) of
+                        {ok, Acc1} -> {ok, Acc1 ++ [Unit]};
+                        Error -> Error
+                    end;
+                {error, Refusal} ->
+                    Refused(Refusal)
             end;
         {error, Refusal} ->
-            {error, <<Refusal/binary, "\n">>};
+            Refused(Refusal);
         none ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             {error, <<"no module ", Name/binary, " on the load path\n">>}
     end.
 
+%%
+%% Units, report §8.7, §11.2
+%%
+
+%% Report §8.7, §11.2: a module loaded from its compiled form is the unit
+%% of its Erlang name, one the node holds no code of, or holds with this
+%% very code, as a node holds its build's. A unit of that name the node
+%% holds with other code would need a unit of another name, which only a
+%% module's source makes until MVP 3.2.
+compiled_unit(Namespace, File, Beam, Hash, Session) ->
+    Unit = ern_namespace:erlang_module(Namespace),
+    case is_free(Unit) orelse is_held(Unit, Beam) of
+        true ->
+            {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
+        false ->
+            Name = ern_namespace:text(Namespace),
+            {error, unicode:characters_to_binary(
+                      [Name, "'s compiled form, ", relative(File, Session), ", is not the ", Name,
+                       " this node holds; a compiled module loaded beside another of its name"
+                       " arrives in MVP 3.2"])}
+    end.
+
+%% Report §8.7, §11.2: a module compiled from its source as a unit no other
+%% code has taken, since a unit never takes a second version. A module the
+%% session has loaded is a unit of a name of its own (fresh_unit/1); any
+%% other the unit of its Erlang name where the node holds no code of it, or
+%% holds this very code, as a node holds its build's, and else one of a name
+%% of its own.
+compile_unit(#session{source_hashes = Loaded} = Session, Namespace, File, Interfaces, Units) ->
+    Plain = ern_namespace:erlang_module(Namespace),
+    case {is_map_key(Namespace, Loaded), is_free(Plain)} of
+        {true, _} ->
+            fresh_compiled(Session, Namespace, File, Interfaces, Units);
+        {false, true} ->
+            compiled_as(Session, Namespace, Plain, File, Interfaces, Units);
+        {false, false} ->
+            case compiled_as(Session, Namespace, Plain, File, Interfaces, Units) of
+                {ok, #compiled{beam = Beam}} = Compiled ->
+                    case is_held(Plain, Beam) of
+                        true -> Compiled;
+                        false -> fresh_compiled(Session, Namespace, File, Interfaces, Units)
+                    end;
+                Error ->
+                    Error
+            end
+    end.
+
+fresh_compiled(Session, Namespace, File, Interfaces, Units) ->
+    case fresh_unit(Namespace) of
+        {ok, Unit} -> compiled_as(Session, Namespace, Unit, File, Interfaces, Units);
+        {error, _} = Error -> Error
+    end.
+
+%% A module compiled from File as Unit, against Interfaces, calling each
+%% module of the session by the unit Units names.
+compiled_as(Session, Namespace, Unit, File, Interfaces, Units) ->
+    case compile_source(Session, File, Interfaces, with_unit(Namespace, Unit, Units)) of
+        {ok, _, Beam, Hash} ->
+            {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
+        {error, _} = Error ->
+            Error
+    end.
+
+%% Report §11.2: a unit of a name of its own, for a module whose Erlang name
+%% the node holds code of: the name and `$` and a number, `ern@counter$2`,
+%% the first the host holds no code of. The name is measured against the
+%% host's limit before it is made an atom (§11.1).
+fresh_unit(Namespace) ->
+    fresh_unit(Namespace, 2).
+
+fresh_unit(Namespace, Number) ->
+    Text = ern_namespace:erlang_module_text(Namespace) ++ "$" ++ integer_to_list(Number),
+    case length(Text) =< ern_namespace:host_name_limit() of
+        true ->
+            Unit = list_to_atom(Text),
+            case is_free(Unit) of
+                true -> {ok, Unit};
+                false -> fresh_unit(Namespace, Number + 1)
+            end;
+        false ->
+            What = ["the name of ", ern_namespace:text(Namespace), "'s new unit, `", Text, "`,"],
+            {error, unicode:characters_to_binary(
+                      [ern_namespace:host_name_text(lists:flatten(What), Text), "\n"])}
+    end.
+
+%% Whether the host holds no code of a unit's name, current or old.
+is_free(Unit) ->
+    not erlang:module_loaded(Unit) andalso not erlang:check_old_code(Unit).
+
+%% Whether the host holds this very code as the unit's current code.
+is_held(Unit, Beam) ->
+    {ok, {_, Md5}} = beam_lib:md5(Beam),
+    erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5.
+
+%% The unit map with a module's unit, which names it only where it is not
+%% the module's Erlang name.
+with_unit(Namespace, Unit, Units) ->
+    case ern_namespace:erlang_module(Namespace) of
+        Unit -> maps:remove(Namespace, Units);
+        _ -> Units#{Namespace => Unit}
+    end.
+
+%% The unit a namespace of the session runs as: its current version's, or
+%% for a previous version's namespace, that version's (report §11.2).
+unit(#session{units = Units}, Namespace) ->
+    case Units of
+        #{Namespace := Unit} -> Unit;
+        _ -> ern_namespace:erlang_module(Namespace)
+    end.
+
+%%
+%% Reloading, report §11.2
+%%
+
 %% Report §11.2: every module the session loaded whose source has changed,
-%% compiled and loaded again. A process still in the previous version, and
-%% a binding that holds a function of it, keep it; the reload that needs
-%% that version ends them, and the one before names them. Every changed
-%% module is compiled before any is loaded, and where one does not compile
-%% none is, so the session goes on with every module as it was.
+%% compiled and loaded as a version of its own, a unit beside the previous
+%% version's, which a process still running it and a binding that holds a
+%% function of it keep. Every changed module is compiled before any is
+%% loaded, and where one does not compile none is, so the session goes on
+%% with every module as it was.
 -spec reload(#session{}) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
-reload(#session{is_node = true}) ->
-    %% report §11.2: a node's code is its build's until MVP 3.1
-    {'Left', <<":reload is not here yet in a shell that is a node: it arrives in MVP 3.1">>};
 reload(Session) ->
     without_line_feed(reload_changed(Session)).
 
@@ -2285,149 +2355,83 @@ reload_changed(#session{source_hashes = SourceHashes} = Session) ->
             end
     end.
 
-%% Report §11.2: the changed modules loaded again, after what they use that
-%% the session had not loaded, which is loaded as `:load` loads it.
-reloaded(Session, Needed, Compiled, SourcelessLines) ->
-    Session1 = install(Session, Needed),
-    case initialize(Needed) of
+%% Report §11.2: the modules loaded, what the changed ones have come to
+%% use that the session had not loaded among them, and their bindings
+%% evaluated, dependencies first. Where a binding of a module loaded for the
+%% first time faults, or is not evaluated since one before it faulted,
+%% nothing is reloaded; where one of a new version faults, it and the
+%% bindings after it keep the previous version's values, each where the
+%% previous version has it of one hash.
+reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, SourcelessLines) ->
+    All = Needed ++ Compiled,
+    Brought = brought(All),
+    Session1 = install(Session, All),
+    IsFirst = fun(#compiled{namespace = Namespace}) -> not is_map_key(Namespace, Loaded) end,
+    case initialize(in_order(All)) of
         ok ->
-            {Session2, Lines} = lists:foldl(fun reload_one/2, {Session1, []}, Compiled),
-            Faulted = case initialize(in_order(Compiled)) of
-                          ok -> [];
-                          {fault, Site, Cause} -> [kept_values_line(Site, Cause)]
-                      end,
-            {Session3, Forgotten} = forget_previous(Session, Session2, Compiled),
-            {'Right', {keep_session(Session3),
-                       lists:reverse(Lines) ++ Forgotten ++ Faulted ++ SourcelessLines}};
-        {fault, Site, Cause} ->
-            withdraw_all(Needed),
-            {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded\n">>}
+            reload_done(Session, Session1, {All, Compiled}, [], SourcelessLines);
+        {fault, Faulted, Site, Cause, Rest} ->
+            case lists:any(IsFirst, [Faulted | Rest]) of
+                false ->
+                    lists:foreach(fun(Kept) -> kept_values(Session, Kept) end, [Faulted | Rest]),
+                    reload_done(Session, Session1, {All, Compiled},
+                                [kept_values_line(Site, Cause)], SourcelessLines);
+                true ->
+                    Killed = withdraw(Brought, All),
+                    {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded",
+                               (killed_text(Killed))/binary, "\n">>}
+            end
     end.
 
+%% Report §11.2: the reload's answer: a line for each module it compiled,
+%% the bindings it leaves of a previous version, a binding's fault, and the
+%% modules without a source; and the session with each version counted.
+%% Every unit it loaded, All, was evaluated; Compiled were compiled from
+%% their sources.
+reload_done(Before, After, {All, Compiled}, Faulted, SourcelessLines) ->
+    Lines = [compiled_line(Before, Namespace) || #compiled{namespace = Namespace} <- Compiled],
+    {Versioned, Previous} = versioned(Before, After, Compiled),
+    initialized(All),
+    {'Right', {keep_session(Versioned),
+               Lines ++ previous_lines(Versioned, Previous) ++ Faulted ++ SourcelessLines}}.
 
-%% Report §11.2: the session's bindings whose type names a type whose
-%% declaration the reload changed, an abstract type of a module compiled
-%% again or a type of the session that names one of these among them,
-%% were checked against the previous version, which the session does not
-%% tell from the current one: the reload forgets them and says so,
-%% `Counter.Msg changed: the binding c was checked against its previous
-%% version, which MVP 3.1 tells from the current one; the reload forgot
-%% it`; an input that names one afterwards is answered the same
-%% (previous_hinted/2). The session before the reload holds the previous
-%% interfaces, the session after it the current ones.
-forget_previous(Before, #session{scope = Scope} = After, Compiled) ->
-    Recompiled = [Namespace || {Namespace, _, _} <- Compiled,
-                               is_map_key(Namespace, Before#session.source_hashes)],
-    Changed = changed_types(Before, After, Recompiled),
-    Values = maps:get(values, Scope, #{}),
-    Forgotten = [{Key, Root}
-                 || {Key, QualifiedName} <- lists:sort(maps:to_list(Values)),
-                    {ok, #scheme{type = Type}} <- [scheme(QualifiedName, After)],
-                    Root <- [first_changed(type_names(Type), Changed)],
-                    Root =/= none],
-    case Forgotten of
-        [] ->
-            {After, []};
-        _ ->
-            Previous = maps:merge(maps:get(previous, Scope, #{}), maps:from_list(Forgotten)),
-            Scope1 = Scope#{values => maps:without([Key || {Key, _} <- Forgotten], Values),
-                            previous => Previous},
-            {collected(After#session{scope = Scope1}), forgotten_lines(Forgotten)}
-    end.
+%% Report §11.2: a module the session had loaded, compiled again, and one it
+%% had not, which a changed module has come to use, compiled from its
+%% source as `:load` compiles it.
+compiled_line(#session{source_hashes = Loaded}, Namespace) when is_map_key(Namespace, Loaded) ->
+    unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled again"]);
+compiled_line(Session, Namespace) ->
+    {ok, File} = source_of(Session, Namespace),
+    unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled from ",
+                                  relative(File, Session)]).
 
-%% The types whose declaration the reload changed, each compared by the
-%% hash of itself alone in §11.1's canonical form, an abstract type of a
-%% module compiled again counted as changed since its representation is
-%% not in its interface; then every type of the session, a loaded
-%% module's, an input's or a holder's, that names one of them, to a fixed
-%% point. Each to the changed type it names, itself for the first kind.
-changed_types(#session{interfaces = Old}, #session{interfaces = New}, Recompiled) ->
-    Changed = maps:from_list(
-                [{QualifiedName, QualifiedName}
-                 || Namespace <- Recompiled,
-                    #interface{types = OldTypes} <- [interface_of(Namespace, Old)],
-                    #interface{types = NewTypes} <- [interface_of(Namespace, New)],
-                    {QualifiedName, OldInfo} <- maps:to_list(OldTypes),
-                    type_changed(QualifiedName, OldInfo, maps:get(QualifiedName, NewTypes, none))]),
-    dependents(Changed, [{QualifiedName, TypeInfo}
-                         || #interface{types = Types} <- New,
-                            {QualifiedName, TypeInfo} <- maps:to_list(Types)]).
+%% Report §11.2: a reloaded module's binding that faulted, which with the
+%% bindings after it keeps what the previous version gave it.
+kept_values_line(Site, Cause) ->
+    <<(binding_fault(Site, Cause))/binary, "; it and the bindings after it keep the values of the"
+      " previous version">>.
 
-interface_of(Namespace, Interfaces) ->
-    lists:last([Interface || #interface{namespace = Found} = Interface <- Interfaces,
-                             Found =:= Namespace]).
-
-type_changed(_, _, none) -> true;
-type_changed(_, #type_info{abstract = true}, _) -> true;
-type_changed(_, _, #type_info{abstract = true}) -> true;
-type_changed(QualifiedName, OldInfo, NewInfo) ->
-    type_hash(QualifiedName, OldInfo) =/= type_hash(QualifiedName, NewInfo).
-
-type_hash(QualifiedName, TypeInfo) ->
-    ern_interface:hash(#interface{namespace = lists:droplast(QualifiedName),
-                                  types = #{QualifiedName => TypeInfo}}).
-
-dependents(Changed, Types) ->
-    Mentions = fun(#constructor_info{scheme = #scheme{type = Type}}) ->
-                   first_changed(type_names(Type), Changed)
-               end,
-    More = [{QualifiedName, Root}
-            || {QualifiedName, #type_info{constructors = Constructors}} <- Types,
-               not is_map_key(QualifiedName, Changed),
-               Root <- [first_found([Mentions(Constructor) || Constructor <- Constructors])],
-               Root =/= none],
-    case More of
-        [] -> Changed;
-        _ -> dependents(maps:merge(Changed, maps:from_list(More)), Types)
-    end.
-
-first_found(Roots) ->
-    case [Root || Root <- Roots, Root =/= none] of
-        [] -> none;
-        [Root | _] -> Root
-    end.
-
-first_changed(Names, Changed) ->
-    first_found([maps:get(Name, Changed, none) || Name <- Names]).
-
-%% The declared types a type is made of, each by its qualified name.
-type_names({tcon, QualifiedName, Args}) ->
-    [QualifiedName | lists:append([type_names(Arg) || Arg <- Args])];
-type_names({ttuple, Types}) ->
-    lists:append([type_names(Type) || Type <- Types]);
-type_names({tfn, Args, Effect, Result}) ->
-    lists:append([type_names(Type) || Type <- Args ++ [Result]]) ++ effect_names(Effect);
-type_names({tvar, _}) ->
-    [].
-
-effect_names(pure) -> [];
-effect_names(Type) -> type_names(Type).
-
-forgotten_lines(Forgotten) ->
-    [unicode:characters_to_binary(
-       [ern_namespace:text(Root), " changed: ", bindings_named(Names),
-        counted(Names, " was", " were"),
-        " checked against its previous version, which MVP 3.1 tells from the current one;"
-        " the reload forgot ", counted(Names, "it", "them")])
-     || Root <- lists:usort([Found || {_, Found} <- Forgotten]),
-        Names <- [[name_text(Key) || {Key, Found} <- Forgotten, Found =:= Root]]].
-
-%% Report §11.2: a loaded module whose source the source root does not
-%% hold is named, since `:reload` cannot compile it again.
-sourceless(_Session, []) ->
-    [];
-sourceless(#session{source_root = SourceRoot}, Names) ->
-    Text = lists:join(", ", [ern_namespace:text(Namespace) || Namespace <- Names]),
-    [unicode:characters_to_binary(["the source root ", ern_build:shown(SourceRoot),
-                                   " holds no source of ", Text])].
+%% Report §11.2, §8.5: each binding of a new version the reload's fault left
+%% without a value takes the value the previous version gave it, where the
+%% previous version has the binding of one hash, which writes its type out,
+%% so that the value is of the binding's type; any other stays without one.
+kept_values(Before, #compiled{namespace = Namespace, unit = Unit}) ->
+    Previous = unit_bindings(unit(Before, Namespace)),
+    Missing = make_ref(),
+    [persistent_term:put(Key, Value)
+     || {QualifiedName, {Hash, Key}} <- maps:to_list(unit_bindings(Unit)),
+        persistent_term:get(Key, Missing) =:= Missing,
+        #{QualifiedName := {PreviousHash, PreviousKey}} <- [Previous], PreviousHash =:= Hash,
+        Value <- [persistent_term:get(PreviousKey, Missing)], Value =/= Missing],
+    ok.
 
 %% Report §11.2: the changed modules compiled in the order they use one
 %% another, each against the session's modules and those compiled before
 %% it, with each they have come to use that the session has not loaded and
 %% whose source the source root holds, as `:load` compiles it; and, while
-%% one's interface differs from the one the session holds, every loaded
-%% module that uses it compiled again with them, from its source. The
-%% modules compiled, with what they use that the session has not loaded
+%% one changes what a loaded module uses, that module compiled again with
+%% them, from its source, as `ern build` would compile it again (§11.1).
+%% The modules compiled, with what they use that the session has not loaded
 %% and the source root does not hold; or why they cannot all be.
 compile_all(Session, ChangedSources) ->
     case compile_in_order(Session, with_sources(Session, ChangedSources, [])) of
@@ -2447,7 +2451,7 @@ compile_all(Session, ChangedSources) ->
                         SourcelessUsers ->
                             {error, [unicode:characters_to_binary(
                                        [ern_namespace:text(Namespace),
-                                        " uses a module whose interface changed,"
+                                        " uses what the reload changes,"
                                         " and the source root holds no source of it\n"])
                                      || Namespace <- SourcelessUsers]}
                     end
@@ -2457,18 +2461,17 @@ compile_all(Session, ChangedSources) ->
     end.
 
 %% Each module compiled, a module before those that use it, against the
-%% interfaces of the session and of the modules compiled before it.
-compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
+%% interfaces of the session and of the modules compiled before it, and as
+%% the unit compile_unit/5 gives it, which those after it call.
+compile_in_order(#session{source_root = SourceRoot, units = Units} = Session, Set) ->
     try ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
                                  || {_, File} <- Set], SourceRoot, load_path(Session)) of
         Ordered ->
-            Compile = fun(Module, {Interfaces, Failed}) ->
-                          compiled_in_order(Session, Module, Interfaces, Failed)
-                      end,
-            {Compiled, _} = lists:mapfoldl(Compile, {loaded_interfaces(Session), []}, Ordered),
+            Compile = fun(Module, Acc) -> compiled_in_order(Session, Module, Acc) end,
+            {Compiled, _} = lists:mapfoldl(Compile, {loaded_interfaces(Session), Units, []},
+                                           Ordered),
             case [Text || {_, {error, Text}} <- Compiled] of
-                [] ->
-                    {ok, [{Namespace, Beam, Hash} || {Namespace, {ok, _, Beam, Hash}} <- Compiled]};
+                [] -> {ok, [Module || {_, {ok, Module}} <- Compiled]};
                 Texts -> {error, Texts}
             end
     catch
@@ -2485,53 +2488,69 @@ compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
 %% uses did, and said not to be loaded where one did not; the build's
 %% advice to compile that one first does not apply in the shell.
 compiled_in_order(Session, #build_module{namespace = Namespace, file = File,
-                                         dependencies = Dependencies}, Interfaces, Failed) ->
+                                         dependencies = Dependencies},
+                  {Interfaces, Units, Failed}) ->
     case [Dependency || Dependency <- Dependencies, lists:member(Dependency, Failed)] of
         [Dependency | _] ->
             Text = unicode:characters_to_binary([ern_namespace:text(Namespace),
                                                  " is not loaded, since ",
                                                  ern_namespace:text(Dependency),
                                                  " does not compile\n"]),
-            {{Namespace, {error, Text}}, {Interfaces, [Namespace | Failed]}};
+            {{Namespace, {error, Text}}, {Interfaces, Units, [Namespace | Failed]}};
         [] ->
-            case compile_source(Session, File, Interfaces) of
-                {ok, _, Beam, _} = Ok ->
+            case compile_unit(Session, Namespace, File, Interfaces, Units) of
+                {ok, #compiled{unit = Unit, beam = Beam}} = Ok ->
                     {ok, #{interface := Interface}} = ern_interface:read(Beam),
-                    {{Namespace, Ok}, {Interfaces#{Namespace => Interface}, Failed}};
+                    {{Namespace, Ok}, {Interfaces#{Namespace => Interface},
+                                       with_unit(Namespace, Unit, Units), Failed}};
                 Error ->
-                    {{Namespace, Error}, {Interfaces, [Namespace | Failed]}}
+                    {{Namespace, Error}, {Interfaces, Units, [Namespace | Failed]}}
             end
     end.
 
-%% The loaded modules, outside those compiled, that use a compiled module
-%% whose interface is not the one the session holds.
+%% Report §11.2, §11.1: the loaded modules, outside those compiled, that
+%% `ern build` would compile again for them: one that uses a compiled
+%% module whose interface is not the one the session holds, or whose forms
+%% reference a definition of one whose hash the compiled module changed.
 stale_users(#session{source_hashes = Loaded} = Session, Set, CompiledModules) ->
     LoadedInterfaces = loaded_interfaces(Session),
-    InterfaceChanged = [Namespace || {Namespace, Beam, _} <- CompiledModules,
-                            {ok, #{interface := Interface}} <- [ern_interface:read(Beam)],
+    Compiled = [{Namespace, Interface}
+                || #compiled{namespace = Namespace, beam = Beam} <- CompiledModules,
+                   {ok, #{interface := Interface}} <- [ern_interface:read(Beam)]],
+    InterfaceChanged = [Namespace || {Namespace, Interface} <- Compiled,
                             not is_map_key(Namespace, LoadedInterfaces)
                                 orelse ern_interface:hash(maps:get(Namespace, LoadedInterfaces))
                                        =/= ern_interface:hash(Interface)],
-    UsesChanged = fun(Namespace) ->
-                      lists:any(fun({Dependency, _}) ->
-                                        lists:member(Dependency, InterfaceChanged)
-                                end, dependency_hashes(Session, Namespace))
-                  end,
+    Identities = maps:from_list([{QualifiedName, Hash}
+                                 || {_, #interface{identities = Held}} <- Compiled,
+                                    {QualifiedName, Hash} <- maps:to_list(Held)]),
+    IsChanged = fun({QualifiedName, Hash}) ->
+                        lists:any(fun({Namespace, _}) -> lists:prefix(Namespace, QualifiedName)
+                                  end, Compiled)
+                            andalso maps:get(QualifiedName, Identities, none) =/= Hash
+                end,
+    IsStale = fun(Namespace) ->
+                      #{deps := DependencyHashes} = Recorded = recorded(Session, Namespace),
+                      References = maps:get(references, Recorded, []),
+                      lists:any(fun({Dependency, _}) -> lists:member(Dependency, InterfaceChanged)
+                                end, DependencyHashes)
+                          orelse lists:any(IsChanged, References)
+              end,
     [Namespace || Namespace <- lists:sort(maps:keys(Loaded)),
-                  not lists:keymember(Namespace, 1, Set), UsesChanged(Namespace)].
+                  not lists:keymember(Namespace, 1, Set), IsStale(Namespace)].
 
-%% The dependencies a loaded module was compiled against, with their
-%% interfaces' hashes, as its compiled form records them: the session's, or
-%% the file it was loaded from.
-dependency_hashes(#session{beams = Beams}, Namespace) ->
+%% What a loaded module's compiled form records (§11.1), the dependencies'
+%% interfaces' hashes and the definitions its forms reference among it: the
+%% session's, or the file it was loaded from.
+recorded(#session{beams = Beams} = Session, Namespace) ->
     Beam = case Beams of
                #{Namespace := Found} -> Found;
                _ ->
-                   {ok, Found} = file:read_file(code:which(ern_namespace:erlang_module(Namespace))),
+                   {ok, Found} = file:read_file(code:which(unit(Session, Namespace))),
                    Found
            end,
-    {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
-    DependencyHashes.
+    {ok, Chunk} = ern_interface:read(Beam),
+    Chunk.
 
 %% The interfaces of the modules the session has loaded, by namespace.
 loaded_interfaces(#session{interfaces = Interfaces, source_hashes = SourceHashes}) ->
@@ -2539,71 +2558,194 @@ loaded_interfaces(#session{interfaces = Interfaces, source_hashes = SourceHashes
                     || #interface{namespace = Namespace} = Interface <- Interfaces,
                        is_map_key(Namespace, SourceHashes)]).
 
-%% Report §11.2: a module the session had loaded, loaded again, and one it
-%% had not, which a changed module has come to use, loaded as `:load`
-%% loads it.
-reload_one({Namespace, Beam, Hash}, {#session{source_hashes = SourceHashes} = Session, Lines})
-  when not is_map_key(Namespace, SourceHashes) ->
-    {ok, File} = source_of(Session, Namespace),
-    Line = unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled from ",
-                                         relative(File, Session)]),
-    {install(Session, Namespace, Beam, Hash), [Line | Lines]};
-reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
-    {Ended, Session1} = case erlang:check_old_code(ErlangModule) of
-                            true -> end_previous(Session, ErlangModule);
-                            false -> {{[], []}, Session}
-                        end,
-    code:purge(ErlangModule),
-    dropped_lets(Session1, Namespace, Beam),
-    Session2 = install(Session1, Namespace, Beam, Hash),
-    Waiting = in_previous(Session2, ErlangModule),
-    {Session2, waiting_line(Name, Waiting) ++ ended_lines(Name, Ended)
-               ++ [<<Name/binary, ", compiled again">> | Lines]}.
+%% Each module installed as its unit, loaded where the node does not hold
+%% it already, and in scope by its namespace in place of its previous
+%% version.
+install(Session, CompiledModules) ->
+    lists:foldl(fun install_one/2, Session, CompiledModules).
 
-%% Report §8.5, §11.2: the values of the lets the version just purged
-%% declared and the one after it no longer does are erased, since nothing
-%% reads them now; those the version being replaced declares and the new
-%% one does not are kept until the reload that purges it, since a process
-%% or a binding still in it may read them.
-dropped_lets(#session{interfaces = Interfaces}, Namespace, Beam) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    lists:foreach(fun persistent_term:erase/1, kept({dropped_lets, ErlangModule}, [])),
-    [Replaced] = [Interface || #interface{namespace = Found} = Interface <- Interfaces,
-                               Found =:= Namespace],
-    {ok, #{interface := New}} = ern_interface:read(Beam),
-    keep({dropped_lets, ErlangModule},
-         let_keys(ErlangModule, Replaced) -- let_keys(ErlangModule, New)).
+install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash},
+            #session{interfaces = Interfaces, source_hashes = SourceHashes, beams = Beams,
+                     units = Units} = Session) ->
+    case is_held(Unit, Beam) of
+        true -> ok;
+        false -> {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam)
+    end,
+    unit_loaded(Unit),
+    {ok, #{interface := Interface}} = ern_interface:read(Beam),
+    Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
+    Session#session{interfaces = Others ++ [Interface],
+                    source_hashes = SourceHashes#{Namespace => Hash},
+                    beams = Beams#{Namespace => Beam},
+                    units = with_unit(Namespace, Unit, Units)}.
 
-%% Report §11.2: what the reload that purged the previous version did,
-%% `Geo.Shape: the previous version is unloaded; the reload ended the
-%% process spawned at input 4:1 and forgot the binding f`.
-ended_lines(_, {[], []}) ->
+%%
+%% Previous versions, report §11.2
+%%
+
+%% Report §11.2: each module the reload brought a version of counted, and
+%% each type of its previous version that the new one does not hold of one
+%% hash made the previous version's wherever the session held it: renamed
+%% to the version's namespace, `Counter$1`, in the session's own interfaces
+%% and the previous versions', which the checker is given beside the loaded
+%% modules' and which reach that version's unit. The session, and each type
+%% renamed, by its new name, with the name it had.
+versioned(Before, After, Compiled) ->
+    Reloaded = [Namespace || #compiled{namespace = Namespace} <- Compiled,
+                             is_map_key(Namespace, Before#session.source_hashes)],
+    {Renames, Previous, Units, Versions} =
+        lists:foldl(fun(Namespace, Acc) -> previous_version(Before, After, Namespace, Acc) end,
+                    {#{}, [], After#session.units, After#session.versions}, Reloaded),
+    Renamed = fun(#interface{namespace = [Segment]} = Interface) ->
+                      case is_session_segment(Segment) of
+                          true -> renamed(Interface, Renames);
+                          false -> Interface
+                      end;
+                 (Interface) ->
+                      Interface
+              end,
+    Session = After#session{interfaces = lists:map(Renamed, After#session.interfaces),
+                            previous = renamed(After#session.previous ++ Previous, Renames),
+                            units = Units, versions = Versions},
+    {Session, #{To => From || From := To <- Renames}}.
+
+%% A previous version's interface, of the types the new version does not
+%% hold of one hash, their constructors and their members, under the
+%% version's namespace; the types' renames, the unit it reaches, and the
+%% module's version counted.
+previous_version(Before, After, Namespace, {Renames, Previous, Units, Versions}) ->
+    Version = maps:get(Namespace, Versions, 1),
+    #interface{types = Types, private_types = PrivateTypes, values = Values,
+               identities = Identities} = interface_of(Namespace, Before#session.interfaces),
+    #interface{types = NewTypes, private_types = NewPrivateTypes, identities = NewIdentities} =
+        interface_of(Namespace, After#session.interfaces),
+    Held = maps:merge(NewTypes, NewPrivateTypes),
+    IsGone = fun(QualifiedName, _) ->
+                     not is_map_key(QualifiedName, Held)
+                         orelse maps:get(QualifiedName, NewIdentities, none)
+                                =/= maps:get(QualifiedName, Identities, none)
+             end,
+    Gone = maps:filter(IsGone, maps:merge(Types, PrivateTypes)),
+    Versions1 = Versions#{Namespace => Version + 1},
+    case maps:size(Gone) of
+        0 ->
+            {Renames, Previous, Units, Versions1};
+        _ ->
+            VersionNamespace = [list_to_atom(ern_namespace:text(Namespace) ++ "$"
+                                             ++ integer_to_list(Version))],
+            In = fun(QualifiedName) ->
+                         VersionNamespace ++ lists:nthtail(length(Namespace), QualifiedName)
+                 end,
+            Members = maps:filter(fun(QualifiedName, _) ->
+                                          is_map_key(lists:droplast(QualifiedName), Gone)
+                                  end, Values),
+            Moved = fun(Declared) ->
+                            #{In(QualifiedName) => moved_constructors(TypeInfo, In)
+                              || QualifiedName := TypeInfo <- maps:with(maps:keys(Declared), Gone)}
+                    end,
+            Moving = maps:merge(Gone, Members),
+            Interface = #interface{namespace = VersionNamespace, types = Moved(Types),
+                                   private_types = Moved(PrivateTypes),
+                                   values = #{In(QualifiedName) => Scheme
+                                              || QualifiedName := Scheme <- Members},
+                                   identities = #{In(QualifiedName) => Hash
+                                                  || QualifiedName := Hash <- Identities,
+                                                     is_map_key(QualifiedName, Moving)}},
+            {maps:merge(Renames, #{QualifiedName => In(QualifiedName)
+                                   || QualifiedName := _ <- Gone}),
+             [Interface | Previous], Units#{VersionNamespace => unit(Before, Namespace)},
+             Versions1}
+    end.
+
+%% A type's constructors under the previous version's namespace, so that the
+%% current version's constructors of one name are not taken for them.
+moved_constructors(#type_info{constructors = Constructors} = TypeInfo, In) ->
+    TypeInfo#type_info{
+      constructors = [Constructor#constructor_info{qualified_name = In(QualifiedName)}
+                      || #constructor_info{qualified_name = QualifiedName} = Constructor
+                             <- Constructors]}.
+
+interface_of(Namespace, Interfaces) ->
+    lists:last([Interface || #interface{namespace = Found} = Interface <- Interfaces,
+                             Found =:= Namespace]).
+
+%% A term with each type Renames moves written under its new name, wherever
+%% a type is named: a type, a type's own record and a constructor's type.
+renamed({tcon, QualifiedName, Args}, Renames) ->
+    {tcon, maps:get(QualifiedName, Renames, QualifiedName), renamed(Args, Renames)};
+renamed(#type_info{qualified_name = QualifiedName} = TypeInfo, Renames) ->
+    (renamed_elements(TypeInfo, Renames))#type_info{
+      qualified_name = maps:get(QualifiedName, Renames, QualifiedName)};
+renamed(#constructor_info{type_qualified_name = TypeName} = Constructor, Renames) ->
+    (renamed_elements(Constructor, Renames))#constructor_info{
+      type_qualified_name = maps:get(TypeName, Renames, TypeName)};
+renamed(Tuple, Renames) when is_tuple(Tuple) ->
+    renamed_elements(Tuple, Renames);
+renamed(List, Renames) when is_list(List) ->
+    [renamed(Element, Renames) || Element <- List];
+renamed(Map, Renames) when is_map(Map) ->
+    #{Key => renamed(Value, Renames) || Key := Value <- Map};
+renamed(Term, _Renames) ->
+    Term.
+
+renamed_elements(Tuple, Renames) ->
+    list_to_tuple([renamed(Element, Renames) || Element <- tuple_to_list(Tuple)]).
+
+%% Report §11.2: the reload names each binding whose type it left of a
+%% previous version, under the first such type the type names, `Counter.Msg
+%% changed: the binding c is of its previous version, Counter$1.Msg`.
+previous_lines(_Session, Previous) when map_size(Previous) =:= 0 ->
     [];
-ended_lines(Name, {Processes, Bindings}) ->
-    Done = [["ended ", processes_at(Processes)] || Processes =/= []]
-        ++ [["forgot ", bindings_named(Bindings)] || Bindings =/= []],
-    [unicode:characters_to_binary([Name, ": the previous version is unloaded; the reload ",
-                                   lists:join(" and ", Done)])].
+previous_lines(#session{scope = Scope} = Session, Previous) ->
+    Held = [{Key, Renamed}
+            || {Key, QualifiedName} <- lists:sort(maps:to_list(maps:get(values, Scope, #{}))),
+               {ok, #scheme{type = Type}} <- [scheme(QualifiedName, Session)],
+               [Renamed | _] <- [[Name || Name <- type_names(Type),
+                                          is_map_key(Name, Previous)]]],
+    [unicode:characters_to_binary(
+       [ern_namespace:text(maps:get(Renamed, Previous)), " changed: ", bindings_named(Names),
+        counted(Names, " is", " are"), " of its previous version, ",
+        ern_namespace:text(Renamed)])
+     || Renamed <- lists:usort([Found || {_, Found} <- Held]),
+        Names <- [[name_text(Key) || {Key, Found} <- Held, Found =:= Renamed]]].
 
-%% Report §11.2: what holds the version a reload replaced, and what the
-%% next reload does to it, `Geo.Shape: the previous version is held by the
-%% binding f; the next reload of Geo.Shape forgets it`.
-waiting_line(_, {[], []}) ->
-    [];
-waiting_line(Name, {Processes, Bindings}) ->
-    Holders = lists:join(" and by ", [processes_at(Processes) || Processes =/= []]
-                                     ++ [bindings_named(Bindings) || Bindings =/= []]),
-    It = counted(Processes ++ Bindings, "it", "them"),
-    Fate = case {Processes, Bindings} of
-               {_, []} -> ["ends ", It];
-               {[], _} -> ["forgets ", It];
-               _ -> ["ends ", counted(Processes, "the process", "the processes"),
-                     " and forgets ", counted(Bindings, "the binding", "the bindings")]
-           end,
-    [unicode:characters_to_binary([Name, ": the previous version is held by ", Holders,
-                                   "; the next reload of ", Name, " ", Fate])].
+%% Report §11.2: a type error that names a type of a previous version says
+%% so in its help, `Counter$1.Msg is of a previous version of Counter, which
+%% a reload replaced`, after the help the checker gave it, where it gave one.
+previous_hinted(#session{previous = Previous},
+                #diagnostic{message = Message, labels = Labels, help = Help} = Diagnostic) ->
+    Given = case Help of
+                undefined -> [];
+                _ -> [Help]
+            end,
+    Text = unicode:characters_to_binary([Message, [Label || {_, Label} <- Labels] | Given]),
+    Named = [QualifiedName
+             || #interface{types = Types, private_types = PrivateTypes} <- Previous,
+                QualifiedName <- maps:keys(Types) ++ maps:keys(PrivateTypes),
+                binary:match(Text, unicode:characters_to_binary(
+                                     ern_namespace:text(QualifiedName))) =/= nomatch],
+    case lists:sort(Named) of
+        [] ->
+            Diagnostic;
+        [[VersionSegment | _] = QualifiedName | _] ->
+            [Module, _] = string:split(atom_to_list(VersionSegment), "$", trailing),
+            Said = [ern_namespace:text(QualifiedName), " is of a previous version of ", Module,
+                    ", which a reload replaced"],
+            Diagnostic#diagnostic{help = lists:flatten(lists:join("; ", Given ++ [Said]))}
+    end.
+
+%% The declared types a type is made of, each by its qualified name.
+type_names({tcon, QualifiedName, Args}) ->
+    [QualifiedName | lists:append([type_names(Arg) || Arg <- Args])];
+type_names({ttuple, Types}) ->
+    lists:append([type_names(Type) || Type <- Types]);
+type_names({tfn, Args, Effect, Result}) ->
+    lists:append([type_names(Type) || Type <- Args ++ [Result]]) ++ effect_names(Effect);
+type_names({tvar, _}) ->
+    [].
+
+effect_names(pure) -> [];
+effect_names(Type) -> type_names(Type).
 
 %% Processes by their spawn sites (§6.9) and bindings by their names, the
 %% last two of a list joined by `and`.
@@ -2619,79 +2761,20 @@ counted(_, _, Many) -> Many.
 listed([Item]) -> Item;
 listed(Items) -> [lists:join(", ", lists:droplast(Items)), " and ", lists:last(Items)].
 
-%% Report §11.2: what is left in the version a reload replaced, the spawn
-%% sites (§6.9) of its processes and the names of its bindings.
-in_previous(Session, ErlangModule) ->
-    {[Site || {Pid, Site} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)],
-     [atom_to_binary(Name) || {Name, _} <- bindings_of(Session, ErlangModule)]}.
-
-%% Report §7.3, §11.2: the processes still in it end with the cause the
-%% report gives them, a fault reported as every fault is, and the bindings
-%% that hold a function of it are forgotten.
-end_previous(#session{scope = Scope} = Session, ErlangModule) ->
-    Processes = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
-                                erlang:check_process_code(Pid, ErlangModule)],
-    end_unloaded([Pid || {Pid, _} <- Processes]),
-    Bindings = bindings_of(Session, ErlangModule),
-    Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, Scope, #{})),
-    {{[Site || {_, Site} <- Processes], [atom_to_binary(Name) || {Name, _} <- Bindings]},
-     Session#session{scope = Scope#{values => Values}}}.
-
-%% Report §11.2: the session's bindings that run a version of the module
-%% other than its current one: before a reload installs its version, the
-%% one the reload purges; after, the one it replaced. A binding taken from
-%% a version is so listed by the reload that replaces the version and
-%% forgotten by the one that purges it, and no other.
-bindings_of(#session{scope = Scope}, ErlangModule) ->
-    Current = ErlangModule:module_info(md5),
-    Previous = fun({HeldModule, Version}) ->
-                   HeldModule =:= ErlangModule
-                       andalso Version =/= current andalso Version =/= Current
-               end,
-    Uses = uses(),
-    [{name_atom(Key), Key}
-     || {Key, QualifiedName} <- maps:to_list(maps:get(values, Scope, #{})),
-        lists:any(Previous, functions_run(value_of(QualifiedName), Uses))].
-
-%% The functions a value can run: those it holds, and those the values of
-%% the session's modules it reaches hold, since a function of an input
-%% reads the bindings it names from their holders when it runs.
-functions_run(Value, Uses) ->
-    Own = held_functions(Value, []),
-    Reached = reached([Held || {Held, _} <- Own, is_session_module(Held)], Uses, #{}),
-    Own ++ lists:append([held_functions(Stored, [])
-                         || Module <- maps:keys(Reached), is_map_key(Module, Uses),
-                            {_, Stored} <- stored(Module)]).
-
-name_atom({_, Name}) -> Name;
-name_atom(Name) -> Name.
-
-value_of(QualifiedName) ->
-    ErlangModule = ern_namespace:erlang_module(lists:droplast(QualifiedName)),
-    persistent_term:get({ErlangModule, lists:last(QualifiedName)}, undefined).
-
-%% Each module loaded, in order, and in scope by its namespace.
-install(Session, CompiledModules) ->
-    lists:foldl(fun({Namespace, Beam, Hash}, Acc) ->
-                    install(Acc, Namespace, Beam, Hash)
-                end, Session, CompiledModules).
-
-install(#session{interfaces = Interfaces, source_hashes = SourceHashes} = Session, Namespace, Beam,
-        Hash) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
-    unit_loaded(ErlangModule),
-    {ok, #{interface := Interface}} = ern_interface:read(Beam),
-    Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
-    Session#session{interfaces = Others ++ [Interface],
-                    source_hashes = SourceHashes#{Namespace => Hash},
-                    beams = maps:put(Namespace, Beam, Session#session.beams)}.
+%% Report §11.2: a loaded module whose source the source root does not
+%% hold is named, since `:reload` cannot compile it again.
+sourceless(_Session, []) ->
+    [];
+sourceless(#session{source_root = SourceRoot}, Names) ->
+    Text = lists:join(", ", [ern_namespace:text(Namespace) || Namespace <- Names]),
+    [unicode:characters_to_binary(["the source root ", ern_build:shown(SourceRoot),
+                                   " holds no source of ", Text])].
 
 %% Report §11.2: a module compiled against the modules the session has
 %% loaded, as Interfaces holds them, a dependency `:load` compiled in
-%% memory among them.
-compile_source(#session{source_root = SourceRoot} = Session, File, Interfaces) ->
-    case ern_build:compile_source(File, SourceRoot, load_path(Session), Interfaces) of
+%% memory among them, each called as the unit Units names.
+compile_source(#session{source_root = SourceRoot} = Session, File, Interfaces, Units) ->
+    case ern_build:compile_source(File, SourceRoot, load_path(Session), Interfaces, Units) of
         {ok, Namespace, Beam, Hash} ->
             {ok, Namespace, Beam, Hash};
         {refused, Text} ->
@@ -3039,13 +3122,9 @@ joined(#session{interfaces = Interfaces, scope = Scope} = Session, #interface{} 
                               <- maps:values(InterfaceTypes),
                           #constructor_info{qualified_name = QualifiedName} <- TypeConstructors],
     Constructors = maps:merge(maps:get(constructors, Scope, #{}), maps:from_list(NewConstructors)),
-    %% a name bound again is of the current version (§11.2)
-    Previous = maps:without([value_key(Namespace, QualifiedName)
-                             || QualifiedName <- maps:keys(InterfaceValues)],
-                            maps:get(previous, Scope, #{})),
     Session#session{interfaces = Interfaces ++ [Interface],
-                    scope = Scope#{values => Values, types => Types, constructors => Constructors,
-                                   previous => Previous}}.
+                    scope = Scope#{values => Values, types => Types,
+                                   constructors => Constructors}}.
 
 %% A name as an input after this one writes it: a type member under the
 %% type that owns it (report §4.2), anything else under its own name.

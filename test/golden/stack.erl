@@ -7,7 +7,6 @@
          push/2,
          pop/1,
          '$init'/0,
-         '$fun'/2,
          '$spawned'/2]).
 
 main() ->
@@ -35,9 +34,5 @@ pop({'Stack', Items_5}) ->
     ern_rt:initializing(<<"Stack.empty:23">>),
     persistent_term:put({ern@stack, empty}, {'Stack', []}),
     ok.
-
-'$fun'(main, 0) -> fun main/0;
-'$fun'(push, 2) -> fun push/2;
-'$fun'(pop, 1) -> fun pop/1.
 
 '$spawned'(main, []) -> main().

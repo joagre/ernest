@@ -20,7 +20,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is under way, items 1 to 4 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
+of 2026-10-09*). MVP 3.1 is under way, items 1 to 5 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
 the tour and the review; the back end, ehttpd, the website and the shell's second round follow
 1.0 (the log's *The Road to 1.0, Ordered*). A release waits until the user calls it.
 
@@ -217,7 +217,16 @@ and 8 below.
    hash as any definition has, `NotLoaded` on every peer until MVP 3.2; the two gaps the
    experiments of 2026-10-07 found closed, a function of a previous version held in a process's
    state and a binding of a previous version forgotten (the log's *A Binding of a Previous
-   Version Is Forgotten*).
+   Version Is Forgotten*). Done 2026-10-10 (the log's *The Shell's Reload by Hash, Built*): each
+   version a unit of its own, `ern@counter$2`, through the compiler's map from namespace to unit,
+   nothing purged and `'$fun'/2` gone with its reason; a type the reload changed moved to its
+   previous version's namespace, `Counter$1`, in what the session held, the reload naming the
+   bindings it leaves so and a diagnostic saying which type is the previous version's; a reload
+   compiling again what `ern build` would; a faulted reload keeping a previous value of one hash
+   alone, which the soundness argument's section 7 states; a refused load killing what it
+   started; the shell's three refusals lifted, and one added for MVP 3.2, a compiled form beside
+   another unit of its name on a node; a load's unit marked evaluated, which a peer's spawn read
+   and the load had not done, a defect found beside it.
 6. **Termination told.** `Os.terminating(wrap)`, kept as a subscription to faults is, one per
    process, the latest, ending with its process; at the end, by termination, the entry process's
    end or `Os.exit`, `wrap(reply)` delivered to every subscriber, each delivery a process of its
@@ -318,7 +327,9 @@ tests and measurements over all of it.
    reference linked through the table before the unit is compiled by the build's back end from
    the same forms;
    the canonical form of a received definition, and of one typed at the shell, kept beside its
-   compiled code and shipped onward as the node's own; loading by the host's `prepare_loading`
+   compiled code and shipped onward as the node's own; a compiled module the shell loads beside
+   another unit of its name made a unit of its own from its forms, which MVP 3.1 refuses, the
+   refusal lifted from `docs/development.md`'s table; loading by the host's `prepare_loading`
    and `atomic_load`, one batch per reach, no `-on_load`; the node's units off the code path;
    nothing on disk but the build directory, a node restarted sent the rest again. The let-go: a
    unit that arrived by an exchange or a load unloaded when no process executes it or holds a
@@ -520,7 +531,11 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
    a running program an input opens end with the input's process, their owner (§11.2), and
    the session could own them instead, so that they live until it ends, by a way the shell
    names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
-6. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
+6. **A previous version at the prompt**, a decision with the user: whether a previous version's
+   constructors may be written at the prompt, `Counter$1.Inc`, and whether `:processes` names
+   the version a process runs (`language_feedback.md`'s entries 97 and 98, placed here
+   2026-10-10 by MVP 3.1's item 5).
+7. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
    2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
    it fails again its step file in the run's directory says which expectation went unmet, and
    the fix follows from it; diagnosed here where it recurs, and nowhere before.

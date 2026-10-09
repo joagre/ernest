@@ -57,17 +57,17 @@ loaded(Unit) ->
         false -> ok
     end.
 
-fill(Unit, Version) ->
+fill(Unit, Md5) ->
     ensure(),
     case ets:lookup(?TABLE, {unit, Unit}) of
-        [{_, _, {Version, _}}] ->
+        [{_, _, {Md5, _}}] ->
             ok;
         Previous ->
             forget(Unit, Previous),
             Rows = lists:append([rows(Unit, QualifiedName, Held)
                                  || {QualifiedName, Held} <- Unit:'$code'()]),
             Keys = lists:usort([Key || {Key, _, _} <- Rows]),
-            true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Version, Keys}} | Rows]),
+            true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Md5, Keys}} | Rows]),
             ok
     end.
 
