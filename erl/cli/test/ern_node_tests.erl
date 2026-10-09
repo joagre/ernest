@@ -120,8 +120,7 @@ read_test() ->
                  ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may not say, each refused when
-%% the file is read, naming the file and why; a field a later milestone
-%% gives a meaning names that milestone
+%% the file is read, naming the file and why
 read_refusals_test() ->
     Dir = made(),
     Own = public(Dir),
@@ -178,12 +177,12 @@ read_refusals_test() ->
          {#{<<"measures">> => #{<<"cpu">> => #{<<"check-interval">> => 60000}}},
           "measures' cpu has the unknown field check-interval"},
          {#{<<"measures">> => #{<<"memory">> => #{<<"check-interval">> => 1000}}},
-          "measures' memory' check-interval is not a whole number of minutes, which the host's"
+          "measures' memory's check-interval is not a whole number of minutes, which the host's"
           " memory measure counts"},
          {#{<<"measures">> => #{<<"disk">> => #{<<"check-interval">> => 0}}},
-          "measures' disk' check-interval is not a count of milliseconds above 0"},
+          "measures' disk's check-interval is not a count of milliseconds above 0"},
          {#{<<"measures">> => #{<<"disk">> => #{<<"almost-full">> => 2}}},
-          "measures' disk' almost-full is not a fraction from 0 to 1"}],
+          "measures' disk's almost-full is not a fraction from 0 to 1"}],
     Ends = fun(Message, Expected) ->
                case is_list(Message) andalso ends(Message, Expected) of
                    true -> ok;
@@ -201,12 +200,51 @@ read_refusals_test() ->
     ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": is not JSON",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
+%% report §8.7: a public key in PEM whose body is no key the host's decoder
+%% reads, a peer's or the node's own, is refused with the file and the
+%% rule. A regression test: the decoder's failure escaped the check, and
+%% `ern` failed with an internal error at the start, and the signal handler
+%% at a reload
+undecodable_key_test() ->
+    Dir = made(),
+    Own = public(Dir),
+    %% the body's first bytes, the key's algorithm, made another DER's
+    [Head, Body] = binary:split(other_key(), <<"\n">>),
+    Broken = <<Head/binary, "\nAAAAAAAAAAAA",
+               (binary:part(Body, 12, byte_size(Body) - 12))/binary>>,
+    ?assertMatch([{'SubjectPublicKeyInfo', _, not_encrypted}], public_key:pem_decode(Broken)),
+    Conf = filename:join(Dir, "ernest.conf"),
+    with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => Broken}]}),
+    ?assertEqual(Conf ++ ": peer \"store\"'s public-key is not one public key in PEM",
+                 refusal(fun() -> ern_node:read(Dir) end)),
+    conf(Dir, json:encode(#{<<"public-key">> => Broken})),
+    ?assertEqual(Conf ++ ": public-key is not one public key in PEM",
+                 refusal(fun() -> ern_node:read(Dir) end)),
+    conf(Dir, json:encode(#{<<"public-key">> => Own})),
+    ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
+
+%% report §8.7: a whole number of ernest.conf too large for the host to
+%% hold, a numeral of more than a million digits, is refused with the file
+%% and the rule. A regression test: the host's failure to read it was taken
+%% as a file that is not JSON
+large_number_test() ->
+    Dir = made(),
+    Text = iolist_to_binary(json:encode(#{<<"public-key">> => public(Dir)})),
+    Fields = binary:part(Text, 0, byte_size(Text) - 1),
+    conf(Dir, <<Fields/binary, ", \"measures\": {\"disk\": {\"check-interval\": ",
+                (binary:copy(<<"9">>, 1300000))/binary, "}}}">>),
+    ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": holds a number too large for the host"
+                 " to read",
+                 refusal(fun() -> ern_node:read(Dir) end)).
+
 %% report §8.7: a node refuses a configuration directory, or a file of it
 %% that it reads, that anyone beyond its owner and group may write, as the
 %% shell's startup files are refused, and a key any but its owner may read
 %% or write; a file it needs that is not there is named with the command
-%% that makes a directory. Not covered: a directory or a file of another
-%% user, which a test run as one user cannot make
+%% that makes a directory, and one it cannot read with the host's reason, a
+%% regression: such a file made `ern` fail with an internal error. Not
+%% covered: a directory or a file of another user, which a test run as one
+%% user cannot make
 permissions_test() ->
     Dir = made(),
     Refused = fun(Path, Mode) ->
@@ -229,6 +267,8 @@ permissions_test() ->
     %% written by its group, as a umask of 002 leaves a file
     ?assertMatch({accepted, _}, Refused(Conf, 8#664)),
     ?assertMatch({accepted, _}, Refused(Dir, 8#770)),
+    [?assertEqual(File ++ ": permission denied", Refused(File, 8#000))
+     || File <- [Conf, Key, Certificate]],
     ok = file:delete(Certificate),
     ?assertEqual(Certificate ++ " is not there; ern config --config-dir " ++ Dir
                  ++ " makes a configuration directory",
@@ -260,7 +300,10 @@ pid_test() ->
     ?assertEqual({ok, <<"1\n">>}, file:read_file(Pid)).
 
 %% report §8.7: the host's measures `measures` names start with the node,
-%% and none where the section is absent
+%% and none where the section is absent; they stop at the node's end, each
+%% program the host runs for them ended before the host ends, a
+%% regression: the host ended them as it ended, and one said so on the
+%% node's standard error
 measures_test() ->
     Dir = made(),
     _ = ern_node:start(Dir),
@@ -275,10 +318,46 @@ measures_test() ->
         ?assert(is_pid(whereis(disksup))),
         ?assertEqual(undefined, whereis(memsup)),
         ?assertEqual(60000, disksup:get_check_interval()),
-        ?assertEqual(95, disksup:get_almost_full_threshold())
+        ?assertEqual(95, disksup:get_almost_full_threshold()),
+        ?assertNotEqual([], measure_programs()),
+        ok = ern_node:stop(Dir),
+        ?assertEqual(false, lists:keymember(os_mon, 1, application:which_applications())),
+        ?assertEqual([], measure_programs())
     after
         ok = ern_node:stop(Dir),
-        _ = application:stop(os_mon),
-        _ = application:stop(sasl),
-        _ = application:unload(os_mon)
+        _ = application:stop(sasl)
+    end.
+
+%% Until the host's memory measure has collected once, its program then
+%% waiting for the next request: the host closes the program's port with a
+%% collection under way, as it starts, and the program then says on
+%% standard error that its pipe broke.
+collected() ->
+    _ = memsup:get_system_memory_data(),
+    ok.
+
+%% The ports of the programs the host runs for its measures.
+measure_programs() ->
+    Programs = filename:join(code:priv_dir(os_mon), "bin"),
+    [Port || Port <- erlang:ports(), {name, Name} <- [erlang:port_info(Port, name)],
+             string:find(Name, Programs) =/= nomatch].
+
+%% report §8.7: a reload's measures take their parameters from the new file
+%% and the host's defaults alone, a parameter the file before it gave and
+%% the new one leaves out back at the host's default. A regression test:
+%% the earlier file's parameters stayed, the application never unloaded
+measures_reloaded_test() ->
+    Dir = made(),
+    Measures = #{memory => #{check_interval => 120000}},
+    with(Dir, #{<<"measures">> => #{<<"memory">> => #{<<"check-interval">> => 120000}}}),
+    try
+        _ = ern_node:start(Dir),
+        ?assertEqual(120000, memsup:get_check_interval()),
+        collected(),
+        ok = ern_node:measures_changed(Dir, Measures, #{memory => #{}}),
+        ?assertEqual(60000, memsup:get_check_interval()),
+        collected()
+    after
+        ok = ern_node:stop(Dir),
+        _ = application:stop(sasl)
     end.

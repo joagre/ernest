@@ -1,16 +1,18 @@
 %% Report §8.7: a node's gateway, the one registered process that takes
 %% every frame of the runtime's from every peer, from the node's start, so
 %% that the frame which opens a connection finds it; each frame is handed to
-%% a worker for the sender's node, which ends with that node's connection.
-%% Through it go what needs a process on the receiving node: a spawn and its
-%% answer, a find, and a message to an adapted address, each read by
+%% a worker for the sender's node, which ends with that node's connection,
+%% once it has read every frame that came before the loss. Through it go
+%% what needs a process on the receiving node: a spawn and its answer, a
+%% find, and a message to an adapted address, each read by
 %% ern_peer:frame/2; a frame it cannot read is faulty, and the node ends
 %% that peer's connection. A call's two notes it records itself, in the
-%% order they came, so that a restart, which asks it as it asks the
-%% reaper, reads every note that came before it (§6.9). A frame is {ern_frame, From, Body}, From the
-%% process on the peer that sent it, whose node is the frame's peer; a
-%% message to the gateway that names no process of another node names no
-%% connection to end, and is dropped, which the node says.
+%% order they came, so that a restart, which asks it as it asks the reaper,
+%% reads every note that came before it (§6.9). A frame is {ern_frame,
+%% From, Body}, From the process on the peer that sent it, whose node is
+%% the frame's peer; a message to the gateway that names no process of
+%% another node names no connection to end, and is dropped, which the node
+%% says.
 -module(ern_gateway).
 
 -export([start/0]).
@@ -52,10 +54,11 @@ gateway(Workers) ->
             Worker ! Frame,
             gateway(Workers1);
         {nodedown, Node, _} ->
-            case Workers of
-                #{Node := Worker} -> exit(Worker, kill);
-                _ -> ok
-            end,
+            %% report §8.7: the worker reads the frames before the loss, a
+            %% spawn's answer it is handing over among them, and then lets
+            %% go of the spawns waiting on the peer (ern_peer:lost/1)
+            {Worker, _} = worker(Node, Workers),
+            Worker ! stop,
             noted(fun() -> ern_rt:drop_notes(Node) end),
             gateway(maps:remove(Node, Workers));
         {nodeup, _, _} ->
@@ -80,11 +83,16 @@ worker(Node, Workers) ->
     end.
 
 %% Report §8.7: a peer's frames, read in the order they came; one it cannot
-%% read ends the peer's connection, and the node says so.
+%% read, a frame whose reading fails among them, ends the peer's connection,
+%% and the node says so, the worker going on to the loss. At the loss, the
+%% spawns that wait on the peer are let go, and the worker ends.
 work(Node) ->
     receive
         {ern_frame, From, Body} ->
-            case ern_peer:frame(From, Body) of
+            Read = try ern_peer:frame(From, Body)
+                   catch _:_ -> unreadable
+                   end,
+            case Read of
                 ok ->
                     ok;
                 unreadable ->
@@ -92,5 +100,7 @@ work(Node) ->
                                      " read, and its connection was ended"]),
                     _ = erlang:disconnect_node(Node)
             end,
-            work(Node)
+            work(Node);
+        stop ->
+            ern_peer:lost(Node)
     end.

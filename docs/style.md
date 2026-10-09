@@ -118,6 +118,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 
 - **Address**: §6.5's address. Not `Addr`, `To`, `A`; an IP address is an `IpAddress`, and `Target` is `via`'s target (§6.5) and a link's (E.17) alone.
 - **Pid**: the host's process; the Ernest value is a `Process` (E.21).
+- **ProcessNumber**: §8.7's process number, the operating system's number for a running program, which `ernest.pid` holds and a signal is sent to; the file's path is a `PidFile`. Not `Pid`, which is the host's process, nor `Process`, which is E.21's.
 - **Reply**: §6.6's reply. Not `Alias`, `Written`, `R`.
 - **Cause**: a fault's cause (§7.3). Not `Msg`, `Text`; the host's stack beside it is a `Trace`.
 - **Reason**: §9.3's `Reason`, and nothing else. The host's exit reason is an `ExitReason`, a host's error an `Error`. Not `Raw`, `How`.

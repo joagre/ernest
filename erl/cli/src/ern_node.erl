@@ -6,7 +6,8 @@
 %% names. A refusal is the runner's (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/1, start/1, start/2, stop/1, read/1, measures_changed/3, signalled/2]).
+-export([create/1, start/1, start/2, stop/1, file/2, read/1, measures_changed/3, signalled/2,
+         family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -15,14 +16,13 @@
 -define(CONF, "ernest.conf").
 -define(KEY, "private-key.pem").
 -define(CERTIFICATE, "certificate.pem").
--define(PID, "ernest.pid").
+-define(PID_FILE, "ernest.pid").
 
 %% The certificate's name, the same for every node, since a peer is known
 %% by its key alone (report §8.7).
 -define(NAME, <<"ernest">>).
 
-%% Report §8.7, Appendix E.27: what `ernest.conf` may say, and what a later
-%% milestone adds to it, which is refused until then.
+%% Report §8.7, Appendix E.27: what `ernest.conf` may say.
 -define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"keys">>, <<"measures">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
@@ -141,16 +141,25 @@ start(ConfigDir, Configuration) ->
     end,
     Configuration.
 
-%% Report §8.7: a node removes `ernest.pid` at its end, where the file is
-%% still its own.
+%% Report §8.7: a node stops the host's measures at its end, and removes
+%% `ernest.pid`, where the file is still its own.
 -spec stop(file:filename()) -> ok.
 stop(ConfigDir) ->
-    Pid = filename:join(ConfigDir, ?PID),
+    measures_stopped(),
+    PidFile = file(ConfigDir, pid),
     Own = list_to_binary(os:getpid() ++ "\n"),
-    case file:read_file(Pid) of
-        {ok, Own} -> _ = file:delete(Pid), ok;
+    case file:read_file(PidFile) of
+        {ok, Own} -> _ = file:delete(PidFile), ok;
         _ -> ok
     end.
+
+%% A file of the configuration directory: `ernest.conf`, the key, the
+%% certificate or `ernest.pid`.
+-spec file(file:filename(), conf | key | certificate | pid) -> file:filename().
+file(ConfigDir, conf) -> filename:join(ConfigDir, ?CONF);
+file(ConfigDir, key) -> filename:join(ConfigDir, ?KEY);
+file(ConfigDir, certificate) -> filename:join(ConfigDir, ?CERTIFICATE);
+file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 
 %% Report §8.7: the directory checked and `ernest.conf` read: the
 %% directory, and each file a node reads in it, its user's own or the
@@ -160,7 +169,7 @@ stop(ConfigDir) ->
 %% one `ernest.conf` names and the certificate's.
 -spec read(file:filename()) -> #configuration{}.
 read(ConfigDir) ->
-    User = element(2, ern_os:host()),
+    User = ern_os:user(),
     owned(ConfigDir, ConfigDir, directory, User),
     lists:foreach(fun(File) -> owned(ConfigDir, filename:join(ConfigDir, File), regular, User) end,
                   [?CONF, ?CERTIFICATE, ?KEY]),
@@ -204,32 +213,44 @@ owned(ConfigDir, Path, Kind, User) ->
 kind(directory) -> "directory";
 kind(regular) -> "regular file".
 
+%% Each file is read through ern_build:read/1, which refuses one that cannot
+%% be read with its name and the host's reason; what does not decode is
+%% refused with the file and the rule, the host's decoder's failure among
+%% it, and nothing of it escapes as a failure of `ern` (report §8.7).
 private_key(ConfigDir) ->
-    {ok, Pem} = file:read_file(filename:join(ConfigDir, ?KEY)),
-    try public_key:pem_decode(Pem) of
-        [Entry] ->
-            case public_key:pem_entry_decode(Entry) of
-                {'ECPrivateKey', _, _, {namedCurve, ?'id-Ed25519'}, _, _} = Key -> Key;
-                _ -> fail(ConfigDir, ?KEY, "is not an ed25519 key")
-            end;
-        _ ->
-            fail(ConfigDir, ?KEY, "is not one key in PEM")
-    catch
-        _:_ -> fail(ConfigDir, ?KEY, "is not one key in PEM")
+    Pem = ern_build:read(file(ConfigDir, key)),
+    Decoded = try [public_key:pem_entry_decode(Entry) || Entry <- public_key:pem_decode(Pem)]
+              catch _:_ -> none
+              end,
+    case Decoded of
+        [{'ECPrivateKey', _, _, {namedCurve, ?'id-Ed25519'}, _, _} = Key] -> Key;
+        [_] -> fail(ConfigDir, ?KEY, "is not an ed25519 key");
+        _ -> fail(ConfigDir, ?KEY, "is not one key in PEM")
     end.
 
 certificate_key(ConfigDir) ->
-    {ok, Pem} = file:read_file(filename:join(ConfigDir, ?CERTIFICATE)),
-    try public_key:pem_decode(Pem) of
-        [{'Certificate', Der, not_encrypted}] ->
-            #'OTPCertificate'{tbsCertificate = Tbs} = public_key:pkix_decode_cert(Der, otp),
-            #'OTPSubjectPublicKeyInfo'{subjectPublicKey = #'ECPoint'{point = Point}} =
-                Tbs#'OTPTBSCertificate'.subjectPublicKeyInfo,
-            point_der(Point);
-        _ ->
-            fail(ConfigDir, ?CERTIFICATE, "is not one certificate in PEM")
-    catch
-        _:_ -> fail(ConfigDir, ?CERTIFICATE, "is not an ed25519 certificate in PEM")
+    Pem = ern_build:read(file(ConfigDir, certificate)),
+    Decoded = try public_key:pem_decode(Pem) of
+                  [{'Certificate', Der, not_encrypted}] -> certified_point(Der);
+                  _ -> none
+              catch _:_ -> none
+              end,
+    case Decoded of
+        {point, Point} -> point_der(Point);
+        none -> fail(ConfigDir, ?CERTIFICATE, "is not one certificate in PEM");
+        not_ed25519 -> fail(ConfigDir, ?CERTIFICATE, "is not an ed25519 certificate in PEM")
+    end.
+
+%% The public point a certificate's DER certifies, or not_ed25519 where it
+%% does not decode to a key of a curve.
+certified_point(Der) ->
+    Info = try (public_key:pkix_decode_cert(Der, otp))#'OTPCertificate'.tbsCertificate
+                   #'OTPTBSCertificate'.subjectPublicKeyInfo
+           catch _:_ -> none
+           end,
+    case Info of
+        #'OTPSubjectPublicKeyInfo'{subjectPublicKey = #'ECPoint'{point = Point}} -> {point, Point};
+        _ -> not_ed25519
     end.
 
 %% Report §8.7: `ernest.pid` holds this node's process number from its
@@ -237,48 +258,48 @@ certificate_key(ConfigDir) ->
 %% once cannot both take it; a file that names a living process refuses the
 %% start, and one a dead node left, or that names no process, is replaced.
 pid_written(ConfigDir) ->
-    Pid = filename:join(ConfigDir, ?PID),
-    case taken(Pid) of
+    PidFile = file(ConfigDir, pid),
+    case taken(PidFile) of
         ok ->
             ok;
         held ->
-            case living(Pid) of
-                {true, Process} ->
+            case living(PidFile) of
+                {true, ProcessNumber} ->
                     ern_build:fail(ern_build:shown(ConfigDir) ++ " is the configuration directory"
-                                   " of the running node " ++ integer_to_list(Process) ++ ", which "
-                                   ++ ?PID ++ " names");
+                                   " of the running node " ++ integer_to_list(ProcessNumber)
+                                   ++ ", which " ++ ?PID_FILE ++ " names");
                 false ->
-                    _ = file:delete(Pid),
-                    taken(Pid) =:= ok
+                    _ = file:delete(PidFile),
+                    taken(PidFile) =:= ok
                         orelse ern_build:fail(ern_build:shown(ConfigDir) ++ " was taken by another"
                                               " node as this one started")
             end
     end.
 
 %% The file made with this process's number, or `held` where one is there.
-taken(Pid) ->
-    case file:open(Pid, [write, exclusive, raw, binary]) of
+taken(PidFile) ->
+    case file:open(PidFile, [write, exclusive, raw, binary]) of
         {ok, Device} ->
             ok = file:write(Device, os:getpid() ++ "\n"),
             ok = file:close(Device);
         {error, eexist} ->
             held;
         {error, Error} ->
-            ern_build:refused(Pid, Error)
+            ern_build:refused(PidFile, Error)
     end.
 
 %% Whether the file names a living process, by the helper's signal 0; a
 %% file gone meanwhile names none.
-living(Pid) ->
-    Text = case file:read_file(Pid) of
+living(PidFile) ->
+    Text = case file:read_file(PidFile) of
                {ok, Bytes} -> string:trim(binary_to_list(Bytes));
                {error, _} -> ""
            end,
     case string:to_integer(Text) of
-        {Process, ""} when Process > 0 ->
-            case ern_os:signal(0, Process) of
+        {ProcessNumber, ""} when ProcessNumber > 0 ->
+            case ern_os:signal(0, ProcessNumber) of
                 none -> false;
-                _ -> {true, Process}
+                _ -> {true, ProcessNumber}
             end;
         _ ->
             false
@@ -286,37 +307,57 @@ living(Pid) ->
 
 %% Report §8.7: a reload's measures: the host's services stopped and those
 %% the new file names started, where the file changed them; where they do
-%% not start, those that ran are started again and the reload is refused.
+%% not start, those that ran are started again and the reload is refused,
+%% whatever stopped them.
 -spec measures_changed(file:filename(), map(), map()) -> ok.
 measures_changed(_ConfigDir, Measures, Measures) ->
     ok;
 measures_changed(ConfigDir, Measures, NewMeasures) ->
-    _ = application:stop(os_mon),
+    measures_stopped(),
     try measures_started(ConfigDir, NewMeasures)
-    catch throw:Refusal ->
-        _ = application:stop(os_mon),
+    catch Class:Reason:Trace ->
+        measures_stopped(),
         measures_started(ConfigDir, Measures),
-        throw(Refusal)
+        erlang:raise(Class, Reason, Trace)
     end.
+
+%% Report §8.7: the host's measures stopped, each program the host runs for
+%% them ended in order, so that none says, as its port closes when the host
+%% ends, that the host has closed; and the application unloaded, so that the
+%% measures started next take their parameters from the host's defaults and
+%% the file, and none from a file before it. The programs are the ports the
+%% application opens from its own directory.
+measures_stopped() ->
+    Programs = filename:join(code:priv_dir(os_mon), "bin"),
+    MonitorRefs = [erlang:monitor(port, Port)
+                   || Port <- erlang:ports(),
+                      {name, Name} <- [erlang:port_info(Port, name)],
+                      string:find(Name, Programs) =/= nomatch],
+    _ = application:stop(os_mon),
+    lists:foreach(fun(MonitorRef) -> receive {'DOWN', MonitorRef, port, _, _} -> ok end end,
+                  MonitorRefs),
+    _ = application:unload(os_mon),
+    ok.
 
 %% Report §8.7, §11.2: the signal sent to the node that runs from the
 %% directory, which its `ernest.pid` names; where there is none, or its
 %% process has ended or is another user's, the job fails, saying so.
 -spec signalled(file:filename(), pos_integer()) -> ok.
 signalled(ConfigDir, Number) ->
-    Text = case file:read_file(filename:join(ConfigDir, ?PID)) of
+    Text = case file:read_file(file(ConfigDir, pid)) of
                {ok, Bytes} -> string:trim(binary_to_list(Bytes));
-               {error, _} -> fail(ConfigDir, ?PID, "no such file: no node runs from the directory")
+               {error, _} -> fail(ConfigDir, ?PID_FILE, "no such file: no node runs from the"
+                                                        " directory")
            end,
-    Process = case string:to_integer(Text) of
-                  {Named, ""} when Named > 0 -> Named;
-                  _ -> fail(ConfigDir, ?PID, "names no process")
-              end,
-    case ern_os:signal(Number, Process) of
+    ProcessNumber = case string:to_integer(Text) of
+                        {Named, ""} when Named > 0 -> Named;
+                        _ -> fail(ConfigDir, ?PID_FILE, "names no process")
+                    end,
+    case ern_os:signal(Number, ProcessNumber) of
         sent -> ok;
-        none -> fail(ConfigDir, ?PID, "names a process that has ended: no node runs from the"
-                                      " directory");
-        others -> fail(ConfigDir, ?PID, "names another user's process")
+        none -> fail(ConfigDir, ?PID_FILE, "names a process that has ended: no node runs from the"
+                                           " directory");
+        others -> fail(ConfigDir, ?PID_FILE, "names another user's process")
     end.
 
 %% Report §8.7: the host's measures `measures` names, started with their
@@ -353,16 +394,15 @@ measures_started(ConfigDir, Measures) ->
 %%
 
 %% Report §8.7, Appendix C: `ernest.conf` read whole: JSON, an object whose
-%% every field is known, and none twice in one object.
+%% every field is known, and none twice in one object, and each whole
+%% number one the host can hold.
 configuration(ConfigDir) ->
-    {ok, Text} = file:read_file(filename:join(ConfigDir, ?CONF)),
-    Value = try json:decode(Text, ok, #{object_start => fun(_) -> [] end,
-                                        object_push => fun(Name, Item, Acc) ->
-                                                           [{Name, Item} | Acc]
-                                                       end,
-                                        object_finish => fun(Acc, Outer) ->
-                                                             {{object, lists:reverse(Acc)}, Outer}
-                                                         end}) of
+    Text = ern_build:read(file(ConfigDir, conf)),
+    Decoders = #{object_start => fun(_) -> [] end,
+                 object_push => fun(Name, Item, Acc) -> [{Name, Item} | Acc] end,
+                 object_finish => fun(Acc, Outer) -> {{object, lists:reverse(Acc)}, Outer} end,
+                 integer => fun(Numeral) -> integer(ConfigDir, Numeral) end},
+    Value = try json:decode(Text, ok, Decoders) of
                 {Decoded, ok, Rest} ->
                     string:trim(Rest) =:= <<>>
                         orelse fail(ConfigDir, ?CONF, "holds more than one JSON value"),
@@ -372,7 +412,7 @@ configuration(ConfigDir) ->
             end,
     Fields = object(ConfigDir, "the file", Value, ?FIELDS),
     Listen = case Fields of
-                 #{<<"listen">> := Text1} -> listen(ConfigDir, Text1);
+                 #{<<"listen">> := ListenText} -> listen(ConfigDir, ListenText);
                  _ -> none
              end,
     Family = family(Listen),
@@ -381,9 +421,20 @@ configuration(ConfigDir) ->
                     _ -> fail(ConfigDir, ?CONF, "names no public-key")
                 end,
     Peers = peers(ConfigDir, maps:get(<<"peers">>, Fields, []), Family),
-    #configuration{dir = ConfigDir, listen = Listen, public_key = PublicKey, peers = Peers,
+    #configuration{config_dir = ConfigDir, listen = Listen, public_key = PublicKey,
+                   peers = Peers,
                    keys = keys(ConfigDir, maps:get(<<"keys">>, Fields, {object, []}), Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none))}.
+
+%% A whole number of the file, as the host reads its numeral; one too long
+%% for the host to hold, which the host would raise for, is refused with the
+%% file and the rule (report §8.7).
+integer(ConfigDir, Numeral) ->
+    try binary_to_integer(Numeral)
+    catch
+        error:system_limit ->
+            fail(ConfigDir, ?CONF, "holds a number too large for the host to read")
+    end.
 
 %% A JSON object's fields as a map, each name among Known.
 object(ConfigDir, What, {object, Pairs}, Known) ->
@@ -406,10 +457,11 @@ listen(ConfigDir, Text) when is_binary(Text) ->
         {ok, Host, Port} ->
             case inet:parse_strict_address(Host) of
                 {ok, Address} -> {Address, Port};
-                {error, _} -> fail(ConfigDir, ?CONF, "listen names no address: " ++ quoted(Text))
+                {error, _} ->
+                    fail(ConfigDir, ?CONF, "listen names no address: " ++ json_quoted(Text))
             end;
         error ->
-            fail(ConfigDir, ?CONF, "listen is not address:port: " ++ quoted(Text))
+            fail(ConfigDir, ?CONF, "listen is not address:port: " ++ json_quoted(Text))
     end;
 listen(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "listen is not a string").
@@ -444,7 +496,8 @@ endpoint(Text) ->
     end.
 
 %% Report §8.7: a node runs over its listener's family of addresses, or
-%% IPv4 where it has no listener.
+%% IPv4 where it has no listener; the carrier boots over it.
+-spec family(none | {inet:ip_address(), inet:port_number()}) -> inet | inet6.
 family(none) -> inet;
 family({Address, _}) when tuple_size(Address) =:= 4 -> inet;
 family({_, _}) -> inet6.
@@ -457,7 +510,7 @@ peers(ConfigDir, List, Family) when is_list(List) ->
     Keys = [Key || #peer{public_key = Key} <- Peers],
     case Names -- lists:usort(Names) of
         [] -> ok;
-        [Twice | _] -> fail(ConfigDir, ?CONF, "two peers are named " ++ quoted(Twice))
+        [Twice | _] -> fail(ConfigDir, ?CONF, "two peers are named " ++ json_quoted(Twice))
     end,
     length(Keys) =:= length(lists:usort(Keys))
         orelse fail(ConfigDir, ?CONF, "two peers have one public-key, and two nodes with one key"
@@ -472,14 +525,15 @@ peer(ConfigDir, Item, Family) ->
                #{<<"name">> := Text} when is_binary(Text), Text =/= <<>> -> Text;
                _ -> fail(ConfigDir, ?CONF, "a peer has no name")
            end,
-    Shown = "peer " ++ quoted(Name),
+    Shown = "peer " ++ json_quoted(Name),
     Key = case Fields of
               #{<<"public-key">> := Pem} ->
                   public_key_der(ConfigDir, Shown ++ "'s public-key", Pem);
               _ -> fail(ConfigDir, ?CONF, Shown ++ " has no public-key")
           end,
     Address = case Fields of
-                  #{<<"network-address">> := Text1} -> address(ConfigDir, Shown, Text1, Family);
+                  #{<<"network-address">> := AddressText} ->
+                      address(ConfigDir, Shown, AddressText, Family);
                   _ -> none
               end,
     #peer{name = Name, public_key = Key, address = Address}.
@@ -505,7 +559,7 @@ address(ConfigDir, Shown, Text, Family) when is_binary(Text) ->
             end;
         _ ->
             fail(ConfigDir, ?CONF, Shown ++ "'s network-address is not host:port with a port from"
-                                            " 1 to 65535: " ++ quoted(Text))
+                                            " 1 to 65535: " ++ json_quoted(Text))
     end;
 address(ConfigDir, Shown, _, _) ->
     fail(ConfigDir, ?CONF, Shown ++ "'s network-address is not a string").
@@ -514,20 +568,21 @@ same_family(_, _, _, true, _) ->
     ok;
 same_family(ConfigDir, Shown, Text, false, Family) ->
     {Own, Other} = case Family of inet -> {"IPv4", "IPv6"}; inet6 -> {"IPv6", "IPv4"} end,
-    fail(ConfigDir, ?CONF, Shown ++ "'s network-address " ++ quoted(Text) ++ " is " ++ Other
+    fail(ConfigDir, ?CONF, Shown ++ "'s network-address " ++ json_quoted(Text) ++ " is " ++ Other
                            ++ ", and this node runs over " ++ Own ++ ", its listener's family or"
                            " IPv4 where it has none").
 
-%% A public key in PEM: the DER of its SubjectPublicKeyInfo.
+%% A public key in PEM: the DER of its SubjectPublicKeyInfo, which the
+%% host's decoder reads; one it cannot read is no public key (report §8.7).
 public_key_der(ConfigDir, Shown, Pem) when is_binary(Pem) ->
-    try public_key:pem_decode(Pem) of
-        [{'SubjectPublicKeyInfo', Der, not_encrypted} = Entry] ->
-            _ = public_key:pem_entry_decode(Entry),
-            Der;
-        _ ->
-            fail(ConfigDir, ?CONF, Shown ++ " is not one public key in PEM")
-    catch
-        _:_ -> fail(ConfigDir, ?CONF, Shown ++ " is not one public key in PEM")
+    Decoded = try
+                  [{Entry, public_key:pem_entry_decode(Entry)}
+                   || Entry <- public_key:pem_decode(Pem)]
+              catch _:_ -> none
+              end,
+    case Decoded of
+        [{{'SubjectPublicKeyInfo', Der, not_encrypted}, _}] -> Der;
+        _ -> fail(ConfigDir, ?CONF, Shown ++ " is not one public key in PEM")
     end;
 public_key_der(ConfigDir, Shown, _) ->
     fail(ConfigDir, ?CONF, Shown ++ " is not a string").
@@ -541,7 +596,7 @@ keys(ConfigDir, Item, Peers) ->
                 _ -> fail(ConfigDir, ?CONF, "keys is not a JSON object")
             end,
     lists:foldl(fun({Key, Listed}, Acc) ->
-                    Shown = "key " ++ quoted(Key),
+                    Shown = "key " ++ json_quoted(Key),
                     Key =/= <<>> orelse fail(ConfigDir, ?CONF, "keys names a key with no name"),
                     is_map_key(Key, Acc) andalso fail(ConfigDir, ?CONF, "keys gives " ++ Shown
                                                                         ++ " twice"),
@@ -550,7 +605,7 @@ keys(ConfigDir, Item, Peers) ->
                     lists:foreach(fun(Name) ->
                                       lists:member(Name, Names)
                                           orelse fail(ConfigDir, ?CONF,
-                                                      Shown ++ " names " ++ quoted(Name)
+                                                      Shown ++ " names " ++ json_quoted(Name)
                                                       ++ ", which is no peer's name")
                                   end, Listed),
                     length(Listed) =:= length(lists:usort(Listed))
@@ -582,23 +637,25 @@ measure(ConfigDir, Name, Item) ->
 
 interval(ConfigDir, Shown, Name, Ms) ->
     is_integer(Ms) andalso Ms > 0
-        orelse fail(ConfigDir, ?CONF, Shown ++ "' check-interval is not a count of milliseconds"
+        orelse fail(ConfigDir, ?CONF, Shown ++ "'s check-interval is not a count of milliseconds"
                                                " above 0"),
     Name =/= <<"memory">> orelse Ms rem 60000 =:= 0
-        orelse fail(ConfigDir, ?CONF, Shown ++ "' check-interval is not a whole number of"
+        orelse fail(ConfigDir, ?CONF, Shown ++ "'s check-interval is not a whole number of"
                                                " minutes, which the host's memory measure counts"),
     Ms.
 
 fraction(ConfigDir, Shown, Full) ->
     is_number(Full) andalso Full >= 0 andalso Full =< 1
-        orelse fail(ConfigDir, ?CONF, Shown ++ "' almost-full is not a fraction from 0 to 1"),
+        orelse fail(ConfigDir, ?CONF, Shown ++ "'s almost-full is not a fraction from 0 to 1"),
     Full.
 
 %%
 %% Utilities
 %%
 
-quoted(Text) ->
+%% A text as JSON writes it, in its quotes, as a refusal shows a value of
+%% the file.
+json_quoted(Text) ->
     binary_to_list(iolist_to_binary(json:encode(Text))).
 
 -spec fail(file:filename(), string(), iodata()) -> no_return().

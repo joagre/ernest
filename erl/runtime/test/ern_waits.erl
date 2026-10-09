@@ -10,25 +10,40 @@
 
 %% Until Test, asked of Pid's state, holds, or Pid has ended: Test is asked
 %% at first and again each time the host schedules Pid out, which is when
-%% what Pid itself does has changed.
+%% what Pid itself does has changed. The trace shows no end, so a monitor
+%% beside it does; a process that has ended cannot be traced, nor its
+%% trace turned off.
 -spec until(pid(), fun(() -> boolean())) -> ok | ended.
 until(Pid, Test) ->
-    erlang:trace(Pid, true, [running]),
-    try
-        held(Pid, Test)
+    MonitorRef = erlang:monitor(process, Pid),
+    try erlang:trace(Pid, true, [running]) of
+        _ ->
+            try
+                held(Pid, MonitorRef, Test)
+            after
+                untraced(Pid),
+                flushed(Pid)
+            end
+    catch
+        error:badarg -> ended
     after
-        erlang:trace(Pid, false, [running]),
-        flushed(Pid)
+        erlang:demonitor(MonitorRef, [flush])
     end.
 
-held(Pid, Test) ->
+held(Pid, MonitorRef, Test) ->
     case erlang:is_process_alive(Pid) andalso Test() of
-        true -> ok;
+        true ->
+            ok;
         false ->
-            case erlang:is_process_alive(Pid) of
-                false -> ended;
-                true -> receive {trace, Pid, out, _} -> held(Pid, Test) end
+            receive
+                {trace, Pid, out, _} -> held(Pid, MonitorRef, Test);
+                {'DOWN', MonitorRef, process, Pid, _} -> ended
             end
+    end.
+
+untraced(Pid) ->
+    try erlang:trace(Pid, false, [running])
+    catch error:badarg -> 0
     end.
 
 %% Until Pid waits in a receive, which the host shows as the status

@@ -43,6 +43,10 @@
  * mask in the same run, so that no program starts the helper twice for
  * them.
  *
+ * With the argument `user`, the helper writes the 'u' frame alone, which a
+ * node's check of its directory reads, as it starts and at each reload
+ * (report §8.7).
+ *
  * With the arguments `signal`, a signal's number and a process number, the
  * helper sends that process the signal and exits 0 where it was sent, 1
  * where no such process lives, and 2 where the process lives and is not
@@ -386,6 +390,17 @@ static int send_signal(int argc, char **argv)
     return errno == EPERM ? 2 : 1;
 }
 
+/* The 'u' frame: the user the helper runs as, in four bytes, big-endian. */
+static void user_frame(void)
+{
+    uint32_t user = (uint32_t)geteuid();
+    unsigned char bytes[4] = {
+        (unsigned char)(user >> 24), (unsigned char)(user >> 16),
+        (unsigned char)(user >> 8), (unsigned char)user
+    };
+    frame('u', bytes, sizeof bytes);
+}
+
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
@@ -395,11 +410,6 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
     if (argc < 2) {
         char **variable;
-        uint32_t user = (uint32_t)geteuid();
-        unsigned char bytes[4] = {
-            (unsigned char)(user >> 24), (unsigned char)(user >> 16),
-            (unsigned char)(user >> 8), (unsigned char)user
-        };
         mode_t mask = umask(0);
         uint32_t mask_bits = (uint32_t)mask;
         unsigned char mask_bytes[4] = {
@@ -407,11 +417,15 @@ int main(int argc, char **argv)
             (unsigned char)(mask_bits >> 8), (unsigned char)mask_bits
         };
         umask(mask);
-        frame('u', bytes, sizeof bytes);
+        user_frame();
         frame('m', mask_bytes, sizeof mask_bytes);
         for (variable = environ; *variable != NULL; variable++)
             frame('v', (const unsigned char *)*variable, strlen(*variable));
         frame('x', (const unsigned char *)"\0\0\0\0", 4);
+        return 0;
+    }
+    if (strcmp(argv[1], "user") == 0) {
+        user_frame();
         return 0;
     }
     if (strcmp(argv[1], "signal") == 0)

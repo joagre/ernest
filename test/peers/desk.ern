@@ -34,6 +34,8 @@ fn finds() : Unit with Msg = {
     let lost : Peer.Key(Int) = Peer.key("lost");
     Io.println("unreachable: " <> Io.show(Peer.find(lost, 1000)));
     Io.println("timeout: " <> Io.show(Peer.find(Counter.key, 0)));
+    // a time past the longest wait the host takes at once
+    Io.println("no upper bound: " <> started(Peer.find(Counter.key, 5000000000)));
     let adder = Shared.found(Counter.adder);
     send(adder, 3);
     send(adder, 4);
@@ -74,7 +76,9 @@ fn spawns() : Unit with Msg = {
         }
       | Left(failure) -> Io.println("monitored: " <> Io.show(failure))
     };
-    Io.println("late: " <> started(Work.squareOn("store", 9, 0)))
+    Io.println("late: " <> started(Work.squareOn("store", 9, 0)));
+    // a time past the longest wait the host takes at once
+    Io.println("no upper bound: " <> started(Work.squareOn("store", 8, 5000000000)))
 }
 
 // The counter's total once it is at least the one given: a message to the

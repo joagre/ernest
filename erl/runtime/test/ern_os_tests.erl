@@ -2,6 +2,7 @@
 -module(ern_os_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% Appendix E.23, report §7.4: a write and a read that wait while the helper
 %% ends fault their callers, the runtime's own failure. A regression test:
@@ -338,3 +339,17 @@ signal_test() ->
         "root" -> ok;
         _ -> ?assertEqual(others, ern_os:signal(0, 1))
     end.
+
+%% report §8.7: the user `ern` runs as, read alone, which a node's check of
+%% its directory reads: the user host/0 reads, and the owner of a file this
+%% host makes. A regression test: the node read the whole of what the host
+%% says of a program, its environment among it, for the user alone
+user_test() ->
+    User = ern_os:user(),
+    ?assertMatch({'Host', User, _}, ern_os:host()),
+    File = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                         "ern_os_user_" ++ os:getpid()),
+    ok = file:write_file(File, <<>>),
+    {ok, #file_info{uid = Owner}} = file:read_file_info(File),
+    ok = file:delete(File),
+    ?assertEqual(User, Owner).

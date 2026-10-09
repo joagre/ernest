@@ -469,10 +469,12 @@ deploy runs whole; then the library, and the tests over all of it.
    process runs one child function`; Appendix G for `Standing`; Appendix F and `style.md`'s
    glossary for hash, identity, closure, unit, code table and subscriber. The decision P1 of
    `findings.md` is made here, under the principles review that runs before this milestone,
-   since its proposal adds to the type system: whether what a function captures becomes a
-   restriction of its type scheme (§3.9), so that `Peer.spawn` takes a function value and the
-   spawn frame's captured values are checked by their type, or the form of §3.11 stays; the
-   recommendation is the form, until a program needs otherwise. `soundness.md`'s section 7 is
+   since its proposal adds to the type system: what a function captures becomes a
+   restriction of its type scheme (§3.9), so that `Peer.spawn` is an ordinary function, passed
+   as a value like `spawn`, the spawn frame's captured values are checked by their type, and
+   §3.11's list of admitted forms goes; decided with the user on 2026-10-09 as the destination,
+   designed once here with the spawn by hash, which asks the same of a captured function (the
+   log's *MVP 3.0's Findings Decided*). `soundness.md`'s section 7 is
    extended to the hashes between nodes of different builds and to identity by hash on one node
    across a load, and gains the end's paragraph. The log's entries, pointing at `code.md` and
    `nodes.md` for the argument. With them, as the build reaches each: `architecture.md` for the

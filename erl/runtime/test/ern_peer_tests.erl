@@ -15,18 +15,90 @@ answer_test() ->
     ok = ern_peer:tables(),
     try
         Ref = make_ref(),
-        true = ets:insert(ern_spawns, {Ref, self()}),
+        true = ets:insert(ern_spawns, {{node(), Ref}, self()}),
         Started = spawn(fun() -> receive after infinity -> ok end end),
         ok = ern_peer:frame(self(), {answer, Ref, {spawned, Started}}),
         ?assertEqual({Ref, {spawned, Started}}, receive {Ref, _} = Got -> Got end),
-        ?assertEqual([], ets:lookup(ern_spawns, Ref)),
+        ?assertEqual([], ets:lookup(ern_spawns, {node(), Ref})),
         Late = spawn(fun() -> receive after infinity -> ok end end),
-        Monitor = erlang:monitor(process, Late),
+        MonitorRef = erlang:monitor(process, Late),
         ok = ern_peer:frame(self(), {answer, make_ref(), {spawned, Late}}),
-        ?assertEqual({ern, killed}, receive {'DOWN', Monitor, process, Late, Why} -> Why end),
+        ?assertEqual({ern, killed}, receive {'DOWN', MonitorRef, process, Late, Why} -> Why end),
         exit(Started, kill)
     after
         ets:delete(ern_spawns)
+    end.
+
+%% report §8.7: the answer for a spawner that died while it waited ends the
+%% process it names, and its row goes; a peer's loss lets go of every row
+%% of that peer, its living waiter answered Unreachable and a dead one's row
+%% gone, and of no other peer's. A regression test: the answer went to the
+%% dead spawner, the process on the peer running on unowned, and a row whose
+%% answer never came was kept for good
+dead_spawner_test() ->
+    ok = ern_peer:tables(),
+    try
+        Dead = spawn(fun() -> ok end),
+        DeadRef = erlang:monitor(process, Dead),
+        receive {'DOWN', DeadRef, process, Dead, _} -> ok end,
+        Ref = make_ref(),
+        true = ets:insert(ern_spawns, {{node(), Ref}, Dead}),
+        Started = spawn(fun() -> receive after infinity -> ok end end),
+        MonitorRef = erlang:monitor(process, Started),
+        ok = ern_peer:frame(self(), {answer, Ref, {spawned, Started}}),
+        ?assertEqual({ern, killed}, receive {'DOWN', MonitorRef, process, Started, Why} -> Why end),
+        ?assertEqual([], ets:tab2list(ern_spawns)),
+        Lost = 'lost@node.ernest',
+        [Living, Gone, Other] = [make_ref() || _ <- [1, 2, 3]],
+        true = ets:insert(ern_spawns, [{{Lost, Living}, self()}, {{Lost, Gone}, Dead},
+                                       {{'other@node.ernest', Other}, self()}]),
+        ok = ern_peer:lost(Lost),
+        ?assertEqual({Living, {failed, 'Unreachable'}}, receive {Living, _} = Got -> Got end),
+        ?assertEqual([{{'other@node.ernest', Other}, self()}], ets:tab2list(ern_spawns))
+    after
+        ets:delete(ern_spawns)
+    end.
+
+%% report §8.7: a frame whose fields are not those of its kind is one the
+%% gateway cannot read: an answer that names no spawn's outcome, or a
+%% process of another node than the peer's, a find whose name is no text,
+%% and a message to an adapted address another node made. A regression
+%% test: each frame was read by its tag alone, and one that raised killed
+%% the gateway's worker, every later frame from the peer lost
+faulty_fields_test() ->
+    ok = ern_peer:tables(),
+    try
+        Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+        Here = self(),
+        Via = fun(Message) -> Message end,
+        [?assertEqual(unreadable, ern_peer:frame(self(), Body))
+         || Body <- [{answer, make_ref(), garbage}, {answer, make_ref(), {failed, 'Other'}},
+                     {answer, make_ref(), {spawned, Elsewhere}}, {answer, nothing, {spawned, Here}},
+                     {find, 1, <<"Int">>, make_ref()}, {via, {via, Via, Here, Elsewhere}, 1},
+                     {via, not_an_address, 1}, {spawn, make_ref(), not_a_function, <<"s">>, false}]]
+    after
+        ets:delete(ern_spawns)
+    end.
+
+%% report §8.7: a find or a spawn that comes while no run is in progress, as
+%% between two runs of `ern test` over a directory in one host, answers
+%% Unreachable. A regression test: each raised as it read a run's table that
+%% was gone, which killed the gateway's worker
+no_run_test() ->
+    Function = fun() -> ok end,
+    true = register(ern_gateway, self()),
+    try
+        Alias = erlang:alias(),
+        ok = ern_peer:frame(self(), {find, <<"k">>, <<"Int">>, Alias}),
+        ?assertEqual({Alias, 'Unreachable'}, receive {Alias, _} = Found -> Found end),
+        Ref = make_ref(),
+        ok = ern_peer:frame(self(), {spawn, Ref, Function, <<"M.f:1">>, false}),
+        ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
+                     receive {ern_frame, _, Body} -> Body end),
+        %% the reaper of a run that has ended starts nothing
+        ?assertEqual(none, ern_rt:spawn_for_peer(Function, <<"M.f:1">>))
+    after
+        unregister(ern_gateway)
     end.
 
 %% report §8.7: a function of a module this node has at another version,
@@ -90,6 +162,28 @@ foreign_offer_test() ->
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),
     ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
+
+%% report §8.7, §6.6: a call's note on a process the runtime did not start,
+%% a foreign one whose address of an unbound type crossed, goes with its
+%% row of the callees when that process ends without answering. A
+%% regression test: the reaper did not watch such a callee, so its notes
+%% were never let go
+foreign_callee_test() ->
+    Self = self(),
+    Main = fun() ->
+               Foreign = spawn(fun() -> receive stop -> ok end end),
+               Caller = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+               Reply = make_ref(),
+               ok = ern_rt:note_call(Foreign, Caller, Reply),
+               Self ! {noted, ets:tab2list(ern_notes), ets:tab2list(ern_callees)},
+               Reaper = persistent_term:get({ern_rt, reaper}),
+               ok = ern_waits:returned(Reaper, {ern_rt, drop_callee_notes, [Foreign]},
+                                       fun() -> Foreign ! stop end),
+               Self ! {ended, ets:tab2list(ern_notes), ets:tab2list(ern_callees)}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertMatch({noted, [_], [_]}, receive {noted, _, _} = Noted -> Noted end),
+    ?assertEqual({ended, [], []}, receive {ended, _, _} = Ended -> Ended end).
 
 %% report §8.7, §6.9: a restart on a node asks its gateway, as it asks the
 %% reaper, before it reads the calls waiting on the process, so that it

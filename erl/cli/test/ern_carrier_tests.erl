@@ -21,7 +21,7 @@ configured() ->
     _ = ern_node:create(Dir),
     ern_node:read(Dir).
 
-certificate(#configuration{dir = Dir}) ->
+certificate(#configuration{config_dir = Dir}) ->
     {ok, Pem} = file:read_file(filename:join(Dir, "certificate.pem")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
     public_key:pkix_decode_cert(Der, otp).
@@ -69,7 +69,7 @@ fingerprint_test() ->
 %% interface is the kernel's to bind where it is one
 boot_flags_test() ->
     Configuration = configured(),
-    Dir = filename:absname(Configuration#configuration.dir),
+    Dir = filename:absname(Configuration#configuration.config_dir),
     Flags = ern_carrier:boot_flags(Configuration#configuration{listen = {{127, 0, 0, 1}, 0}}, []),
     Cookie = ern_carrier:fingerprint([]),
     ?assertMatch(["-proto_dist", "inet_tls", "-ssl_dist_opt" | _], Flags),
@@ -139,3 +139,26 @@ said_test() ->
     ?assertEqual(<<"the peer store's connection was replaced by another from the same node">>,
                  Said({nodedown, Store, [{nodedown_reason, wait_pending}]})),
     ?assertEqual(none, ern_carrier:said({nodeup, node(), []})).
+
+%% report §8.7: a reload whose reading fails with anything but a refusal,
+%% as a failure of the runtime's helper would, is refused, the node saying
+%% so with the host's reason, and the configuration stays; the signal
+%% handler, which runs it, goes on taking signals. A regression test: such
+%% a failure removed the handler, and the node took no signal after it,
+%% `ern stop` among them. Here a directory no read can take stands for the
+%% failure
+reload_failure_test() ->
+    Running = (configured())#configuration{config_dir = {not_a_directory}},
+    Self = self(),
+    Main = fun() ->
+                   ok = ern_carrier:list(Running),
+                   Self ! {handled, ern_signals:handle_event(sighup, [])},
+                   Self ! {kept, ern_carrier:configuration() =:= Running}
+           end,
+    Said = fun(Bytes) -> Self ! {said, Bytes} end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => Said, stderr => Said})),
+    ?assertEqual({handled, {ok, []}}, receive {handled, _} = Handled -> Handled end),
+    ?assertEqual({kept, true}, receive {kept, _} = Kept -> Kept end),
+    {said, Line} = receive {said, _} = Got -> Got end,
+    ?assertMatch(<<"the reload was refused, and the configuration stays as it was: ", _/binary>>,
+                 Line).

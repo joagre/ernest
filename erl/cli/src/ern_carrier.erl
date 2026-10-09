@@ -10,7 +10,7 @@
 %% standard error.
 -module(ern_carrier).
 
--export([boot_flags/2, name/1, fingerprint/1, start/2, list/1, booted/0, configuration/0,
+-export([boot_flags/2, name/1, fingerprint/1, start/1, list/1, booted/0, configuration/0,
          is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1, say/1, named/1, said/1,
          filter/2]).
 
@@ -45,11 +45,10 @@
 %% the buffer; and the build's fingerprint as the cookie. The listener's
 %% interface, where it is one, is the kernel's to bind.
 -spec boot_flags(#configuration{}, [file:filename()]) -> [string()].
-boot_flags(#configuration{dir = ConfigDir, listen = Listen}, LoadPath) ->
-    Dir = filename:absname(ConfigDir),
-    Certificate = filename:join(Dir, "certificate.pem"),
-    Key = filename:join(Dir, "private-key.pem"),
-    Proto = case family(Listen) of
+boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}, LoadPath) ->
+    Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
+    Key = ern_node:file(filename:absname(ConfigDir), key),
+    Proto = case ern_node:family(Listen) of
                 inet -> "inet_tls";
                 inet6 -> "inet6_tls"
             end,
@@ -75,10 +74,6 @@ interface({{0, 0, 0, 0, 0, 0, 0, 0}, _}) -> [];
 interface({Address, _}) ->
     ["-kernel", "inet_dist_use_interface", lists:flatten(io_lib:format("~w", [Address]))];
 interface(none) -> [].
-
-family(none) -> inet;
-family({Address, _}) when tuple_size(Address) =:= 4 -> inet;
-family({_, _}) -> inet6.
 
 %% Report §8.7: a node's name on the carrier, the SHA-256 digest of its
 %% public key with a constant after it, holding no network address.
@@ -135,13 +130,12 @@ otp_version() ->
 %% listening where `listen` names an interface. A carrier that cannot
 %% start, its port taken among the reasons, ends the node as an initializer
 %% that faults ends a program (§8.5), the cause naming the host's reason.
--spec start(#configuration{}, boolean()) -> ok.
-start(_Configuration, _Stamped) when node() =/= nonode@nohost ->
+-spec start(#configuration{}) -> ok.
+start(_Configuration) when node() =/= nonode@nohost ->
     %% report §11.2: `ern test` over a directory runs each module in a
     %% runtime of its own, in one host, which is one node
     ok;
-start(#configuration{public_key = PublicKey, listen = Listen}, Stamped) ->
-    persistent_term:put({?MODULE, stamped}, Stamped),
+start(#configuration{public_key = PublicKey, listen = Listen}) ->
     ok = logger:add_primary_filter(?MODULE, {fun ?MODULE:filter/2, []}),
     ok = ern_gateway:start(),
     Self = self(),
@@ -194,22 +188,31 @@ is_node() ->
 %% dial read, the keys and the measures are the new file's, and a peer
 %% removed, or listed under another key, has its connection ended, both
 %% nodes running the loss. The node says that it read the file, and each
-%% peer added, removed or renamed, or why the file was refused.
+%% peer added, removed or renamed, or why the file was refused. Whatever
+%% fails as the file is read and checked refuses the reload, the host's
+%% reason named where it is not a refusal, so that the signal handler, in
+%% whose process this runs, never fails and the node takes every later
+%% signal; the measures, the one change made before the checks end, are
+%% restored where theirs fails (ern_node:measures_changed/3).
 -spec reload() -> ok.
 reload() ->
-    #configuration{dir = ConfigDir} = Running = configuration(),
+    #configuration{config_dir = ConfigDir} = Running = configuration(),
     try changed(Running, ern_node:read(ConfigDir)) of
         Lines -> lists:foreach(fun say/1, ["ernest.conf was read again" | Lines])
     catch
-        throw:{cli_error, Refusal} ->
-            say(["the reload was refused, and the configuration stays as it was: ", Refusal])
+        throw:{cli_error, Refusal} -> refuse(Refusal);
+        throw:{ern, fault, Cause} -> refuse(Cause);
+        _:Reason -> refuse(io_lib:format("~0tp", [Reason]))
     end.
 
-changed(#configuration{dir = ConfigDir, public_key = Key, listen = Listen, peers = Peers,
+refuse(Refusal) ->
+    say(["the reload was refused, and the configuration stays as it was: ", Refusal]).
+
+changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen, peers = Peers,
                        measures = Measures},
         #configuration{public_key = NewKey, listen = NewListen, peers = NewPeers,
                        measures = NewMeasures} = New) ->
-    Conf = ern_build:shown(filename:join(ConfigDir, "ernest.conf")),
+    Conf = ern_build:shown(ern_node:file(ConfigDir, conf)),
     NewKey =:= Key orelse ern_build:fail(Conf ++ ": public-key cannot change while the node runs"),
     NewListen =:= Listen
         orelse ern_build:fail(Conf ++ ": listen cannot change while the node runs"),
@@ -294,17 +297,14 @@ certificate_key(Certificate) ->
 %%
 
 %% Report §8.7: a line on the node's standard error, through standard
-%% error's process as a fault's line goes, with the time before it where
-%% standard error is neither a terminal nor a journal (§11.2).
+%% error's process as a fault's line goes, and written as `ern run` writes
+%% one, its time first where standard error is neither a terminal nor a
+%% journal (§11.2), from the node's start, a reload during its initializers
+%% among it.
 -spec say(iodata()) -> ok.
 say(Text) ->
-    Time = case persistent_term:get({?MODULE, stamped}, false) of
-               true -> [calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-                                                        [{unit, millisecond}, {offset, "Z"}]),
-                        " "];
-               false -> []
-           end,
-    ern_rt:send(ern_rt:system_process(stderr), iolist_to_binary([Time, Text, "\n"])),
+    ern_rt:send(ern_rt:system_process(stderr),
+                iolist_to_binary([ern_cli:stamp(ern_cli:is_stamped()), Text, "\n"])),
     ok.
 
 %% A peer as a line names it: by its name in `ernest.conf`, or by its key's

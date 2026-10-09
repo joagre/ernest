@@ -28,16 +28,19 @@
 %% no timed receive or clock alarm pending, no process inside foreign code,
 %% and no source held that can still deliver.
 %%
-%% Nine tables hold a launch's state, each described where it is defined.
-%% `ern_processes` has a row {Pid, Site, Timers, Foreign, SpawnOrder} per
-%% process the runtime started or adopted, where Timers counts the timed
-%% receives the process is in, Foreign its foreign calls, and SpawnOrder
-%% its place in the order of spawns. `ern_calls` and `ern_callees` hold the
-%% pending calls, `ern_faults` the subscriptions to faults, `ern_held` the
-%% sources and the processes the system modules opened, `ern_deliveries`
-%% the deliveries in flight, `ern_restarts` the restarts a process may be
-%% asked, `ern_proxies` the checking proxies of §8.4, and `ern_launch` the
-%% way the terminal is read and the process a deadlock faults.
+%% Thirteen tables hold a launch's state, each described where it is
+%% defined. `ern_processes` has a row {Pid, Site, Timers, Foreign,
+%% SpawnOrder} per process the runtime started or adopted, where Timers
+%% counts the timed receives the process is in, Foreign its foreign calls,
+%% and SpawnOrder its place in the order of spawns. `ern_calls` and
+%% `ern_callees` hold the pending calls, `ern_faults` the subscriptions to
+%% faults, `ern_held` the sources and the processes the system modules
+%% opened, `ern_deliveries` the deliveries in flight, `ern_restarts` the
+%% restarts a process may be asked, `ern_proxies` the checking proxies of
+%% §8.4, and `ern_launch` the way the terminal is read and the process a
+%% deadlock faults. A node's (§8.7): `ern_offers` and `ern_offered` hold
+%% the offers, `ern_initialized` the modules whose initializers have run,
+%% and `ern_notes` the notes of calls from other nodes.
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
@@ -50,8 +53,8 @@
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1, spawn_order/1,
-         init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2, note_call/3,
-         drop_note/1, drop_notes/1, ordered/1]).
+         init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2, spawn_for_peer/2,
+         note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -102,17 +105,19 @@
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Text}, Address, Process} by
 %% the key's name and its type's text, ordered so that one name's are read
-%% together; each process's own keys, by the process, so that its end ends
-%% them; and the modules whose initializers have run, which a spawn from a
-%% peer asks for.
+%% together
 -define(OFFERS, ern_offers).
+%% report §8.7: each process's own keys, {Process, Key}, by the process, so
+%% that its end ends its offers
+-define(OFFERED, ern_offered).
+%% report §8.7: the modules whose initializers have run, {ErlangModule},
+%% which a spawn from a peer asks for
+-define(INITIALIZED, ern_initialized).
 %% Report §8.7: the notes of calls from other nodes on this node's
 %% processes, {{CallerNode, Reply}, Callee, Caller}, by the caller's node,
 %% so that a loss drops a peer's together; each beside its row of CALLEES,
 %% which a restart reads.
 -define(NOTES, ern_notes).
--define(OFFERED, ern_offered).
--define(INITIALIZED, ern_initialized).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 %% How long the reaper waits without a message before it looks for a
@@ -124,10 +129,11 @@
 -define(LOOK_SOON, 100).
 -define(LOOK_LATER, 1000).
 
--type address() :: pid() | {via, fun((term()) -> term()), address(), pid()}
-                 | {foreign, pid(), term(), map()}.
 %% An adapted address holds the process that made it, whose node is the
 %% one its function runs on (report §6.5).
+-type address() :: pid() | {via, fun((term()) -> term()), address(), pid()}
+                 | {foreign, pid(), term(), map()}.
+
 %% Report §8.2: the system processes, by the names the runtime keeps them
 %% under.
 -type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
@@ -144,8 +150,10 @@
 %% monitors, so that a caller's death takes its monitors with it: nothing
 %% is left to deliver them to. monitor_refs: #{Pid => MonitorRef}, a
 %% process the runtime did not start, monitored here only while a monitor
-%% of it stands.
--record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}}).
+%% of it stands. watched: #{Pid => true}, a process the runtime did not
+%% start that holds an offer or a call's note (report §8.7), watched once
+%% until it ends, so that they end with it.
+-record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, watched = #{}}).
 
 %%
 %% Report §6.2, §9.4
@@ -538,13 +546,14 @@ reaper_loop(Reaper, Wait) ->
         {'DOWN', _MonitorRef, process, Pid, ExitReason} ->
             reaper_loop(down(Pid, ExitReason, Reaper));
         %% report §8.7: an offer of a process the runtime does not watch,
-        %% a foreign one, ends with it as any other does
-        {watch_offered, Pid} ->
-            _ = erlang:monitor(process, Pid, [{tag, 'OFFERED_DOWN'}]),
-            reaper_loop(Reaper);
-        {'OFFERED_DOWN', _MonitorRef, process, Pid, _ExitReason} ->
+        %% a foreign one, and a call's note on it end with it as any other
+        %% process's do
+        {watch, Pid} ->
+            reaper_loop(watched(Pid, Reaper));
+        {'WATCHED_DOWN', _MonitorRef, process, Pid, _ExitReason} ->
             unoffered(Pid),
-            reaper_loop(Reaper)
+            drop_callee_notes(Pid),
+            reaper_loop(Reaper#reaper{watched = maps:remove(Pid, Reaper#reaper.watched)})
     after Wait ->
         case look() of
             deadlock ->
@@ -556,6 +565,14 @@ reaper_loop(Reaper, Wait) ->
                 reaper_loop(Reaper, ?LOOK_LATER)
         end
     end.
+
+%% A process the runtime did not start, watched from here until it ends,
+%% once however many offers and notes it holds.
+watched(Pid, #reaper{watched = Watched} = Reaper) when is_map_key(Pid, Watched) ->
+    Reaper;
+watched(Pid, #reaper{watched = Watched} = Reaper) ->
+    _ = erlang:monitor(process, Pid, [{tag, 'WATCHED_DOWN'}]),
+    Reaper#reaper{watched = Watched#{Pid => true}}.
 
 %% A process spawned on request, which starts once its row is in the
 %% table, since a timed receive it enters first counts itself there
@@ -605,14 +622,14 @@ monitored(Pid, Caller, Wrap, Ref,
 %% faults are cancelled, with what is on its way to it; the monitors of it
 %% stand, since a restart is not a death.
 new_run(Pid, Ref, #reaper{monitors = Monitors, monitoring = Monitoring,
-                          monitor_refs = MonitorRefs}) ->
+                          monitor_refs = MonitorRefs} = Reaper) ->
     ets:delete(?FAULTS, Pid),
     {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:get(Pid, Monitoring, []), Monitors,
                                             MonitorRefs),
     cancelled(Pid),
     Pid ! {Ref, fresh},
-    #reaper{monitors = Monitors1, monitoring = maps:remove(Pid, Monitoring),
-            monitor_refs = MonitorRefs1}.
+    Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Pid, Monitoring),
+                  monitor_refs = MonitorRefs1}.
 
 %% A process that ended: each monitor of it told, and the monitors of it,
 %% and its own, gone.
@@ -632,7 +649,8 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
             {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:get(Pid, Monitoring, []),
                                                     maps:remove(Pid, Monitors),
                                                     maps:remove(Pid, MonitorRefs)),
-            #reaper{monitors = Monitors1, monitoring = Monitoring1, monitor_refs = MonitorRefs1}
+            Reaper#reaper{monitors = Monitors1, monitoring = Monitoring1,
+                          monitor_refs = MonitorRefs1}
     end.
 
 %% Each monitor of a process that ended told how. A process the runtime
@@ -906,10 +924,12 @@ died(Pid, Site, ExitReason) ->
 %% deliver to the runtime. Report §11.2: nothing is a deadlock while a
 %% shell holds the terminal; and report §8.6, nothing on a node, which can
 %% be reached from outside.
+%%
 %% What the look finds: `delivering`, where something can still deliver, a
 %% shell holds the terminal, or the program is a node, so that no deadlock
-%% can begin before that ends; `running`, where nothing can and a process is not waiting, or
-%% none is left; `deadlock`, where nothing can and every process waits.
+%% can begin before that ends; `running`, where nothing can and a process
+%% is not waiting, or none is left; `deadlock`, where nothing can and every
+%% process waits.
 look() ->
     case terminal_holder() =:= undefined andalso not persistent_term:get({?MODULE, node}, false)
          andalso nothing_delivers() of
@@ -1697,9 +1717,8 @@ outcome_flushed({raised, Class, Error, Stack}, _Gone) -> erlang:raise(Class, Err
 outcome_flushed({ended, Outcome}, []) -> Outcome;
 outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 
-%% The run's tables, which the module's header describes.
-%% The tables that hold a launch's state, which `make load` counts the rows
-%% of (docs/memory.md).
+%% The tables that hold a launch's state, which the module's header
+%% describes and `make load` counts the rows of (docs/memory.md).
 -spec tables() -> [atom()].
 tables() ->
     [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?HELD, ?DELIVERIES, ?RESTARTS, ?PROXIES, ?LAUNCH,
@@ -2257,13 +2276,17 @@ offer(Key, Address, Name) ->
             ets:insert(?OFFERS, {Key, Address, Process})
     end,
     ets:insert(?OFFERED, {Process, Key}),
-    %% the reaper watches every process the runtime started or opened, and
-    %% is asked to watch any other, so that its offers end with it
-    case {ets:member(?PROCESSES, Process), persistent_term:get({?MODULE, reaper}, none)} of
-        {false, Reaper} when is_pid(Reaper) -> Reaper ! {watch_offered, Process};
-        _ -> ok
-    end,
+    watch(Process),
     ?UNIT.
+
+%% The reaper watches every process the runtime started or opened, and is
+%% asked to watch any other that holds an offer or a call's note, so that
+%% they end with it.
+watch(Pid) ->
+    case {ets:member(?PROCESSES, Pid), persistent_term:get({?MODULE, reaper}, none)} of
+        {false, Reaper} when is_pid(Reaper) -> Reaper ! {watch, Pid};
+        _ -> ok
+    end.
 
 %% Report §8.7: what this node offers under a name at a type's text: the
 %% address, or `OtherType` where it offers the name at another type only,
@@ -2280,6 +2303,30 @@ offered(Name, Text) ->
             end
     end.
 
+%% Report §8.7: a process a peer's spawn starts on this node, as spawn/2
+%% starts one, or none where no run is in progress to start it, its reaper
+%% ended or not yet begun: as a run ends, and between two runs of `ern test`
+%% over a directory, in one host. The gateway's worker that asks waits on
+%% the reaper's end as well as on its answer, since a frame comes at any
+%% time.
+-spec spawn_for_peer(fun(() -> term()), binary()) -> pid() | none.
+spawn_for_peer(Function, Site) ->
+    case persistent_term:get({?MODULE, reaper}, none) of
+        none ->
+            none;
+        Reaper ->
+            MonitorRef = erlang:monitor(process, Reaper),
+            Ref = make_ref(),
+            Reaper ! {spawn, erlang:self(), Ref, Function, Site, []},
+            receive
+                {Ref, Pid} ->
+                    erlang:demonitor(MonitorRef, [flush]),
+                    Pid;
+                {'DOWN', MonitorRef, process, _, _} ->
+                    none
+            end
+    end.
+
 %% Report §8.7: a process's offers end with it.
 unoffered(Pid) ->
     lists:foreach(fun({_, Key}) ->
@@ -2290,12 +2337,16 @@ unoffered(Pid) ->
 %% caller of another node waits on a process of this one, with the reply,
 %% beside its row of CALLEES, which a restart reads. A callee that has
 %% already ended takes none, since its end, which drops its notes, came
-%% before; one that ends after the row is written finds it.
+%% before; one that ends after the row is written finds it, a process the
+%% runtime did not start among them, which the reaper is asked to watch.
 -spec note_call(pid(), pid(), reference()) -> ok.
 note_call(Callee, Caller, Reply) ->
     ets:insert(?CALLEES, {{Callee, Caller}, Reply}),
     ets:insert(?NOTES, {{node(Reply), Reply}, Callee, Caller}),
-    erlang:is_process_alive(Callee) orelse dropped_note(Reply),
+    case erlang:is_process_alive(Callee) of
+        true -> watch(Callee);
+        false -> dropped_note(Reply)
+    end,
     ok.
 
 %% Report §8.7: the second note, that the call is over.

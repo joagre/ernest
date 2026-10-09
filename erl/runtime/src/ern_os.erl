@@ -10,7 +10,8 @@
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, signal/2, host/0, umask/0, working_directory/0]).
+-export([loop/0, helper_failed/0, helper/0, signal/2, host/0, user/0, umask/0,
+         working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -81,14 +82,15 @@ helper_failed() ->
 helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
 
-%% Report §8.7: the signal Number sent to the host's process Process by the
-%% helper, which the host has no word for: `sent`, `none` where no such
-%% process lives, or `others` where it lives and is another user's; the
-%% signal 0 sends nothing, and asks whether the process lives.
+%% Report §8.7: the signal Number sent by the helper to the operating
+%% system's process of the process number given, which the host has no
+%% word for: `sent`, `none` where no such process lives, or `others` where
+%% it lives and is another user's; the signal 0 sends nothing, and asks
+%% whether the process lives.
 -spec signal(non_neg_integer(), pos_integer()) -> sent | none | others.
-signal(Number, Process) ->
+signal(Number, ProcessNumber) ->
     Port = open_port({spawn_executable, helper()},
-                     [{args, ["signal", integer_to_list(Number), integer_to_list(Process)]},
+                     [{args, ["signal", integer_to_list(Number), integer_to_list(ProcessNumber)]},
                       exit_status]),
     receive
         {Port, {exit_status, 0}} -> sent;
@@ -385,6 +387,23 @@ host() ->
         {Helper, {exit_status, _}} -> host_failed()
     end.
 
+%% Report §8.7: the user `ern` runs as, which the host has no word for, as
+%% the helper run with `user` writes it back, and nothing else: a node
+%% checks its directory by it as it starts and at each reload. The helper's
+%% failure faults, as host/0's does.
+-spec user() -> non_neg_integer().
+user() ->
+    Helper = try open(["user"])
+             catch error:_ -> host_failed()
+             end,
+    receive
+        {Helper, {data, <<"u", User:32>>}} ->
+            receive
+                {Helper, {exit_status, _}} -> User
+            end;
+        {Helper, {exit_status, _}} -> host_failed()
+    end.
+
 %% Report Appendix E.17: the program's file mode creation mask, which the
 %% host has no word for, as the helper read it when the host was read,
 %% and read so where it has not been. It is kept for the program's life,
@@ -401,7 +420,8 @@ umask() ->
     end.
 
 %% Report Appendix E.23, §8.5: the helper failed as the host was read,
-%% which ends the program before `main` runs.
+%% which ends the program before `main` runs, or as the user was read for
+%% a node (user/0, §8.7).
 -spec host_failed() -> no_return().
 host_failed() ->
     {fault, Cause} = helper_failed(),

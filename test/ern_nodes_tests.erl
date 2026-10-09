@@ -22,6 +22,39 @@ tmp() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
+%% A test of real nodes, named by its function, given the directory it
+%% makes them under, after which every node still running from a directory
+%% there is killed, however the test ended, its time running out among the
+%% ways: the cleanup is the fixture's, which outlives the test's process.
+nodes_test(Seconds, Test) ->
+    {name, Name} = erlang:fun_info(Test, name),
+    {setup, fun tmp/0, fun killed/1,
+     fun(Base) -> {timeout, Seconds, {atom_to_list(Name), fun() -> Test(Base) end}} end}.
+
+%% Report §8.6, a node detecting no deadlock: each node whose ernest.pid is
+%% still in a directory under Base killed, a stopped one among them. A test
+%% that passed has stopped its nodes, and one a test killed left a file
+%% naming a process that has ended.
+killed(Base) ->
+    lists:foreach(fun node_killed/1, filelib:wildcard(filename:join([Base, "*", "ernest.pid"]))).
+
+%% The process a node's ernest.pid names killed, where it is a node, its
+%% command line naming a configuration directory; a file gone meanwhile
+%% names none.
+node_killed(PidFile) ->
+    Read = case file:read_file(PidFile) of
+               {ok, Text} -> string:to_integer(string:trim(binary_to_list(Text)));
+               {error, _} -> none
+           end,
+    case Read of
+        {ProcessNumber, ""} when ProcessNumber > 0 ->
+            Digits = integer_to_list(ProcessNumber),
+            string:find(os:cmd("ps -o args= -p " ++ Digits), "--config-dir") =:= nomatch
+                orelse os:cmd("kill -KILL " ++ Digits) =:= "";
+        _ ->
+            false
+    end.
+
 %% A port nothing holds now on the loopback interface.
 free_port() ->
     {ok, Socket} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
@@ -257,10 +290,9 @@ has(Text, Part) ->
 %% says so naming the other; a node that ends is lost to the other, which
 %% says it closed; and the host's own reports of its nodes are not written
 connect_test_() ->
-    {timeout, 60, fun connect/0}.
+    nodes_test(60, fun connect/1).
 
-connect() ->
-    Base = tmp(),
+connect(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
     B = made(Base, "b", PortB),
@@ -287,10 +319,9 @@ connect() ->
 %% lists, and no other: the dialer is told nothing but that it could not
 %% connect, and the node that refused says so, naming the key's digest
 unlisted_test_() ->
-    {timeout, 60, fun unlisted/0}.
+    nodes_test(60, fun unlisted/1).
 
-unlisted() ->
-    Base = tmp(),
+unlisted(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
     B = made(Base, "b", PortB),
@@ -313,10 +344,9 @@ unlisted() ->
 %% nothing sent, the build's fingerprint being the host's cookie, and the
 %% node that refused says so in its own words
 other_build_test_() ->
-    {timeout, 60, fun other_build/0}.
+    nodes_test(60, fun other_build/1).
 
-other_build() ->
-    Base = tmp(),
+other_build(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
     B = made(Base, "b", PortB),
@@ -343,10 +373,9 @@ other_build() ->
 %% one directory are one node to their peers; the second's dial ends the
 %% first's connection, which the peer says each time
 replaced_test_() ->
-    {timeout, 60, fun replaced/0}.
+    nodes_test(60, fun replaced/1).
 
-replaced() ->
-    Base = tmp(),
+replaced(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
     B = made(Base, "b", PortB),
@@ -374,10 +403,9 @@ replaced() ->
 %% picks and says which it bound; a node without `listen` does not listen,
 %% and dials
 listening_test_() ->
-    {timeout, 60, fun listening/0}.
+    nodes_test(60, fun listening/1).
 
-listening() ->
-    Base = tmp(),
+listening(Base) ->
     PortB = free_port(),
     A = made(Base, "a", none),
     B = made(Base, "b", PortB),
@@ -408,10 +436,9 @@ listening() ->
 %% message that names no peer's process names no connection, and is
 %% dropped, which the node says
 faulty_frame_test_() ->
-    {timeout, 60, fun faulty_frame/0}.
+    nodes_test(60, fun faulty_frame/1).
 
-faulty_frame() ->
-    Base = tmp(),
+faulty_frame(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
     B = made(Base, "b", PortB),
@@ -435,10 +462,9 @@ faulty_frame() ->
 %% report §8.7: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
 ipv6_test_() ->
-    {timeout, 60, fun ipv6/0}.
+    nodes_test(60, fun ipv6/1).
 
-ipv6() ->
-    Base = tmp(),
+ipv6(Base) ->
     Free = fun() ->
                {ok, Socket} = gen_tcp:listen(0, [inet6, {ip, {0, 0, 0, 0, 0, 0, 0, 1}}]),
                {ok, Port} = inet:port(Socket),
@@ -472,10 +498,9 @@ ipv6() ->
 %% report §8.6, §8.7, Appendix E.23: a node whose program ends by `Os.exit`
 %% exits with its status, and its ernest.pid, there while it runs, is gone
 os_exit_test_() ->
-    {timeout, 60, fun os_exit/0}.
+    nodes_test(60, fun os_exit/1).
 
-os_exit() ->
-    Base = tmp(),
+os_exit(Base) ->
     A = made(Base, "a", none),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
@@ -496,16 +521,39 @@ os_exit() ->
 %% having given the host no flags. A regression test: the refusal said the
 %% host had not been started as a node
 refused_configuration_test_() ->
-    {timeout, 60, fun refused_configuration/0}.
+    nodes_test(60, fun refused_configuration/1).
 
-refused_configuration() ->
-    Base = tmp(),
+refused_configuration(Base) ->
     A = made(Base, "a", none),
     edit(A, fun(Conf) -> Conf#{<<"peers">> => #{}} end),
     Program = program(filename:join(Base, "build")),
     Said = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1; echo status $?"),
     has(Said, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": peers is not a JSON array"),
     has(Said, "status 1").
+
+%% report §8.7, §11.2: a node refused once its start has begun, by a module
+%% on its load path the program never uses whose dependency the path lacks,
+%% removes the ernest.pid it wrote, as it does however it ends. A
+%% regression test: the file was left naming the process that had ended
+refused_after_start_test_() ->
+    nodes_test(60, fun refused_after_start/1).
+
+refused_after_start(Base) ->
+    A = made(Base, "a", none),
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "prog.ern"),
+                         "export fn main() : Unit with Never = Io.println(\"ran\")\n"),
+    ok = file:write_file(filename:join(Root, "uses.ern"), "export fn f() : Int = Used.g()\n"),
+    ok = file:write_file(filename:join(Root, "used.ern"), "export fn g() : Int = 1\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    ok = file:delete(filename:join(Root, "used.erc")),
+    Said = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ filename:join(Root, "prog.erc")
+                  ++ " 2>&1; echo status $?"),
+    has(Said, "Used"),
+    has(Said, "status 1"),
+    ?assertEqual(nomatch, string:find(Said, "ran")),
+    ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
 %% report §8.6: a node detects no deadlock, since it can be reached from
 %% outside: a node that waits for a message that never comes waits, where
@@ -514,10 +562,9 @@ refused_configuration() ->
 %% program took to fault as no node, the one wait here a time, since an
 %% absence shows itself by nothing else
 no_deadlock_test_() ->
-    {timeout, 60, fun no_deadlock/0}.
+    nodes_test(60, fun no_deadlock/1).
 
-no_deadlock() ->
-    Base = tmp(),
+no_deadlock(Base) ->
     A = made(Base, "a", none),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
@@ -597,10 +644,9 @@ store_and_desk(Base) ->
 %% a find after it Unreachable, and a callForever on its process faults
 %% with the callee unreachable
 find_test_() ->
-    {timeout, 90, fun find/0}.
+    nodes_test(90, fun find/1).
 
-find() ->
-    Base = tmp(),
+find(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     WaitStore = start(Store, StoreProgram, []),
@@ -618,7 +664,8 @@ find() ->
      || Line <- ["early: Left(Unreachable)", "nodes: [\"store\", \"gone\"]", "info: None",
                  "unlisted: Left(NotListed)", "other type: Left(OtherType)",
                  "not offered: Left(NotOffered)", "unreachable: Left(Unreachable)",
-                 "timeout: Left(Timeout)", "through the via: 7", "killed: Killed \"\"",
+                 "timeout: Left(Timeout)", "no upper bound: Right", "through the via: 7",
+                 "killed: Killed \"\"",
                  "another node's: Fault(\"a node offers only its own processes\")",
                  "twice: Fault(\"twice is offered by a living process\")",
                  "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
@@ -632,12 +679,13 @@ find() ->
 %% module whose binding has no value on the store is NotLoaded, and so is
 %% one of a module that depends on such a module, the rule being by module;
 %% a top-level binding in spawned code is the peer's; a monitored spawn is
-%% monitored from its start; a spawn given no time answers Timeout
+%% monitored from its start; a spawn given no time answers Timeout; a find
+%% and a spawn given a time past the longest wait the host takes at once
+%% wait, a regression: each failed with the host's error
 spawn_test_() ->
-    {timeout, 90, fun spawn_on_peer/0}.
+    nodes_test(90, fun spawn_on_peer/1).
 
-spawn_on_peer() ->
-    Base = tmp(),
+spawn_on_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     WaitStore = start(Store, StoreProgram, []),
@@ -650,8 +698,9 @@ spawn_on_peer() ->
     [has(Out, Line)
      || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
                  "by module: NotLoaded", "bindings: Right", "monitored: Returned",
-                 "late: Timeout"]],
+                 "late: Timeout", "no upper bound: Right"]],
     has(StoreOut, "the store squares 49"),
+    has(StoreOut, "the store squares 64"),
     has(StoreOut, "the peers here: [\"desk\", \"third\"]"),
     ?assertEqual(nomatch, string:find(StoreOut, "never initialized")).
 
@@ -670,10 +719,9 @@ spawn_on_peer() ->
 %% other senders' messages between them, a send that waits at a full
 %% buffer, and a silence, which the detector finds in a minute
 across_test_() ->
-    {timeout, 120, fun across/0}.
+    nodes_test(120, fun across/1).
 
-across() ->
-    Base = tmp(),
+across(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     ThirdProgram = filename:join(filename:dirname(DeskProgram), "third.erc"),
     {Store, Desk} = store_and_desk(Base),
@@ -720,10 +768,9 @@ across() ->
 %% the note is the race the note's order is there for, which a run may or
 %% may not meet; and a sender waiting at a full buffer is not covered
 calls_test_() ->
-    {timeout, 120, fun calls/0}.
+    nodes_test(120, fun calls/1).
 
-calls() ->
-    Base = tmp(),
+calls(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     WaitStore = start(Store, StoreProgram, []),
@@ -750,10 +797,9 @@ signalled(Job, Dir) ->
 %% and its ernest.pid goes. A regression test, written after the code; it
 %% does not cover a peer that falls silent while the node stops
 stop_test_() ->
-    {timeout, 90, fun stop_in_order/0}.
+    nodes_test(90, fun stop_in_order/1).
 
-stop_in_order() ->
-    Base = tmp(),
+stop_in_order(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     WaitStore = start(Store, StoreProgram, []),
@@ -776,14 +822,17 @@ stop_in_order() ->
 %% ernest.conf again: a peer removed has its connection ended and is
 %% refused after, a peer listed again under another name is accepted, a
 %% peer renamed keeps its connection, and a file that changes `listen` is
-%% refused, the configuration kept; the node says what each did. A
-%% regression test, written after the code; it does not cover `measures`
-%% changed, nor a peer whose address changed
+%% refused, the configuration kept; the node says what each did, each line
+%% with its time. A regression test, written after the code; it does not
+%% cover `measures` changed, nor a peer whose address changed. Regressions:
+%% a peer's public key that does not decode failed the signal handler,
+%% after which the node took no signal and ran on past `ern stop`; and the
+%% host warned on standard output at each reload of a message the handler
+%% did not take
 reload_test_() ->
-    {timeout, 90, fun reload/0}.
+    nodes_test(90, fun reload/1).
 
-reload() ->
-    Base = tmp(),
+reload(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     Third = filename:join(Base, "third"),
@@ -805,6 +854,14 @@ reload() ->
     says(Store, "the peer front is now named window"),
     true = port_command(DeskPort, "go\n"),
     prints(Desk, "now refuse a reload"),
+    edit(Store, fun(#{<<"peers">> := Peers} = Conf) ->
+                    Broken = #{<<"name">> => <<"broken">>,
+                               <<"public-key">> => undecodable(public(Desk))},
+                    Conf#{<<"peers">> := Peers ++ [Broken]}
+                end),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "is not one public key in PEM"),
+    lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
     edit(Store, fun(Conf) -> Conf#{<<"listen">> => address(free_port())} end),
     ?assertMatch({0, _}, signalled("reload", Store)),
     says(Store, "the reload was refused"),
@@ -812,14 +869,25 @@ reload() ->
     ?assertEqual(0, WaitDesk()),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
-    {_, Err} = said(Store),
+    {StoreOut, Err} = said(Store),
     [has(Out, Line)
      || Line <- ["removed: Unreachable \"\"", "unlisted: Left(Unreachable)", "listed again: true",
                  "renamed: Some(0)", "refused: Some(0)"]],
-    has(Err, "ernest.conf was read again"),
+    [?assertMatch({match, _}, re:run(Err, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z " ++ Line ++ "$",
+                                     [multiline]))
+     || Line <- ["ernest.conf was read again", "the peer desk was removed",
+                 "the peer front was added", "the peer front is now named window"]],
     has(Err, "the reload was refused, and the configuration stays as it was: "),
+    has(Err, "peer \"broken\"'s public-key is not one public key in PEM"),
     has(Err, "listen cannot change while the node runs"),
-    ?assertEqual(nomatch, string:find(Err, "the peer front was lost")).
+    ?assertEqual(nomatch, string:find(Err, "the peer front was lost")),
+    ?assertEqual(nomatch, string:find(StoreOut, "WARNING REPORT")).
+
+%% A public key in PEM whose body the host's decoder cannot read: its first
+%% bytes, the key's algorithm, made another DER's.
+undecodable(Pem) ->
+    [Head, Body] = binary:split(Pem, <<"\n">>),
+    <<Head/binary, "\nAAAAAAAAAAAA", (binary:part(Body, 12, byte_size(Body) - 12))/binary>>.
 
 %% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
 %% picks in turn until a place has a measure, and then the lower of the
@@ -829,10 +897,9 @@ reload() ->
 %% not. A regression test, written after the code; it does not cover a
 %% place out of reach, nor a pick of two among more than two places
 balance_test_() ->
-    {timeout, 90, fun balance/0}.
+    nodes_test(90, fun balance/1).
 
-balance() ->
-    Base = tmp(),
+balance(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     edit(Store, fun(Conf) ->
@@ -845,7 +912,11 @@ balance() ->
     prints(Store, "loads there"),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
-    {StoreOut, _} = said(Store),
+    {StoreOut, StoreErr} = said(Store),
+    %% report §8.7: the host's own reports are not written; a regression:
+    %% the program the host runs for the cpu measure said, as the host
+    %% ended, that the host had closed
+    ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
     [has(Out, Line)
      || Line <- ["in turn: #(Some(Here), Some(On(\"store\")))", "measured: Right",
                  "picked: the store three times in a row", "work: Right",
@@ -863,10 +934,9 @@ balance() ->
 %% written after the code; it does not cover a reload, whose end a program
 %% cannot see (§8.7: the signal carries nothing back)
 program_test_() ->
-    {timeout, 90, fun program/0}.
+    nodes_test(90, fun pair_program/1).
 
-program() ->
-    Base = tmp(),
+pair_program(Base) ->
     _ = peers(Base),
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
@@ -913,10 +983,9 @@ pid(Dir) ->
 %% here that is a time is the detector's own, which the test reads and
 %% does not choose
 silence_test_() ->
-    {timeout, 180, fun silence/0}.
+    nodes_test(180, fun silence/1).
 
-silence() ->
-    Base = tmp(),
+silence(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     WaitStore = start(Store, StoreProgram, []),
@@ -1042,16 +1111,15 @@ held(Listener, Sockets) ->
 %% silence test holds of a loss holds; the proxy healed, the address reaches
 %% its process again. A regression test, written after the code
 parted_one_way_test_() ->
-    {timeout, 180, fun() -> parted(true, false, "closed") end}.
+    nodes_test(180, fun(Base) -> parted(Base, true, false, "closed") end).
 
 %% report §8.7, the proposal's sections 4 and 8: the same, the proxy
 %% dropping what passes both ways, so that each node gives the other up by
 %% its own detector. A regression test, written after the code
 parted_both_ways_test_() ->
-    {timeout, 180, fun() -> parted(true, true, "fell silent") end}.
+    nodes_test(180, fun(Base) -> parted(Base, true, true, "fell silent") end).
 
-parted(ToStore, FromStore, DeskSays) ->
-    Base = tmp(),
+parted(Base, ToStore, FromStore, DeskSays) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     {ProxyPort, Proxy} = proxy(listen_port(Store)),
@@ -1083,10 +1151,9 @@ parted(ToStore, FromStore, DeskSays) ->
 %% Timeout, though its time is longer. A regression test, written after the
 %% code
 dial_test_() ->
-    {timeout, 90, fun dial/0}.
+    nodes_test(90, fun dial/1).
 
-dial() ->
-    Base = tmp(),
+dial(Base) ->
     {_, DeskProgram} = peers(Base),
     {_, Desk} = store_and_desk(Base),
     readdressed(Desk, <<"store">>, answers_nothing()),

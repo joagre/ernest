@@ -6,17 +6,21 @@
 %% which starts the process through the peer's runtime and answers through
 %% the spawner's gateway, which ends a process no one waits for any more. A
 %% node's peers and keys are the carrier's to give (configure/2); a program
-%% that is no node has none.
+%% that is no node has none. A wait has no upper bound: it is made against
+%% the moment its time ends, in slices the host takes (ern_rt:remaining/1).
 -module(ern_peer).
 
 -export([configure/2, tables/0, key/1, key/2, offer/2, find/2, spawn/3, spawn/4,
-         spawn_monitored/4, spawn_monitored/5, nodes/0, frame/2]).
+         spawn_monitored/4, spawn_monitored/5, nodes/0, frame/2, lost/1]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
 %% persistent term read, which the emitter does not count as foreign code.
 -waits_on_nothing([offer/2, nodes/0]).
 
-%% A spawn waiting for its answer, by its reference: the waiting process.
+%% A spawn waiting for its answer, {{Node, Ref}, Waiting}, by the peer's
+%% node and the spawn's reference: the waiting process. Ordered, so that a
+%% peer's loss reads that peer's rows alone, and an answer is taken only
+%% from the peer the spawn went to.
 -define(SPAWNS, ern_spawns).
 
 %%
@@ -37,7 +41,7 @@ configure(Peers, Keys) ->
 %% gateway, which outlives every run of a node's program.
 -spec tables() -> ok.
 tables() ->
-    ?SPAWNS = ets:new(?SPAWNS, [named_table, public, set]),
+    ?SPAWNS = ets:new(?SPAWNS, [named_table, public, ordered_set]),
     ok.
 
 %% A peer's name on the carrier, or none where no peer has the name.
@@ -73,7 +77,7 @@ offer({'Key', Name, Text}, Address) ->
 %% where no peer offers it, and `Timeout` where the time runs out.
 -spec find({'Key', binary(), binary()}, integer()) -> {'Right', term()} | {'Left', atom()}.
 find({'Key', Name, Text}, Ms) ->
-    Deadline = erlang:monotonic_time(millisecond) + max(Ms, 0),
+    Deadline = ern_rt:deadline(Ms),
     Nodes = [node_of(Peer) || Peer <- maps:get(Name, persistent_term:get({?MODULE, keys}, #{}),
                                                 [])],
     found(Nodes, Name, Text, Deadline, 'NotListed').
@@ -85,38 +89,43 @@ found([], _Name, _Text, _Deadline, Last) ->
 found(_Nodes, _Name, _Text, _Deadline, _Last) when node() =:= nonode@nohost ->
     {'Left', 'Unreachable'};
 found([Node | Nodes], Name, Text, Deadline, _Last) ->
-    case left(Deadline) of
+    case ern_rt:remaining(Deadline) of
         0 ->
             {'Left', 'Timeout'};
-        Ms ->
-            case asked(Node, Name, Text, Ms) of
+        _ ->
+            case asked(Node, Name, Text, Deadline) of
                 {found, Address} -> {'Right', Address};
                 timeout -> {'Left', 'Timeout'};
                 Failure -> found(Nodes, Name, Text, Deadline, Failure)
             end
     end.
 
-left(Deadline) ->
-    max(0, Deadline - erlang:monotonic_time(millisecond)).
-
 %% A peer's answer to a find, through an alias that takes one answer and
 %% drops a late one; `Unreachable` where its gateway cannot be reached.
-asked(Node, Name, Text, Ms) ->
+asked(Node, Name, Text, Deadline) ->
     Gateway = {ern_gateway, Node},
-    Monitor = erlang:monitor(process, Gateway),
+    MonitorRef = erlang:monitor(process, Gateway),
     Alias = erlang:alias([reply]),
     erlang:send(Gateway, {ern_frame, erlang:self(), {find, Name, Text, Alias}}),
+    find_answer(Alias, MonitorRef, Deadline).
+
+find_answer(Alias, MonitorRef, Deadline) ->
     receive
         {Alias, Answer} ->
-            erlang:demonitor(Monitor, [flush]),
+            erlang:demonitor(MonitorRef, [flush]),
             Answer;
-        {'DOWN', Monitor, process, _, _} ->
+        {'DOWN', MonitorRef, process, _, _} ->
             erlang:unalias(Alias),
             'Unreachable'
-    after Ms ->
-        erlang:unalias(Alias),
-        erlang:demonitor(Monitor, [flush]),
-        timeout
+    after ern_rt:remaining(Deadline) ->
+        case ern_rt:remaining(Deadline) of
+            0 ->
+                erlang:unalias(Alias),
+                erlang:demonitor(MonitorRef, [flush]),
+                timeout;
+            _ ->
+                find_answer(Alias, MonitorRef, Deadline)
+        end
     end.
 
 %% Report §8.7: a process started on the peer named, running the function,
@@ -151,33 +160,37 @@ spawned(Name, Function, Wrap, Ms, Site) ->
         _ when node() =:= nonode@nohost ->
             {'Left', 'Unreachable'};
         Node ->
-            Deadline = erlang:monotonic_time(millisecond) + max(Ms, 0),
+            Deadline = ern_rt:deadline(Ms),
             Ref = make_ref(),
-            true = ets:insert(?SPAWNS, {Ref, erlang:self()}),
+            true = ets:insert(?SPAWNS, {{Node, Ref}, erlang:self()}),
             Gateway = {ern_gateway, Node},
-            Monitor = erlang:monitor(process, Gateway),
+            MonitorRef = erlang:monitor(process, Gateway),
             erlang:send(Gateway, {ern_frame, erlang:self(),
                                   {spawn, Ref, Function, Site, Wrap =/= none}}),
-            Answer = spawn_answer(Ref, Monitor, Deadline),
-            erlang:demonitor(Monitor, [flush]),
+            Answer = spawn_answer({Node, Ref}, MonitorRef, Deadline),
+            erlang:demonitor(MonitorRef, [flush]),
             started(Answer, Ref, Wrap)
     end.
 
-spawn_answer(Ref, Monitor, Deadline) ->
+spawn_answer({_, Ref} = Key, MonitorRef, Deadline) ->
     receive
         {Ref, Answer} ->
             Answer;
-        {'DOWN', Monitor, process, _, _} ->
-            given_up(Ref, 'Unreachable')
-    after left(Deadline) ->
-        given_up(Ref, 'Timeout')
+        {'DOWN', MonitorRef, process, _, _} ->
+            given_up(Key, 'Unreachable')
+    after ern_rt:remaining(Deadline) ->
+        case ern_rt:remaining(Deadline) of
+            0 -> given_up(Key, 'Timeout');
+            _ -> spawn_answer(Key, MonitorRef, Deadline)
+        end
     end.
 
-%% The wait given up: where the gateway has taken the row, its answer is on
-%% its way here and is taken; otherwise none will come, and a late one ends
-%% the process it names.
-given_up(Ref, Failure) ->
-    case ets:take(?SPAWNS, Ref) of
+%% The wait given up: where this node's gateway has taken the row, its
+%% answer, or the loss's `Unreachable` (lost/1), is on its way here and is
+%% taken; otherwise none will come, and a late one ends the process it
+%% names.
+given_up({_, Ref} = Key, Failure) ->
+    case ets:take(?SPAWNS, Key) of
         [_] -> {failed, Failure};
         [] -> receive {Ref, Answer} -> Answer end
     end.
@@ -201,33 +214,80 @@ nodes() ->
 %%
 
 %% Report §8.7: a frame a peer sent, read by the gateway's worker for that
-%% peer: a find answered at once; a spawn started through this node's
-%% runtime, or `NotLoaded`; a spawn's answer handed to the process that
-%% waits for it, or, where none does, its process ended; a message to an
-%% adapted address this node made, its function applied here. Any other
+%% peer, each field of it checked: a find answered at once; a spawn started
+%% through this node's runtime, or `NotLoaded`; a spawn's answer handed to
+%% the process that waits for it, where it lives, or else its process
+%% ended; a message to an adapted address this node made, its function
+%% applied here. A find or a spawn that comes while no run is in progress
+%% answers `Unreachable`: a run's tables are gone between two runs of `ern
+%% test` over a directory, in one host, and its reaper as it ends. Any other
 %% frame is one the gateway cannot read.
 -spec frame(pid(), term()) -> ok | unreadable.
-frame(_From, {find, Name, Text, Alias}) ->
-    Alias ! {Alias, ern_rt:offered(Name, Text)},
+frame(_From, {find, Name, Text, Alias})
+  when is_binary(Name), is_binary(Text), is_reference(Alias) ->
+    Answer = try ern_rt:offered(Name, Text)
+             catch error:badarg -> 'Unreachable'
+             end,
+    Alias ! {Alias, Answer},
     ok;
-frame(From, {spawn, Ref, Function, Site, Monitored}) when is_function(Function, 0) ->
-    Answer = case loaded(Function) of
-                 true -> {spawned, ern_rt:spawn(held(Function, Ref, From, Monitored), Site)};
+frame(From, {spawn, Ref, Function, Site, Monitored})
+  when is_reference(Ref), is_function(Function, 0), is_binary(Site), is_boolean(Monitored) ->
+    Answer = try loaded(Function) of
+                 true -> started_here(held(Function, Ref, From, Monitored), Site);
                  false -> {failed, 'NotLoaded'}
+             catch error:badarg -> {failed, 'Unreachable'}
              end,
     erlang:send({ern_gateway, node(From)}, {ern_frame, erlang:self(), {answer, Ref, Answer}}),
     ok;
-frame(_From, {answer, Ref, Answer}) ->
-    case ets:take(?SPAWNS, Ref) of
-        [{_, Waiting}] -> Waiting ! {Ref, Answer};
-        [] -> ended(Answer)
-    end,
-    ok;
-frame(_From, {via, Via, Message}) ->
+frame(From, {answer, Ref, {spawned, Pid} = Answer})
+  when is_reference(Ref), is_pid(Pid), node(Pid) =:= node(From) ->
+    answered(From, Ref, Answer);
+frame(From, {answer, Ref, {failed, Failure} = Answer})
+  when is_reference(Ref), Failure =:= 'NotLoaded' orelse Failure =:= 'Unreachable' ->
+    answered(From, Ref, Answer);
+frame(_From, {via, {via, Function, _Target, Maker} = Via, Message})
+  when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node() ->
     ern_rt:send(Via, Message),
     ok;
 frame(_From, _Body) ->
     unreadable.
+
+%% A process a peer's spawn starts here, or `Unreachable` where no run is in
+%% progress to start it.
+started_here(Function, Site) ->
+    case ern_rt:spawn_for_peer(Function, Site) of
+        none -> {failed, 'Unreachable'};
+        Pid -> {spawned, Pid}
+    end.
+
+%% A spawn's answer, taken only from the peer the spawn went to: handed to
+%% the process that waits for it, where it lives; where it does not, or none
+%% waits, the process it names is ended.
+answered(From, Ref, Answer) ->
+    case ets:take(?SPAWNS, {node(From), Ref}) of
+        [{_, Waiting}] ->
+            case erlang:is_process_alive(Waiting) of
+                true -> Waiting ! {Ref, Answer};
+                false -> ended(Answer)
+            end;
+        [] ->
+            ended(Answer)
+    end,
+    ok.
+
+%% Report §8.7: the spawns waiting on a peer whose connection is lost, once
+%% the gateway's worker has read every frame that came before the loss:
+%% each row goes, its waiter answered `Unreachable`, as its own watch on the
+%% peer's gateway answers it, so that no row outlives a waiter that died.
+%% A row its waiter took first is its own.
+-spec lost(node()) -> ok.
+lost(Node) ->
+    lists:foreach(fun({{_, Ref} = Key, Waiting}) ->
+                      case ets:take(?SPAWNS, Key) of
+                          [_] -> Waiting ! {Ref, {failed, 'Unreachable'}};
+                          [] -> ok
+                      end
+                  end, ets:select(?SPAWNS, [{{{Node, '_'}, '_'}, [], ['$_']}])).
 
 %% Report §8.7: a process the spawner no longer waits for is ended as its
 %% answer arrives.
@@ -252,12 +312,12 @@ held(Function, _Ref, _Spawner, false) ->
     Function;
 held(Function, Ref, Spawner, true) ->
     fun() ->
-        Monitor = erlang:monitor(process, Spawner),
+        MonitorRef = erlang:monitor(process, Spawner),
         receive
             {ern_go, Ref} ->
-                erlang:demonitor(Monitor, [flush]),
+                erlang:demonitor(MonitorRef, [flush]),
                 Function();
-            {'DOWN', Monitor, process, _, _} ->
+            {'DOWN', MonitorRef, process, _, _} ->
                 ok
         end
     end.

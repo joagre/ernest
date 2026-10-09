@@ -1,11 +1,12 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
 %% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
-%% (§11.2), and config (§11.3). The launcher bin/ern is thin; everything is
-%% here so that the tests can call it. `ern/1,2` returns the exit status,
-%% which the launcher's entry point ends the host with.
+%% (§11.2), config (§11.3), and reload and stop (§11.2, §8.7). The launcher
+%% bin/ern is thin; everything is here so that the tests can call it.
+%% `ern/1,2` returns the exit status, which the launcher's entry point ends
+%% the host with.
 -module(ern_cli).
 
--export([start/0, node_flags/0, ern/1, ern/2]).
+-export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -25,11 +26,12 @@
 %% Report §11: the launcher's entry, the command line being what follows
 %% the host's -extra. The host's signals are ern's before any of its work
 %% (ern_signals). A running program writes to the process's own standard
-%% output and standard error (reporting/2). A failure of the toolchain itself is a
-%% defect, which is reported on standard error with the host's stack and
-%% ends `ern` with status 70, and is never left as a crash dump in the
-%% working directory. `ern` ends by the signal that ended a running program
-%% once its output has flushed (§11.2), and otherwise with the status.
+%% output and standard error (reporting_options/2). A failure of the
+%% toolchain itself is a defect, which is reported on standard error with
+%% the host's stack and ends `ern` with status 70, and is never left as a
+%% crash dump in the working directory. `ern` ends by the signal that ended
+%% a running program once its output has flushed (§11.2), and otherwise
+%% with the status.
 -spec start() -> no_return().
 start() ->
     ok = ern_signals:install(),
@@ -94,11 +96,11 @@ node_flags() ->
                         _:_ -> []
                     end
             end,
-    io:put_chars(Out, ["ern-node-flags " | lists:join(" ", [quoted(Flag) || Flag <- Flags])]),
+    io:put_chars(Out, ["ern-node-flags " | lists:join(" ", [shell_quoted(Flag) || Flag <- Flags])]),
     halt(0).
 
 %% A word as the shell reads it back, in single quotes.
-quoted(Word) ->
+shell_quoted(Word) ->
     ["'", string:replace(Word, "'", "'\\''", all), "'"].
 
 -spec ern([word()]) -> 0..255.
@@ -847,8 +849,9 @@ is_node(Options) ->
 %% directory checked and read before anything of it runs, its carrier
 %% started once the bindings have their values, which the run's options
 %% carry (ern_rt:run_main/3), and its `ernest.pid` removed at its end,
-%% however it ends; a run without it is no node. Where the launcher asks for
-%% the host's flags (node_flags/0), they are answered and nothing runs.
+%% however it ends, a start refused once the file is written among the
+%% ways; a run without it is no node. Where the launcher asks for the
+%% host's flags (node_flags/0), they are answered and nothing runs.
 as_node(Options, LoadPath, Run) ->
     case {proplists:get_value(config_dir, Options), persistent_term:get({?MODULE, flags}, false)} of
         {undefined, _} ->
@@ -863,16 +866,16 @@ as_node(Options, LoadPath, Run) ->
                 orelse ern_build:fail("the host was not started as a node, which ern does where"
                                       " the command line holds --config-dir"),
             Configuration = ern_node:start(ConfigDir, Read),
-            %% report §8.7: a node carries the whole build, so that a function
-            %% a peer spawns finds its code; nothing of it is initialized
-            %% because a peer asked
-            whole_build(LoadPath),
-            %% report §8.7: its peers listed from its start, so that a find
-            %% or a spawn in an initializer is a peer's, which no connection
-            %% reaches yet
-            ok = ern_carrier:list(Configuration),
-            Stamped = is_stamped(),
-            try Run(#{node => fun() -> ern_carrier:start(Configuration, Stamped) end})
+            try
+                %% report §8.7: a node carries the whole build, so that a
+                %% function a peer spawns finds its code; nothing of it is
+                %% initialized because a peer asked
+                whole_build(LoadPath),
+                %% report §8.7: its peers listed from its start, so that a
+                %% find or a spawn in an initializer is a peer's, which no
+                %% connection reaches yet
+                ok = ern_carrier:list(Configuration),
+                Run(#{node => fun() -> ern_carrier:start(Configuration) end})
             after
                 %% report §8.7: a node stops in order, then its ernest.pid goes
                 ern_carrier:depart(),
@@ -896,15 +899,19 @@ report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Stamped) 
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
               end,
-    Time = case Stamped of
-               true -> [calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-                                                        [{unit, millisecond}, {offset, "Z"}]),
-                        " "];
-               false -> []
-           end,
     ern_rt:send(ern_rt:system_process(stderr),
-                iolist_to_binary([Time, Site, Faulted, ern_show:controls(Cause, line), "\n",
-                                  ern_show:controls(iolist_to_binary(Trace), lines)])).
+                iolist_to_binary([stamp(Stamped), Site, Faulted, ern_show:controls(Cause, line),
+                                  "\n", ern_show:controls(iolist_to_binary(Trace), lines)])).
+
+%% Report §11.2, §8.7: what a line on standard error begins with, a fault's
+%% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
+%% stamped, and nothing where they are not.
+-spec stamp(boolean()) -> iodata().
+stamp(true) ->
+    [calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
+                                     [{unit, millisecond}, {offset, "Z"}]), " "];
+stamp(false) ->
+    [].
 
 %% The options of a launch that reports its faults. From the command line the
 %% program writes to the process's own standard output and standard error,
@@ -925,6 +932,7 @@ reporting_options(RunOptions, ErrorDevice) ->
 %% Report §11.2, §8.7: whether a line on standard error begins with its
 %% time: where the program writes to the process's own standard error, and
 %% that is neither a terminal nor a journal.
+-spec is_stamped() -> boolean().
 is_stamped() ->
     persistent_term:get({?MODULE, streams}, device) =:= fds
         andalso not ern_tty:is_terminal(stderr) andalso not is_journal().

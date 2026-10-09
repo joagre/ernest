@@ -7,7 +7,8 @@
 -module(ern_signals).
 -behaviour(gen_event).
 
--export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2]).
+-export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2,
+         handle_info/2]).
 
 %% Handle the two signals here from now on (report §11). The launcher has
 %% the host run this first, before the entry's module is loaded, and the
@@ -92,3 +93,12 @@ end_run(Signal) ->
 -spec handle_call(term(), []) -> {ok, ok, []}.
 handle_call(_, State) ->
     {ok, ok, State}.
+
+%% Report §8.7: a reload runs in the host's signal server, which traps
+%% exits, so that the end of each port the reload opens, the runtime's
+%% helper's (ern_os), comes here as a message; it is taken and nothing is
+%% said, since the host's reports of its own are not written. Nothing else
+%% is sent to the signal server.
+-spec handle_info(term(), []) -> {ok, []}.
+handle_info(_, State) ->
+    {ok, State}.
