@@ -20,7 +20,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is under way, items 1 to 6 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
+of 2026-10-09*). MVP 3.1 is under way, items 1 to 7 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
 the tour and the review; the back end, ehttpd, the website and the shell's second round follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ends with a read of what it built, its item
 9, and MVP 3.2 with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
@@ -249,7 +249,13 @@ and 8 below.
    forwarding each message, finding again at `Went` with `ms` between failed finds, dropping a
    send while the service is away, a call through it answering `None` at its own time, and ending
    at its caller's `Down`. E.22's refusal: `Supervisor.child`'s function run inside a process
-   that is already a child faults with `Fault("a process runs one child function")`.
+   that is already a child faults with `Fault("a process runs one child function")`. Done
+   2026-10-10 (the log's *Standing and the Refusal, Built*): `libs/standing` and G.7, the
+   process finding again at the next message after `Went`, waiting on no clock, as the proposal
+   has it, and passing a message it cannot deliver on to where the service was, an ended
+   process, so that a call through it answers `None` at its own time; the refusal widened to a
+   child's function run inside any restarting function, `Fault("a child's function runs in no
+   restarting function")`, where its group miscounted the faults it saw.
 8. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes of
    two builds on one machine as MVP 3.0's tests run them: two builds connect, a find answers
    `OtherType` where the key's type differs and an address where it does not, a spawn of a

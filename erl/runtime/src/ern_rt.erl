@@ -55,7 +55,8 @@
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
-         binding_value/2, restarting/2, restart_now/0, ask_restart/1, start_cause/0, on_this_node/1,
+         binding_value/2, restarting/2, restart_now/0, ask_restart/1, start_cause/0,
+         is_restarting/0, on_this_node/1,
          spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2,
          asked_of_run/1, note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
@@ -70,7 +71,7 @@
 %% multiple of the call (CLAUDE.md's cost rule).
 -waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, processes/0,
                    spawn_order/1, start_cause/0, faults/1, info/1, ask_restart/1,
-                   on_this_node/1, terminating/1]).
+                   is_restarting/0, on_this_node/1, terminating/1]).
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
@@ -2224,6 +2225,12 @@ start_cause() ->
         undefined -> 'First';
         Cause -> Cause
     end.
+
+%% Appendix E.22: whether a restarting function already runs in the calling
+%% process, its outermost one, which a child's function would nest in.
+-spec is_restarting() -> boolean().
+is_restarting() ->
+    ets_lookup(?RESTARTS, erlang:self()) =/= [].
 
 %% Appendix E.22: whether a process runs on the caller's node, where a
 %% supervisor and its children run (§8.7).

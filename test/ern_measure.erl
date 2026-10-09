@@ -588,7 +588,8 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), load_scenarios(), balancer_scenarios()]).
+                  peer_scenarios(), load_scenarios(), balancer_scenarios(),
+                  standing_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -904,6 +905,16 @@ balancer_scenarios() ->
       {fun() -> Balancer:pick(Measured, 1000) end,
        fun() -> Ref = make_ref(), Asker ! {self(), Ref}, receive {Ref, _} -> ok end end}},
      {<<"Balancer.serve">>, {within, <<"Balancer.pick">>}}].
+
+%% Appendix G.7: a standing address started and ended, its find answering
+%% at once in a launch that is no node, beside a process spawned and
+%% ended; the key's hash and text are no type's, since nothing finds it.
+standing_scenarios() ->
+    Standing = 'ern@standing',
+    Key = {'Key', <<"measured">>, <<0:256>>, <<"Measured">>},
+    [{<<"Standing.start">>,
+      {fun() -> ern_rt:kill(Standing:start(Key, 1000)) end,
+       fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].
 
 ets_scenarios() ->
     Ets = 'ern@ets',

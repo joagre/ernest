@@ -318,6 +318,35 @@ child_of_ended_supervisor_test() ->
         "}\n"),
     ?assertEqual({fault, <<"the supervisor has ended">>}, Result).
 
+%% Appendix E.22: a child's function run where a restarting function already
+%% runs in its process faults, inside another child's as inside a plain
+%% `restarting`, since it would read that function's start cause in place of
+%% its own. Regression tests, written after the code (MVP 3.1's item 7): the
+%% inner function read the outer's cause, and its group counted a fault that
+%% had not happened, or none that had
+child_inside_a_child_faults_test() ->
+    ?assertEqual(<<"a child's function runs in no restarting function\n">>,
+                 first_fault_cause("Supervisor.child(sup, fn() ="
+                                   " Supervisor.child(sup, fn() : Unit with Never = Unit)())")).
+
+child_inside_restarting_faults_test() ->
+    ?assertEqual(<<"a child's function runs in no restarting function\n">>,
+                 first_fault_cause("restarting(RestartLimit(restarts = 1, within = 5000),"
+                                   " Supervisor.child(sup, fn() : Unit with Never = Unit))")).
+
+%% The cause of the first fault of a program that spawns Spawned, a function
+%% of no message, beside a group of its own.
+first_fault_cause(Spawned) ->
+    {ok, Output} = ern_emitter_tests:run(
+        ["let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne, ",
+         ?LIMIT, "))\n"
+         "export fn main() : Unit with Process.FaultReport = {\n"
+         "    Process.faults(fn(report) = report);\n"
+         "    let _ = spawn(", Spawned, ");\n"
+         "    receive { report -> Io.println(report.cause) }\n"
+         "}\n"]),
+    Output.
+
 %% report §6.9, Appendix E.22: a root group past its limit faults, and its
 %% children are killed; none reports a fault it did not have. A regression
 %% test for children that, asked to restart, rejoined the dead supervisor

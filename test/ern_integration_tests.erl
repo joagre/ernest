@@ -633,13 +633,14 @@ debug_information(Dir) ->
                  lists:keymember("Dbgi", 1, Chunks)
              end].
 
-%% report §9.3, §11.2, Appendix G.2, G.4, G.5, G.6, plan MVP 3.2: every
+%% report §9.3, §11.2, Appendix G.2, G.4, G.5, G.6, G.7, plan MVP 3.2: every
 %% library's own tests, run by `ern test` over the directory their compiled
 %% modules are under, as the shell's are: the Markdown library's read and
 %% lay out what G.2 says, the Load and Balancer libraries' measure as G.4
 %% and G.5 say, the balancer's measuring process faulting as its test
-%% expects, which the run reports, and the JSON library's read and write
-%% what G.6 says. A regression test too: the modules were run by one
+%% expects, which the run reports, the JSON library's read and write
+%% what G.6 says, and the standing address's wait for its service as G.7
+%% says. A regression test too: the modules were run by one
 %% command joined with `&&`, which the host runs by `exec`, so only the
 %% first module's tests ran, and it has none
 libs_test_() ->
@@ -655,7 +656,7 @@ libs() ->
                                binary:match(Line, <<"is no place of this balancer">>) =/= nomatch]),
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Balancer">>, <<"Json">>, <<"Load">>, <<"Markdown">>],
+    ?assertEqual([<<"Balancer">>, <<"Json">>, <<"Load">>, <<"Markdown">>, <<"Standing">>],
                  Lines -- (Passed ++ Faulted)),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).

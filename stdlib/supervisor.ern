@@ -395,6 +395,10 @@ fn stopAll(members : List(Member)) : Unit with WatcherMsg =
 /// Faults where `supervisor` has ended before the child joins, with the cause
 /// `the supervisor has ended`, and where `supervisor` runs on another node,
 /// with the cause `a child runs on its supervisor's node`, before it joins.
+/// Faults where it runs inside a restarting function, another child's among
+/// them, with the cause `a child's function runs in no restarting function`:
+/// a child restarts by its group, and reads why it began from its own
+/// restart alone (report §6.9).
 ///
 /// ### Examples
 ///
@@ -410,6 +414,7 @@ fn stopAll(members : List(Member)) : Unit with WatcherMsg =
 /// ```
 export fn child(supervisor : Address(Msg), f : () -> Unit with m) : () -> Unit with m =
     fn() = {
+        if isRestarting() then fault("a child's function runs in no restarting function") else Unit;
         if isOnThisNode(Process.fromAddress(supervisor)) then
             Unit
         else
@@ -470,3 +475,9 @@ fn join(supervisor : Address(Msg),
 // Why the restarting function the caller runs in began.
 foreign fn startCause() : Start with m =
     "ern_rt:start_cause/0"
+
+// Appendix E.22: whether a restarting function already runs in the calling
+// process, whose start cause a child's function would read in place of its
+// own.
+foreign fn isRestarting() : Bool with m =
+    "ern_rt:is_restarting/0"
