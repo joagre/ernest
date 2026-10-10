@@ -320,8 +320,12 @@ examples cannot be. Its plan lives in its repository; this one records what it a
 language and the libraries, and each is written as it asks, the libraries below among them.
 Named so far for it: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
 terminal, a library over `libs/http` and `Tcp`; base64; TLS on a socket; and what of `Tcp` a
-server needs beyond what E.18 gives. What writing it finds against the principles goes to
-`language_feedback.md` first, as any Ernest written here.
+server needs beyond what E.18 gives. What it lacks is added where it belongs and never worked around in
+Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission
+rules, our need the occasion and the rules deciding the function; a format or a protocol is a
+library's; what the prelude or the language lacks goes to `language_feedback.md` first, as any
+Ernest written here, and is discussed before any code goes around it (decided with the user on
+2026-10-10, with the site's generator, MVP 4.2).
 
 A library not yet written waits, and is written when our work needs it, MVP 3.0 and 3.1 among
 that work, when someone asks for it, or when we want it, decided 2026-09-25 (the log's
