@@ -51,10 +51,13 @@ stage() {
              build/stdlib/*.erc build/stdlib/ern@*.beam \
              $(find build/shell build/libs -type f \( -name '*.erc' -o -name '*.beam' \) | sort)
     do
+        # a beam compiled from an application's test/ is a test's, and
+        # ships with no installation, a test's helper among them
         case $f in
-            *_tests.beam) ;;
-            *) mkdir -p "$(dirname "$tree/$f")" && cp "$f" "$tree/$f" ;;
+            erl/*/ebin/*.beam)
+                [ -e "${f%%/ebin/*}/test/$(basename "$f" .beam).erl" ] && continue ;;
         esac
+        mkdir -p "$(dirname "$tree/$f")" && cp "$f" "$tree/$f"
     done
     escript tools/strip.escript "$tree"
     mkdir -p "$stage/bin"

@@ -58,12 +58,17 @@
 %% module that runs it over its captures (§8.7, §11.1). units: each
 %% namespace whose unit is not its module's Erlang name => its unit, which
 %% the shell gives where a reload brought a module's version as a unit of
-%% its own (report §11.2).
+%% its own (report §11.2). site_namespace: the namespace a spawn site names
+%% a declaration under, the module's own, or a reload's version's, which
+%% the shell gives (report §11.2). builds_functions: whether the module
+%% builds a function value, a fun of its own code that may be held anywhere
+%% (function_value/2), which the shell reads to keep an input (§11.2).
 -record(emit_context, {namespace, erlang_module, env, declaration, variables = #{},
                        counter = 0, locals = #{}, lifted = [], top_names = #{},
                        descriptors = #{}, pattern_guards = [], session_offset = false,
                        standard = false, members = #{}, outer, canonical, let_lambdas = #{},
-                       entries = #{}, units = #{}}).
+                       entries = #{}, units = #{}, site_namespace,
+                       builds_functions = false}).
 %% A spawn on a peer's entry (report §8.7, §11.1): the function's name and
 %% arity, the enclosing definition's qualified name, the identity's hash
 %% and position, and the reach, which the module's '$code'/0 lists.
@@ -93,13 +98,18 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% marks an input of the shell, which is compiled and not written, and is
 %% not kept, with the line offset its spawn sites are written with;
 %% `form_namespace`, which the shell gives an input, is the namespace its
-%% types' forms hold their qualified names under, the session's one
-%% (Appendix H, §11.2), and is not kept; `standard` marks a module of the
-%% standard library's own source root.
+%% forms and its '$code'/0 name what the session declares under, the
+%% session's one (Appendix H, §11.2), and is not kept; `standard` marks a
+%% module of the standard library's own source root.
 %% `units` names the unit of each namespace whose unit is not its module's
 %% Erlang name, the module's own among them, as the shell gives them where
 %% a reload brought a version as a unit of its own (report §11.2), and is
-%% not kept. The declarations are the checker's, so every rule a program can break has
+%% not kept; `site_namespace`, which the shell gives such a version, is the
+%% namespace its spawn sites name its declarations under, `Counter$2`
+%% (§11.2), and is not kept. The chunk records beside the build's facts
+%% whether the module builds a function value, `builds_functions`, by which
+%% the shell keeps an input's code (§11.2). The declarations are the
+%% checker's, so every rule a program can break has
 %% been checked: what the emitter cannot emit, or emits and the host does not
 %% compile, is a defect of the toolchain, raised as one, which `ern` reports
 %% as its own failure (report §11).
@@ -108,7 +118,8 @@ compile(Namespace, Declarations, Interface, Env) ->
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
                 session_offset => non_neg_integer(), form_namespace => [atom()],
-                standard => boolean(), units => #{[atom()] => atom()}}) ->
+                standard => boolean(), units => #{[atom()] => atom()},
+                site_namespace => [atom()]}) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
     %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
@@ -119,9 +130,11 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
                                      maps:get(standard, Build, false),
                                      maps:get(form_namespace, Build, Namespace)),
     #{references := References} = Canonical,
-    Forms = forms(Namespace, Declarations, Env, Build#{code => true, canonical => Canonical}),
-    Facts = (maps:without([source, session_offset, form_namespace, standard, units], Build))
-        #{references => References},
+    {Forms, BuildsFunctions} =
+        module_forms(Namespace, Declarations, Env, Build#{code => true, canonical => Canonical}),
+    Facts = (maps:without([source, session_offset, form_namespace, standard, units,
+                           site_namespace], Build))
+        #{references => References, builds_functions => BuildsFunctions},
     Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
@@ -168,6 +181,11 @@ forms(Namespace, Declarations, Env) ->
 %% the forms for reading compute.
 -spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
 forms(Namespace, Declarations, Env, Build) ->
+    {Forms, _} = module_forms(Namespace, Declarations, Env, Build),
+    Forms.
+
+%% The forms, and whether the module builds a function value.
+module_forms(Namespace, Declarations, Env, Build) ->
     Units = maps:get(units, Build, #{}),
     ErlangModule = maps:get(Namespace, Units, ern_namespace:erlang_module(Namespace)),
     Dependencies = [Dependency || {Dependency, _} <- maps:get(deps, Build, [])],
@@ -179,7 +197,8 @@ forms(Namespace, Declarations, Env, Build) ->
     Context = #emit_context{namespace = Namespace, erlang_module = ErlangModule, env = Env,
                             top_names = top_names(Declarations),
                             session_offset = maps:get(session_offset, Build, false),
-                            standard = Standard, canonical = Canonical, units = Units},
+                            standard = Standard, canonical = Canonical, units = Units,
+                            site_namespace = maps:get(site_namespace, Build, Namespace)},
     {DeclarationFunctions, Context1} = lists:mapfoldl(fun declaration/2, Context, Declarations),
     Lets = [Declaration || #let_declaration{} = Declaration <- Declarations],
     {InitFunction, Context2} = init_function(Lets, Context1),
@@ -192,7 +211,8 @@ forms(Namespace, Declarations, Env, Build) ->
     CodeFunction = case Build of
                        #{code := true} ->
                            Calls = calls(Bodies, ErlangModule, Standard),
-                           code_function(code(Namespace, ErlangModule, Declarations, Canonical,
+                           Named = {Namespace, maps:get(form_namespace, Build, Namespace)},
+                           code_function(code(Named, ErlangModule, Declarations, Canonical,
                                               Entries)
                                          ++ [{Namespace, {calls, Calls}}]);
                        _ ->
@@ -227,7 +247,7 @@ forms(Namespace, Declarations, Env, Build) ->
     Functions = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
         ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction
         ++ lists:reverse(Context2#emit_context.lifted),
-    erl_syntax:revert_forms(Attrs ++ Functions).
+    {erl_syntax:revert_forms(Attrs ++ Functions), Context2#emit_context.builds_functions}.
 
 %% Each top-level name as the Erlang function it compiles to, a `let` as
 %% its getter of no argument.
@@ -277,40 +297,50 @@ nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_l
 %% function, which the canonical forms name by its qualified name alone;
 %% each lambda and local fn a spawn on a peer starts, by its identity,
 %% with its entry and its reach; and, last, under the module's namespace,
-%% the units its code calls (calls/3). A literal '$code'/0 answers, so that
-%% a load reads it without decoding the module's chunks, which costs more
-%% than the load. The forms for reading, `--emit-erl` and the golden files,
-%% have no such function.
-code(Namespace, ErlangModule, Declarations, #{identities := Hashes, reaches := Reaches},
+%% the units its code calls (calls/3). Each qualified name is the forms'
+%% (Appendix H): an input of a shell's session names what it declares
+%% under the session's one namespace, FormNamespace, by which a reach finds
+%% it. A literal '$code'/0 answers, so that a load reads it without
+%% decoding the module's chunks, which costs more than the load. The forms
+%% for reading, `--emit-erl` and the golden files, have no such function.
+code(Named, ErlangModule, Declarations, #{identities := Hashes, reaches := Reaches},
      Entries) ->
-    lists:append([declaration_code(Namespace, ErlangModule, Declaration, Hashes, Reaches)
+    lists:append([declaration_code(Named, ErlangModule, Declaration, Hashes, Reaches)
                   || Declaration <- Declarations])
-        ++ lists:sort([{QualifiedName, {lambda, Hash, Position, Function, Arity, Reach}}
+        ++ lists:sort([{form_name(QualifiedName, Named),
+                        {lambda, Hash, Position, Function, Arity, Reach}}
                        || #entry{function = Function, arity = Arity, qualified_name = QualifiedName,
                                  hash = Hash, position = Position, reach = Reach} <- Entries]).
 
-declaration_code(Namespace, _, #fn_declaration{member_of = MemberOf, name = Name} = Declaration,
-                 Hashes, Reaches) ->
+%% A qualified name of the module's own, under the namespace its forms
+%% write it in.
+form_name(QualifiedName, {Namespace, FormNamespace}) ->
+    FormNamespace ++ lists:nthtail(length(Namespace), QualifiedName).
+
+declaration_code({Namespace, _} = Named, _,
+                 #fn_declaration{member_of = MemberOf, name = Name} = Declaration, Hashes,
+                 Reaches) ->
     QualifiedName = Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name],
     {Function, Arity} = export(Declaration),
-    [{QualifiedName, {function, maps:get(QualifiedName, Hashes), Function, Arity,
-                      maps:get(QualifiedName, Reaches)}}];
-declaration_code(Namespace, ErlangModule, #let_declaration{name = Name}, Hashes, _) ->
+    [{form_name(QualifiedName, Named),
+      {function, maps:get(QualifiedName, Hashes), Function, Arity,
+       maps:get(QualifiedName, Reaches)}}];
+declaration_code({Namespace, _} = Named, ErlangModule, #let_declaration{name = Name}, Hashes, _) ->
     QualifiedName = Namespace ++ [Name],
     Key = {ErlangModule, function_name(undefined, Name)},
-    [{QualifiedName, {binding, maps:get(QualifiedName, Hashes), Key}}];
-declaration_code(Namespace, _, #type_declaration{name = Name}, Hashes, _) ->
+    [{form_name(QualifiedName, Named), {binding, maps:get(QualifiedName, Hashes), Key}}];
+declaration_code({Namespace, _} = Named, _, #type_declaration{name = Name}, Hashes, _) ->
     QualifiedName = Namespace ++ [Name],
-    [{QualifiedName, {type, maps:get(QualifiedName, Hashes)}}];
-declaration_code(Namespace, ErlangModule, #abstract_declaration{declaration = Declaration},
+    [{form_name(QualifiedName, Named), {type, maps:get(QualifiedName, Hashes)}}];
+declaration_code(Named, ErlangModule, #abstract_declaration{declaration = Declaration},
                  Hashes, Reaches) ->
-    declaration_code(Namespace, ErlangModule, Declaration, Hashes, Reaches);
-declaration_code(Namespace, _, #foreign_fn_declaration{member_of = MemberOf, name = Name,
-                                                        implementation = Implementation}
-                                   = Declaration, _, _) ->
+    declaration_code(Named, ErlangModule, Declaration, Hashes, Reaches);
+declaration_code({Namespace, _} = Named, _,
+                 #foreign_fn_declaration{member_of = MemberOf, name = Name,
+                                         implementation = Implementation} = Declaration, _, _) ->
     {ok, {HostModule, HostFunction, _}} = ern_typecheck:foreign_implementation(Implementation),
     {Function, Arity} = export(Declaration),
-    [{Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name],
+    [{form_name(Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name], Named),
       {foreign, HostModule, HostFunction, Function, Arity}}];
 declaration_code(_, _, _, _, _) ->
     [].
@@ -624,7 +654,7 @@ expr(#e_literal{span = Span, kind = Kind, value = Value}, Context) ->
 expr(#e_var{span = Span, namespace = Namespace, name = Name, type = Type, referent = Referent,
             supplies = Supplies}, Context) ->
     {Form, Context1} = name_form(Span, Namespace, Name, Referent, Type, Supplies, Context),
-    {at(Span, Form), Context1};
+    {at(Span, Form), function_value(Form, Context1)};
 expr(#e_constructor{span = Span, namespace = Namespace, name = Name, base = Base, args = Args},
      Context) ->
     constructor_expr(Span, Namespace, Name, Base, Args, Context);
@@ -729,7 +759,7 @@ expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right}, Con
 expr(#e_member{span = Span, supply = Supply}, Context) ->
     %% report §4.9: a member as a value
     {Form, Context1} = supply_form(Supply, Context),
-    {at(Span, Form), Context1};
+    {at(Span, Form), function_value(Form, Context1)};
 expr(#e_lambda{span = Span, params = Params, body = Body}, Context) ->
     {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
                                               pattern(Pattern, Acc)
@@ -737,7 +767,8 @@ expr(#e_lambda{span = Span, params = Params, body = Body}, Context) ->
     {BodyForms, Context2} = body(Body, Context1),
     Clause = erl_syntax:clause(Patterns, none, BodyForms),
     {at(Span, erl_syntax:fun_expr([Clause])),
-     Context2#emit_context{variables = Context#emit_context.variables}};
+     Context2#emit_context{variables = Context#emit_context.variables,
+                           builds_functions = true}};
 expr(#e_if{span = Span, condition = Condition, then_branch = Then, else_branch = Else}, Context) ->
     {ConditionForm, Context1} = expr(Condition, Context),
     {[ThenForms, ElseForms], Context2} = lists:mapfoldl(fun body/2, Context1, [Then, Else]),
@@ -1199,7 +1230,10 @@ from_value(Crossing, Context) ->
 %%
 
 supply_forms(Supplies, Context) ->
-    lists:mapfoldl(fun supply_form/2, Context, Supplies).
+    lists:mapfoldl(fun(Supply, Acc) ->
+                       {Form, Acc1} = supply_form(Supply, Acc),
+                       {Form, function_value(Form, Acc1)}
+                   end, Context, Supplies).
 
 %% A member the enclosing requirement names is the parameter it came in;
 %% `show` at a known type is the type's descriptor; a known type's member
@@ -1415,21 +1449,53 @@ lambda(Variables, Body) ->
     erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(Variable) || Variable <- Variables],
                                            none, [Body])]).
 
-%% Report §6.9: the function that called `spawn`, qualified, and the line.
-%% Report §11.2: in the session, as the session writes names: a function an
-%% input declares by its own name, and the input's expression as its
-%% diagnostics name it, `input 3`; the line as they count it. The input's
-%% name is asked of the shell when the spawn runs, and is not the module's
-%% code: an input typed again then compiles to the code it did before, and
-%% the host keeps an entry for each lambda of each version it loads
-%% (docs/memory.md).
+%% Report §11.2: Context marked as building a function value where Form,
+%% what an expression or a supply emits, is one of this module's code, a
+%% lambda's fun, a function of the module taken as a value, or one bound
+%% beside the values it closes over; a function of another module's is
+%% that module's code. A fun the emitter makes for its own use, a timed
+%% receive's loop, a guard's way to the clauses after it, the body
+%% alternatives share or a foreign call counted, is called where it is made
+%% and held by nothing, and is no function value: it is never what an
+%% expression emits.
+function_value(Form, Context) ->
+    case is_own_function(Form) of
+        true -> Context#emit_context{builds_functions = true};
+        false -> Context
+    end.
+
+is_own_function(Form) ->
+    case erl_syntax:type(Form) of
+        fun_expr -> true;
+        named_fun_expr -> true;
+        implicit_fun -> erl_syntax:type(erl_syntax:implicit_fun_name(Form)) =/= module_qualifier;
+        block_expr -> is_own_function(lists:last(erl_syntax:block_expr_body(Form)));
+        _ -> false
+    end.
+
+%% Whether a descriptor describes a function anywhere inside it.
+holds_function({function, _, _, _, _, _}) -> true;
+holds_function(Part) when is_tuple(Part) -> lists:any(fun holds_function/1, tuple_to_list(Part));
+holds_function(Parts) when is_list(Parts) -> lists:any(fun holds_function/1, Parts);
+holds_function(_) -> false.
+
+%% Report §6.9: the function that called `spawn`, qualified, and the line;
+%% report §11.2: a reload's version's under the version's namespace,
+%% `Counter$2.service:5`, as its unit is named. In the session, as the
+%% session writes names: a function an input declares by its own name, and
+%% the input's expression as its diagnostics name it, `input 3`; the line
+%% as they count it. The input's name is asked of the shell when the spawn
+%% runs, and is not the module's code: an input typed again then compiles
+%% to the code it did before, and the host keeps an entry for each lambda
+%% of each version it loads (docs/memory.md).
 site(Span,
-     #emit_context{namespace = Namespace, erlang_module = ErlangModule, declaration = Declaration,
-                   session_offset = SessionOffset}) ->
+     #emit_context{site_namespace = SiteNamespace, erlang_module = ErlangModule,
+                   declaration = Declaration, session_offset = SessionOffset}) ->
     {Line, _, _} = ern_diagnostic:span(Span),
     case {SessionOffset, Declaration} of
         {false, _} ->
-            text_site([ern_namespace:text(Namespace ++ Declaration), ":", integer_to_list(Line)]);
+            text_site([ern_namespace:text(SiteNamespace ++ Declaration), ":",
+                       integer_to_list(Line)]);
         {Offset, ['$input']} ->
             call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
                                                 erl_syntax:integer(Line + Offset)]);
@@ -1678,9 +1744,14 @@ descriptor_form(Descriptor, Context) ->
             Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descriptors) + 1)),
             Clause = erl_syntax:clause([], none, [built_descriptor(Descriptor)]),
             Function = erl_syntax:function(erl_syntax:atom(Name), [Clause]),
+            %% report §11.2: a function's descriptor builds the function
+            %% that checks the one crossing, of this module's code, which
+            %% the program holds in its place
+            Builds = Context#emit_context.builds_functions orelse holds_function(Descriptor),
             {erl_syntax:application(erl_syntax:atom(Name), []),
              Context#emit_context{descriptors = Descriptors#{Descriptor => Name},
-                                  lifted = [Function | Context#emit_context.lifted]}}
+                                  lifted = [Function | Context#emit_context.lifted],
+                                  builds_functions = Builds}}
     end.
 
 %% A descriptor as the form that builds it. A function's descriptor also
@@ -1795,7 +1866,8 @@ constructor_expr(Span, Namespace, Name, Base, Args, #emit_context{env = Env} = C
             {[Variable], Context1} = fresh_variables(1, "Argument", Context),
             VariableForm = erl_syntax:variable(Variable),
             Wrap = erl_syntax:clause([VariableForm], none, [erl_syntax:tuple([Tag, VariableForm])]),
-            {at(Span, erl_syntax:fun_expr([Wrap])), Context1};
+            {at(Span, erl_syntax:fun_expr([Wrap])),
+             Context1#emit_context{builds_functions = true}};
         {positional, {positional, Arg}} ->
             {Form, Context1} = expr(Arg, Context),
             {at(Span, erl_syntax:tuple([Tag, Form])), Context1};

@@ -16,7 +16,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 | `programs` | 20 times: `Os.run` of `cat` and of a program not found; `Os.start` of `sleep` killed; one that runs past its time |
 | `files` | 100 times: a file written, appended, read, stated, copied, listed, renamed and removed |
 | `alarms` | 500 times: an alarm after a millisecond and one at the time now, each taken, and a wait that times out |
-| `shell` | 101 inputs at the prompt in line mode: expressions, `let`s, a function and a type declared again under the same names, a function as a value, output, a process spawned, and `:type`, `:bindings`, `:doc` and `:faults` |
+| `shell` | 101 inputs at the prompt in line mode: expressions, `let`s, a function as a value, a value of a type, output, a process spawned, and `:type`, `:bindings`, `:doc` and `:faults`; the function, the type and what the process runs are declared once, before the first round, since an input that declares is kept while the session runs |
 
 `mark` waits for what the round set ending: each process the runtime still lists that is no longer alive, by a monitor; then the reaper, idle, having taken their ends; then every delivery it started, a `Down` among them, by a monitor each. A load whose round sets work for later rests until that work is done before it marks: the supervisors' load sets an alarm for each fault, a second on, which a process of its own delivers, and waits its restart window first, since a sample that catches a delivery on its way counts a process and a row more than the node holds at rest. It then waits while a process of the harness's own collects every other process's garbage, gives the host 100 milliseconds to count the heaps the collections freed, the one chosen time in the harness, since nothing the host reports shows it (the log's *The Tests Wait on What They Mean*), and samples:
 
@@ -61,7 +61,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - **Same and distinct.** The same input a hundred times, and a hundred inputs that each differ, `1 + 1` against `1 + n`, between two readings of `erlang:memory(code)`: a cost of the distinct ones alone is a cost per version of the code. The same test in plain Erlang, one module loaded, deleted and purged in a loop, tells the host's cost from the program's.
 - **With and without.** The fix stashed (`git stash -- file`), rebuilt, and the load run again beside the run with it: the difference is the fix's. A regression test is checked the same way, and fails without the fix.
 
-A growth found becomes a regression test in `make test` where one can show it in seconds: `declarations_let_go_test_`, `declarations_kept_while_reached_test_`, `expressions_leave_no_code_test_` and `expressions_again_leave_no_code_test_` in `test/ern_shell_tests.erl`, `monitors_let_go_test` in `erl/emitter/test/ern_emitter_tests.erl`, and the editor's `lastThousand` in `shell/shell/editor.ern`.
+A growth found becomes a regression test in `make test` where one can show it in seconds: `declarations_kept_while_reached_test_`, `expressions_leave_no_code_test_` and `expressions_again_leave_no_code_test_` in `test/ern_shell_tests.erl`, `monitors_let_go_test` in `erl/emitter/test/ern_emitter_tests.erl`, and the editor's `lastThousand` in `shell/shell/editor.ern`.
 
 ## Adding a load
 

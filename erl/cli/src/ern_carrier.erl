@@ -127,20 +127,28 @@ cookie(VersionText, CodeDigest) ->
 
 %% Report §8.7: the digest of a development build's own code: each module
 %% of the directories the launcher gives the host, the toolchain's, the
-%% standard library's and the shell's, its tests aside, by the digest of its
-%% code, which the host's module_info(md5) answers too, in the order of
-%% their names. Read from the files, loading none of them: 36 milliseconds
-%% for the 91 modules of the tree at 0.3.1 where the host has read no file
-%% so before, as at a node's first start, which alone asks.
+%% standard library's and the shell's, every module compiled from an
+%% application's tests aside, by the digest of its code, which the host's
+%% module_info(md5) answers too, in the order of their names. Read from the
+%% files, loading none of them: 36 milliseconds for the 91 modules of the
+%% tree at 0.3.1 where the host has read no file so before, as at a node's
+%% first start, which alone asks.
 code_digest() ->
     Tree = filename:join(filename:dirname(code:which(?MODULE)), "../../.."),
     Files = lists:append([filelib:wildcard(filename:join(Tree, Pattern))
                           || Pattern <- ["erl/*/ebin/*.beam", "build/stdlib/*.beam",
                                          "build/shell/*.beam"]]),
-    Digests = lists:sort([Digest || File <- Files,
-                                    not lists:suffix("_tests.beam", File),
+    Digests = lists:sort([Digest || File <- Files, not is_test(File),
                                     {ok, Digest} <- [beam_lib:md5(File)]]),
     crypto:hash(sha256, term_to_binary(Digests, [deterministic])).
+
+%% Whether a module was compiled from its application's test/ directory,
+%% a test or a test's helper, which app.mk compiles into the application's
+%% ebin/ beside its own.
+is_test(File) ->
+    Application = filename:dirname(filename:dirname(File)),
+    filelib:is_regular(filename:join([Application, "test", filename:basename(File, ".beam")
+                                                           ++ ".erl"])).
 
 %%
 %% The node's start

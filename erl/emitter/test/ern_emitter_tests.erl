@@ -438,6 +438,39 @@ interface_chunk_test() ->
         ern_typecheck:check_string(['Shape'], <<"type Hidden(b) = Hidden(b)\n\n", Shape/binary>>),
     ?assertEqual(ern_interface:hash(Alone), ern_interface:hash(AfterHidden)).
 
+%% report §11.2: the interface chunk says whether the module builds a
+%% function value, a function of its own code that may then be held
+%% anywhere, by which the shell keeps an input's code: a lambda, a function
+%% of the module taken as a value, a constructor taken as one, a member of
+%% the module supplied to a requirement, a foreign function's result
+%% checked as it crosses; and not a call, another module's function taken
+%% as a value, nor a function the emitter makes and calls where it makes
+%% it, a timed receive's, a guard's way to the clauses after it, or the
+%% body pattern alternatives share. Written with the code
+builds_functions_test() ->
+    Builds = fun(Source) ->
+                 Namespace = ['Builds'],
+                 {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
+                 {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
+                 {ok, #{builds_functions := Built}} = ern_interface:read(Beam),
+                 {Source, Built}
+             end,
+    [?assertEqual({Source, true}, Builds(Source))
+     || Source <- ["fn adder(n : Int) : (Int) -> Int = fn(m) = m + n\n",
+                   "fn f(n : Int) : Int = n\nfn g() : (Int) -> Int = f\n",
+                   "type Box = Box(Int)\nfn g() : (Int) -> Box = Box\n",
+                   "type T = A | B derives compare\n"
+                   "fn sorted(ts : List(T)) : List(T) =\n"
+                   "    OrderedSet.toList(OrderedSet.fromList(ts))\n",
+                   "foreign fn made() : (Int) -> Int = \"erlang:self/0\"\n"]],
+    [?assertEqual({Source, false}, Builds(Source))
+     || Source <- ["fn f(n : Int) : Int = n + 1\nfn g() : Int = f(2)\n",
+                   "fn g() : (List(Int)) -> Int = List.size\n",
+                   "fn w() : Unit with Int = receive { _ -> Unit | after 10 -> Unit }\n",
+                   "fn h(n : Int) : Int = match n { 1 or 2 -> 0 | _ -> 1 }\n",
+                   "fn big(m : Int) : Bool = m > 3\n"
+                   "fn s(n : Int) : Int = match n { m when big(m) -> 0 | _ -> 1 }\n"]].
+
 %% report §11.1: a chunk of another compiler version reads as an error,
 %% so the module counts as stale; and the interface hash ignores the names
 %% of type variables

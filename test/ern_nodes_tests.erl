@@ -1830,14 +1830,18 @@ shell_key(Base) ->
     ?assertEqual(0, WaitA()),
     [?assertEqual(nomatch, string:find(Out, "OtherType")) || {Out, _} <- [said(A), said(B)]].
 
-%% report §11.2, §8.7: what a `let` at the prompt binds has its value in the
-%% session, so a function typed at the prompt whose reach names it runs on
-%% a shell that is a node where a peer's spawn names it: two shells type
-%% one `let` and one function over it, and the second spawns the function
-%% on the first, which runs it with its own value. A regression test,
-%% written before the fix: the module that holds what a `let` binds was
-%% never counted as evaluated, so the spawn was refused and the node said
-%% the binding had no value there, which was false
+%% report §11.2, §8.7, Appendix H: what a `let` at the prompt binds has its
+%% value in the session, so a function typed at the prompt whose reach
+%% names it runs on a shell that is a node where a peer's spawn names it:
+%% two shells type one `let` and one function over it, the second after a
+%% `let` of its own, so that its binding is held by another of its holders,
+%% and the second spawns the function on the first, which runs it with its
+%% own value. A regression test, written before the fix: the module that
+%% holds what a `let` binds was never counted as evaluated, so the spawn
+%% was refused and the node said the binding had no value there, which was
+%% false. The `let` of its own a regression test too, written after the
+%% fix (finding V11): a form named the binding under its holder, so the two
+%% shells held two functions and the spawn answered NotLoaded
 shell_binding_spawned_test_() ->
     nodes_test(90, fun shell_binding_spawned/1).
 
@@ -1854,7 +1858,7 @@ shell_binding_spawned(Base) ->
     true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
     prints(A, "typed"),
     {InputB, WaitB} = shell_started(B, Root),
-    true = port_command(InputB, [Typed, "match Peer.spawn(\"a\", f, 5000) {\n"
+    true = port_command(InputB, ["let other = 1\n", Typed, "match Peer.spawn(\"a\", f, 5000) {\n"
                                         "    Right(_) -> Io.println(\"spawned\")\n"
                                         "  | Left(failure) -> Io.println(Io.show(failure))\n"
                                         "}\n"]),
@@ -1866,6 +1870,54 @@ shell_binding_spawned(Base) ->
     ?assertEqual(0, WaitA()),
     {OutA, _} = said(A),
     ?assertEqual(nomatch, string:find(OutA, "has no value here")).
+
+%% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
+%% code while the session runs, since the function may be held anywhere: a
+%% shell that is a node offers under a key an adapted address made at the
+%% prompt, whose function the input built and the runtime's offers hold,
+%% and a peer's message reaches the service through it after many inputs
+%% more. A regression test, written after the fix (finding W1): the input's
+%% module was let go once its answer was in, and the message's delivery
+%% faulted with the host's `undef`
+shell_offered_via_test_() ->
+    nodes_test(90, fun shell_offered_via/1).
+
+shell_offered_via(Base) ->
+    Root = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Root),
+    PortA = free_port(),
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    lists(A, [{"b", B, none}]),
+    lists(B, [{"a", A, PortA}]),
+    edit(B, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"a">>]}} end),
+    Declared = "type T = T(Int)\nlet k : Peer.Key(T) = Peer.key(\"t\")\n",
+    {InputA, WaitA} = shell_started(A, Root),
+    true = port_command(InputA,
+                        [Declared,
+                         "let store : Address(Int) = spawn(fn() : Unit with Int =\n"
+                         "    receive { n -> Io.println(\"a got \" <> Int.toString(n)) })\n",
+                         "Peer.offer(k, via(store, fn(t) = match t { T(n) -> n }))\n",
+                         [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
+                         "Io.println(\"offered\")\n"]),
+    prints(A, "offered"),
+    {InputB, WaitB} = shell_started(B, Root),
+    true = port_command(InputB, [Declared,
+                                 "match Peer.find(k, 5000) {\n"
+                                 "    Right(server) -> {\n"
+                                 "        send(server, T(5));\n"
+                                 "        Io.println(\"found\")\n"
+                                 "    }\n"
+                                 "  | Left(failure) -> Io.println(Io.show(failure))\n"
+                                 "}\n"]),
+    prints(B, "found"),
+    prints(A, "a got 5"),
+    true = port_command(InputB, ":quit\n"),
+    ?assertEqual(0, WaitB()),
+    true = port_command(InputA, ":quit\n"),
+    ?assertEqual(0, WaitA()),
+    {OutA, ErrA} = said(A),
+    [?assertEqual(nomatch, string:find(Text, "undef")) || Text <- [OutA, ErrA]].
 
 %% report §11.2, §8.7, Appendix E.21: a shell that is a node writes a
 %% fault's line as `ern run` writes one, the peer whose spawn started the

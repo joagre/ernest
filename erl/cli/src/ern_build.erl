@@ -13,7 +13,7 @@
          bytes_text/1, module_of/2, module_of/3, shape/2, segment/1, module_path/1, compile_order/2,
          compile_order/3, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, compiler_modules/0,
-         sweep_pages/5, compile_source/5, absolute/1, relative/2, write_whole/2,
+         sweep_pages/5, compile_source/5, compile_source/6, absolute/1, relative/2, write_whole/2,
          write_output/2, write_output/3, read/1, make_dirs/1, refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -953,6 +953,16 @@ remove_emptied(Dir, Mirror, BuildRoot) ->
           {ok, [atom()], binary(), binary()} | {refused, string()}
           | {error, file:filename(), [ern_diagnostic:diagnostic()]}.
 compile_source(File, SourceRoot, LoadPath, Interfaces, Units) ->
+    compile_source(File, SourceRoot, LoadPath, Interfaces, Units, own).
+
+%% The same, the module's spawn sites naming its declarations under
+%% SiteNamespace, a reload's version's, `Counter$2` (§11.2), or under the
+%% module's own namespace where it is `own`.
+-spec compile_source(file:filename(), file:filename(), [file:filename(), ...],
+                     #{[atom()] => #interface{}}, #{[atom()] => atom()}, own | [atom()]) ->
+          {ok, [atom()], binary(), binary()} | {refused, string()}
+          | {error, file:filename(), [ern_diagnostic:diagnostic()]}.
+compile_source(File, SourceRoot, LoadPath, Interfaces, Units, SiteNamespace) ->
     try
         [#build_module{namespace = Namespace, relative = Relative, declarations = Declarations,
                        dependencies = Dependencies}] =
@@ -970,7 +980,12 @@ compile_source(File, SourceRoot, LoadPath, Interfaces, Units) ->
                 %% the shell loads them before the module (report §11.2)
                 Build = #{source_hash => Hash, deps => DependencyHashes,
                           source => list_to_binary(filename:basename(Relative)), units => Units},
-                {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+                Sites = case SiteNamespace of
+                            own -> #{};
+                            _ -> #{site_namespace => SiteNamespace}
+                        end,
+                {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env,
+                                                   maps:merge(Build, Sites)),
                 {ok, Namespace, Beam, Hash};
             {error, Diagnostics} ->
                 {error, File, Diagnostics}

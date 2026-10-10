@@ -311,34 +311,69 @@ renamed_type_test() ->
 %% report Appendix H, §11.2: a type a shell session declares holds its
 %% qualified name under the session's one namespace whatever input declares
 %% it, so that one declaration at two inputs is one type, its key's hash
-%% one; the checker's namespace, the input's, stays in the type's record. A
-%% regression test, written after the fix (finding V11): the form held the
-%% input's namespace
+%% one; the checker's namespace, the input's, stays in the type's record.
+%% So does every name the session declares that a form writes: what a
+%% `let` at the prompt bound, whatever holder holds it, and a foreign
+%% function an input declares, so that a function over them typed at two
+%% counts is one definition with one reach. A regression test, written
+%% after the fix (finding V11): the form held the input's namespace, and
+%% then a binding's and a foreign function's held their own
 session_namespace_test() ->
-    Text = "type Msg = A(Int)\nlet k : Peer.Key(Msg) = Peer.key(\"k\")\n",
+    Text = "type Msg = A(Int)\nlet k : Peer.Key(Msg) = Peer.key(\"k\")\n"
+           "foreign fn now() : Int with m = \"erlang:system_time/0\"\n"
+           "fn later() : Int with m = now() + x\n",
     Session = ['$Session'],
-    Canonical = fun(Namespace) ->
+    Canonical = fun(Namespace, Holder) ->
                     {ok, Declarations} = ern_parser:parse_string(Text),
-                    {ok, Typed, _, Env} = ern_typecheck:check(Namespace, Declarations, []),
+                    X = Holder ++ [x],
+                    Bound = #interface{namespace = Holder,
+                                       values = #{X => #scheme{type = {tcon, ['Int'], []}}},
+                                       lets = [X], identities = #{X => <<7:256>>}},
+                    {ok, Typed, _, Env} = ern_typecheck:check(Namespace, Declarations, [Bound],
+                                                              #{values => #{x => X}}),
                     ern_canonical:module(Namespace, Typed, Env, false, Session)
                 end,
-    #{definitions := First, keys := FirstKeys} = Canonical(['$Input1']),
-    #{definitions := Third, keys := ThirdKeys} = Canonical(['$Input3']),
+    #{definitions := First, keys := FirstKeys, reaches := FirstReaches} =
+        Canonical(['$Input1'], ['$Bindings1']),
+    #{definitions := Third, keys := ThirdKeys} = Canonical(['$Input3'], ['$Bindings4']),
     ?assertEqual({type, ['$Session', 'Msg'], 0, false, none,
                   [{'A', {positional, applied('Int')}}]},
                  (named(First, 'Msg'))#definition.form),
     ?assertEqual(['$Input1', 'Msg'], (named(First, 'Msg'))#definition.qualified_name),
     ?assertEqual((named(First, 'Msg'))#definition.hash, (named(Third, 'Msg'))#definition.hash),
     ?assertEqual(maps:get({tcon, ['$Input1', 'Msg'], []}, FirstKeys),
-                 maps:get({tcon, ['$Input3', 'Msg'], []}, ThirdKeys)).
+                 maps:get({tcon, ['$Input3', 'Msg'], []}, ThirdKeys)),
+    #definition{hash = Later, form = LaterForm} = named(First, later),
+    ?assertEqual(Later, (named(Third, later))#definition.hash),
+    ?assert(holds({var, {binding, ['$Session', x], <<7:256>>}, []}, LaterForm)),
+    ?assertNot(holds('$Input1', LaterForm)),
+    ?assertNot(holds('$Bindings1', LaterForm)),
+    ?assertEqual({[{['$Session', x], <<7:256>>}], [['$Session', now]]},
+                 maps:get(['$Input1', later], FirstReaches)).
 
 %% report Appendix H: derives compare is in a type's hash; whether a type is
-%% exported or abstract is not
+%% exported or abstract is not, and a `show` of it from another module
+%% holds the view its site has: two builds that differ only in whether the
+%% type is abstract hold one type and two functions that show it, which
+%% print `<abstract>` and the representation. The last a regression test,
+%% written after the fix (finding H1): the form held the shown type alone,
+%% and the two functions one hash
 type_flags_test() ->
     Plain = hash("type T = A(Int)", 'T'),
     ?assertNotEqual(Plain, hash("type T = A(Int) derives compare", 'T')),
     ?assertEqual(Plain, hash("export type T = A(Int)", 'T')),
-    ?assertEqual(Plain, hash("export abstract type T = A(Int)", 'T')).
+    ?assertEqual(Plain, hash("export abstract type T = A(Int)", 'T')),
+    Built = fun(Declared) ->
+                {#{definitions := InA}, Interface} =
+                    canonical(['A'], Declared ++ " T = A(Int)\nexport fn make() : T = A(1)\n", []),
+                {#{definitions := InMain}, _} =
+                    canonical(['Main'], "fn f() : String = Io.show(A.make())\n", [Interface]),
+                {(named(InA, 'T'))#definition.hash, (named(InMain, f))#definition.hash}
+            end,
+    {OpenType, OpenShown} = Built("export type"),
+    {AbstractType, AbstractShown} = Built("export abstract type"),
+    ?assertEqual(OpenType, AbstractType),
+    ?assertNotEqual(OpenShown, AbstractShown).
 
 %% report §8.7, Appendix H: moving a definition within a mutually recursive
 %% group changes the group's hash, and so every member's
@@ -360,7 +395,11 @@ changed_literal_test() ->
 
 %% report §8.7: two hashes for one definition and one hash for two are what
 %% the hash guards against: one body under two names, in two modules, is
-%% one hash, and two bodies are two
+%% one hash, and two bodies are two; and one body that shows a value of an
+%% abstract type in the type's module, which prints its representation,
+%% and outside it, which prints `<abstract>`, is two definitions (Appendix
+%% H, E.1). The last a regression test, written after the fix (finding
+%% H1): the form held the shown type alone, and the two one hash
 one_hash_for_one_definition_test() ->
     Text = "fn f() : Int = 1\nfn g() : Int = 1\nfn h() : Int = 2\n",
     ?assertEqual(hash(Text, f), hash(Text, g)),
@@ -368,6 +407,17 @@ one_hash_for_one_definition_test() ->
     {#{definitions := InA}, _} = canonical(['A'], "fn f() : Int = 1", []),
     {#{definitions := InB}, _} = canonical(['B'], "fn other() : Int = 1", []),
     ?assertEqual((named(InA, f))#definition.hash, (named(InB, other))#definition.hash),
+    {#{definitions := Shown}, Interface} =
+        canonical(['A'], "export abstract type T = T(Int)\n"
+                         "export fn shown(x : T) : String = Io.show(x)\n", []),
+    {#{definitions := ShownInMain}, _} =
+        canonical(['Main'], "fn shown(x : A.T) : String = Io.show(x)\n", [Interface]),
+    #definition{hash = InTypeModule, form = Form} = named(Shown, shown),
+    #definition{hash = InMain, form = MainForm} = named(ShownInMain, shown),
+    ?assertNotEqual(InTypeModule, InMain),
+    TypeReference = {hash, (named(Shown, 'T'))#definition.hash},
+    ?assert(holds({shown, {applied, TypeReference, []}, []}, Form)),
+    ?assert(holds({shown, {applied, TypeReference, []}, [TypeReference]}, MainForm)),
     %% a type variable's name is no part of it; which variables are one is
     ?assertEqual(hash("fn k(x : a, y : b) : a = x", k), hash("fn k(p : t, q : u) : t = p", k)),
     ?assertNotEqual(hash("fn k(x : a, y : b) : a = x", k), hash("fn k(x : a, y : a) : a = x", k)).

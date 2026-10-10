@@ -49,21 +49,22 @@
 -type reach() :: {[{[atom()], binary()}], [[atom()]]}.
 
 %% The walk of one definition (Appendix H): env, the checker's; namespace,
-%% the module's; form_namespace, the namespace a type's form holds its
-%% qualified name under (module/5); standard, whether the module is the
-%% standard library's own, whose every reference is by name; own, the
-%% module's declarations by qualified name, each function, binding, type or
-%% foreign; scope, each local's name to its number; outer, the scope where
-%% the pattern being walked began, undefined outside a pattern; bound, the
-%% locals that pattern has bound; segments, the locals a bitstring
-%% pattern's earlier segments bound; locals, the numbers taken; variables,
-%% each type variable, {tvar, Id} or {name, Name}, to its number; names,
-%% each variable the annotation being walked writes, by its name, to the
-%% type variable the checker gave its place (matched/3); references, the
-%% other modules' definitions referenced by hash; functions, the span of
-%% each lambda and local function met, reversed, in the order the walk
-%% meets them, which is their positions' (lambdas/2); keys, each key's
-%% message type with its form, its own module's types left open.
+%% the module's; form_namespace, the namespace a form writes a name the
+%% session declares under (module/5, form_name/2); standard, whether the
+%% module is the standard library's own, whose every reference is by name;
+%% own, the module's declarations by qualified name, each function,
+%% binding, type or foreign; scope, each local's name to its number; outer,
+%% the scope where the pattern being walked began, undefined outside a
+%% pattern; bound, the locals that pattern has bound; segments, the locals
+%% a bitstring pattern's earlier segments bound; locals, the numbers taken;
+%% variables, each type variable, {tvar, Id} or {name, Name}, to its
+%% number; names, each variable the annotation being walked writes, by its
+%% name, to the type variable the checker gave its place (matched/3);
+%% references, the other modules' definitions referenced by hash;
+%% functions, the span of each lambda and local function met, reversed, in
+%% the order the walk meets them, which is their positions' (lambdas/2);
+%% keys, each key's message type with its form, its own module's types
+%% left open.
 -record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
                bound = #{}, segments = #{}, locals = 0, variables = #{}, names = #{},
                references = [], functions = [], keys = []}).
@@ -100,12 +101,15 @@ hash(Term) ->
 module(Namespace, Typed, Env, Standard) ->
     module(Namespace, Typed, Env, Standard, Namespace).
 
-%% The same, each type's form holding its qualified name under
-%% FormNamespace: the module's own, or, for an input of a shell's session,
-%% the session's one namespace, whatever input declares the type, so that
-%% one declaration is one type in every session and at every input
-%% (Appendix H, §11.2). The checker's names, the unit and what prints keep
-%% the input's namespace.
+%% The same, each name a declaration of the module's makes written in its
+%% forms under FormNamespace: the module's own, or, for an input of a
+%% shell's session, the session's one namespace, as is every name another
+%% input or a holder of the session declares, a type's, a top-level
+%% binding's and a foreign declaration's, whatever input declares it, so
+%% that one declaration is one definition in every session and at every
+%% input (Appendix H, §11.2). The checker's names, the unit, the
+%% references the build compares and what prints keep the input's
+%% namespace.
 -spec module([atom()], [tuple()], ern_typecheck:env(), boolean(), [atom()]) -> canonical().
 module(Namespace, Typed, Env, Standard, FormNamespace) ->
     Own = maps:from_list([{QualifiedName, Kind}
@@ -187,8 +191,7 @@ opened(#let_declaration{scheme = #scheme{type = Type} = Scheme, annotation = Ann
 opened(#abstract_declaration{declaration = Declaration}, Walk) ->
     opened(Declaration, Walk);
 opened(#type_declaration{name = Name, derives = Derives},
-       #walk{namespace = Namespace, form_namespace = FormNamespace, env = Env,
-             own = Own} = Walk) ->
+       #walk{namespace = Namespace, env = Env, own = Own} = Walk) ->
     #type_info{params = Params, constructors = Constructors} =
         ern_typecheck:lookup_type(Namespace ++ [Name], Env),
     %% report Appendix H: the parameters are the variables 1 to its arity
@@ -201,8 +204,8 @@ opened(#type_declaration{name = Name, derives = Derives},
                                _ -> {none, Walk1}
                            end,
     {ConstructorForms, Walk3} = lists:mapfoldl(fun constructor_declared/2, Walk2, Constructors),
-    {{type, FormNamespace ++ [Name], length(Params), Derives =/= undefined, CompareForm,
-      ConstructorForms},
+    {{type, form_name(Namespace ++ [Name], Walk3), length(Params), Derives =/= undefined,
+      CompareForm, ConstructorForms},
      Walk3}.
 
 constructor_declared(#constructor_info{name = Name, fields = none}, Walk) ->
@@ -488,10 +491,10 @@ type_variables(_, Acc) -> Acc.
 %% A foreign function's scheme, numbered by itself (Appendix H), and the
 %% other modules' types it names recorded.
 closed_scheme(Scheme, #walk{env = Env, standard = Standard, own = Own, namespace = Namespace,
-                            references = References} = Walk) ->
+                            form_namespace = FormNamespace, references = References} = Walk) ->
     {Form, #walk{references = Named}} =
         scheme(Scheme, #walk{env = Env, standard = Standard, own = Own, namespace = Namespace,
-                             references = References}),
+                             form_namespace = FormNamespace, references = References}),
     {Form, Walk#walk{references = Named}}.
 
 %%
@@ -642,7 +645,7 @@ program_reference(_, QualifiedName, #walk{env = Env, references = References} = 
             foreign_reference(QualifiedName, Env, Walk);
         Hash when is_binary(Hash) ->
             Reference = case ern_typecheck:is_value(QualifiedName, Env) of
-                            true -> {binding, QualifiedName, Hash};
+                            true -> {binding, form_name(QualifiedName, Walk), Hash};
                             false -> {hash, Hash}
                         end,
             {Reference, Walk#walk{references = [{QualifiedName, Hash} | References]}};
@@ -657,11 +660,27 @@ program_reference(_, QualifiedName, #walk{env = Env, references = References} = 
 foreign_reference(QualifiedName, Env, Walk) ->
     case ern_typecheck:global_scheme(QualifiedName, Env) of
         undefined ->
-            {{named, QualifiedName}, Walk};
+            {{named, form_name(QualifiedName, Walk)}, Walk};
         Scheme ->
             {Form, Walk1} = closed_scheme(Scheme, Walk),
-            {{foreign, QualifiedName, Form}, Walk1}
+            {{foreign, form_name(QualifiedName, Walk), Form}, Walk1}
     end.
+
+%% Report Appendix H, §11.2, §2.3: a qualified name as a form writes it:
+%% where a shell's session declared it, an input or the holder of what a
+%% `let` at the prompt binds, whose namespace begins with `$` as no Ernest
+%% name does, under the session's one namespace, so that one declaration
+%% is one name in every session and at every input; any other as it is.
+%% Only an input's form is written under the session's namespace.
+form_name([Segment | Rest] = QualifiedName,
+          #walk{namespace = Namespace, form_namespace = FormNamespace})
+  when FormNamespace =/= Namespace ->
+    case atom_to_list(Segment) of
+        "$" ++ _ -> FormNamespace ++ Rest;
+        _ -> QualifiedName
+    end;
+form_name(QualifiedName, _) ->
+    QualifiedName.
 
 %%
 %% Expressions, report Appendix H
@@ -889,13 +908,65 @@ supply(#known_member{qualified_name = QualifiedName, member = Member, supplies =
 supply(#required_member{variable = Variable, member = Member}, Walk) ->
     {Form, Walk1} = type(Variable, Walk),
     {{required, Form, Member}, Walk1};
-supply(#shown_type{type = Type}, Walk) ->
+supply(#shown_type{type = Type, member = show}, Walk) ->
+    %% Appendix H, E.1: `show` at the type with the view the site has of
+    %% it, the types it prints as `<abstract>`
+    {Form, Walk1} = type(Type, Walk),
+    {AbstractForms, Walk2} = lists:mapfoldl(fun type_reference/2, Walk1,
+                                            shown_abstract(Type, Walk1)),
+    {{shown, Form, AbstractForms}, Walk2};
+supply(#shown_type{type = Type, member = exposed}, Walk) ->
+    %% Appendix H, E.12: the type Foreign.from gives its value at
     {Form, Walk1} = type(Type, Walk),
     {{shown, Form}, Walk1};
 supply(#type_text{type = Type}, Walk) ->
     %% report §8.7: the key's message type, whose hash it carries
     {Form, #walk{keys = Keys} = Walk1} = type(Type, Walk),
     {{key, Form}, Walk1#walk{keys = [{Type, Form} | Keys]}}.
+
+%% Appendix E.1, §4.4: the types a `show` at Type, known whole, prints as
+%% `<abstract>` from the walk's module, each once, in the order the printer
+%% meets them, as the emitter's descriptor marks them (ern_descriptor):
+%% each abstract type of another module where the printer reads the value,
+%% in a tuple's elements, a list's, a set's or a map's, and a declared
+%% type's fields at its arguments, and nothing inside one; nor an
+%% address's, a reply's or a function's, which it prints by their kind
+%% alone, nor a foreign type's.
+shown_abstract(Type, #walk{env = Env, namespace = Namespace}) ->
+    {_, Abstract} = shown_abstract(ern_typecheck:resolve_type(Type, Env), Env, Namespace,
+                                   {#{}, []}),
+    lists:reverse(Abstract).
+
+shown_abstract({ttuple, Elements}, Env, Namespace, Acc) ->
+    shown_abstract_all(Elements, Env, Namespace, Acc);
+shown_abstract({tcon, [Name], Args}, Env, Namespace, Acc)
+  when Name =:= 'List'; Name =:= 'Set'; Name =:= 'Map' ->
+    shown_abstract_all(Args, Env, Namespace, Acc);
+shown_abstract({tcon, QualifiedName, Args} = Type, Env, Namespace, {Seen, Found} = Acc) ->
+    case is_map_key(Type, Seen) of
+        true ->
+            Acc;
+        false ->
+            Seen1 = Seen#{Type => true},
+            Outside = lists:droplast(QualifiedName) =/= Namespace,
+            case ern_typecheck:described_type(QualifiedName, Env) of
+                #type_info{abstract = true} when Outside ->
+                    case lists:member(QualifiedName, Found) of
+                        true -> {Seen1, Found};
+                        false -> {Seen1, [QualifiedName | Found]}
+                    end;
+                _ ->
+                    case ern_typecheck:declared_fields(QualifiedName, Args, Env) of
+                        {ok, Fields} -> shown_abstract_all(Fields, Env, Namespace, {Seen1, Found});
+                        none -> {Seen1, Found}
+                    end
+            end
+    end;
+shown_abstract(_, _, _, Acc) ->
+    Acc.
+
+shown_abstract_all(Types, Env, Namespace, Acc) ->
+    lists:foldl(fun(Type, Acc1) -> shown_abstract(Type, Env, Namespace, Acc1) end, Acc, Types).
 
 %%
 %% Patterns, report Appendix H

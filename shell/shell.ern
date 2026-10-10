@@ -858,9 +858,10 @@ fn screenWidth() : Int with m =
     }
 
 // Report §11.2: the session's live processes by spawn site, the shell's own
-// left out.
+// left out, those its loads evaluated bindings in among them.
 fn sessionProcesses(own : Set(Process)) : List(String) with m = {
-    let others = List.filter(Process.live(), fn(process) = !Set.contains(own, process));
+    let shells = Set.union(own, Set.fromList(evaluators()));
+    let others = List.filter(Process.live(), fn(process) = !Set.contains(shells, process));
     let sites = List.map(List.filterMap(others, Process.info), fn(info) = info.site);
     List.sort(sites, String.compare)
 }
@@ -1429,6 +1430,11 @@ foreign fn load(session : Session, name : String) : Either(String, #(Session, St
 
 foreign fn reload(session : Session) : Either(String, #(Session, List(String))) with m =
     "ern_shell:reload/1"
+
+// Report §11.2: the processes of the shell's own that the loads and the
+// reloads evaluated bindings in, which live while the session runs.
+foreign fn evaluators() : List(Process) with m =
+    "ern_shell:evaluators/0"
 
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.

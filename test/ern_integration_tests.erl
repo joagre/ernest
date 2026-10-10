@@ -470,7 +470,9 @@ installation_test_() ->
 %% and the guide with fourteen; it does not follow a link into the
 %% repository. That the directories of the installation's own go with it
 %% is a regression test too, written on 2026-10-04 after the report's
-%% directory was found left behind, and the documents' with it.
+%% directory was found left behind, and the documents' with it; and so is
+%% that no module compiled from an application's tests is installed,
+%% written after the runtime's test helper `ern_waits` was found shipped.
 install() ->
     {ok, VersionText} = file:read_file("../VERSION"),
     Version = string:trim(VersionText),
@@ -480,6 +482,7 @@ install() ->
     {0, _} = sh("make -s -C .. install PREFIX=" ++ Base ++ "/a"),
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
     ?assertEqual([], debug_information(Base ++ "/a")),
+    ?assertEqual([], test_modules(filelib:wildcard(Base ++ "/a/lib/ernest/erl/*/ebin/*.beam"))),
     Documents = Base ++ "/a/share/doc/ernest/",
     {ok, Installed} = file:read_file(Documents ++ "README.md"),
     ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
@@ -559,6 +562,8 @@ install() ->
 %% archive, as under the prefix. The installed `ern` is a release, whose
 %% version text is VERSION's alone, as the repository's build is not
 %% (report §8.7): a regression test, written after the code (finding N11).
+%% The archive holds no module compiled from an application's tests, as
+%% the installation does not.
 release() ->
     Base = filename:absname("build/release"),
     ok = del(Base),
@@ -574,6 +579,7 @@ release() ->
                  "lib/ernest/bin/ern", "lib/ernest/installed", "share/man/man1/ern.1"]],
     ?assertNot(lists:member(list_to_binary(Name ++ "/lib/ernest/erl/runtime/priv/ern_exec"),
                             Entries)),
+    ?assertEqual([], test_modules([binary_to_list(Entry) || Entry <- Entries])),
     {0, _} = sh("tar -xzf " ++ filename:absname(Archive), [{cd, Base}]),
     Unpacked = Base ++ "/" ++ Name,
     {0, _} = sh("make -s install PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
@@ -596,6 +602,15 @@ release() ->
     {0, _} = sh("make -s uninstall PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
     ?assertEqual([],
                  [File || File <- filelib:wildcard(Base ++ "/p/**/*"), not filelib:is_dir(File)]).
+
+%% The modules of Files, paths ending `erl/<application>/ebin/<module>.beam`,
+%% that the checkout compiled from the application's test/ directory.
+test_modules(Files) ->
+    [File || File <- Files, filename:extension(File) =:= ".beam",
+             Ebin <- [filename:dirname(File)], filename:basename(Ebin) =:= "ebin",
+             Application <- [filename:basename(filename:dirname(Ebin))],
+             filelib:is_regular(filename:join(["..", "erl", Application, "test",
+                                               filename:basename(File, ".beam") ++ ".erl"]))].
 
 %% The links of the documents in a directory that name no file in it: a
 %% link's target and an image's source, an address with a scheme and an

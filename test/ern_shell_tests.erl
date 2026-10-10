@@ -1808,32 +1808,63 @@ input_numbers_reused() ->
     [Before, After] = answers(Output, 5),
     ?assert(After - Before =< 60).
 
-%% report §2.3, §11.2: a declaration made again, and an input whose value is
-%% a function once nothing holds it, give their modules and numbers back,
-%% so they cost no atoms of their own. A regression test, written after the
-%% code: every declaration kept its module for the rest of the session.
-%% The bound allows what the session makes on its own; the count begins
-%% after one round, since the first of each kind of input loads the code
-%% that compiles it, the formatter's among it, which `ern doc`'s layout of a
-%% type declaration uses (report §11.4).
-declarations_let_go_test_() ->
-    {timeout, 120, fun declarations_let_go/0}.
+%% report §11.2: an input that builds a function value keeps its code while
+%% the session runs, the function may be held anywhere: here a lambda sent
+%% to a server, which calls it after many inputs more. A regression test,
+%% written after the fix (finding W1): the input's module was let go once
+%% its answer was in, the value it answered holding no function of it, and
+%% the server's call faulted with the host's `undef`
+lambda_sent_kept_test_() ->
+    {timeout, 60, fun lambda_sent_kept/0}.
 
-declarations_let_go() ->
-    InputFile = scratch_file("ern_decls_"),
-    Info = "info(Foreign.atom(\"atom_count\"))\n",
-    Round = fun(Index) ->
-                ["fn f(n : Int) : Int = n * ", integer_to_list(Index), "\n",
-                 "type Shape = Circle(Int) | Square(Int)\n",
-                 "fn(n : Int) : Int = n + ", integer_to_list(Index), "\n"]
-            end,
-    ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int with m ="
-                                     " \"erlang:system_info/1\"\n", Round(0), Info,
-                                     [Round(Index) || Index <- lists:seq(1, 100)],
-                                     Info]),
+lambda_sent_kept() ->
+    InputFile = scratch_file("ern_lambda_sent_"),
+    ok = file:write_file(InputFile,
+                         ["type Msg = Keep(f : (Int) -> Int) | Call(n : Int, reply : Reply(Int))\n",
+                          "fn server(f : (Int) -> Int) : Unit with Msg =\n",
+                          "    receive {\n",
+                          "        Keep(f = g) -> server(g)\n",
+                          "      | Call(n = n, reply = r) -> { answer(r, f(n)); server(f) }\n",
+                          "    }\n",
+                          "let s : Address(Msg) =\n",
+                          "    spawn(fn() : Unit with Msg = server(fn(n) = n))\n",
+                          "send(s, Keep(f = fn(n) = n * 10))\n",
+                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
+                          "Address.callForever(s, fn(r) = Call(n = 4, reply = r))\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    [Before, After] = answers(Output, 5),
-    ?assert(After - Before =< 60).
+    ?assertMatch({_, _}, binary:match(Output, <<"> 40 : Int\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"fault">>)).
+
+%% report §11.2, §6.10: an input that declares keeps its code while the
+%% session runs, though a later declaration shadows what it declared and
+%% nothing names it: a process holding the shadowed function runs it, and
+%% the new declaration answers at the prompt. A regression test, written
+%% after the fix (finding W1): the shadowed inputs were let go once nothing
+%% named them, the host's check of running code missing the function the
+%% process held, and its call faulted with `undef`
+redeclared_function_kept_test_() ->
+    {timeout, 60, fun redeclared_function_kept/0}.
+
+redeclared_function_kept() ->
+    InputFile = scratch_file("ern_redeclared_kept_"),
+    Served = "fn served() : Unit with Msg = serve(f)\n",
+    ok = file:write_file(InputFile,
+                         ["fn f(n : Int) : Int = n + 1\n",
+                          "type Msg = Apply(n : Int, reply : Reply(Int))\n",
+                          "fn serve(g : (Int) -> Int) : Unit with Msg =\n",
+                          "    receive {\n",
+                          "        Apply(n = n, reply = r) -> { answer(r, g(n)); serve(g) }\n",
+                          "    }\n",
+                          Served,
+                          "let s : Address(Msg) = spawn(served)\n",
+                          "fn f(n : Int) : Int = n * 100\n",
+                          Served,
+                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
+                          "Address.callForever(s, fn(r) = Apply(n = 3, reply = r))\n",
+                          "f(3)\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 4 : Int\n> 300 : Int\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"fault">>)).
 
 %% report §2.3, §11.2: an expression at the prompt leaves no code behind,
 %% however many distinct ones there are. A regression test, written after
@@ -1872,34 +1903,37 @@ abstract_at_the_prompt() ->
                  binary:match(Output, <<"T is the constructor of an abstract type and is not"
                                         " visible outside the input that declared it">>)).
 
-%% report §6.9, §11.2: an input typed again, with a lambda and a spawn,
-%% leaves no code behind, though its spawn site names it by its count. A
-%% regression test, written after the code: the site's `input N` was
-%% compiled into the input's module, so each count made a version of its
-%% own, and the host's entry for its lambda, which `make load` found. The
-%% first three hundred are the warm-up, in which an input whose module a
-%% spawned process still runs leaves the next one a number of its own, and
-%% the reading of the memory, typed again, takes a version for each number
-%% it lands on
+%% report §6.9, §11.2: an input typed again, with a spawn, leaves no code
+%% behind, though its spawn site names it by its count. A regression test,
+%% written after the code: the site's `input N` was compiled into the
+%% input's module, so each count made a version of its own, and the host's
+%% entry for its lambda, which `make load` found. The spawn starts a
+%% declared function, since an input that builds a function value, a
+%% lambda among them, keeps its code (finding W1). The first three hundred
+%% are the warm-up, in which the reading of the memory, typed again, takes
+%% a version for each number it lands on
 expressions_again_leave_no_code_test_() ->
     {timeout, 120, fun expressions_again_leave_no_code/0}.
 
 expressions_again_leave_no_code() ->
     InputFile = scratch_file("ern_again_"),
     Code = "memory(Foreign.atom(\"code\"))\n",
-    Spawn = "spawn(fn() = Unit)\n",
+    Spawn = "spawn(idle)\n",
     ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                                      " \"erlang:memory/1\"\n",
+                                     "fn idle() : Unit with Never = Unit\n",
                                      [[lists:duplicate(100, Spawn), Code] || _ <- lists:seq(1, 3)],
                                      lists:duplicate(200, Spawn), Code]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [_, _, Before, After] = answers(Output, 7),
     ?assert(After - Before < 2000).
 
-%% report §11.2, §6.10: a declaration made again is let go only when
-%% nothing reaches it: a function declared after it still calls it, a
-%% binding holding its function or a value of its type keeps it, and a
-%% process running its code runs on. Written with the code that lets it go.
+%% report §11.2, §6.10: a declaration made again keeps its code while the
+%% session runs: a function declared after it still calls it, a binding
+%% holding its function or a value of its type works, and a process
+%% running its code runs on. Written with the code that let it go once
+%% nothing reached it, which an input that declares no longer is (finding
+%% W1).
 declarations_kept_while_reached_test_() ->
     {timeout, 120, fun declarations_kept_while_reached/0}.
 
@@ -2387,9 +2421,11 @@ holders_freed() ->
 %% report §11.2, §6.10: a reload brings a version of a module as a unit of
 %% its own and unloads nothing, so a process of a previous version runs on
 %% through two further reloads of its module, reachable through the
-%% addresses of its version, and nothing faults. A regression test: until
-%% MVP 3.1 the second reload ended the first version's process with
-%% `its code was unloaded`
+%% addresses of its version, and nothing faults; `:processes` tells the
+%% three versions' processes apart, a site of a reload's version carrying
+%% its number. A regression test: until MVP 3.1 the second reload ended
+%% the first version's process with `its code was unloaded`; and the sites,
+%% written after the fix (finding W17): the three shared one site
 reload_keeps_previous_versions_test_() ->
     {timeout, 60, fun reload_keeps_previous_versions/0}.
 
@@ -2413,10 +2449,94 @@ reload_keeps_previous_versions() ->
                                      ":faults\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n> 3 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Counter.service:5\nCounter.service:5\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Counter$2.service:5\nCounter$3.service:5\n"
                                                 "Counter.service:5\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version is">>)).
+
+%% report §11.2, §6.10: a reload reaches the session's declarations as it
+%% reaches a dependent module: a function declared at the prompt that calls
+%% a changed function is compiled again as a new version of its input, and
+%% so is one that calls it in turn, and the prompt uses the new versions,
+%% while a process spawned before the reload runs the version it was
+%% spawned with; a shadowed declaration is not compiled again; one the new
+%% version breaks is reported with its diagnostic, which names its input,
+%% and goes from scope, and the reload goes on. A regression test, written
+%% after the fix (finding V8): the session's declarations kept calling the
+%% previous version, and the reload said nothing of them
+reload_reaches_session_declarations_test_() ->
+    {timeout, 60, fun reload_reaches_session_declarations/0}.
+
+reload_reaches_session_declarations() ->
+    Dir = scratch("ern_reload_declarations_"),
+    ok = filelib:ensure_path(filename:join(Dir, "net")),
+    Shape = fun(Answer, Gone) ->
+                ["export fn answer() : Int = ", integer_to_list(Answer), "\n",
+                 ["export fn gone() : Int = 0\n" || Gone]]
+            end,
+    ok = file:write_file(filename:join([Dir, "net", "shape.ern"]), Shape(1, true)),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Net.Shape\n",
+                          "fn viaFn() : Int = Net.Shape.answer()\n",
+                          "fn shadowed() : Int = Net.Shape.answer()\n",
+                          "fn shadowed() : Int = 7\n",
+                          "fn broken() : Int = Net.Shape.gone()\n",
+                          "type Msg = Ask(reply : Reply(Int))\n",
+                          "fn loop() : Unit with Msg =\n",
+                          "    receive { Ask(reply = r) -> { answer(r, viaFn()); loop() } }\n",
+                          "let p : Address(Msg) = spawn(loop)\n",
+                          "viaFn()\n",
+                          write_source(Dir, "net/shape.ern", Shape(2, false)),
+                          ":reload\n",
+                          "viaFn()\n",
+                          "Address.callForever(p, fn(r) = Ask(reply = r))\n",
+                          "shadowed()\n",
+                          "broken()\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Net.Shape, compiled again\n"
+                                                "input 2, compiled again\n">>)),
+    ?assertMatch({match, _}, re:run(Output, "input 5:1:[0-9]+: [^\n]*gone")),
+    ?assertMatch({_, _}, binary:match(Output, <<"broken went: input 5 no longer compiles\n"
+                                                "input 7, compiled again\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"input 3, compiled again">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"input 4, compiled again">>)),
+    %% the new versions at the prompt, the process on its own, and the
+    %% shadowing declaration as it was
+    ?assertMatch({_, _}, binary:match(Output, <<"> 2 : Int\n> 1 : Int\n> 7 : Int\n">>)),
+    ?assertMatch({match, _}, re:run(Output, "input 15:1:1: [^\n]*broken")).
+
+%% report §11.2, §6.9, §8.6: a spawn site of a reload's version carries the
+%% version's number, as its unit is named, so that `:processes` and the
+%% end's lines tell two versions' processes apart; the first version's
+%% site is the module's. A regression test, written after the fix (finding
+%% W17): the two shared one site
+reload_version_sites_test_() ->
+    {timeout, 60, fun reload_version_sites/0}.
+
+reload_version_sites() ->
+    Dir = scratch("ern_reload_sites_"),
+    Counter = fun(Start) ->
+                  ["export type Msg = Get(reply : Reply(Int)) | Terminating(Reply(Unit))\n",
+                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "    receive { Get(reply = r) -> { answer(r, n); serve(n) }",
+                   " | Terminating(reply) -> answer(reply, Unit) }\n",
+                   "export let service : Address(Msg) =\n",
+                   "    spawn(fn() : Unit with Msg = { Os.terminating(Terminating); serve(",
+                   integer_to_list(Start), ") })\n"]
+              end,
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Counter\n",
+                                     write_source(Dir, "counter.ern", Counter(2)),
+                                     ":reload\n:processes\n:quit\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Counter$2.service:5\nCounter.service:5\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 2 subscribers:"
+                                                " Counter.service:5, Counter$2.service:5\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber Counter.service:5 answered\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber Counter$2.service:5 answered\n">>)).
 
 %% report §11.2, §8.7: a type in the session is its hash, so a binding made
 %% before a reload that changed `Counter.Msg` keeps the type it was checked
@@ -2424,13 +2544,16 @@ reload_keeps_previous_versions() ->
 %% reload names the bindings it so leaves, a message of the new version to
 %% an address of the previous one is a type error whose help says which is
 %% the previous version's, and one of its own version, made by a function
-%% of that version, is taken. A session type over the changed type is over
-%% the previous version, a binding of another type stays as it was, a
+%% of that version, is taken. A session type over the changed type is
+%% compiled again over the new version, a binding of it made before being
+%% of its previous version, a binding of another type stays as it was, a
 %% binding made again is of the current version, and a reload that changes
 %% no type leaves the binding's type alone. A regression test: until MVP 3.1
 %% the reload forgot every such binding, and before that `send(c,
 %% Counter.Reset)` to an address of the previous version was accepted, and
-%% `Reset` sat in the old process's mailbox unmatched
+%% `Reset` sat in the old process's mailbox unmatched; the session type's
+%% new version written after the fix (finding V8), where it stayed over the
+%% previous version and refused the new version's address
 reload_keeps_the_type_checked_under_test_() ->
     {timeout, 60, fun reload_keeps_the_type_checked_under/0}.
 
@@ -2464,6 +2587,7 @@ reload_keeps_the_type_checked_under() ->
                                      "send(c, inc(5))\n",
                                      "Address.callForever(c, get)\n",
                                      "Box(Counter.service)\n",
+                                     "let z : Address(Counter.Msg) = c\n",
                                      "n\n",
                                      "let c = Counter.service\n",
                                      "{ send(c, Counter.Reset); 2 + 2 }\n",
@@ -2472,21 +2596,24 @@ reload_keeps_the_type_checked_under() ->
                                      "{ send(c, Counter.Reset); 2 + 2 }\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     Found = fun(Text) -> binary:match(Output, Text) =/= nomatch end,
-    ?assert(Found(<<"Counter, compiled again\nCounter.Msg changed: the bindings c, get and inc are"
+    ?assert(Found(<<"Counter, compiled again\ninput 5, compiled again\n"
+                    "Box changed: the binding b is of its previous version, $Input5$1.Box\n"
+                    "Counter.Msg changed: the bindings c, get and inc are"
                     " of its previous version, Counter$1.Msg\n">>)),
     ?assert(Found(<<"c : Address(Counter$1.Msg)\n">>)),
     ?assert(Found(<<"inc : (Int) -> Counter$1.Msg\n">>)),
     ?assert(Found(<<"n : Int\n">>)),
     ?assert(Found(<<"expected Counter$1.Msg, found Counter.Msg">>)),
-    ?assert(Found(<<"expected Address(Counter$1.Msg), found Address(Counter.Msg)">>)),
+    ?assert(Found(<<"b : $Input5$1.Box\n">>)),
+    ?assertMatch({match, _}, re:run(Output, "> Box\\(<address [0-9]+>\\) : Box\n")),
     Help = <<"Counter$1.Msg is of a previous version of Counter, which a reload replaced">>,
     ?assertEqual(2, length(binary:matches(Output, Help))),
     %% after the help the checker gave, where it gave one
-    ?assert(Found(<<"= help: the types differ at Counter$1.Msg and Counter.Msg; ", Help/binary>>)),
+    ?assert(Found(<<"= help: the types differ at Counter.Msg and Counter$1.Msg; ", Help/binary>>)),
     ?assert(Found(<<"> > 6 : Int\n">>)),
     ?assert(Found(<<"> 1 : Int">>)),
     ?assertEqual(2, length(binary:matches(Output, <<"4 : Int">>))),
-    ?assertEqual(1, length(binary:matches(Output, <<"changed: the binding">>))).
+    ?assertEqual(2, length(binary:matches(Output, <<"changed: the binding">>))).
 
 %% report §11.2: the help that names a previous version's type names the
 %% type the diagnostic names, whole: with `M` and `Msg` both changed, an
@@ -3213,7 +3340,8 @@ reload_bindings() ->
 %% the line and the change kept to a body a regression test, written after
 %% the fix: the line said every binding after the fault kept its value, and
 %% the change added an export, which compiled the dependent by the rule of
-%% interfaces
+%% interfaces. The binding is named by its site in the new version, which
+%% carries the version's number (finding W17)
 reload_keeps_unchanged_values_test_() ->
     {timeout, 60, fun reload_keeps_unchanged_values/0}.
 
@@ -3234,7 +3362,7 @@ reload_keeps_unchanged_values() ->
                                      ":reload\nCounter.base\nCounter.other\nUser.twice(3)\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Counter, compiled again\nUser, compiled again\n"
-                                                "Counter.base:3 faulted: division by zero; it and"
+                                                "Counter$2.base:3 faulted: division by zero; it and"
                                                 " the bindings after it whose hash changed, or"
                                                 " which are new, are without a value, and the rest"
                                                 " keep the values of the previous version\n">>)),
@@ -3262,6 +3390,54 @@ killed_binding() ->
     ?assertMatch({_, _}, binary:match(Output, <<"K.x:3 was killed; nothing was loaded, and the"
                                                 " process spawned at K.w:1 was killed\n"
                                                 "> no process of the session's is running\n">>)).
+
+%% report §11.2, §8.5, Appendix E.18: `:load` evaluates a module's bindings
+%% in a process of the shell's own that lives while the session runs, as
+%% the entry process lives through a program, so that a listener a binding
+%% opens stays open: a later input connects to it and the acceptor a
+%% binding spawned answers; the process is the shell's, which `:processes`
+%% leaves out. A regression test, written after the fix (the feedback's
+%% entry 91): the process ended once the bindings had their values, and
+%% the listener with it, before the first input
+load_keeps_what_bindings_open_test_() ->
+    {timeout, 60, fun load_keeps_what_bindings_open/0}.
+
+load_keeps_what_bindings_open() ->
+    Dir = scratch("ern_load_open_"),
+    ok = file:write_file(filename:join(Dir, "greeter.ern"),
+                         ["export let listener : Address(Tcp.ListenerMsg) =\n",
+                          "    match Tcp.listen(\"127.0.0.1\", 0) {\n",
+                          "        Right(opened) -> opened\n",
+                          "      | Left(error) -> fault(Io.show(error))\n",
+                          "    }\n\n",
+                          "export let port : Int = match Tcp.port(listener) {\n",
+                          "    Right(number) -> number\n",
+                          "  | Left(error) -> fault(Io.show(error))\n",
+                          "}\n\n",
+                          "fn serve() : Unit with Never = match Tcp.accept(listener, 60000) {\n",
+                          "    Right(socket) -> {\n",
+                          "        let _ = Tcp.write(socket, String.toUtf8(\"hello\"), 1000);\n",
+                          "        Tcp.close(socket);\n",
+                          "        serve()\n",
+                          "    }\n",
+                          "  | Left(_) -> Unit\n",
+                          "}\n\n",
+                          "let acceptor : Address(Never) = spawn(serve)\n"]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Greeter\n",
+                          "1 + 1\n",
+                          "{\n",
+                          "    let client <- Tcp.connect(\"127.0.0.1\", Greeter.port, 1000);\n",
+                          "    let greeting = Tcp.read(client, 1000);\n",
+                          "    Tcp.close(client);\n",
+                          "    Either.map(greeting, String.fromUtf8)\n",
+                          "}\n",
+                          ":processes\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Right(Some(\"hello\"))">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greeter.acceptor:21\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
 
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the
 %% process a binding before it started is killed, the refusal names it by
@@ -3628,8 +3804,10 @@ load_evaluates_bindings() ->
                                                 " nothing was loaded">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Bad.zero">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 20 : Int\n> 2 : Int">>)),
-    %% the bindings before the one that faults take the new version's values
-    ?assertMatch({match, _}, re:run(Output, "Counter.late:[0-9]+ faulted: division by zero; it and"
+    %% the bindings before the one that faults take the new version's values;
+    %% the binding is named by its site in the third version (finding W17)
+    ?assertMatch({match, _}, re:run(Output, "Counter\\$3\\.late:[0-9]+ faulted: division by zero;"
+                                            " it and"
                                             " the bindings after it whose hash changed, or which"
                                             " are new, are without a value")),
     ?assertMatch({_, _}, binary:match(Output, <<"> 30 : Int">>)),

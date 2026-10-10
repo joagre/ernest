@@ -49,8 +49,10 @@
 -record(required_member, {variable, member}).
 %% the member the enclosing declaration's requirement names at the type
 %% variable, which the declaration was given
--record(shown_type, {type}).
-%% `show` at a type known whole, written by its descriptor (Appendix E.1)
+-record(shown_type, {type, member = show}).
+%% `show` at a type known whole, written by its descriptor (Appendix E.1),
+%% or, where member is `exposed`, the type `Foreign.from` gives its value
+%% at (Appendix E.12)
 -record(type_text, {text, type}).
 %% a key's message type as the compiler prints it, and the type itself,
 %% known whole, whose hash the key carries beside the text (report §8.7,

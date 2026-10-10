@@ -52,11 +52,17 @@ launch(Name) ->
     ern_cli:ern(["run", "build/load/" ++ Name ++ ".erc"]).
 
 %% The shell's session: fourteen rounds of a hundred inputs, the same each
-%% round, expressions, bindings and functions declared again, a program's
+%% round, expressions, bindings, a function taken as a value, a program's
 %% output, a process spawned, and the commands that read the session and
-%% the documentation, each round ending in a mark.
+%% the documentation, each round ending in a mark. What the rounds use is
+%% declared once, before the first, since an input that declares, or that
+%% builds a function value, keeps its code while the session runs (report
+%% §11.2): the code the user wrote, and no growth for nothing.
 inputs() ->
     ["foreign fn mark(round : Int) : Unit with m = \"ern_load:mark/1\"\n",
+     "fn f(n : Int) : Int = n * 2\n",
+     "type Shape = Circle(Int) | Square(Int)\n",
+     "fn spawned() : Unit with Never = Io.println(\"spawned\")\n",
      [[[[[Input, "\n"] || Input <- round_inputs(integer_to_list(Step))]
         || Step <- lists:seq(1, 12)],
        ":type f\n:bindings\n:doc List.map\n:faults\n",
@@ -66,12 +72,12 @@ inputs() ->
 round_inputs(Step) ->
     ["1 + " ++ Step,
      "let x = [" ++ Step ++ ", " ++ Step ++ " + 1]",
-     "fn f(n : Int) : Int = n * " ++ Step,
+     "f(" ++ Step ++ ")",
      "List.map(x, f)",
-     "type Shape = Circle(Int) | Square(Int)",
+     "match Circle(" ++ Step ++ ") { Circle(n) -> n | Square(n) -> n }",
      "Circle(" ++ Step ++ ")",
      "Io.println(\"line " ++ Step ++ "\")",
-     "let _ = spawn(fn() : Unit with Never = Io.println(\"spawned\"))"].
+     "let _ = spawn(spawned)"].
 
 %% Called by a load after each round, through a `foreign fn`. What the
 %% round set ending ends before the node is sampled: each process the

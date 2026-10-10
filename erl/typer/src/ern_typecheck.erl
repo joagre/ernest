@@ -3442,7 +3442,7 @@ supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) -
     %% what cannot
     Substituted = ern_types:substitute(ern_types:resolve(Type, TypeState), TypeState),
     case ern_types:value_variables(Substituted, TypeState) of
-        [] -> {#shown_type{type = Substituted}, Env};
+        [] -> {#shown_type{type = Substituted, member = exposed}, Env};
         _ -> not_exposed(Span, Substituted, Env)
     end;
 supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
