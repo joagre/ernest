@@ -18,13 +18,18 @@
 -define(BUILD_PROGRAM, "--source-root programs --build-root build ").
 
 %% The examples that end of themselves, and the programs kept for the tests.
--define(EXAMPLES, ["hello", "services", "word_count", "shout"]).
+-define(EXAMPLES, ["hello", "services", "word_count", "shout", "typed_channels",
+                   "typed_channels_nodes"]).
 -define(PROGRAMS, ["counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser"]).
 
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
 %% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns),
 %% §5.5 (kv_parser), §4.4 (stack), Appendix E.22 (services), §4.9 and §5.6
-%% (word_count), Appendix E.18 (shout)
+%% (word_count), Appendix E.18 (shout), §6.1, §6.3, §6.5, §6.6
+%% (typed_channels), §8.7 (typed_channels_nodes, run alone, which is no
+%% node, its find answering NotListed); the last two are regression tests
+%% written with them, which run none of the refused lines their comments
+%% quote
 %% Each program is compiled and run apart from the others, so they run in
 %% parallel (plan, MVP 2.6).
 programs_test_() ->

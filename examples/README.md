@@ -14,6 +14,8 @@ The commands assume `ern` on your `PATH`, the repository's `bin/` or an installa
 | [`shout.ern`](shout.ern) | a TCP server and three clients in one program | a socket as a process, a process for each connection, reading until a line has arrived | chapters 4 and 8 |
 | [`web_server.ern`](web_server.ern) | a web server with sessions; it serves until stopped | state shared by processes as a process that owns a `Map`, request and reply, an alarm | chapters 4 and 6 |
 | [`file_sync.ern`](file_sync.ern) | two directories kept identical; it runs until stopped | two processes that learn each other's address from a message, the file system, a program's own tests | chapters 4 and 5 |
+| [`typed_channels.ern`](typed_channels.ern) | a counter whose mailbox has one type, met with the doubts a reader may have of a typed channel | a send checked against the address's type, a reply answered once, an adapted address | chapters 4 and 5 |
+| [`typed_channels_nodes.ern`](typed_channels_nodes.ern) | the same counter on a node of its own, found from another | a key that carries its message type, a call across nodes | chapter 8 |
 | [`snake.ern`](snake.ern) | a snake game at a terminal | a world that is one value, ticks kept to a deadline, keys as messages, randomness passed as a seed | chapters 2, 4 and 5 |
 
 `snake.ern` draws with the library `libs/ansi`, and is built and run with `--load-path ../build/libs/ansi`, as its first comment shows. The others need the standard library alone.

@@ -1,0 +1,54 @@
+//
+// Typed channels
+//
+// A process's mailbox has one type, and every address of the process
+// carries that type. Each numbered comment answers one doubt of it, and
+// main runs them in turn; a line the compiler refuses stands in a
+// comment, with the compiler's words.
+//
+// Run it from this directory:
+//
+//     ern build typed_channels.ern
+//     ern run typed_channels.erc
+//
+
+// 1. The counter's mailbox has one type, CounterMsg: each message to it is an Add or a Get,
+// and each clause of its receive is checked against the type (report §6.1, §6.3). A clause
+// that cannot run is refused, `| Add(_) -> count(total)` after count's `Add(amount)`:
+//     this clause can never match
+type CounterMsg = Add(Int) | Get(reply : Reply(Int))
+
+// What a client that only ticks sends.
+type Tick = Tick
+
+export fn main() : Unit with m = {
+    let counter = spawn(fn() = count(0));
+    // 2. A send is checked against the address's type (report §6.5), and one of another type
+    // is refused, `send(counter, "2")`:
+    //     the argument does not fit send: expected CounterMsg, found String
+    send(counter, Add(2));
+    send(counter, Add(3));
+    // 3. A request carries its reply, which the counter answers once, and the call answers
+    // Some, or None where no answer came within its time (report §6.6). Answering a reply
+    // twice is refused, `answer(reply, total); answer(reply, total)` in count, and so is
+    // answering it once a lambda took it,
+    // `let _ = spawn(fn() = answer(reply, total)); answer(reply, total)`:
+    //     the reply-carrying value reply is consumed twice
+    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 5000)));
+    // 4. Addresses have no subtyping, and via adapts one: a Tick sent to ticker reaches the
+    // counter as an Add(1) (report §6.5).
+    let ticker : Address(Tick) = via(counter, fn(Tick) = Add(1));
+    send(ticker, Tick);
+    send(ticker, Tick);
+    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 5000)))
+    // main returns here, and the program ends, the counter with it (report §8.6).
+}
+
+fn count(total : Int) : Unit with CounterMsg =
+    receive {
+        Add(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }

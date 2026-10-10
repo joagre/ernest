@@ -2506,6 +2506,35 @@ standing(Base) ->
     ?assertEqual(0, WaitDesk()),
     stop(Other, WaitOther).
 
+%% report §8.7, §6.6, Appendix E.27: examples/typed_channels_nodes.ern as
+%% two nodes, as its first comment runs them: b runs serve, which offers
+%% the counter under the key, and a runs main, which finds the counter on
+%% b and calls it across the nodes. A regression test, written with the
+%% example; a find at another type is program_test_'s
+typed_channels_test_() ->
+    nodes_test(90, fun typed_channels/1).
+
+typed_channels(Base) ->
+    BuildRoot = filename:join(Base, "build"),
+    0 = ern_cli:ern(["build", "--source-root", "../examples", "--build-root", BuildRoot,
+                     "../examples/typed_channels_nodes.ern"], group_leader()),
+    Program = filename:join(BuildRoot, "typed_channels_nodes.erc"),
+    PortB = free_port(),
+    ConfigDirA = made(Base, "a", none),
+    ConfigDirB = made(Base, "b", PortB),
+    lists(ConfigDirA, [{"b", ConfigDirB, PortB}]),
+    lists(ConfigDirB, [{"a", ConfigDirA, none}]),
+    edit(ConfigDirA, fun(Configuration) ->
+                             Configuration#{<<"keys">> => #{<<"counter">> => [<<"b">>]}}
+                     end),
+    {_, WaitB} = launched(ConfigDirB, [?ERN, " run --config-dir ", ConfigDirB,
+                                       " --main TypedChannelsNodes.serve ", Program]),
+    prints(ConfigDirB, "offered"),
+    ?assertEqual(0, (start(ConfigDirA, Program, []))()),
+    stop(ConfigDirB, WaitB),
+    {OutA, _} = said(ConfigDirA),
+    has(OutA, "total on b: Some(5)").
+
 %% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
 %% picks in turn until a place has a measure, and then the lower of the
 %% measures installed on each, the store's spawned there with Peer.spawn;

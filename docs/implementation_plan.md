@@ -126,19 +126,17 @@ says it is ready, as CLAUDE.md has it, and nothing of it enters the report befor
 decides is built as MVP 3.25 after this milestone, or as this milestone's own items where it is the
 spawn's shape. Decided with the user on 2026-10-10 (the log's *A Milestone for Placing Work by Load*).
 
-**Third, before item 1, an example of typed channels.** One program under `examples/`, run by the
-tests as the others are, with comments as its only text, for a reader who doubts that a typed
-mailbox is sound: `soundness.md`'s argument made concrete, one doubt per fragment, each with the
-line the checker refuses and the one it accepts, and Ernest's two stated limits, foreign code and a
-peer trusted past the check, and a lost message, in a comment. It carries each aspect of a typed
-mailbox in a line or two: a mailbox type and `with`; `Address(m)` and a `send` checked against it; `via`
-and a fault in its function; `Reply(a)` answered once and `Address.call`; a `monitor` whose `Down`
-arrives in the watcher's own type; `Os.terminating` through a wrap; `restarting` keeping its
-address; a key typed across two nodes, `OtherType` and a standing address; a reply handed to a
-function spawned on a peer; and the one refusal, a bound type that cannot cross, in a comment with
-the error's words. Written once MVP 3.1's read is committed, since its verdicts change what the
-example shows, and before this milestone reshapes the spawn; what writing it finds goes to
-`language_feedback.md`, and it seeds the tour's outline (MVP 3.3). Asked for on 2026-10-10.
+**Third, before item 1, an example of typed channels.** Written on 2026-10-10 (the log's *The
+Typed-Channels Example*): `examples/typed_channels.ern`, a counter whose mailbox has one type, met
+with four doubts a reader may have of a typed channel, each answered in a line of `main` under a
+numbered comment with the refused line quoted beside it in the compiler's words, a send of another
+type, a reply answered twice, a clause that cannot run; and `examples/typed_channels_nodes.ern`, the
+same counter on a node of its own, offered under a key and found and called from another, the hash
+the key carries and a lost connection's cost in one comment. Both are plain programs: what the first
+draft carried of `restarting`, `Os.terminating`, `kill`, monitors, `Standing`, a reply answered from a
+peer and a foreign send was cut, each a concept beside the one the example teaches. Run by the tests
+as the other examples are, and on two real nodes. What writing it found is `language_feedback.md`'s
+101 and 102; it seeds the tour's outline (MVP 3.3).
 
 1. **The report and the soundness argument.** §8.7 for the spawn that carries its code, the
    four frames, verification, quarantine and one load, `Refused` with the peer's text, a peer
