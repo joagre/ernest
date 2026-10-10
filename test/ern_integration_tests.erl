@@ -1278,7 +1278,8 @@ end_status() ->
 %% under `ern run` the second came first in every run, the process that
 %% told the subscriber learning of its end before the reaper had reported
 %% the fault; it runs the program several times, since the order was one
-%% of scheduling.
+%% of scheduling. Main returns once the keeper has subscribed, so that the
+%% subscription is made before the end looks for it.
 fault_before_its_end_test_() ->
     {timeout, 60, fun fault_before_its_end/0}.
 
@@ -1286,9 +1287,10 @@ fault_before_its_end() ->
     Dir = "build/fault_before_its_end",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/faulty.ern",
-                         "type Msg = Terminating(Reply(Unit))\n"
-                         "fn keeper() : Unit with Msg = {\n"
+                         "type Msg = Terminating(Reply(Unit)) | Ready\n"
+                         "fn keeper(main : Address(Msg)) : Unit with Msg = {\n"
                          "    Os.terminating(Terminating);\n"
+                         "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> {\n"
                          "            let _ = 1 / List.size([]);\n"
@@ -1296,21 +1298,141 @@ fault_before_its_end() ->
                          "        }\n"
                          "    }\n"
                          "}\n"
-                         "export fn main() : Unit with Never = {\n"
-                         "    let _ = spawn(keeper);\n"
-                         "    Unit\n"
+                         "export fn main() : Unit with Msg = {\n"
+                         "    let me = self();\n"
+                         "    let _ = spawn(fn() : Unit with Msg = keeper(me));\n"
+                         "    receive { Ready -> Unit }\n"
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
     lists:foreach(
       fun(_) ->
           {0, Output} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc"),
           ?assertEqual([<<"the end waits for 1 subscriber">>,
-                        <<"Faulty.main:12 faulted: division by zero">>,
-                        <<"the subscriber Faulty.main:12 ended without answering">>],
-                       [re:replace(Line, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "",
-                                   [{return, binary}])
-                        || Line <- binary:split(Output, <<"\n">>, [global, trim])])
+                        <<"Faulty.main:14 faulted: division by zero">>,
+                        <<"the subscriber Faulty.main:14 ended without answering">>],
+                       unstamped_lines(Output))
       end, lists:seq(1, 5)).
+
+%% report §8.6, §11.2: while the end waits for its subscribers, a fault is
+%% the process's own, its line written as it happens and its monitors
+%% reading Fault(cause). Main's return began the end here; the keeper, a
+%% subscriber, has the worker fault once it is told and answers once the
+%% worker's Down has come. A regression test, written after the code: a
+%% fault while the end waited after main's return was read as ProgramEnd,
+%% the worker's Down said so, and no line was written.
+fault_while_the_end_waits_test_() ->
+    {timeout, 60, fun fault_while_the_end_waits/0}.
+
+fault_while_the_end_waits() ->
+    Dir = "build/fault_while_the_end_waits",
+    waiting_program(Dir),
+    ErrorFile = Dir ++ "/err",
+    ?assertEqual({0, <<"Fault(\"division by zero\")\n">>},
+                 sh("../bin/ern run " ++ Dir ++ "/waited.erc return 2> " ++ ErrorFile)),
+    {ok, Said} = file:read_file(ErrorFile),
+    ?assertEqual([<<"the end waits for 1 subscriber">>,
+                  <<"Waited.started:15 faulted: division by zero">>,
+                  <<"the subscriber Waited.started:16 answered">>],
+                 unstamped_lines(Said)).
+
+%% report §8.6, §11.2: as above where a termination began the end, main a
+%% subscriber too, which answers and returns; the keeper has the worker
+%% fault once main has ended, and the worker's fault is still its own
+%% while the end waits for the keeper. `ern` ends by the signal, -15 as
+%% Python reads it. The signal is sent once main has said it runs, both
+%% subscriptions made. A regression test, written after the code: the
+%% fault, after main's death and of no subscriber, was read as ProgramEnd
+%% and not reported. Which of main's answer and the worker's fault is said
+%% first is a matter of scheduling, and the test does not fix it.
+fault_while_a_termination_waits_test_() ->
+    {timeout, 60, fun fault_while_a_termination_waits/0}.
+
+fault_while_a_termination_waits() ->
+    Dir = "build/fault_while_a_termination_waits",
+    waiting_program(Dir),
+    ErrorFile = Dir ++ "/err",
+    Python = "import subprocess, signal, sys\n"
+             "with open('" ++ ErrorFile ++ "', 'wb') as err:\n"
+             "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/waited.erc',"
+             " 'termination'], stdout=subprocess.PIPE, stderr=err)\n"
+             "    running = p.stdout.readline()\n"
+             "    p.send_signal(signal.SIGTERM)\n"
+             "    rest = p.stdout.read()\n"
+             "    sys.stdout.buffer.write(running + rest + b'%d\\n' % p.wait(timeout=30))\n",
+    ok = file:write_file(Dir ++ "/terminated.py", Python),
+    ?assertEqual({0, <<"running\nFault(\"division by zero\")\n-15\n">>},
+                 sh("python3 " ++ Dir ++ "/terminated.py")),
+    {ok, Said} = file:read_file(ErrorFile),
+    Faulted = <<"Waited.started:15 faulted: division by zero">>,
+    KeeperAnswered = <<"the subscriber Waited.started:16 answered">>,
+    [Waits | Lines] = unstamped_lines(Said),
+    ?assertEqual(<<"the end waits for 2 subscribers">>, Waits),
+    ?assertEqual(lists:sort([<<"the subscriber Waited.main answered">>, Faulted, KeeperAnswered]),
+                 lists:sort(Lines)),
+    %% the keeper answers once the worker's Down has come
+    {BeforeAnswer, _} = lists:splitwith(fun(Line) -> Line =/= KeeperAnswered end, Lines),
+    ?assert(lists:member(Faulted, BeforeAnswer)).
+
+%% A program whose end waits for a keeper, a subscriber of Os.terminating
+%% that, once it is told and main has ended, has a worker fault, prints the
+%% worker's Down's reason, and answers. Its argument says what begins the
+%% end: main's return, or, with `termination`, a termination, main then a
+%% subscriber that answers and returns.
+waiting_program(Dir) ->
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/waited.ern",
+                         "type Msg = Terminating(Reply(Unit)) | Ready | MainEnded(Down)"
+                         " | WorkerEnded(Down)\n"
+                         "type Order = Fail\n"
+                         "export fn main() : Unit with Msg =\n"
+                         "    match Os.arguments {\n"
+                         "        [\"termination\"] -> {\n"
+                         "            Os.terminating(Terminating);\n"
+                         "            started();\n"
+                         "            Io.println(\"running\");\n"
+                         "            receive { Terminating(reply) -> answer(reply, Unit) }\n"
+                         "        }\n"
+                         "      | _ -> started()\n"
+                         "    }\n"
+                         "fn started() : Unit with Msg = {\n"
+                         "    let me = self();\n"
+                         "    let worker = spawn(fails);\n"
+                         "    let _ = spawn(fn() : Unit with Msg = keeper(me, worker));\n"
+                         "    receive { Ready -> Unit }\n"
+                         "}\n"
+                         "fn fails() : Unit with Order =\n"
+                         "    receive {\n"
+                         "        Fail -> {\n"
+                         "            let _ = 1 / List.size([]);\n"
+                         "            Unit\n"
+                         "        }\n"
+                         "    }\n"
+                         "fn keeper(main : Address(Msg), worker : Address(Order)) : Unit with Msg"
+                         " = {\n"
+                         "    Os.terminating(Terminating);\n"
+                         "    monitor(Process.fromAddress(main), MainEnded);\n"
+                         "    monitor(Process.fromAddress(worker), WorkerEnded);\n"
+                         "    send(main, Ready);\n"
+                         "    receive {\n"
+                         "        Terminating(reply) -> {\n"
+                         "            receive { MainEnded(_) -> Unit };\n"
+                         "            send(worker, Fail);\n"
+                         "            receive {\n"
+                         "                WorkerEnded(down) -> {\n"
+                         "                    Io.println(Io.show(down.reason));\n"
+                         "                    answer(reply, Unit)\n"
+                         "                }\n"
+                         "            }\n"
+                         "        }\n"
+                         "    }\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waited.ern").
+
+%% Report §11.2: the lines a run wrote on standard error, in their order,
+%% without the time each begins with where it is a file.
+unstamped_lines(Text) ->
+    [re:replace(Line, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "", [{return, binary}])
+     || Line <- binary:split(Text, <<"\n">>, [global, trim])].
 
 %% report §11.2: a runtime whose loads have brought one of the host's
 %% limits to four fifths says so on standard error at a run's start, once

@@ -89,7 +89,7 @@ A module's atom is its Erlang name, `ern@` and its path (report §11.1), and a t
 - `ern_deliveries`: `{{Recipient, Starter, Pid}}` for each delivery a process started, ordered, so that a restart of the recipient reads its own deliveries and its starter can end them.
 - `ern_restarts`: `{Pid, Alias}` for each restart a process may be asked (§6.9).
 - `ern_proxies`: `{{proxy, Key}, Proxy}` for each checking proxy of §8.4, and `{{behind, Proxy}, Pid, Address, Key}` for what it stands in front of.
-- `ern_launch`: how the terminal is read, `{reading, Kind}`, the process a deadlock faults, `{deadlock_victim, Pid}`, and while the end waits for its subscribers, the runner that waits, `{ending, Runner, Launch}`.
+- `ern_launch`: how the terminal is read, `{reading, Kind}`, the entry process, `{entry_process, Pid}`, the process a deadlock faults, `{deadlock_victim, Pid}`, while the end looks for its subscribers and waits for them, the runner that tells them, `{ending, Runner, Launch}`, and once the wait is over, `{wait_over}`, from which a fault is read as the program's end (§8.6).
 
 Its parts:
 

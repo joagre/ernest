@@ -616,15 +616,15 @@ sleep(Ms) ->
     timer:sleep(Ms),
     ern_rt:untimed().
 
-%% report §8.6: a process that faults once the entry process has died, at
-%% what the program's end ended, dies with the reason ProgramEnd as every
-%% live process does, and no fault of it is reported (§11.2). A regression
-%% test: an accept waiting on a listener its owner, the entry process,
-%% took with it as it returned, faulted with `callee had ended` and was
-%% reported before the program's end stopped it, as examples/shout.ern
-%% showed now and then. A hundred acceptors, in five runs, widen the old
-%% window until it is met; a fault the program's end did not cause, come
-%% in the same instant, is not covered
+%% report §8.6: a process that faults once the entry process has died,
+%% where no subscriber waits, at what the program's end ended, dies with
+%% the reason ProgramEnd as every live process does, and no fault of it is
+%% reported (§11.2). A regression test: an accept waiting on a listener
+%% its owner, the entry process, took with it as it returned, faulted with
+%% `callee had ended` and was reported before the program's end stopped
+%% it, as examples/shout.ern showed now and then. A hundred acceptors, in
+%% five runs, widen the old window until it is met; a fault the program's
+%% end did not cause, come in the same instant, is not covered
 fault_at_the_programs_end_not_reported_test_() ->
     {timeout, 60, fun fault_at_the_programs_end_not_reported/0}.
 
@@ -650,6 +650,52 @@ program_ended_under_accepts() ->
                                       || Acceptor <- Acceptors]
                                  end)
            end, <<"main">>, #{faults => Reporter}).
+
+%% report §8.6, §6.9: a restarting process that faults once the entry
+%% process has died, where no subscriber waits, does not restart: it dies
+%% with the reason ProgramEnd as every live process does, and no fault of
+%% it is reported (§11.2). A regression test, written after the code: an
+%% accept under `restarting` on a listener its owner, the entry process,
+%% took with it as it returned, faulted, was reported as `faulted,
+%% restarted` and ran again, faulting and restarting until the program's
+%% end stopped it. A hundred acceptors in five runs, as above; each run of
+%% an acceptor's function is counted, so that a restart shows though its
+%% report did not reach the reporter
+restarting_at_the_programs_end_not_restarted_test_() ->
+    {timeout, 60, fun restarting_at_the_programs_end_not_restarted/0}.
+
+restarting_at_the_programs_end_not_restarted() ->
+    [program_ended_under_restarting_accepts() || _ <- lists:seq(1, 5)],
+    ?assertEqual([], reported([])),
+    ?assertEqual(5 * 100, runs(0)).
+
+%% A program whose entry process returns while a hundred processes, each
+%% under `restarting(Unlimited, ...)`, wait in an accept on its listeners;
+%% each run of an acceptor's function sends `ran`.
+program_ended_under_restarting_accepts() ->
+    Self = self(),
+    Reporter = fun(Report) -> Self ! {reported, Report} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Acceptors = [begin
+                                {'Right', Listener} = listen(0),
+                                Accept = fun() ->
+                                             Self ! ran,
+                                             accept(Listener, 60000)
+                                         end,
+                                ern_rt:spawn(ern_rt:restarting('Unlimited', Accept),
+                                             <<"acceptor">>)
+                            end || _ <- lists:seq(1, 100)],
+               %% each acceptor waits in its accept before main returns
+               ern_rt:in_foreign(fun() ->
+                                     [ok = ern_waits:waiting(ern_rt:process_of(Acceptor))
+                                      || Acceptor <- Acceptors]
+                                 end)
+           end, <<"main">>, #{faults => Reporter}).
+
+%% The runs the acceptors' functions began, counted from Count.
+runs(Count) ->
+    receive ran -> runs(Count + 1) after 0 -> Count end.
 
 %% The fault reports a run gave, in order.
 reported(Acc) ->

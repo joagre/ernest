@@ -109,9 +109,10 @@
 %% stands in front of, {{behind, Proxy}, Pid, Address, Key}
 -define(PROXIES, ern_proxies).
 %% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, the
-%% process a deadlock faults, {deadlock_victim, Pid}, and while the end
-%% waits for its subscribers, the runner that waits, {ending, Runner,
-%% Launch}
+%% entry process, {entry_process, Pid}, the process a deadlock faults,
+%% {deadlock_victim, Pid}, while the end looks for its subscribers and
+%% waits for them, the runner that tells them, {ending, Runner, Launch},
+%% and once the wait is over, {wait_over}
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
 %% the key's name and its type's hash, ordered so that one name's are read
@@ -418,7 +419,12 @@ ended('Unknown') -> fault(<<"callee had ended">>);
 %% report §8.7: the callee's node was lost, and the callee may live on
 ended('Unreachable') -> fault(<<"callee is unreachable">>);
 ended('ProgramEnd') ->
-    %% a signal, not an exception, which run/1 would take for a fault
+    end_with_program().
+
+%% Report §8.6: the caller ended with the program, by a signal, not an
+%% exception, which run/1 would take for a fault.
+-spec end_with_program() -> no_return().
+end_with_program() ->
     exit(erlang:self(), {ern, program_end}),
     receive after infinity -> ok end.
 
@@ -715,24 +721,45 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
             is_map_key(Pid, MonitorRefs) andalso source_end()
     end.
 
-%% Report §8.6: once the entry process has died the program is ending, and
-%% a process that faults then, at what the ending ended, dies with the
-%% reason ProgramEnd as every live process does, its fault not reported. A
-%% fault the entry's end causes comes after that end, so the entry found
-%% dead here is the program's end, whatever order the two signals came in.
-%% The entry process's own end is its own, and so is a subscriber's while
-%% the end waits for it.
+%% Report §8.6, §11.2: a process that faulted as the program ends dies
+%% with the reason ProgramEnd as every live process does, and its fault is
+%% not reported.
 ended_with_program(Pid, ExitReason) ->
-    IsWaitedFor = ets:member(?LAUNCH, ending) andalso ets:member(?TERMINATING, Pid),
-    case {reason(ExitReason), ets:lookup(?LAUNCH, entry_process)} of
-        {{'Fault', _}, [{_, Entry}]} when Entry =/= Pid, not IsWaitedFor ->
-            case erlang:is_process_alive(Entry) of
-                true -> ExitReason;
-                false -> {ern, program_end}
+    case reason(ExitReason) of
+        {'Fault', _} ->
+            case is_program_ending(Pid) of
+                true -> {ern, program_end};
+                false -> ExitReason
             end;
         _ ->
             ExitReason
     end.
+
+%% Report §8.6: "Once the wait is over, and from the entry process's death
+%% where no subscriber waits", a process that faults before it is ended
+%% dies with the reason ProgramEnd, and its fault is not reported (§11.2);
+%% while the end waits, a fault is the process's own. Whether a fault of
+%% Pid is so: the entry process's own fault is its own; the runner marks
+%% the wait over once the end's wait has returned (run_main/3); and a
+%% subscription's row stands while its subscriber lives (died/3), so that
+%% with none standing no subscriber waits. A fault the entry's end causes
+%% comes after that end, so the entry found dead here is the program's
+%% end, whatever order the two signals came in. The reaper asks it of a
+%% process that ended, and a restarting process of its own fault before
+%% it restarts (restarts/4).
+is_program_ending(Pid) ->
+    case ets_lookup(?LAUNCH, entry_process) of
+        [{_, Pid}] ->
+            false;
+        [{_, Entry}] ->
+            is_wait_over() orelse
+                (ets:info(?TERMINATING, size) =:= 0 andalso not erlang:is_process_alive(Entry));
+        [] ->
+            is_wait_over()
+    end.
+
+is_wait_over() ->
+    ets_lookup(?LAUNCH, wait_over) =/= [].
 
 %% Report §8.6, §11.2: a deadlock is the entry process's fault, or under
 %% `ern test` the fault of the test that runs.
@@ -1766,6 +1793,9 @@ run_main(EntryPoint, Site, Options) ->
     Ended = try
                 Told = told(entry_outcome(EntryPoint, Site, Options, Launch), Launch,
                             maps:get(say, Options, fun said/1)),
+                %% report §8.6: from here a fault is the program's end's
+                %% (is_program_ending/1)
+                true = ets:insert(?LAUNCH, {wait_over}),
                 passed_on(System, Options),
                 {ended, Told}
             catch
@@ -1784,11 +1814,11 @@ run_main(EntryPoint, Site, Options) ->
 %% it waits, what began the end stands, but for an Os.exit, which ends the
 %% program at once with its status, and a second termination, which ends
 %% it at once; no deadlock is found, a subscriber's subscription standing
-%% (look/0). A subscription made while it waits is told at once
-%% (terminating/1). Report §11.2: the wait is said, once with how many it
-%% waits for, and each subscriber as it answers, ends or restarts, by Say,
-%% the runner's own line on standard error. The outcome the program ends
-%% with.
+%% (look/0), and a fault is the process's own (is_program_ending/1). A
+%% subscription made while it waits is told at once (terminating/1).
+%% Report §11.2: the wait is said, once with how many it waits for, and
+%% each subscriber as it answers, ends or restarts, by Say, the runner's
+%% own line on standard error. The outcome the program ends with.
 told(Outcome, Launch, Say) ->
     true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
     case untold(#{}) of
@@ -2286,6 +2316,9 @@ restarts(F, Allowed, Times, Level) ->
             throw('$ern_restart');
         Class:Error:Stack ->
             Fault = fault_exit_reason(Class, Error, Stack),
+            %% report §8.6: a fault as the program ends is not restarted
+            %% and not reported; the process ends with the program
+            is_program_ending(erlang:self()) andalso end_with_program(),
             case within_limit(Allowed, Times) of
                 {true, Recent} ->
                     %% report §11.2: a fault after which the process
