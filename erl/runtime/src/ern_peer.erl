@@ -246,9 +246,14 @@ frame(_From, {find, Name, Hash, Alias})
              end,
     Alias ! {Alias, Answer},
     ok;
+%% report §8.7: a spawn's site is the spawner's words, read as UTF-8 here,
+%% once, as the frame arrives: a site that is not is a frame no compiler
+%% writes, which this node cannot read
 frame(From, {spawn, Ref, Spawned, Site, Monitored})
   when is_reference(Ref), is_binary(Site), is_boolean(Monitored) ->
-    case process_function(Spawned) of
+    case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
+        false ->
+            unreadable;
         unreadable ->
             unreadable;
         Found ->
@@ -290,11 +295,12 @@ spawned_here({found, Function, {Bindings, Foreigns}}, Ref, From, Monitored, Site
             not_loaded(Site, Lacked)
     end.
 
-%% Report §8.7, §11.2: `NotLoaded`, and what the gateway says, the
-%% spawner's words written with their control characters escaped; a site
-%% that is no UTF-8 is a frame no compiler writes.
+%% Report §8.7, §11.2: `NotLoaded`, and what the gateway says, the site
+%% the spawner's words as they came, read as UTF-8 as the frame arrived
+%% (frame/2), and written as they are, as a fault's line and the end's
+%% lines write a site.
 not_loaded(Site, Lacked) ->
-    {{failed, 'NotLoaded'}, {not_loaded, ern_show:controls(Site, line), Lacked}}.
+    {{failed, 'NotLoaded'}, {not_loaded, Site, Lacked}}.
 
 %% Report §8.7: the function a spawn frame names, as this node runs it: the
 %% unit that holds its identity runs it over the values it captured

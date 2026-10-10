@@ -7,7 +7,7 @@
 -module(ern_signals).
 -behaviour(gen_event).
 
--export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2,
+-export([install/0, status/1, ended/0, ended/1, die/2, init/1, handle_event/2, handle_call/2,
          handle_info/2]).
 
 %% Handle the two signals here from now on (report §11). The launcher has
@@ -49,6 +49,16 @@ status(sighup) -> 128 + 1.
 ended() ->
     persistent_term:get({?MODULE, ended}, none).
 
+%% Report §8.6, §11.2: the signal ended the running program, the runner's
+%% outcome says, and `ern` ends by it once its output is flushed; the
+%% status that stands for it. A signal that came while an end begun
+%% otherwise waited ended nothing, and is not recorded: what began the end
+%% stands, an Os.exit's status, main's return's 0, or a stream's 141.
+-spec ended(sigterm | sighup) -> pos_integer().
+ended(Signal) ->
+    persistent_term:put({?MODULE, ended}, Signal),
+    status(Signal).
+
 %% Report §11.2: `ern` ends by the signal itself, once its output is
 %% flushed, so that a service manager counts a stop it asked for as clean,
 %% and a shell reports 128 plus its number either way. The signal's own
@@ -84,7 +94,6 @@ handle_event(_, State) ->
     {ok, State}.
 
 end_run(Signal) ->
-    persistent_term:put({?MODULE, ended}, Signal),
     case ern_rt:signal(Signal) of
         ok -> ok;
         none -> die(Signal, status(Signal))

@@ -114,8 +114,9 @@ export foreign fn find(key : Key(m), ms : Int) : Either(Io.Error, Address(m)) wi
 /// system processes are those `f` reaches there. `f` runs only where the peer
 /// holds it, by its hash, every top-level binding it reaches has its value
 /// there, and every module a foreign declaration it reaches calls is there.
-/// Otherwise the spawn answers `NotLoaded`, as it does for a function a shell
-/// typed, and the peer says on its standard error what it lacked. A binding
+/// Otherwise the spawn answers `NotLoaded`, and the peer says on its standard
+/// error what it lacked; a function a shell typed is held by a peer whose build
+/// has a definition of its hash. A binding
 /// `f` does not reach keeps it from no peer. A process whose answer came too
 /// late is killed as it comes, and where the connection was lost meanwhile it
 /// runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout` and

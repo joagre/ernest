@@ -2,9 +2,10 @@
 %% loads, its lookups, and the host's limits of §11.2, said once each at
 %% four fifths. The table's fill by `ern run` over a build of two modules
 %% is erl/cli/test/ern_cli_tests.erl's code_table_test. Regression tests,
-%% written after the code. They do not cover a line said by a run that has
-%% loaded four fifths of a limit, which no test can approach: the decision
-%% is tested on given counts, and the host's counts are read.
+%% written after the code. The decision is tested on given counts, and the
+%% host's counts are read; the line a run says once its atoms reach four
+%% fifths of the limit is test/ern_integration_tests.erl's, which fills
+%% them in a host of its own.
 -module(ern_code_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -40,28 +41,35 @@ hash(QualifiedName, Definitions) ->
 
 %% report §8.7: a unit's load puts each of its definitions in the code table
 %% by its identity, the hash its canonical form has, with the unit and the
-%% function that hold it: a function, a member and a private function by
-%% their hashes, a type by its hash, a binding by its qualified name with
-%% its hash; each identity by its qualified name; a foreign declaration's
-%% implementation by its qualified name
+%% function that hold it, read as the runtime reads them: a function, a
+%% member and a private function by their hashes, which a spawn finds; a
+%% type by its hash, which runs nothing; a binding by its qualified name
+%% with its hash, whose value a run finds absent before its unit's
+%% initializers have run; a foreign declaration's implementation by its
+%% qualified name
 unit_load_fills_table_test() ->
     Beam = loaded(['Tablefill'], ?SOURCE),
     Definitions = definitions(Beam),
     Unit = 'ern@tablefill',
-    Twice = hash(['Tablefill', twice], Definitions),
-    ?assertEqual({Unit, twice, 1}, ern_code:function(Twice)),
-    ?assertEqual({Unit, 'Box.compare', 2},
-                 ern_code:function(hash(['Tablefill', 'Box', compare], Definitions))),
-    ?assertEqual({Unit, hidden, 1}, ern_code:function(hash(['Tablefill', hidden], Definitions))),
-    ?assertEqual(Twice, ern_code:identity(['Tablefill', twice])),
-    Box = hash(['Tablefill', 'Box'], Definitions),
-    ?assertEqual(Box, ern_code:identity(['Tablefill', 'Box'])),
-    ?assertEqual(none, ern_code:function(Box)),
-    Answer = hash(['Tablefill', answer], Definitions),
-    ?assertEqual({['Tablefill', answer], Answer}, ern_code:identity(['Tablefill', answer])),
+    ?assertEqual({Unit, twice, 1, {[], []}},
+                 ern_code:spawnable({hash, hash(['Tablefill', twice], Definitions)})),
+    ?assertEqual({Unit, 'Box.compare', 2, {[], []}},
+                 ern_code:spawnable({hash, hash(['Tablefill', 'Box', compare], Definitions)})),
+    ?assertEqual({Unit, hidden, 1, {[], []}},
+                 ern_code:spawnable({hash, hash(['Tablefill', hidden], Definitions)})),
+    ?assertEqual(none, ern_code:spawnable({hash, hash(['Tablefill', 'Box'], Definitions)})),
+    Answer = {['Tablefill', answer], hash(['Tablefill', answer], Definitions)},
+    Self = self(),
+    Entry = fun() ->
+                Self ! {values, [ern_code:value(Identity)
+                                 || Identity <- [Answer, {['Tablefill', missing], <<0:256>>}]]}
+            end,
+    ok = ern_rt:run_main(Entry, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({values, [absent, none]}, receive {values, _} = Values -> Values end),
     ?assertEqual({lists, reverse}, ern_code:foreign(['Tablefill', backwards])),
-    ?assertEqual(none, ern_code:identity(['Tablefill', backwards])),
-    ?assertEqual(none, ern_code:identity(['Tablefill', missing])),
+    ?assertEqual({Unit, backwards, 1, {[], [['Tablefill', backwards]]}},
+                 ern_code:spawnable({foreign, ['Tablefill', backwards]})),
+    ?assertEqual(none, ern_code:foreign(['Tablefill', missing])),
     %% every definition the chunk holds, and nothing else
     ?assertEqual(lists:sort(maps:keys(Definitions)),
                  lists:sort([QualifiedName || {QualifiedName, Held} <- Unit:'$code'(),
@@ -108,18 +116,17 @@ spawnable_test() ->
 unit_loaded_again_replaces_its_rows_test() ->
     Before = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 1\n")),
     F1 = hash(['Tablereload', f], Before),
-    ?assertEqual({'ern@tablereload', f, 1}, ern_code:function(F1)),
+    Held = {'ern@tablereload', f, 1, {[], []}},
+    ?assertEqual(Held, ern_code:spawnable({hash, F1})),
     After = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n")),
     F2 = hash(['Tablereload', f], After),
     ?assertNotEqual(F1, F2),
-    ?assertEqual(none, ern_code:function(F1)),
-    ?assertEqual({'ern@tablereload', f, 1}, ern_code:function(F2)),
-    ?assertEqual(F2, ern_code:identity(['Tablereload', f])),
+    ?assertEqual(none, ern_code:spawnable({hash, F1})),
+    ?assertEqual(Held, ern_code:spawnable({hash, F2})),
     ok = ern_code:loaded('ern@tablereload'),
-    ?assertEqual(F2, ern_code:identity(['Tablereload', f])),
+    ?assertEqual(Held, ern_code:spawnable({hash, F2})),
     ern_code:unloaded('ern@tablereload'),
-    ?assertEqual(none, ern_code:function(F2)),
-    ?assertEqual(none, ern_code:identity(['Tablereload', f])),
+    ?assertEqual(none, ern_code:spawnable({hash, F2})),
     code:purge('ern@tablereload'),
     code:delete('ern@tablereload').
 
@@ -130,9 +137,9 @@ one_hash_in_two_units_test() ->
     Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text))),
     Hash = hash(['Tableother', same], definitions(loaded(['Tableother'], Text))),
     ern_code:unloaded('ern@tablesame'),
-    ?assertEqual({'ern@tableother', same, 1}, ern_code:function(Hash)),
+    ?assertEqual({'ern@tableother', same, 1, {[], []}}, ern_code:spawnable({hash, Hash})),
     ern_code:unloaded('ern@tableother'),
-    ?assertEqual(none, ern_code:function(Hash)),
+    ?assertEqual(none, ern_code:spawnable({hash, Hash})),
     [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tableother']].
 
 %% report §8.7, §8.5: a binding's value by its identity, in the run in
@@ -178,7 +185,6 @@ versions_answer_the_first_unit_test() ->
          end || {_, Units} <- Versions],
     Same = hash(['Tableversions', same], First),
     Same = hash(['Tableversions', same], Second),
-    ?assertEqual({'ern@tableversions', same, 1}, ern_code:function(Same)),
     ?assertMatch({'ern@tableversions', same, 1, _}, ern_code:spawnable({hash, Same})),
     Answer = {['Tableversions', answer], hash(['Tableversions', answer], First)},
     Self = self(),

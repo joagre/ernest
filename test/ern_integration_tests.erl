@@ -1182,6 +1182,170 @@ signal_end() ->
     ok = file:write_file(Dir ++ "/signals.py", Python),
     ?assertEqual({0, <<"-15\n-1\n">>}, sh("python3 " ++ Dir ++ "/signals.py")).
 
+%% report §8.6, §11.2, §11.8, Appendix E.23: `ern` ends by the signal only
+%% where the signal ended the program. A termination that began the end
+%% ends `ern` by it once the subscriber has answered; a subscriber's
+%% Os.exit while the end waits gives its status, and a stream that could
+%% no longer be written while it waited gives 141. Where an Os.exit or
+%% main's return began the end, what began it stands: a termination that
+%% comes while the end waits counts, and a second cuts the wait short with
+%% the status of what began it. Two signals are sent there, a termination
+%% and a hangup, which is a termination for a program that is no node,
+%% since nothing shows when the first has reached the runner. A regression
+%% test, written after the fix: once a termination had come, `ern` ended by
+%% it whatever ended the program.
+end_status_test_() ->
+    {timeout, 60, fun end_status/0}.
+
+end_status() ->
+    Dir = "build/end_status",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/told.ern",
+                         "type Msg = Terminating(Reply(Unit)) | Ready\n"
+                         "export fn main() : Unit with Msg =\n"
+                         "    match Os.arguments {\n"
+                         "        [how, began] -> {\n"
+                         "            let me = self();\n"
+                         "            let _ = spawn(fn() : Unit with Msg = subscriber(how, me));\n"
+                         "            receive {\n"
+                         "                Ready -> ended(began)\n"
+                         "              | Terminating(reply) -> answer(reply, Unit)\n"
+                         "            }\n"
+                         "        }\n"
+                         "      | _ -> Unit\n"
+                         "    }\n"
+                         "fn ended(began : String) : Unit with Msg =\n"
+                         "    match began {\n"
+                         "        \"termination\" -> {\n"
+                         "            Io.println(\"running\");\n"
+                         "            receive { Ready -> Unit }\n"
+                         "        }\n"
+                         "      | \"exit\" -> Os.exit(3)\n"
+                         "      | _ -> Unit\n"
+                         "    }\n"
+                         "fn subscriber(how : String, main : Address(Msg)) : Unit with Msg = {\n"
+                         "    Os.terminating(Terminating);\n"
+                         "    send(main, Ready);\n"
+                         "    receive {\n"
+                         "        Terminating(reply) -> told(how, reply)\n"
+                         "      | Ready -> Unit\n"
+                         "    }\n"
+                         "}\n"
+                         "fn told(how : String, reply : Reply(Unit)) : Unit with Msg = {\n"
+                         "    Io.println(\"told\");\n"
+                         "    match how {\n"
+                         "        \"exit\" -> {\n"
+                         "            let _ : Unit = Os.exit(5);\n"
+                         "            answer(reply, Unit)\n"
+                         "        }\n"
+                         "      | \"answer\" -> answer(reply, Unit)\n"
+                         "      | _ -> held(reply)\n"
+                         "    }\n"
+                         "}\n"
+                         "fn held(reply : Reply(Unit)) : Unit with Msg =\n"
+                         "    receive {\n"
+                         "        Terminating(other) -> {\n"
+                         "            answer(other, Unit);\n"
+                         "            held(reply)\n"
+                         "        }\n"
+                         "      | Ready -> held(reply)\n"
+                         "    }\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/told.ern"),
+    Python = "import subprocess, signal\n"
+             "def run(name, how, began, until, signals, close=False):\n"
+             "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/told.erc', how,"
+             " began], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)\n"
+             "    for line in p.stdout:\n"
+             "        if line == until + b'\\n':\n"
+             "            break\n"
+             "    if close:\n"
+             "        p.stdout.close()\n"
+             "    for s in signals:\n"
+             "        p.send_signal(s)\n"
+             "    print(name, p.wait(timeout=30))\n"
+             "run('answered', 'answer', 'termination', b'running', [signal.SIGTERM])\n"
+             "run('exited', 'exit', 'termination', b'running', [signal.SIGTERM])\n"
+             "run('gone', 'answer', 'termination', b'running', [signal.SIGTERM], True)\n"
+             "run('exit began', 'hold', 'exit', b'told', [signal.SIGTERM, signal.SIGHUP])\n"
+             "run('return began', 'hold', 'return', b'told', [signal.SIGTERM, signal.SIGHUP])\n",
+    ok = file:write_file(Dir ++ "/statuses.py", Python),
+    ?assertEqual({0, <<"answered -15\nexited 5\ngone 141\nexit began 3\nreturn began 0\n">>},
+                 sh("python3 " ++ Dir ++ "/statuses.py")).
+
+%% report §8.6, §11.2: a subscriber that faults while it is told has its
+%% fault's line written before the line that says it ended without
+%% answering, as they happened. A regression test, written after the fix:
+%% under `ern run` the second came first in every run, the process that
+%% told the subscriber learning of its end before the reaper had reported
+%% the fault; it runs the program several times, since the order was one
+%% of scheduling.
+fault_before_its_end_test_() ->
+    {timeout, 60, fun fault_before_its_end/0}.
+
+fault_before_its_end() ->
+    Dir = "build/fault_before_its_end",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/faulty.ern",
+                         "type Msg = Terminating(Reply(Unit))\n"
+                         "fn keeper() : Unit with Msg = {\n"
+                         "    Os.terminating(Terminating);\n"
+                         "    receive {\n"
+                         "        Terminating(reply) -> {\n"
+                         "            let _ = 1 / List.size([]);\n"
+                         "            answer(reply, Unit)\n"
+                         "        }\n"
+                         "    }\n"
+                         "}\n"
+                         "export fn main() : Unit with Never = {\n"
+                         "    let _ = spawn(keeper);\n"
+                         "    Unit\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
+    lists:foreach(
+      fun(_) ->
+          {0, Output} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc"),
+          ?assertEqual([<<"the end waits for 1 subscriber">>,
+                        <<"Faulty.main:12 faulted: division by zero">>,
+                        <<"the subscriber Faulty.main:12 ended without answering">>],
+                       [re:replace(Line, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "",
+                                   [{return, binary}])
+                        || Line <- binary:split(Output, <<"\n">>, [global, trim])])
+      end, lists:seq(1, 5)).
+
+%% report §11.2: a runtime whose loads have brought one of the host's
+%% limits to four fifths says so on standard error at a run's start, once
+%% the units are loaded and the bindings have their values, once, written
+%% as a fault's line is, its time first where standard error is a file. The
+%% program's binding makes the atoms that bring the host there, as many as
+%% the host's own counts say. A regression test, written after the code.
+limits_line_test_() ->
+    {timeout, 60, fun limits_line/0}.
+
+limits_line() ->
+    Dir = "build/limits_line",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/atoms.ern",
+                         "foreign fn made(text : String) : Foreign.Term ="
+                         " \"erlang:binary_to_atom/1\"\n"
+                         "foreign fn host(item : Foreign.Term) : Int = \"erlang:system_info/1\"\n"
+                         "fn fill(count : Int) : Unit =\n"
+                         "    if count <= 0 then Unit else {\n"
+                         "        let _ = made(\"limits_line_\" <> Int.toString(count));\n"
+                         "        fill(count - 1)\n"
+                         "    }\n"
+                         "// the atoms that bring the host's to four fifths of its limit\n"
+                         "let filled : Unit =\n"
+                         "    fill((4 * host(Foreign.atom(\"atom_limit\")) + 4) / 5\n"
+                         "         - host(Foreign.atom(\"atom_count\")))\n"
+                         "export fn main() : Unit with Never = Io.println(\"ran\")\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/atoms.ern"),
+    {0, Output} = sh("../bin/ern run " ++ Dir ++ "/atoms.erc 2> " ++ Dir ++ "/err.txt"),
+    ?assertEqual(<<"ran\n">>, Output),
+    {ok, Said} = file:read_file(Dir ++ "/err.txt"),
+    ?assertMatch({match, _},
+                 re:run(Said, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z the host has used [0-9]+ of"
+                              " its [0-9]+ atoms, which it never gives back\n$")).
+
 %% report §11: the host's termination ends a job that runs no program at
 %% once, by the signal, and the host prints nothing of its own. A
 %% regression test: a build given it stopped where it was, printed the

@@ -34,15 +34,19 @@
 %% the modules behind the session, and the scope those modules make
 %% (report §11.2), which the checker takes as its fourth argument.
 -record(session, {load_path = [], source_root = ".", last_input = 0, interfaces = [],
-                  scope = #{}, beams = #{}, source_hashes = #{}, last_holder = 0, prelude,
-                  units = #{}, versions = #{}, previous = []}).
+                  scope = #{}, beams = #{}, source_hashes = #{}, source_expected = #{},
+                  last_holder = 0, prelude, units = #{}, versions = #{}, previous = []}).
 %% scope: what an input may name, `values`, `types` and `constructors`, each
 %% name to its qualified name
 %% last_input: the highest input number given; last_holder: the highest
 %% `$Bindings` number given; a number freed is given again first, from the
 %% kept row `free` (free_namespace/1)
 %% source_hashes: the namespace of a module the session has loaded, to the hash
-%% of the source it was compiled from, which `:reload` compares (§11.2)
+%% of the source it was compiled from, which `:reload` compares (§11.2);
+%% source_expected: the namespace of each whose source the session looks
+%% for under the source root, to true: one it compiled from its source,
+%% and one of the program the runner loaded for the file the shell was
+%% started with; never a library's, whose source is elsewhere
 %% beams: the namespace of an input that declared, and of a module `:load`
 %% or `:reload` compiled, to its compiled module, which `:doc` reads the
 %% documentation of (report §11.2, §11.4)
@@ -69,8 +73,9 @@
 %% `declarations`; a name is tagged, so that no name stands for a tag.
 %% printed_name: the name the input's module prints with (input_names/0).
 %% A module a load or a reload brings: its namespace, the unit it is, its
-%% compiled form and the hash of the source it was compiled from (§11.2).
--record(compiled, {namespace, unit, beam, source_hash}).
+%% compiled form, the hash of the source it was compiled from (§11.2), and
+%% whether the session compiled it from that source, or loaded its form.
+-record(compiled, {namespace, unit, beam, source_hash, from_source = false}).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -118,13 +123,15 @@ keep(Key, Value) ->
 
 -spec start() -> #session{}.
 start() ->
-    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces} =
-        persistent_term:get({?MODULE, loaded}, #loaded{}),
+    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces,
+            program = Program} = persistent_term:get({?MODULE, loaded}, #loaded{}),
     keep_session(#session{load_path = LoadPath, source_root = SourceRoot,
                           prelude = ern_typecheck:prelude_env(),
                           interfaces = [Interface || {Interface, _} <- Interfaces],
                           source_hashes = maps:from_list([{Interface#interface.namespace, Hash}
-                                                    || {Interface, Hash} <- Interfaces])}).
+                                                    || {Interface, Hash} <- Interfaces]),
+                          source_expected = maps:from_list([{Namespace, true}
+                                                            || Namespace <- Program])}).
 
 %% Report §11.2: the session as it stands, which completion reads. The
 %% reader asks for the names while an input runs, when the session is busy
@@ -1311,7 +1318,10 @@ load_help(Session, Segments) ->
     end.
 
 %% Whether a module of these segments is not loaded and could be: its
-%% source under the source root, or its compiled form on the load path.
+%% source under the source root, or its compiled form on the load path,
+%% the first there, where the host holds no other unit of its name, which
+%% would refuse it (compiled_unit/5), so that the help never proposes a
+%% `:load` that is refused.
 is_loadable(#session{source_root = SourceRoot, interfaces = Interfaces} = Session, Segments) ->
     Name = lists:flatten(lists:join(".", Segments)),
     Loaded = [ern_namespace:text(Namespace)
@@ -1322,11 +1332,26 @@ is_loadable(#session{source_root = SourceRoot, interfaces = Interfaces} = Sessio
         andalso begin
                     Relative = ern_namespace:path(Segments),
                     filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
-                        orelse lists:any(fun(Root) ->
-                                             filelib:is_regular(filename:join(Root,
-                                                                              Relative ++ ".erc"))
-                                         end, load_path(Session))
+                        orelse is_form_loadable(Session, Relative)
                 end.
+
+is_form_loadable(Session, Relative) ->
+    Forms = [File || Root <- load_path(Session), File <- [filename:join(Root, Relative ++ ".erc")],
+                     filelib:is_regular(File)],
+    case Forms of
+        [File | _] ->
+            case file:read_file(File) of
+                {ok, Beam} ->
+                    case beam_lib:md5(Beam) of
+                        {ok, {Unit, _}} -> is_free(Unit) orelse is_held(Unit, Beam);
+                        {error, beam_lib, _} -> false
+                    end;
+                {error, _} ->
+                    false
+            end;
+        [] ->
+            false
+    end.
 
 %% The documentation of a name as it is written, with its segments; none
 %% for text that is no name.
@@ -1489,8 +1514,10 @@ declared_type(Session, Input) ->
 declared_scheme(#session{scope = Scope} = Session, Text) ->
     maybe
         {ok, it, #e_var{namespace = Namespace, name = Name}} ?= input(Text),
+        %% report §11.2: a type a later input shadows prints under the input
+        %% that declared it, as the input's own check prints it
         {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], checked_interfaces(Session),
-                                               Scope),
+                                               Scope#{input_names => input_names()}),
         {ok, Scheme} ?= ern_typecheck:declared_scheme(Namespace, Name, Env),
         {ok, Scheme, Env}
     else
@@ -2046,9 +2073,9 @@ installed(Session, All, Answer) ->
         ok ->
             initialized(All),
             {'Right', {keep_session(Session1), Answer}};
-        {fault, _, Site, Cause, _} ->
+        {fault, _, Site, How, _} ->
             Killed = withdraw(Brought, All),
-            {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded",
+            {'Left', <<(binding_end(Site, How))/binary, "; nothing was loaded",
                        (killed_text(Killed))/binary, "\n">>}
     end.
 
@@ -2116,8 +2143,9 @@ unit_bindings(Unit) ->
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
 %% first, each module's evaluated in a fresh process of the shell's own, at
 %% `Never`, while the session waits; its fault is this answer's and not a
-%% fault report's. ok, or the module whose binding faulted, its site, its
-%% cause and the modules after it.
+%% fault report's. ok, or the module whose binding faulted or whose process
+%% was killed, the binding's site, how it ended, `{faulted, Cause}` or
+%% `killed`, and the modules after it.
 initialize([]) ->
     ok;
 initialize([#compiled{unit = Unit} = Compiled | Rest]) ->
@@ -2128,10 +2156,10 @@ initialize([#compiled{unit = Unit} = Compiled | Rest]) ->
 
 %% A binding's fault is the load's to report, so the process catches it and
 %% ends without one, and no subscriber of Process.faults hears of it twice;
-%% a kill, which nothing catches, is seen by the monitor. The fault is
-%% named by the binding's site, which '$init' gave the process (report
-%% §8.5, §11.2), and a kill by the module.
-initialize(#compiled{namespace = Namespace, unit = Unit} = Compiled, Rest) ->
+%% a kill, which nothing catches, is seen by the monitor, and is no fault
+%% (§6.9). Each is named by the binding's site, which '$init' gave the
+%% process (report §8.5, §11.2), and which its Down carries.
+initialize(#compiled{unit = Unit} = Compiled, Rest) ->
     Self = self(),
     Ref = make_ref(),
     Init = fun() ->
@@ -2152,12 +2180,13 @@ initialize(#compiled{namespace = Namespace, unit = Unit} = Compiled, Rest) ->
             initialize(Rest);
         {Ref, {fault, Site, Cause}} ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
-            {fault, Compiled, Site, Cause, Rest};
-        {Ref, {'Down', _, Reason, _}} ->
-            {fault, Compiled, unicode:characters_to_binary(ern_namespace:text(Namespace)),
+            {fault, Compiled, Site, {faulted, Cause}, Rest};
+        {Ref, {'Down', _, Reason, Site}} ->
+            {fault, Compiled, Site,
              case Reason of
-                 {'Fault', Cause} -> Cause;
-                 Other -> atom_to_binary(Other)
+                 'Killed' -> killed;
+                 {'Fault', Cause} -> {faulted, Cause};
+                 Other -> {faulted, atom_to_binary(Other)}
              end, Rest}
     end.
 
@@ -2166,8 +2195,12 @@ initialize(#compiled{namespace = Namespace, unit = Unit} = Compiled, Rest) ->
 initialized(CompiledModules) ->
     lists:foreach(fun(#compiled{unit = Unit}) -> ern_rt:initialized(Unit) end, CompiledModules).
 
-binding_fault(Site, Cause) ->
-    <<Site/binary, " faulted: ", (ern_show:controls(Cause, line))/binary>>.
+%% Report §11.2: a binding that faulted, with its cause, or whose process
+%% was killed, by its site.
+binding_end(Site, {faulted, Cause}) ->
+    <<Site/binary, " faulted: ", (ern_show:controls(Cause, line))/binary>>;
+binding_end(Site, killed) ->
+    <<Site/binary, " was killed">>.
 
 %% Report §11.2: what the modules use that the session has not loaded,
 %% each found as the runner finds it, by namespace on the load path, and
@@ -2218,10 +2251,11 @@ needed_one(Session, Namespace, Acc, Compiled) ->
 %%
 
 %% Report §8.7, §11.2: a module loaded from its compiled form is the unit
-%% of its Erlang name, one the node holds no code of, or holds with this
-%% very code, as a node holds its build's. A unit of that name the node
-%% holds with other code would need a unit of another name, which only a
-%% module's source makes until MVP 3.2.
+%% of its Erlang name, one the host holds no code of, or holds with this
+%% very code, as a node holds its build's. A unit of that name the host
+%% holds with other code, a node's build's or the shell's own, would need
+%% a unit of another name, which only a module's source makes until MVP
+%% 3.2; the refusal names what holds it, the node or the session.
 compiled_unit(Namespace, File, Beam, Hash, Session) ->
     Unit = ern_namespace:erlang_module(Namespace),
     case is_free(Unit) orelse is_held(Unit, Beam) of
@@ -2229,10 +2263,14 @@ compiled_unit(Namespace, File, Beam, Hash, Session) ->
             {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
         false ->
             Name = ern_namespace:text(Namespace),
+            Holder = case ern_carrier:is_node() of
+                         true -> "node";
+                         false -> "session"
+                     end,
             {error, unicode:characters_to_binary(
                       [Name, "'s compiled form, ", relative(File, Session), ", is not the ", Name,
-                       " this node holds; a compiled module loaded beside another of its name"
-                       " arrives in MVP 3.2"])}
+                       " this ", Holder, " holds; a compiled module loaded beside another of its"
+                       " name arrives in MVP 3.2"])}
     end.
 
 %% Report §8.7, §11.2: a module compiled from its source as a unit no other
@@ -2271,7 +2309,8 @@ fresh_compiled(Session, Namespace, File, Interfaces, Units) ->
 compiled_as(Session, Namespace, Unit, File, Interfaces, Units) ->
     case compile_source(Session, File, Interfaces, with_unit(Namespace, Unit, Units)) of
         {ok, _, Beam, Hash} ->
-            {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
+            {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash,
+                           from_source = true}};
         {error, _} = Error ->
             Error
     end.
@@ -2337,14 +2376,15 @@ unit(#session{units = Units}, Namespace) ->
 reload(Session) ->
     without_line_feed(reload_changed(Session)).
 
-reload_changed(#session{source_hashes = SourceHashes} = Session) ->
+reload_changed(#session{source_hashes = SourceHashes, source_expected = Expected} = Session) ->
     Sources = [{Namespace, LoadedHash, source_of(Session, Namespace)}
                || {Namespace, LoadedHash} <- lists:sort(maps:to_list(SourceHashes))],
     ChangedSources = [{Namespace, File}
                || {Namespace, LoadedHash, {ok, File}} <- Sources,
                   {ok, Hash} <- [source_hash(File)],
                   Hash =/= LoadedHash],
-    SourcelessLines = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources]),
+    SourcelessLines = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources,
+                                                        is_map_key(Namespace, Expected)]),
     case ChangedSources of
         [] ->
             {'Right', {Session, [<<"no source has changed">> | SourcelessLines]}};
@@ -2370,15 +2410,15 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
     case initialize(in_order(All)) of
         ok ->
             reload_done(Session, Session1, {All, Compiled}, [], SourcelessLines);
-        {fault, Faulted, Site, Cause, Rest} ->
+        {fault, Faulted, Site, How, Rest} ->
             case lists:any(IsFirst, [Faulted | Rest]) of
                 false ->
                     lists:foreach(fun(Kept) -> kept_values(Session, Kept) end, [Faulted | Rest]),
                     reload_done(Session, Session1, {All, Compiled},
-                                [kept_values_line(Site, Cause)], SourcelessLines);
+                                [kept_values_line(Site, How)], SourcelessLines);
                 true ->
                     Killed = withdraw(Brought, All),
-                    {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded",
+                    {'Left', <<(binding_end(Site, How))/binary, "; nothing was reloaded",
                                (killed_text(Killed))/binary, "\n">>}
             end
     end.
@@ -2405,11 +2445,13 @@ compiled_line(Session, Namespace) ->
     unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled from ",
                                   relative(File, Session)]).
 
-%% Report §11.2: a reloaded module's binding that faulted, which with the
-%% bindings after it keeps what the previous version gave it.
-kept_values_line(Site, Cause) ->
-    <<(binding_fault(Site, Cause))/binary, "; it and the bindings after it keep the values of the"
-      " previous version">>.
+%% Report §11.2: a reloaded module's binding that faulted, after which the
+%% bindings the reload left as they were keep what the previous version
+%% gave them, and the rest have no value (kept_values/2).
+kept_values_line(Site, How) ->
+    <<(binding_end(Site, How))/binary, "; it and the bindings after it whose hash changed, or"
+      " which are new, are without a value, and the rest keep the values of the previous"
+      " version">>.
 
 %% Report §11.2, §8.5: each binding of a new version the reload's fault left
 %% without a value takes the value the previous version gave it, where the
@@ -2564,9 +2606,10 @@ loaded_interfaces(#session{interfaces = Interfaces, source_hashes = SourceHashes
 install(Session, CompiledModules) ->
     lists:foldl(fun install_one/2, Session, CompiledModules).
 
-install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash},
+install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash,
+                      from_source = FromSource},
             #session{interfaces = Interfaces, source_hashes = SourceHashes, beams = Beams,
-                     units = Units} = Session) ->
+                     units = Units, source_expected = Expected} = Session) ->
     case is_held(Unit, Beam) of
         true -> ok;
         false -> {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam)
@@ -2576,6 +2619,10 @@ install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_ha
     Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
     Session#session{interfaces = Others ++ [Interface],
                     source_hashes = SourceHashes#{Namespace => Hash},
+                    source_expected = case FromSource of
+                                          true -> Expected#{Namespace => true};
+                                          false -> Expected
+                                      end,
                     beams = Beams#{Namespace => Beam},
                     units = with_unit(Namespace, Unit, Units)}.
 
@@ -2693,7 +2740,8 @@ renamed_elements(Tuple, Renames) ->
 
 %% Report §11.2: the reload names each binding whose type it left of a
 %% previous version, under the first such type the type names, `Counter.Msg
-%% changed: the binding c is of its previous version, Counter$1.Msg`.
+%% changed: the binding c is of its previous version, Counter$1.Msg`, and
+%% `went` for a type the new version does not declare.
 previous_lines(_Session, Previous) when map_size(Previous) =:= 0 ->
     [];
 previous_lines(#session{scope = Scope} = Session, Previous) ->
@@ -2703,11 +2751,21 @@ previous_lines(#session{scope = Scope} = Session, Previous) ->
                [Renamed | _] <- [[Name || Name <- type_names(Type),
                                           is_map_key(Name, Previous)]]],
     [unicode:characters_to_binary(
-       [ern_namespace:text(maps:get(Renamed, Previous)), " changed: ", bindings_named(Names),
+       [ern_namespace:text(Was), changed_or_went(Was, Session), bindings_named(Names),
         counted(Names, " is", " are"), " of its previous version, ",
         ern_namespace:text(Renamed)])
      || Renamed <- lists:usort([Found || {_, Found} <- Held]),
+        Was <- [maps:get(Renamed, Previous)],
         Names <- [[name_text(Key) || {Key, Found} <- Held, Found =:= Renamed]]].
+
+%% Whether the module's current version declares a type of the name it had.
+changed_or_went(QualifiedName, #session{interfaces = Interfaces}) ->
+    #interface{types = Types, private_types = PrivateTypes} =
+        interface_of(lists:droplast(QualifiedName), Interfaces),
+    case is_map_key(QualifiedName, Types) orelse is_map_key(QualifiedName, PrivateTypes) of
+        true -> " changed: ";
+        false -> " went: "
+    end.
 
 %% Report §11.2: a type error that names a type of a previous version says
 %% so in its help, `Counter$1.Msg is of a previous version of Counter, which
@@ -2718,12 +2776,13 @@ previous_hinted(#session{previous = Previous},
                 undefined -> [];
                 _ -> [Help]
             end,
-    Text = unicode:characters_to_binary([Message, [Label || {_, Label} <- Labels] | Given]),
+    %% the parts apart, so that a name at the end of one is whole
+    Text = unicode:characters_to_binary(
+             lists:join("\n", [Message] ++ [Label || {_, Label} <- Labels] ++ Given)),
     Named = [QualifiedName
              || #interface{types = Types, private_types = PrivateTypes} <- Previous,
                 QualifiedName <- maps:keys(Types) ++ maps:keys(PrivateTypes),
-                binary:match(Text, unicode:characters_to_binary(
-                                     ern_namespace:text(QualifiedName))) =/= nomatch],
+                is_named(Text, unicode:characters_to_binary(ern_namespace:text(QualifiedName)))],
     case lists:sort(Named) of
         [] ->
             Diagnostic;
@@ -2733,6 +2792,32 @@ previous_hinted(#session{previous = Previous},
                     ", which a reload replaced"],
             Diagnostic#diagnostic{help = lists:flatten(lists:join("; ", Given ++ [Said]))}
     end.
+
+%% Whether Text names Name whole, where it stands no name going on before
+%% it or after it: `C$1.Msg` does not name `C$1.M`.
+is_named(Text, Name) ->
+    lists:any(fun({Start, Length}) ->
+                      not goes_on(Text, Start - 1, -1) andalso not goes_on(Text, Start + Length, 1)
+              end, binary:matches(Text, Name)).
+
+%% Whether a name goes on at Position, read in Direction away from it: a
+%% name's character stands there, or a dot with one beyond it.
+goes_on(Text, Position, Direction) ->
+    case byte_at(Text, Position) of
+        $. -> is_name_byte(byte_at(Text, Position + Direction));
+        Byte -> is_name_byte(Byte)
+    end.
+
+byte_at(Text, Position) when Position >= 0, Position < byte_size(Text) ->
+    binary:at(Text, Position);
+byte_at(_, _) ->
+    none.
+
+is_name_byte(Byte) when is_integer(Byte) ->
+    (Byte >= $a andalso Byte =< $z) orelse (Byte >= $A andalso Byte =< $Z)
+        orelse (Byte >= $0 andalso Byte =< $9) orelse Byte =:= $_ orelse Byte =:= $$;
+is_name_byte(none) ->
+    false.
 
 %% The declared types a type is made of, each by its qualified name.
 type_names({tcon, QualifiedName, Args}) ->
@@ -2761,8 +2846,11 @@ counted(_, _, Many) -> Many.
 listed([Item]) -> Item;
 listed(Items) -> [lists:join(", ", lists:droplast(Items)), " and ", lists:last(Items)].
 
-%% Report §11.2: a loaded module whose source the source root does not
-%% hold is named, since `:reload` cannot compile it again.
+%% A module whose source the session expects under the source root, which
+%% the root does not hold, is named, since `:reload` cannot compile it
+%% again: one it compiled from its source, and one of the program it was
+%% started over; a library's, loaded from its compiled form on the load
+%% path, has its source elsewhere, and is not.
 sourceless(_Session, []) ->
     [];
 sourceless(#session{source_root = SourceRoot}, Names) ->

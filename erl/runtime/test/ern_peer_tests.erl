@@ -192,6 +192,86 @@ spawn_by_identity_test() ->
         unloaded(Unit)
     end.
 
+%% report §8.7: a function whose reach names a binding through a group, a
+%% type whose compare reads a binding of its module, starts nothing where
+%% that binding has no value: the spawn answers NotLoaded, naming it, as
+%% for any binding of a reach. A regression test, written after the fix: a
+%% group's binding was in no reach, and the function started, to fault
+%% reading the binding
+group_binding_test() ->
+    Unit = 'ern@peergroup',
+    Hashes = loaded(['Peergroup'],
+                    "type T = T(Int)\n"
+                    "let zero : T = T(0)\n"
+                    "fn T.compare(a : T, b : T) : Ordering = if a == zero then Less else Equal\n"
+                    "export fn ordered() : Unit with Never = { let _ = T(1) < T(2); Unit }\n"),
+    Self = self(),
+    Main = fun() ->
+               true = register(ern_gateway, self()),
+               Ref = make_ref(),
+               Spawned = {function, maps:get(['Peergroup', ordered], Hashes)},
+               Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>, false}),
+               receive {ern_frame, _, {answer, Ref, Answer}} -> Self ! {spawned, Answer, Read} end
+           end,
+    try
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        {spawned, Answer, {not_loaded, Site, Lacked}} = receive {spawned, _, _} = Got -> Got end,
+        ?assertEqual({{failed, 'NotLoaded'}, <<"M.f:1">>,
+                      "the binding Peergroup.zero has no value here"},
+                     {Answer, Site, lists:flatten(io_lib:format("~ts", [Lacked]))})
+    after
+        unloaded(Unit)
+    end.
+
+%% report §8.7, §11.1: a spawn on a peer names a lambda or a local fn by
+%% its identity with the values it captured, in the order its body first
+%% names them, whatever order they were bound in: the frame the compiled
+%% spawn sends, read from the module's forms, each capture known by the
+%% value its `let` bound. A regression test, written after the code
+spawn_captures_in_order_test() ->
+    Text = "export fn start(peer : String) : Unit with m = {\n"
+           "    let b = \"B\";\n"
+           "    let a = \"A\";\n"
+           "    let n = 6;\n"
+           "    let _ = Peer.spawn(peer, fn() : Unit with Never =\n"
+           "                                 Io.println(a <> b <> Int.toString(n)), 100);\n"
+           "    fn local() : Unit with Never = Io.println(b <> a);\n"
+           "    let _ = Peer.spawn(peer, local, 100);\n"
+           "    Unit\n"
+           "}\n",
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['Captures'], Text),
+    Forms = ern_emitter:forms(['Captures'], Typed, Env),
+    Bound = maps:from_list(
+              found(fun({match, _, {var, _, Variable}, {Kind, _, _} = Value})
+                          when Kind =:= bin; Kind =:= integer ->
+                            {Variable, erl_parse:normalise(Value)};
+                       (_) ->
+                            false
+                    end, Forms)),
+    Frames = found(fun({call, _, {remote, _, {atom, _, ern_peer}, {atom, _, spawn}},
+                        [_, {tuple, _, [{atom, _, lambda}, _, {integer, _, Position}, Captures]}
+                         | _]}) ->
+                           Variables = [Variable || {var, _, Variable}
+                                                        <- erl_syntax:list_elements(Captures)],
+                           {Position, [maps:get(Variable, Bound) || Variable <- Variables]};
+                      (_) ->
+                           false
+                   end, Forms),
+    ?assertEqual([{1, [<<"A">>, <<"B">>, 6]}, {2, [<<"B">>, <<"A">>]}], Frames).
+
+%% What Test finds in Term and in every term within it, outermost first.
+found(Test, Term) ->
+    Here = case Test(Term) of
+               false -> [];
+               Found -> [Found]
+           end,
+    Within = if
+                 is_tuple(Term) -> tuple_to_list(Term);
+                 is_list(Term) -> Term;
+                 true -> []
+             end,
+    Here ++ lists:append([found(Test, Part) || Part <- Within]).
+
 %% A module compiled as the build compiles it, loaded and in the code table
 %% as the runner puts a unit there; its definitions' hashes by their
 %% qualified names.

@@ -1322,6 +1322,59 @@ test_runner_streams() ->
     ?assertEqual(<<"inside first\nfirst: passed\nstuck: faulted: deadlock\nlast: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
 
+%% report §8.6, §11.2: while the end waits, a process that waits with
+%% nothing in flight is no deadlock. Under `ern test` a deadlock while a
+%% test runs is that test's fault, which shows it: a termination comes
+%% while a test waits, and the subscriber it started, told, keeps its reply
+%% unanswered; the test is not faulted, and a second termination ends the
+%% run. The second comes once the reaper has looked for a deadlock twice
+%% while the end waits, which ern_waits shows, the wait being for an
+%% absence that nothing else shows. A regression test, written after the
+%% code: the test that stood here passed with nothing keeping the look from
+%% finding a deadlock while the end waits, since only under `ern test` is a
+%% deadlock then anyone's fault.
+no_deadlock_while_the_end_waits_test_() ->
+    {timeout, 60, fun no_deadlock_while_the_end_waits/0}.
+
+no_deadlock_while_the_end_waits() ->
+    Dir = tmp(),
+    write(Dir, "src/ending.ern",
+          "type Msg = Terminating(Reply(Unit)) | Go\n"
+          "foreign fn send(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
+          " with m = \"erlang:send/2\"\n"
+          "fn said(word : String) : Unit with m = {\n"
+          "    let _ = send(Foreign.from(Foreign.atom(\"ern_cli_tests_ending\")),\n"
+          "                 Foreign.from(Foreign.atom(word)));\n"
+          "    Unit\n"
+          "}\n"
+          "fn held(reply : Reply(Unit)) : Unit with Msg = receive {\n"
+          "    Terminating(other) -> { answer(other, Unit); held(reply) }\n"
+          "  | Go -> held(reply)\n"
+          "}\n"
+          "fn keeper() : Unit with Msg = {\n"
+          "    Os.terminating(Terminating);\n"
+          "    said(\"subscribed\");\n"
+          "    receive {\n"
+          "        Terminating(reply) -> { said(\"told\"); held(reply) }\n"
+          "      | Go -> Unit\n"
+          "    }\n"
+          "}\n"
+          "let waits : Test.Case(Msg) = Test.Case(name = \"waits\", run = fn() = {\n"
+          "    let _ = spawn(keeper);\n"
+          "    receive { Go -> Test.Passed }\n"
+          "})\n"),
+    Ending = spawn(fun() ->
+                       receive subscribed -> ok end,
+                       ok = ern_rt:signal(sigterm),
+                       receive told -> ok end,
+                       ern_waits:looked(2),
+                       ok = ern_rt:signal(sigterm)
+                   end),
+    register(ern_cli_tests_ending, Ending),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(143, ern_err(["test", Dir ++ "/build/ending.erc"])),
+    ?assertEqual(nomatch, binary:match(iolist_to_binary(?capturedOutput), <<"deadlock">>)).
+
 %% report §11.2, Appendix E.23: under `ern test` Os.arguments is the empty
 %% list, and Os.exit faults the test that calls it and the run goes on.
 %% Written after the code, it found that a test faulting at once was
@@ -1547,22 +1600,26 @@ code_table_test() ->
            end,
     Definitions = Held('ern@geo@shape', "geo/shape.erc") ++ Held('ern@main', "main.erc"),
     ?assertEqual(7, length(Definitions)),
+    [Main] = [Hash
+              || {#definition{qualified_name = ['Main', main], hash = Hash}, _} <- Definitions],
+    {'ern@main', main, 0, {MainBindings, []}} = ern_code:spawnable({hash, Main}),
     lists:foreach(
-      fun({#definition{qualified_name = QualifiedName, kind = function, hash = Hash}, Unit}) ->
-              ?assertEqual(Hash, ern_code:identity(QualifiedName)),
-              {Unit, Function, Arity} = ern_code:function(Hash),
+      fun({#definition{kind = function, hash = Hash}, Unit}) ->
+              {Unit, Function, Arity, _} = ern_code:spawnable({hash, Hash}),
               ?assert(lists:member({Function, Arity}, Unit:module_info(functions)));
+         %% the binding main reads, by its identity, in main's reach
          ({#definition{qualified_name = QualifiedName, kind = binding, hash = Hash}, _}) ->
-              ?assertEqual({QualifiedName, Hash}, ern_code:identity(QualifiedName));
-         ({#definition{qualified_name = QualifiedName, kind = type, hash = Hash}, _}) ->
-              ?assertEqual(Hash, ern_code:identity(QualifiedName)),
-              ?assertEqual(none, ern_code:function(Hash))
+              ?assertEqual([{QualifiedName, Hash}], MainBindings);
+         ({#definition{kind = type, hash = Hash}, _}) ->
+              ?assertEqual(none, ern_code:spawnable({hash, Hash}))
       end, Definitions),
     ?assertEqual({lists, sum}, ern_code:foreign(['Geo', 'Shape', sum])),
     %% the standard library's definitions, which its units hold as a
     %% program's do
-    Map = ern_code:identity(['List', map]),
-    ?assertMatch({'ern@list', map, 2}, ern_code:function(Map)).
+    {ok, ListBeam} = file:read_file(code:which('ern@list')),
+    {ok, ListDefinitions} = ern_canonical:read(ListBeam),
+    [Map] = [Hash || #definition{qualified_name = ['List', map], hash = Hash} <- ListDefinitions],
+    ?assertMatch({'ern@list', map, 2, _}, ern_code:spawnable({hash, Map})).
 
 %% report §8.7, §11.1, Appendix H: a library under its own root is hashed as
 %% a program's code is, and a program built against it with --load-path

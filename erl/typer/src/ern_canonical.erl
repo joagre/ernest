@@ -56,14 +56,16 @@
 %% walked began, undefined outside a pattern; bound, the locals that pattern
 %% has bound; segments, the locals a bitstring pattern's earlier segments
 %% bound; locals, the numbers taken; variables, each type variable, {tvar,
-%% Id} or {name, Name}, to its number; references, the other modules'
+%% Id} or {name, Name}, to its number; names, each variable the annotation
+%% being walked writes, by its name, to the type variable the checker gave
+%% its place (matched/3); references, the other modules'
 %% definitions referenced by hash; functions, the span of each lambda and
 %% local function met, reversed, in the order the walk meets them, which is
 %% their positions' (lambdas/2); keys, each key's message type with its
 %% form, its own module's types left open.
 -record(walk, {env, namespace, standard, own, scope = #{}, outer, bound = #{},
-               segments = #{}, locals = 0, variables = #{}, references = [], functions = [],
-               keys = []}).
+               segments = #{}, locals = 0, variables = #{}, names = #{}, references = [],
+               functions = [], keys = []}).
 
 -spec form_version() -> pos_integer().
 form_version() ->
@@ -164,8 +166,9 @@ qualified(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 %% keys' types.
 opened(#fn_declaration{} = Declaration, Walk) ->
     function(Declaration, Walk);
-opened(#let_declaration{scheme = Scheme, annotation = Annotation, body = Body}, Walk) ->
-    {SchemeForm, Walk1} = scheme(Scheme, Walk),
+opened(#let_declaration{scheme = #scheme{type = Type} = Scheme, annotation = Annotation,
+                        body = Body}, Walk) ->
+    {SchemeForm, Walk1} = scheme(Scheme, matched(Annotation, Type, Walk)),
     {AnnotationForm, Walk2} = annotation(Annotation, Walk1),
     {BodyForm, Walk3} = expr(Body, Walk2),
     {{binding, SchemeForm, AnnotationForm, BodyForm}, Walk3};
@@ -325,7 +328,10 @@ reaches(Definitions, Others) ->
                 Others, Definitions).
 
 %% A definition's reach, with every reach found on the way known; one of
-%% another module, or a type's, which names neither, is known or empty.
+%% another module, or a type's, which names neither, is known or empty. A
+%% group's binding members are in its reach, since its members name one
+%% another by position (named/4): a type's compare that reads a binding is
+%% one group with both.
 reach(Hash, ByHash, Known) ->
     case {Known, ByHash} of
         {#{Hash := Reach}, _} ->
@@ -335,12 +341,21 @@ reach(Hash, ByHash, Known) ->
                                               {Named, KnownAcc1} =
                                                   named(Form, none, ByHash, KnownAcc),
                                               {union(Acc, Named), KnownAcc1}
-                                          end, {{[], []}, Known}, Members),
+                                          end, {group_bindings(Members), Known}, Members),
             {Reach, lists:foldl(fun(#definition{hash = Member}, Acc) -> Acc#{Member => Reach} end,
                                 Known1, Members)};
         _ ->
             {{[], []}, Known}
     end.
+
+%% The binding members of a group of two or more, by their identities.
+group_bindings([_, _ | _] = Members) ->
+    {lists:sort([{QualifiedName, Hash}
+                 || #definition{qualified_name = QualifiedName, kind = binding, hash = Hash}
+                        <- Members]),
+     []};
+group_bindings(_) ->
+    {[], []}.
 
 %% What a closed form's reach names: a binding by its identity, a foreign
 %% declaration of a program by its qualified name, and a definition it
@@ -387,28 +402,37 @@ functions(#definition{qualified_name = QualifiedName, hash = Hash, form = Form},
 %% Functions and schemes
 %%
 
-%% Report Appendix H: a function, top-level or local, its scheme first.
-function(#fn_declaration{scheme = Scheme, params = Params, result_type = Result,
-                         effect = Effect, requirement = Needs, body = Body},
-         #walk{scope = Scope} = Walk) ->
-    {SchemeForm, Walk1} = scheme(Scheme, Walk),
+%% Report Appendix H: a function, top-level or local, its scheme first; its
+%% signature's variables numbered by the type variables of its scheme.
+function(#fn_declaration{scheme = #scheme{type = Type} = Scheme, params = Params,
+                         result_type = Result, effect = Effect, requirement = Needs,
+                         body = Body},
+         #walk{scope = Scope, names = Names} = Walk) ->
+    Signature = signature(Params, Result, Effect),
+    {SchemeForm, Walk1} = scheme(Scheme, matched(Signature, Type, Walk)),
     {ParamForms, Walk2} = lists:mapfoldl(fun param/2, Walk1, Params),
     {ResultForm, Walk3} = annotation(Result, Walk2),
     {EffectForm, Walk4} = annotation(Effect, Walk3),
     {NeedsForms, Walk5} = lists:mapfoldl(fun needs/2, Walk4, Needs),
     {BodyForm, Walk6} = expr(Body, Walk5),
     {{function, SchemeForm, ParamForms, ResultForm, EffectForm, NeedsForms, BodyForm},
-     Walk6#walk{scope = Scope}}.
+     Walk6#walk{scope = Scope, names = Names}}.
+
+%% The annotations of a function's or a lambda's parameters, result and
+%% effect, as the function type they write.
+signature(Params, Result, Effect) ->
+    #t_fn{params = [Annotation || #param{annotation = Annotation} <- Params],
+          result_type = Result, effect = Effect}.
 
 param(#param{pattern = Pattern, annotation = Annotation}, Walk) ->
     {PatternForm, Walk1} = pattern(Pattern, Walk),
     {AnnotationForm, Walk2} = annotation(Annotation, Walk1),
     {{param, PatternForm, AnnotationForm}, Walk2}.
 
-%% A member of the `needs` clause as written (§4.9), its type variable by
-%% its name.
+%% A member of the `needs` clause as written (§4.9), its type variable the
+%% signature's of its name.
 needs(#member{member_of = Variable, name = Member}, Walk) ->
-    {Number, Walk1} = variable({name, Variable}, Walk),
+    {Number, Walk1} = annotation_variable(Variable, Walk),
     {{needs, {variable, Number}, Member}, Walk1}.
 
 %% Report Appendix H: a scheme lists its quantified variables in the order
@@ -484,14 +508,17 @@ written(pure, Walk) ->
     {pure, Walk}.
 
 %% Report Appendix H: an annotation as written, its names resolved, a type
-%% variable it writes numbered by its name.
+%% variable it writes numbered by the type variable the checker resolved it
+%% to (matched/3), so that two local functions or lambdas that each name
+%% their own variable are numbered as their schemes are, whatever the
+%% names (§3.9).
 annotation(undefined, Walk) ->
     {none, Walk};
 annotation(Annotation, Walk) ->
     annotated(Annotation, Walk).
 
 annotated(#t_var{name = Name}, Walk) ->
-    {Number, Walk1} = variable({name, Name}, Walk),
+    {Number, Walk1} = annotation_variable(Name, Walk),
     {{variable, Number}, Walk1};
 annotated(#t_named{namespace = Namespace, name = Name, args = Args}, #walk{env = Env} = Walk) ->
     {Reference, Walk1} =
@@ -509,6 +536,37 @@ annotated(#t_fn{params = Params, result_type = Result, effect = Effect}, Walk) -
                           end,
     {ResultForm, Walk3} = annotated(Result, Walk2),
     {{arrow, ParamForms, EffectForm, ResultForm}, Walk3}.
+
+%% Report §3.9: an annotation variable's number, that of the type variable
+%% the checker gave its place, and by its name where it gave none.
+annotation_variable(Name, #walk{names = Names} = Walk) ->
+    variable(maps:get(Name, Names, {name, Name}), Walk).
+
+%% Report §3.9: Walk with the variables Annotation writes taken to the type
+%% variables of Type, the type the checker gave the annotated place, which
+%% is a variable at each of them, an annotation variable being rigid.
+matched(Annotation, Type, #walk{env = Env, names = Names} = Walk) ->
+    Walk#walk{names = matching(Annotation, Type, Env, Names)}.
+
+matching(Annotation, Type, Env, Names) ->
+    case {Annotation, ern_typecheck:resolve_type(Type, Env)} of
+        {#t_var{name = Name}, {tvar, _} = Variable} ->
+            Names#{Name => Variable};
+        {#t_named{args = Args}, {tcon, _, Types}} when length(Args) =:= length(Types) ->
+            matching_all(Args, Types, Env, Names);
+        {#t_tuple{elements = Elements}, {ttuple, Types}} when length(Elements) =:= length(Types) ->
+            matching_all(Elements, Types, Env, Names);
+        {#t_fn{params = Params, result_type = Result, effect = Effect},
+         {tfn, ParamTypes, EffectType, ResultType}} when length(Params) =:= length(ParamTypes) ->
+            matching_all([Result, Effect | Params], [ResultType, EffectType | ParamTypes], Env,
+                         Names);
+        _ ->
+            Names
+    end.
+
+matching_all(Annotations, Types, Env, Names) ->
+    lists:foldl(fun({Annotation, Type}, Acc) -> matching(Annotation, Type, Env, Acc) end, Names,
+                lists:zip(Annotations, Types)).
 
 %% A type variable's number, the next one where the walk meets it first.
 variable(Key, #walk{variables = Variables} = Walk) ->
@@ -669,15 +727,17 @@ expr(#e_member{supply = Supply}, Walk) ->
     {Form, Walk1} = supply(Supply, Walk),
     {{member, Form}, Walk1};
 expr(#e_lambda{span = Span, params = Params, result_type = Result, effect = Effect,
-               body = Body},
-     #walk{scope = Scope, functions = Functions} = Walk) ->
+               body = Body, type = Type},
+     #walk{scope = Scope, names = Names, functions = Functions} = Walk) ->
     %% report §8.7: its position, in the order the walk meets it
-    {ParamForms, Walk1} = lists:mapfoldl(fun param/2, Walk#walk{functions = [Span | Functions]},
-                                         Params),
-    {ResultForm, Walk2} = annotation(Result, Walk1),
-    {EffectForm, Walk3} = annotation(Effect, Walk2),
-    {BodyForm, Walk4} = expr(Body, Walk3),
-    {{lambda, ParamForms, ResultForm, EffectForm, BodyForm}, Walk4#walk{scope = Scope}};
+    Walk1 = matched(signature(Params, Result, Effect), Type,
+                    Walk#walk{functions = [Span | Functions]}),
+    {ParamForms, Walk2} = lists:mapfoldl(fun param/2, Walk1, Params),
+    {ResultForm, Walk3} = annotation(Result, Walk2),
+    {EffectForm, Walk4} = annotation(Effect, Walk3),
+    {BodyForm, Walk5} = expr(Body, Walk4),
+    {{lambda, ParamForms, ResultForm, EffectForm, BodyForm},
+     Walk5#walk{scope = Scope, names = Names}};
 expr(#e_if{condition = Condition, then_branch = Then, else_branch = Else}, Walk) ->
     {[ConditionForm, ThenForm, ElseForm], Walk1} =
         lists:mapfoldl(fun expr/2, Walk, [Condition, Then, Else]),
@@ -723,17 +783,19 @@ statement(#fn_declaration{span = Span} = Declaration, #walk{functions = Function
     %% report §8.7: its position, in the order the walk meets it
     function(Declaration, Walk#walk{functions = [Span | Functions]});
 statement(#binding{pattern = Pattern, annotation = Annotation, operator = '=', expr = Expr},
-          Walk) ->
-    {AnnotationForm, Walk1} = annotation(Annotation, Walk),
-    {ExprForm, Walk2} = expr(Expr, Walk1),
+          #walk{names = Names} = Walk) ->
+    {AnnotationForm, Walk1} =
+        annotation(Annotation, matched(Annotation, ern_typecheck:node_type(Expr), Walk)),
+    {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
     {{bind, AnnotationForm, ExprForm, PatternForm}, Walk3};
 statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-', expr = Expr},
-          #walk{env = Env} = Walk) ->
-    %% report §5.5: the sum a `<-` unwraps
-    {tcon, [Sum], _} = ern_typecheck:resolve_type(ern_typecheck:node_type(Expr), Env),
-    {AnnotationForm, Walk1} = annotation(Annotation, Walk),
-    {ExprForm, Walk2} = expr(Expr, Walk1),
+          #walk{env = Env, names = Names} = Walk) ->
+    %% report §5.5: the sum a `<-` unwraps, the annotation the type of what
+    %% it unwraps to, its last argument
+    {tcon, [Sum], Args} = ern_typecheck:resolve_type(ern_typecheck:node_type(Expr), Env),
+    {AnnotationForm, Walk1} = annotation(Annotation, matched(Annotation, lists:last(Args), Walk)),
+    {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
     {{unwrap, {named, [Sum]}, AnnotationForm, ExprForm, PatternForm}, Walk3};
 statement(Expr, Walk) ->
@@ -922,7 +984,7 @@ encode(#{definitions := Definitions}) ->
 
 %% A compiled module's definitions as its chunk holds them, read as data
 %% alone, since a `.erc` may come from anywhere (ern_chunk); a chunk of
-%% another version reads as an error.
+%% another version of the form reads as an error that says so.
 -spec read(binary()) -> {ok, [#definition{}]} | {error, string()}.
 read(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)], [allow_missing_chunks]) of
@@ -933,7 +995,7 @@ read(Beam) ->
                 {ok, {?FORM_VERSION, Definitions}} when is_list(Definitions) ->
                     {ok, Definitions};
                 _ ->
-                    {error, "the canonical forms are of another compiler version"}
+                    {error, "the canonical forms are of another version of the form"}
             end;
         {error, beam_lib, _} ->
             {error, "not a compiled module"}

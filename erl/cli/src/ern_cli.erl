@@ -30,8 +30,9 @@
 %% toolchain itself is a defect, which is reported on standard error with
 %% the host's stack and ends `ern` with status 70, and is never left as a
 %% crash dump in the working directory. `ern` ends by the signal that ended
-%% a running program once its output has flushed (§11.2), and otherwise
-%% with the status.
+%% a running program once its output has flushed (§11.2), where the
+%% program's outcome says the signal ended it (report_outcome/2), and
+%% otherwise with the status.
 -spec start() -> no_return().
 start() ->
     ok = ern_signals:install(),
@@ -822,7 +823,9 @@ shell(Options, Rest, ErrorDevice) ->
                 Entry = shell_entry(Options, Namespace),
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
                                          source_root = ern_build:source_root(Options, File, "."),
-                                         interfaces = interfaces(Loaded), entry = Entry,
+                                         interfaces = interfaces(Loaded),
+                                         program = program_modules(Loaded, hd(FileLoadPath)),
+                                         entry = Entry,
                                          config_startup = config_startup(Options)}),
                 {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
             _ ->
@@ -1005,6 +1008,16 @@ interfaces(Loaded) ->
                           {ok, #{interface := Interface, source_hash := Hash}}
                               <- [ern_interface:read(Beam)]].
 
+%% Report §11.2: the namespaces of the loaded modules whose compiled forms
+%% lie under the file's own root, the program the shell runs, and not a
+%% library's on another root of the load path.
+program_modules(Loaded, ModuleRoot) ->
+    [Namespace
+     || {#interface{namespace = Namespace}, _}
+            <- interfaces([ErlangModule || ErlangModule <- Loaded,
+                                           lists:prefix(ModuleRoot ++ "/",
+                                                        code:which(ErlangModule))])].
+
 %% Report §11.2: the startup file of the configuration directory of §11.3,
 %% run only where `--config-dir` names that directory, never for the
 %% default, which is wherever the shell was started; none otherwise. The
@@ -1036,7 +1049,8 @@ report_outcome(_ErrorDevice, {exit, Status}) -> Status;
 %% reports a broken pipe
 report_outcome(_ErrorDevice, {gone, _Stream}) -> 128 + 13;
 report_outcome(ErrorDevice, killed) -> io:format(ErrorDevice, "killed~n", []), 1;
-report_outcome(_ErrorDevice, {signal, Signal}) -> ern_signals:status(Signal);
+%% report §8.6, §11.2: the signal ended the program, and `ern` ends by it
+report_outcome(_ErrorDevice, {signal, Signal}) -> ern_signals:ended(Signal);
 %% report §11.2: the entry process's fault has been reported as it happened
 report_outcome(_ErrorDevice, _Fault) -> 1.
 
@@ -1308,19 +1322,26 @@ entry_site(Namespace, Function) ->
 %% Load a module and, first, its dependencies, each once; the result lists
 %% modules most recently loaded first, so dependencies come last.
 load(Namespace, LoadPath, Loaded) ->
-    load(Namespace, LoadPath, Loaded, ern_build:stdlib_hash()).
+    load(Namespace, LoadPath, Loaded, program).
 
-load(Namespace, LoadPath, Loaded, StdlibHash) ->
+%% Reader is the program, which loads the modules a module uses, or the
+%% node, which reads every module of its load path (§8.7).
+load(Namespace, LoadPath, Loaded, Reader) ->
+    load(Namespace, none, LoadPath, Loaded, {Reader, ern_build:stdlib_hash()}).
+
+%% Needer is the module that uses Namespace, or none for one loaded for
+%% itself.
+load(Namespace, Needer, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     case lists:member(ErlangModule, Loaded) of
         true ->
             Loaded;
         false ->
-            File = compiled_file(Namespace, LoadPath),
+            File = compiled_file(Namespace, Needer, LoadPath, Reader),
             Beam = ern_build:read(File),
             #{deps := DependencyHashes} = Chunk = held_chunk(Namespace, File, Beam),
             Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
-                                      load(Dependency, LoadPath, Acc, StdlibHash)
+                                      load(Dependency, Namespace, LoadPath, Acc, Reading)
                                   end, Loaded, DependencyHashes),
             %% report §11.2: a module compiled against another interface of a
             %% module it uses, or of the standard library, is refused, not run
@@ -1348,21 +1369,30 @@ whole_build(LoadPath) ->
                      {ok, #{interface := #interface{namespace = Namespace}}}
                          <- [ern_interface:read(ern_build:read(File))]],
     Loaded = [ErlangModule || {ErlangModule, _} <- code:all_loaded()],
-    lists:foldl(fun(Namespace, Acc) -> load(Namespace, LoadPath, Acc) end, Loaded, Namespaces),
+    lists:foldl(fun(Namespace, Acc) -> load(Namespace, LoadPath, Acc, node) end, Loaded,
+                Namespaces),
     ok.
 
 %% Report §11.2: a module's compiled form, found by its namespace on the
-%% load path.
-compiled_file(Namespace, LoadPath) ->
+%% load path. One the path lacks is named with the module that uses it;
+%% report §8.7: and, for a node, with the rule that makes a module the
+%% program does not use its need.
+compiled_file(Namespace, Needer, LoadPath, Reader) ->
     Relative = ern_build:module_path(Namespace) ++ ".erc",
     case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
                    filelib:is_regular(Found)] of
         [Found | _] ->
             Found;
         [] ->
-            ern_build:fail("cannot find module " ++ ern_namespace:text(Namespace)
-                           ++ " (" ++ Relative ++ ") on the load path")
+            ern_build:fail(["cannot find module ", ern_namespace:text(Namespace), " (", Relative,
+                            ")", needed_by(Needer), " on the load path", read_by(Reader)])
     end.
+
+needed_by(none) -> "";
+needed_by(Needer) -> [", which ", ern_namespace:text(Needer), " needs,"].
+
+read_by(program) -> "";
+read_by(node) -> ": a node reads every module of its load path".
 
 %% Report §11.2: the interface chunk of a module's compiled form; a file
 %% found by a module's namespace that holds another is no module of that

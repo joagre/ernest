@@ -1949,6 +1949,20 @@ shadowed_type_by_input() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> A : $Input3.T\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> P : $Startup2.S\n">>)).
 
+%% report §11.2: `:type` prints a shadowed session type under the input
+%% that declared it, as the value, `:bindings` and a diagnostic print it,
+%% though a later input took its module's slot. A regression test, written
+%% after the fix: `:type` printed the slot, `$Input1.T`
+shadowed_type_by_type_test_() ->
+    {timeout, 60, fun shadowed_type_by_type/0}.
+
+shadowed_type_by_type() ->
+    InputFile = scratch_file("ern_type_shadowed_"),
+    ok = file:write_file(InputFile, "1 + 1\ntype T = T(Int)\nlet v = T(1)\n"
+                                    "type T = T(String)\n:type v\nv\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> v : $Input2.T\n> T(1) : $Input2.T\n">>)).
+
 %% report §11.2: a module the session reaches by a constructor alone is
 %% kept, the constructors of a type declared again staying in scope for the
 %% earlier type. A regression test, found by a read of the front end: the
@@ -2474,6 +2488,88 @@ reload_keeps_the_type_checked_under() ->
     ?assertEqual(2, length(binary:matches(Output, <<"4 : Int">>))),
     ?assertEqual(1, length(binary:matches(Output, <<"changed: the binding">>))).
 
+%% report §11.2: the help that names a previous version's type names the
+%% type the diagnostic names, whole: with `M` and `Msg` both changed, an
+%% error about `C$1.Msg` names `C$1.Msg` and not `C$1.M`. A regression test,
+%% written after the fix: the help found the type by a part of its name
+previous_type_named_whole_test_() ->
+    {timeout, 60, fun previous_type_named_whole/0}.
+
+previous_type_named_whole() ->
+    Dir = scratch("ern_previous_whole_"),
+    Types = fun(MoreM, MoreMsg) ->
+                    ["export type M = M(Int)", MoreM, "\n\nexport type Msg = Msg(Int)", MoreMsg,
+                     "\n"]
+            end,
+    ok = file:write_file(filename:join(Dir, "c.ern"), Types("", "")),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load C\nlet x = C.Msg(1)\nlet y = C.M(1)\n",
+                                     write_source(Dir, "c.ern", Types(" | N", " | Nm")),
+                                     ":reload\nlet z : C.Msg = x\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"expected C.Msg, found C$1.Msg">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"C$1.Msg is of a previous version of C, which a"
+                                                " reload replaced">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"C$1.M is of">>)).
+
+%% report §11.2: a reload that changes a type names the bindings of its
+%% previous version under `changed`, and one that no longer declares a type
+%% names them under `went`. A regression test, written after the fix: a
+%% type that went was said to have changed
+previous_type_went_test_() ->
+    {timeout, 60, fun previous_type_went/0}.
+
+previous_type_went() ->
+    Dir = scratch("ern_previous_went_"),
+    ok = file:write_file(filename:join(Dir, "shape.ern"),
+                         "export type Vec = Vec(x : Int)\n\nexport type Gone = Gone(Int)\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Shape\nlet v = Shape.Vec(x = 1)\n"
+                                     "let g = Shape.Gone(7)\n",
+                                     write_source(Dir, "shape.ern",
+                                                  "export type Vec = Vec(x : Int, y : Int)\n"),
+                                     ":reload\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Shape.Gone went: the binding g is of its previous"
+                                                " version, Shape$1.Gone\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Shape.Vec changed: the binding v is of its"
+                                                " previous version, Shape$1.Vec\n">>)).
+
+%% report §11.2: `:reload` names a module whose source the source root no
+%% longer holds where the session compiled it from that source, and never
+%% a library it loaded from its compiled form on the load path, whose
+%% source is elsewhere; the program the shell was started over is
+%% reload_sources_named_test_'s. A regression test, written after the fix:
+%% every reload in a session that used a library named the library's
+%% source as missing
+reload_names_no_library_test_() ->
+    {timeout, 60, fun reload_names_no_library/0}.
+
+reload_names_no_library() ->
+    Dir = scratch("ern_reload_library_"),
+    Library = filename:join(Dir, "lib"),
+    Source = filename:join(Dir, "src"),
+    ok = filelib:ensure_path(Library),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Library, "lib.ern"), "export fn one() : Int = 1\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " " ++ Library),
+    ok = file:delete(filename:join(Library, "lib.ern")),
+    User = fun(Body) -> ["export fn two() : Int = ", Body, "\n"] end,
+    ok = file:write_file(filename:join(Source, "user.ern"), User("Lib.one() + 1")),
+    ok = file:write_file(filename:join(Source, "other.ern"), "export fn three() : Int = 3\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load User\n:load Other\n",
+                                     write_source(Source, "user.ern", User("Lib.one() * 2")),
+                                     ":reload\nUser.two()\n",
+                                     "Fs.remove(Path(\"", filename:join(Source, "other.ern"),
+                                     "\"), 2000)\n:reload\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " --load-path "
+                                   ++ Library) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"User, compiled again\n> 2 : Int\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"holds no source of Lib">>)),
+    ?assertMatch({match, _}, re:run(Output, "no source has changed\nthe source root [^\n]* holds"
+                                            " no source of Other\n")).
+
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)
@@ -2744,10 +2840,11 @@ load_help() ->
 %% as in any, and a name of a module it has not loaded is answered with the
 %% `:load` that puts it in scope; a function typed at it is the shell's own,
 %% which a peer the node does not list answers NotListed; and a key at a
-%% type the session declares, among a type's arguments too, names that type
-%% by its hash, as any key does. A regression test of MVP 3.0's refusals,
-%% lifted in MVP 3.1; NotLoaded on a peer is the real nodes'
-%% (test/ern_nodes_tests.erl)
+%% type the session declares, among a type's arguments too, is made. A
+%% regression test of MVP 3.0's refusals, lifted in MVP 3.1; NotLoaded on a
+%% peer, and a key at a session type that names it by its hash, so that
+%% another shell node finds it, are the real nodes' (test/ern_nodes_tests.erl,
+%% shell_node and shell_key)
 node_shell_test_() ->
     {timeout, 60, fun node_shell/0}.
 
@@ -3018,38 +3115,64 @@ reload_bindings() ->
 %% report §11.2, §8.5: a reloaded module's binding that faults, and the
 %% bindings after it, keep the values the previous version gave them where
 %% the previous version has the binding of one hash; one whose hash changed
-%% and one the previous version did not have are then without a value. A
-%% reloaded module's dependent is compiled again where its forms reference
-%% a definition whose hash the reload changed, as `ern build` would compile
-%% it. Written after the code (MVP 3.1's item 5)
+%% is then without a value, as the reload's line says, and one the previous
+%% version did not have is load_evaluates_bindings_test_'s. A reloaded
+%% module's dependent is compiled again where its forms reference a
+%% definition whose hash the reload changed, as `ern build` would compile
+%% it: the reload changes the body of the function the dependent calls and
+%% keeps the module's interface. Written after the code (MVP 3.1's item 5);
+%% the line and the change kept to a body a regression test, written after
+%% the fix: the line said every binding after the fault kept its value, and
+%% the change added an export, which compiled the dependent by the rule of
+%% interfaces
 reload_keeps_unchanged_values_test_() ->
     {timeout, 60, fun reload_keeps_unchanged_values/0}.
 
 reload_keeps_unchanged_values() ->
     Dir = scratch("ern_reload_values_"),
-    Values = fun(Base, Added) ->
-                 ["export fn step(n : Int, k : Int) : Int = n + k\n\n",
+    Values = fun(Step, Base) ->
+                 ["export fn step(n : Int, k : Int) : Int = ", Step, "\n\n",
                   "export let base : Int = ", Base, "\n\n",
-                  "export let other : Int = 20\n",
-                  ["\nexport let added : Int = 7\n" || Added]]
+                  "export let other : Int = 20\n"]
              end,
-    ok = file:write_file(filename:join(Dir, "counter.ern"), Values("10", false)),
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Values("n + k", "10")),
     ok = file:write_file(filename:join(Dir, "user.ern"),
                          "export fn twice(n : Int) : Int = Counter.step(n, n)\n"),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, [":load User\nCounter.base\n",
                                      write_source(Dir, "counter.ern",
-                                                  Values("10 / List.size([])", true)),
-                                     ":reload\nCounter.base\nCounter.other\nCounter.added\n"
-                                     "User.twice(3)\n"]),
+                                                  Values("k + n", "10 / List.size([])")),
+                                     ":reload\nCounter.base\nCounter.other\nUser.twice(3)\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Counter, compiled again\nUser, compiled again\n"
                                                 "Counter.base:3 faulted: division by zero; it and"
-                                                " the bindings after it keep the values of the"
-                                                " previous version\n">>)),
+                                                " the bindings after it whose hash changed, or"
+                                                " which are new, are without a value, and the rest"
+                                                " keep the values of the previous version\n">>)),
     NoValue = <<"fault: the binding has no value, since one before it faulted">>,
-    ?assertMatch({_, _}, binary:match(Output, <<"> ", NoValue/binary, "\n> 20 : Int\n> ",
-                                                NoValue/binary, "\n> 6 : Int\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", NoValue/binary,
+                                                "\n> 20 : Int\n> 6 : Int\n">>)).
+
+%% report §11.2, §6.9: a `:load` whose binding's process is killed loads
+%% nothing, and says the binding was killed, by its site, a kill being no
+%% fault; the process a binding before it started is killed and named. A
+%% regression test, written after the fix: the module was named in place of
+%% the binding, and the kill called a fault
+killed_binding_test_() ->
+    {timeout, 60, fun killed_binding/0}.
+
+killed_binding() ->
+    Dir = scratch("ern_killed_binding_"),
+    ok = file:write_file(filename:join(Dir, "k.ern"),
+                         "export let w : Address(Int) = spawn(fn() : Unit with Int =\n"
+                         "    receive { _ -> Unit })\n"
+                         "export let x : Unit = kill(self())\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load K\n:processes\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"K.x:3 was killed; nothing was loaded, and the"
+                                                " process spawned at K.w:1 was killed\n"
+                                                "> no process of the session's is running\n">>)).
 
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the
 %% process a binding before it started is killed, the refusal names it by
@@ -3141,12 +3264,14 @@ reload_refused_by_a_new_module() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Helper.x:1 faulted: division by zero; nothing was"
                                                 " reloaded\n> 1 : Int">>)).
 
-%% report §11.2, §8.7: on a node, a module loaded from its compiled form
-%% whose unit the node holds with other code, here since the build
-%% directory was changed under the running node, waits for MVP 3.2 and is
-%% refused naming it, docs/development.md's table listing it; one that
-%% holds the same code is the node's own unit. Written after the code
-%% (MVP 3.1's item 5)
+%% docs/development.md, What the toolchain accepts: on a node, a module
+%% loaded from its compiled form whose unit the node holds with other code,
+%% here since the build directory was changed under the running node, waits
+%% for MVP 3.2 and is refused naming it, and a later use of its name is not
+%% answered with the `:load` that was refused; one that holds the same code
+%% is the node's own unit. Written after the code (MVP 3.1's item 5), the
+%% help a regression test written after the fix: it proposed the refused
+%% `:load`
 compiled_beside_another_test_() ->
     {timeout, 60, fun compiled_beside_another/0}.
 
@@ -3169,7 +3294,7 @@ compiled_beside_another() ->
                           "\"), 2000) {\n",
                           "    Right(bytes) -> Fs.write(Path(\"", One, "\"), bytes, 2000)\n",
                           "  | Left(error) -> Left(error)\n}\n",
-                          ":load Greet\n:load Other\nOther.x\n"]),
+                          ":load Greet\nGreet.hello()\n:load Other\nOther.x\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Dir ++ " --load-path "
                                    ++ filename:join(Dir, "one")) ++ " < " ++ InputFile),
@@ -3177,7 +3302,34 @@ compiled_beside_another() ->
                                                 " Greet this node holds; a compiled module loaded"
                                                 " beside another of its name arrives in"
                                                 " MVP 3.2\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Greet.hello">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<":load Greet puts it in scope">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Other, from one/other.erc\n> 1 : Int\n">>)).
+
+%% report §11.2: in a shell that is no node, a module loaded from its
+%% compiled form whose unit the session holds with other code, a module of
+%% the shell's own, is refused as on a node, naming the session in place of
+%% the node. A regression test, written after the fix: the refusal named a
+%% node where there was none
+compiled_beside_the_shells_own_test_() ->
+    {timeout, 60, fun compiled_beside_the_shells_own/0}.
+
+compiled_beside_the_shells_own() ->
+    Dir = scratch("ern_beside_own_"),
+    Library = filename:join(Dir, "lib"),
+    ok = filelib:ensure_path(Library),
+    ok = file:write_file(filename:join(Library, "markdown.ern"),
+                         "export fn hello() : String = \"hello\"\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " " ++ Library),
+    ok = file:delete(filename:join(Library, "markdown.ern")),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":doc List.map\n:load Markdown\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path "
+                                   ++ Library) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Markdown's compiled form, lib/markdown.erc, is"
+                                                " not the Markdown this session holds; a compiled"
+                                                " module loaded beside another of its name arrives"
+                                                " in MVP 3.2\n">>)).
 
 %% report §11.2, §8.7: on a node, `:load` of a module whose source compiles
 %% to the code the node holds of it from its build takes that unit as it
@@ -3287,8 +3439,11 @@ answer(Value) ->
 %% service among them, before the module is in scope, and one that faults
 %% loads nothing; `:reload` evaluates them again, a service of the new
 %% version starting, and one that faults keeps, with those after it, what
-%% the previous version gave. A regression test: `:load` evaluated none,
-%% so a loaded module's value faulted with `error:badarg` when it was used
+%% the previous version gave, but for a binding the previous version did
+%% not have, which is without a value, as the reload's line says. A
+%% regression test: `:load` evaluated none, so a loaded module's value
+%% faulted with `error:badarg` when it was used; and the line said that
+%% every binding after the fault kept its value
 load_evaluates_bindings_test_() ->
     {timeout, 60, fun load_evaluates_bindings/0}.
 
@@ -3330,7 +3485,8 @@ load_evaluates_bindings() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> 20 : Int\n> 2 : Int">>)),
     %% the bindings before the one that faults take the new version's values
     ?assertMatch({match, _}, re:run(Output, "Counter.late:[0-9]+ faulted: division by zero; it and"
-                                            " the bindings after it keep")),
+                                            " the bindings after it whose hash changed, or which"
+                                            " are new, are without a value")),
     ?assertMatch({_, _}, binary:match(Output, <<"> 30 : Int">>)),
     %% one the previous version did not have has no value
     ?assertMatch({_, _}, binary:match(Output, <<"the binding has no value, since one before it"

@@ -216,7 +216,7 @@ and 8 below.
    version; a previous version's process running on, reachable through its version's addresses
    alone, its key offered again only once it has ended; a load evaluating the reach's bindings
    in a fresh process at `Never` while the session waits; a function typed at the shell with a
-   hash as any definition has, `NotLoaded` on every peer until MVP 3.2; the two gaps the
+   hash as any definition has, `NotLoaded` on a peer whose build holds no definition of its hash; the two gaps the
    experiments of 2026-10-07 found closed, a function of a previous version held in a process's
    state and a binding of a previous version forgotten (the log's *A Binding of a Previous
    Version Is Forgotten*). Done 2026-10-10 (the log's *The Shell's Reload by Hash, Built*): each

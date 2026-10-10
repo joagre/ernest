@@ -105,7 +105,7 @@ exit_while_the_end_waits_test() ->
     ?assertEqual({exit, 7}, Result).
 
 %% report §8.6: a subscriber that faults while it is told is reported, and
-%% the end goes on without it; one that restarts is no answer either
+%% the end goes on without it
 faulting_subscriber_is_reported_test() ->
     Self = self(),
     Faults = fun({'FaultReport', _, Site, Cause, _, _}) -> Self ! {fault, Site, Cause} end,
@@ -123,16 +123,31 @@ faulting_subscriber_is_reported_test() ->
     after 0 -> erlang:error(no_fault_reported)
     end.
 
+%% report §8.6, §6.9: a subscriber that faults while it is told and
+%% restarts is no answer either: its fault is reported as a restart's, and
+%% the end goes on without it. Its new run subscribes again; whether that
+%% subscription is told while the end waits is not yet decided
+%% (docs/findings.md, P1), and nothing is asserted of it
 restarting_subscriber_test() ->
+    Self = self(),
+    Faults = fun({'FaultReport', _, Site, Cause, Restarted, _}) ->
+                 Self ! {fault, Site, Cause, Restarted}
+             end,
     {Result, Output} = kept("{ let _ = 1 / List.size([]); answer(reply, Unit) }",
                             "export fn main() : Unit with Never = {\n"
                             "    let limit = RestartLimit(restarts = 1, within = 5000);\n"
                             "    let _ = spawn(restarting(limit, keeper));\n"
                             "    Unit\n"
-                            "}\n"),
+                            "}\n",
+                            #{faults => Faults}),
     ?assertEqual(ok, Result),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:14 restarted without"
-                                                " answering\n">>)).
+                                                " answering\n">>)),
+    receive
+        {fault, Site, Cause, Restarted} ->
+            ?assertEqual({<<"M.main:14">>, <<"division by zero">>, true}, {Site, Cause, Restarted})
+    after 0 -> erlang:error(no_fault_reported)
+    end.
 
 %% report §8.6, Appendix E.23: a subscription made while the end waits is
 %% told at once, and the end waits for it too: the first subscriber, told,
@@ -182,37 +197,34 @@ no_subscriber_says_nothing_test() ->
     ?assertEqual(ok, Result),
     ?assertEqual(<<"done\n">>, Output).
 
-%% report §8.6: while the end waits, every process may wait with nothing in
-%% flight and no deadlock is found: the subscriber waits for a word that
-%% only a termination from outside brings. The termination comes once the
-%% reaper has had the time it takes to look for a deadlock twice, its look
-%% coming after 100 ms in which nothing happened (ern_rt's LOOK_SOON); the
-%% wait is for an absence, which nothing else shows. The first termination
-%% counts as one, since the entry process's end began the end, and the
-%% second ends the program at once
-no_deadlock_while_the_end_waits_test() ->
-    Looks = 2 * 100,
+%% report §8.6, Appendix E.23: a subscription to the program's end can
+%% still deliver while it stands, since a termination tells it, so a
+%% program that is no node whose main subscribes and waits for its
+%% termination message is no deadlock. The termination comes once the
+%% reaper has looked for a deadlock twice, which ern_waits shows, the wait
+%% being for an absence that nothing else shows, and main is told then. A
+%% regression test, written after the fix: main was found deadlocked at
+%% the reaper's first look. The end's wait, where a running test is the
+%% deadlock's victim, is ern_cli_tests' (no_deadlock_while_the_end_waits)
+waiting_for_the_end_is_no_deadlock_test() ->
     Waiter = spawn(fun() ->
                        receive waiting -> ok end,
-                       receive after Looks -> ok end,
-                       ok = ern_rt:signal(sigterm),
+                       ern_waits:looked(2),
                        ok = ern_rt:signal(sigterm)
                    end),
     register(ern_terminating_tests_waiter, Waiter),
-    %% the name goes with the helper, which ends once it has sent the
-    %% terminations
-    {Result, Output} =
-        kept("{ let _ = waiting(Foreign.from(Foreign.atom(\"ern_terminating_tests_waiter\")),"
-             " Foreign.from(Foreign.atom(\"waiting\"))); held(reply) }",
-             "fn held(reply : Reply(Unit)) : Unit with Msg = receive {\n"
-             "    Terminating(other) -> { answer(other, Unit); held(reply) }\n"
-             "  | Add(_) -> held(reply)\n"
-             "}\n"
-             "foreign fn waiting(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
-             " with m = \"erlang:send/2\"\n"
-             "export fn main() : Unit with Never = {\n"
-             "    let _ = spawn(keeper);\n"
-             "    Unit\n"
-             "}\n"),
-    ?assertEqual(ok, Result),
+    {Result, Output} = ern_emitter_tests:run(
+        "type Msg = Terminating(Reply(Unit))\n"
+        "foreign fn waiting(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
+        " with m = \"erlang:send/2\"\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    Os.terminating(Terminating);\n"
+        "    let _ = waiting(Foreign.from(Foreign.atom(\"ern_terminating_tests_waiter\")),"
+        " Foreign.from(Foreign.atom(\"waiting\")));\n"
+        "    receive {\n"
+        "        Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual({signal, sigterm}, Result),
+    ?assertMatch({_, _}, binary:match(Output, <<"told\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"deadlock">>)).

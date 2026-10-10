@@ -8,11 +8,11 @@
 %% function a spawn on a peer starts by its identity, with its entry's
 %% function and arity and its reach, each type by its hash, each top-level
 %% binding by its identity, its qualified name with its hash, with the key
-%% its value is kept under (§8.5), each definition's identity by its
-%% qualified name, and each foreign declaration's implementation and
-%% function by its qualified name. A unit loaded again with other code replaces its rows,
-%% and one unloaded takes them with it, so that the table holds what the
-%% host holds and no more (docs/memory.md).
+%% its value is kept under (§8.5), and each foreign declaration's
+%% implementation and function by its qualified name. A unit loaded again
+%% with other code replaces its rows, and one unloaded takes them with it,
+%% so that the table holds what the host holds and no more
+%% (docs/memory.md).
 %%
 %% The table is an ETS table, not a persistent term: it is written at each
 %% load, which would make a persistent term collect every process each
@@ -25,8 +25,8 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, unloaded/1, function/1, spawnable/1, value/1, identity/1, foreign/1,
-         present/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+-export([loaded/1, unloaded/1, spawnable/1, value/1, foreign/1, present/1, nearing/0, nearing/1,
+         nearing/2, line/3, counts/0]).
 
 -export_type([host_table/0, reach/0]).
 
@@ -71,20 +71,18 @@ fill(Unit, Md5) ->
             ok
     end.
 
-%% A unit's rows for one of its declarations: a definition by its identity
-%% and its qualified name, a lambda or a local function a spawn on a peer
-%% starts by its identity, and a foreign declaration, which has no
-%% identity, by its qualified name (Appendix H).
-rows(Unit, QualifiedName, {function, Hash, Function, Arity, Reach}) ->
-    [{{hash, Hash}, Unit, {function, Function, Arity, Reach}},
-     {{name, QualifiedName}, Unit, Hash}];
+%% A unit's rows for one of its declarations: a definition by its identity,
+%% a lambda or a local function a spawn on a peer starts by its identity,
+%% and a foreign declaration, which has no identity, by its qualified name
+%% (Appendix H).
+rows(Unit, _, {function, Hash, Function, Arity, Reach}) ->
+    [{{hash, Hash}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
     [{{lambda, Hash, Position}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, QualifiedName, {binding, Hash, Key}) ->
-    [{{binding, QualifiedName, Hash}, Unit, {binding, Key}},
-     {{name, QualifiedName}, Unit, {QualifiedName, Hash}}];
-rows(Unit, QualifiedName, {type, Hash}) ->
-    [{{hash, Hash}, Unit, type}, {{name, QualifiedName}, Unit, Hash}];
+    [{{binding, QualifiedName, Hash}, Unit, {binding, Key}}];
+rows(Unit, _, {type, Hash}) ->
+    [{{hash, Hash}, Unit, type}];
 rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
     [{{foreign, QualifiedName}, Unit, {foreign, HostModule, HostFunction, Function, Arity}}].
 
@@ -105,16 +103,6 @@ forget(Unit, UnitRows) ->
 %%
 %% The lookups, report §8.7
 %%
-
-%% A function by its hash: the unit, the function and the arity that hold
-%% it, or none where no unit of this node holds it.
--spec function(binary()) -> {module(), atom(), arity()} | none.
-function(Hash) ->
-    case [{Unit, Function, Arity}
-          || {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Hash})] of
-        [Held | _] -> Held;
-        [] -> none
-    end.
 
 %% Report §8.7: what a spawn on a peer names, by its identity: a function by
 %% its hash, a lambda or a local function by its definition's hash and its
@@ -146,15 +134,6 @@ spawnable(Key) ->
 value({QualifiedName, Hash}) ->
     case lookup({binding, QualifiedName, Hash}) of
         [{_, Unit, {binding, Key}} | _] -> ern_rt:binding_value(Unit, Key);
-        [] -> none
-    end.
-
-%% A definition's identity by its qualified name: a function's or a type's
-%% hash, a binding's qualified name with its hash, or none.
--spec identity([atom()]) -> binary() | {[atom()], binary()} | none.
-identity(QualifiedName) ->
-    case lookup({name, QualifiedName}) of
-        [{_, _, Identity} | _] -> Identity;
         [] -> none
     end.
 

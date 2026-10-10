@@ -4269,12 +4269,34 @@ check_expr(#e_block{span = Span, statements = Statements} = Expr, Expected, Rule
 check_expr(Expr, Expected, undefined, _Origin, Env) ->
     %% the first branch where nothing fixed the type: the expectation is a
     %% fresh variable, which the branch fixes
+    constructor_as_function(Expr, Expected, Env),
     {Typed, Type, Env1} = infer(Expr, Env),
     {Typed, Type, bound(Expected, Type, Env1)};
 check_expr(Expr, Expected, Rule, Origin, Env) ->
+    constructor_as_function(Expr, Expected, Env),
     {Typed, Type, Env1} = infer(Expr, Env),
     {Typed, Type,
      unify_at(ern_ast:span(Expr), Expected, Type, expecting(Type, Origin, Env1), Rule, Origin)}.
+
+%% Report §5.6, §11.5: a constructor of named fields is no function, and
+%% one that stands where a function of as many parameters as it has fields
+%% is wanted, as a wrap is (Appendix E.0, shape rule 8), is told the lambda
+%% that constructs it; one that stands elsewhere is told the construction
+%% (infer/2).
+constructor_as_function(#e_constructor{span = Span, namespace = Namespace, name = Name,
+                                       args = none}, Expected, Env) ->
+    #constructor_info{fields = Fields} = lookup_constructor(Span, Namespace, Name, Env),
+    case {Fields, ern_types:resolve(Expected, Env#env.type_state)} of
+        {{named, Names}, {tfn, Params, _, _}} when length(Params) =:= length(Names) ->
+            Texts = [atom_to_list(Field) || Field <- Names],
+            fail(Span, atom_to_list(Name) ++ " has named fields; write fn("
+                       ++ lists:join(", ", Texts) ++ ") = " ++ atom_to_list(Name) ++ "("
+                       ++ lists:join(", ", [Text ++ " = " ++ Text || Text <- Texts]) ++ ")");
+        _ ->
+            ok
+    end;
+constructor_as_function(_Expr, _Expected, _Env) ->
+    ok.
 
 %% Report §11.5: a selection or an operator deferred until its operand's
 %% type is known keeps the span that fixed its expected type, the label of

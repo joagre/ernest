@@ -12,6 +12,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
 
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
@@ -113,12 +114,14 @@ digest(Dir) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, Der), lowercase)).
 
 %% The test program, built in Root: it dials a peer, sends it a frame its
-%% gateway cannot read, or waits, as its arguments say.
+%% gateway cannot read, sends it a spawn of the function whose hash it is
+%% given with a site that is not UTF-8, or waits, as its arguments say.
 program(Root) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "node.ern"), <<"
 foreign fn connect(node : Foreign.Term) : Bool with m = \"net_kernel:connect_node/1\"
 foreign fn frame(node : Foreign.Term) : Unit with m = \"ern_nodes_frame:send/1\"
+foreign fn site(node : Foreign.Term, hash : String) : Unit with m = \"ern_nodes_frame:site/2\"
 
 export fn main() : Unit with Unit =
     match Os.arguments {
@@ -127,6 +130,12 @@ export fn main() : Unit with Unit =
             Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
             frame(Foreign.atom(peer));
             // until the test, which has seen the connection end, says so
+            let _ = Io.readLine();
+            Unit
+        }
+      | [\"site\", peer, hash] -> {
+            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
+            site(Foreign.atom(peer), hash);
             let _ = Io.readLine();
             Unit
         }
@@ -145,10 +154,15 @@ fn held() : Unit with Unit = receive { _ -> held() }
 ">>),
     ok = file:write_file(filename:join(Root, "ern_nodes_frame.erl"), <<"
 -module(ern_nodes_frame).
--export([send/1]).
+-export([send/1, site/2]).
 send(Node) ->
     erlang:send({ern_gateway, Node}, unreadable),
     erlang:send({ern_gateway, Node}, {ern_frame, self(), unreadable}),
+    'Unit'.
+site(Node, Hash) ->
+    Spawned = {function, binary:decode_hex(Hash)},
+    Frame = {spawn, make_ref(), Spawned, <<255>>, false},
+    erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
     'Unit'.
 ">>),
     {ok, _} = compile:file(filename:join(Root, "ern_nodes_frame.erl"), [{outdir, Root}]),
@@ -682,6 +696,70 @@ faulty_frame(Base) ->
     has(ErrB, "a frame that names no peer's process came to the gateway, and was dropped"),
     has(ErrB, "the peer a sent a frame this node cannot read, and its connection was ended"),
     has(ErrA, "the peer b was lost: it closed").
+
+%% report §8.7: a spawn frame whose site is not UTF-8 is a frame the node
+%% cannot read, though the node holds the function it names: the node ends
+%% the connection, saying so, and the sender's node is told of the loss. A
+%% regression test, written after the fix: the site was read only where the
+%% node lacked the function, and a node that held it started the process
+%% under the site as it came
+unreadable_site_test_() ->
+    nodes_test(60, fun unreadable_site/1).
+
+unreadable_site(Base) ->
+    {PortA, PortB} = {free_port(), free_port()},
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", PortB),
+    lists(A, [{"b", B, PortB}]),
+    lists(B, [{"a", A, PortA}]),
+    Program = program(filename:join(Base, "build")),
+    {ok, Beam} = file:read_file(Program),
+    {ok, Definitions} = ern_canonical:read(Beam),
+    [Held] = [binary_to_list(binary:encode_hex(Hash))
+              || #definition{qualified_name = ['Node', held], hash = Hash} <- Definitions],
+    WaitB = start(B, Program, []),
+    prints(B, "waiting"),
+    {InputA, WaitA} = started(A, Program, ["site", name(B), Held]),
+    says(B, "its connection was ended"),
+    says(A, "the peer b was lost: it closed"),
+    true = port_command(InputA, "ended\n"),
+    ?assertEqual(0, WaitA()),
+    stop(B, WaitB),
+    {_, ErrB} = said(B),
+    has(ErrB, "the peer a sent a frame this node cannot read, and its connection was ended").
+
+%% report §8.7, §11.2: a node reads every module of its load path at its
+%% start, and is refused where one of them needs a module the path lacks,
+%% the refusal naming the module, the one that needs it and the rule; the
+%% same program run as no node loads only what it uses, and runs. A
+%% regression test, written after the fix: the refusal named neither the
+%% module that needed it nor the rule
+missing_module_test_() ->
+    nodes_test(60, fun missing_module/1).
+
+missing_module(Base) ->
+    Lone = made(Base, "lone", none),
+    Source = filename:join(Base, "src"),
+    Build = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Source),
+    [ok = file:write_file(filename:join(Source, File), Text)
+     || {File, Text} <- [{"main.ern", "export fn main() : Unit with Never = Io.println(\"ran\")\n"},
+                         {"user.ern", "export fn twice(n : Int) : Int = Extra.double(n)\n"},
+                         {"extra.ern", "export fn double(n : Int) : Int = n * 2\n"}]],
+    0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
+    ok = file:delete(filename:join(Build, "extra.erc")),
+    Main = filename:join(Build, "main.erc"),
+    Run = fun(Words) ->
+              Port = open_port({spawn_executable, "/bin/sh"},
+                               [{args, ["-c", lists:flatten([?ERN, " run ", Words, " 2>&1"])]},
+                                exit_status, binary]),
+              collected(Port, <<>>)
+          end,
+    ?assertEqual({0, <<"ran\n">>}, Run(Main)),
+    ?assertEqual({1, <<"ern run: cannot find module Extra (extra.erc), which User needs, on the"
+                       " load path: a node reads every module of its load path\n">>},
+                 Run(["--config-dir ", Lone, " ", Main])),
+    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
 %% report §8.7: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
@@ -1342,6 +1420,52 @@ two_builds(Base) ->
                  "the peer asker's spawn at Asker.spawned:27 was not loaded: the module"
                  " ern_twins_host, which Twin.absent calls, is not here"]].
 
+%% report §11.2, §8.7: a key at a type the session declares names that type
+%% by its hash, as any key does: a shell that is a node offers a service
+%% under a key at a type its first input declares, and another shell node,
+%% whose first input declares the same type, finds it and sends to it. A
+%% regression test, written after the code: the shell's test asserted the
+%% printed types alone. It does not cover the same declaration at another
+%% input of a session, which declares another type, the input's being in
+%% its qualified name
+shell_key_test_() ->
+    nodes_test(90, fun shell_key/1).
+
+shell_key(Base) ->
+    Root = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Root),
+    PortA = free_port(),
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    lists(A, [{"b", B, none}]),
+    lists(B, [{"a", A, PortA}]),
+    edit(B, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"a">>]}} end),
+    Declared = "type T = T(Int)\nlet k : Peer.Key(T) = Peer.key(\"t\")\n",
+    {InputA, WaitA} = shell_started(A, Root),
+    true = port_command(InputA, [Declared,
+                                 "let server : Address(T) = spawn(fn() : Unit with T =\n"
+                                 "    receive {\n"
+                                 "        T(n) -> Io.println(\"a got \" <> Int.toString(n))\n"
+                                 "    })\n"
+                                 "Peer.offer(k, server)\n"
+                                 "Io.println(\"offered\")\n"]),
+    prints(A, "offered"),
+    {InputB, WaitB} = shell_started(B, Root),
+    true = port_command(InputB, [Declared,
+                                 "match Peer.find(k, 5000) {\n"
+                                 "    Right(server) -> {\n"
+                                 "        send(server, T(5));\n"
+                                 "        Io.println(\"found\")\n"
+                                 "    }\n"
+                                 "  | Left(failure) -> Io.println(Io.show(failure))\n"
+                                 "}\n"]),
+    prints(B, "found"),
+    prints(A, "a got 5"),
+    true = port_command(InputB, ":quit\n"),
+    ?assertEqual(0, WaitB()),
+    true = port_command(InputA, ":quit\n"),
+    ?assertEqual(0, WaitA()).
+
 %% report §11.2, §8.7: a shell that is a node loads a module, and a peer
 %% of the build that holds the module spawns a function of it there by its
 %% hash, the value of the binding its reach names found, as on a node that
@@ -1458,8 +1582,11 @@ second_termination(Base) ->
 %% Appendix G.7, report §8.7: a standing address reaches the counter, a
 %% call through it answers None while the counter's node is stopped, it
 %% reaches the counter again when its node starts again, and on another
-%% node that offers it once the first is stopped. Written after the code
-%% (MVP 3.1's item 8)
+%% node that offers it once the first is stopped. An add sent through it
+%% while the node is stopped is dropped, and not delivered once the node is
+%% back: the counter started again counts from 0, and answers 0. Written
+%% after the code (MVP 3.1's item 8), the add a regression test written
+%% after that
 standing_test_() ->
     nodes_test(120, fun standing/1).
 
@@ -1535,9 +1662,12 @@ balance(Base) ->
 %% under the key `pair`, and says in `pair.json` the port `b` listens on and
 %% the load path `a` runs with; the test, in Ernest, writes `b`'s
 %% `ernest.conf` listing `a`, starts `b` with `Os` on the same build, finds
-%% and calls what it offers, and ends it with `ern stop`. A regression test,
-%% written after the code; it does not cover a reload, whose end a program
-%% cannot see (§8.7: the signal carries nothing back)
+%% and calls what it offers, and ends it with `ern stop`; a second test
+%% starts `b` with `Os` on a second build, whose `Msg` has another
+%% constructor (second_build/1), and finds `OtherType` at its key, the type
+%% it offers at having another hash. A regression test, written after the
+%% code; it does not cover a reload, whose end a program cannot see (§8.7:
+%% the signal carries nothing back)
 program_test_() ->
     nodes_test(90, fun pair_program/1).
 

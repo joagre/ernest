@@ -1950,6 +1950,24 @@ named_fields_named_test() ->
     ?assertEqual("Point has named fields; write Point(x = p, y = p)",
                  refusal(Point ++ "fn f(q : Point) : Int = match q { Point(a) -> a }")).
 
+%% report §5.6, §11.5: a constructor with named fields where a function
+%% that takes its fields is wanted, as Os.terminating's wrap, is told the
+%% lambda that constructs it; where any other value is wanted, the
+%% construction. A regression test, written after the fix: the help named a
+%% construction where a function was wanted
+named_constructor_as_function_test() ->
+    ?assertEqual("Stop has named fields; write fn(reply) = Stop(reply = reply)",
+                 refusal("type Stop = Stop(reply : Reply(Unit))\n"
+                         "fn f() : Unit with Stop = Os.terminating(Stop)\n")),
+    Point = "type Point = Point(x : Int, y : Int)\n"
+            "fn made(make : (Int, Int) -> Point) : Point = make(1, 2)\n",
+    ?assertEqual("Point has named fields; write fn(x, y) = Point(x = x, y = y)",
+                 refusal(Point ++ "fn f() : Point = made(Point)\n")),
+    ?assertEqual("Point has named fields; write Point(x = value, y = value)",
+                 refusal(Point ++ "fn f() : (Int) -> Point = Point\n")),
+    ?assertEqual("Point has named fields; write Point(x = value, y = value)",
+                 refusal(Point ++ "fn f() : Point = Point\n")).
+
 %% report §5.6: a construction gives each field once. A regression test,
 %% written after the code
 field_given_once_test() ->

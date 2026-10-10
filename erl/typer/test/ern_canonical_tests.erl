@@ -217,8 +217,14 @@ same_definition_same_hash_test() ->
     ?assertEqual(hash(Text, pick), hash(Again, pick)),
     ?assertEqual(form(Text, pick), form(Again, pick)).
 
-%% report §8.7, Appendix H: two bodies that differ only in local names,
-%% annotation variables' names, layout or comments are one definition
+%% report §8.7, Appendix H, §3.9: two bodies that differ only in local
+%% names, annotation variables' names, layout or comments are one
+%% definition; a local function's and a lambda's own annotation variable is
+%% numbered by the type variable it resolves to, so renaming it changes
+%% nothing, whether a sibling names its own alike or not. The local
+%% functions' and the lambdas' renamings are a regression test, written
+%% after the fix: annotation variables were numbered by name across the
+%% definition
 local_names_and_layout_test() ->
     One = "fn swap(p : #(a, b)) : #(b, a) = { let #(x, y) = p; #(y, x) }\n",
     Two = "// swaps\nfn swap(pair : #(left, right))\n"
@@ -227,6 +233,22 @@ local_names_and_layout_test() ->
           "    #(second, first)\n"
           "}\n",
     ?assertEqual(hash(One, swap), hash(Two, swap)),
+    Locals = fun(Second) ->
+                     "fn f(n : Int) : Int = {\n"
+                     "    fn p(x : c) : c = x;\n"
+                     "    fn q(y : " ++ Second ++ ") : " ++ Second ++ " = y;\n"
+                     "    q(p(n))\n"
+                     "}\n"
+             end,
+    ?assertEqual(hash(Locals("c"), f), hash(Locals("d"), f)),
+    Lambdas = fun(Second) ->
+                      "fn f(n : Int) : Int = {\n"
+                      "    let p = fn(x : c) : c = x;\n"
+                      "    let q = fn(y : " ++ Second ++ ") : " ++ Second ++ " = y;\n"
+                      "    q(p(n))\n"
+                      "}\n"
+              end,
+    ?assertEqual(hash(Lambdas("c"), f), hash(Lambdas("d"), f)),
     %% a pattern names a constructor's fields in any order
     Shape = "type Shape = Rect(w : Int, h : Int)\n",
     ?assertEqual(hash(Shape ++ "fn area(s : Shape) : Int = match s { Rect(w = a, h = b) -> a * b }",
@@ -392,26 +414,36 @@ foreign_test() ->
     ?assertEqual(hash(Text, later), maps:get(['T', later], Interface#interface.identities)).
 
 %% report Appendix H: a type of the module is referenced by its hash, and a
-%% type variable an annotation writes by its number
+%% type variable an annotation writes by its number, that of the type
+%% variable of the scheme it resolves to
 type_reference_test() ->
     Text = "type Box(a) = Box(a)\nfn open(b : Box(a)) : a = match b { Box(x) -> x }\n",
     BoxHash = hash(Text, 'Box'),
     Box = {applied, {hash, BoxHash}, [{variable, 1}]},
     {function, {scheme, [{1, _}], {arrow, [Box], pure, {variable, 1}}, []},
-     [{param, {local, 1}, {applied, {hash, BoxHash}, [{variable, 2}]}}], {variable, 2}, none, [],
+     [{param, {local, 1}, Box}], {variable, 1}, none, [],
      {match, {var, {local, 1}, []},
       [{clause, {construct, {constructor, {hash, BoxHash}, 1}, {positional, {local, 2}}}, none,
         {var, {local, 2}, []}}]}} = form(Text, open).
 
 %% report Appendix H: a use of Address.call holds the type of the answer
 %% its reply is checked against, and an operator the runtime applies the
-%% type of its operand, so two bodies the emitter writes otherwise differ
+%% type of its operand, at the operator. Two definitions whose forms differ
+%% in that type alone cannot be written, since the checker refuses an
+%% operator whose operand's type nothing else in the definition fixes
+%% (§3.9), so the test asks the form for the type where the emitter reads
+%% it. A regression test of the operator, written after the code: the test
+%% compared two forms that differed in their schemes already
 types_the_back_end_reads_test() ->
     Text = "type Msg = Get(Reply(Int))\n"
            "fn ask(a : Address(Msg)) : Optional(Int) with Never = Address.call(a, Get, 100)\n",
     ?assert(holds({var, {named, ['Address', call]}, [], applied('Int')}, form(Text, ask))),
-    ?assertNotEqual(form("fn f(x : Int) : Int = x * x", f),
-                    form("fn f(x : Float) : Float = x * x", f)),
+    Squared = fun(Type) ->
+                      {operator, '*', {var, {local, 1}, []}, {var, {local, 1}, []},
+                       {runtime, applied(Type)}}
+              end,
+    ?assert(holds(Squared('Int'), form("fn f(x : Int) : Int = x * x", f))),
+    ?assert(holds(Squared('Float'), form("fn f(x : Float) : Float = x * x", f))),
     ?assert(holds({negate, {var, {local, 1}, []}, {runtime, applied('Float')}},
                   form("fn f(x : Float) : Float = -x", f))).
 
@@ -461,9 +493,12 @@ key_type_hash_test() ->
 %% report §8.7, §11.1: a function's reach names each binding and each
 %% foreign declaration of a program it references, through every function
 %% it calls, its own module's and another's, whose interface holds it; a
-%% group's members share one; a lambda's and a local function's are their
-%% own, with their identities' positions, by their spans. A regression
-%% test, written after the code (MVP 3.1's item 4)
+%% group's members share one, a binding of the group among it, as a type's
+%% compare that reads a binding makes one, so that a function that orders
+%% the type reaches the binding; a lambda's and a local function's are
+%% their own, with their identities' positions, by their spans. A
+%% regression test, written after the code (MVP 3.1's item 4), the group's
+%% binding written after the fix: a group's binding was in no reach
 reach_test() ->
     {_, Interface} = canonical(['A'], "let note : Int = 1\n"
                                       "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
@@ -488,12 +523,22 @@ reach_test() ->
     ?assertEqual(Group, maps:get(['B', even], Reaches)),
     ?assertEqual(Group, maps:get(['B', odd], Reaches)),
     ?assertEqual([{['B', spawns], 1, {[], []}}, {['B', spawns], 2, {[{['B', own], OwnHash}], []}}],
-                 lists:sort(maps:values(Functions))).
+                 lists:sort(maps:values(Functions))),
+    Ordered = "type T = T(Int)\n"
+              "let zero : T = T(0)\n"
+              "fn T.compare(a : T, b : T) : Ordering = if a == zero then Less else Equal\n"
+              "fn ordered() : Bool = T(1) < T(2)\n",
+    {#{reaches := OrderedReaches, definitions := OrderedDefinitions}, _} =
+        canonical(['C'], Ordered, []),
+    #definition{hash = ZeroHash, group = {ZeroGroup, _}} = named(OrderedDefinitions, zero),
+    #definition{group = {ZeroGroup, _}} = named(OrderedDefinitions, ['T', compare]),
+    Zero = {[{['C', zero], ZeroHash}], []},
+    ?assertEqual(Zero, maps:get(['C', 'T', compare], OrderedReaches)),
+    ?assertEqual(Zero, maps:get(['C', ordered], OrderedReaches)).
 
 %% report §11.1: the chunk of the canonical forms is written compressed, and
 %% reads back as the definitions it was written of; a regression test,
-%% written when the chunk was compressed. Not covered: a chunk of another
-%% form's version, which reads as an error
+%% written when the chunk was compressed
 compressed_chunk_test() ->
     {ok, Bytes} = file:read_file(code:which('ern@list')),
     {ok, {_, [{_, Chunk}]}} = beam_lib:chunks(Bytes, [binary_to_list(ern_canonical:chunk_name())]),
@@ -501,3 +546,14 @@ compressed_chunk_test() ->
     {1, Written} = binary_to_term(Chunk),
     ?assertEqual({ok, Written}, ern_canonical:read(Bytes)),
     ?assert(length(Written) > 10).
+
+%% report §11.1, Appendix H: a chunk of another version of the form reads as
+%% an error that names the form's version. A regression test, written after
+%% the fix: the error named the compiler's version, which the check does
+%% not read
+other_form_version_test() ->
+    Chunk = term_to_binary({ern_canonical:form_version() + 1, []}),
+    {ok, _, Beam} = compile:forms([{attribute, 1, module, ern_canonical_other_form}],
+                                  [binary, {extra_chunks, [{ern_canonical:chunk_name(), Chunk}]}]),
+    ?assertEqual({error, "the canonical forms are of another version of the form"},
+                 ern_canonical:read(Beam)).

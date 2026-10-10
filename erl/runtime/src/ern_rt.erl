@@ -26,7 +26,8 @@
 %% reaper's. The reaper also detects deadlock (report §8.6): every live
 %% process blocked in an untimed receive or in a wait for a call's answer,
 %% no timed receive or clock alarm pending, no process inside foreign code,
-%% and no source held that can still deliver.
+%% and no source held that can still deliver, a subscription to the
+%% program's end among them.
 %%
 %% Fourteen tables hold a launch's state, each described where it is
 %% defined. `ern_processes` has a row {Pid, Site, Timers, Foreign,
@@ -979,16 +980,20 @@ died(Pid, Site, ExitReason) ->
 %% mailbox is what is read of it. §8.6 leaves a foreign process that can
 %% deliver to the runtime. Report §11.2: nothing is a deadlock while a
 %% shell holds the terminal; and report §8.6, nothing on a node, which can
-%% be reached from outside, nor while the end waits for its subscribers.
+%% be reached from outside. Report §8.6, Appendix E.23: a subscription to
+%% the program's end can still deliver while it stands, since a termination
+%% tells it, as a system process's subscription can; while the end waits
+%% for a subscriber, that subscriber's stands, so nothing is a deadlock
+%% then either.
 %%
 %% What the look finds: `delivering`, where something can still deliver, a
-%% shell holds the terminal, the program is a node, or the end waits, so
-%% that no deadlock can begin before that ends; `running`, where nothing can and a process
+%% shell holds the terminal, or the program is a node, so that no deadlock
+%% can begin before that ends; `running`, where nothing can and a process
 %% is not waiting, or none is left; `deadlock`, where nothing can and every
 %% process waits.
 look() ->
     case terminal_holder() =:= undefined andalso not persistent_term:get({?MODULE, node}, false)
-         andalso not ets:member(?LAUNCH, ending) andalso nothing_delivers() of
+         andalso nothing_delivers() of
         false ->
             delivering;
         true ->
@@ -1006,6 +1011,7 @@ look() ->
 
 nothing_delivers() ->
     sources() =:= 0
+        andalso ets:info(?TERMINATING, size) =:= 0
         andalso not calling_the_system()
         andalso quiet_system()
         andalso not counted().
@@ -1777,25 +1783,35 @@ run_main(EntryPoint, Site, Options) ->
 %% ended or restarted, nothing of the runtime's own timing the wait. While
 %% it waits, what began the end stands, but for an Os.exit, which ends the
 %% program at once with its status, and a second termination, which ends
-%% it at once; a deadlock is not looked for (look/0). A subscription made
-%% while it waits is told at once (terminating/1). Report §11.2: the wait
-%% is said, once with how many it waits for, and each subscriber as it
-%% answers, ends or restarts, by Say, the runner's own line on standard
-%% error. The outcome the program ends with.
+%% it at once; no deadlock is found, a subscriber's subscription standing
+%% (look/0). A subscription made while it waits is told at once
+%% (terminating/1). Report §11.2: the wait is said, once with how many it
+%% waits for, and each subscriber as it answers, ends or restarts, by Say,
+%% the runner's own line on standard error. The outcome the program ends
+%% with.
 told(Outcome, Launch, Say) ->
     true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
-    Waited = case untold(#{}) of
-                 [] ->
-                     Outcome;
-                 Untold ->
-                     Count = length(Untold),
-                     Say(["the end waits for ", integer_to_list(Count),
-                          case Count of 1 -> " subscriber"; _ -> " subscribers" end]),
-                     Told = tell_all(Launch, Untold, #{}),
-                     waited(Outcome, Launch, Say, Told, terminations(Outcome))
-             end,
-    ets:delete(?LAUNCH, ending),
-    Waited.
+    case untold(#{}) of
+        [] ->
+            ets:delete(?LAUNCH, ending),
+            %% a process that subscribed after the read, while the mark
+            %% stood, told a runner that waits for no word: the table is
+            %% read once more now that the mark has gone, and what it finds
+            %% is told; a subscription made after that read is too late, as
+            %% a monitor made at a process's end is
+            case untold(#{}) of
+                [] -> Outcome;
+                _ -> told(Outcome, Launch, Say)
+            end;
+        Untold ->
+            Count = length(Untold),
+            Say(["the end waits for ", integer_to_list(Count),
+                 case Count of 1 -> " subscriber"; _ -> " subscribers" end]),
+            Told = tell_all(Launch, Untold, #{}),
+            Waited = waited(Outcome, Launch, Say, Told, terminations(Outcome)),
+            ets:delete(?LAUNCH, ending),
+            Waited
+    end.
 
 %% The terminations the program has had: one where one began the end.
 terminations({signal, _}) -> 1;
@@ -1853,14 +1869,21 @@ tell_all(Launch, Untold, Told) ->
 %% process of its own, as a monitor's Down is, a fault in the wrap the
 %% subscriber's (§6.5); the answer waited for as a caller waits for its
 %% callee's, which the subscriber's end or its restart ends (§6.6, §6.9).
+%% Report §11.2: its end is learnt by the runtime's monitor, whose Down the
+%% reaper gives once it has reported the subscriber's fault, so that the
+%% fault's line comes before the line that it ended without answering; a
+%% restart reports its fault before it ends the calls waiting on it
+%% (restarts/4).
 tell(Runner, Launch, Subscriber, Address) ->
     Reply = pending(Address),
+    Ended = make_ref(),
+    monitor(Subscriber, fun(_Down) -> Ended end),
     deliver(Address, Reply),
     How = receive
               {Reply, answered, _} -> <<"answered">>;
               {Reply, _} -> <<"answered">>;
               {Reply, restarted, _} -> <<"restarted without answering">>;
-              {'DOWN', Reply, process, _, _} -> <<"ended without answering">>
+              Ended -> <<"ended without answering">>
           end,
     settled(Reply),
     Runner ! {said, Launch, Subscriber, How}.
