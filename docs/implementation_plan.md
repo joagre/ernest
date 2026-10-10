@@ -20,10 +20,10 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is under way, items 1 to 7 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
+of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). The road to 1.0 is MVP 3.1, 3.2,
 3.25, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
-1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ends with a read of what it built, its item
-9, and MVP 3.2 with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
+1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ended with a read of what it built, its item
+9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
 *Ernest 0.4.0 Ends MVP 3.2*); any other release waits until the user calls it.
 
 **MVP 2.99d is done** on 2026-10-06: the standard library stands on the host and is
@@ -74,7 +74,7 @@ paragraph under "Done".
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | done 2026-10-06 |
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
-| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | design read through 2026-10-09; the principles review runs before its item 1 |
+| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.25 | placing work by load: the proposal `proposals/balancer/suggestion.md`, a computation run where there is room and its value back, discussed with the user before MVP 3.2's report is written and built here after it | the proposal stands on MVP 3.2; added 2026-10-10 |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
@@ -83,257 +83,6 @@ paragraph under "Done".
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
 | MVP 4.3 | the shell's second round | |
 | MVP 4.4 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
-
----
-
-## MVP 3.1 (code by its hash), about five weeks
-
-Designed in [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md), read through with the user
-on 2026-10-09; its reasons are [`code.md`](../proposals/nodes_and_code/code.md)'s and
-[`nodes.md`](../proposals/nodes_and_code/nodes.md)'s sections 4, 6, 14, 15 and 17, what was
-set aside `code.md`'s section 8 and the two proposals under
-[`set_aside/`](../proposals/nodes_and_code/set_aside/), what other systems do
-[`other_systems.md`](../proposals/nodes_and_code/other_systems.md)'s sections 6 and 7, and what
-six programs showed of a change of code in place
-[`experiments/code_update/`](../proposals/nodes_and_code/experiments/code_update/README.md).
-The proposal is the specification and this list the order: each item builds its area as the
-proposal's section 6 states it, whole. What the milestone gives: a hash for every definition,
-the SHA-256 of its canonical form; nodes of different builds connected on one floor, a key
-naming its type by hash and a spawn its function, so that a find answers `OtherType` and a
-spawn `NotLoaded` exactly where the builds disagree; `NotLoaded` by definition and by binding,
-which lifts MVP 3.0's rule by module; the shell's `:load` and `:reload` in a shell that is a
-node, two versions of a type two types in one session; a program told of its termination,
-`Os.terminating`, which writes what it keeps and answers before the end; the `Standing`
-library; and E.22's refusal. No code crosses: that is MVP 3.2.
-
-The items, in build order, each with the report's sentences first, its tests, and a commit.
-The order is the dependency's: the report first; the canonical form and its tests before any
-hash is computed; the code table before anything looks a hash up; the cookie opened to other
-builds only once a key and a spawn carry hashes; the shell, which needs units side by side;
-termination told, which needs nothing of the hashes and comes after them so that section 3's
-deploy runs whole; then the library, and the tests over all of it.
-
-The principles review ran on 2026-10-09 over this proposal and over peers, on the user's word (the
-log's *The Principles Review of 2026-10-09*); its sentences and decisions are carried through the
-report, the guide and the code before item 1, and what it gave this milestone stands in items 2
-and 8 below.
-1. **The report and the soundness argument.** The sections the proposal's section 9 names:
-   §8.7 for the floor, the cookie without the build, the key's hash beside its text and
-   `OtherType` by hash, the spawn by hash with `NotLoaded` by definition and by binding, and the
-   rule by module gone; §8.6 for the end that tells its subscribers and waits for their answers,
-   under termination, the entry process's end and `Os.exit` alike, the interrupt and a second
-   termination ending at once; Appendix E.23 for `Os.terminating`; §11.1 for what an `.erc`
-   holds, the canonical forms and the hashes; §11.2 for the shell's load and reload by hash, a
-   binding keeping the type it was checked under, the diagnostic that names the previous version,
-   and the refusals of `:load` and `:reload` in a shell that is a node lifted; §7.4, §8.4 and
-   §11.2, from which `Fault("its code was unloaded")` goes; Appendix E.22 for the refusal, `a
-   process runs one child function`; Appendix G for `Standing`; Appendix F and `style.md`'s
-   glossary for hash, identity, reach, unit, code table and subscriber. The decision P1 of
-   the review of MVP 3.0 is built here: §3.11 admits `restarting` applied to a function it
-   already admits as the spawned function, since the prelude states what its result captures,
-   its two arguments; `Peer.spawn` stays a form, and a mark on function types that would make
-   it an ordinary function is the log's *Later* (the log's *MVP 3.0's Findings Decided*,
-   decided with the user on 2026-10-09). `soundness.md`'s section 7 is
-   extended to the hashes between nodes of different builds and to identity by hash on one node
-   across a load, and gains the end's paragraph. The log's entries, pointing at `code.md` and
-   `nodes.md` for the argument. With them, as the build reaches each: `architecture.md` for the
-   code table and the units; `memory.md` for the three tables the host never shrinks;
-   `test/diagnostics.md` for the shell's diagnostic; `docs/development.md`'s table, from which
-   the shell's three refusals, `:load`, `:reload` and a key at a session type, and the reload's forgotten binding go, and whose refusal of a node
-   without a program names MVP 3.2. Done 2026-10-09, the report and the argument
-   written from the proposal, the code lagging until items 2 to 7 build it (the log's *The Report
-   Rewritten for MVP 3.1*): §8.7's floor in place of the fingerprint, its definitions and their
-   hashes, the spawn and the key by hash with `NotLoaded` said on the peer's standard error;
-   §8.6's end that tells its subscribers; §11.1's canonical form and §11.2's two versions by hash;
-   §3.11's `restarting` at a spawn; E.22's refusal and E.23's `terminating` in prose until item 6
-   lists it, and G.7 for `Standing` written with item 7, since a test holds Appendix G to `libs/`; the fault of a reload gone from §6.10, §7.4 and §8.4; Appendix
-   F and the glossary; the refusal of a node without a program names MVP 3.2 in its text, the
-   table and its test. `docs/development.md`'s shell rows stay until item 5 lifts them.
-2. **The canonical form, and the hash.** The form's document with the form's version, written
-   before any hash is computed, literals and order fixed, and its test suite first: the same
-   definition hashes the same across a rebuild; a renamed function keeps its dependents' hashes
-   and a renamed constructor changes them; a moved definition in a group changes the group's;
-   two bodies that differ only in local names or layout hash the same; a literal's encoding is
-   fixed; two hashes for one definition and one hash for two are what it guards against. The
-   compiler computes every definition's hash as section 6 states it: the typed tree after
-   checking, locals numbered by position, every name resolved, types written out, a reference
-   the hash of what it names, a foreign declaration its qualified name and type, a function's
-   own name and positions out; a type's hash over its qualified name, its parameters by position
-   and its constructors in order with their fields' names and types' hashes; a binding's
-   identity its qualified name with its hash; a group one hash in source order with each
-   member's position; a lambda's its enclosing definition's and its position; an applied type's
-   its constructor's over its arguments'; a built-in type's its name; the form's version in
-   every hash. The `.erc` carries the forms and the hashes; a library under `libs/` is hashed
-   as a program's code is. What an abstract type's hash covers beyond its declaration is decided
-   here and recorded in the form's document and the log, and so is whether a user's module carries
-   the host's debug information (the review's L40). Done 2026-10-09 (the log's *The Canonical Form, Built*):
-   Appendix H states the form node by node, the hash SHA-256 of the host's deterministic
-   external term format of `{ernest_form, 1, Form}`; `ern_canonical` computes it and the `.erc`
-   carries forms and hashes in a chunk of their own, compressed, which `ern_chunk` reads under
-   deflate's own bound; 22 tests written before the code; a clean build twice gives byte-identical
-   forms, 582 definitions over 32 modules, at one percent of the build's time; §11.1 recompiles a
-   dependent whose forms reference a changed hash; a user's module keeps the host's debug
-   information, which `make dialyzer` reads and an installation strips (L40 closed).
-3. **A node's code.** The code table from each hash to the unit and function that hold it, and
-   from a binding's identity to its value, filled as a unit loads, with the lookups item 4's spawn
-   reads; the build's units one per source module, compiled as today, their functions named as
-   today; nothing in a program naming a unit; a build directory never changed under a running
-   node; the node loading as `ern run` does; the four limits, 65,536 module names, 524,288
-   export entries, 524,288 lambdas and 1,048,576 atoms, and the node's line on its standard
-   error at four fifths of any, once. Naming a unit's functions by position, and making a unit from the canonical forms, are
-   MVP 3.2's item 4, where code first arrives from another build and needs both (decided with
-   the user on 2026-10-10, the log's *Positional Names Wait for Code That Arrives*). Done
-   2026-10-10 (the log's *The Code Table, Built*): `ern_code`, an ETS table the host's life
-   long, filled from each unit's `'$code'/0` as it loads, at a tenth of the load's time, with
-   the lookups item 4 reads; the host's fourth limit, its export table, found and counted; the
-   line at four fifths through §11.2's rule; `ern_build:refused/2`, called from `ern_node` and
-   never exported, exported with its regression test.
-4. **The cookie, the key and the spawn by hash.** The cookie as the digest of the protocol's
-   version, `ern`'s version and OTP's major release, MVP 3.0's fingerprint gone, so that nodes
-   of different builds connect; the key carrying its type's hash beside its text, a find
-   comparing the hash and answering `OtherType` where the holder's differs; the spawn frame with
-   the function's hash in place of its module and place, the peer looking the hash up in its
-   table and answering `NotLoaded` naming the function where it lacks it, a binding's value by
-   its identity and `NotLoaded` naming it where the peer did not run it, and `NotLoaded` for the
-   module a foreign declaration names; a function that names no binding spawning where the rule
-   by module refused it; nothing initialized because a peer asked; the site in the frame the
-   spawner's words, shown and never compared. The Ernest tests of `Load` and `Balancer` return here from
-   `test/ern_integration_tests.erl` to their modules, where a `Test.Case` binding kept their
-   functions off a peer under the rule by module (`language_feedback.md`'s entry 95). Built
-   2026-10-10 (the log's *The Spawn by Hash, Built*): the cookie the floor's digest, the protocol
-   at 2; a key `{'Key', Name, Hash}`, its hash the type's canonical term's, the text it carried gone in item 9's read (P2); the spawn frame
-   by identity, a lambda or local `fn` lifted to an entry its unit's `'$spawned'/2` runs over the
-   captures, `restarting` over one admitted; a function's reach of bindings and foreign modules
-   computed at build time and read in one lookup each; `NotLoaded` said on the peer's standard
-   error; the rule by module gone; a spawned body that uses a requirement's member refused; a
-   type's identity covering the `compare` its module declares, decided with the user;
-   two builds of one program on real nodes as the tests' subject.
-5. **The shell.** `:load` and `:reload` in a shell that is a node, and in any: a load adding
-   hashes and moving the session's names to them; what a load brings to a node that already
-   holds a unit of the module's name becoming a unit of its own, counted against item 3's limits,
-   so that no unit takes a second version and §11.2's fault goes; a type in the session its hash,
-   a binding made before a load keeping the type it was checked under, a message of one version
-   to an address of the other a type error whose diagnostic says which is of the previous
-   version; a previous version's process running on, reachable through its version's addresses
-   alone, its key offered again only once it has ended; a load evaluating the reach's bindings
-   in a fresh process at `Never` while the session waits; a function typed at the shell with a
-   hash as any definition has, `NotLoaded` on a peer whose build holds no definition of its hash; the two gaps the
-   experiments of 2026-10-07 found closed, a function of a previous version held in a process's
-   state and a binding of a previous version forgotten (the log's *A Binding of a Previous
-   Version Is Forgotten*). Done 2026-10-10 (the log's *The Shell's Reload by Hash, Built*): each
-   version a unit of its own, `ern@counter$2`, through the compiler's map from namespace to unit,
-   nothing purged and `'$fun'/2` gone with its reason; a type the reload changed moved to its
-   previous version's namespace, `Counter$1`, in what the session held, the reload naming the
-   bindings it leaves so and a diagnostic saying which type is the previous version's; a reload
-   compiling again what `ern build` would; a faulted reload keeping a previous value of one hash
-   alone, which the soundness argument's section 7 states; a refused load killing what it
-   started; the shell's three refusals lifted, and one added for MVP 3.2, a compiled form beside
-   another unit of its name on a node; a load's unit marked evaluated, which a peer's spawn read
-   and the load had not done, a defect found beside it.
-6. **Termination told.** `Os.terminating(wrap)`, kept as a subscription to faults is, one per
-   process, the latest, ending with its process; at the end, by termination, the entry process's
-   end or `Os.exit`, `wrap(reply)` delivered to every subscriber, each delivery a process of its
-   own as a monitor's is, the subscriber watched as a callee is; the end going on, MVP 3.0's in
-   order, once every reply is answered or its subscriber has ended; every other process running
-   meanwhile, and a peer finding, calling and sending to the node; a subscription made during the
-   end told at once; a subscriber that faults while it writes reported; the interrupt and a
-   second termination ending at once; a program that is no node, a test under `ern test` and the
-   shell told the same way; no bound of the runtime's own on the wait. Done 2026-10-10 (the log's
-   *Termination Told, Built*): `Os.terminating` over a table of the runtime's, each subscriber
-   told by a process that waits on its reply as a call waits on its callee; the runner's wait
-   between the first end and the end, which an `Os.exit` or a second termination cuts short;
-   the lines on standard error; §8.6, §11.2 and E.23 made precise first, a subscriber's restart
-   no answer and a hangup a termination where the program is no node.
-7. **`Standing`, and the refusal.** The library under `libs/`: `Standing.start(key, ms)`, a
-   process with the mailbox `Message(m) | Went(Down)` and the caller given `via` of it with
-   `Message`, finding the key within `ms`, holding the address, monitoring the service and
-   forwarding each message, finding again at `Went` with `ms` between failed finds, dropping a
-   send while the service is away, a call through it answering `None` at its own time, and ending
-   at its caller's `Down`. E.22's refusal: `Supervisor.child`'s function run inside a process
-   that is already a child faults with `Fault("a process runs one child function")`. Done
-   2026-10-10 (the log's *Standing and the Refusal, Built*): `libs/standing` and G.7, the
-   process finding again at the next message after `Went`, waiting on no clock, as the proposal
-   has it, and passing a message it cannot deliver on to where the service was, an ended
-   process, so that a call through it answers `None` at its own time; the refusal widened to a
-   child's function run inside any restarting function, `Fault("a child's function runs in no
-   restarting function")`, where its group miscounted the faults it saw.
-8. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes of
-   two builds on one machine as MVP 3.0's tests run them: two builds connect, a find answers
-   `OtherType` where the key's type differs and an address where it does not, a spawn of a
-   function the peer lacks answers `NotLoaded` naming it and one of a function it has runs,
-   `NotLoaded` for a binding and for a foreign declaration, a function naming no binding spawns
-   where the rule by module refused it; the shell's binding of a previous version refuses the new
-   version's message and takes one of its own, and the previous version's service runs on through
-   two further reloads; a session that loads many units says so at four fifths of a limit, once,
-   measured; the end's cases, a subscriber told at termination, at the entry process's end and at
-   `Os.exit`, the program ending after its answer and not before, a subscriber that ended or
-   faults holding nothing up, a second termination and the interrupt ending at once, a
-   subscription made during the end told at once, a program that is no node, a test and the shell
-   told the same way, a peer finding and calling a node whose subscribers are being told;
-   `Standing`'s cases and E.22's refusal; a program's own test of two builds with the other
-   started by `Os`. The measurements of section 7, and of what hashing costs a build and a load; and, against
-   §10's cost rule, `spawnMonitored` at 7 times the host's and a `monitor` of an ended process at
-   15.6, each to end at a fraction or as a message by design with its reason in the log (the
-   review's L58). The guide's store waits in `main` for its termination message in place of sixty
-   seconds (W18).
-   The language guide's chapter 8 teaches what a program writes of this milestone: a service
-   that keeps its state through `Os.terminating`, `Fs` and `Json`, a key at its type's hash and
-   `OtherType`, and `Standing`; running nodes is the deployment guide's, MVP 3.2's. `mvp3.1.md`'s
-   status line. Done 2026-10-10 (the log's *What MVP 3.1 Costs, Measured*): the end and
-   `Standing` on real nodes and a program's own test of two builds, the rest of section 8's cases
-   tested by items 2 to 7; a reload measured at one module name, its exports and four, its
-   lambdas and about an atom, the first line after about 52,000 reloads; hashing two percent of a
-   build; L58 decided by design, §10 stating that a spawn and a monitor cost a message to the
-   runtime and its answer, and a `Down` a process of its own; the guide's store waits for its
-   termination message and keeps its count with `Fs` alone, `Json` named for a state of more
-   parts, since the counter is one number and the guide builds each stage on the ones before
-   (W18); §8.2 teaches two builds and `OtherType`, the end and `Standing`, and the chapter's
-   sentences that two nodes run one build are corrected; §9.2 and §9.5 say the end is told.
-9. **The read before MVP 3.2.** Seven readers read what MVP 3.1 built, after item 8 and `make
-   test`, and before MVP 3.2's item 1, since MVP 3.2 stands on all of it. It is MVP 3.0's read
-   again (the log's *MVP 3.0 Read Without a Release*), not the full review, and no release
-   follows it. Each reader is a fresh agent that edits nothing and writes its list to the
-   scratchpad, and reads the report beside `mvp3.1.md`'s claims of section 4 and limits of
-   section 5, so that a departure from what the proposal promised is a finding. Its lines go to
-   `docs/findings.md`, each decided with the user, a design question one at a time, its verdict
-   carried into the report, the plan or the log. MVP 3.1 is done when every line is done,
-   dropped or planned. Decided with it, a named decision of this item: whether the end's lines
-   on standard error are a node's alone, as the proposal had them (`language_feedback.md`'s
-   entry 100). The readers, each with what it reads and what it asks:
-   - **H, the canonical form.** Appendix H, `ern_canonical`, §11.1's recompile rule and their
-     tests: where one definition gets two hashes or two definitions get one. What runs before
-     hashing, elaboration, supplies, `derives`, an abstract type's representation and the
-     `compare` a type's identity covers; a group's order and positions; a lambda's position; a
-     literal's encoding; a session input's hash under its reused `$Input` slot; and whether the
-     form's version moves with every change that should move it. Opus.
-   - **S, the soundness argument.** `soundness.md`'s section 7 against §3.11, §6.9, §8.6, §8.7
-     and §11.2 as built: identity by hash between builds and across a reload, the previous
-     version's renamed types, a kept value of one hash, the code table's first unit, the end's
-     wait for I1 and I3, and `Standing`'s forwarding. A sentence that no longer holds is a
-     finding. Fable.
-   - **N, nodes of two builds.** `ern_code`, `ern_peer`, the gateway and the runner: the cookie
-     as the floor, the spawn frame by identity, the reach's bindings and foreign modules,
-     `NotLoaded` by function, binding and module, `OtherType`, the four host limits and their
-     line, the atoms a capture can make, and a unit the shell's load brought beside a unit of
-     the build; it runs two builds on real nodes as item 8's tests do. Opus.
-   - **V, the shell's versions.** `ern_shell`'s load and reload against §11.2 sentence by
-     sentence: units of their own, the rename to `Counter$1`, `checked_interfaces`, the reload
-     compiling again what `ern build` would, a refused load's kill, the adoption of a node's
-     build unit, `collected` beside units never unloaded, and what `docs/memory.md` says is kept
-     for the session's life; `language_feedback.md`'s entries 97 and 98 with it. Opus.
-   - **E, the end and the operator's day.** §8.6, E.23 and item 6's runtime: a node under `ern
-     stop`, a second termination, the interrupt, `Os.exit` during the wait, and a subscriber
-     that faults, restarts or never answers; a deadlock that is not one, the lines on standard
-     error, `ern test` and the shell told the same way, a service manager's stop timeout against
-     what a program writes, and `Standing` across a peer's stop and start. Opus.
-   - **W, a program across builds.** It writes `mvp3.1.md`'s section 3 whole: the counter on the
-     store, builds 1 to 3 deployed by an operator's script with `ern stop` and `ern run`, the
-     state kept through `Os.terminating`, `Fs` and `Json`, the board on `Standing`, a changed
-     protocol found as `OtherType`, and a fix in the shell. What feels against a principle goes
-     to `language_feedback.md`. Opus.
-   - **P, the principles.** MVP 3.1's report changes, `Standing`'s page and the guide's chapter
-     8 against §0, and §0 against what MVP 3.1 decided, as `docs/principles_review.md` says.
-     Fable.
 
 ---
 
@@ -1056,3 +805,34 @@ E.0, and the families decided and built the same day: `Peer.Failure` folded into
 `Erl.atom` into `Foreign.atom`, `List.remove` by index, `takeLast`, `Float.div`, `foldRight`'s
 accumulator first, a constructor named as a type refused, and MVP 3.2's table rule replaced by
 a stated limit (the log's *The Principles Review of 2026-10-09* and its *Judgments*).
+
+### MVP 3.1 — code by its hash (done 2026-10-10)
+
+Code by its hash, by [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md), kept as the record
+of its design; the report's §8.6, §8.7, §11.1, §11.2, Appendix H, E.23 and G.7 own the rules.
+Every definition has a hash, the SHA-256 of its canonical form, which Appendix H states node
+by node and `ern_canonical` computes (the log's *The Canonical Form, Built*); a node's code
+table reads each unit's `'$code'/0` as it loads (*The Code Table, Built*; positional names
+wait for MVP 3.2, *Positional Names Wait for Code That Arrives*); nodes of different builds
+connect on one floor, a key naming its type by hash and a spawn its function, so that a find
+answers `OtherType` and a spawn `NotLoaded` exactly where the builds disagree (*The Spawn by
+Hash, Built*); the shell's `:load` and `:reload` make each version a unit of its own, two
+versions of a type two types in one session (*The Shell's Reload by Hash, Built*); a program
+is told of its termination and the end waits for its subscribers' answers (*Termination Told,
+Built*); `Standing` holds a service's address across its ends, and E.22's refusal names a
+child's function run in a restarting function (*Standing and the Refusal, Built*); the costs
+are measured and the guide's chapter 8 teaches two builds, the end and `Standing` (*What MVP
+3.1 Costs, Measured*). Read without a release by seven readers over `a5747617`, 106 findings:
+55 fixed at once, 49 decided one at a time against §0 and built in six batches, two planned
+for MVP 3.2 (*MVP 3.1 Read*, *MVP 3.1 Done*): among them a fault while the end waits is the
+process's own, a restart cancels the subscription to the end, the wait's lines name the
+subscribers by site, a reload reaches the session's own declarations, an input that builds a
+function is kept, a `show`'s view and every session declaration are in the form, `ern stop`
+waits on the lock the node holds on `ernest.pid`, the floor is `ern`'s minor on OTP's major,
+a key is its name and its hash and `Peer.name` reads the name, `Standing` makes one find at a
+time and faults on `OtherType`, and the guide's store owns its life. The named decision of its
+item 9, whether the end's lines are a node's alone, kept them wherever a program has a
+subscriber (`language_feedback.md`'s entry 100, *The Feedback Pass Before MVP 3.2*); that pass
+ran before MVP 3.2, MVP 3.25 was added and the back end made last (*A Milestone for Placing
+Work by Load*, *The Back End Last*). What waits: `language_feedback.md`'s 97 and 98 and
+`:processes`' columns, MVP 4.3's; a unit let go and the bare node, MVP 3.2's.
