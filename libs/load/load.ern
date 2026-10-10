@@ -63,7 +63,7 @@ export fn runQueue() : Int with m =
 /// ```
 export fn schedulers(window : Int) : Float with m = {
     let flag = Foreign.atom("scheduler_wall_time");
-    let _ = setFlag(flag, Foreign.from(true));
+    let _ = setFlag(flag, Foreign.term(true));
     let first = wallTimes(flag);
     receive {
         after Int.max(window, 1) -> Unit
@@ -71,7 +71,7 @@ export fn schedulers(window : Int) : Float with m = {
     let second = wallTimes(flag);
     // the host counts each process's setting: this one's is taken back,
     // and the time is kept while another's stands
-    let _ = setFlag(flag, Foreign.from(false));
+    let _ = setFlag(flag, Foreign.term(false));
     let total = spent(second, totalTime) - spent(first, totalTime);
     if total > 0 then
         Int.toFloat(spent(second, activeTime) - spent(first, activeTime)) / Int.toFloat(total)
@@ -178,9 +178,9 @@ let schedulersTakeBack =
     Test.Case(name = "a measure of the schedulers takes back its own setting of the host's keeping",
               run = fn() = {
                   let flag = Foreign.atom("scheduler_wall_time");
-                  let _ = setFlag(flag, Foreign.from(true));
+                  let _ = setFlag(flag, Foreign.term(true));
                   let _ = schedulers(1);
-                  let _ = setFlag(flag, Foreign.from(false));
+                  let _ = setFlag(flag, Foreign.term(false));
                   Test.equal(statistic(flag) != Foreign.atom("undefined"), false)
               })
 

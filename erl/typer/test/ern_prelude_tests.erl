@@ -108,7 +108,7 @@ in_module_docs(Namespace, Name) ->
 %% report Appendix E.0 rule 1, E.1, E.2, E.3, E.4, E.5, E.14, E.16, E.20,
 %% E.22: the primitives a module's section names are the module's `foreign
 %% fn`s. An exported one is named as itself; a private one by the exported
-%% declaration that alone calls it, `slice` for String's `part`, once for
+%% declaration that alone calls it, `slice` for String's `sliced`, once for
 %% all that stand beneath it, as `sort` for List's three; one that only
 %% system references call, a system module's (§8.2), by the exported
 %% functions that reach them, since in a system module a function that

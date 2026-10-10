@@ -25,10 +25,10 @@
 /// // => "A-B"
 /// ```
 ///
-/// Three characters from index 1:
+/// The graphemes from index 1 up to index 4:
 ///
 /// ```ernest
-/// String.slice("hello", 1, 3)
+/// String.slice("hello", 1, 4)
 /// // => "ell"
 /// ```
 ///
@@ -159,7 +159,7 @@ export fn startsWith(text : String, prefix : String) : Bool =
 /// with the empty string.
 export fn endsWith(text : String, suffix : String) : Bool = {
     let count = size(suffix);
-    size(text) >= count && slice(text, size(text) - count, count) == suffix
+    size(text) >= count && slice(text, size(text) - count, size(text)) == suffix
 }
 
 /// `text` with each occurrence of `old` replaced by `new`. Occurrences are
@@ -175,18 +175,21 @@ export fn endsWith(text : String, suffix : String) : Bool = {
 export fn replace(text : String, old : String, new : String) : String =
     if isEmpty(old) then text else join(split(text, old), new)
 
-/// The `count` graphemes of `text` from `index`, or as many as there are. An
-/// `index` below 0 starts at the beginning, and a `count` below 1 gives the
-/// empty string.
+/// The graphemes of `text` from `index` up to `end`, the one at `end` left
+/// out, as many as there are. An `index` below 0 is 0, an `end` past the last
+/// grapheme is the size, and an `end` at or below `index` gives the empty
+/// string.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(String.slice("hello", -1, 3), String.slice("hello", 3, 9))
-/// // => #("hel", "lo")
+/// #(String.slice("hello", 1, 3), String.slice("hello", -1, 3), String.slice("hello", 3, 9))
+/// // => #("el", "hel", "lo")
 /// ```
-export fn slice(text : String, index : Int, count : Int) : String =
-    if count <= 0 then "" else sliced(text, Int.max(index, 0), count)
+export fn slice(text : String, index : Int, end : Int) : String = {
+    let clipped = Int.max(index, 0);
+    if end <= clipped then "" else sliced(text, clipped, end - clipped)
+}
 
 foreign fn sliced(text : String, index : Int, count : Int) : String =
     "ern_string:slice/3"

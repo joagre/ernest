@@ -438,14 +438,14 @@ socket_owner_test() ->
                    "given to the dead: ended\n">>, Output).
 
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
-%% processes of the program's: Process.live lists them, and Process.info
+%% processes of the program's: Process.live lists them, and Process.status
 %% gives the function that opened each as its site. A regression test: the
 %% runtime did not know them
 opened_processes_are_live_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [
-        "fn site(p : Process) : String with m = match Process.info(p) {\n"
-        "    Some(Process.Info(site = s, queued = _, activity = _)) -> s\n"
+        "fn site(p : Process) : String with m = match Process.status(p) {\n"
+        "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
         "  | None -> \"none\"\n"
         "}\n"
         "fn listed(p : Process) : Bool with m = List.any(Process.live(), fn(q) = q == p)\n"

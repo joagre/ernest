@@ -912,7 +912,7 @@ foreign_shown_as_foreign_test() ->
           "foreign type Handle\n\n"
           "foreign fn handle() : Handle = \"erlang:self/0\"\n\n"
           "export fn main() : Unit with Never =\n"
-          "    Io.println(Io.show(#(Foreign.from(1), [Foreign.atom(\"a\")], handle())))\n"),
+          "    Io.println(Io.show(#(Foreign.term(1), [Foreign.atom(\"a\")], handle())))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"#(<foreign>, [<foreign>], <foreign>)\n">>,
@@ -1166,7 +1166,7 @@ test_told_of_the_end_test() ->
     File = write(Dir, "told.ern",
                  "type Msg = Terminating(Reply(Unit))\n"
                  "fn keeper() : Unit with Msg = {\n"
-                 "    Os.terminating(Terminating);\n"
+                 "    Os.termination(Terminating);\n"
                  "    receive {\n"
                  "        Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }\n"
                  "    }\n"
@@ -1344,8 +1344,8 @@ no_deadlock_while_the_end_waits() ->
           "foreign fn send(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
           " with m = \"erlang:send/2\"\n"
           "fn said(word : String) : Unit with m = {\n"
-          "    let _ = send(Foreign.from(Foreign.atom(\"ern_cli_tests_ending\")),\n"
-          "                 Foreign.from(Foreign.atom(word)));\n"
+          "    let _ = send(Foreign.term(Foreign.atom(\"ern_cli_tests_ending\")),\n"
+          "                 Foreign.term(Foreign.atom(word)));\n"
           "    Unit\n"
           "}\n"
           "fn held(reply : Reply(Unit)) : Unit with Msg = receive {\n"
@@ -1353,7 +1353,7 @@ no_deadlock_while_the_end_waits() ->
           "  | Go -> held(reply)\n"
           "}\n"
           "fn keeper() : Unit with Msg = {\n"
-          "    Os.terminating(Terminating);\n"
+          "    Os.termination(Terminating);\n"
           "    said(\"subscribed\");\n"
           "    receive {\n"
           "        Terminating(reply) -> { said(\"told\"); held(reply) }\n"

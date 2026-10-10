@@ -63,7 +63,7 @@ export fn completion(line : String, cursor : Int) : #(Completion, String) with m
                 // report §5.6, §11.2: in a record update the segments before
                 // the last dot are a path's, which the parser reads, and the
                 // segment after it is the word
-                let segment = String.slice(typedWord, dot + 1, String.size(typedWord) - dot - 1);
+                let segment = String.slice(typedWord, dot + 1, String.size(typedWord));
                 let through = String.slice(line, 0, cursor - String.size(segment));
                 #(complete(segment, [], slot(through)), segment)
             }
@@ -126,7 +126,7 @@ fn withSpace(completion : Completion, takes : Bool) : Completion =
 fn argument(line : String, cursor : Int, typedWord : String) : Completion with m = {
     let end = Shell.Command.wordEnd(line);
     let wordIndex = cursor - String.size(typedWord);
-    let before = String.slice(line, end, wordIndex - end);
+    let before = String.slice(line, end, wordIndex);
     match Shell.Command.completes(String.slice(line, 0, end)) {
         Some(Shell.Command.Expressions) -> complete(typedWord, namesFor(typedWord), slot(before))
       // every setting takes a value after it, and `timing`'s is a word
@@ -361,7 +361,7 @@ export fn withNamespaces(names : List(Name)) : List(Name) = {
 /// Report §11.2: the whole name the cursor stands in, what is before it
 /// and what goes on after it, for `Shift-Tab`.
 export fn wordAt(line : String, cursor : Int) : String = {
-    let following = String.toList(String.slice(line, cursor, String.size(line) - cursor));
+    let following = String.toList(String.slice(line, cursor, String.size(line)));
     let #(onward, _) = List.span(following, fn(char) = inName(Char.toString(char)));
     word(String.slice(line, 0, cursor)) <> String.fromList(onward)
 }
@@ -378,14 +378,14 @@ fn inName(grapheme : String) : Bool =
 export fn word(before : String) : String = {
     let size = String.size(before);
     let wordIndex = wordStart(before, size);
-    String.slice(before, wordIndex, size - wordIndex)
+    String.slice(before, wordIndex, size)
 }
 
 // Where the name that ends at `index` begins.
 fn wordStart(before : String, index : Int) : Int =
     if index <= 0 then
         0
-    else if inName(String.slice(before, index - 1, 1)) then
+    else if inName(String.slice(before, index - 1, index)) then
         wordStart(before, index - 1)
     else
         index
@@ -403,7 +403,7 @@ export fn applied(text : String,
             let wordIndex = cursor - String.size(typedWord);
             #(String.slice(text, 0, wordIndex)
                   <> new
-                  <> String.slice(text, cursor, String.size(text) - cursor),
+                  <> String.slice(text, cursor, String.size(text)),
               wordIndex + String.size(new))
         }
     }
@@ -508,7 +508,7 @@ fn common(texts : List(String)) : String =
 fn sharedPrefix(left : String, right : String, count : Int) : String =
     if count >= String.size(left) || count >= String.size(right) then
         String.slice(left, 0, count)
-    else if String.slice(left, count, 1) == String.slice(right, count, 1) then
+    else if String.slice(left, count, count + 1) == String.slice(right, count, count + 1) then
         sharedPrefix(left, right, count + 1)
     else
         String.slice(left, 0, count)

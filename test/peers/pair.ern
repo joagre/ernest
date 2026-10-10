@@ -7,7 +7,7 @@
 // started with and each build's file. Each test writes `b`'s
 // `ernest.conf`, listing `a`, starts `b` with `Os`, on the same build or on
 // the second, waits for it to offer its service, finds it through
-// `Peer.find`, or through a standing address, and calls it where the find
+// `Peer.find`, or through a proxy, and calls it where the find
 // answers it, and ends it with `ern stop`.
 
 export type Msg = Double(n : Int, reply : Reply(Int))
@@ -48,17 +48,17 @@ let twoBuilds =
     Test.Case(name = "a second node of another build, started with Os, offers at another type",
               run = fn() = Test.equal(withSecondNode("second-build"), Right(#("OtherType", 143))))
 
-// Appendix G.7: a standing address of the service, where the second node
+// Appendix G.7: a proxy for the service, where the second node
 // offers it at another type, faults at the first message, which finds the
 // service: the call that sent it answers None, the process's monitor reads the
 // fault, and a call after it answers None at once, the address dead. The
-// address is started, and its process monitored, before the second node
+// proxy is started, and its process monitored, before the second node
 // runs, so that the monitor is made before the fault.
-let standingAtAnotherType =
-    Test.Case(name = "a standing address of a service offered at another type faults, and is dead",
+let proxyAtAnotherType =
+    Test.Case(name = "a proxy for a service offered at another type faults, and is dead",
               run = fn() = {
                   let ended = Io.show(Fault("the service pair is offered at another type"));
-                  Test.equal(standingAgainst("second-build"), Right(#("None", ended, "None", 143)))
+                  Test.equal(proxyAgainst("second-build"), Right(#("None", ended, "None", 143)))
               })
 
 // What the second node answered, a call's answer where the find gave its
@@ -75,20 +75,20 @@ fn withSecondNode(build : String) : Either(String, #(String, Int)) with m = {
     Right(#(answered, status))
 }
 
-// What a call through a standing address of the service answered once the
-// second node ran, how the address's process ended, what a call answered
+// What a call through a proxy for the service answered once the second
+// node ran, how the proxy's process ended, what a call answered
 // after that, and the status the second node ended with; each wait's time
 // bounds a failure, and no success waits on it.
-fn standingAgainst(build : String) : Either(String, #(String, String, String, Int)) with Ended = {
-    let standing = Standing.start(service, 10000);
-    monitor(Process.fromAddress(standing), Ended);
+fn proxyAgainst(build : String) : Either(String, #(String, String, String, Int)) with Ended = {
+    let proxy = Proxy.start(service, 10000);
+    monitor(Process.fromAddress(proxy), Ended);
     let program <- started(build);
-    let first = Address.call(standing, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let first = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), 10000);
     let ended = receive {
         Ended(down) -> Io.show(down.reason)
       | after 30000 -> "no end"
     };
-    let second = Address.call(standing, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let second = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), 10000);
     let status <- stopped(program);
     Right(#(Io.show(first), ended, Io.show(second), status))
 }

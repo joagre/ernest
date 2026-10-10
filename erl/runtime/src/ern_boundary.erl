@@ -5,7 +5,7 @@
 %% (ern_rt). What crosses into foreign code, a foreign function's argument,
 %% a message sent to a foreign address, or an answer given to a Reply
 %% foreign code gave, is exposed: every Ernest address
-%% in it is replaced by a proxy that checks each message the foreign side
+%% in it is replaced by a checker that checks each message the foreign side
 %% sends against the address's mailbox type on delivery and forwards it, or
 %% ends the target with the fault. An address that comes from foreign code
 %% and names no process of the program is held as foreign, {foreign, Pid,
@@ -66,7 +66,7 @@ called_raised(Class, Error, Stack) ->
     throw(ern_rt:fault_exit_reason(Class, Error, Stack)).
 
 %% An argument given to foreign code (report §8.4): every address inside it
-%% replaced by the proxy that checks what foreign code sends it, and a
+%% replaced by the checker that checks what foreign code sends it, and a
 %% function wrapped to check the arguments foreign code calls it with.
 -spec expose(descriptor(), term()) -> term().
 expose(Descriptor, Value) ->
@@ -313,11 +313,11 @@ elements_match(_, _, _) -> false.
 expose({'fun', _, _, _, _, Exposer}, Value, Bound) when is_function(Value) ->
     Exposer(Value, Bound);
 expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->
-    proxy(Value, MessageDescriptor, Bound, Cause);
+    checker(Value, MessageDescriptor, Bound, Cause);
 %% report §6.5: an address seen through a function is an address too, and
-%% foreign code must reach it through the same checking proxy
-expose({address, MessageDescriptor, Cause}, {via, _, _, _} = Value, Bound) ->
-    proxy(Value, MessageDescriptor, Bound, Cause);
+%% foreign code must reach it through the same checker
+expose({address, MessageDescriptor, Cause}, {adapted, _, _, _} = Value, Bound) ->
+    checker(Value, MessageDescriptor, Bound, Cause);
 %% an address foreign code gave goes back to it as it came
 expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;
 %% a Reply foreign code gave goes back to it as it came
@@ -345,25 +345,25 @@ expose({mu, Id, Descriptor}, Value, Bound) -> expose(Descriptor, Value, Bound#{I
 expose({ref, Id}, Value, Bound) -> expose(maps:get(Id, Bound), Value, Bound);
 expose(_, Value, _) -> Value.
 
-%% The proxy lives as long as the address it stands before, and there is
+%% The checker lives as long as the address it stands before, and there is
 %% one of it per address and mailbox type however often the address is
 %% exposed; a message that does not match ends the process behind the
 %% address with the fault, as its own receive would have.
-proxy(Behind, MessageDescriptor, Bound, Cause) ->
+checker(Behind, MessageDescriptor, Bound, Cause) ->
     Key = {Behind, MessageDescriptor, Bound},
-    ern_rt:proxy_for(Key, Behind,
-                     fun() -> start_proxy(Key, Behind, MessageDescriptor, Bound, Cause) end).
+    ern_rt:checker_for(Key, Behind,
+                     fun() -> start_checker(Key, Behind, MessageDescriptor, Bound, Cause) end).
 
-start_proxy(Key, Behind, MessageDescriptor, Bound, Cause) ->
+start_checker(Key, Behind, MessageDescriptor, Bound, Cause) ->
     erlang:spawn(fun() ->
                      MonitorRef = erlang:monitor(process, ern_rt:process_of(Behind)),
-                     proxy_loop(Key, Behind, MonitorRef, MessageDescriptor, Bound, Cause)
+                     checker_loop(Key, Behind, MonitorRef, MessageDescriptor, Bound, Cause)
                  end).
 
-proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
+checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
     receive
         {'DOWN', MonitorRef, process, _, _} ->
-            ern_rt:proxy_forget(Key, erlang:self()),
+            ern_rt:checker_forget(Key, erlang:self()),
             ok;
         Message ->
             case conformed(Descriptor, Message, Bound) of
@@ -375,5 +375,5 @@ proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
                 error ->
                     ern_rt:process_of(Behind) ! {'$ern_fault', Cause}
             end,
-            proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
+            checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
     end.

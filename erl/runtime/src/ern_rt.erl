@@ -5,7 +5,7 @@
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
 %% {'Down', Pid, Reason, Site} in declared field order.
 %%
-%% An Address is a pid, or {via, Function, Target, Maker} for an address
+%% An Address is a pid, or {adapted, Function, Target, Maker} for an address
 %% seen through a function (report §6.5), which send/2 applies in the
 %% sender where Maker, the process that made it, is of the sender's node,
 %% and the gateway of Maker's node applies otherwise (§8.7), or
@@ -41,7 +41,7 @@
 %% faults, `ern_terminating` the subscriptions to the program's end,
 %% `ern_held` the sources and the processes the system modules opened,
 %% `ern_deliveries` the deliveries in flight, `ern_restarts` the restarts a
-%% process may be asked, `ern_proxies` the checking proxies of §8.4, and
+%% process may be asked, `ern_checkers` the checkers of §8.4, and
 %% `ern_launch` the way the terminal is read, the process a deadlock faults
 %% and whether the end waits for its subscribers. A node's (§8.7):
 %% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
@@ -50,9 +50,9 @@
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
-         spawn_root/3, self/0, via/2, call/3, call/4, call_forever/2, call_forever/3, answer/2,
-         refuse/2, monitor/2, kill/1, reason/1, started_by/1, processes/0, info/1, faults/1,
-         terminating/1, proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1,
+         spawn_root/3, self/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, answer/2,
+         refuse/2, monitor/2, kill/1, reason/1, started_by/1, processes/0, status/1, faults/1,
+         termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
          source_end/0, opened/3, forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
@@ -74,8 +74,8 @@
 %% counts no call of them as foreign code, since the count would cost a
 %% multiple of the call (CLAUDE.md's cost rule).
 -waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, processes/0,
-                   spawn_order/1, start_cause/0, faults/1, info/1, ask_restart/1,
-                   is_restarting/0, on_this_node/1, terminating/1]).
+                   spawn_order/1, start_cause/0, faults/1, status/1, ask_restart/1,
+                   is_restarting/0, on_this_node/1, termination/1]).
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
@@ -83,8 +83,8 @@
 -define(PROCESSES, ern_processes).
 %% report §6.6, §6.9: each pending call, {Caller, Callee, Reply}, so that a
 %% callee that restarts ends the calls waiting on it; a process makes one
-%% call at a time, since a message's function and via's are pure, so its
-%% row is found and removed by its own pid
+%% call at a time, since a message's function and an adapted address's are
+%% pure, so its row is found and removed by its own pid
 -define(CALLS, ern_calls).
 %% the same calls by callee, {{Callee, Caller}, Reply}, ordered, so that a
 %% restart reads its own callers and no other process's calls
@@ -110,9 +110,9 @@
 %% report §6.9: the alias of each restart a process may be asked,
 %% {Pid, Alias}
 -define(RESTARTS, ern_restarts).
-%% report §8.4: each checking proxy, {{proxy, Key}, Proxy}, and what it
-%% stands in front of, {{behind, Proxy}, Pid, Address, Key}
--define(PROXIES, ern_proxies).
+%% report §8.4: each checker, {{checker, Key}, Checker}, and what it
+%% stands in front of, {{behind, Checker}, Pid, Address, Key}
+-define(CHECKERS, ern_checkers).
 %% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, the
 %% entry process, {entry_process, Pid}, the process a deadlock faults,
 %% {deadlock_victim, Pid}, while the end looks for its subscribers and
@@ -147,7 +147,7 @@
 
 %% An adapted address holds the process that made it, whose node is the
 %% one its function runs on (report §6.5).
--type address() :: pid() | {via, fun((term()) -> term()), address(), pid()}
+-type address() :: pid() | {adapted, fun((term()) -> term()), address(), pid()}
                  | {foreign, pid(), term(), map()}.
 
 %% Report §8.2: the system processes, by the names the runtime keeps them
@@ -190,7 +190,7 @@ send(Address, Message) ->
 %% by an earlier start of this node is dead, and a message to it is
 %% dropped, its function not applied, whether it came from a peer's frame
 %% or a send here.
-deliver({via, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
+deliver({adapted, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
     case is_of_this_start(Maker) of
         true ->
             try Function(Message) of
@@ -206,8 +206,9 @@ deliver({via, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
 %% report §6.5, §8.7: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, which applies the
 %% function there
-deliver({via, _, _, Maker} = Address, Message) ->
-    erlang:send({ern_gateway, node(Maker)}, {ern_frame, erlang:self(), {via, Address, Message}});
+deliver({adapted, _, _, Maker} = Address, Message) ->
+    erlang:send({ern_gateway, node(Maker)},
+                {ern_frame, erlang:self(), {adapted, Address, Message}});
 %% report §8.4: a message to a foreign address crosses into foreign code
 deliver({foreign, Pid, Descriptor, Bound}, Message) ->
     Pid ! ern_boundary:expose(Descriptor, Message, Bound);
@@ -226,34 +227,34 @@ is_of_this_start(Pid) ->
     end.
 
 %% The process an address names, through any number of adaptations and
-%% through the checking proxy of §8.4: an address that has crossed into
-%% foreign code comes back as the proxy in front of it, and what the
+%% through the checker of §8.4: an address that has crossed into
+%% foreign code comes back as the checker in front of it, and what the
 %% runtime holds of a process, its terminal, its monitors, its death,
 %% must be the process itself.
 -spec process_of(address()) -> pid().
-process_of({via, _, Target, _}) -> process_of(Target);
+process_of({adapted, _, Target, _}) -> process_of(Target);
 process_of({foreign, Pid, _, _}) -> Pid;
 process_of(Pid) -> behind(Pid).
 
 behind(Pid) ->
-    case ets_lookup(?PROXIES, {behind, Pid}) of
+    case ets_lookup(?CHECKERS, {behind, Pid}) of
         [{_, Real, _, _}] -> Real;
         _ -> Pid
     end.
 
 %% Report §8.4: an address foreign code gave, whose messages Descriptor
 %% describes inside the mu bindings Bound, as the program holds it: where
-%% it is the proxy in front of one of the program's processes, the address
-%% that went out, the proxy undone and a function `via` made kept (§6.5),
-%% and otherwise foreign. A proxy comes back as the address that went out
+%% it is the checker in front of one of the program's processes, the address
+%% that went out, the checker undone and an adapted address kept (§6.5),
+%% and otherwise foreign. A checker comes back as the address that went out
 %% only at the type it went out at; at another it stays foreign, so that
 %% what is sent through it is checked against the process's own type. A
-%% process of the program's with no proxy in front of it reaches here only
+%% process of the program's with no checker in front of it reaches here only
 %% as an `Address(Never)`, the check refusing it at any other type
 %% (is_never_given/1), and is held foreign, nothing passing through it.
 -spec held(pid(), term(), map()) -> address().
 held(Pid, Descriptor, Bound) ->
-    case ets_lookup(?PROXIES, {behind, Pid}) of
+    case ets_lookup(?CHECKERS, {behind, Pid}) of
         [{_, Real, Exposed, {_, Descriptor, Bound}}] ->
             case ets_lookup(?PROCESSES, Real) of
                 [_] -> Exposed;
@@ -265,17 +266,17 @@ held(Pid, Descriptor, Bound) ->
 
 %% Report §8.4: whether foreign code gives as an address a process of the
 %% program's whose address it was never given: one the program runs, with
-%% no proxy, which every address that crossed into foreign code has.
+%% no checker, which every address that crossed into foreign code has.
 -spec is_never_given(term()) -> boolean().
 is_never_given(Pid) when is_pid(Pid) ->
-    ets_lookup(?PROXIES, {behind, Pid}) =:= [] andalso ets_lookup(?PROCESSES, Pid) =/= [];
+    ets_lookup(?CHECKERS, {behind, Pid}) =:= [] andalso ets_lookup(?PROCESSES, Pid) =/= [];
 is_never_given(_) ->
     false.
 
 %% Whether a term is an address in one of the forms the runtime holds.
 -spec is_address(term()) -> boolean().
 is_address(Pid) when is_pid(Pid) -> true;
-is_address({via, Function, Target, Maker}) when is_function(Function, 1), is_pid(Maker) ->
+is_address({adapted, Function, Target, Maker}) when is_function(Function, 1), is_pid(Maker) ->
     is_address(Target);
 is_address({foreign, Pid, _, _}) -> is_pid(Pid);
 is_address(_) -> false.
@@ -318,9 +319,9 @@ self() ->
 %% Report §6.5, §9.5
 %%
 
--spec via(address(), fun((term()) -> term())) -> address().
-via(Target, Function) ->
-    {via, Function, Target, erlang:self()}.
+-spec adapted(address(), fun((term()) -> term())) -> address().
+adapted(Target, Function) ->
+    {adapted, Function, Target, erlang:self()}.
 
 %%
 %% Report §6.6
@@ -544,7 +545,7 @@ refuse(Reply, Cause) ->
 monitor(Process, Wrap) ->
     Ref = make_ref(),
     Reaper = persistent_term:get({?MODULE, reaper}),
-    %% a Process foreign code gave back may be the proxy before the process
+    %% a Process foreign code gave back may be the checker before the process
     Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
@@ -894,13 +895,13 @@ unmonitored(Caller, [Pid | Rest], Monitors, MonitorRefs) ->
             unmonitored(Caller, Rest, Monitors#{Pid => Left}, MonitorRefs)
     end.
 
-%% Report §6.9, §6.5: a monitor's wrap is applied as `via`'s function is, a
+%% Report §6.9, §6.5: a monitor's wrap is applied as `adapted`'s function is, a
 %% fault in it being the fault of the process it delivers to, and in a
 %% process of its own, so that a wrap that does not finish holds up no
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
 wrapped(Caller, Wrap, Down) ->
-    counted_link(Caller, fun() -> deliver({via, Wrap, Caller, erlang:self()}, Down) end).
+    counted_link(Caller, fun() -> deliver({adapted, Wrap, Caller, erlang:self()}, Down) end).
 
 %% Report §8.6: a process that will deliver a message to the process behind
 %% Address, counted as a source from before it starts until its work is done,
@@ -965,16 +966,16 @@ started_by(Root) ->
 processes() ->
     [Pid || {Pid, _} <- live()].
 
-%% Appendix E.21: Process.info, a snapshot of a live process, None once it
+%% Appendix E.21: Process.status, a snapshot of a live process, None once it
 %% has ended and for a process on another node. A process waiting for a
 %% call's answer is Calling, which the host's status does not tell from a
 %% receive: its pending call is in the table of calls (§6.6).
--spec info(pid()) -> 'None' | {'Some', {'Info', binary(), non_neg_integer(), atom()}}.
-info(Pid) when node(Pid) =:= node() ->
+-spec status(pid()) -> 'None' | {'Some', {'Status', binary(), non_neg_integer(), atom()}}.
+status(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len])} of
-        {[{_, Site, _, _, _, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
-            Activity = case Status of
+        {[{_, Site, _, _, _, _, _}], [{status, HostStatus}, {message_queue_len, Queued}]} ->
+            Activity = case HostStatus of
                            waiting ->
                                case ets_lookup(?CALLS, Pid) of
                                    [] -> 'Receiving';
@@ -982,11 +983,11 @@ info(Pid) when node(Pid) =:= node() ->
                                end;
                            _ -> 'Running'
                        end,
-            {'Some', {'Info', Site, Queued, Activity}};
+            {'Some', {'Status', Site, Queued, Activity}};
         _ ->
             'None'
     end;
-info(_) ->
+status(_) ->
     'None'.
 
 ets_lookup(Table, Key) ->
@@ -1005,14 +1006,14 @@ faults(Address) ->
     try ets:insert(?FAULTS, {process_of(Address), Address}) catch _:_ -> true end,
     ?UNIT.
 
-%% Appendix E.23, report §8.6: Os.terminating, the caller subscribed to the
+%% Appendix E.23, report §8.6: Os.termination, the caller subscribed to the
 %% program's end, Address being the caller seen through its wrap. A process
 %% holds one subscription, the latest, which ends when it dies or restarts
 %% (died/3, new_run/3); a later one in the same run takes the place of the
 %% first and keeps whether the end has told the run. One made while the end
 %% waits is told at once: the runner that waits is told of it, and tells it.
--spec terminating(address()) -> 'Unit'.
-terminating(Address) ->
+-spec termination(address()) -> 'Unit'.
+termination(Address) ->
     Subscriber = process_of(Address),
     try ets:update_element(?TERMINATING, Subscriber, {2, Address})
             orelse ets:insert(?TERMINATING, {Subscriber, Address, false})
@@ -1170,36 +1171,36 @@ snapshot(Pids) ->
          undefined -> {Pid, dead, 0}
      end || Pid <- Pids].
 
-%% Report §8.4: the checking proxy in front of an address exposed to
+%% Report §8.4: the checker in front of an address exposed to
 %% foreign code is one per address and mailbox type, not one per call: two
-%% proxies checking the same messages for the same process are two of the
+%% checkers checking the same messages for the same process are two of the
 %% same thing. The loser of a race is killed and the winner used.
--spec proxy_for(term(), address(), fun(() -> pid())) -> pid().
-proxy_for(Key, Behind, Start) ->
-    case ets:lookup(?PROXIES, {proxy, Key}) of
+-spec checker_for(term(), address(), fun(() -> pid())) -> pid().
+checker_for(Key, Behind, Start) ->
+    case ets:lookup(?CHECKERS, {checker, Key}) of
         [{_, Pid}] ->
             Pid;
         [] ->
             Pid = Start(),
-            case ets:insert_new(?PROXIES, {{proxy, Key}, Pid}) of
+            case ets:insert_new(?CHECKERS, {{checker, Key}, Pid}) of
                 true ->
-                    %% what the proxy stands before, and the key, which
-                    %% holds the type it checks (ern_boundary:proxy/4)
-                    ets:insert(?PROXIES, {{behind, Pid}, process_of(Behind), Behind, Key}),
+                    %% what the checker stands before, and the key, which
+                    %% holds the type it checks (ern_boundary:checker/4)
+                    ets:insert(?CHECKERS, {{behind, Pid}, process_of(Behind), Behind, Key}),
                     Pid;
                 false ->
                     exit(Pid, kill),
-                    [{_, Winner}] = ets:lookup(?PROXIES, {proxy, Key}),
+                    [{_, Winner}] = ets:lookup(?CHECKERS, {checker, Key}),
                     Winner
             end
     end.
 
--spec proxy_forget(term(), pid()) -> ok.
-proxy_forget(Key, Proxy) ->
+-spec checker_forget(term(), pid()) -> ok.
+checker_forget(Key, Checker) ->
     %% the table is gone once the program has ended (report §8.6)
     try
-        ets:delete(?PROXIES, {proxy, Key}),
-        ets:delete(?PROXIES, {behind, Proxy})
+        ets:delete(?CHECKERS, {checker, Key}),
+        ets:delete(?CHECKERS, {behind, Checker})
     catch _:_ -> true
     end,
     ok.
@@ -1249,7 +1250,7 @@ sources() ->
 %% recorded by the process that starts it, before its address is given out,
 %% and forgotten with its sources when it ends, which the process it is
 %% linked to learns. Report Appendix E.21: it is a process of the program's
-%% too, listed by Process.live, known to Process.info and reported by
+%% too, listed by Process.live, known to Process.status and reported by
 %% Process.faults, under Site, the function that opened it, and started by
 %% Owner, the process that asked for it (started_by/1).
 -spec opened(pid(), binary(), pid()) -> ok.
@@ -1903,14 +1904,14 @@ run_main(EntryPoint, Site, Options) ->
         restore_encodings(Encodings)
     end.
 
-%% Report §8.6: before the program ends, each subscriber of Os.terminating
+%% Report §8.6: before the program ends, each subscriber of Os.termination
 %% is told (Appendix E.23), and the end waits until each has answered,
 %% ended or restarted, nothing of the runtime's own timing the wait. While
 %% it waits, what began the end stands, but for an Os.exit, which ends the
 %% program at once with its status, and a second termination, which ends
 %% it at once; no deadlock is found, a subscriber's subscription standing
 %% (look/0), and a fault is the process's own (is_program_ending/1). A
-%% subscription made while it waits is told at once (terminating/1), a
+%% subscription made while it waits is told at once (termination/1), a
 %% restarted run's among them, since a restart ends the subscription with
 %% the run (§6.9, new_run/3). Report §11.2: the wait is said by Say, the
 %% runner's own line on standard error: once, with how many it waits for
@@ -2098,7 +2099,7 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 -spec tables() -> [atom()].
 tables() ->
     [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?RESTARTS,
-     ?PROXIES, ?LAUNCH, ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
+     ?CHECKERS, ?LAUNCH, ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public, table_kind(Table)]) end,

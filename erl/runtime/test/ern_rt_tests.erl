@@ -101,7 +101,7 @@ stdin_last_line_test() ->
 %% report Appendix E.21: a snapshot says what a live process is doing, a
 %% wait in a receive told from a wait for a call's answer, and nothing of
 %% one that has ended; the live processes are those the runtime started
-process_info_test() ->
+process_status_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -116,20 +116,20 @@ process_info_test() ->
                ok = ern_waits:waiting(ern_rt:process_of(Quiet)),
                ok = ern_waits:waiting(ern_rt:process_of(Caller)),
                ern_rt:untimed(),
-               Self ! {infos,
-                       [ern_rt:info(ern_rt:process_of(Address)) || Address <- [Quiet, Caller]]},
+               Self ! {statuses,
+                       [ern_rt:status(ern_rt:process_of(Address)) || Address <- [Quiet, Caller]]},
                Self ! {live, lists:sort(ern_rt:processes())
                                  =:= lists:sort([self(), Quiet, Server, Caller])},
                QuietRef = erlang:monitor(process, ern_rt:process_of(Quiet)),
                ern_rt:kill(Quiet),
                ern_rt:timed(),
                receive {'DOWN', QuietRef, process, _, _} -> ern_rt:untimed() end,
-               Self ! {gone, ern_rt:info(Quiet)},
+               Self ! {gone, ern_rt:status(Quiet)},
                ern_rt:kill(Caller),
                ern_rt:kill(Server)
            end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual([{'Some', {'Info', <<"M.quiet:1">>, 1, 'Receiving'}},
-                  {'Some', {'Info', <<"M.caller:3">>, 0, 'Calling'}}], wait(infos)),
+    ?assertEqual([{'Some', {'Status', <<"M.quiet:1">>, 1, 'Receiving'}},
+                  {'Some', {'Status', <<"M.caller:3">>, 0, 'Calling'}}], wait(statuses)),
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
@@ -191,8 +191,8 @@ fault_reports_test() ->
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     ok = ern_rt:run_main(
            fun() ->
-               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(Report) -> {first, Report} end)),
-               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(Report) -> {report, Report} end)),
+               ern_rt:faults(ern_rt:adapted(ern_rt:self(), fun(Report) -> {first, Report} end)),
+               ern_rt:faults(ern_rt:adapted(ern_rt:self(), fun(Report) -> {report, Report} end)),
                Limit = {'RestartLimit', 1, 60000},
                Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
                %% monitored from its start: the reaper starts a fault's
@@ -384,7 +384,7 @@ call_clock_starts_at_the_call_test() ->
                                      end, <<"callee">>),
                %% the adapting function runs in the caller, within the call,
                %% and takes the call's whole time, the deadline the call states
-               Slow = ern_rt:via(Callee, fun(Message) -> timed_wait(Time), Message end),
+               Slow = ern_rt:adapted(Callee, fun(Message) -> timed_wait(Time), Message end),
                Self ! {result, ern_rt:call(Slow, fun(Reply) -> {ask, Reply} end, Time)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     receive {result, Answer} -> ?assertEqual('None', Answer) after 2000 -> ?assert(false) end.
@@ -705,8 +705,8 @@ endless_alarm_test() ->
            fun() ->
                Clock = ern_rt:system_process(clock),
                Endless = fun Endless(Argument) -> Endless(Argument) end,
-               alarm(Clock, 10, ern_rt:via(ern_rt:self(), Endless)),
-               alarm(Clock, 50, ern_rt:via(ern_rt:self(), fun(_) -> tick end)),
+               alarm(Clock, 10, ern_rt:adapted(ern_rt:self(), Endless)),
+               alarm(Clock, 50, ern_rt:adapted(ern_rt:self(), fun(_) -> tick end)),
                receive tick -> Self ! ticked end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ticked, wait_atom(ticked)).
@@ -714,12 +714,12 @@ endless_alarm_test() ->
 %% An atom whose text is no integer, which the compiler cannot see through.
 zero_text() -> list_to_atom("zero").
 
-%% report §6.5: via adapts a message on its way to the target
-via_test() ->
+%% report §6.5: an adapted address turns a message on its way to the target
+adapted_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Adapted = ern_rt:via(ern_rt:self(), fun(Number) -> {tick, Number} end),
+               Adapted = ern_rt:adapted(ern_rt:self(), fun(Number) -> {tick, Number} end),
                ern_rt:send(Adapted, 7),
                receive {tick, 7} -> Self ! via_ok end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -853,17 +853,17 @@ sources_test() ->
                            ok
                        end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Slow})).
 
-%% report §8.6, §6.5: a message an alarm delivers through `via` is in
-%% flight until its delivery process ends, `via` making no process of its
+%% report §8.6, §6.5: a message an alarm delivers through an adapted address
+%% is in flight until its delivery process ends, `adapted` making no process of its
 %% own, so the program that waits for it is not deadlocked; here the
 %% adapting function, which the delivery runs, waits for the detector to
 %% look twice
-via_in_flight_test() ->
+adapted_in_flight_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Clock = ern_rt:system_process(clock),
                            Slow = fun(_) -> ern_waits:looked(2), tick end,
-                           alarm(Clock, 0, ern_rt:via(ern_rt:self(), Slow)),
+                           alarm(Clock, 0, ern_rt:adapted(ern_rt:self(), Slow)),
                            receive tick -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
@@ -873,7 +873,7 @@ via_in_flight_test() ->
 %% so the live processes are counted once those have ended; they were
 %% counted at once, and the count failed when one had delivered and not yet
 %% ended
-via_is_not_a_process_test() ->
+adapted_is_not_a_process_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -881,7 +881,7 @@ via_is_not_a_process_test() ->
                Clock = ern_rt:system_process(clock),
                Mine = ern_rt:self(),
                lists:foreach(fun(_) ->
-                                 alarm(Clock, 0, ern_rt:via(Mine, fun(_) -> tick end))
+                                 alarm(Clock, 0, ern_rt:adapted(Mine, fun(_) -> tick end))
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
                ern_rt:timed(),
@@ -939,14 +939,14 @@ never_given_address_test() ->
 
 %% report §6.5, §7.4: a fault in the function is the target's, which faults
 %% at its wait, and the process that sent the message goes on
-via_fault_test() ->
+adapted_fault_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
                Victim = ern_rt:spawn(fun waiting/0, <<"Main.main:3">>),
                ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
-               ern_rt:send(ern_rt:via(Victim, fun(_) -> 1 div Zero end), 1),
+               ern_rt:send(ern_rt:adapted(Victim, fun(_) -> 1 div Zero end), 1),
                receive {down, Down} -> Self ! {d, Down} end,
                Self ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -960,7 +960,7 @@ via_fault_test() ->
 %% written after the fix (finding W3): the fault killed the target by an
 %% exit signal, which the restart never saw, so the target ended without a
 %% restart and the next message was lost
-via_fault_restarts_test() ->
+adapted_fault_restarts_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     ok = ern_rt:run_main(
@@ -975,7 +975,7 @@ via_fault_restarts_test() ->
                      end,
                Worker = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
                                      <<"Main.worker:2">>),
-               Adapted = ern_rt:via(Worker, fun(N) -> {took, 10 div N} end),
+               Adapted = ern_rt:adapted(Worker, fun(N) -> {took, 10 div N} end),
                receive run -> ok end,
                ern_rt:send(Adapted, zero()),
                %% the new run has begun, its mailbox emptied of the old
@@ -1124,7 +1124,7 @@ ask_restart_test() ->
                Second = started(),
                ern_rt:ask_restart(ChildPid),
                Third = started(),
-               Self ! {plain, ern_rt:info(ern_rt:process_of(Plain)) =/= 'None'},
+               Self ! {plain, ern_rt:status(ern_rt:process_of(Plain)) =/= 'None'},
                ern_rt:kill(Child),
                ern_rt:timed(),
                receive {down, _} -> ok end,
@@ -1214,13 +1214,13 @@ alarm_at_follows_the_clock() ->
                          Clock ! {'CHANGE', make_ref(), time_offset, clock_service, 0}
                      end,
                AlarmAt = fun(At, Tag) ->
-                             Address = ern_rt:via(Me, fun(Fired) -> {Tag, Fired} end),
+                             Address = ern_rt:adapted(Me, fun(Fired) -> {Tag, Fired} end),
                              'Unit' = ern_rt:call_forever(
                                         Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply} end)
                          end,
                Start = Time(),
                AlarmAt(Start + 60000, minute),
-               alarm(Clock, 2000, ern_rt:via(Me, fun(Fired) -> {after_ms, Fired} end)),
+               alarm(Clock, 2000, ern_rt:adapted(Me, fun(Fired) -> {after_ms, Fired} end)),
                Before = receive {minute, _} -> fired after 100 -> waiting end,
                Set(61000),
                Minute = receive {minute, Fired} -> Fired - Start after 1000 -> late end,

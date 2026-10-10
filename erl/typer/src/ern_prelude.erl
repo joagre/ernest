@@ -102,7 +102,7 @@ builtin_types() ->
      {'Address', 1,
       <<"""
       Where messages of type `m` are sent: a process, or a process seen through
-      a function with `via`. Holding an address is the permission to send to
+      a function with `adapted`. Holding an address is the permission to send to
       the process and to kill it. Addresses have no equality; the process
       behind one has, `Process.fromAddress(a)`.
 
@@ -151,7 +151,7 @@ builtin_types() ->
       ### Examples
 
       ```ernest
-      Process.fromAddress(self()) == Process.fromAddress(via(self(), fn(x) = x))
+      Process.fromAddress(self()) == Process.fromAddress(adapted(self(), fn(x) = x))
       // => true
       ```
       """/utf8>>},
@@ -384,12 +384,12 @@ values() ->
       ```
       """/utf8>>},
      %% §9.5 process functions
-     {[via], "(Address(b), (a) -> b) -> Address(a)",
+     {[adapted], "(Address(b), (a) -> b) -> Address(a)",
       <<"""
-      An address that turns each message with `wrap` and delivers it to
-      `target`. It is no process of its own.
+      An adapted address of `target`, which turns each message with `wrap` and
+      delivers it to `target`. It is no process of its own.
 
-      A process whose mailbox takes `Msg` hands out `via(self(), Wrap)` to take
+      A process whose mailbox takes `Msg` hands out `adapted(self(), Wrap)` to take
       a message of another type as one of its own, wrapped in its constructor
       `Wrap`. A fault in `wrap` ends the process behind `target`, not the
       sender (report §6.5).
@@ -398,7 +398,7 @@ values() ->
 
       ```ernest
       {
-          let texts = via(self(), fn(n) = Int.toString(n));
+          let texts = adapted(self(), fn(n) = Int.toString(n));
           send(texts, 42)
       }
       ```
@@ -586,7 +586,7 @@ parameters([self]) -> [];
 parameters([send]) -> [address, message];
 parameters([spawn]) -> [f];
 parameters([spawnMonitored]) -> [f, wrap];
-parameters([via]) -> [target, wrap];
+parameters([adapted]) -> [target, wrap];
 parameters(['Address', call]) -> [address, request, ms];
 parameters(['Address', callForever]) -> [address, request];
 parameters([answer]) -> [reply, value];

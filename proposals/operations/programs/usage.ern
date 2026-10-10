@@ -18,7 +18,7 @@ fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
 
 fn shown(list : List(a)) : Unit with m needs a.show =
-    List.foreach(list, fn(x) = Io.println(Io.show(x)))
+    List.forEach(list, fn(x) = Io.println(Io.show(x)))
 
 fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
     operations.toList(operations.intersection(operations.fromList(list),

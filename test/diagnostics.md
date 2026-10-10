@@ -2553,18 +2553,18 @@ example.ern:2:5: the type List(a) is not known whole here, and Io.show writes a 
   | = help: annotate the value where it is bound; at a type variable of the signature, a requirement `needs a.show` lets it write the value
 ```
 
-### `Foreign.from` on a type variable (§8.4, Appendix E.12)
+### `Foreign.term` on a type variable (§8.4, Appendix E.12)
 
 ```ernest-rejected
 fn give(x : a) : Foreign.Term =
-    Foreign.from(x)
+    Foreign.term(x)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:5: the type a! is not known whole here, and Foreign.from gives foreign code a value by its type
+example.ern:2:5: the type a! is not known whole here, and Foreign.term gives foreign code a value by its type
 1 | fn give(x : a) : Foreign.Term =
-2 |     Foreign.from(x)
+2 |     Foreign.term(x)
   |     ^^^^^^^^^^^^
   | = help: a value of a type variable is given by a `foreign fn` whose parameter is of that variable
 ```
@@ -3982,14 +3982,14 @@ example.ern:3:13: the lambda f captures a reply-carrying value and may only be c
 
 ```ernest-rejected
 fn each(r : Reply(Int)) : Unit with m =
-    List.foreach([1], fn(x) = answer(r, x))
+    List.forEach([1], fn(x) = answer(r, x))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:23: the reply-carrying value r is captured by a lambda that is not called, bound by `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or Peer.spawnMonitored runs
 1 | fn each(r : Reply(Int)) : Unit with m =
-2 |     List.foreach([1], fn(x) = answer(r, x))
+2 |     List.forEach([1], fn(x) = answer(r, x))
   |                       ^^^^^^^^^^^^^^^^^^^^
 ```
 

@@ -35,9 +35,9 @@ export fn main() : Unit with m = {
     // `let _ = spawn(fn() = answer(reply, total)); answer(reply, total)`:
     //     the reply-carrying value reply is consumed twice
     Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 5000)));
-    // 4. Addresses have no subtyping, and via adapts one: a Tick sent to ticker reaches the
-    // counter as an Add(1) (report §6.5).
-    let ticker : Address(Tick) = via(counter, fn(Tick) = Add(1));
+    // 4. Addresses have no subtyping, and adapted makes an address of another type: a Tick sent
+    // to ticker reaches the counter as an Add(1) (report §6.5).
+    let ticker : Address(Tick) = adapted(counter, fn(Tick) = Add(1));
     send(ticker, Tick);
     send(ticker, Tick);
     Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 5000)))

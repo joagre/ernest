@@ -49,10 +49,10 @@ e ::= x | k | fn(p, …) = e | e(e, …) | C | C(e) | C(f = e, …) | C(..e, f =
     | match e { p when e -> e | … }
     | receive { p when e -> e | … | after e -> e }
 s ::= let p = e | let p <- e | fn f(p, …) = e | e
-v ::= k | C | C(v) | C(f = v, …) | #(v, v, …) | [v, …] | ⟨fn(p, …) = e; η⟩ | a | via(a, v) | r
+v ::= k | C | C(v) | C(f = v, …) | #(v, v, …) | [v, …] | ⟨fn(p, …) = e; η⟩ | a | adapted(a, v) | r
 ```
 
-`k` is a literal or a primitive, `p` a pattern (§5.10), `C` a constructor. A function value is a closure, a lambda with the values `η` of the names it captured. `a` is the address of a process, `via(a, v)` an adapted address (§6.5), and `r` a reply (§6.6). A value of a foreign type is opaque.
+`k` is a literal or a primitive, `p` a pattern (§5.10), `C` a constructor. A function value is a closure, a lambda with the values `η` of the names it captured. `a` is the address of a process, `adapted(a, v)` an adapted address (§6.5), and `r` a reply (§6.6). A value of a foreign type is opaque.
 
 **Configurations.** A running program is a set of processes and a set of replies not yet answered. A process `a` has a mailbox type `M`, an expression `E` it evaluates, and a mailbox `Q`, a queue of values. An unanswered reply `r` has the process that waits for it, and the runtime's record of the call that made it: the caller's watch on the callee (§6.6) and, where the callee is on another node, the note that node keeps of the call (§8.7).
 
@@ -77,7 +77,7 @@ A `fn` definition, a top-level `let`, and a block's `let` of a lambda are given 
 self         : ∀m. () -> Address(m) with m
 send         : ∀a m. (Address(a), a) -> Unit with m
 spawn        : ∀n m. (() -> Unit with n) -> Address(n) with m
-via          : ∀a b. (Address(b), (a) -> b) -> Address(a)
+adapted      : ∀a b. (Address(b), (a) -> b) -> Address(a)
 Address.call : ∀m a n. (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 answer       : ∀a m. (Reply(a), a) -> Unit with m
 ```
@@ -88,7 +88,7 @@ The effect variable of `send`, `spawn`, `Address.call` and `answer`, of every ot
 
 ```
 (send)     a: E[send(b, v)]              a goes on with Unit; v joins the mailbox of b, or of b′ as f(v)
-                                         where b is via(b′, f); nothing where the process has ended
+                                         where b is adapted(b′, f); nothing where the process has ended
 (spawn)    a: E[spawn(v)]                a goes on with b, a new process of mailbox type N running v(),
                                          for v : () -> Unit with N
 (self)     a: E[self()]                  a goes on with a
@@ -105,7 +105,7 @@ The effect variable of `send`, `spawn`, `Address.call` and `answer`, of every ot
 Every configuration a program reaches keeps these.
 
 - **I1, processes.** For each process `a` with mailbox type `M`: its expression has type `Unit` at effect `M`, and each value in its mailbox has type `M`. The entry process before `main` runs is the one exception, which 6.4 covers.
-- **I2, addresses.** Each address of `a` has the type `Address(M)` for the mailbox type `M` of `a`. Each `via(b, f)` has the type `Address(τ)` with `f : (τ) -> M′` pure and `M′` the mailbox type of the process `b` reaches.
+- **I2, addresses.** Each address of `a` has the type `Address(M)` for the mailbox type `M` of `a`. Each `adapted(b, f)` has the type `Address(τ)` with `f : (τ) -> M′` pure and `M′` the mailbox type of the process `b` reaches.
 - **I3, replies.** Each reply `r` of type `Reply(τ)` that is not yet answered occurs at most once in the configuration, the runtime's record of its call aside: in one process's expression, counted through the closures it holds, or in one message. The record holds `r` only to end the call, and answers nothing. The process that waits for it, while one does, will take `Optional(τ)`, or `τ` for `Address.callForever`.
 
 Claims 1 and 2 follow from I1 with the rules of section 3, claim 3 from the shape of the call rule, and claim 4 from I3.
@@ -118,7 +118,7 @@ Claims 1 and 2 follow from I1 with the rules of section 3, claim 3 from the shap
 
 **`receive`.** The clauses' patterns are typed against the mailbox type `M` (§6.3), and by I1 each message has type `M`, so each variable is bound at its type and the clause's body keeps I1. No coverage is asked: a message no clause matches stays, and the process waits.
 
-**`send`.** `send(b, v)` is typed with `b : Address(τ)` and `v : τ`. By I2 either `b` is an address of a process with mailbox type `τ`, and the message keeps I1 there, or `b` is `via(b′, f)` and `f(v)` has the mailbox type of `b′`. `f` is pure, so it may run in the sender or on delivery (6.3).
+**`send`.** `send(b, v)` is typed with `b : Address(τ)` and `v : τ`. By I2 either `b` is an address of a process with mailbox type `τ`, and the message keeps I1 there, or `b` is `adapted(b′, f)` and `f(v)` has the mailbox type of `b′`. `f` is pure, so it may run in the sender or on delivery (6.3).
 
 **`spawn`.** `spawn(v)` with `v : () -> Unit with N` makes a process of mailbox type `N` whose expression `v()` has type `Unit` at effect `N`, which is I1, and its address has type `Address(N)`, which is I2. Where `v` is pure, `N` is the type inference leaves it; any type serves, since a pure body receives nothing.
 
@@ -152,7 +152,7 @@ The rule (stands) of section 3 is §3.9's: an expression whose type is a functio
 
 ### 6.3 Process-only
 
-An effect variable that stands in no value position may be instantiated with `pure` (§3.9). A function that calls `send` or `spawn`, or waits in a `receive` that binds nothing of its mailbox's type, has such a variable and must not be taken for pure, so the variable carries the process-only restriction and `pure` does not instantiate it. Claim 2 rests on this, since the language runs some functions outside the process they were written for. The function of `via` runs in the sender or on delivery, in no process of the target's (§6.5). A wrap is applied by the runtime (§6.9). A guard is evaluated while a message is selected (§6.3). Each is typed pure. Were a function that receives accepted there, its `receive` would read one process's mailbox at another's type. `restarting` carries the restriction though its effect is its function's: a restart empties the process's mailbox and ends every call waiting on it (§6.9), so the function it returns acts on the process whatever `f` does. Were it taken for pure when `f` is, a pure function would empty a mailbox, which claim 3 forbids.
+An effect variable that stands in no value position may be instantiated with `pure` (§3.9). A function that calls `send` or `spawn`, or waits in a `receive` that binds nothing of its mailbox's type, has such a variable and must not be taken for pure, so the variable carries the process-only restriction and `pure` does not instantiate it. Claim 2 rests on this, since the language runs some functions outside the process they were written for. The function of an adapted address runs in the sender or on delivery, in no process of the target's (§6.5). A wrap is applied by the runtime (§6.9). A guard is evaluated while a message is selected (§6.3). Each is typed pure. Were a function that receives accepted there, its `receive` would read one process's mailbox at another's type. `restarting` carries the restriction though its effect is its function's: a restart empties the process's mailbox and ends every call waiting on it (§6.9), so the function it returns acts on the process whatever `f` does. Were it taken for pure when `f` is, a pure function would empty a mailbox, which claim 3 forbids.
 
 ### 6.4 An initializer runs at `Never`
 
@@ -224,7 +224,7 @@ MVP 3.0 runs one program on several nodes (§8.3, §8.7), and the four claims ho
 
 **What crosses.** A value crosses as a value, in the host's external term format, and a type is bound to its node where a value of it could not: one that holds a function type, a foreign type, a resource, or an address or a reply of a bound type (§3.11). That no bound value is used on another node is by the three refusals, and by the one way a bound value crosses, as the payload of an adapted address, which no operation on another node reaches. A service is refused at a bound type, so no remote address of a bound type comes from a find. A spawn is refused where its function's mailbox type is bound or holds a type variable, which a later instance could make bound, but for a variable the type of the definition does not hold, which no instance reaches, and which is `Never`, so that no message reaches the process; so none comes from a spawn. Its function is a top-level declaration's name, which captures nothing, or a lambda or a `fn` written in the definition, whose captures are the locals its body names, and the spawn is refused where one of them is bound or holds a type variable and so might be bound, and where the body uses a member of a requirement in force, a function the definition was given, so no bound value crosses with a function; `restarting` applied to one of these captures the limit, of the prelude's `RestartLimit`, which crosses, and that function, and nothing else; a function that came by any other way is refused, since its captures are not in its type, and `Peer.spawn` is never a value, so no call escapes the check. Every remote address a program holds is therefore of an unbound type, so every message sent to one is of an unbound type, and so is everything inside it. An adapted address crosses with its captured values as payload: its function is pure (6.3) and runs only on the node that made it, where those values are at home, and the message it makes is of its target's mailbox type (I2), sent on from there (§6.5). A reply crosses inside a message, to one holder, as on one node, and is answered through the host's alias, which takes one answer (§6.6); I3 holds with the processes of every node as one configuration, the note a callee's node keeps being part of the runtime's record of the call, which answers nothing (section 4). A `Down` with `Unreachable` is made by the watcher's node and reaches the watcher through its wrap, at its mailbox type, as every message the runtime delivers does (section 5). A `send` to a process of a node out of reach, and a `kill`, do nothing (§6.2), and a send to an adapted address an earlier start of its node made is dropped, its function not applied (§8.7), which keeps I1 as a send to an ended process does.
 
-**The end.** The runtime delivers `wrap(reply)` to each subscriber of `Os.terminating` at its own mailbox type, as every message the runtime delivers (section 5), so I1 holds; the reply is fresh, held by that one message, and answered through the alias, so I3 holds; and the end waits for the answer, the subscriber's end or its restart, which ends the wait as it ends a call (§6.9), a restarted run that subscribes again being a new subscriber, told and waited for as one made while the end waits, so no process runs after the end, which is §8.6's claim as it was; an `Os.exit`, a second termination or the interrupt cuts the wait short and the end is as it was, every process ending with `ProgramEnd`. A process that faults while the end waits dies of its fault, its monitors reading `Fault`, and one that faults once the kills have begun, or after the entry process's death where nothing waits, dies with `ProgramEnd` (§8.6): each is a `Reason`, delivered as section 5 delivers a `Down`. A process that waits while the end waits is no deadlock, since the end's own answers are in flight.
+**The end.** The runtime delivers `wrap(reply)` to each subscriber of `Os.termination` at its own mailbox type, as every message the runtime delivers (section 5), so I1 holds; the reply is fresh, held by that one message, and answered through the alias, so I3 holds; and the end waits for the answer, the subscriber's end or its restart, which ends the wait as it ends a call (§6.9), a restarted run that subscribes again being a new subscriber, told and waited for as one made while the end waits, so no process runs after the end, which is §8.6's claim as it was; an `Os.exit`, a second termination or the interrupt cuts the wait short and the end is as it was, every process ending with `ProgramEnd`. A process that faults while the end waits dies of its fault, its monitors reading `Fault`, and one that faults once the kills have begun, or after the entry process's death where nothing waits, dies with `ProgramEnd` (§8.6): each is a `Reason`, delivered as section 5 delivers a `Down`. A process that waits while the end waits is no deadlock, since the end's own answers are in flight.
 
 **What is not argued.** That a peer keeps the rules: a peer is trusted whole (§8.7), and a value of another type it sends on purpose is met where the receiving process matches on it, outside the argument as foreign code's broken promises are. That a message arrives: a loss drops what was in flight, and the argument is of the values that do arrive. That every node stands on the floor it proves, one major and minor release of `ern` on one major release of OTP: `ern`'s major and minor name the runtime's functions and the standard library's interface, which the hashes leave out, and a patch release adds nothing and fixes, so that two patch levels compute alike up to the fix (§8.7).
 

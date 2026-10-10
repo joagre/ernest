@@ -112,7 +112,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 /// Faults where a line or bytes have been read from the terminal, with the
 /// cause `the terminal is already read as lines`.
 export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
-    let address = via(self(), wrap);
+    let address = adapted(self(), wrap);
     Address.callForever(reference, fn(reply) = Subscribe(address = address, reply = reply))
 }
 
@@ -144,10 +144,12 @@ export foreign fn size() : Either(Io.Error, Size) with m =
 /// ### Examples
 ///
 /// ```ernest
-/// #(Terminal.columns("a中"), Terminal.columns("\u{1b}[1mab\u{1b}[22m"))
+/// #(Terminal.width("a中"), Terminal.width("\u{1b}[1mab\u{1b}[22m"))
 /// // => #(3, 2)
 /// ```
-export fn columns(text : String) : Int =
+///
+/// since 0.4.0
+export fn width(text : String) : Int =
     counted(String.graphemes(text), 0)
 
 fn counted(graphemes : List(String), count : Int) : Int =
@@ -164,7 +166,7 @@ fn afterSequence(graphemes : List(String)) : List(String) =
     match graphemes {
         [] -> []
       | grapheme :: rest -> match String.toList(grapheme) {
-            [char] when Char.toInt(char) >= 0x40 && Char.toInt(char) <= 0x7E -> rest
+            [char] when Char.toCodePoint(char) >= 0x40 && Char.toCodePoint(char) <= 0x7E -> rest
           | _ -> afterSequence(rest)
         }
     }
@@ -173,7 +175,7 @@ fn afterSequence(graphemes : List(String)) : List(String) =
 // pictograph is wide where the grapheme asks for its emoji presentation,
 // U+FE0F.
 fn graphemeColumns(grapheme : String) : Int = {
-    let codes = List.map(String.toList(grapheme), Char.toInt);
+    let codes = List.map(String.toList(grapheme), Char.toCodePoint);
     firstColumns(codes, List.contains(codes, 0xFE0F))
 }
 

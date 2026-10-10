@@ -65,8 +65,8 @@ export fn main() : Unit with Msg = {
         }
     });
     measure("show", 2000000, fn(index) = if Io.show(index) == "" then 0 else index);
-    measure("via", 2000000, fn(index) = {
-        send(via(self(), Ping), index);
+    measure("adapted", 2000000, fn(index) = {
+        send(adapted(self(), Ping), index);
         receive {
             Ping(value) -> value
         }

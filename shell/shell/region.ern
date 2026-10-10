@@ -191,7 +191,7 @@ fn screenInput(region : Region) : List(String) =
 fn onScreen(line : String, width : Int) : List(String) = {
     let rows = wrapped(line, width);
     let last = Optional.withDefault(List.last(rows), "");
-    if width > 0 && Terminal.columns(last) >= width then rows <> [""] else rows
+    if width > 0 && Terminal.width(last) >= width then rows <> [""] else rows
 }
 
 // Report §11.2: what is shown under the input wraps at the window's
@@ -229,7 +229,7 @@ fn fitting(lines : List(List(String)), room : Int) : List(List(String)) =
 // it is painted as it would have been unbroken.
 fn wrapped(line : String, width : Int) : List(String) = {
     let drawn = expand(line);
-    if Terminal.columns(drawn) <= width || width < 1 then
+    if Terminal.width(drawn) <= width || width < 1 then
         [drawn]
     else {
         let #(sequences, rest) = past(String.graphemes(line), width, 0, "", false);
@@ -256,14 +256,14 @@ fn past(graphemes : List(String),
             "\t" :: rest when used < width ->
                 past(rest, width, Int.min(used + tabStop - used % tabStop, width), sequences, true)
           | grapheme :: rest when grapheme != "\t" && fits(grapheme, width - used, taken) ->
-                past(rest, width, used + Terminal.columns(grapheme), sequences, true)
+                past(rest, width, used + Terminal.width(grapheme), sequences, true)
           | _ -> #(sequences, graphemes)
         }
     }
 
 // Whether the grapheme goes on the row with that many columns left.
 fn fits(grapheme : String, left : Int, taken : Bool) : Bool = {
-    let columns = Terminal.columns(grapheme);
+    let columns = Terminal.width(grapheme);
     columns <= left || !taken && columns > 0
 }
 
@@ -288,7 +288,7 @@ fn afterSequence(graphemes : List(String)) : List(String) =
 // The character that ends a sequence, `m` among them.
 fn isFinal(grapheme : String) : Bool =
     match String.toList(grapheme) {
-        [char] -> Char.toInt(char) >= 0x40 && Char.toInt(char) <= 0x7E
+        [char] -> Char.toCodePoint(char) >= 0x40 && Char.toCodePoint(char) <= 0x7E
       | _ -> false
     }
 
@@ -320,11 +320,12 @@ fn pictured(text : String) : String =
     String.join(List.map(String.toList(text), picture), "")
 
 fn picture(char : Char) : String = {
-    let code = Char.toInt(char);
+    let code = Char.toCodePoint(char);
     if code == 9 || code >= 32 && code < 127 || code > 159 then
         Char.toString(char)
     else if code < 32 then
-        Optional.withDefault(Optional.map(Char.fromInt(0x2400 + code), Char.toString), "\u{FFFD}")
+        Optional.withDefault(Optional.map(Char.fromCodePoint(0x2400 + code), Char.toString),
+                             "\u{FFFD}")
     else if code == 127 then
         "\u{2421}"
     else
@@ -351,7 +352,7 @@ fn resting(region : Region) : Int = {
 // line holds before the cursor, laid out in rows as the line is, tabs and
 // all.
 fn column(region : Region) : Int =
-    Terminal.columns(Optional.withDefault(List.last(headRows(region)), "")) + 1
+    Terminal.width(Optional.withDefault(List.last(headRows(region)), "")) + 1
 
 // The rows of what the cursor's line holds before the cursor, the prompt
 // or `... ` among them: its last is the one the cursor rests on.
@@ -360,8 +361,7 @@ fn headRows(region : Region) : List(String) = {
     let head = match String.lastIndexOf(before, "\n") {
         None -> region.prompt <> pictured(before)
       | Some(index) ->
-            continuation
-                <> pictured(String.slice(before, index + 1, String.size(before) - index - 1))
+            continuation <> pictured(String.slice(before, index + 1, String.size(before)))
     };
     onScreen(head, region.size.columns)
 }
@@ -369,7 +369,7 @@ fn headRows(region : Region) : List(String) = {
 // Report §11.2: a tab is painted as the spaces to the next stop. The
 // region places its rows and its cursor by column, so it writes what it
 // has measured rather than leaving the tab to the terminal's own stops;
-// every other grapheme takes the columns `Terminal.columns` gives it.
+// every other grapheme takes the columns `Terminal.width` gives it.
 fn expand(row : String) : String =
     expanding(String.graphemes(row), "")
 
@@ -377,7 +377,7 @@ fn expanding(graphemes : List(String), acc : String) : String =
     match graphemes {
         [] -> acc
       | "\t" :: rest ->
-            expanding(rest, acc <> String.repeat(" ", tabStop - Terminal.columns(acc) % tabStop))
+            expanding(rest, acc <> String.repeat(" ", tabStop - Terminal.width(acc) % tabStop))
       | grapheme :: rest -> expanding(rest, acc <> grapheme)
     }
 
@@ -386,7 +386,7 @@ fn expanding(graphemes : List(String), acc : String) : String =
 // what was cut off does not run on into the next row: the sequences cut
 // may be any, and the reset is the one sequence that ends them all.
 fn clip(line : String, width : Int) : String =
-    if Terminal.columns(line) <= width then
+    if Terminal.width(line) <= width then
         line
     else
         clipping(String.graphemes(line), width, "", false, false)
@@ -400,7 +400,7 @@ fn clipping(graphemes : List(String),
         Some(#(escape, remaining)) -> clipping(remaining, left, acc <> escape, true, taken)
       | None -> match graphemes {
             grapheme :: rest when fits(grapheme, left, taken) ->
-                clipping(rest, left - Terminal.columns(grapheme), acc <> grapheme, inStyle, true)
+                clipping(rest, left - Terminal.width(grapheme), acc <> grapheme, inStyle, true)
           | _ -> if inStyle then acc <> "\u{1b}[0m" else acc
         }
     }
@@ -429,7 +429,7 @@ fn filling(graphemes : List(String),
                 let columns = if grapheme == "\t" then
                     tabStop - used % tabStop
                 else
-                    Terminal.columns(grapheme);
+                    Terminal.width(grapheme);
                 if used > 0 && (used >= width || grapheme != "\t" && used + columns > width) then
                     filling(graphemes, width, 0, style, style, row :: rows)
                 else
@@ -498,10 +498,10 @@ let restsAfterWide =
 
 let escapesTakeNoColumn = Test.Case(name = "an escape sequence takes no column", run = fn() = {
     let text = "a\u{1b}[36mbc\u{1b}[0md";
-    if Terminal.columns(text) == 4 then
+    if Terminal.width(text) == 4 then
         Test.Passed
     else
-        Test.Failed(Int.toString(Terminal.columns(text)))
+        Test.Failed(Int.toString(Terminal.width(text)))
 })
 
 let clipKeepsSequences =

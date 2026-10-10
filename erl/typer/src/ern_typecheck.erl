@@ -2041,7 +2041,7 @@ param_type(#param{annotation = Syntax}, AnnotationVariables, Env) ->
 %% reaches through tuples and type arguments, and not under an address, a
 %% reply or a function type, whose values the parameter does not hold, nor
 %% under a declared type's parameter that occurs in no field, `m` of
-%% `Peer.Service(m)`. A regression: `Foreign.from(r)` dropped a reply, and
+%% `Peer.Service(m)`. A regression: `Foreign.term(r)` dropped a reply, and
 %% `Ets.put(t, k, r)` stored one.
 not_reply_carrying_params({tfn, Params, _, _}, TypeState, #env{types = Types}) ->
     lists:foldl(fun(Id, Acc) ->
@@ -2422,14 +2422,14 @@ params_and_body(#let_declaration{body = Body}) -> {[], Body}.
 %% own uses in io.ern among them; the type is read once the definition is
 %% inferred, as an operator's operand type is (§4.8), and supplied as a
 %% requirement's `show` is (§4.9).
-%% Report §8.4, Appendix E.12: `Foreign.from` gives its value by the type
+%% Report §8.4, Appendix E.12: `Foreign.term` gives its value by the type
 %% at which the name is used, read the same way.
 %% Report §8.7, §3.11, Appendix E.27: `Peer.service` makes its service at
 %% the message type at which the name is used, read the same way, and the
 %% service holds the type's hash beside its name.
 shown(Span, Referent, Type, Env) ->
     case {declared(Referent, Env), Type} of
-        {{'Foreign', from}, {tfn, [Argument], _, _}} ->
+        {{'Foreign', term}, {tfn, [Argument], _, _}} ->
             [#pending_member{span = Span, type = Argument, member = exposed, need = exposed}];
         {{'Peer', service}, {tfn, [_], _, {tcon, ['Peer', 'Service'], [Message]}}} ->
             [#pending_member{span = Span, type = Message, member = service, need = service}];
@@ -3434,7 +3434,7 @@ supply(Span, Type, service, _Need, _Outer, #env{type_state = TypeState} = Env) -
                  " as the service receives values that cross (§3.11)")
     end;
 supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
-    %% report §8.4, Appendix E.12: Foreign.from gives its value at a type
+    %% report §8.4, Appendix E.12: Foreign.term gives its value at a type
     %% known whole, and no requirement names it, a record's fill among
     %% what cannot
     Substituted = ern_types:substitute(ern_types:resolve(Type, TypeState), TypeState),
@@ -3618,7 +3618,7 @@ not_exposed(Span, Type, #env{type_state = TypeState} = Env) ->
                false -> "annotate the value where it is bound"
            end,
     fail(Span, "the type " ++ ern_types:format(Type, TypeState) ++ " is not known whole here, and"
-               " Foreign.from gives foreign code a value by its type", [], Help).
+               " Foreign.term gives foreign code a value by its type", [], Help).
 
 holds_signature_variable(Type, #env{signature = Signature, type_state = TypeState}) ->
     Free = ern_types:free_variables(Type, TypeState),

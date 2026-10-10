@@ -176,7 +176,7 @@ fn step(world : World) : World = {
                 #(Map.put(acc, player.id, moved), List.filter(apples, fn(apple) = apple != next))
             }
         };
-    let #(moved, left) = Map.foldLeft(world.players, #(world.players, world.apples), movePlayer);
+    let #(moved, left) = Map.fold(world.players, #(world.players, world.apples), movePlayer);
     let collided = Map.map(moved, fn(_, player) = collide(moved, player));
     refill(World(..world, players = collided, apples = left, tick = world.tick + 1),
            Map.size(collided))
@@ -237,7 +237,7 @@ fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
     match List.filter(cells, fn(point) = !taken(world, point)) {
         [] -> None
       | free -> {
-            let #(index, seed) = Random.next(world.seed, List.size(free) - 1);
+            let #(index, seed) = Random.nextInt(world.seed, List.size(free) - 1);
             Optional.map(List.get(free, index), fn(point) = #(point, seed))
         }
     }

@@ -71,9 +71,9 @@ shell/             the shell as Ernest source; its README.md guides a reader
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ansi, balancer, ets, json, load, markdown,
-                   which needs ansi
+                   which needs ansi, and proxy
 tools/             the programs of the build: manual.ern writes ern(1) from the
-                   report's §11, for make; unicode_width.escript writes Terminal.columns'
+                   report's §11, for make; unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release; and
                    release/ holds the archive's own Makefile and README.md
@@ -156,7 +156,7 @@ make contents     rewrite the contents lists of the report and the guide from th
 make format       lay out every Ernest module, and the Ernest blocks of the report and the
                   guide, as ern format does (report §11.6)
 make unicode UC_SPEC=dir
-                  write Terminal.columns' table from Unicode's data in dir, OTP's
+                  write Terminal.width's table from Unicode's data in dir, OTP's
                   lib/stdlib/uc_spec of the host's version
 make clean        remove build products
 make clean-emacs  remove Emacs backup, auto-save, and lock files

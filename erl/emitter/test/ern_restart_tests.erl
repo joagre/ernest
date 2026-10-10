@@ -12,7 +12,7 @@
         "fn up(s : Address(Msg)) : Bool with m =\n"
         "    match Address.call(s, fn(r) = Ping(reply = r), 1000) {\n"
         "        Some(_) -> true\n"
-        "      | None -> Process.info(Process.fromAddress(s)) != None && up(s)\n"
+        "      | None -> Process.status(Process.fromAddress(s)) != None && up(s)\n"
         "    }\n").
 
 %% report §6.9, §9.5: a process whose function is `restarting`'s runs it

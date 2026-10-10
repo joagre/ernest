@@ -24,7 +24,7 @@ fn finds() : Unit with Msg = {
     Io.println("early: " <> Io.show(early));
     Io.println("peers: " <> Io.show(Peer.peers()));
     let counter = Shared.found(Counter.service);
-    Io.println("info: " <> Io.show(Process.info(Process.fromAddress(counter))));
+    Io.println("status: " <> Io.show(Process.status(Process.fromAddress(counter))));
     let unlisted : Peer.Service(Int) = Peer.service("unlisted");
     Io.println("unlisted: " <> Io.show(Peer.find(unlisted, 1000)));
     let otherType : Peer.Service(Int) = Peer.service("counter");
@@ -39,7 +39,7 @@ fn finds() : Unit with Msg = {
     let adder = Shared.found(Counter.adder);
     send(adder, 3);
     send(adder, 4);
-    Io.println("through the via: " <> Int.toString(total(counter, 7)));
+    Io.println("through the adapted address: " <> Int.toString(total(counter, 7)));
     let victim = Shared.found(Counter.victim);
     monitor(Process.fromAddress(victim), Died);
     kill(victim);
@@ -121,7 +121,7 @@ fn across() : Unit with Msg = {
     let counter = Shared.found(Counter.service);
     let census = Shared.found(Census.service);
     let atomsBefore = Address.callForever(census, fn(reply) = Census.Count(reply = reply));
-    List.foreach(List.range(1, 200), fn(n) = send(census, Census.Value(shape(n))));
+    List.forEach(List.range(1, 200), fn(n) = send(census, Census.Value(shape(n))));
     send(census, Census.Value(Census.Raw(Bytes.repeat(String.toUtf8("x"), 8000000))));
     let atomsAfter = Address.callForever(census, fn(reply) = Census.Count(reply = reply));
     Io.println("new atoms: " <> Int.toString(atomsAfter - atomsBefore));
@@ -360,7 +360,7 @@ fn registered(balancer : Address(Balancer.Msg), inARow : Int) : Unit with n =
 fn silenced() : Unit with Msg = {
     let counter = Shared.found(Counter.service);
     let sleeper = Shared.found(Calls.sleeper);
-    List.foreach(List.range(1, 10000), fn(_) = send(counter, Counter.Add(1)));
+    List.forEach(List.range(1, 10000), fn(_) = send(counter, Counter.Add(1)));
     Io.println("counted: "
                    <> Io.show(Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000)));
     let local = spawn(fn() : Unit with Counter.Msg = counted(0));
@@ -477,7 +477,7 @@ fn costs() : Unit with Msg = {
 // The microseconds of one run of the function, over as many runs.
 fn timed(rounds : Int, f : () -> Unit with Msg) : Float with Msg = {
     let started = Clock.monotonic();
-    List.foreach(List.range(1, rounds), fn(_) = f());
+    List.forEach(List.range(1, rounds), fn(_) = f());
     Int.toFloat(Clock.monotonic() - started) * 1000.0 / Int.toFloat(rounds)
 }
 

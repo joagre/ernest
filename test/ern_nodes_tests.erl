@@ -17,7 +17,7 @@
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["balancer", "json", "load", "standing"]]).
+                    || Library <- ["balancer", "json", "load", "proxy"]]).
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -976,7 +976,7 @@ store_and_desk(Base) ->
 %% service of an unreachable peer alone Unreachable, no time Timeout; a message to an
 %% adapted address made on the store reaches its target through the store;
 %% kill crosses, and a Down from another node's process has an empty site;
-%% Process.info answers None for another node's process; an offer of
+%% Process.status answers None for another node's process; an offer of
 %% another node's process faults, and one of a service a living process
 %% holds answers that process; a lost connection gives a monitor
 %% Unreachable with an empty site, a find after it Unreachable, and a
@@ -1003,10 +1003,11 @@ find(Base) ->
     ?assertEqual(nomatch, string:find(Err, "the peer store ended")),
     has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
     [has(Out, Line)
-     || Line <- ["early: Left(Unreachable)", "peers: [\"store\", \"gone\"]", "info: None",
+     || Line <- ["early: Left(Unreachable)", "peers: [\"store\", \"gone\"]", "status: None",
                  "unlisted: Left(NotListed)", "other type: Left(OtherType)",
                  "not offered: Left(NotOffered)", "unreachable: Left(Unreachable)",
-                 "timeout: Left(Timeout)", "no upper bound: Right", "through the via: 7",
+                 "timeout: Left(Timeout)", "no upper bound: Right",
+                 "through the adapted address: 7",
                  "killed: Killed \"\"",
                  "another node's: Fault(\"a node offers only its own processes\")",
                  "twice, first: Right(Unit)", "twice, again held by itself: true",
@@ -1054,7 +1055,7 @@ fn serve() : Unit with Msg =
     }
 
 fn newcomer(first : Process) : Unit with Newcomer = {
-    let address = via(self(), Asked);
+    let address = adapted(self(), Asked);
     match Peer.offer(service, address) {
         Left(holder) -> {
             Io.println(\"held by the first: \" <> Io.show(holder == first));
@@ -1470,7 +1471,7 @@ stop_waits(Base) ->
 type Msg = Terminating(Reply(Unit))
 
 export fn main() : Unit with Msg = {
-    Os.terminating(Terminating);
+    Os.termination(Terminating);
     Io.println(\"subscribed\");
     receive {
         Terminating(reply) -> {
@@ -1880,10 +1881,10 @@ shell_binding_spawned(Base) ->
 %% more. A regression test, written after the fix (finding W1): the input's
 %% module was let go once its answer was in, and the message's delivery
 %% faulted with the host's `undef`
-shell_offered_via_test_() ->
-    nodes_test(90, fun shell_offered_via/1).
+shell_offered_adapted_test_() ->
+    nodes_test(90, fun shell_offered_adapted/1).
 
-shell_offered_via(Base) ->
+shell_offered_adapted(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
     PortA = free_port(),
@@ -1898,7 +1899,7 @@ shell_offered_via(Base) ->
                         [Declared,
                          "let store : Address(Int) = spawn(fn() : Unit with Int =\n"
                          "    receive { n -> Io.println(\"a got \" <> Int.toString(n)) })\n",
-                         "Peer.offer(service, via(store, fn(t) = match t { T(n) -> n }))\n",
+                         "Peer.offer(service, adapted(store, fn(t) = match t { T(n) -> n }))\n",
                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
                          "Io.println(\"offered\")\n"]),
     prints(A, "offered"),
@@ -1922,7 +1923,7 @@ shell_offered_via(Base) ->
 
 %% report §11.2, §8.7, Appendix E.21: a shell that is a node writes a
 %% fault's line as `ern run` writes one, the peer whose spawn started the
-%% process after the cause, which the FaultReport's `peer` names. A
+%% process after the cause, which the FaultReport's `spawnedBy` names. A
 %% regression test, written after the code (finding N12): the shell's line
 %% named the spawner's site alone. A shell in line mode reports a fault
 %% before its next prompt, so the shell that faulted is given two inputs
@@ -2338,7 +2339,8 @@ adapted_fault(Base) ->
                          "                                      send(maker, Unit);\n"
                          "                                      work()\n"
                          "                                  }));\n"
-                         "    let _ = Peer.offer(service, via(worker, fn(n) = Work(100 / n)));\n"
+                         "    let _ = Peer.offer(service, adapted(worker, fn(n) ="
+                         " Work(100 / n)));\n"
                          "    runs(1)\n"
                          "}\n"
                          "\n"
@@ -2407,12 +2409,11 @@ adapted_fault(Base) ->
     ?assertEqual(nomatch, string:find(SenderErr, "fault")).
 
 %%
-%% The end told, and the standing address (report §8.6, Appendix E.23, G.7)
+%% The end told, and the proxy (report §8.6, Appendix E.23, G.7)
 %%
 
 %% The directory test/peers/'s programs are built in (peers/1), the
-%% counter's keeper, its asker and the standing address's client among
-%% them.
+%% counter's keeper, its asker and the proxy's client among them.
 built(Base) ->
     {Program, _} = peers(Base),
     filename:dirname(Program).
@@ -2465,7 +2466,7 @@ second_termination(Base) ->
     has(Err, "the end was cut short, 1 subscriber unanswered: Keeper.main"),
     ?assertEqual(nomatch, string:find(Err, "the subscriber Keeper.main")).
 
-%% Appendix G.7, report §8.7: a standing address reaches the counter, a
+%% Appendix G.7, report §8.7: a proxy reaches the counter, a
 %% call through it answers None while the counter's node is stopped, it
 %% reaches the counter again when its node starts again, and on another
 %% node that offers it once the first is stopped. An add sent through it
@@ -2473,10 +2474,10 @@ second_termination(Base) ->
 %% back: the counter started again counts from 0, and answers 0. Written
 %% after the code (MVP 3.1's item 8), the add a regression test written
 %% after that
-standing_test_() ->
-    nodes_test(120, fun standing/1).
+proxy_finds_again_test_() ->
+    nodes_test(120, fun proxy_finds_again/1).
 
-standing(Base) ->
+proxy_finds_again(Base) ->
     Root = built(Base),
     {PortStore, PortOther} = {free_port(), free_port()},
     Store = made(Base, "store", PortStore),
@@ -2492,7 +2493,7 @@ standing(Base) ->
     WaitStore = start(Store, Keeper, []),
     prints(Store, "offered"),
     {DeskInput, WaitDesk} = started(Desk, filename:join(Root, "client.erc"), []),
-    prints(Desk, "standing"),
+    prints(Desk, "proxy started"),
     Ask = fun(Line) -> true = port_command(DeskInput, "go\n"), prints(Desk, Line) end,
     Ask("first: Some(0)"),
     stop(Store, WaitStore),
@@ -2580,8 +2581,8 @@ balance(Base) ->
 %% and calls what it offers, and ends it with `ern stop`; a second test
 %% starts `b` with `Os` on a second build, whose `Msg` has another
 %% constructor (second_build/1), and finds `OtherType` at its service, the
-%% type it offers at having another hash; a third holds a standing address
-%% of the service against the second build, whose process faults at the first
+%% type it offers at having another hash; a third holds a proxy for the
+%% service against the second build, whose process faults at the first
 %% message, the fault reported as every fault is. A regression test,
 %% written after the code; it does not cover a reload, whose end a program
 %% cannot see (§8.7: the signal carries nothing back)
@@ -2615,9 +2616,9 @@ pair_program(Base) ->
                                 " passed"),
     has(binary_to_list(Output), "a second node of another build, started with Os, offers at another"
                                 " type: passed"),
-    has(binary_to_list(Output), "a standing address of a service offered at another type faults,"
-                                " and is dead: passed"),
-    ?assertMatch({match, _}, re:run(Output, "Standing\\.start:[0-9]+ faulted: the service pair is"
+    has(binary_to_list(Output), "a proxy for a service offered at another type faults, and is"
+                                " dead: passed"),
+    ?assertMatch({match, _}, re:run(Output, "Proxy\\.start:[0-9]+ faulted: the service pair is"
                                             " offered at another type")),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
 

@@ -14,7 +14,7 @@
 /// `Left(NotATerminal)` where standard output is not a terminal, which tells a
 /// program to leave them out.
 ///
-/// **Styled text lines up.** `Terminal.columns` counts styled text as its text,
+/// **Styled text lines up.** `Terminal.width` counts styled text as its text,
 /// so it lines up as plain text does.
 ///
 /// ## Examples
@@ -29,7 +29,7 @@
 ///
 /// ## See also
 ///
-/// `Terminal.columns` for the columns styled text takes, `Io.print` to
+/// `Terminal.width` for the columns styled text takes, `Io.print` to
 /// write it.
 ///
 /// since 0.2.0

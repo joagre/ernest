@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%% Report Appendix E.16: writes the table `Terminal.columns` reads into
+%% Report Appendix E.16: writes the table `Terminal.width` reads into
 %% stdlib/terminal.ern, between its two marker lines, from Unicode's data
 %% of the version the host's grapheme segmentation follows. Run by
 %% `make unicode UC_SPEC=dir`, dir holding EastAsianWidth.txt,

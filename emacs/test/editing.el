@@ -46,7 +46,7 @@
   (let* ((index (let ((imenu-generic-expression ernest-imenu-generic-expression))
                   (imenu--generic-function ernest-imenu-generic-expression)))
          (names (mapcar #'car (cdr (assoc "Function" index)))))
-    (dolist (want '("get" "map" "sort" "foreach"))
+    (dolist (want '("get" "map" "sort" "forEach"))
       (unless (member want names)
         (setq ernest-editing--failures (1+ ernest-editing--failures))
         (message "FAIL imenu has no %s" want)))))

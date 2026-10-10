@@ -77,8 +77,8 @@ export type Kind = File | Directory | Link | Other
 /// ### Examples
 ///
 /// ```ernest
-/// Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
-/// // => Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = File, mode = 420, user = 0)
+/// Fs.Entry(path = Path("a.txt"), modified = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
+/// // => Entry(path = Path("a.txt"), modified = 0, size = 5, kind = File, mode = 420, user = 0)
 /// ```
 ///
 /// ```ernest
@@ -90,7 +90,8 @@ export type Kind = File | Directory | Link | Other
 /// }
 /// // => Right(#(true, true))
 /// ```
-export type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind, mode : Int, user : Int)
+export type Entry =
+    Entry(path : Path, modified : Int, size : Int, kind : Kind, mode : Int, user : Int)
 
 // What the file system takes.
 type Msg =
@@ -104,11 +105,11 @@ type Msg =
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Rename(source : Path, destination : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(source : Path, destination : Path, reply : Reply(Either(Io.Error, Unit)))
-  | MakeLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
+  | MakeSymlink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeHardLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
   | MakeFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
-  | SetModified(path : Path, mtime : Int, reply : Reply(Either(Io.Error, Unit)))
+  | SetModified(path : Path, modified : Int, reply : Reply(Either(Io.Error, Unit)))
   | SetMode(path : Path, mode : Int, reply : Reply(Either(Io.Error, Unit)))
 
 // Report §8.2: the system reference, the runtime's address of the file system,
@@ -195,7 +196,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 /// ```ernest
 /// {
 ///     let _ <- Fs.makeDir(Path("kinds"), 5000);
-///     let _ <- Fs.makeLink(Path("kinds/link"), Path("elsewhere"), 5000);
+///     let _ <- Fs.makeSymlink(Path("kinds/link"), Path("elsewhere"), 5000);
 ///     Either.map(Fs.list(Path("kinds"), 5000),
 ///                fn(entries) = List.map(entries, fn(entry) = entry.kind))
 /// }
@@ -291,14 +292,16 @@ export fn copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, U
 /// ```ernest
 /// {
 ///     let _ <- Fs.write(Path("target.txt"), String.toUtf8("t"), 5000);
-///     let _ <- Fs.makeLink(Path("pointer"), Path("target.txt"), 5000);
+///     let _ <- Fs.makeSymlink(Path("pointer"), Path("target.txt"), 5000);
 ///     Either.map(Fs.read(Path("pointer"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("t"))
 /// ```
-export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
+///
+/// since 0.4.0
+export fn makeSymlink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference,
-                          fn(reply) = MakeLink(path = path, target = target, reply = reply),
+                          fn(reply) = MakeSymlink(path = path, target = target, reply = reply),
                           ms))
 
 /// Makes a hard link at the first path to the regular file the second
@@ -332,7 +335,7 @@ export fn makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, 
 ///
 /// ```ernest
 /// {
-///     let _ <- Fs.makeLink(Path("sign"), Path("somewhere"), 5000);
+///     let _ <- Fs.makeSymlink(Path("sign"), Path("somewhere"), 5000);
 ///     let _ <- Fs.write(Path("plain.txt"), <<>>, 5000);
 ///     let target <- Fs.readLink(Path("sign"), 5000);
 ///     let plain <- Fs.readLink(Path("plain.txt"), 5000);
@@ -373,13 +376,13 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
 /// {
 ///     let _ <- Fs.write(Path("dated.txt"), <<>>, 5000);
 ///     let _ <- Fs.setModified(Path("dated.txt"), 86400000, 5000);
-///     Either.map(Fs.stat(Path("dated.txt"), 5000), fn(entry) = entry.mtime)
+///     Either.map(Fs.stat(Path("dated.txt"), 5000), fn(entry) = entry.modified)
 /// }
 /// // => Right(86400000)
 /// ```
-export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Unit) with m =
+export fn setModified(path : Path, modified : Int, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference,
-                          fn(reply) = SetModified(path = path, mtime = mtime, reply = reply),
+                          fn(reply) = SetModified(path = path, modified = modified, reply = reply),
                           ms))
 
 /// Sets the permission bits of a file or a directory to the mode, as the

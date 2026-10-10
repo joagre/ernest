@@ -17,8 +17,8 @@
 ///
 /// ```ernest
 /// {
-///     let #(first, seed1) = Random.next(Random.seed(2026), 5);
-///     let #(second, _) = Random.next(seed1, 5);
+///     let #(first, seed1) = Random.nextInt(Random.seed(2026), 5);
+///     let #(second, _) = Random.nextInt(seed1, 5);
 ///     #(first + 1, second + 1)
 /// }
 /// // => #(2, 6)
@@ -27,7 +27,7 @@
 /// The same seed draws the same number:
 ///
 /// ```ernest
-/// Random.next(Random.seed(42), 100) == Random.next(Random.seed(42), 100)
+/// Random.nextInt(Random.seed(42), 100) == Random.nextInt(Random.seed(42), 100)
 /// // => true
 /// ```
 ///
@@ -43,7 +43,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Random.next(Random.seed(42), 100) == Random.next(Random.seed(42), 100)
+/// Random.nextInt(Random.seed(42), 100) == Random.nextInt(Random.seed(42), 100)
 /// // => true
 /// ```
 export abstract type Seed = Seed(Int)
@@ -61,12 +61,14 @@ export fn seed(int : Int) : Seed =
 ///
 /// ```ernest
 /// {
-///     let #(x, _) = Random.next(Random.seed(1), -3);
+///     let #(x, _) = Random.nextInt(Random.seed(1), -3);
 ///     x <= 0 && x >= -3
 /// }
 /// // => true
 /// ```
-export fn next(seed : Seed, bound : Int) : #(Int, Seed) = {
+///
+/// since 0.4.0
+export fn nextInt(seed : Seed, bound : Int) : #(Int, Seed) = {
     let #(drawn, seed1) = below(seed, Int.abs(bound) + 1);
     if bound < 0 then #(Int.negate(drawn), seed1) else #(drawn, seed1)
 }

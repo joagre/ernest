@@ -119,7 +119,7 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
     let #(word, argument) = split(line);
     if String.contains(line, "\n") then
         Left("a command is one line")
-    else match pick(String.slice(word, 1, String.size(word) - 1)) {
+    else match pick(String.slice(word, 1, String.size(word))) {
         Unknown -> Left("no command " <> word <> "; :help lists them")
       | Ambiguous(names) -> Left(word <> " is " <> alternatives(names))
       | Picked(Command(name = name, action = action, takes = takes)) -> match takes {
@@ -165,7 +165,7 @@ fn choice(words : List(String)) : String =
 // follows it, trimmed.
 fn split(line : String) : #(String, String) = {
     let end = wordEnd(line);
-    #(String.slice(line, 0, end), String.trim(String.slice(line, end, String.size(line) - end)))
+    #(String.slice(line, 0, end), String.trim(String.slice(line, end, String.size(line))))
 }
 
 /// Report §11.2: a command's own word is everything up to the first space,
@@ -176,7 +176,7 @@ export fn wordEnd(line : String) : Int =
 /// Report §11.2: what completes after a command's word, written with its
 /// `:`, `":load"`, where the command takes anything after it.
 export fn completes(word : String) : Optional(Completes) =
-    match pick(String.slice(word, 1, String.size(word) - 1)) {
+    match pick(String.slice(word, 1, String.size(word))) {
         Picked(Command(takes = Needs(completes = completes))) -> Some(completes)
       | Picked(Command(takes = Allows(completes))) -> Some(completes)
       | _ -> None

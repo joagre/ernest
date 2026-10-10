@@ -916,7 +916,7 @@ supply(#shown_type{type = Type, member = show}, Walk) ->
                                             shown_abstract(Type, Walk1)),
     {{shown, Form, AbstractForms}, Walk2};
 supply(#shown_type{type = Type, member = exposed}, Walk) ->
-    %% Appendix H, E.12: the type Foreign.from gives its value at
+    %% Appendix H, E.12: the type Foreign.term gives its value at
     {Form, Walk1} = type(Type, Walk),
     {{shown, Form}, Walk1};
 supply(#service_type{type = Type}, Walk) ->

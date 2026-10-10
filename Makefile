@@ -162,7 +162,7 @@ release: all
 tools: libs
 	@bin/ern build $(LIB_PATH) --build-root build/tools tools
 
-# Terminal.columns' width table in stdlib/terminal.ern, from the Unicode
+# Terminal.width's table in stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
 # a directory holding EastAsianWidth.txt, emoji-data.txt and
 # UnicodeData.txt, as OTP's source tree has in lib/stdlib/uc_spec.

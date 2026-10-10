@@ -467,7 +467,7 @@ hosts() ->
                                                                  Acc, List) end,
       <<"List.foldRight">> => fun(List, Acc, Step) -> lists:foldr(fun(X, A) -> Step(A, X) end,
                                                                   Acc, List) end,
-      <<"List.foreach">> => fun(List, F) -> lists:foreach(F, List) end,
+      <<"List.forEach">> => fun(List, F) -> lists:foreach(F, List) end,
       <<"List.any">> => fun(List, Test) -> lists:any(Test, List) end,
       <<"List.all">> => fun(List, Test) -> lists:all(Test, List) end,
       <<"List.find">> => fun(List, Test) -> lists:search(Test, List) end,
@@ -479,11 +479,11 @@ hosts() ->
                              end,
       <<"List.span">> => fun(List, Test) -> lists:splitwith(Test, List) end,
       <<"List.partition">> => fun(List, Test) -> lists:partition(Test, List) end,
-      <<"List.remove">> => fun(List, Index) when Index >= 0, Index < length(List) ->
-                                   {Before, [_ | After]} = lists:split(Index, List),
-                                   Before ++ After;
-                              (List, _) -> List
-                           end,
+      <<"List.removeAt">> => fun(List, Index) when Index >= 0, Index < length(List) ->
+                                     {Before, [_ | After]} = lists:split(Index, List),
+                                     Before ++ After;
+                                (List, _) -> List
+                             end,
       <<"List.reverse">> => fun lists:reverse/1,
       <<"List.sort">> => fun(List, Compare) ->
                                  lists:sort(fun(A, B) -> Compare(A, B) =/= 'Greater' end, List)
@@ -527,16 +527,17 @@ hosts() ->
       <<"Map.fromList">> => fun maps:from_list/1,
       <<"Map.map">> => fun(Map, F) -> maps:map(F, Map) end,
       <<"Map.filter">> => fun(Map, Keep) -> maps:filter(Keep, Map) end,
-      <<"Map.foldLeft">> => fun(Map, Acc, Step) -> maps:fold(fun(K, V, A) -> Step(A, K, V) end,
-                                                              Acc, Map) end,
+      <<"Map.fold">> => fun(Map, Acc, Step) -> maps:fold(fun(K, V, A) -> Step(A, K, V) end,
+                                                          Acc, Map) end,
       <<"Map.merge">> => fun maps:merge/2,
       <<"Set.size">> => fun(Set) -> map_size(set_map(Set)) end,
       <<"Bytes.size">> => fun erlang:byte_size/1,
       <<"Bytes.isEmpty">> => fun(Bytes) -> Bytes =:= <<>> end,
       <<"Bytes.toList">> => fun erlang:binary_to_list/1,
-      <<"Bytes.slice">> => fun(Bytes, Index, Count) ->
-                                   binary:part(Bytes, min(Index, byte_size(Bytes)),
-                                               min(Count, byte_size(Bytes) - Index))
+      <<"Bytes.slice">> => fun(Bytes, Index, End) ->
+                                   From = min(Index, byte_size(Bytes)),
+                                   To = min(End, byte_size(Bytes)),
+                                   binary:part(Bytes, From, max(To - From, 0))
                            end,
       <<"Bytes.split">> => fun(Bytes, Separator) -> binary:split(Bytes, Separator, [global]) end,
       <<"Bytes.contains">> => fun(Bytes, Part) -> binary:match(Bytes, Part) =/= nomatch end,
@@ -557,7 +558,7 @@ hosts() ->
       <<"Float.toString">> => fun erlang:float_to_binary/1,
       <<"Char.toUpper">> => fun(Char) -> hd(string:uppercase([Char])) end,
       <<"Char.toLower">> => fun(Char) -> hd(string:lowercase([Char])) end,
-      <<"Char.toInt">> => fun(Char) -> Char end,
+      <<"Char.toCodePoint">> => fun(Char) -> Char end,
       <<"Path.toString">> => fun({'Path', Text}) -> Text end,
       <<"Path.name">> => fun({'Path', Text}) -> filename:basename(Text) end,
       <<"Path.parent">> => fun({'Path', Text}) -> filename:dirname(Text) end,
@@ -589,7 +590,7 @@ scenarios(Dir) ->
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
                   peer_scenarios(), load_scenarios(), balancer_scenarios(),
-                  standing_scenarios()]).
+                  proxy_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -652,8 +653,8 @@ fs_scenarios(Dir, Bytes) ->
        end}},
      {<<"Fs.copy">>, {fun() -> Fs:copy(P("file"), P("copied"), 5000) end,
                       fun() -> file:copy(In("file"), In("copied")) end}},
-     {<<"Fs.makeLink">>,
-      {fun() -> Fs:makeLink(P("linked"), P("file"), 5000), file:delete(In("linked")) end,
+     {<<"Fs.makeSymlink">>,
+      {fun() -> Fs:makeSymlink(P("linked"), P("file"), 5000), file:delete(In("linked")) end,
        fun() -> file:make_symlink(In("file"), In("linked")), file:delete(In("linked")) end}},
      {<<"Fs.makeHardLink">>,
       {fun() -> Fs:makeHardLink(P("hard"), P("file"), 5000), file:delete(In("hard")) end,
@@ -729,7 +730,7 @@ os_scenarios(Bytes) ->
      {<<"Os.exit">>, {not_measured, <<"ends the program, or faults the caller">>}},
      %% a row of the runtime's, as Process.faults's is, which the host has
      %% no counterpart of
-     {<<"Os.terminating">>, {fun() -> Os:terminating(fun(Reply) -> Reply end) end, none}}].
+     {<<"Os.termination">>, {fun() -> Os:termination(fun(Reply) -> Reply end) end, none}}].
 
 %% Reads what a program or a socket gives back until Size bytes are in.
 echoed(Read, Size) ->
@@ -755,10 +756,10 @@ process_scenarios() ->
     Me = Process:fromAddress(ern_rt:self()),
     [{<<"Process.fromAddress">>,
       {fun() -> Process:fromAddress(ern_rt:self()) end, fun() -> erlang:self() end}},
-     {<<"Process.info">>, {fun() -> Process:info(Me) end,
-                           fun() -> erlang:process_info(erlang:self(),
-                                                        [message_queue_len, status])
-                           end}},
+     {<<"Process.status">>, {fun() -> Process:status(Me) end,
+                             fun() -> erlang:process_info(erlang:self(),
+                                                          [message_queue_len, status])
+                             end}},
      {<<"Process.live">>, {fun() -> Process:live() end, fun() -> erlang:processes() end}},
      {<<"Process.faults">>, {fun() -> Process:faults(fun(Report) -> Report end) end, none}}].
 
@@ -906,14 +907,14 @@ balancer_scenarios() ->
        fun() -> Ref = make_ref(), Asker ! {self(), Ref}, receive {Ref, _} -> ok end end}},
      {<<"Balancer.serve">>, {within, <<"Balancer.pick">>}}].
 
-%% Appendix G.7: a standing address started and ended, its find answering
+%% Appendix G.7: a proxy started and ended, its find answering
 %% at once in a launch that is no node, beside a process spawned and
 %% ended; the service's hash is no type's, since nothing finds it.
-standing_scenarios() ->
-    Standing = 'ern@standing',
+proxy_scenarios() ->
+    Proxy = 'ern@proxy',
     Service = {'Service', <<"measured">>, <<0:256>>},
-    [{<<"Standing.start">>,
-      {fun() -> ern_rt:kill(Standing:start(Service, 1000)) end,
+    [{<<"Proxy.start">>,
+      {fun() -> ern_rt:kill(Proxy:start(Service, 1000)) end,
        fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].
 
 ets_scenarios() ->

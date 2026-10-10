@@ -666,10 +666,10 @@ debug_information(Dir) ->
 %% lay out what G.2 says, the Load and Balancer libraries' measure as G.4
 %% and G.5 say, the balancer's measuring process faulting as its test
 %% expects, which the run reports, the JSON library's read and write
-%% what G.6 says, and the standing address's wait for its service as G.7
-%% says. A regression test too: the modules were run by one
-%% command joined with `&&`, which the host runs by `exec`, so only the
-%% first module's tests ran, and it has none
+%% what G.6 says, and the proxy's wait for its service as G.7 says. A
+%% regression test too: the modules were run by one command joined with
+%% `&&`, which the host runs by `exec`, so only the first module's tests
+%% ran, and it has none
 libs_test_() ->
     {timeout, 60, fun libs/0}.
 
@@ -683,7 +683,7 @@ libs() ->
                                binary:match(Line, <<"is no place of this balancer">>) =/= nomatch]),
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Balancer">>, <<"Json">>, <<"Load">>, <<"Markdown">>, <<"Standing">>],
+    ?assertEqual([<<"Balancer">>, <<"Json">>, <<"Load">>, <<"Markdown">>, <<"Proxy">>],
                  Lines -- (Passed ++ Faulted)),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).
@@ -841,7 +841,7 @@ given_environment() ->
     ok = file:write_file(
            SourceRoot ++ "/given.ern",
            ["export fn main() : Unit with Never = {\n"
-            "    List.foreach(", Names, ", fn(name) =\n"
+            "    List.forEach(", Names, ", fn(name) =\n"
             "        Io.println(Optional.withDefault(Os.environment(name), \"unset\")));\n"
             "    let script = \"echo \\\"$PATH\\\"; echo \\\"$BINDIR\\\";"
             " echo \\\"${EMU-unset}\\\"; echo \\\"$ERL_LIBS\\\";"
@@ -1253,7 +1253,7 @@ end_status() ->
                          "      | _ -> Unit\n"
                          "    }\n"
                          "fn subscriber(how : String, main : Address(Msg)) : Unit with Msg = {\n"
-                         "    Os.terminating(Terminating);\n"
+                         "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> told(how, reply)\n"
@@ -1326,7 +1326,7 @@ fault_before_its_end() ->
     ok = file:write_file(Dir ++ "/faulty.ern",
                          "type Msg = Terminating(Reply(Unit)) | Ready\n"
                          "fn keeper(main : Address(Msg)) : Unit with Msg = {\n"
-                         "    Os.terminating(Terminating);\n"
+                         "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> {\n"
@@ -1370,7 +1370,7 @@ restarted_subscriber() ->
     ok = file:write_file(Dir ++ "/restarted.ern",
                          "type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
                          "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
-                         "    Os.terminating(Terminating);\n"
+                         "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
@@ -1378,7 +1378,7 @@ restarted_subscriber() ->
                          "}\n"
                          "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit with Msg"
                          " = {\n"
-                         "    Os.terminating(Terminating);\n"
+                         "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    count(holder, 0)\n"
                          "}\n"
@@ -1478,7 +1478,7 @@ fault_while_a_termination_waits() ->
     {BeforeAnswer, _} = lists:splitwith(fun(Line) -> Line =/= KeeperAnswered end, Lines),
     ?assert(lists:member(Faulted, BeforeAnswer)).
 
-%% A program whose end waits for a keeper, a subscriber of Os.terminating
+%% A program whose end waits for a keeper, a subscriber of Os.termination
 %% that, once it is told and main has ended, has a worker fault, prints the
 %% worker's Down's reason, and answers. Its argument says what begins the
 %% end: main's return, or, with `termination`, a termination, main then a
@@ -1492,7 +1492,7 @@ waiting_program(Dir) ->
                          "export fn main() : Unit with Msg =\n"
                          "    match Os.arguments {\n"
                          "        [\"termination\"] -> {\n"
-                         "            Os.terminating(Terminating);\n"
+                         "            Os.termination(Terminating);\n"
                          "            started();\n"
                          "            Io.println(\"running\");\n"
                          "            receive { Terminating(reply) -> answer(reply, Unit) }\n"
@@ -1514,7 +1514,7 @@ waiting_program(Dir) ->
                          "    }\n"
                          "fn keeper(main : Address(Msg), worker : Address(Order)) : Unit with Msg"
                          " = {\n"
-                         "    Os.terminating(Terminating);\n"
+                         "    Os.termination(Terminating);\n"
                          "    monitor(Process.fromAddress(main), MainEnded);\n"
                          "    monitor(Process.fromAddress(worker), WorkerEnded);\n"
                          "    send(main, Ready);\n"

@@ -1,6 +1,6 @@
 %% Report §8.4, Appendix E.1: the descriptor of a type, the runtime's
 %% reading of it: what the foreign boundary checks a value against, what a
-%% proxy exposes an address with, and what `Io.show`, `Io.debug` and the
+%% checker exposes an address with, and what `Io.show`, `Io.debug` and the
 %% shell print a value by, one printer (§11.2). A recursive type refers
 %% back to its mu.
 -module(ern_descriptor).
@@ -80,7 +80,7 @@ descriptor({tcon, ['Char'], []}, _, _) -> char;
 descriptor({tcon, ['String'], []}, _, _) -> string;
 descriptor({tcon, ['Bytes'], []}, _, _) -> bytes;
 descriptor({tcon, ['Address'], [MessageType]}, Seen, Scope) ->
-    %% the address's messages, for the proxy that exposes it (report §8.4)
+    %% the address's messages, for the checker that exposes it (report §8.4)
     {address, descriptor(MessageType, Seen, Scope),
      text_binary("message does not match ", MessageType, Scope)};
 descriptor({tcon, ['Reply'], [AnswerType]}, Seen, Scope) ->

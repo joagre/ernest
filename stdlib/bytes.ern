@@ -69,18 +69,19 @@ export fn get(bytes : Bytes, index : Int) : Optional(Int) =
       | _ -> None
     }
 
-/// The `count` bytes from `index`, or as many as there are. An `index` or a
-/// `count` below 0 counts as 0.
+/// The bytes of `bytes` from `index` up to `end`, the one at `end` left out,
+/// as many as there are. An `index` below 0 is 0, an `end` past the last byte
+/// is the size, and an `end` at or below `index` gives no bytes.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2, 3>>, -1, 2))
-/// // => #(<<2, 3>>, <<1, 2>>)
+/// #(Bytes.slice(<<1, 2, 3>>, 1, 2), Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2>>, -1, 1))
+/// // => #(<<2>>, <<2, 3>>, <<1>>)
 /// ```
-export fn slice(bytes : Bytes, index : Int, count : Int) : Bytes = {
+export fn slice(bytes : Bytes, index : Int, end : Int) : Bytes = {
     let clipped = Int.max(index, 0);
-    let taken = Int.max(Int.min(count, size(bytes) - clipped), 0);
+    let taken = Int.max(Int.min(end, size(bytes)) - clipped, 0);
     match bytes {
         <<_:size(clipped)-bytes, sliced:size(taken)-bytes, _:bytes>> -> sliced
       | _ -> <<>>
@@ -159,7 +160,7 @@ export fn lastIndexOf(bytes : Bytes, part : Bytes) : Optional(Int) =
 fn lastIndexFrom(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
     if index < 0 then
         None
-    else if slice(bytes, index, size(part)) == part then
+    else if slice(bytes, index, index + size(part)) == part then
         Some(index)
     else
         lastIndexFrom(bytes, part, index - 1)
@@ -185,7 +186,7 @@ export fn startsWith(bytes : Bytes, prefix : Bytes) : Bool =
 /// ```
 export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
     let count = size(suffix);
-    size(bytes) >= count && slice(bytes, size(bytes) - count, count) == suffix
+    size(bytes) >= count && slice(bytes, size(bytes) - count, size(bytes)) == suffix
 }
 
 /// The parts of `bytes` between the occurrences of `separator`, empty parts

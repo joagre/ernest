@@ -1,13 +1,13 @@
-// Appendix G.7: a standing address of the counter, asked at each line on
+// Appendix G.7: a proxy for the counter, asked at each line on
 // the standard input, the counter's node stopped, started again and
 // replaced by another between the lines. While the counter's node is
 // stopped an add is sent through it too, which is dropped: the counter of
 // the node started again counts from 0, and answers 0.
 
 export fn main() : Unit with Never = {
-    let counter = Standing.start(Counter.service, 2000);
-    Io.println("standing");
-    List.foreach(["first", "away", "back", "other"], fn(label) = ask(counter, label))
+    let counter = Proxy.start(Counter.service, 2000);
+    Io.println("proxy started");
+    List.forEach(["first", "away", "back", "other"], fn(label) = ask(counter, label))
 }
 
 fn ask(counter : Address(Counter.Msg), label : String) : Unit with m = {

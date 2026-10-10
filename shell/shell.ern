@@ -152,7 +152,7 @@ export fn main() : Unit with ShellMsg = {
     if Optional.isNone(keys) then holdTerminal(self()) else Unit;
     // report §11.2: what a program writes goes to the live region, what
     // the session says is committed to the transcript
-    setScreen(via(screen, Wrote));
+    setScreen(adapted(screen, Wrote));
     send(screen, Said("Ernest " <> version() <> ". :help for the commands, :quit to leave.\n"));
     // report §11.2: the session, the screen and the reader are the shell's
     // own, whose faults are not news
@@ -456,7 +456,7 @@ fn execute(state : State,
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.monotonic();
             let serial = state.serial + 1;
-            let inputProcess = spawnInput(session, checked, serial, via(self(), Done));
+            let inputProcess = spawnInput(session, checked, serial, adapted(self(), Done));
             await(State(..state, session = session, serial = serial),
                   screen,
                   checked,
@@ -655,11 +655,11 @@ let keptFaults = 100
 // beneath a failure of the runtime the host's stack.
 fn reportLine(report : Process.FaultReport) : String = {
     let phrase = if report.restarted then " faulted, restarted: " else " faulted: ";
-    let spawnedBy = match report.peer {
+    let spawner = match report.spawnedBy {
         Some(name) -> ", spawned by the peer " <> name
       | None -> ""
     };
-    let line = report.site <> phrase <> escaped(report.cause) <> spawnedBy;
+    let line = report.site <> phrase <> escaped(report.cause) <> spawner;
     if String.isEmpty(report.trace) then
         line
     else
@@ -683,7 +683,7 @@ fn escapedLines(text : String) : String =
     String.join(List.map(String.split(text, "\n"), escaped), "\n")
 
 fn escapedChar(char : Char) : String =
-    match Char.toInt(char) {
+    match Char.toCodePoint(char) {
         10 -> "\\n"
       | 9 -> "\\t"
       | 13 -> "\\r"
@@ -746,7 +746,7 @@ fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next wi
 // command's word and the spaces after it.
 fn argumentColumn(input : String) : Int = {
     let end = Shell.Command.wordEnd(input);
-    let rest = String.slice(input, end, String.size(input) - end);
+    let rest = String.slice(input, end, String.size(input));
     end + String.size(rest) - String.size(String.trimStart(rest)) + 1
 }
 
@@ -862,7 +862,7 @@ fn screenWidth() : Int with m =
 fn sessionProcesses(own : Set(Process)) : List(String) with m = {
     let shells = Set.union(own, Set.fromList(evaluators()));
     let others = List.filter(Process.live(), fn(process) = !Set.contains(shells, process));
-    let sites = List.map(List.filterMap(others, Process.info), fn(info) = info.site);
+    let sites = List.map(List.filterMap(others, Process.status), fn(status) = status.site);
     List.sort(sites, String.compare)
 }
 
@@ -1222,7 +1222,7 @@ fn rowBefore(input : String, cursor : Int) : String = {
     let before = String.slice(input, 0, cursor);
     match String.lastIndexOf(before, "\n") {
         None -> before
-      | Some(index) -> String.slice(before, index + 1, String.size(before) - index - 1)
+      | Some(index) -> String.slice(before, index + 1, String.size(before))
     }
 }
 
@@ -1321,7 +1321,7 @@ fn documenting(shell : Address(ShellMsg),
             rendered(text, screenWidth(), colour)
         else
             brief(text, version, screenWidth(), colour)
-      | None -> match signature(String.slice(line, skipped, cursor - skipped)) {
+      | None -> match signature(String.slice(line, skipped, cursor)) {
             Some(#(head, marked, rest)) -> [head <> Shell.Style.emphasis(marked, colour) <> rest]
           | None -> []
         }

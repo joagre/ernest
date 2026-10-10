@@ -12,7 +12,7 @@
 /// `put`, `remove`, `update`, `merge` and `mergeWith` need it; the rest keep
 /// the keys and need none.
 ///
-/// **Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `foreach`
+/// **Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `forEach`
 /// and `find` go in the keys' order, and `map`, `filter`, `filterMap`, `any`,
 /// `all` and `mergeWith` meet the entries in it.
 ///
@@ -222,11 +222,13 @@ export fn foldLeft(Map(pairs) : Map(k, v), acc : b, step : (b, k, v) -> b with e
 /// ### Examples
 ///
 /// ```ernest
-/// OrderedMap.foreach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(value))
+/// OrderedMap.forEach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(value))
 /// // => Unit
 /// ```
-export fn foreach(Map(pairs) : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
-    List.foreach(pairs, fn(#(key, value)) = f(key, value))
+///
+/// since 0.4.0
+export fn forEach(Map(pairs) : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
+    List.forEach(pairs, fn(#(key, value)) = f(key, value))
 
 /// `true` when `test` holds for some entry.
 ///

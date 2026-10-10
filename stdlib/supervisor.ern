@@ -171,7 +171,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Ms
         match startCause() {
             First -> Unit
           | _ -> {
-                List.foreach(children(watcher), fn(process) = {
+                List.forEach(children(watcher), fn(process) = {
                     let _ = askRestart(process);
                     Unit
                 });
@@ -188,7 +188,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Ms
 fn runs(watcher : Address(WatcherMsg), supervisor : Address(Msg)) : Bool with Msg =
     match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), retryMs) {
         Some(runsGroup) -> runsGroup
-      | None -> match Process.info(Process.fromAddress(watcher)) {
+      | None -> match Process.status(Process.fromAddress(watcher)) {
             None -> false
           | Some(_) -> runs(watcher, supervisor)
         }
@@ -360,7 +360,7 @@ fn watching(supervisor : Address(Msg),
 // The children that waited go on: to the restart their supervisor asked of
 // them, or to the end its watcher has already given them.
 fn release(held : List(Reply(Unit))) : Unit with WatcherMsg =
-    List.foreach(held, fn(reply) = answer(reply, Unit))
+    List.forEach(held, fn(reply) = answer(reply, Unit))
 
 // The members with a new one among them, in the order they were spawned.
 fn inOrder(members : List(Member), member : Member) : List(Member) =
@@ -443,7 +443,7 @@ fn runAgain(supervisor : Address(Msg),
             watcher : Address(WatcherMsg),
             process : Process,
             f : () -> Unit with m) : Unit with m =
-    match Process.info(Process.fromAddress(supervisor)) {
+    match Process.status(Process.fromAddress(supervisor)) {
         None -> kill(self())
       | Some(_) -> {
             if Address.callForever(watcher,
@@ -465,7 +465,7 @@ fn join(supervisor : Address(Msg),
     let request = fn(reply) = Join(process = process, stop = stop, reply = reply);
     match Address.call(supervisor, request, retryMs) {
         Some(watcher) -> watcher
-      | None -> match Process.info(Process.fromAddress(supervisor)) {
+      | None -> match Process.status(Process.fromAddress(supervisor)) {
             None -> fault("the supervisor has ended")
           | Some(_) -> join(supervisor, process, stop)
         }

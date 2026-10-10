@@ -3,7 +3,7 @@
 /// Use it when writing a `foreign fn` over Erlang code whose result has no
 /// Ernest type. Declare the result `Foreign.Term`, then ask what it is with
 /// `toInt`, `toString`, `toList` and the rest, each answering `None` where the
-/// term is something else. `from` goes the other way: it gives a value as
+/// term is something else. `term` goes the other way: it gives a value as
 /// foreign code is given an argument of the value's type (report §3.8, §8.4).
 ///
 /// `atom` makes an Erlang atom, for an Erlang function that takes one:
@@ -18,7 +18,7 @@
 /// A term asked whether it is an `Int`, which `42` is and `"42"` is not:
 ///
 /// ```ernest
-/// #(Foreign.toInt(Foreign.from(42)), Foreign.toInt(Foreign.from("42")))
+/// #(Foreign.toInt(Foreign.term(42)), Foreign.toInt(Foreign.term("42")))
 /// // => #(Some(42), None)
 /// ```
 ///
@@ -26,7 +26,7 @@
 ///
 /// ```ernest
 /// {
-///     let terms = Foreign.toList(Foreign.from([1, 2]));
+///     let terms = Foreign.toList(Foreign.term([1, 2]));
 ///     Optional.map(terms, fn(list) = List.filterMap(list, Foreign.toInt))
 /// }
 /// // => Some([1, 2])
@@ -45,7 +45,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// #(Foreign.from(1) == Foreign.from(1), Foreign.from(1) == Foreign.from(1.0))
+/// #(Foreign.term(1) == Foreign.term(1), Foreign.term(1) == Foreign.term(1.0))
 /// // => #(true, false)
 /// ```
 ///
@@ -57,10 +57,12 @@ export foreign type Term
 /// in it behind the check of what foreign code sends it, and a function with
 /// the check of what foreign code calls it with (report §8.4).
 ///
-/// The type is the one `from` is used at, and must be known whole there; on a
-/// type variable `from` is a type error.
-export foreign fn from(value : a) : Term =
-    "ern_foreign:from/1"
+/// The type is the one `term` is used at, and must be known whole there; on a
+/// type variable `term` is a type error.
+///
+/// since 0.4.0
+export foreign fn term(value : a) : Term =
+    "ern_foreign:term/1"
 
 /// The `Int` it is, or `None`.
 export foreign fn toInt(value : Term) : Optional(Int) =
@@ -71,7 +73,7 @@ export foreign fn toInt(value : Term) : Optional(Int) =
 /// ### Examples
 ///
 /// ```ernest
-/// Foreign.toFloat(Foreign.from(1.5))
+/// Foreign.toFloat(Foreign.term(1.5))
 /// // => Some(1.5)
 /// ```
 export foreign fn toFloat(value : Term) : Optional(Float) =
@@ -82,7 +84,7 @@ export foreign fn toFloat(value : Term) : Optional(Float) =
 /// ### Examples
 ///
 /// ```ernest
-/// Foreign.toString(Foreign.from("hi"))
+/// Foreign.toString(Foreign.term("hi"))
 /// // => Some("hi")
 /// ```
 export foreign fn toString(value : Term) : Optional(String) =
@@ -94,7 +96,7 @@ export foreign fn toString(value : Term) : Optional(String) =
 /// ### Examples
 ///
 /// ```ernest
-/// #(Foreign.toBytes(Foreign.from(<<255>>)), Foreign.toBytes(Foreign.from(1)))
+/// #(Foreign.toBytes(Foreign.term(<<255>>)), Foreign.toBytes(Foreign.term(1)))
 /// // => #(Some(<<255>>), None)
 /// ```
 ///
@@ -107,7 +109,7 @@ export foreign fn toBytes(value : Term) : Optional(Bytes) =
 /// ### Examples
 ///
 /// ```ernest
-/// #(Foreign.toBool(Foreign.from(true)), Foreign.toBool(Foreign.atom("ready")))
+/// #(Foreign.toBool(Foreign.term(true)), Foreign.toBool(Foreign.atom("ready")))
 /// // => #(Some(true), None)
 /// ```
 export foreign fn toBool(value : Term) : Optional(Bool) =

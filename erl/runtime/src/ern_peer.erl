@@ -61,7 +61,7 @@ node_of(Name) ->
     maps:get(Name, persistent_term:get({?MODULE, nodes}, #{}), none).
 
 %% Appendix E.21, report §8.7: the name the configuration lists the peer
-%% of a node on the carrier under, a FaultReport's `peer`, or `None` for
+%% of a node on the carrier under, a FaultReport's `spawnedBy`, or `None` for
 %% none: no peer's spawn, or a peer a reload has removed since.
 -spec name(node() | none) -> {'Some', binary()} | 'None'.
 name(Node) ->
@@ -281,9 +281,9 @@ frame(From, {answer, Ref, {spawned, Pid} = Answer})
 frame(From, {answer, Ref, {failed, Error} = Answer})
   when is_reference(Ref), Error =:= 'NotLoaded' orelse Error =:= 'Unreachable' ->
     answered(From, Ref, Answer);
-frame(_From, {via, {via, Function, _Target, Maker} = Via, Message})
+frame(_From, {adapted, {adapted, Function, _Target, Maker} = Address, Message})
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node() ->
-    ern_rt:send(Via, Message),
+    ern_rt:send(Address, Message),
     ok;
 frame(_From, _Body) ->
     unreadable.

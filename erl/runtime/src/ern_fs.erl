@@ -3,7 +3,7 @@
 %% that one slow file does not hold up the rest. The work that opens a file
 %% goes around the host's file server, which does one request at a time:
 %% raw, as the host calls it. A Path is {'Path', Bytes} and an Entry's fields
-%% are in declared order (report §3.5): path, mtime, size, kind, mode and
+%% are in declared order (report §3.5): path, modified, size, kind, mode and
 %% user, as entry/2 builds them.
 -module(ern_fs).
 
@@ -75,7 +75,7 @@ handle({'Rename', Source, Destination, Reply}) ->
     answer(Reply, unit(file:rename(text(Source), text(Destination))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
 %% written, which may name nothing.
-handle({'MakeLink', Path, Target, Reply}) ->
+handle({'MakeSymlink', Path, Target, Reply}) ->
     answer(Reply, unit(file:make_symlink(text(Target), text(Path))));
 %% Report Appendix E.17: a second name for a regular file. The target's
 %% own entry is read, no link followed, since the host links a link's
@@ -254,8 +254,8 @@ entries(Dir, Names) ->
                         end
                 end, {ok, []}, lists:reverse(Names)).
 
-%% Report Appendix E.17: Fs.Entry(path, mtime, size, kind, mode, user),
-%% mtime in milliseconds and mode the permission bits alone, as setMode
+%% Report Appendix E.17: Fs.Entry(path, modified, size, kind, mode, user),
+%% modified in milliseconds and mode the permission bits alone, as setMode
 %% takes them, where the host's mode holds the file's type too; stat
 %% describes what the path leads to.
 entry(Text) ->

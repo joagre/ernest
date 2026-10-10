@@ -65,7 +65,7 @@ second_subscription_test() ->
            fun() ->
                Tty = ern_rt:system_process(terminal),
                subscribe(Tty),
-               Wrapped = ern_rt:via(ern_rt:self(), fun(Event) -> {again, Event} end),
+               Wrapped = ern_rt:adapted(ern_rt:self(), fun(Event) -> {again, Event} end),
                ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Wrapped, Reply} end, 5000),
                %% a key delivered twice would come before the second key
                Tty ! {chars, "a"},
@@ -219,7 +219,7 @@ subscribe(Tty) ->
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Self, Reply} end, 5000).
 
 subscribe(Tty, Wrap) ->
-    Address = ern_rt:via(ern_rt:self(), Wrap),
+    Address = ern_rt:adapted(ern_rt:self(), Wrap),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Address, Reply} end, 5000).
 
 wait_atom(Atom) ->

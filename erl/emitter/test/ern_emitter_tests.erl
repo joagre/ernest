@@ -1396,16 +1396,16 @@ foreign_faults_test() ->
                        ++ Main ++ "each(fn(n : Int) : Unit with Never = fault(\"later\"), [1])\n"),
     ?assertEqual({fault, <<"later">>}, Result5).
 
-%% report §6.5, §8.4: an address `via` made, given to foreign code and given
+%% report §6.5, §8.4: an address `adapted` made, given to foreign code and given
 %% back, is the address that went out, its function kept. A regression
 %% test: the program got the process behind it, and a message sent to it
 %% arrived without the function applied, not of the mailbox type
-via_address_round_trip_test() ->
+adapted_address_round_trip_test() ->
     {ok, Output} = run("type Msg = Wrapped(Int)\n"
                        "foreign fn first(xs : List(Address(Int))) : Address(Int) ="
                        " \"erlang:hd/1\"\n"
                        "export fn main() : Unit with Msg = {\n"
-                       "    let back = first([via(self(), Wrapped)]);\n"
+                       "    let back = first([adapted(self(), Wrapped)]);\n"
                        "    send(back, 7);\n"
                        "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
                        "}\n"),
@@ -1488,9 +1488,9 @@ foreign_result_names_a_variable_twice_test() ->
 %% test of the rule of 2026-10-01, which the checker refused
 foreign_exact_equality_test() ->
     {ok, Output} = run("export fn main() : Unit with Never = {\n"
-                       "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1)));\n"
-                       "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1.0)));\n"
-                       "    Io.println(Io.show([Foreign.from(\"a\")] != [Foreign.from(\"b\")]))\n"
+                       "    Io.println(Io.show(Foreign.term(1) == Foreign.term(1)));\n"
+                       "    Io.println(Io.show(Foreign.term(1) == Foreign.term(1.0)));\n"
+                       "    Io.println(Io.show([Foreign.term(\"a\")] != [Foreign.term(\"b\")]))\n"
                        "}\n"),
     ?assertEqual(<<"true\nfalse\ntrue\n">>, Output).
 
@@ -1618,7 +1618,7 @@ foreign_messages_test() ->
                         "foreign fn good(a : Address(Inner)) : Unit with m ="
                         " \"ern_emitter_tests:good/1\"\n"
                         "export fn main() : Unit with Msg = {\n"
-                        "    good(via(self(), fn(Go(n) : Inner) = Wrapped(n)));\n"
+                        "    good(adapted(self(), fn(Go(n) : Inner) = Wrapped(n)));\n"
                         "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
                         "}\n"),
     ?assertEqual(<<"1\n">>, Wrapped),
@@ -2295,7 +2295,7 @@ maps_sets_test() ->
         "    let m = Map.put(Map.put(Map.empty, \"a\", 1), \"b\", 2);\n"
         "    let s = Set.put(Set.fromList([1, 2]), 3);\n"
         "    Io.println(Int.toString(Optional.withDefault(Map.get(m, \"b\"), 0)));\n"
-        "    Io.println(Int.toString(Map.foldLeft(m, 0, fn(acc, _, v) = acc + v)));\n"
+        "    Io.println(Int.toString(Map.fold(m, 0, fn(acc, _, v) = acc + v)));\n"
         "    Io.println(Bool.toString(Set.contains(s, 3)));\n"
         "    Io.println(Int.toString(Set.size(Set.union(s, Set.fromList([3, 4])))));\n"
         "    Io.println(Bool.toString(Set.fromList([1, 2]) == Set.fromList([2, 1])))\n"
@@ -2307,7 +2307,7 @@ maps_sets_test() ->
 random_test() ->
     {ok, Output} = run(
         "fn draw(s : Random.Seed, n : Int) : List(Int) = if n == 0 then [] else {\n"
-        "    let #(x, s1) = Random.next(s, 5);\n"
+        "    let #(x, s1) = Random.nextInt(s, 5);\n"
         "    x :: draw(s1, n - 1)\n"
         "}\n"
         "export fn main() : Unit with Never = {\n"
@@ -2363,7 +2363,7 @@ prelude_target(QualifiedName, Text) ->
         [send] -> {ern_rt, send, 2};
         [spawn] -> {ern_rt, spawn, 2};
         [spawnMonitored] -> {ern_rt, spawn_monitored, 3};
-        [via] -> {ern_rt, via, 2};
+        [adapted] -> {ern_rt, adapted, 2};
         [answer] -> {ern_rt, answer, 2};
         [monitor] -> {ern_rt, monitor, 2};
         [kill] -> {ern_rt, kill, 1};
@@ -2381,7 +2381,8 @@ prelude_target(QualifiedName, Text) ->
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a
-%% Down with its cause, and via adapts a message, all through compiled code
+%% Down with its cause, and an adapted address turns a message, all
+%% through compiled code
 process_functions_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down) | Tick\n"
@@ -2401,7 +2402,7 @@ process_functions_test() ->
         "        Died(Down(reason = Fault(m), site = _)) -> Io.println(m)\n"
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
-        "    send(via(self(), fn(u : Unit) = Tick), Unit);\n"
+        "    send(adapted(self(), fn(u : Unit) = Tick), Unit);\n"
         "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") }\n"
         "}\n"),
     ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Output).
@@ -2617,12 +2618,12 @@ foreign_fault_restarts_test() ->
                      " fn(r) = Hold(reply = r))))\n"
                      "}\n" ++ Main("ask(h)"))).
 
-%% report §8.4, Appendix E.12: `Foreign.from` gives its value as a foreign
+%% report §8.4, Appendix E.12: `Foreign.term` gives its value as a foreign
 %% function's argument of the value's type crosses: an address goes behind
 %% the proxy that faults its process on a message of another type, and a
 %% function checks what foreign code calls it with, as each does given in
 %% an argument of its own type. A value nothing in which crosses is the
-%% value itself. A regression test: `Foreign.from` gave the address and the
+%% value itself. A regression test: `Foreign.term` gave the address and the
 %% function as the runtime held them, unchecked
 foreign_from_crosses_as_an_argument_test() ->
     %% the fault the proxy sends takes the message's place; where none came,
@@ -2645,12 +2646,12 @@ foreign_from_crosses_as_an_argument_test() ->
     ?assertEqual(<<"message does not match Int">>,
                  Fault(Program(Typed, "rawSend(self(), \"x\")"))),
     ?assertEqual(<<"message does not match Int">>,
-                 Fault(Program(Untyped, "rawSend(Foreign.from(self()), \"x\")"))),
+                 Fault(Program(Untyped, "rawSend(Foreign.term(self()), \"x\")"))),
     ?assertEqual(<<"foreign argument does not match Int">>,
-                 Fault(Program(Applied, "applied(Foreign.from(fn(n : Int) = n + 1), [\"x\"])"))),
+                 Fault(Program(Applied, "applied(Foreign.term(fn(n : Int) = n + 1), [\"x\"])"))),
     ?assertEqual({ok, <<"Some(42)\n">>},
                  run("export fn main() : Unit with Never =\n"
-                     "    Io.println(Io.show(Foreign.toInt(Foreign.from(42))))\n")).
+                     "    Io.println(Io.show(Foreign.toInt(Foreign.term(42))))\n")).
 
 %% report §8.2: a write to standard output returns once the stream has taken
 %% it, so a program writing to a slow stream goes at its pace: after each
@@ -2807,7 +2808,7 @@ kill_dead_test() ->
     ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Output).
 
 %% report §6.9, §9.3: a `Down` names the process behind the address
-%% monitored, through a `via`, as `Process.fromAddress` gives it
+%% monitored, through an adapted address, as `Process.fromAddress` gives it
 down_names_its_process_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down) | Go\n"
@@ -2815,7 +2816,7 @@ down_names_its_process_test() ->
         "    let w = spawnMonitored(fn() : Unit with Never = Unit, Died);\n"
         "    let first = receive { Died(d) -> d.process == Process.fromAddress(w) };\n"
         "    let v = spawn(fn() : Unit with Msg = receive { Go -> Unit });\n"
-        "    monitor(Process.fromAddress(via(v, fn(u : Unit) = Go)), Died);\n"
+        "    monitor(Process.fromAddress(adapted(v, fn(u : Unit) = Go)), Died);\n"
         "    send(v, Go);\n"
         "    let second = receive { Died(d) -> d.process == Process.fromAddress(v) };\n"
         "    Io.println(Io.show(#(first, second)))\n"

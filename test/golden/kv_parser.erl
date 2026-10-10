@@ -5,7 +5,7 @@
 -export([main/0, '$spawned'/2]).
 
 main() ->
-    ern@list:foreach([<<"a=12">>,
+    ern@list:forEach([<<"a=12">>,
                       <<"=1">>,
                       <<"a">>,
                       <<"a=x">>],

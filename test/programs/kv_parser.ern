@@ -9,7 +9,7 @@
 //
 
 export fn main() : Unit with Never =
-    List.foreach(["a=12", "=1", "a", "a=x"], fn(line) = Io.println(show(parse(line))))
+    List.forEach(["a=12", "=1", "a", "a=x"], fn(line) = Io.println(show(parse(line))))
 
 fn show(parsed : Either(String, #(String, Int))) : String =
     match parsed {

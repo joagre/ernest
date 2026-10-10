@@ -22,7 +22,7 @@
 /// A character's code point, and back; a surrogate is no character:
 ///
 /// ```ernest
-/// #(Char.toInt('A'), Char.fromInt(66), Char.fromInt(0xD800))
+/// #(Char.toCodePoint('A'), Char.fromCodePoint(66), Char.fromCodePoint(0xD800))
 /// // => #(65, Some('B'), None)
 /// ```
 ///
@@ -71,11 +71,11 @@ export fn digitValue(char : Char, base : Int) : Optional(Int) =
 // case, `a` and `A` coming after `9`.
 fn placeValue(char : Char) : Optional(Int) =
     if isAsciiDigit(char) then
-        Some(toInt(char) - toInt('0'))
+        Some(toCodePoint(char) - toCodePoint('0'))
     else if char >= 'a' && char <= 'z' then
-        Some(toInt(char) - toInt('a') + 10)
+        Some(toCodePoint(char) - toCodePoint('a') + 10)
     else if char >= 'A' && char <= 'Z' then
-        Some(toInt(char) - toInt('A') + 10)
+        Some(toCodePoint(char) - toCodePoint('A') + 10)
     else
         None
 
@@ -140,19 +140,23 @@ export foreign fn toString(char : Char) : String =
     "ern_char:to_string/1"
 
 /// The character's code point.
-export foreign fn toInt(char : Char) : Int =
-    "ern_char:to_int/1"
+///
+/// since 0.4.0
+export foreign fn toCodePoint(char : Char) : Int =
+    "ern_char:to_code_point/1"
 
 /// The character with code point `code`, or `None` outside U+0000 to U+10FFFF
 /// and for a surrogate, U+D800 to U+DFFF.
-export fn fromInt(code : Int) : Optional(Char) =
+///
+/// since 0.4.0
+export fn fromCodePoint(code : Int) : Optional(Char) =
     if code < 0 || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF) then
         None
     else
         Some(fromCode(code))
 
 foreign fn fromCode(code : Int) : Char =
-    "ern_char:from_int/1"
+    "ern_char:from_code_point/1"
 
 /// Compares two characters by their code points, the order `<` and the other
 /// comparisons use.

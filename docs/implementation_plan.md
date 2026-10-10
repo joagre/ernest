@@ -141,10 +141,14 @@ as the other examples are, and on two real nodes. What writing it found is `lang
 **Fourth, before item 1, names read as a newcomer reads them.** `Peer.Key(m)` became
 `Peer.Service(m)` on 2026-10-10, with `Peer.service`, `"services"` in the configuration and the
 fault's words (report §8.7, Appendix E.27; the log's *The Service Named*); and with it, the same
-day, `Standing` became `Proxy`, `via` became `adapted`, `Foreign.from` became `Foreign.term` and
-`Process.info` became `Process.status` with its `Status` (§6.5, E.12, E.21, G.7; *Four Names Read
-as a Newcomer Reads Them*), all before 0.4.0 freezes a name. The reviews' newcomer now lists the
-names it could not predict.
+day, fifteen names a cold reader could not predict, `Standing` to `Proxy`, `via` to `adapted`,
+`Foreign.from` to `Foreign.term`, `Process.info` to `Process.status`, `Char.toInt` to
+`toCodePoint`, `List.remove` to `removeAt`, the unordered `foldLeft` to `fold`, `foreach` to
+`forEach`, `Terminal.columns` to `width`, `Os.terminating` to `termination`, `Random.next` to
+`nextInt`, `Fs.makeLink` to `makeSymlink`, `Entry.mtime` to `modified`, `FaultReport.peer` to
+`spawnedBy` and `Link.address` to `url`, and `slice` taking an end index (the log's *Names Read as
+a Newcomer Reads Them*; E.0's tenth shape rule), all before 0.4.0 freezes a name. The reviews'
+newcomer now lists the names it could not predict.
 
 1. **The report and the soundness argument.** §8.7 for the spawn that carries its code, the
    four frames, verification, quarantine and one load, `Refused` with the peer's text, a peer
@@ -158,7 +162,9 @@ names it could not predict.
    code that crosses. The log's entries, pointing at `code.md`. With them, as the build reaches
    each: `architecture.md` for the exchange's process and the let-go; `memory.md` for what a
    node holds of received code and when it lets go; `docs/development.md`'s table, from which the refusal of a node without a program
-   goes.
+   goes. Decided with it, a named decision of this item: what a reply that crossed with a function a
+   failed `Peer.spawn` dropped does, the caller's call ending at once as at a callee's death, or
+   waiting out its time (`language_feedback.md`'s entry 102, placed here 2026-10-10).
 2. **The limit a table sets.** A unit whose function an `Ets.Table` holds is never let go, since
    the host's check sees a process's functions and not a table's, stated in §11.2 and G.1 and
    counted against the limits of section 7; no refusal of the compiler's (the review of
@@ -371,6 +377,13 @@ Its sandbox is the first decision of the milestone, and the operating system's a
 language's, since Ernest's system modules are ambient by design: one isolated container per
 visitor, with limits on time, memory, processes and network, and nothing kept when the
 visitor leaves. The site's pages are written in Markdown and rendered by `libs/markdown`.
+The site's generator is a program of its own beside `tools/manual.ern`, written in Ernest
+against the library's tree, `Block` and `Inline`, with an `html` function of one clause per
+constructor and the site's template and per-function layout around it, built from the doc
+chunk's parts as the manual is; the library renders to its tree and to the terminal alone, and
+nothing of the site enters it (decided with the user on 2026-10-10). When something next touches
+the library, `roff` moves to `tools/manual.ern`, its one user, with its `Manual` record. The
+generator may come before the rest of the milestone whenever it is wanted.
 
 ## MVP 4.3 (the shell's second round), about three weeks
 

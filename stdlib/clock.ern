@@ -75,7 +75,7 @@ export foreign fn monotonic() : Int with m =
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
 export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
-    let address = via(self(), wrap);
+    let address = adapted(self(), wrap);
     let request = fn(reply) = Alarm(ms = ms, address = address, reply = reply);
     Address.callForever(reference, request)
 }
@@ -89,7 +89,7 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
 export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit with m = {
-    let address = via(self(), wrap);
+    let address = adapted(self(), wrap);
     let request = fn(reply) = AlarmAt(time = time, address = address, reply = reply);
     Address.callForever(reference, request)
 }

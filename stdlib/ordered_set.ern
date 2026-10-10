@@ -15,7 +15,7 @@
 /// **Equal is one.** Two elements the order calls `Equal` are one element, and
 /// `put` keeps the one already there.
 ///
-/// **Everything in order.** `toList`, `foldLeft`, `foreach`, `find`, `min` and
+/// **Everything in order.** `toList`, `foldLeft`, `forEach`, `find`, `min` and
 /// `max` go in the set's order, and `map`, `filter`, `filterMap`, `any` and
 /// `all` meet the elements in it. A set in another order is a set of another
 /// type, `type Descending = Descending(Int)` with its own `compare`, and the
@@ -204,11 +204,13 @@ export fn foldLeft(Set(list) : Set(a), acc : b, step : (b, a) -> b with e) : b w
 /// ### Examples
 ///
 /// ```ernest
-/// OrderedSet.foreach(OrderedSet.fromList(["a"]), Io.println)
+/// OrderedSet.forEach(OrderedSet.fromList(["a"]), Io.println)
 /// // => Unit
 /// ```
-export fn foreach(Set(list) : Set(a), f : (a) -> Unit with e) : Unit with e =
-    List.foreach(list, f)
+///
+/// since 0.4.0
+export fn forEach(Set(list) : Set(a), f : (a) -> Unit with e) : Unit with e =
+    List.forEach(list, f)
 
 /// `true` when `test` holds for some element.
 ///

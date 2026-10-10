@@ -67,8 +67,8 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Markdown.Link(address = "https://example.org", text = [Markdown.Text("home")])
-/// // => Link(text = [Text("home")], address = "https://example.org")
+/// Markdown.Link(url = "https://example.org", text = [Markdown.Text("home")])
+/// // => Link(text = [Text("home")], url = "https://example.org")
 /// ```
 export type Inline =
     /// Text as it reads.
@@ -79,8 +79,8 @@ export type Inline =
   | Emphasis(List(Inline))
   /// Strong emphasis, shown bold.
   | Strong(List(Inline))
-  /// A link or an image, by the text it shows and the address it names.
-  | Link(text : List(Inline), address : String)
+  /// A link or an image, by the text it shows and the URL it names.
+  | Link(text : List(Inline), url : String)
   /// A hard line break.
   | Break
 
@@ -403,7 +403,7 @@ fn indented(lines : List(String), acc : List(String)) : #(Block, List(String)) =
 fn quoted(lines : List(String), acc : List(String)) : #(Block, List(String)) =
     match lines {
         line :: rest when indent(line) < 4 && String.startsWith(unindented(line), ">") -> {
-            let inside = String.slice(unindented(line), 1, String.size(unindented(line)) - 1);
+            let inside = String.slice(unindented(line), 1, String.size(unindented(line)));
             quoted(rest,
                    (if String.startsWith(inside, " ") then dedented(inside, 1) else inside) :: acc)
         }
@@ -449,7 +449,7 @@ fn interrupts(line : String) : Bool =
 fn markerInterrupts(line : String) : Bool =
     match markerOf(line) {
         Some(Marker(start = start, width = width)) ->
-            !isBlank(String.slice(line, width, String.size(line) - width))
+            !isBlank(String.slice(line, width, String.size(line)))
                 && (start == None || start == Some(1))
       | None -> false
     }
@@ -499,7 +499,7 @@ fn listed(lines : List(String),
                 && sameKind(marker, first) -> {
                 let column = indent(line) + width;
                 let expanded = spacedPrefix(line);
-                let text = String.slice(expanded, column, String.size(expanded) - column);
+                let text = String.slice(expanded, column, String.size(expanded));
                 let #(body, later) = itemLines(rest, column, [text]);
                 let more = items <> [blocks(body)];
                 match later {
@@ -559,7 +559,7 @@ fn itemLines(lines : List(String),
 // the line that holds its closing mark, blank lines and all, as
 // CommonMark's start conditions 2 to 5 have it, and a tag to a blank line.
 // A tag with text after it on its line is inline HTML, which stays in the
-// text, and `<` before an address is an autolink and not HTML.
+// text, and `<` before a URL is an autolink and not HTML.
 fn isHtml(line : String) : Bool =
     htmlOpens(line) || isTagAlone(line)
 
@@ -790,12 +790,12 @@ fn startsWord(chars : List(Char)) : Bool =
     }
 
 // A link: its text up to the `]` that balances the `[`, then `(`, the
-// address, an optional title in quotes, and `)`.
+// URL, an optional title in quotes, and `)`.
 fn linked(chars : List(Char)) : Optional(#(Inline, List(Char))) =
     match bracketed(chars, 0, []) {
-        Some(#(text, '(' :: rest)) -> match address(rest) {
-            Some(#(address, later)) ->
-                Some(#(Link(text = inlines(String.fromList(text)), address = address), later))
+        Some(#(text, '(' :: rest)) -> match url(rest) {
+            Some(#(url, later)) ->
+                Some(#(Link(text = inlines(String.fromList(text)), url = url), later))
           | None -> None
         }
       | _ -> None
@@ -815,10 +815,10 @@ fn bracketed(chars : List(Char),
       | char :: rest -> bracketed(rest, depth, char :: acc)
     }
 
-// The address between `<` and `>`, which may hold spaces, or else one that
+// The URL between `<` and `>`, which may hold spaces, or else one that
 // runs to a space or to the `)` that balances; a title after a space is
 // read past and not kept.
-fn address(chars : List(Char)) : Optional(#(String, List(Char))) =
+fn url(chars : List(Char)) : Optional(#(String, List(Char))) =
     match chars {
         '<' :: inside -> match enclosed(inside, []) {
             Some(#(found, ')' :: later)) -> Some(#(found, later))
@@ -829,7 +829,7 @@ fn address(chars : List(Char)) : Optional(#(String, List(Char))) =
       | _ -> destination(chars, 0, [])
     }
 
-// An address in angle brackets runs to the `>` that closes it, a line
+// A URL in angle brackets runs to the `>` that closes it, a line
 // ending or a `<` within it making none, and a backslash escaping the
 // character after it.
 fn enclosed(chars : List(Char), acc : List(Char)) : Optional(#(String, List(Char))) =
@@ -878,14 +878,14 @@ fn titled(chars : List(Char)) : Optional(List(Char)) = {
     }
 }
 
-// An autolink: `<`, a scheme and `:` or an address with `@`, and `>`,
+// An autolink: `<`, a scheme and `:` or an email address with `@`, and `>`,
 // with no space inside.
 fn autolink(chars : List(Char), acc : List(Char)) : Optional(#(Inline, List(Char))) =
     match chars {
         '>' :: rest -> {
-            let address = String.fromList(List.reverse(acc));
-            if String.contains(address, ":") || String.contains(address, "@") then
-                Some(#(Link(text = [Text(address)], address = address), rest))
+            let url = String.fromList(List.reverse(acc));
+            if String.contains(url, ":") || String.contains(url, "@") then
+                Some(#(Link(text = [Text(url)], url = url), rest))
             else
                 None
         }
@@ -905,7 +905,7 @@ fn autolink(chars : List(Char), acc : List(Char)) : Optional(#(Inline, List(Char
 /// columns and never wrapped. A list item follows a bullet, or its number and a
 /// period, whatever delimiter it was written with. A block quote follows a bar,
 /// a thematic break is a line across the width, and a link is its text with its
-/// address after it.
+/// URL after it.
 ///
 /// With styles, emphasis is in italics, strong emphasis bold, and a code span
 /// cyan; emphasis within emphasis, and strong emphasis within a heading, are as
@@ -989,7 +989,7 @@ fn unstrong(inlines : List(Inline)) : List(Inline) =
     List.flatMap(inlines, fn(inline) = match inline {
         Strong(inner) -> unstrong(inner)
       | Emphasis(inner) -> [Emphasis(unstrong(inner))]
-      | Link(text = inner, address = address) -> [Link(address = address, text = unstrong(inner))]
+      | Link(text = inner, url = url) -> [Link(url = url, text = unstrong(inner))]
       | other -> [other]
     })
 
@@ -999,8 +999,7 @@ fn unemphasized(inlines : List(Inline)) : List(Inline) =
     List.flatMap(inlines, fn(inline) = match inline {
         Emphasis(inner) -> unemphasized(inner)
       | Strong(inner) -> [Strong(unemphasized(inner))]
-      | Link(text = inner, address = address) ->
-            [Link(address = address, text = unemphasized(inner))]
+      | Link(text = inner, url = url) -> [Link(url = url, text = unemphasized(inner))]
       | other -> [other]
     })
 
@@ -1018,10 +1017,10 @@ fn span(inline : Inline, output : Output) : String =
                    "*",
                    spans(if output == Styled then unemphasized(inner) else inner, output))
       | Strong(inner) -> marked(output, Ansi.Bold, "**", spans(inner, output))
-      | Link(text = text, address = address) -> if plain(text) == address then
-            address
+      | Link(text = text, url = url) -> if plain(text) == url then
+            url
         else
-            spans(text, output) <> " (" <> address <> ")"
+            spans(text, output) <> " (" <> url <> ")"
       | Break -> "\n"
     }
 
@@ -1130,7 +1129,7 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
         [] -> List.reverse(if String.isEmpty(row) then rows else row :: rows)
       | spaces :: word :: rest when String.startsWith(spaces, " ") -> if String.isEmpty(row) then
             filled(rest, width, word, rows)
-        else if Terminal.columns(row) + String.size(spaces) + Terminal.columns(word) <= width then
+        else if Terminal.width(row) + String.size(spaces) + Terminal.width(word) <= width then
             filled(rest, width, row <> spaces <> word, rows)
         else
             filled(rest, width, word, row :: rows)
@@ -1154,7 +1153,7 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 /// A code span and strong emphasis are bold, and emphasis is in italics. A code
 /// block is indented and not filled, a list item follows its bullet or its
 /// number, a block quote is indented, a thematic break is a row of asterisks, a
-/// link is its text with its address after it, and a `Raw` block is as written.
+/// link is its text with its URL after it, and a `Raw` block is as written.
 ///
 /// Every character roff would change is written as roff's escape for it, so
 /// that code copied from the page is the code written. The rest is UTF-8, which
@@ -1248,10 +1247,10 @@ fn roffSpan(inline : Inline, font : Font) : String =
       | CodeSpan(code) -> inFont(withBold(font), font, escaped(code))
       | Emphasis(inner) -> inFont(withItalic(font), font, roffSpans(inner, withItalic(font)))
       | Strong(inner) -> inFont(withBold(font), font, roffSpans(inner, withBold(font)))
-      | Link(text = text, address = address) -> if plain(text) == address then
-            escaped(address)
+      | Link(text = text, url = url) -> if plain(text) == url then
+            escaped(url)
         else
-            roffSpans(text, font) <> " (" <> escaped(address) <> ")"
+            roffSpans(text, font) <> " (" <> escaped(url) <> ")"
       | Break -> "\n"
     }
 
@@ -1398,14 +1397,14 @@ let lazyUnderline =
               run = fn() =
                   blocksAre(parse("> foo\nbar\n==="), [Quote([Paragraph([Text("foo bar ===")])])]))
 
-// a regression test: an address in angle brackets was not read
-let angledAddress =
-    Test.Case(name = "an address in angle brackets may hold a space",
+// a regression test: a URL in angle brackets was not read
+let angledUrl =
+    Test.Case(name = "a URL in angle brackets may hold a space",
               run = fn() =
                   blocksAre(parse("[a](<b c>) and [d](<e> \"t\")"),
-                            [Paragraph([Link(text = [Text("a")], address = "b c"),
+                            [Paragraph([Link(text = [Text("a")], url = "b c"),
                                         Text(" and "),
-                                        Link(text = [Text("d")], address = "e")])]))
+                                        Link(text = [Text("d")], url = "e")])]))
 
 let setext =
     Test.Case(name = "a line of = or - under a paragraph makes it a heading",
@@ -1525,7 +1524,7 @@ let html =
               run = fn() =
                   blocksAre(parse("<div>\n*x*\n</div>\n\n<https://a.org>"),
                             [Raw(["<div>", "*x*", "</div>"]),
-                             Paragraph([Link(address = "https://a.org",
+                             Paragraph([Link(url = "https://a.org",
                                              text = [Text("https://a.org")])])]))
 
 let escapes =
@@ -1560,12 +1559,12 @@ let links =
     Test.Case(name = "a link's title is read past, an image is a link",
               run = fn() =
                   inlinesAre("[a [b]](u \"t\") ![i](p)",
-                             [Link(address = "u", text = [Text("a [b]")]),
+                             [Link(url = "u", text = [Text("a [b]")]),
                               Text(" "),
-                              Link(address = "p", text = [Text("i")])]))
+                              Link(url = "p", text = [Text("i")])]))
 
 let notALink =
-    Test.Case(name = "brackets with no address after them are text",
+    Test.Case(name = "brackets with no URL after them are text",
               run = fn() = inlinesAre("[a] and [b][ref]", [Text("[a] and [b][ref]")]))
 
 let lineEndings =
@@ -1721,7 +1720,7 @@ let manualRest =
                            ".fi"]))
 
 let manualLinks =
-    Test.Case(name = "a link is its text with its address after it",
+    Test.Case(name = "a link is its text with its URL after it",
               run = fn() =
                   rowsAre(List.drop(roff(parse("[home](https://a.org) <https://b.org>"), hello()),
                                     8),

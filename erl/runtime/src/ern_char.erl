@@ -8,7 +8,7 @@
 -module(ern_char).
 
 -export([is_digit/1, is_alpha/1, is_space/1, is_upper/1, is_lower/1, to_upper/1, to_lower/1,
-         to_string/1, to_int/1, from_int/1]).
+         to_string/1, to_code_point/1, from_code_point/1]).
 
 -spec is_digit(char()) -> boolean().
 is_digit(Char) when Char < 16#80 -> Char >= $0 andalso Char =< $9;
@@ -45,12 +45,12 @@ to_lower(Char) -> single(string:lowercase([Char]), Char).
 -spec to_string(char()) -> binary().
 to_string(Char) -> unicode:characters_to_binary([Char]).
 
--spec to_int(char()) -> integer().
-to_int(Char) -> Char.
+-spec to_code_point(char()) -> integer().
+to_code_point(Char) -> Char.
 
-%% Char.fromInt has checked the range
--spec from_int(char()) -> char().
-from_int(Code) -> Code.
+%% Char.fromCodePoint has checked the range
+-spec from_code_point(char()) -> char().
+from_code_point(Code) -> Code.
 
 single([Changed], _) -> Changed;
 single(_, Char) -> Char.

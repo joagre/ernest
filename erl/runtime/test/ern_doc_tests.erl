@@ -109,7 +109,7 @@ check_examples(Namespace, Source, Docs) ->
     try
         %% Appendix E.0 shape rule 6: each example runs on its own, and the value
         %% it ends with is the last line it prints; what it prints itself,
-        %% as an example of `foreach` does, comes before and is not compared
+        %% as an example of `forEach` does, comes before and is not compared
         lists:foreach(fun({Number, _, Value}) ->
                           run_example(ErlangModule, [ErlangModule], Number, Value)
                       end, Inside),

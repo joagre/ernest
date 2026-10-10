@@ -44,11 +44,11 @@ list_laws_test_() ->
     laws([{"size and isEmpty", fun ints/1, fun list_size/1},
           {"contains", fun ints_and_int/1, fun list_contains/1},
           {"get by index from 0", fun ints_and_int/1, fun list_get/1},
-          {"remove the element at the index, none outside the list", fun ints_and_int/1,
-           fun list_remove/1},
+          {"removeAt the element at the index, none outside the list", fun ints_and_int/1,
+           fun list_remove_at/1},
           {"map, filter, filterMap", fun ints_and_int/1, fun list_map_filter/1},
           {"foldLeft from the left, foldRight from the right", fun ints/1, fun list_folds/1},
-          {"foreach meets the elements in order", fun ints/1, fun list_foreach/1},
+          {"forEach meets the elements in order", fun ints/1, fun list_for_each/1},
           {"any, all, find the first", fun ints_and_int/1, fun list_search/1},
           {"last", fun ints/1, fun list_last/1},
           {"take and drop split the list, below 0 being 0", fun ints_and_int/1,
@@ -84,11 +84,11 @@ list_get({List, Index}) ->
                end,
     ?LIST:get(List, Index) =:= Expected.
 
-list_remove({List, Index}) when Index >= 0, Index < length(List) ->
+list_remove_at({List, Index}) when Index >= 0, Index < length(List) ->
     {Before, [_ | After]} = lists:split(Index, List),
-    ?LIST:remove(List, Index) =:= Before ++ After;
-list_remove({List, Index}) ->
-    ?LIST:remove(List, Index) =:= List.
+    ?LIST:removeAt(List, Index) =:= Before ++ After;
+list_remove_at({List, Index}) ->
+    ?LIST:removeAt(List, Index) =:= List.
 
 list_map_filter({List, Pivot}) ->
     Keep = above(Pivot),
@@ -101,8 +101,8 @@ list_folds(List) ->
     ?LIST:foldLeft(List, [], fun(Acc, X) -> [X | Acc] end) =:= lists:reverse(List)
         andalso ?LIST:foldRight(List, [], fun(Acc, X) -> [X | Acc] end) =:= List.
 
-list_foreach(List) ->
-    met(fun(Visit) -> ?LIST:foreach(List, Visit) end) =:= List.
+list_for_each(List) ->
+    met(fun(Visit) -> ?LIST:forEach(List, Visit) end) =:= List.
 
 list_search({List, Pivot}) ->
     Keep = above(Pivot),
@@ -195,16 +195,16 @@ map_laws_test_() ->
           {"get after put, contains", fun map_and_key/1, fun map_put/1},
           {"remove, a key not present no error", fun map_and_key/1, fun map_remove/1},
           {"update: the entry, present or not, replaced", fun map_and_key/1, fun map_update/1},
-          {"map, filter, filterMap, foldLeft", fun map_and_key/1, fun map_traversals/1},
+          {"map, filter, filterMap, fold", fun map_and_key/1, fun map_traversals/1},
           {"any, all, find some entry that satisfies", fun map_and_key/1, fun map_search/1},
           {"merge: the second wins; mergeWith: the key, the first's value, the second's",
            fun two_maps/1, fun map_merge/1},
-          {"foreach meets each entry once", fun entries/1, fun map_foreach/1}]).
+          {"forEach meets each entry once", fun entries/1, fun map_for_each/1}]).
 
-%% Report Appendix E.3: foreach meets each entry once, in unspecified order.
-map_foreach(Pairs) ->
+%% Report Appendix E.3: forEach meets each entry once, in unspecified order.
+map_for_each(Pairs) ->
     Map = ?MAP:fromList(Pairs),
-    Met = met(fun(Visit) -> ?MAP:foreach(Map, fun(Key, Value) -> Visit({Key, Value}) end) end),
+    Met = met(fun(Visit) -> ?MAP:forEach(Map, fun(Key, Value) -> Visit({Key, Value}) end) end),
     lists:sort(Met) =:= lists:sort(maps:to_list(Map)).
 
 map_from_list(Pairs) ->
@@ -245,7 +245,7 @@ map_traversals({Map, Pivot, _}) ->
         andalso ?MAP:filter(Map, Keep) =:= maps:filter(Keep, Map)
         andalso ?MAP:filterMap(Map, Negated)
                 =:= maps:map(fun(_, Value) -> -Value end, maps:filter(Keep, Map))
-        andalso ?MAP:foldLeft(Map, 0, fun(Acc, Key, Value) -> Weighted(Key, Value, Acc) end)
+        andalso ?MAP:fold(Map, 0, fun(Acc, Key, Value) -> Weighted(Key, Value, Acc) end)
                 =:= maps:fold(Weighted, 0, Map).
 
 map_search({Map, Pivot, _}) ->
@@ -276,14 +276,14 @@ set_laws_test_() ->
           {"contains, put, remove", fun elements_and_one/1, fun set_put_remove/1},
           {"union, intersection, difference, isSubset", fun two_element_lists/1,
            fun set_operations/1},
-          {"map, filter, filterMap, foldLeft, any, all, find", fun elements_and_one/1,
+          {"map, filter, filterMap, fold, any, all, find", fun elements_and_one/1,
            fun set_traversals/1},
-          {"foreach meets each element once", fun elements/1, fun set_foreach/1}]).
+          {"forEach meets each element once", fun elements/1, fun set_for_each/1}]).
 
-%% Report Appendix E.4: foreach meets each element once, in unspecified order.
-set_foreach(List) ->
+%% Report Appendix E.4: forEach meets each element once, in unspecified order.
+set_for_each(List) ->
     Set = ?SET:fromList(List),
-    lists:sort(met(fun(Visit) -> ?SET:foreach(Set, Visit) end)) =:= lists:usort(List).
+    lists:sort(met(fun(Visit) -> ?SET:forEach(Set, Visit) end)) =:= lists:usort(List).
 
 set_contents(List) ->
     Set = ?SET:fromList(List),
@@ -318,7 +318,7 @@ set_traversals({List, Pivot}) ->
     members(?SET:map(Set, fun(X) -> X div 2 end)) =:= lists:usort([X div 2 || X <- Ordered])
         andalso members(?SET:filter(Set, Keep)) =:= lists:filter(Keep, Ordered)
         andalso members(?SET:filterMap(Set, Tripled)) =:= [X * 3 || X <- Ordered, Keep(X)]
-        andalso ?SET:foldLeft(Set, 0, fun(Acc, X) -> Acc + X end) =:= lists:sum(Ordered)
+        andalso ?SET:fold(Set, 0, fun(Acc, X) -> Acc + X end) =:= lists:sum(Ordered)
         andalso ?SET:any(Set, Keep) =:= lists:any(Keep, Ordered)
         andalso ?SET:all(Set, Keep) =:= lists:all(Keep, Ordered)
         andalso Found.
@@ -346,8 +346,8 @@ string_laws_test_() ->
           {"join puts the second between the parts", fun texts_and_text/1, fun string_join/1},
           {"replace every occurrence, an empty second changing nothing", fun text_part_text/1,
            fun string_replace/1},
-          {"slice: graphemes from the index, clipped, below 0 being 0", fun text_and_two/1,
-           fun string_slice/1},
+          {"slice: graphemes from the index up to the end index, clipped, below 0 being 0",
+           fun text_and_two/1, fun string_slice/1},
           {"padStart and padEnd: the pad's copies cut to fit, the string kept",
            fun text_count_pad/1, fun string_pads/1},
           {"repeat n times, below 0 none", fun text_and_one/1, fun string_repeat/1},
@@ -416,11 +416,12 @@ string_replace({Whole, Old, New}) ->
                end,
     ?STRING:replace(Whole, Old, New) =:= Expected.
 
-string_slice({Whole, Index, Count}) ->
+string_slice({Whole, Index, End}) ->
     Graphemes = ?STRING:graphemes(Whole),
     From = min(max(Index, 0), length(Graphemes)),
-    Expected = iolist_to_binary(lists:sublist(lists:nthtail(From, Graphemes), max(Count, 0))),
-    ?STRING:slice(Whole, Index, Count) =:= Expected.
+    To = min(max(End, From), length(Graphemes)),
+    Expected = iolist_to_binary(lists:sublist(lists:nthtail(From, Graphemes), To - From)),
+    ?STRING:slice(Whole, Index, End) =:= Expected.
 
 %% The pad stands before or after the string as written, a prefix of its
 %% copies; where nothing is missing or the pad is empty, the string alone;
@@ -507,9 +508,9 @@ string_compare({First, Second}) ->
 %% a digit's value in a base, the classes, the single case forms, the order
 %% by code point
 char_laws_test_() ->
-    laws([{"fromInt of toInt, toString", fun one_char/1, fun char_code/1},
-          {"fromInt: None outside U+0000 to U+10FFFF and for a surrogate", fun code_point/1,
-           fun char_from_int/1},
+    laws([{"fromCodePoint of toCodePoint, toString", fun one_char/1, fun char_code/1},
+          {"fromCodePoint: None outside U+0000 to U+10FFFF and for a surrogate",
+           fun code_point/1, fun char_from_code_point/1},
           {"isAsciiDigit: 0 to 9 alone, each a digit", fun one_char/1, fun char_ascii_digit/1},
           {"digitValue: 0 to 9, then a letter of either case, under a base of 2 to 36",
            fun char_and_base/1, fun char_digit_value/1},
@@ -520,13 +521,13 @@ char_laws_test_() ->
           {"compare by code point", fun two_chars/1, fun char_compare/1}]).
 
 char_code(Char) ->
-    ?CHAR:fromInt(?CHAR:toInt(Char)) =:= {'Some', Char}
+    ?CHAR:fromCodePoint(?CHAR:toCodePoint(Char)) =:= {'Some', Char}
         andalso ?CHAR:toString(Char) =:= unicode:characters_to_binary([Char]).
 
-char_from_int(Code) ->
+char_from_code_point(Code) ->
     Surrogate = Code >= 16#D800 andalso Code =< 16#DFFF,
     Valid = Code >= 0 andalso Code =< 16#10FFFF andalso not Surrogate,
-    ?CHAR:fromInt(Code) =:= kept(Valid, Code).
+    ?CHAR:fromCodePoint(Code) =:= kept(Valid, Code).
 
 char_ascii_digit(Char) ->
     Ascii = Char >= $0 andalso Char =< $9,
@@ -843,8 +844,8 @@ bytes_laws_test_() ->
     laws([{"size, isEmpty, get, toList, fromList", fun bytes_and_one/1, fun bytes_contents/1},
           {"fromList: None for a value outside 0 to 255", fun octet_values/1,
            fun bytes_from_list/1},
-          {"slice from the index, clipped, below 0 being 0", fun bytes_and_two/1,
-           fun bytes_slice/1},
+          {"slice from the index up to the end index, clipped, below 0 being 0",
+           fun bytes_and_two/1, fun bytes_slice/1},
           {"indexOf, lastIndexOf, contains, startsWith, endsWith by octet",
            fun bytes_and_part/1, fun bytes_searches/1},
           {"split then join gives the bytes back; replace as split and join",
@@ -871,10 +872,10 @@ bytes_from_list(List) ->
                end,
     ?BYTES:fromList(List) =:= Expected.
 
-bytes_slice({Octets, Index, Count}) ->
+bytes_slice({Octets, Index, End}) ->
     From = min(max(Index, 0), byte_size(Octets)),
-    Length = min(max(Count, 0), byte_size(Octets) - From),
-    ?BYTES:slice(Octets, Index, Count) =:= binary:part(Octets, From, Length).
+    To = min(max(End, From), byte_size(Octets)),
+    ?BYTES:slice(Octets, Index, End) =:= binary:part(Octets, From, To - From).
 
 %% An empty second is at 0 and last at the size.
 bytes_searches({Octets, Part}) ->
@@ -930,7 +931,7 @@ ordered_set_laws_test_() ->
           {"contains, put, remove", fun elements_and_one/1, fun ordered_set_put_remove/1},
           {"union, intersection, difference, isSubset", fun two_element_lists/1,
            fun ordered_set_operations/1},
-          {"map, filter, filterMap, foldLeft, foreach, any, all, find in order",
+          {"map, filter, filterMap, foldLeft, forEach, any, all, find in order",
            fun elements_and_one/1, fun ordered_set_traversals/1}]).
 
 ordered_set_contents(List) ->
@@ -984,7 +985,7 @@ ordered_set_traversals({List, Pivot}) ->
                 =:= lists:usort([X rem 2 || X <- Ordered, Keep(X)])
         andalso ?ORDERED_SET:foldLeft(Set, [], fun(Acc, X) -> [X | Acc] end)
                 =:= lists:reverse(Ordered)
-        andalso met(fun(Visit) -> ?ORDERED_SET:foreach(Set, Visit) end) =:= Ordered
+        andalso met(fun(Visit) -> ?ORDERED_SET:forEach(Set, Visit) end) =:= Ordered
         andalso ?ORDERED_SET:any(Set, Keep) =:= lists:any(Keep, Ordered)
         andalso ?ORDERED_SET:all(Set, Keep) =:= lists:all(Keep, Ordered)
         andalso ?ORDERED_SET:find(Set, Keep) =:= first(lists:filter(Keep, Ordered)).
@@ -1003,7 +1004,7 @@ ordered_map_laws_test_() ->
            fun ordered_map_put/1},
           {"merge: the second wins; mergeWith: the key, the first's value, the second's",
            fun two_entry_lists/1, fun ordered_map_merge/1},
-          {"map, filter, filterMap, foldLeft, foreach, any, all, find in order",
+          {"map, filter, filterMap, foldLeft, forEach, any, all, find in order",
            fun entries_and_one/1, fun ordered_map_traversals/1},
           {"keys the order calls Equal: the key the map holds stays", fun tagged_entries/1,
            fun ordered_map_held_key/1}]).
@@ -1079,7 +1080,7 @@ ordered_map_traversals({Pairs, Pivot}) ->
     Kept = [{Key, Value} || {Key, Value} <- Expected, Key > Pivot],
     Negated = fun(Key, Value) -> kept(Keep(Key, Value), -Value) end,
     Visits = fun(Visit) ->
-                     ?ORDERED_MAP:foreach(Map, fun(Key, Value) -> Visit({Key, Value}) end)
+                     ?ORDERED_MAP:forEach(Map, fun(Key, Value) -> Visit({Key, Value}) end)
              end,
     ?ORDERED_MAP:toList(?ORDERED_MAP:map(Map, fun(Key, Value) -> Key + Value end))
         =:= [{Key, Key + Value} || {Key, Value} <- Expected]
@@ -1348,7 +1349,7 @@ tagged_entries(Size) ->
 entries_model(Pairs) ->
     lists:sort(maps:to_list(maps:from_list(Pairs))).
 
-%% What a foreach met, in the order it met it.
+%% What a forEach met, in the order it met it.
 met(Run) ->
     Self = self(),
     Tag = make_ref(),

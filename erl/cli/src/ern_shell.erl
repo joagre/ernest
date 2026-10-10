@@ -747,7 +747,7 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, interface = Inte
     ok.
 
 %% Report §11.2: an input that declares, or whose code builds a function
-%% value, a lambda, a `via`'s function, a function taken as a value, which
+%% value, a lambda, an adapted address's function, a function taken as a value, which
 %% may then be held anywhere, is kept while the session runs, as a
 %% program's modules are; the emitter says which (ern_emitter:compile/5).
 %% Any other is done with its module once its answer is in, whether it

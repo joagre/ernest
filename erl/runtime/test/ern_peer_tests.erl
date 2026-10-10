@@ -1,9 +1,9 @@
 %% Report §8.7, Appendix E.27, E.22, G.7: what a node's gateway does with a
 %% spawn's answer and a spawn from a peer, a supervisor's child on another
-%% node, and a standing address's finds, each where a run of real nodes
+%% node, and a proxy's finds, each where a run of real nodes
 %% cannot show it whenever it runs. Real nodes are test/ern_nodes_tests.erl's.
 %% Regression tests, written after the code, the spawn by identity's (MVP
-%% 3.1's item 4) among them; the standing address's was written before.
+%% 3.1's item 4) among them; the proxy's was written before.
 -module(ern_peer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -71,12 +71,13 @@ faulty_fields_test() ->
     try
         Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
         Here = self(),
-        Via = fun(Message) -> Message end,
+        Wrap = fun(Message) -> Message end,
         [?assertEqual(unreadable, ern_peer:frame(self(), Body))
          || Body <- [{answer, make_ref(), garbage}, {answer, make_ref(), {failed, 'Other'}},
                      {answer, make_ref(), {spawned, Elsewhere}}, {answer, nothing, {spawned, Here}},
-                     {find, 1, <<"Int">>, make_ref()}, {via, {via, Via, Here, Elsewhere}, 1},
-                     {via, not_an_address, 1},
+                     {find, 1, <<"Int">>, make_ref()},
+                     {adapted, {adapted, Wrap, Here, Elsewhere}, 1},
+                     {adapted, not_an_address, 1},
                      {spawn, make_ref(), not_a_function, <<"s">>, false},
                      {spawn, make_ref(), {function, <<"short">>}, <<"s">>, false},
                      {spawn, make_ref(), {lambda, <<0:256>>, 0, []}, <<"s">>, false},
@@ -337,7 +338,7 @@ held_service_test() ->
                Newcomer = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.newcomer">>),
                Taken = ern_peer:offer(Service, Holder),
                Held = ern_peer:offer(Service, Newcomer),
-               Again = ern_peer:offer(Service, ern_rt:via(Holder, fun(Message) -> Message end)),
+               Again = ern_peer:offer(Service, ern_rt:adapted(Holder, fun(Message) -> Message end)),
                ern_rt:monitor(Holder, fun(Down) -> {ended, Down} end),
                ern_rt:kill(Holder),
                Down = receive {ended, Ended} -> Ended end,
@@ -409,23 +410,23 @@ restart_asks_gateway_test() ->
 crashes() ->
     receive crash -> ern_rt:fault(<<"crashed">>) end.
 
-%% Appendix G.7: a standing address makes one find at a time. Two messages
+%% Appendix G.7: a proxy makes one find at a time. Two messages
 %% that come while a find is under way wait for it and share its outcome:
 %% where it fails, both go to the last address held, the process that
 %% stands where no address has been found, and neither starts a find of its
 %% own; a message that comes after the failure starts one. In a run that is
-%% no node a find answers NotListed at once, so the host holds the standing
+%% no node a find answers NotListed at once, so the host holds the proxy's
 %% process still while the two come, as a find under way holds it, and its
 %% finds and its sends are read by tracing it
-standing_one_find_test() ->
-    Standing = library("standing"),
+proxy_one_find_test() ->
+    Proxy = library("proxy"),
     Self = self(),
     Main = fun() ->
-               ern_rt:init_modules([Standing]),
+               ern_rt:init_modules([Proxy]),
                Service = {'Service', <<"probe">>, <<0:256>>},
-               {via, _, Forwarder, _} = Address = Standing:start(Service, 1000),
+               {adapted, _, Forwarder, _} = Address = Proxy:start(Service, 1000),
                %% the first find made, the process waits for a message
-               ok = ern_waits:until(Forwarder, fun() -> holds(Standing, Forwarder) end),
+               ok = ern_waits:until(Forwarder, fun() -> holds(Proxy, Forwarder) end),
                1 = erlang:trace_pattern({'ern@peer', find, 2}, true, [local]),
                erlang:trace(Forwarder, true, [call, send]),
                true = erlang:suspend_process(Forwarder),
@@ -455,10 +456,10 @@ library(Name) ->
     {module, Unit} = code:load_binary(Unit, Erc, Bytes),
     Unit.
 
-%% Whether the standing process waits for its next message.
-holds(Standing, Forwarder) ->
+%% Whether the proxy's process waits for its next message.
+holds(Proxy, Forwarder) ->
     erlang:process_info(Forwarder, [status, current_function])
-        =:= [{status, waiting}, {current_function, {Standing, held, 4}}].
+        =:= [{status, waiting}, {current_function, {Proxy, held, 4}}].
 
 %% What the traced process did, a find or a message sent and to whom, up to
 %% the message Last sent.

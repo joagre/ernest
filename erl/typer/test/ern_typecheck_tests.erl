@@ -211,7 +211,7 @@ pure_stands_for_a_mailbox_test() ->
     %% a field selected before its record's type is known, and called in a
     %% process; a regression test: the selection, resolved after the call,
     %% was not opened, and the pure field was refused
-    ?assertEqual(ok, ok(Main("List.foreach([Hook(run = done)],"
+    ?assertEqual(ok, ok(Main("List.forEach([Hook(run = done)],"
                              " fn(h) = { send(a, Add(1)); h.run(1) })"))),
     ?assertEqual("field run: a function that runs in a process where a pure one is needed",
                  refusal(Main("let _ = Hook(run = fn(x) = send(a, Add(x)))"))),
@@ -968,7 +968,7 @@ operator_implementation_test() ->
     ?assertEqual("the implementation names arity 3, and plus has 2 parameters",
                  refusal("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+/3\"")).
 
-%% report §8.4, Appendix E.12: `Foreign.from` gives its value by the type at
+%% report §8.4, Appendix E.12: `Foreign.term` gives its value by the type at
 %% which the name is used, which is known whole there: on a type variable,
 %% and on a type that holds one, it is refused, as a callee and as a value,
 %% and no requirement names it; at a known type it is taken, an effect
@@ -977,33 +977,33 @@ operator_implementation_test() ->
 foreign_from_at_a_known_type_test() ->
     %% at a signature's variable the help is the `foreign fn` alone: a
     %% regression test, the help opened with an annotation, which cannot fix it
-    ?assertEqual({"the type a! is not known whole here, and Foreign.from gives foreign code a"
+    ?assertEqual({"the type a! is not known whole here, and Foreign.term gives foreign code a"
                   " value by its type",
                   "a value of a type variable is given by a `foreign fn` whose parameter is of"
                   " that variable"},
-                 refusal_and_help("fn give(x : a) : Foreign.Term = Foreign.from(x)")),
-    ?assertEqual({"the type List(a) is not known whole here, and Foreign.from gives foreign code"
+                 refusal_and_help("fn give(x : a) : Foreign.Term = Foreign.term(x)")),
+    ?assertEqual({"the type List(a) is not known whole here, and Foreign.term gives foreign code"
                   " a value by its type", "annotate the value where it is bound"},
-                 refusal_and_help("fn give() : Foreign.Term = Foreign.from([])")),
-    ?assertEqual("the type List(a) is not known whole here, and Foreign.from gives foreign code"
+                 refusal_and_help("fn give() : Foreign.Term = Foreign.term([])")),
+    ?assertEqual("the type List(a) is not known whole here, and Foreign.term gives foreign code"
                  " a value by its type",
-                 refusal("fn give(xs : List(a)) : Foreign.Term needs a.show = Foreign.from(xs)")),
-    ?assertEqual("the type a! is not known whole here, and Foreign.from gives foreign code a"
+                 refusal("fn give(xs : List(a)) : Foreign.Term needs a.show = Foreign.term(xs)")),
+    ?assertEqual("the type a! is not known whole here, and Foreign.term gives foreign code a"
                  " value by its type",
                  refusal("fn give(xs : List(a)) : List(Foreign.Term) =\n"
-                         "    List.map(xs, Foreign.from)")),
+                         "    List.map(xs, Foreign.term)")),
     ?assertEqual(ok, ok("fn give(xs : List(Int)) : List(Foreign.Term) =\n"
-                        "    List.map(xs, Foreign.from)")),
-    ?assertEqual(ok, ok("fn give(f : (Int) -> Int with e) : Foreign.Term = Foreign.from(f)")).
+                        "    List.map(xs, Foreign.term)")),
+    ?assertEqual(ok, ok("fn give(f : (Int) -> Int with e) : Foreign.Term = Foreign.term(f)")).
 
 %% report §3.8, §3.10: a `Foreign` value has the runtime's exact equality,
 %% directly or inside another value, whatever term foreign code made, a
 %% function's among them. A regression test of the rule of 2026-10-01: the
 %% checker refused `==` on `Foreign`
 foreign_has_exact_equality_test() ->
-    ?assertEqual(ok, ok("fn f(g : (Int) -> Int) = Foreign.from(g) == Foreign.from(g)")),
-    ?assertEqual(ok, ok("fn eq(a, b) = a == b\nfn f() = eq([Foreign.from(1)], [Foreign.from(2)])")),
-    ?assertEqual(ok, ok("fn f() = Foreign.toInt(Foreign.from(1)) == Some(1)")).
+    ?assertEqual(ok, ok("fn f(g : (Int) -> Int) = Foreign.term(g) == Foreign.term(g)")),
+    ?assertEqual(ok, ok("fn eq(a, b) = a == b\nfn f() = eq([Foreign.term(1)], [Foreign.term(2)])")),
+    ?assertEqual(ok, ok("fn f() = Foreign.toInt(Foreign.term(1)) == Some(1)")).
 
 %% report §3.10: a variable with the equality constraint bound to a type
 %% passes the constraint to the variables of that type, so an instance
@@ -1072,7 +1072,7 @@ effects_test() ->
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn inc(xs) = List.map(xs, fn(x) = x + 1)", inc)),
     ?assertEqual("(List(String)) -> Unit with e+",
-                 type_of("export fn say(xs) = List.foreach(xs, fn(x) = Io.println(x))", say)),
+                 type_of("export fn say(xs) = List.forEach(xs, fn(x) = Io.println(x))", say)),
     ?assertEqual(ok, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
                         "fn gb() : Unit with B = Unit\nfn ha() : Unit with A = ga()")),
     ?assertMatch({error, [_]}, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
@@ -1993,14 +1993,14 @@ named_fields_named_test() ->
                  refusal(Point ++ "fn f(q : Point) : Int = match q { Point(a) -> a }")).
 
 %% report §5.6, §11.5: a constructor with named fields where a function
-%% that takes its fields is wanted, as Os.terminating's wrap, is told the
+%% that takes its fields is wanted, as Os.termination's wrap, is told the
 %% lambda that constructs it; where any other value is wanted, the
 %% construction. A regression test, written after the fix: the help named a
 %% construction where a function was wanted
 named_constructor_as_function_test() ->
     ?assertEqual("Stop has named fields; write fn(reply) = Stop(reply = reply)",
                  refusal("type Stop = Stop(reply : Reply(Unit))\n"
-                         "fn f() : Unit with Stop = Os.terminating(Stop)\n")),
+                         "fn f() : Unit with Stop = Os.termination(Stop)\n")),
     Point = "type Point = Point(x : Int, y : Int)\n"
             "fn made(make : (Int, Int) -> Point) : Point = make(1, 2)\n",
     ?assertEqual("Point has named fields; write fn(x, y) = Point(x = x, y = y)",
@@ -2213,12 +2213,12 @@ selector_at_the_arguments_test() ->
 %% report §4.7, §3.9, §6.6: a foreign function's variables whose values a
 %% parameter holds are not reply-carrying, since its code may copy or drop
 %% what it is given; a variable under an address or in a function type is
-%% not held. A regression test: `Foreign.from(r)` dropped a reply
+%% not held. A regression test: `Foreign.term(r)` dropped a reply
 foreign_no_reply_test() ->
     Source = "type Msg = Get(reply : Reply(Int))\n",
     ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of"
-                 " Foreign.from, which duplicates or discards it",
-                 refusal(Source ++ "fn f(r : Reply(Int)) = { let _ = Foreign.from(r); Unit }")),
+                 " Foreign.term, which duplicates or discards it",
+                 refusal(Source ++ "fn f(r : Reply(Int)) = { let _ = Foreign.term(r); Unit }")),
     ?assertEqual("(a!) -> M.Held(a!)",
                  type_of("export type Held(a) = Held(a)\n"
                          "export foreign fn hold(x : a) : Held(a) = \"erlang:hd/1\"", hold)),
@@ -2690,7 +2690,7 @@ reply_lambda_test() ->
                  " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
                  " Peer.spawnMonitored runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                         "    let g = fn() = worker(r);\n    List.foreach([1], fn(_) = g()) }")),
+                         "    let g = fn() = worker(r);\n    List.forEach([1], fn(_) = g()) }")),
     ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
                  " as the function spawn, spawnMonitored, Peer.spawn or Peer.spawnMonitored"
                  " runs",

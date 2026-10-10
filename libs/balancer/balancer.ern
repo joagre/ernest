@@ -138,8 +138,8 @@ fn drawnTwo(measures : List(#(Place, Address(Measuring))),
     if count <= 2 then
         #(measures, seed)
     else {
-        let #(first, seed1) = Random.next(seed, count);
-        let #(drawn, seed2) = Random.next(seed1, count - 1);
+        let #(first, seed1) = Random.nextInt(seed, count);
+        let #(drawn, seed2) = Random.nextInt(seed1, count - 1);
         let second = if drawn >= first then drawn + 1 else drawn;
         #(List.filterMap([first, second], fn(index) = List.get(measures, index)), seed2)
     }

@@ -28,17 +28,17 @@ by_type_test() ->
     ?assertEqual(<<"<foreign>">>, ern_show:show(foreign, 1)).
 
 %% report Appendix E.1, E.21: a process by its number, and an address by
-%% the number of the process behind it, through every via
+%% the number of the process behind it, through every adapted address
 identity_test() ->
     Pid = list_to_pid("<0.84.0>"),
     ?assertEqual(<<"<process 84>">>, ern_show:show(process, Pid)),
     ?assertEqual(<<"<address 84>">>, ern_show:show({address, any, <<>>}, Pid)),
     ?assertEqual(<<"<address 84>">>,
-                 ern_show:show({address, any, <<>>}, ern_rt:via(Pid, fun(X) -> X end))),
+                 ern_show:show({address, any, <<>>}, ern_rt:adapted(Pid, fun(X) -> X end))),
     %% and where the type is a variable, by the representation. A
     %% regression test: an adapted address read as a tuple,
-    %% `#(via, <function>, <address 84>)`
-    ?assertEqual(<<"<address 84>">>, ern_show:show(any, ern_rt:via(Pid, fun(X) -> X end))).
+    %% `#(adapted, <function>, <address 84>)`
+    ?assertEqual(<<"<address 84>">>, ern_show:show(any, ern_rt:adapted(Pid, fun(X) -> X end))).
 
 %% report Appendix E.1: a foreign value reads by the representation, and as
 %% <foreign> where it reads as none of Ernest's forms; an improper list,

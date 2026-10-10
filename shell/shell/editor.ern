@@ -421,7 +421,7 @@ fn killBackTo(state : Editing, index : Int) : Editing = {
         Editing(..state,
                 text = String.slice(text, 0, index) <> suffix(text, cursor),
                 cursor = index,
-                killed = String.slice(text, index, cursor - index))
+                killed = String.slice(text, index, cursor))
 }
 
 // Kill forward to `index`, as `killBackTo` kills back.
@@ -432,11 +432,11 @@ fn killForwardTo(state : Editing, index : Int) : Editing = {
     else
         Editing(..state,
                 text = String.slice(text, 0, cursor) <> suffix(text, index),
-                killed = String.slice(text, cursor, index - cursor))
+                killed = String.slice(text, cursor, index))
 }
 
 fn suffix(text : String, index : Int) : String =
-    String.slice(text, index, String.size(text) - index)
+    String.slice(text, index, String.size(text))
 
 // report §11.2: the start of the word before the cursor, over what is not
 // in a word and then over the word itself; `inWord` says what a word is,
@@ -464,14 +464,14 @@ fn isBeyond(text : String, index : Int, stride : Int) : Bool =
     index + Int.min(stride, 0) < 0 || index + Int.max(stride, 0) > String.size(text)
 
 fn unspaced(text : String, index : Int) : Bool = {
-    let grapheme = String.slice(text, index, 1);
+    let grapheme = String.slice(text, index, index + 1);
     grapheme != " " && grapheme != "\t"
 }
 
 // A grapheme is judged by its first code point, which is what Char's
 // predicates see.
 fn alphanumeric(text : String, index : Int) : Bool =
-    match String.toList(String.slice(text, index, 1)) {
+    match String.toList(String.slice(text, index, index + 1)) {
         char :: _ -> Char.isAlpha(char) || Char.isDigit(char)
       | [] -> false
     }
@@ -811,7 +811,7 @@ fn keys(text : String) : List(Terminal.Event) =
 
 // A control key as the terminal sends it: `C-a` is 1 (§8.2).
 fn ctrl(letter : Char) : Terminal.Event =
-    match Char.fromInt(Char.toInt(letter) - 96) {
+    match Char.fromCodePoint(Char.toCodePoint(letter) - 96) {
         Some(control) -> Terminal.Key(control)
       | None -> Terminal.Key(letter)
     }

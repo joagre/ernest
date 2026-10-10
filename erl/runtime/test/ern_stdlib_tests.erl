@@ -45,7 +45,7 @@ list_test() ->
     ?assertEqual([2], List:filter([1, 2], fun(X) -> X > 1 end)),
     ?assertEqual([20], List:filterMap([1, 2], fun(1) -> 'None'; (X) -> {'Some', X * 10} end)),
     ?assertEqual(6, List:foldLeft([1, 2, 3], 0, fun(A, X) -> A + X end)),
-    ?assertEqual('Unit', List:foreach([1], fun(_) -> 'Unit' end)),
+    ?assertEqual('Unit', List:forEach([1], fun(_) -> 'Unit' end)),
     ?assertEqual({[1, 2], [3, 1]}, List:span([1, 2, 3, 1], fun(X) -> X < 3 end)),
     ?assertEqual({[1, 2, 1], [3]}, List:partition([1, 2, 3, 1], fun(X) -> X < 3 end)),
     %% the predicate meets the elements in order; a regression test, it met
@@ -78,16 +78,16 @@ list_test() ->
                  List:sort([{1, a}, {2, c}, {1, b}], ByFirst)),
     Many = [(N * 7919) rem 1009 || N <- lists:seq(1, 2000)],
     ?assertEqual(lists:sort(Many), List:sort(Many, fun 'ern@int':compare/2)),
-    %% report Appendix E.2, E.0 rule 2: remove takes the index get takes,
+    %% report Appendix E.2, E.0 rule 2: removeAt takes the index get takes,
     %% and leaves the list as it was where there is no element there. A
     %% regression test of the principles review's P45 (2026-10-09), it took
     %% an element and removed its first occurrence
-    ?assertEqual([1, 3, 2], List:remove([1, 2, 3, 2], 1)),
-    ?assertEqual([2, 3], List:remove([1, 2, 3], 0)),
-    ?assertEqual([1, 2], List:remove([1, 2, 3], 2)),
-    ?assertEqual([1, 2], List:remove([1, 2], 2)),
-    ?assertEqual([1, 2], List:remove([1, 2], -1)),
-    ?assertEqual([], List:remove([], 0)),
+    ?assertEqual([1, 3, 2], List:removeAt([1, 2, 3, 2], 1)),
+    ?assertEqual([2, 3], List:removeAt([1, 2, 3], 0)),
+    ?assertEqual([1, 2], List:removeAt([1, 2, 3], 2)),
+    ?assertEqual([1, 2], List:removeAt([1, 2], 2)),
+    ?assertEqual([1, 2], List:removeAt([1, 2], -1)),
+    ?assertEqual([], List:removeAt([], 0)),
     ?assertEqual([{1, a}, {2, b}], List:zip([1, 2, 3], [a, b])),
     ?assertEqual([1, 1, 2, 2], List:flatMap([1, 2], fun(X) -> [X, X] end)),
     ?assertEqual([2, 3, 4], List:range(2, 4)),
@@ -123,12 +123,12 @@ map_test() ->
     ?assertEqual([a, b], lists:sort(Map:keys(Filled))),
     ?assertEqual([1, 2], lists:sort(Map:values(Filled))),
     ?assertEqual({'Some', 20}, Map:get(Map:map(Filled, fun(_, V) -> V * 10 end), b)),
-    ?assertEqual(3, Map:foldLeft(Filled, 0, fun(A, _, V) -> A + V end)),
+    ?assertEqual(3, Map:fold(Filled, 0, fun(A, _, V) -> A + V end)),
     ?assert(Map:put(Map:put(Empty, a, 1), b, 2) =:= Map:put(Map:put(Empty, b, 2), a, 1)),
     ?assertEqual([{b, 2}], Map:toList(Map:filter(Filled, fun(_, V) -> V > 1 end))),
     ?assertEqual([{b, 20}], Map:toList(Map:filterMap(Filled, fun(_, 1) -> 'None';
                                                                (_, V) -> {'Some', V * 10} end))),
-    ?assertEqual('Unit', Map:foreach(Filled, fun(_, _) -> 'Unit' end)),
+    ?assertEqual('Unit', Map:forEach(Filled, fun(_, _) -> 'Unit' end)),
     ?assertEqual(true, Map:any(Filled, fun(K, _) -> K =:= a end)),
     ?assertEqual(false, Map:all(Filled, fun(_, V) -> V > 1 end)),
     ?assertEqual({'Some', {b, 2}}, Map:find(Filled, fun(_, V) -> V =:= 2 end)),
@@ -158,8 +158,8 @@ set_test() ->
     ?assertEqual([20], Set:toList(Set:filterMap(Filled, fun(1) -> 'None';
                                                            (X) -> {'Some', X * 10}
                                                         end))),
-    ?assertEqual('Unit', Set:foreach(Filled, fun(_) -> 'Unit' end)),
-    ?assertEqual(3, Set:foldLeft(Filled, 0, fun(A, X) -> A + X end)),
+    ?assertEqual('Unit', Set:forEach(Filled, fun(_) -> 'Unit' end)),
+    ?assertEqual(3, Set:fold(Filled, 0, fun(A, X) -> A + X end)),
     ?assertEqual(true, Set:any(Filled, fun(X) -> X > 1 end)),
     ?assertEqual(false, Set:all(Filled, fun(X) -> X > 1 end)),
     ?assertEqual({'Some', 2}, Set:find(Filled, fun(X) -> X > 1 end)),
@@ -272,7 +272,10 @@ string_test() ->
     ?assertEqual(false, String:endsWith(<<"he">>, <<"hello">>)),
     ?assertEqual(<<"hella wald">>, String:replace(<<"hello wold">>, <<"o">>, <<"a">>)),
     ?assertEqual(<<"abc">>, String:replace(<<"abc">>, <<>>, <<"x">>)),
-    ?assertEqual(<<"éll"/utf8>>, String:slice(<<"héllo"/utf8>>, 1, 3)),
+    %% report Appendix E.5: an end index, not a count
+    ?assertEqual(<<"éll"/utf8>>, String:slice(<<"héllo"/utf8>>, 1, 4)),
+    ?assertEqual(<<"el">>, String:slice(<<"hello">>, 1, 3)),
+    ?assertEqual(<<>>, String:slice(<<"hello">>, 2, 2)),
     ?assertEqual(<<"lo">>, String:slice(<<"hello">>, 3, 10)),
     ?assertEqual(<<>>, String:slice(<<"hello">>, -1, -1)),
     ?assertEqual(<<"007">>, String:padStart(<<"7">>, 3, <<"0">>)),
@@ -405,12 +408,12 @@ char_test() ->
     ?assertEqual(16#DF, Char:toUpper(16#DF)),
     ?assertEqual($a, Char:toLower($A)),
     ?assertEqual($1, Char:toLower($1)),
-    ?assertEqual({'Some', 16#E9}, Char:fromInt(16#E9)),
-    ?assertEqual('None', Char:fromInt(16#D800)),
-    ?assertEqual('None', Char:fromInt(16#110000)),
-    ?assertEqual('None', Char:fromInt(-1)),
+    ?assertEqual({'Some', 16#E9}, Char:fromCodePoint(16#E9)),
+    ?assertEqual('None', Char:fromCodePoint(16#D800)),
+    ?assertEqual('None', Char:fromCodePoint(16#110000)),
+    ?assertEqual('None', Char:fromCodePoint(-1)),
     ?assertEqual(<<"é"/utf8>>, Char:toString(16#E9)),
-    ?assertEqual(16#E9, Char:toInt(16#E9)),
+    ?assertEqual(16#E9, Char:toCodePoint(16#E9)),
     ?assertEqual('Greater', Char:compare($b, $a)).
 
 %% report Appendix E.20
@@ -421,6 +424,8 @@ bytes_test() ->
     ?assertEqual({'Some', 8}, Bytes:get(<<7, 8>>, 1)),
     ?assertEqual('None', Bytes:get(<<7, 8>>, 2)),
     ?assertEqual('None', Bytes:get(<<7, 8>>, -1)),
+    %% report Appendix E.20: an end index, not a count
+    ?assertEqual(<<2>>, Bytes:slice(<<1, 2, 3>>, 1, 2)),
     ?assertEqual(<<2, 3>>, Bytes:slice(<<1, 2, 3>>, 1, 5)),
     ?assertEqual(<<>>, Bytes:slice(<<1, 2, 3>>, 3, 1)),
     ?assertEqual(<<>>, Bytes:slice(<<1, 2, 3>>, 0, -1)),
@@ -670,7 +675,7 @@ entry_mode_and_user_test() ->
            fun() ->
                {'Right', 'Unit'} = Fs:write(InDir("private.txt"), <<"secret">>, 5000),
                {'Right', 'Unit'} = Fs:setMode(InDir("private.txt"), 8#640, 5000),
-               {'Right', 'Unit'} = Fs:makeLink(InDir("link"), InDir("private.txt"), 5000),
+               {'Right', 'Unit'} = Fs:makeSymlink(InDir("link"), InDir("private.txt"), 5000),
                Self ! {owned, {Fs:stat(InDir("private.txt"), 5000), Fs:stat(InDir("link"), 5000),
                                Fs:list({'Path', unicode:characters_to_binary(Dir)}, 5000),
                                'ern@os':user()}}
@@ -903,11 +908,12 @@ fs_links_test() ->
     Fs = 'ern@fs',
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Self ! {fs, Fs:makeLink(InDir("to_shelf"), {'Path', <<"shelf">>}, 1000)},
+                           Self ! {fs, Fs:makeSymlink(InDir("to_shelf"), {'Path', <<"shelf">>},
+                                                      1000)},
                            Self ! {fs, Fs:readLink(InDir("to_shelf"), 1000)},
                            Self ! {fs, Fs:stat(InDir("to_shelf"), 1000)},
                            Self ! {fs, Fs:list({'Path', list_to_binary(Dir)}, 1000)},
-                           Self ! {fs, Fs:makeLink(InDir("to_shelf"), InDir("elsewhere"), 1000)},
+                           Self ! {fs, Fs:makeSymlink(InDir("to_shelf"), InDir("elsewhere"), 1000)},
                            Self ! {fs, Fs:readLink(InDir("shelf"), 1000)},
                            Self ! {fs, Fs:remove(InDir("to_shelf"), 1000)},
                            Self ! {fs, Fs:list({'Path', list_to_binary(Dir)}, 1000)}
@@ -1081,7 +1087,7 @@ tcp_ends_with_program_test() ->
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
     Foreign = 'ern@foreign',
-    ?assertEqual(42, Foreign:from(42)),
+    ?assertEqual(42, Foreign:term(42)),
     ?assertEqual({'Some', 0.0}, Foreign:toFloat(-0.0)),
     ?assertEqual({'Some', 3}, Foreign:toInt(3)),
     ?assertEqual('None', Foreign:toInt(3.0)),
@@ -1120,7 +1126,7 @@ random_test() ->
     Random = 'ern@random',
     Draw = fun Draw(_, _, 0) -> [];
                Draw(Seed, Bound, Count) ->
-                   {Drawn, Seed1} = Random:next(Seed, Bound),
+                   {Drawn, Seed1} = Random:nextInt(Seed, Bound),
                    [Drawn | Draw(Seed1, Bound, Count - 1)]
            end,
     Draws = Draw(Random:seed(42), 5, 200),
@@ -1130,7 +1136,7 @@ random_test() ->
     NegativeDraws = Draw(Random:seed(42), -3, 200),
     ?assertEqual([-3, -2, -1, 0], lists:usort(NegativeDraws)),
     ?assertEqual([0, 0], Draw(Random:seed(1), 0, 2)),
-    {_, Seed1} = Random:next(Random:seed(7), 1),
+    {_, Seed1} = Random:nextInt(Random:seed(7), 1),
     ?assertNotEqual(Random:seed(7), Seed1).
 
 %% report Appendix E.13: the generator is SplitMix64, so a seed's draws are
@@ -1141,16 +1147,16 @@ random_test() ->
 random_splitmix64_test() ->
     Random = 'ern@random',
     Whole = 16#FFFF_FFFF_FFFF_FFFF,
-    {First, Seed1} = Random:next(Random:seed(0), Whole),
-    {Second, Seed2} = Random:next(Seed1, Whole),
-    {Third, _} = Random:next(Seed2, Whole),
+    {First, Seed1} = Random:nextInt(Random:seed(0), Whole),
+    {Second, Seed2} = Random:nextInt(Seed1, Whole),
+    {Third, _} = Random:nextInt(Seed2, Whole),
     ?assertEqual([16#E220A8397B1DCDAF, 16#6E789E6AA1B965F4, 16#06C45D188009454F],
                  [First, Second, Third]),
     ?assertEqual(Random:seed(5), Random:seed(5 + (1 bsl 64))),
     {Fraction, _} = Random:nextFloat(Random:seed(0)),
     ?assertEqual((float(16#E220A8397B1DCDAF bsr 12) + 0.5) / 4503599627370496.0, Fraction),
     %% a bound beyond 64 bits draws from as many words as it needs
-    {Big, _} = Random:next(Random:seed(1), 1 bsl 100),
+    {Big, _} = Random:nextInt(Random:seed(1), 1 bsl 100),
     ?assert(Big >= 0 andalso Big =< 1 bsl 100).
 
 %% report Appendix E.14: Path's edge cases, now that it is Ernest over String
@@ -1211,7 +1217,7 @@ path_edges_test() ->
 %% and an escape sequence take none. Written with the code
 columns_test() ->
     Terminal = 'ern@terminal',
-    Columns = fun(Chars) -> Terminal:columns(unicode:characters_to_binary(Chars)) end,
+    Columns = fun(Chars) -> Terminal:width(unicode:characters_to_binary(Chars)) end,
     ?assertEqual(1, Columns([$e, 16#301])),
     ?assertEqual(0, Columns([16#301])),
     ?assertEqual(2, Columns([16#1F468, 16#200D, 16#1F469, 16#200D, 16#1F467])),

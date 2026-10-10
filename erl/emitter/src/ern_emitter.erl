@@ -784,7 +784,7 @@ expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Context) ->
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`
     %% it names, or a pattern's size names (§5.11), read into a variable
     %% before the receive; a message from a foreign process was checked by
-    %% the proxy that delivered it (§8.4)
+    %% the checker that delivered it (§8.4)
     {Clauses, {Reads, Context1}} = lists:mapfoldl(fun read_before/2, {[], Context}, Written),
     {Bindings, Receive, Context2} = receive_form(Clauses, After, Context1),
     {at(Span, with_bindings(Reads ++ Bindings, Receive)), Context2}.
@@ -983,15 +983,15 @@ name_form(Span, _, Name, #own_declaration{member_of = undefined, name = Name}, T
           #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
     io_value(Span, Name, Type, Shown, Context);
-%% Report §8.4, Appendix E.12: Foreign.from as a value, which gives its
+%% Report §8.4, Appendix E.12: Foreign.term as a value, which gives its
 %% argument as a foreign function's argument of the supplied type crosses
-name_form(_Span, _, from,
-          #remote_declaration{namespace = ['Foreign'], member_of = undefined, name = from},
+name_form(_Span, _, term,
+          #remote_declaration{namespace = ['Foreign'], member_of = undefined, name = term},
           _Type, [#shown_type{type = Crossing}], Context) ->
-    from_value(Crossing, Context);
-name_form(_Span, _, from, #own_declaration{member_of = undefined, name = from}, _Type,
+    term_value(Crossing, Context);
+name_form(_Span, _, term, #own_declaration{member_of = undefined, name = term}, _Type,
           [#shown_type{type = Crossing}], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
-    from_value(Crossing, Context);
+    term_value(Crossing, Context);
 %% Report §8.7: Peer.service as a value, its service's type's hash supplied
 name_form(_Span, _, service,
           #remote_declaration{namespace = ['Peer'], member_of = undefined, name = service},
@@ -1123,17 +1123,17 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = Name
      #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
     io_call(Span, Name, Argument, Shown, Context);
-%% Report §8.4, Appendix E.12: Foreign.from, the value as a foreign
+%% Report §8.4, Appendix E.12: Foreign.term, the value as a foreign
 %% function's argument of its type crosses, by what the checker supplied
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Foreign'], member_of = undefined,
-                                                 name = from},
+                                                 name = term},
                   supplies = [#shown_type{type = Crossing}]},
      [Argument], Context) ->
-    from_call(Span, Argument, Crossing, Context);
-call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = from},
+    term_call(Span, Argument, Crossing, Context);
+call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = term},
                   supplies = [#shown_type{type = Crossing}]},
      [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
-    from_call(Span, Argument, Crossing, Context);
+    term_call(Span, Argument, Crossing, Context);
 %% Report §8.7, Appendix E.27: Peer.service makes its service with its
 %% message type's hash, of the type the checker supplied; Peer.spawn and
 %% Peer.spawnMonitored send the function's identity and captures in place
@@ -1214,12 +1214,12 @@ io_value(_Span, Name, {tfn, [_], _, _}, Shown, Context) ->
     {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
      Context2}.
 
-from_call(Span, Argument, Crossing, Context) ->
+term_call(Span, Argument, Crossing, Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     {Form, Context2} = exposed({Crossing, ArgumentForm}, Context1),
     {at(Span, Form), Context2}.
 
-from_value(Crossing, Context) ->
+term_value(Crossing, Context) ->
     {[Value], Context1} = fresh_variables(1, "Argument", Context),
     {Form, Context2} = exposed({Crossing, erl_syntax:variable(Value)}, Context1),
     {lambda([Value], Form), Context2}.
@@ -1329,8 +1329,8 @@ prelude_call(Span, [send], _, ArgForms, _, Context) ->
     {at(Span, call_remote(ern_rt, send, ArgForms)), Context};
 prelude_call(Span, [answer], _, ArgForms, _, Context) ->
     {at(Span, call_remote(ern_rt, answer, ArgForms)), Context};
-prelude_call(Span, [via], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, via, ArgForms)), Context};
+prelude_call(Span, [adapted], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, adapted, ArgForms)), Context};
 prelude_call(Span, [monitor], _, ArgForms, _, Context) ->
     {at(Span, call_remote(ern_rt, monitor, ArgForms)), Context};
 prelude_call(Span, [kill], _, ArgForms, _, Context) ->
@@ -1408,7 +1408,7 @@ prelude_value(_, ['Int', Member], _, Context) when Member =/= compare ->
 prelude_value(_, [TypeName, '<>'], _, Context) ->
     member_value([TypeName], '<>', Context);
 prelude_value(Span, [Name], Type, Context) ->
-    case lists:member(Name, [self, send, answer, via, monitor, kill, fault, restarting]) of
+    case lists:member(Name, [self, send, answer, adapted, monitor, kill, fault, restarting]) of
         true -> {remote_fun(ern_rt, Name, arity_of(Type, Span)), Context};
         false -> fail(Span, "no emission for " ++ atom_to_list(Name))
     end;
@@ -1691,7 +1691,7 @@ is_plain(Parts) when is_list(Parts) -> lists:all(fun is_plain/1, Parts);
 is_plain(_) -> true.
 
 %% An argument of a foreign function as it is given (§8.4): one with an
-%% address inside, through the proxy that checks what foreign code sends
+%% address inside, through the checker that checks what foreign code sends
 %% it, and a Reply foreign code gave back as it gave it; a function,
 %% wrapped to check the arguments foreign code calls it with; any other,
 %% and every argument of the standard library's own, as it is.

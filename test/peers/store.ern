@@ -19,7 +19,7 @@ fn count(total : Int) : Unit with Counter.Msg =
 export fn main() : Unit with Unit = {
     Io.println("the store's peers: " <> Io.show(Shared.listed()));
     let _ = Peer.offer(Counter.service, counter);
-    let _ = Peer.offer(Counter.adder, via(counter, fn(n) = Counter.Add(n)));
+    let _ = Peer.offer(Counter.adder, adapted(counter, fn(n) = Counter.Add(n)));
     let _ = Peer.offer(Counter.victim, spawn(fn() : Unit with Int = receive {
         _ -> Unit
     }));
@@ -31,7 +31,8 @@ export fn main() : Unit with Unit = {
     });
     let _ = Peer.offer(Counter.fragile, fragile);
     let _ =
-        Peer.offer(Counter.strict, via(fragile, fn(n) = if n < 0 then fault("negative") else n));
+        Peer.offer(Counter.strict,
+                   adapted(fragile, fn(n) = if n < 0 then fault("negative") else n));
     let _ =
         Peer.offer(Calls.brittle,
                    spawn(restarting(RestartLimit(restarts = 10, within = 60000),
@@ -40,7 +41,7 @@ export fn main() : Unit with Unit = {
     let _ = Peer.offer(Calls.doomed, spawn(fn() = Calls.serve()));
     let echoer = spawn(fn() : Unit with Counter.EchoMsg = echoes());
     let _ = Peer.offer(Counter.echo, echoer);
-    let _ = Peer.offer(Counter.echoAdapted, via(echoer, fn(back) = Counter.Ping(back)));
+    let _ = Peer.offer(Counter.echoAdapted, adapted(echoer, fn(back) = Counter.Ping(back)));
     let _ = Peer.offer(Counter.adapter, spawn(fn() = adapts()));
     Io.println("offered");
     wait()
@@ -55,7 +56,7 @@ fn wait() : Unit with Unit =
 fn adapts() : Unit with Counter.AdapterMsg =
     receive {
         Counter.Adapt(target = target, reply = reply) -> {
-            answer(reply, via(target, fn(n) = n * 2));
+            answer(reply, adapted(target, fn(n) = n * 2));
             adapts()
         }
     }

@@ -16,7 +16,7 @@ fn count(total : Int) : Unit with Counter.Msg =
 
 export fn main() : Unit with Stop = {
     let _ = Peer.offer(Counter.service, spawn(fn() = count(0)));
-    Os.terminating(Stop);
+    Os.termination(Stop);
     Io.println("offered");
     receive {
         Stop(reply) -> {

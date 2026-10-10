@@ -1,14 +1,14 @@
 %% The shims behind Foreign (report Appendix E.12, rule 1): what a value of
-%% the runtime is can only be asked of the runtime. `from/1` stands behind
-%% the declaration and is the identity: a use of `Foreign.from` is compiled
+%% the runtime is can only be asked of the runtime. `term/1` stands behind
+%% the declaration and is the identity: a use of `Foreign.term` is compiled
 %% to the crossing itself, by the type it is used at (report §8.4,
 %% ern_emitter), and nothing of the value's type is known here.
 -module(ern_foreign).
 
--export([from/1, to_int/1, to_float/1, to_string/1, to_bytes/1, to_bool/1, to_list/1]).
+-export([term/1, to_int/1, to_float/1, to_string/1, to_bytes/1, to_bool/1, to_list/1]).
 
--spec from(term()) -> term().
-from(Value) -> Value.
+-spec term(term()) -> term().
+term(Value) -> Value.
 
 -spec to_int(term()) -> {'Some', integer()} | 'None'.
 to_int(Value) when is_integer(Value) -> {'Some', Value};

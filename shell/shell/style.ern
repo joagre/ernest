@@ -42,7 +42,7 @@ export fn named(text : String, colour : Markdown.Output) : String = {
             let start = end - String.size(name);
             String.slice(text, 0, start)
                 <> paint(colour, Ansi.Bold, name)
-                <> String.slice(text, end, String.size(text) - end)
+                <> String.slice(text, end, String.size(text))
         }
     }
 }

@@ -2,7 +2,7 @@
 /// other programs run from it.
 ///
 /// Use `arguments`, `environment` and `workingDirectory` to read what the
-/// program was started with, `exit` to end it with a status, and `terminating`
+/// program was started with, `exit` to end it with a status, and `termination`
 /// to be told before it ends. Use `run` to run another program to its end and
 /// read all it wrote, and `start` with `read` and `write` to talk to one while
 /// it runs.
@@ -241,7 +241,7 @@ export foreign fn exit(status : Int) : a with m =
 ///
 /// ```ernest
 /// {
-///     Os.terminating(fn(reply) = reply);
+///     Os.termination(fn(reply) = reply);
 ///     receive {
 ///         reply -> answer(reply, Unit)
 ///     }
@@ -249,11 +249,11 @@ export foreign fn exit(status : Int) : a with m =
 /// ```
 ///
 /// since 0.4.0
-export fn terminating(wrap : (Reply(Unit)) -> m) : Unit with m =
-    subscribe(via(self(), wrap))
+export fn termination(wrap : (Reply(Unit)) -> m) : Unit with m =
+    subscribe(adapted(self(), wrap))
 
 foreign fn subscribe(address : Address(Reply(Unit))) : Unit with m =
-    "ern_rt:terminating/1"
+    "ern_rt:termination/1"
 
 /// Starts the program and answers its address, or `Left` with why it could not
 /// start.

@@ -104,11 +104,11 @@ operations(Server) ->
                          _ -> Iteration
                      end
                  end},
-      "via" => {"a send through via, a tagged send",
-                fun(Iteration) ->
-                    self() ! {'Ping', Iteration},
-                    receive {'Ping', Echo} -> Echo end
-                end},
+      "adapted" => {"a send through an adapted address, a tagged send",
+                    fun(Iteration) ->
+                        self() ! {'Ping', Iteration},
+                        receive {'Ping', Echo} -> Echo end
+                    end},
       "call_within" => {"Address.call with a limit, a call with after",
                         fun(Iteration) -> call(Server, 1000) + Iteration end},
       "monitor" => {"monitor an ended process, its Down received",

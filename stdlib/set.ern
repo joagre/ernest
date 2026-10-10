@@ -9,7 +9,7 @@
 /// The element type needs equality, which the `=` in `Set(a=)` says: a set of
 /// functions or addresses is a type error.
 ///
-/// A set has no order. `toList`, `foldLeft`, `foreach` and `find` give the
+/// A set has no order. `toList`, `fold`, `forEach` and `find` give the
 /// elements in an order that is not specified, and `map`, `filter`,
 /// `filterMap`, `any` and `all` call their function for the elements in such an
 /// order.
@@ -121,10 +121,12 @@ export fn filterMap(set : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e
 /// ### Examples
 ///
 /// ```ernest
-/// Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
+/// Set.fold(Set.fromList([1, 2]), 0, Int.+)
 /// // => 3
 /// ```
-export fn foldLeft(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
+///
+/// since 0.4.0
+export fn fold(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
     List.foldLeft(toList(set), acc, step)
 
 /// Calls `f` for each element, for its effect, in unspecified order.
@@ -132,11 +134,13 @@ export fn foldLeft(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e 
 /// ### Examples
 ///
 /// ```ernest
-/// Set.foreach(Set.fromList(["a"]), Io.println)
+/// Set.forEach(Set.fromList(["a"]), Io.println)
 /// // => Unit
 /// ```
-export fn foreach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
-    List.foreach(toList(set), f)
+///
+/// since 0.4.0
+export fn forEach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
+    List.forEach(toList(set), f)
 
 /// `true` when `test` holds for at least one element, and `false` for the empty
 /// set.

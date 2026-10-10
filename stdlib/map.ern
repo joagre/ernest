@@ -8,7 +8,7 @@
 /// The key type needs equality, which the `=` in `Map(k=, v)` says: a key
 /// that holds a function or an address is a type error.
 ///
-/// A map has no order. `keys`, `values`, `toList`, `foldLeft`, `foreach`
+/// A map has no order. `keys`, `values`, `toList`, `fold`, `forEach`
 /// and `find` give the entries in an order that is not specified, and
 /// `map`, `filter`, `filterMap`, `any`, `all` and `mergeWith` call their
 /// function for the entries in such an order. Sort the result where the
@@ -172,10 +172,12 @@ export fn filterMap(map : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, 
 /// ### Examples
 ///
 /// ```ernest
-/// Map.foldLeft(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
+/// Map.fold(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
 /// // => 3
 /// ```
-export fn foldLeft(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
+///
+/// since 0.4.0
+export fn fold(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
     List.foldLeft(toList(map), acc, fn(acc, #(key, value)) = step(acc, key, value))
 
 /// Calls `f(key, value)` for each entry, for its effect, in unspecified
@@ -184,11 +186,13 @@ export fn foldLeft(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b w
 /// ### Examples
 ///
 /// ```ernest
-/// Map.foreach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
+/// Map.forEach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
 /// // => Unit
 /// ```
-export fn foreach(map : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
-    List.foreach(toList(map), fn(#(key, value)) = f(key, value))
+///
+/// since 0.4.0
+export fn forEach(map : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
+    List.forEach(toList(map), fn(#(key, value)) = f(key, value))
 
 /// `true` when `test(key, value)` holds for at least one entry, and `false`
 /// for the map with no entries.

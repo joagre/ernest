@@ -51,7 +51,7 @@
 %% variable, which the declaration was given
 -record(shown_type, {type, member = show}).
 %% `show` at a type known whole, written by its descriptor (Appendix E.1),
-%% or, where member is `exposed`, the type `Foreign.from` gives its value
+%% or, where member is `exposed`, the type `Foreign.term` gives its value
 %% at (Appendix E.12)
 -record(service_type, {type}).
 %% a service's message type, known whole, whose hash the service carries

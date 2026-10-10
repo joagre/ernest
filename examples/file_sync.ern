@@ -31,7 +31,7 @@
 // Types
 //
 
-type Change = Change(path : Path, mtime : Int)
+type Change = Change(path : Path, modified : Int)
 
 type Ack = Stored | Conflict | Failed(Io.Error)
 
@@ -39,7 +39,7 @@ type SyncMsg =
     Link(Address(SyncMsg))
   | Ticked
   | Listed(Either(Io.Error, List(Fs.Entry)))
-  | Put(path : Path, mtime : Int, bytes : Bytes, reply : Reply(Ack))
+  | Put(path : Path, modified : Int, bytes : Bytes, reply : Reply(Ack))
 
 //
 // Program
@@ -74,8 +74,8 @@ fn syncer(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Un
             let _ = spawn(fn() : Unit with Never = send(me, Listed(Fs.list(directory, 10000))));
             listing(directory, peer, seen)
         }
-      | Put(path = path, mtime = mtime, bytes = bytes, reply = reply) ->
-            syncer(directory, peer, store(directory, seen, path, mtime, bytes, reply))
+      | Put(path = path, modified = modified, bytes = bytes, reply = reply) ->
+            syncer(directory, peer, store(directory, seen, path, modified, bytes, reply))
       | Listed(_) -> syncer(directory, peer, seen) // late listing, ignore
       | Link(_) -> syncer(directory, peer, seen) // already connected
     }
@@ -87,7 +87,7 @@ fn listing(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : U
     let tick = fn() = Clock.alarm(5000, fn(_) = Ticked);
     receive {
         Listed(Right(entries)) -> {
-            List.foreach(diff(seen, entries), fn(change) = {
+            List.forEach(diff(seen, entries), fn(change) = {
                 let _ = spawn(fn() = pusher(peer, change));
                 Unit
             });
@@ -108,7 +108,7 @@ fn listing(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : U
 fn store(directory : Path,
          seen : Map(Path, Int),
          path : Path,
-         mtime : Int,
+         modified : Int,
          bytes : Bytes,
          reply : Reply(Ack)) : Map(Path, Int) with SyncMsg =
     if !isName(path) then {
@@ -119,8 +119,8 @@ fn store(directory : Path,
         seen
     } else {
         let here = directory <> path;
-        let _ = spawn(fn() = writer(here, bytes, mtime, reply));
-        Map.put(seen, here, mtime)
+        let _ = spawn(fn() = writer(here, bytes, modified, reply));
+        Map.put(seen, here, modified)
     }
 
 // A name in a directory: one segment, not `.` or `..`, and not a root
@@ -136,32 +136,34 @@ fn isName(path : Path) : Bool =
 // beside it as a conflict. The file takes the peer's modification time,
 // which the next listing then finds as it was recorded, so that a file
 // stored is not sent back.
-fn writer(path : Path, bytes : Bytes, mtime : Int, reply : Reply(Ack)) : Unit with n = {
+fn writer(path : Path, bytes : Bytes, modified : Int, reply : Reply(Ack)) : Unit with n = {
     let isNewerHere = match Fs.stat(path, 10000) {
-        Right(entry) -> entry.mtime > mtime
+        Right(entry) -> entry.modified > modified
       | Left(_) -> false
     };
     let #(target, ack) = if isNewerHere then #(conflictPath(path), Conflict) else #(path, Stored);
     match Either.andThen(Fs.write(target, bytes, 10000),
-                         fn(_) = Fs.setModified(target, mtime, 10000)) {
+                         fn(_) = Fs.setModified(target, modified, 10000)) {
         Right(Unit) -> answer(reply, ack)
       | Left(error) -> answer(reply, Failed(error))
     }
 }
 
 // One process per changed file: reads and sends to the peer.
-fn pusher(peer : Address(SyncMsg), Change(path = path, mtime = mtime) : Change) : Unit with n =
+fn pusher(peer : Address(SyncMsg),
+          Change(path = path, modified = modified) : Change) : Unit with n =
     match Fs.read(path, 10000) {
         Right(bytes) -> match Path.name(path) {
-            Some(name) -> push(peer, Path(name), mtime, bytes)
+            Some(name) -> push(peer, Path(name), modified, bytes)
           | None -> Io.println("cannot push " <> Path.toString(path) <> ", which names no file")
         }
       | Left(error) -> Io.println("cannot read " <> Path.toString(path) <> ": " <> errorText(error))
     }
 
-fn push(peer : Address(SyncMsg), path : Path, mtime : Int, bytes : Bytes) : Unit with n =
+fn push(peer : Address(SyncMsg), path : Path, modified : Int, bytes : Bytes) : Unit with n =
     match Address.call(peer,
-                       fn(reply) = Put(path = path, mtime = mtime, bytes = bytes, reply = reply),
+                       fn(reply) =
+                           Put(path = path, modified = modified, bytes = bytes, reply = reply),
                        30000) {
         Some(Stored) -> Unit
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(path))
@@ -180,14 +182,17 @@ fn diff(seen : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
                    fn(entry) = if entry.kind == Fs.File then changed(seen, entry) else None)
 
 fn changed(seen : Map(Path, Int),
-           Fs.Entry(path = path, mtime = mtime) : Fs.Entry) : Optional(Change) =
+           Fs.Entry(path = path, modified = modified) : Fs.Entry) : Optional(Change) =
     match Map.get(seen, path) {
-        None -> Some(Change(path = path, mtime = mtime))
-      | Some(before) -> if mtime > before then Some(Change(path = path, mtime = mtime)) else None
+        None -> Some(Change(path = path, modified = modified))
+      | Some(before) -> if modified > before then
+            Some(Change(path = path, modified = modified))
+        else
+            None
     }
 
 fn snapshot(entries : List(Fs.Entry)) : Map(Path, Int) =
-    List.foldLeft(entries, Map.empty, fn(acc, entry) = Map.put(acc, entry.path, entry.mtime))
+    List.foldLeft(entries, Map.empty, fn(acc, entry) = Map.put(acc, entry.path, entry.modified))
 
 fn conflictPath(path : Path) : Path =
     Path(Path.toString(path) <> ".conflict")

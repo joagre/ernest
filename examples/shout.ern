@@ -34,7 +34,7 @@ export fn main() : Unit with Never =
             Left(_) -> Io.printlnError("shout: no port")
           | Right(port) -> {
                 let _ = spawn(fn() = accepting(listener));
-                List.foreach(["hello", "ernest", "goodbye"],
+                List.forEach(["hello", "ernest", "goodbye"],
                              fn(line) = Io.println(line <> " -> " <> asked(port, line)))
             }
         }

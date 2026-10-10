@@ -733,7 +733,7 @@ live_region_test_() ->
     {timeout, 60, fun live_region/0}.
 
 live_region() ->
-    Print = "spawn(fn() = List.foreach(List.range(1, 12),"
+    Print = "spawn(fn() = List.forEach(List.range(1, 12),"
             " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
@@ -800,10 +800,10 @@ reader_and_screen_ends() ->
     Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool with m ="
            " \"erlang:exit/2\"\r",
     Ending = fun(Site) ->
-                 "{ let found = List.filter(Process.live(), fn(p) = match Process.info(p) {"
-                 " Some(info) -> String.startsWith(info.site, \"" ++ Site ++ "\")"
+                 "{ let found = List.filter(Process.live(), fn(p) = match Process.status(p) {"
+                 " Some(status) -> String.startsWith(status.site, \"" ++ Site ++ "\")"
                  " | None -> false });"
-                 " let _ = spawn(fn() = receive { after 300 -> List.foreach(found,"
+                 " let _ = spawn(fn() = receive { after 300 -> List.forEach(found,"
                  " fn(p) = { let _ = stop(p, Foreign.atom(\"kill\")); Unit }) });"
                  " receive { after 20000 -> 1 } }\r"
              end,
@@ -2523,7 +2523,7 @@ reload_version_sites() ->
                    "    receive { Get(reply = r) -> { answer(r, n); serve(n) }",
                    " | Terminating(reply) -> answer(reply, Unit) }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit with Msg = { Os.terminating(Terminating); serve(",
+                   "    spawn(fn() : Unit with Msg = { Os.termination(Terminating); serve(",
                    integer_to_list(Start), ") })\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
@@ -2818,7 +2818,7 @@ fault_subscriber() ->
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
     InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ["{ send(via(self(), fn(x) = x / List.size([])), 1);"
+    ok = file:write_file(InputFile, ["{ send(adapted(self(), fn(x) = x / List.size([])), 1);"
                                      " receive { n -> n } }\n",
                                      "1 + 1\n",
                                      "let r = restarting(RestartLimit(restarts = 1,"
@@ -3286,7 +3286,7 @@ stored_values_go() ->
                          ["foreign fn info() : Foreign.Term = \"persistent_term:info/0\"\n",
                           "foreign fn get(key : Foreign.Term, map : Foreign.Term) : Int ="
                           " \"maps:get/2\"\n",
-                          "fn terms() : Int = get(Foreign.from(Foreign.atom(\"count\")), info())\n",
+                          "fn terms() : Int = get(Foreign.term(Foreign.atom(\"count\")), info())\n",
                           "let before = terms()\n:load Bad\nterms() - before\n",
                           ":load Demo\nlet loaded = terms()\n",
                           write_source(Dir, "demo.ern", "export let kept : Int = 1\n"),
@@ -3495,7 +3495,7 @@ refused_load_kills_holder() ->
                           "    receive {\n",
                           "        Join(runner) -> hubbed(runner :: runners)\n",
                           "      | Each -> {\n",
-                          "            List.foreach(runners, fn(runner) = send(runner, Tick));\n",
+                          "            List.forEach(runners, fn(runner) = send(runner, Tick));\n",
                           "            hubbed(runners)\n",
                           "        }\n",
                           "    }\n\n",
@@ -3673,7 +3673,7 @@ node_takes_its_build_unit() ->
                          ["foreign fn held(name : Foreign.Term) : Bool =\n"
                           "    \"erlang:module_loaded/1\"\n"
                           ":load Greet\nGreet.greeting\n"
-                          "held(Foreign.from(Foreign.atom(\"ern@greet$2\")))\n"]),
+                          "held(Foreign.term(Foreign.atom(\"ern@greet$2\")))\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Build ++ " --load-path " ++ Build)
                              ++ " < " ++ InputFile),
@@ -3691,7 +3691,7 @@ shell_told_of_the_end() ->
     InputFile = scratch_file("ern_told_"),
     ok = file:write_file(InputFile,
                          ["type Msg = Terminating(Reply(Unit))\n",
-                          "fn keeper() : Unit with Msg = { Os.terminating(Terminating); receive {",
+                          "fn keeper() : Unit with Msg = { Os.termination(Terminating); receive {",
                           " Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }",
                           " } }\n",
                           "spawn(keeper)\n:quit\n"]),
