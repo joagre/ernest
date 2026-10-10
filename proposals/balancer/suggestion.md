@@ -124,13 +124,17 @@ What changed is three things the verdict did not have. The captures rule of 2026
 
 ## 11. Decisions for the user
 
-Each is named so that it is decided, with the lean stated.
+Each is named so that it is decided. The recommendation follows each, with the principle that decides it.
 
-1. **A fault in `f`**: the caller's, as a call's is (lean), or a value `Left(Other(cause))`.
-2. **The running node among the candidates**: only where no place is given (lean), so that a store that lists its workers takes no work; or always, so that `compute(Peer.peers(), ...)` may run here.
-3. **The measure**: the run queue, stateless (lean), or the schedulers' utilisation since last asked, steadier and kept by a system process.
-4. **Shape C now or later**: later, with its Later entry (lean); or now, so that a library may take a function and a program's own measure has a home from the start.
-5. **`Peer.load` enters with `compute`** (lean) or waits for a program that writes its own policy.
+1. **A fault in `f`**: the caller's, as a call's is, or a value `Left(Other(cause))`. Recommended: the caller's. `compute` is a call that runs elsewhere, and a call's fault is its caller's (principle 1); a value would be a third kind of failure in one operation, and `remote`'s failure type was refused for less (principle 5).
+2. **The running node among the candidates**: only where no place is given, or always. Recommended: only where none is given. A store that lists its workers should not compute on itself without saying so, and `[]` says "here" in the configuration's own words (principle 3).
+3. **The measure**: the run queue, or the schedulers' utilisation since last asked. Recommended: the run queue, stateless, instant, the host's own number (E.0 rule 1). Where it proves too noisy the rule changes in E.27 and no program changes, since the rule is stated, not written at the call.
+4. **Shape C now or later**: later, with its Later entry, or now. Recommended: later. Functions that do not cross is the right trade: a message is values only, nothing is looked through at a send, no code on the receiving node (§3.11). A program whose measure is its own writes its pick over `Peer.spawn` and `Peer.load`; that it must is the price, and no program has paid it yet (principle 5).
+5. **`Peer.load` enters with `compute`**, or waits for a program that writes its own policy. Recommended: with `compute`. It is the fact, by E.0 rule 1, and it is what makes decision 4 safe to defer.
+
+**The recommendation whole.** Shape A, built as one item of MVP 3.2 placed before its release item, so that 0.4.0 ships `Peer.compute` and never ships `Balancer`, and nothing released is withdrawn. The order of the work, once the user says the proposal is ready: the report's sentences first, §3.11 for the form and its result type, E.27 for `compute` and `load` with the rule stated whole, G.5 gone; the soundness paragraph; the log's entry; the plan's item; the line in `language_feedback.md`; then the code.
+
+Two things the log's entry says plainly. It reverses part of a verdict two weeks old, and its defence is that the facts changed, not the taste: the captures rule came after the verdict, the bare node came after it, and a program was written and read. And the joint section 10 names is real: `remote` was refused for a choice the program could not see, and `compute` keeps the choice in the runtime. The difference the recommendation stands on is that the candidates are in the code and the rule is in the report, as `List.sort`'s order is. Where that is read as a distinction without a difference, shape B is the honest shape, and the branch stays in the program.
 
 ## 12. Left out, with the reason
 
