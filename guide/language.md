@@ -2236,7 +2236,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.c
 
 A program reaches outside its node's Ernest code in three ways: to peers over the network, to foreign code on the same node, and by bytes over TCP to any host (§8.6, §8.7).
 
-A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no key yet, and the private key and a certificate beside it. A peer is added by editing the file: its name, which the program uses, its public key, which `ern config` printed on the peer's machine, and its network address. Under `keys`, each name a service is offered under lists the peers that may offer it, in the order a find asks them (report §8.7, Appendix C). Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both run the same build. What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
+A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no key yet, and the private key and a certificate beside it. A peer is added by editing the file: its name, which the program uses, its public key, which `ern config` printed on the peer's machine, and its network address. Under `keys`, each name a service is offered under lists the peers that may offer it, in the order a find asks them (report §8.7, Appendix C). Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one release of `ern` on one major release of OTP; their builds may differ (§8.2). What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
 
 Every example here runs on a program that is no node too: without a configuration a program has no peers, and `Peer.find` and `Peer.spawn` answer `Left(NotListed)`.
 
@@ -2267,7 +2267,7 @@ $ ern run square.erc
 no foo: NotListed
 ```
 
-With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. Both nodes run one build: the same compiled modules on their load paths, under the same `ern` and the same OTP (report §8.7). Two nodes on one machine run from one directory here, `square.erc` on the node `a` and on `foo` a program `idle.erc` beside it whose `main` waits for a message that never comes. Each node has a configuration directory of its own:
+With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. Both nodes here run one build, the same compiled modules on their load paths, and stand on one floor, the same `ern` under the same OTP (report §8.7). Two nodes on one machine run from one directory here, `square.erc` on the node `a` and on `foo` a program `idle.erc` beside it whose `main` waits for a message that never comes. Each node has a configuration directory of its own:
 
 ```console
 $ ern config --config-dir a
@@ -2305,7 +2305,7 @@ $ ern run --config-dir a square.erc
 the peer foo connected
 foo computed 25
 $ ern stop --config-dir foo
-``` The spawn takes with it the values the lambda captured, `me` here, and nothing more: the peer runs the same build, so it has `heavy` already, and no code crosses (report §8.7). On the peer the process has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service; `me` still names this process.
+``` The spawn takes with it the values the lambda captured, `me` here, and nothing more: the peer holds `heavy` by its hash, since it runs the same build, and no code crosses (report §8.7). On the peer the process has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service; `me` still names this process.
 
 The compiler must see what the function captures, so the function a spawn on a peer starts is written where the spawn can see it: a declaration's name, or, in the same definition, a lambda written at the spawn or bound by a `let`, or a local `fn`. A function that came as a value, a parameter or a message, is refused (report §3.11). A process spawned so that never receives needs no annotation: where nothing else names the mailbox type of the address the spawn answers, it is `Never`. And the function runs on the peer only where the peer holds it, by its hash, and its program has run every top-level binding the function reaches; otherwise the spawn answers `Left(NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7).
 
@@ -2324,7 +2324,9 @@ export let key : Peer.Key(Msg) = Peer.key("counter")
 
 ```ernest
 // store.ern
-let counter : Address(Counter.Msg) = spawn(fn() = count(0))
+type Stop = Stop(Reply(Unit))
+
+let counter : Address(Counter.Msg) = spawn(fn() = count(kept()))
 
 fn count(total : Int) : Unit with Counter.Msg =
     receive {
@@ -2335,12 +2337,35 @@ fn count(total : Int) : Unit with Counter.Msg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit with Stop = {
     Peer.offer(Counter.key, counter);
+    Os.terminating(Stop);
     receive {
-        after 60000 -> Unit
+        Stop(reply) -> {
+            match Address.call(counter, fn(get) = Counter.Get(reply = get), 1000) {
+                Some(total) -> keep(total)
+              | None -> Unit
+            };
+            answer(reply, Unit)
+        }
     }
 }
+
+// The count at the last end, read from the file `count`, or 0.
+fn kept() : Int with m =
+    match Fs.read(Path("count"), 1000) {
+        Right(bytes) -> {
+            let text = Optional.withDefault(String.fromUtf8(bytes), "");
+            Optional.withDefault(String.toInt(text), 0)
+        }
+      | Left(_) -> 0
+    }
+
+fn keep(total : Int) : Unit with m =
+    match Fs.write(Path("count"), String.toUtf8(Int.toString(total)), 1000) {
+        Right(_) -> Unit
+      | Left(error) -> Io.printlnError("the count was not kept: " <> Io.show(error))
+    }
 ```
 
 ```ernest
@@ -2358,18 +2383,36 @@ export fn main() : Unit with Never =
     }
 ```
 
+```ernest
+// board.ern
+export fn main() : Unit with Never = {
+    let counter = Standing.start(Counter.key, 5000);
+    send(counter, Counter.Add(5));
+    match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
+        Some(total) -> Io.println("the counter is at " <> Int.toString(total))
+      | None -> Io.println("no answer")
+    }
+}
+```
+
 ```console
 $ ern run desk.erc
 no store: NotListed
 ```
 
-`Peer.offer(key, address)` lets the store's peers find `counter` under the key for as long as its process lives, and faults where a living process holds the key already, so a service is one per node; a `restarting` loop keeps its address and its offer through its restarts (report §6.9). `Peer.find(key, ms)` asks the peers the desk's `ernest.conf` lists under `"counter"`, in that order, and answers the first address offered under the name at the key's message type; a peer out of reach, offering nothing, or offering the name at another type is passed over, and where none offers it the find answers the last failure met, or `Left(Timeout)`. Where a service lives is the configuration's: `"keys": {"counter": ["store"]}` on the desk, and no find names a node. The address found is used as any other: `send`, `Address.call`, `monitor` and `kill` reach the store's process as they reach one here, nothing checks a message on arrival, since both nodes run one build, and the address is as good on a third node it is sent to (report §8.4, §8.7).
+`Peer.offer(key, address)` lets the store's peers find `counter` under the key for as long as its process lives, and faults where a living process holds the key already, so a service is one per node; a `restarting` loop keeps its address and its offer through its restarts (report §6.9). `Peer.find(key, ms)` asks the peers the desk's `ernest.conf` lists under `"counter"`, in that order, and answers the first address offered under the name at the key's message type; a peer out of reach, offering nothing, or offering the name at another type is passed over, and where none offers it the find answers the last failure met, or `Left(Timeout)`. Where a service lives is the configuration's: `"keys": {"counter": ["store"]}` on the desk, and no find names a node. The address found is used as any other: `send`, `Address.call`, `monitor` and `kill` reach the store's process as they reach one here, nothing checks a message on arrival, since the find compared the key's type, and the address is as good on a third node it is sent to (report §8.4, §8.7).
 
 **A loss.** A connection breaks or a peer falls silent; a node that ends in order is no loss, and a monitor on its processes gives `ProgramEnd`. Each node then ends what it held with the other and nothing else: every monitor on the peer's processes gives one `Down` with the reason `Unreachable` and an empty `site`, every call waiting on one of them answers `None`, and a `callForever` faults with `callee is unreachable`; what waited to be sent is dropped, and a later `send` vanishes until the two connect again. No other process of your own dies of it. The address outlives the loss: once the nodes connect again, which the next operation that needs it does, the same address reaches the same process, for as long as it lives and its node has not been started again. A monitor does not outlive it: a program that goes on watching calls `monitor` again, on the process the `Down` named, and while the peer stays out of reach the new monitor answers `Unreachable` once the dial has failed. A peer that fell silent is given up in 45 to 75 seconds, and one that closed at once (report §8.7).
 
 `Unreachable` says the process may be alive, which a replacement would make two. Three rules keep that harmless: replace at `Unreachable` only work that may run twice; let a process spawned on a peer watch whoever it works for, and end when told `Unreachable`, which it is, since both nodes run the loss; and keep what must exist once on one named node, found there by its key, unavailable while that node is out of reach rather than started again elsewhere.
 
 **Order.** What one process sends another arrives in the order it was sent, through whichever addresses, with one exception: a message to an adapted address made on another node is wrapped on that node, a step more, so a message sent straight after it to the target's own address can arrive first (report §6.5, §8.7). A protocol that must keep the order sends both through the same address.
+
+**Two builds.** A key holds the hash of its message type beside its name, and the find compares the hash, not the name: a peer that offers `counter` at another type is passed over as one offering nothing is, and where every listed peer does, the find answers `Left(OtherType)`. A store built with one constructor more in `Counter.Msg` is, to a desk of the earlier build, a service it cannot find, never one that reads its messages wrongly; the desk is rebuilt and started again. Nodes of different builds connect, since the floor and not the build is what the handshake proves (report §8.7).
+
+**The end.** `ern stop` is termination, as a service manager's stop is (§9.5), and the store's `main` is told of it: `Os.terminating(Stop)` subscribes the calling process, and at the end the runtime puts `Stop(reply)` in its mailbox, waits until the reply is answered, and only then ends the program. The store asks the counter its total, writes it to a file and answers; at its next start the counter reads the file. While the end waits every process runs on, and a peer still finds and calls the store, so a subscriber that needs another process's answer gets it. Nothing of the runtime's times the wait: a second `ern stop`, and the interrupt, end the program at once. What the program keeps is its own: the runtime holds no state and reads none back, a state of more parts is written in the form the program chooses, `Json` (report Appendix G.6) among them, and where a new build changes the shape, the program's own code reads the old one. The node says on its standard error that it waits for its subscriber, and that the subscriber answered (report §8.6, Appendix E.23). A `main` that waits on nothing else waits for this message, which is the one wait a program that is to keep running has for its life; a `receive` with `after` alone would end the store on time, not on purpose.
+
+**A service that comes back.** When the store is stopped and started again the address the desk found is dead: it died with its process, and each start of a node is a number of its own in every address (report §8.7). A client that is to go on calling the counter finds it again, or holds a *standing address* from the library `Standing` (report Appendix G.7), on the load path as any library is (§9.1). `Standing.start(Counter.key, 5000)` in `board.ern` answers an `Address(Counter.Msg)` behind which a process finds the key, forwards each message to the service found, and, when that service ends or its node is lost, finds the key again at the next message, on whichever listed peer offers it; the process ends with the one that called `start`. A message that comes while the service is away, and whose find fails, is lost as a message to an ended process is, so a call through the address answers `None` at its own time, and a client asks again. The standing address is one process more on the message's way, so a message through it may pass one sent to the service directly; a program that is to monitor the service holds the address `Peer.find` gives.
 
 ### 8.3 Foreign types and functions
 
@@ -2612,7 +2655,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1. A signal that stops the program prints nothing and ends `ern run` by that signal, which a shell reports as 128 plus its number, 143 for a termination.
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1. A termination tells the processes that subscribed with `Os.terminating` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
@@ -2656,7 +2699,7 @@ systemd keeps both streams in its journal, which stamps every line, and `journal
 $ nohup ern run build/web_server.erc >> web.log 2>&1 &
 ```
 
-`kill` stops the program as §9.2 says: its output is flushed, and `ern run` ends by the signal, which systemd counts as a stop it asked for. A program that ends on its own gives the manager its reason with `Os.exit(status)` (§1.3), and `Restart=on-failure` starts again one that ends with any status but 0. A program whose output can no longer be written, because what reads it has ended, ends too, with status 141, as `ern run app.erc | head -1` shows. `ern` never changes what a program writes, on either stream.
+`kill` stops the program as §9.2 says: a process that subscribed with `Os.terminating` is told and the end waits for its answer (§8.2), so what it keeps is written within systemd's `TimeoutStopSec`, after which systemd kills what still runs; the output is flushed, and `ern run` ends by the signal, which systemd counts as a stop it asked for. A program that ends on its own gives the manager its reason with `Os.exit(status)` (§1.3), and `Restart=on-failure` starts again one that ends with any status but 0. A program whose output can no longer be written, because what reads it has ended, ends too, with status 141, as `ern run app.erc | head -1` shows. `ern` never changes what a program writes, on either stream.
 
 ## 10. From Erlang
 

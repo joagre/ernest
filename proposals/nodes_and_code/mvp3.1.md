@@ -1,6 +1,6 @@
 # Ernest: MVP 3.1, Code by Its Hash
 
-Status: the proposal for MVP 3.1, read through with the user on 2026-10-09, from which the plan's MVP 3.1 section is written. It was written on 2026-10-08 by MVP 3.0's item 12, from the two proposals under [`set_aside/`](set_aside/), and split on 2026-10-09 from [`mvp3.2.md`](mvp3.2.md), which builds on it. It changes only by a question raised against it, and the plan with it. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s; what was set aside is code.md's section 8; what other systems do and what the experiments showed, the README names.
+Status: built, by MVP 3.1's items 1 to 8 on 2026-10-09 and 2026-10-10, and kept as the record of its design; the report owns the rules, and the plan records where the build departed from it. The proposal was read through with the user on 2026-10-09, from which the plan's MVP 3.1 section is written, and changed after only by a question raised against it; the plan's item 9 reads what was built. It was written on 2026-10-08 by MVP 3.0's item 12, from the two proposals under [`set_aside/`](set_aside/), and split on 2026-10-09 from [`mvp3.2.md`](mvp3.2.md), which builds on it. The reasons are [`code.md`](code.md)'s and [`nodes.md`](nodes.md)'s; what was set aside is code.md's section 8; what other systems do and what the experiments showed, the README names.
 
 ## 1. What it is
 

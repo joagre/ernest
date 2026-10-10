@@ -278,12 +278,16 @@ and 8 below.
    The language guide's chapter 8 teaches what a program writes of this milestone: a service
    that keeps its state through `Os.terminating`, `Fs` and `Json`, a key at its type's hash and
    `OtherType`, and `Standing`; running nodes is the deployment guide's, MVP 3.2's. `mvp3.1.md`'s
-   status line. The tests and the measurements done 2026-10-10 (the log's *What MVP 3.1 Costs,
-   Measured*): the end and `Standing` on real nodes and a program's own test of two builds; a
-   reload measured at one module name, its exports and four, its lambdas and about an atom, the
-   first line after about 52,000 reloads; hashing two percent of a build; and L58 decided by
-   design, §10 stating that a spawn and a monitor cost a message to the runtime and its answer,
-   and a `Down` a process of its own. The guide's half, W18 and chapter 8, is next.
+   status line. Done 2026-10-10 (the log's *What MVP 3.1 Costs, Measured*): the end and
+   `Standing` on real nodes and a program's own test of two builds, the rest of section 8's cases
+   tested by items 2 to 7; a reload measured at one module name, its exports and four, its
+   lambdas and about an atom, the first line after about 52,000 reloads; hashing two percent of a
+   build; L58 decided by design, §10 stating that a spawn and a monitor cost a message to the
+   runtime and its answer, and a `Down` a process of its own; the guide's store waits for its
+   termination message and keeps its count with `Fs` alone, `Json` named for a state of more
+   parts, since the counter is one number and the guide builds each stage on the ones before
+   (W18); §8.2 teaches two builds and `OtherType`, the end and `Standing`, and the chapter's
+   sentences that two nodes run one build are corrected; §9.2 and §9.5 say the end is told.
 9. **The read before MVP 3.2.** Seven readers read what MVP 3.1 built, after item 8 and `make
    test`, and before MVP 3.2's item 1, since MVP 3.2 stands on all of it. It is MVP 3.0's read
    again (the log's *MVP 3.0 Read Without a Release*), not the full review, and no release
