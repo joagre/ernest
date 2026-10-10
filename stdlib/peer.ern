@@ -26,7 +26,7 @@
 /// ```ernest
 /// {
 ///     let key : Peer.Key(Int) = Peer.key("squares");
-///     Peer.offer(key, spawn(fn() : Unit with Int = receive {
+///     let _ = Peer.offer(key, spawn(fn() : Unit with Int = receive {
 ///         _ -> Unit
 ///     }));
 ///     Peer.find(key, 1000)
@@ -83,16 +83,33 @@ export foreign fn key(name : String) : Key(m) =
     "ern_peer:key/1"
 
 /// Lets this node's peers find the address under the key, for as long as its
-/// process lives. The address names a process of this node, an adapted
-/// address's target among them, and is offered at the key's message type.
+/// process lives, and answers `Right(Unit)`. The address names a process of
+/// this node, an adapted address's target among them, and is offered at the
+/// key's message type. Where a living process's address is offered under the
+/// key's name and type already, the offer answers `Left(holder)`, that
+/// process, which the caller may monitor and offer again at its end.
 ///
 /// ### Errors
 ///
-/// An offer under a key whose name and type a living process holds faults the
-/// caller with `Fault("k is offered by a living process")`, `k` the key's name,
-/// and an address of another node's process with `Fault("a node offers only
-/// its own processes")`.
-export foreign fn offer(key : Key(m), address : Address(m)) : Unit with n =
+/// An address of another node's process faults the caller with
+/// `Fault("a node offers only its own processes")`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let key : Peer.Key(Int) = Peer.key("squares");
+///     let first = spawn(fn() : Unit with Int = receive {
+///         _ -> Unit
+///     });
+///     let second = spawn(fn() : Unit with Int = receive {
+///         _ -> Unit
+///     });
+///     #(Peer.offer(key, first), Peer.offer(key, second) == Left(Process.fromAddress(first)))
+/// }
+/// // => #(Right(Unit), true)
+/// ```
+export foreign fn offer(key : Key(m), address : Address(m)) : Either(Process, Unit) with n =
     "ern_peer:offer/2"
 
 /// The first address a peer `ernest.conf` lists for the key's name offers under

@@ -7,13 +7,19 @@
 /// **What it does.** `start` spawns a process that finds the service by its
 /// key and forwards to it each message it is sent, and answers the address
 /// the program sends to. When the find fails, the service ends or its node is
-/// lost, the process finds the key again when the next message comes, each
-/// message waiting behind the find before it. A message that comes while the
-/// service is away, and whose find fails, goes to the last address held, where
-/// it is lost as a message to an ended process is, or reaches the service where
-/// its node is back; a call through the standing address then answers `None`
-/// at its own time, which says nothing of whether the request ran. A key the
-/// configuration does not list is never found. `start` spawns two processes,
+/// lost, the process finds the key again when the next message comes; a
+/// message that comes while a find is under way waits for it and shares its
+/// outcome, so that one find is under way at a time. A message that comes
+/// while the service is away, and whose find fails, goes to the last address
+/// held, where it is lost as a message to an ended process is, or reaches the
+/// service where its node is back; a call through the standing address then
+/// answers `None` at its own time, which says nothing of whether the request
+/// ran. A key the configuration does not list is never found. A find that
+/// answers `OtherType` is no absence but a protocol the two builds disagree
+/// on: the process faults, naming the key, and the address is dead from then
+/// on. At a shell prompt the caller is the input's process, which ends with
+/// the input, so a standing address used from the prompt is started in a
+/// process that lives on. `start` spawns two processes,
 /// the forwarder and one that ends at once and stands where no address has
 /// been found. The process ends with the process that called `start`.
 ///
@@ -44,11 +50,14 @@ type Msg(m) = Message(m) | Went(Down)
 /// Spawns the process of a standing address of the service offered under
 /// `key`, and answers the address. The process finds the key within `ms`
 /// milliseconds, and again within `ms` at the first message after the find
-/// failed, the service ended or its node was lost, and forwards each message
-/// to the service. A message that comes while the service is away and whose
-/// find fails goes to the last address held, lost where that process has
-/// ended (report §6.2); a call through the address then answers `None` at its
-/// own time. The process ends with the process that called `start`.
+/// failed, the service ended or its node was lost, a message that comes
+/// during a find sharing its outcome, and forwards each message to the
+/// service. A message that comes while the service is away and whose find
+/// fails goes to the last address held, lost where that process has ended
+/// (report §6.2); a call through the address then answers `None` at its own
+/// time. A find that answers `OtherType` faults the process, with
+/// `the key Counter.key is offered at another type`. The process ends with
+/// the process that called `start`.
 ///
 /// ### Examples
 ///

@@ -46,11 +46,15 @@ fn finds() : Unit with Msg = {
     receive {
         Died(down) -> Io.println("killed: " <> Io.show(down.reason) <> " " <> Io.show(down.site))
     };
-    faulted("another node's", fn() : Unit with Never = Peer.offer(Counter.key, counter));
+    faulted("another node's", fn() : Unit with Never = {
+        let _ = Peer.offer(Counter.key, counter);
+        Unit
+    });
     faulted("twice", fn() : Unit with Int = {
         let key : Peer.Key(Int) = Peer.key("twice");
-        Peer.offer(key, self());
-        Peer.offer(key, self())
+        let me = Process.fromAddress(self());
+        Io.println("twice, first: " <> Io.show(Peer.offer(key, self())));
+        Io.println("twice, again held by itself: " <> Io.show(Peer.offer(key, self()) == Left(me)))
     });
     monitor(Process.fromAddress(counter), Died);
     Io.println("now end the store");

@@ -16,7 +16,7 @@
 %% Report Appendix E.18: a listener's and a socket's loops end only in the
 %% exit that tells a waiting call the socket was closed or its owner died,
 %% so the fun `opened` spawns never returns, which Dialyzer would report.
--dialyzer({nowarn_function, opened/3}).
+-dialyzer({nowarn_function, opened/4}).
 
 %% A socket's process: the host's socket, the writer that writes to it,
 %% the owner's monitor, the reads with no bytes yet, oldest first, the
@@ -72,16 +72,17 @@ counted(Work) ->
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
-%% opened it (Appendix E.18). It traps exits from its start, so that however
-%% it ends, by a kill, with the program or with the TCP process, it closes
-%% its host's socket itself (close_socket/1).
-opened(Tcp, Loop, Site) ->
+%% opened it, and as started by its owner (Appendix E.18). It traps exits
+%% from its start, so that however it ends, by a kill, with the program or
+%% with the TCP process, it closes its host's socket itself
+%% (close_socket/1).
+opened(Tcp, Loop, Site, Owner) ->
     Pid = erlang:spawn(fun() ->
                            process_flag(trap_exit, true),
                            link(Tcp),
                            receive go -> Loop() end
                        end),
-    ern_rt:opened(Pid, Site),
+    ern_rt:opened(Pid, Site, Owner),
     Pid ! go,
     Pid.
 
@@ -107,7 +108,7 @@ listen(Tcp, Host, Port, Owner, Reply) ->
                                         MonitorRef = erlang:monitor(process, Owner),
                                         listener_loop(Tcp, Socket, MonitorRef)
                                     end,
-                             Listener = opened(Tcp, Loop, <<"Tcp.listen">>),
+                             Listener = opened(Tcp, Loop, <<"Tcp.listen">>, Owner),
                              gen_tcp:controlling_process(Socket, Listener),
                              {'Right', Listener};
                          {error, Error} ->
@@ -254,7 +255,7 @@ socket_process(Tcp, Socket, Owner, Site) ->
                           MonitorRef = erlang:monitor(process, Owner),
                           socket_loop(#connection{socket = Socket, writer = Writer,
                                                   monitor_ref = MonitorRef})
-                      end, Site),
+                      end, Site, Owner),
     gen_tcp:controlling_process(Socket, Pid),
     Pid.
 

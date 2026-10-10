@@ -186,7 +186,7 @@ end_takes_late_spawns() ->
 %% happens; a second subscription replaces the first; a kill is no fault
 fault_reports_test() ->
     Self = self(),
-    Reporter = fun(Report) -> Self ! {reported, Report} end,
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     ok = ern_rt:run_main(
            fun() ->
                ern_rt:faults(ern_rt:via(ern_rt:self(), fun(Report) -> {first, Report} end)),
@@ -245,7 +245,8 @@ call_leaves_nothing_test() ->
                                     put(runs, 2),
                                     ern_rt:call(Faulting, fun(Reply) -> {ask, Reply} end, 1000);
                                 2 ->
-                                    [{_, _, Timers, _, _}] = ets:lookup(ern_processes, self()),
+                                    [{_, _, Timers, _, _, _, _}] =
+                                        ets:lookup(ern_processes, self()),
                                     {monitors, Monitors} = process_info(self(), monitors),
                                     Self ! {left, {ets:lookup(ern_calls, self()),
                                                    Monitors, Timers}},
@@ -255,7 +256,7 @@ call_leaves_nothing_test() ->
                _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 2, 60000}, Worker),
                                 <<"M.worker:2">>),
                receive done -> ok end
-           end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
     ?assertEqual({[], [], 0}, wait(left)).
 
 %% report §8.6: a system process that has died can deliver nothing, so it
@@ -682,7 +683,7 @@ faulting_wrap_test() ->
                            fun() ->
                                _ = ern_rt:spawn_monitored(fun() -> ok end,
                                                           fun(_) -> 1 div Zero end, <<"w">>),
-                               receive never -> ok end
+                               waiting()
                            end, fun(Down) -> {watcher, Down} end, <<"Main.main:3">>),
                receive {watcher, WatcherDown} -> Self ! {d1, WatcherDown} end,
                _ = ern_rt:spawn_monitored(fun() -> ok end, fun(Down) -> {later, Down} end,
@@ -934,15 +935,14 @@ never_given_address_test() ->
     ?assertEqual(Mine, Given),
     ?assertEqual({ern, fault, <<"bad return">>}, Found).
 
-%% report §6.5, §7.4: a fault in the function is the target's, and the
-%% process that sent the message goes on
+%% report §6.5, §7.4: a fault in the function is the target's, which faults
+%% at its wait, and the process that sent the message goes on
 via_fault_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
-               Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
-                                     <<"Main.main:3">>),
+               Victim = ern_rt:spawn(fun waiting/0, <<"Main.main:3">>),
                ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
                ern_rt:send(ern_rt:via(Victim, fun(_) -> 1 div Zero end), 1),
                receive {down, Down} -> Self ! {d, Down} end,
@@ -950,6 +950,80 @@ via_fault_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
     ?assertEqual(alive, wait(sender)).
+
+%% report §6.5, §8.4, §6.9: a fault in an adapted address's function takes
+%% the message's place in the target's mailbox, and a restarting target
+%% faults at its wait, is reported restarted with the cause, and its new
+%% run takes the next message; the sender goes on. A regression test,
+%% written after the fix (finding W3): the fault killed the target by an
+%% exit signal, which the restart never saw, so the target ended without a
+%% restart and the next message was lost
+via_fault_restarts_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Sender = ern_rt:self(),
+               Run = fun() ->
+                         ern_rt:send(Sender, run),
+                         receive
+                             {'$ern_fault', Cause} -> ern_rt:fault(Cause);
+                             {took, Taken} -> Self ! {took, Taken}
+                         end
+                     end,
+               Worker = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
+                                     <<"Main.worker:2">>),
+               Adapted = ern_rt:via(Worker, fun(N) -> {took, 10 div N} end),
+               receive run -> ok end,
+               ern_rt:send(Adapted, zero()),
+               %% the new run has begun, its mailbox emptied of the old
+               receive run -> ok end,
+               ern_rt:send(Adapted, 5),
+               Self ! {sender, alive}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
+    ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _},
+                 wait(reported)),
+    ?assertEqual(2, wait(took)),
+    ?assertEqual(alive, wait(sender)).
+
+%% report §11.2, §6.9, Appendix E.18: a process spawn_root starts heads a
+%% spawn chain of its own, and every process spawned from it, directly or
+%% through one that has since ended, is started by it, and so is a
+%% listener, a socket or a running program one of them opens; a process the
+%% entry process spawns is the entry process's, and not the root's. Written
+%% after the code (findings V4, V1)
+started_by_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               EntryProcess = ern_rt:self(),
+               Other = ern_rt:spawn(fun waiting/0, <<"M.other:1">>),
+               RootBody = fun() ->
+                              Spawning = fun() ->
+                                             Grandchild = ern_rt:spawn(fun waiting/0,
+                                                                       <<"M.grandchild:3">>),
+                                             ern_rt:send(EntryProcess, {grandchild, Grandchild})
+                                         end,
+                              _ = ern_rt:spawn_monitored(Spawning, fun(Down) -> {child, Down} end,
+                                                         <<"M.child:2">>),
+                              receive {child, _} -> ok end,
+                              ern_rt:send(EntryProcess, rooted),
+                              waiting()
+                          end,
+               Root = ern_rt:spawn_root(RootBody, fun(Down) -> {root, Down} end, <<"M.root:1">>),
+               Grandchild = receive {grandchild, Pid} -> Pid end,
+               receive rooted -> ok end,
+               Opened = erlang:spawn(fun waiting/0),
+               ok = ern_rt:opened(Opened, <<"Tcp.listen">>, Grandchild),
+               Self ! {started, {ern_rt:started_by(Root), ern_rt:started_by(EntryProcess),
+                                 [Other, Grandchild, Opened]}},
+               ern_rt:forget_opened(Opened),
+               exit(Opened, kill)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {ByRoot, ByEntry, [Other, Grandchild, Opened]} = wait(started),
+    ?assertEqual([{Grandchild, <<"M.grandchild:3">>}, {Opened, <<"Tcp.listen">>}], ByRoot),
+    ?assert(lists:member({Other, <<"M.other:1">>}, ByEntry)),
+    ?assertNot(lists:keymember(Grandchild, 1, ByEntry)).
 
 %% report §6.9: a monitor is the reaper's whoever started the process, so
 %% watching one the runtime did not start costs no process either
@@ -997,6 +1071,14 @@ wait_atom(Atom) ->
 %% a zero the compiler cannot see through
 zero() ->
     list_to_integer("0").
+
+%% A wait for nothing, as the compiler writes a receive: a fault that took
+%% a message's place is taken first (report §8.4).
+waiting() ->
+    receive
+        {'$ern_fault', Cause} -> ern_rt:fault(Cause);
+        never -> ok
+    end.
 
 %% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.

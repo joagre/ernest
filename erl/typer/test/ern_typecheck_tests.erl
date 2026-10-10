@@ -569,13 +569,17 @@ key_test() ->
                               " Peer.key(\"s\")\n")).
 
 %% report §8.7, Appendix E.27: an offer is accepted only where the key and
-%% the address have one message type
+%% the address have one message type, and answers the key's holder or Unit
 offer_test() ->
     Source = "export type Msg = Add(Int)\n"
              "export let key : Peer.Key(Msg) = Peer.key(\"counter\")\n",
-    ?assertEqual(ok, peer_ok(Source ++ "fn serve(counter : Address(Msg)) : Unit with m ="
+    ?assertEqual(ok, peer_ok(Source ++ "fn serve(counter : Address(Msg)) :"
+                                       " Either(Process, Unit) with m ="
                                        " Peer.offer(key, counter)\n")),
-    ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Int)) : Unit with m ="
+    ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Int)) :"
+                                               " Either(Process, Unit) with m ="
+                                               " Peer.offer(key, counter)\n")),
+    ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Msg)) : Unit with m ="
                                                " Peer.offer(key, counter)\n")).
 
 %% report §3.11, §3.8, Appendix G.1: a library's resource is a foreign type,
@@ -654,6 +658,41 @@ spawn_function_test() ->
     ?assertEqual("Peer.spawn is called where it is named, so that the compiler sees the function"
                  " it starts",
                  peer_refusal("fn f() : Unit = { let s = Peer.spawn; Unit }\n")).
+
+%% report §8.7, §6.6, §3.11: a lambda that captures a reply is consumed by
+%% Peer.spawn and Peer.spawnMonitored as by spawn, the reply crossing with
+%% its captures: accepted written at the spawn and bound by a `let`, and a
+%% use of the reply or the lambda after the spawn refused as a second use,
+%% as after spawn. A regression test, written after the code, which
+%% refused the lambda with a message that read false of it
+peer_spawn_reply_test() ->
+    Worker = "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
+    Head = Worker ++ "fn f(r : Reply(Int)) : Unit with m = {\n",
+    ?assertEqual(ok, peer_ok(Head ++ spawning("", "fn() : Unit with Never = worker(r)"))),
+    ?assertEqual(ok, peer_ok(Head ++ spawning("let job = fn() : Unit with Never = worker(r);\n"
+                                              "    ", "job"))),
+    ?assertEqual(ok, peer_ok("type Msg = Died(Down)\n" ++ Worker
+                             ++ "fn f(r : Reply(Int)) : Unit with Msg = {\n"
+                                "    let job = fn() : Unit with Never = worker(r);\n"
+                                "    let _ = Peer.spawnMonitored(\"p\", job, Died, 5000);\n"
+                                "    Unit\n"
+                                "}\n")),
+    ?assertEqual("the reply-carrying value r is consumed twice",
+                 peer_refusal(Head ++ "    let _ = Peer.spawn(\"p\", fn() : Unit with Never ="
+                                     " worker(r), 5000);\n"
+                                     "    answer(r, 2)\n"
+                                     "}\n")),
+    ?assertEqual("the reply-carrying value job is consumed twice",
+                 peer_refusal(Worker ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
+                                       "    let job = fn() : Unit with Never = worker(r);\n"
+                                       "    let _ = Peer.spawn(\"p\", job, 5000);\n"
+                                       "    job()\n"
+                                       "}\n")),
+    ?assertEqual("the reply-carrying value r is consumed twice",
+                 refusal(Worker ++ "fn f(r : Reply(Int)) : Unit with m = {\n"
+                                   "    let _ = spawn(fn() : Unit with Never = worker(r));\n"
+                                   "    answer(r, 2)\n"
+                                   "}\n")).
 
 %% report §3.11, §6.9, §4.9: `restarting` applied to a function a spawn on a
 %% peer admits is admitted, its captures checked as that function's, and
@@ -2068,7 +2107,8 @@ reply_test() ->
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed as the function spawn or spawnMonitored runs",
+                 " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
+                 " Peer.spawnMonitored runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never ="
                         " { let _ = spawn(fn() : Unit with Never = answer(r, 1)); Unit }")),
@@ -2615,7 +2655,8 @@ top_level_holds_no_reply_test() ->
 %% a lambda stand only where it is called or spawned once
 reply_lambda_restarting_test() ->
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed as the function spawn or spawnMonitored runs",
+                 " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
+                 " Peer.spawnMonitored runs",
                  refusal("fn worker(r : Reply(Int)) : Unit with m = answer(r, 1)\n"
                          "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let limit = RestartLimit(restarts = 1, within = 1);\n"
@@ -2643,11 +2684,13 @@ reply_lambda_test() ->
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    Unit }")),
     ?assertEqual("the reply-carrying value g is captured by a lambda that is not called, bound by"
-                 " `let`, or passed as the function spawn or spawnMonitored runs",
+                 " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
+                 " Peer.spawnMonitored runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    List.foreach([1], fn(_) = g()) }")),
     ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
-                 " as the function spawn or spawnMonitored runs",
+                 " as the function spawn, spawnMonitored, Peer.spawn or Peer.spawnMonitored"
+                 " runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
     ?assertEqual("the reply-carrying value g is not consumed on this path",
@@ -3136,7 +3179,8 @@ own_spawn_is_no_spawn_test() ->
                             "    let f = fn() = answer(r, 1);\n"
                             "    spawn(1, f)\n}\n"),
     ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
-                 " passed as the function spawn or spawnMonitored runs",
+                 " passed as the function spawn, spawnMonitored, Peer.spawn or"
+                 " Peer.spawnMonitored runs",
                  Diagnostic#diagnostic.message).
 
 %% report §4.8, §3.4: an operator resolved at the end of its definition,

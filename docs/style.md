@@ -132,8 +132,9 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
 - **EntryPoint, EntryProcess**: the entry point and its process (§8.1, §8.6). Not `Main`.
 - **Carrier**: §8.7's carrier, the host's distribution as a node runs it, `ern_carrier`; its frames go through the **Gateway**, `ern_gateway`, a worker for each peer. Not `Dist`, `Net`.
-- **Peer**: a node the configuration lists (§8.3), by its `Name` there, and by its name on the carrier, the host's `Node`, which `ern_peer` keeps beside it. Not `Remote`, `Other`.
-- **Key, Offer, Frame**: §8.7's key, `{'Key', Name, Hash, Text}`, its name and its message type's `Hash` and `Text`; an offer, a key's row in `ern_offers` and its process's in `ern_offered`; a frame of the runtime's, `{ern_frame, From, Body}`, which `ern_peer:frame/2` reads. Not `Service`, `Registration`, `Packet`.
+- **Holder**: the process whose address is offered under a key, which a second offer answers as `Left(holder)` (§8.7); the process that holds a source (`ern_held`) or the terminal is its `Holder` too, each in its own module.
+- **Peer**: a node the configuration lists (§8.3), by its `Name` there, and by its name on the carrier, the host's `Node`, which `ern_peer` keeps beside it. Not `Remote`, `Other`. A process row's `Peer` field holds the carrier `Node` of the peer whose spawn started the process, or `none`.
+- **Key, Offer, Frame**: §8.7's key, `{'Key', Name, Hash}`, its name and its message type's `Hash`; an offer, a key's row in `ern_offers` and its process's in `ern_offered`; a frame of the runtime's, `{ern_frame, From, Body}`, which `ern_peer:frame/2` reads, and `node_ends`, a node's end, which the gateway reads and says as `the peer X ended`. Not `Service`, `Registration`, `Packet`.
 - **Maker**: the process that made an adapted address (§6.5), whose node applies its function. Not `Owner`, `Creator`.
 - **Note**: §8.7's note of a call from another node, a row of `ern_notes` beside its row of `ern_callees`; the frame of the first is `call_waits`, of the second `call_over`, and an answer that lets a note go is `unnoted`. Not `Ticket`, `Pending`, `Registration`.
 - **Hash**: §8.7's hash of a definition, a binary of its SHA-256; a definition's **Identity**, a hash or a qualified name with one; its **Reach**, the definition with everything it references; a **Unit**, a compiled module of the host's that holds definitions; the **CodeTable**, from each hash to its unit and function; the **Floor**, one release of `ern` on one OTP major, and the **Cookie** that proves it. Not `Digest`, `Closure`, `Module` for a unit, `Fingerprint`.
@@ -143,7 +144,9 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Subscriber**: a process that called `Os.terminating` (§8.6, E.23), waited for at the end. Not `Listener`, `Waiter`.
 - **Host**: in a node's name on the carrier, the part after `@`, its key's digest as two labels, which `ern_carrier:host/1` makes and a certificate names (§8.7); the runtime Ernest runs on is "the host" in prose and comments, never a variable. Not `Hostname`, `Domain`.
 - **ConfigDir**: §11.3's configuration directory, `--config-dir`'s value, in the runner and the node module alike; what its `ernest.conf` says is a `#configuration{}`, and a peer it lists a `#peer{}`. Not `Dir`, `Conf`, `Config` alone.
-- **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, `Root` alone.
+- **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, nor `Root` alone, which is a process's.
+- **Root**: the process at the head of a process's spawn chain, which its row in `ern_processes` holds and `ern_rt:started_by/1` reads, so that what a shell load's evaluation started is known whatever code it runs (§11.2). Not `Spawner`, `Parent`.
+- **Calls**: the units a unit's code calls, which its `'$code'/0` lists last and its code-table row holds; with the unit itself and transitively, `ern_code:called/1`, the units a reach's bindings and foreign declarations are read in (§8.7). Not `Deps`, which are §8.5's declared dependencies.
 - **Message**: a message. Not `Msg`.
 
 **Ernest**

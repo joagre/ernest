@@ -2081,8 +2081,8 @@ installed(Session, All, Answer) ->
         ok ->
             initialized(All),
             {'Right', {keep_session(Session1), Answer}};
-        {fault, _, Site, How, _} ->
-            Killed = withdraw(Brought, All),
+        {fault, _, Site, How, _, Roots} ->
+            Killed = withdraw(Brought, All, Roots),
             {'Left', <<(binding_end(Site, How))/binary, "; nothing was loaded",
                        (killed_text(Killed))/binary, "\n">>}
     end.
@@ -2100,30 +2100,44 @@ in_order(CompiledModules) ->
 brought(CompiledModules) ->
     [Compiled || #compiled{unit = Unit} = Compiled <- CompiledModules, is_free(Unit)].
 
-%% Report §11.2: what a refused `:load` or `:reload` brought goes, with the
-%% values its bindings stored (§8.5), so that the session is as it was: each
-%% unit it brought is deleted, each process that runs its code killed
-%% (§6.9) and waited for, and the unit then purged. A unit the node held
-%% before is the node's, and keeps its code. Its keys are read while its
+%% Report §11.2: a refused `:load` or `:reload` undone, so that the session
+%% is as it was: every process its evaluation started, directly or
+%% through one it started, is killed (§6.9) and waited for, each of them
+%% started by one of Roots, the processes the bindings were evaluated in
+%% (ern_rt:started_by/1), a process of a unit the node held among them;
+%% each unit it brought is then deleted and purged; and the values the
+%% bindings of every unit it evaluated stored go (§8.5), so that a unit the
+%% node held, which the session had not evaluated, is without them as
+%% before, its code and its rows the node's. The keys are read while the
 %% code is current. The spawn sites of the processes killed.
-withdraw(Brought, All) ->
+withdraw(Brought, All, Roots) ->
     Keys = [Key || #compiled{unit = Unit} <- All, {_, Key} <- maps:values(unit_bindings(Unit))],
+    Sites = killed_started(Roots),
     Units = [Unit || #compiled{unit = Unit} <- Brought],
     lists:foreach(fun(Unit) ->
                       code:delete(Unit),
                       ern_code:unloaded(Unit)
                   end, Units),
-    Running = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
-                              lists:any(fun(Unit) -> erlang:check_process_code(Pid, Unit) end,
-                                        Units)],
-    killed([Pid || {Pid, _} <- Running]),
     lists:foreach(fun code:purge/1, Units),
     lists:foreach(fun persistent_term:erase/1, Keys),
-    [Site || {_, Site} <- Running].
+    Sites.
 
-%% Report §6.9: each process killed, and waited for before its code is
-%% purged, since the purge kills one that has not yet taken the signal
-%% itself.
+%% Report §11.2, §6.9: the processes each of Roots started killed and their
+%% spawn sites, each root's in the order they were spawned; asked again
+%% once they have ended, since one may start another before its kill
+%% reaches it, until none is left.
+killed_started(Roots) ->
+    case lists:append([ern_rt:started_by(Root) || Root <- Roots]) of
+        [] ->
+            [];
+        Started ->
+            killed([Pid || {Pid, _} <- Started]),
+            [Site || {_, Site} <- Started] ++ killed_started(Roots)
+    end.
+
+%% Report §6.9: each process killed, and waited for, before a unit is
+%% purged, since the purge kills one that runs its code and has not yet
+%% taken the signal itself.
 killed(Pids) ->
     MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
     lists:foreach(fun ern_rt:kill/1, Pids),
@@ -2153,13 +2167,19 @@ unit_bindings(Unit) ->
 %% `Never`, while the session waits; its fault is this answer's and not a
 %% fault report's. ok, or the module whose binding faulted or whose process
 %% was killed, the binding's site, how it ended, `{faulted, Cause}` or
-%% `killed`, and the modules after it.
-initialize([]) ->
+%% `killed`, the modules after it, and the processes the modules were
+%% evaluated in, in order, each the root of the processes its evaluation
+%% started (ern_rt:spawn_root/3). Roots: those evaluated so far, the last
+%% first.
+initialize(CompiledModules) ->
+    initialize(CompiledModules, []).
+
+initialize([], _Roots) ->
     ok;
-initialize([#compiled{unit = Unit} = Compiled | Rest]) ->
+initialize([#compiled{unit = Unit} = Compiled | Rest], Roots) ->
     case erlang:function_exported(Unit, '$init', 0) of
-        true -> initialize(Compiled, Rest);
-        false -> initialize(Rest)
+        true -> evaluate(Compiled, Rest, Roots);
+        false -> initialize(Rest, Roots)
     end.
 
 %% A binding's fault is the load's to report, so the process catches it and
@@ -2167,7 +2187,7 @@ initialize([#compiled{unit = Unit} = Compiled | Rest]) ->
 %% a kill, which nothing catches, is seen by the monitor, and is no fault
 %% (§6.9). Each is named by the binding's site, which '$init' gave the
 %% process (report §8.5, §11.2), and which its Down carries.
-initialize(#compiled{unit = Unit} = Compiled, Rest) ->
+evaluate(#compiled{unit = Unit} = Compiled, Rest, Roots) ->
     Self = self(),
     Ref = make_ref(),
     Init = fun() ->
@@ -2180,22 +2200,23 @@ initialize(#compiled{unit = Unit} = Compiled, Rest) ->
                Self ! {Ref, Result}
            end,
     %% monitored from its spawn, so that its end is known however soon it
-    %% comes (report §6.9)
-    _ = ern_rt:spawn_monitored(Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
+    %% comes (report §6.9), and the root of what it starts (report §11.2)
+    Root = ern_rt:spawn_root(Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
+    Evaluated = lists:reverse([Root | Roots]),
     receive
         {Ref, ok} ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
-            initialize(Rest);
+            initialize(Rest, [Root | Roots]);
         {Ref, {fault, Site, Cause}} ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
-            {fault, Compiled, Site, {faulted, Cause}, Rest};
+            {fault, Compiled, Site, {faulted, Cause}, Rest, Evaluated};
         {Ref, {'Down', _, Reason, Site}} ->
             {fault, Compiled, Site,
              case Reason of
                  'Killed' -> killed;
                  {'Fault', Cause} -> {faulted, Cause};
                  Other -> {faulted, atom_to_binary(Other)}
-             end, Rest}
+             end, Rest, Evaluated}
     end.
 
 %% Report §8.7: the units whose bindings a load evaluated, so that a peer's
@@ -2418,14 +2439,14 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
     case initialize(in_order(All)) of
         ok ->
             reload_done(Session, Session1, {All, Compiled}, [], SourcelessLines);
-        {fault, Faulted, Site, How, Rest} ->
+        {fault, Faulted, Site, How, Rest, Roots} ->
             case lists:any(IsFirst, [Faulted | Rest]) of
                 false ->
                     lists:foreach(fun(Kept) -> kept_values(Session, Kept) end, [Faulted | Rest]),
                     reload_done(Session, Session1, {All, Compiled},
                                 [kept_values_line(Site, How)], SourcelessLines);
                 true ->
-                    Killed = withdraw(Brought, All),
+                    Killed = withdraw(Brought, All, Roots),
                     {'Left', <<(binding_end(Site, How))/binary, "; nothing was reloaded",
                                (killed_text(Killed))/binary, "\n">>}
             end

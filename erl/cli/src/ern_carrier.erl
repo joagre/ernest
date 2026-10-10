@@ -6,8 +6,8 @@
 %% rule that accepts a peer by its listed key, under the name that key gives
 %% (verify/3, which the host's TLS calls); the listener started once the
 %% bindings have their values (start/2); a reload, which hangup asks for
-%% (reload/0); the end in order (depart/0); and the lines a node says of its
-%% peers, one each on its standard error.
+%% (reload/0); the end in order, told to the peers (depart/0); and the
+%% lines a node says of its peers, one each on its standard error.
 -module(ern_carrier).
 
 -export([boot_flags/1, name/1, host/1, cookie/0, start/1, list/1, booted/0,
@@ -114,8 +114,8 @@ cookie() ->
 
 %% Report §8.7: the carrier started once the bindings have their values,
 %% in the entry process, the node's peers listed (list/1): the host's own
-%% reports of its nodes turned off, the gateway, the watch on the
-%% node's connections, and the host's distribution under the node's name,
+%% reports of its nodes turned off, the gateway, which watches the node's
+%% connections, and the host's distribution under the node's name,
 %% listening where `listen` names an interface, its listed peers' names
 %% allowed (allow/1). A carrier that cannot start, its port taken among the
 %% reasons, ends the node as an initializer that faults ends a program
@@ -128,9 +128,6 @@ start(_Configuration) when node() =/= nonode@nohost ->
 start(#configuration{public_key = PublicKey, listen = Listen}) ->
     ok = logger:add_primary_filter(?MODULE, {fun ?MODULE:filter/2, []}),
     ok = ern_gateway:start(),
-    Self = self(),
-    Watcher = spawn(fun() -> watch(Self) end),
-    receive {Watcher, watching} -> ok end,
     case net_kernel:start(name(PublicKey), #{name_domain => longnames,
                                              dist_listen => Listen =/= none}) of
         {ok, _} ->
@@ -223,14 +220,19 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
                Same =:= Same2, Name =/= NewName].
 
 %% Report §8.7: a node stops in order, so that every Down already on its
-%% way crosses before its connections close: the runtime's end has waited
-%% for the deaths its peers may watch, and the host's own question to each
-%% peer still connected, whether it is there, goes after their Downs on the
-%% connection, so that its answer comes once they have arrived; a peer that
-%% fell silent is given up by the detector, which answers it.
+%% way crosses before its connections close, and tells each peer still
+%% connected that it ends, which the peer's gateway reads before the
+%% connection's end: the runtime's end has waited for the deaths its peers
+%% may watch, the frame goes after their Downs on the connection, and the
+%% host's own question, whether the peer is there, after the frame, so that
+%% its answer comes once they have arrived; a peer that fell silent is given
+%% up by the detector, which answers it.
 -spec depart() -> ok.
 depart() ->
-    lists:foreach(fun(Node) -> _ = net_adm:ping(Node) end, nodes(connected)).
+    lists:foreach(fun(Node) ->
+                      erlang:send({ern_gateway, Node}, {ern_frame, self(), node_ends}),
+                      _ = net_adm:ping(Node)
+                  end, nodes(connected)).
 
 %% Report §8.7: the host takes a peer's connection only under a name it
 %% allows whose host the peer's certificate names (inet_tls_dist), and
@@ -340,35 +342,20 @@ named(Node) ->
         none -> ["the node ", [Char || Char <- Host, Char =/= $.]]
     end.
 
-%% Report §8.7: the node watches its connections, to every kind of node,
-%% and says that a peer connected, and that a peer was lost and whether it
-%% fell silent or closed; a living connection another from the same node
-%% replaced is said so.
-watch(Starter) ->
-    ok = net_kernel:monitor_nodes(true, [nodedown_reason, {node_type, all}]),
-    Starter ! {self(), watching},
-    watching().
-
-watching() ->
-    receive
-        Event ->
-            case said(Event) of
-                none -> ok;
-                Line -> say(Line)
-            end
-    end,
-    watching().
-
-%% Report §8.7: the line a change of a connection is said by, or none: a
-%% peer connected; a peer lost, and whether it fell silent, which the
-%% detector found, or closed; and a living connection replaced by another
-%% from the same node, which the host ends with the reason `wait_pending`.
-%% The node's own start comes as a connection too, and is none.
+%% Report §8.7: the line a change of a connection is said by, which the
+%% gateway watches, or none: a peer connected; a peer ended, whose
+%% connection closed after the peer told this node it ends; a peer lost,
+%% and whether it fell silent, which the detector found, or closed; and a
+%% living connection replaced by another from the same node, which the host
+%% ends with the reason `wait_pending`. The node's own start comes as a
+%% connection too, and is none.
 -spec said(term()) -> iodata() | none.
 said({nodeup, Node, _}) when Node =:= node() ->
     none;
 said({nodeup, Node, _}) ->
     [named(Node), " connected"];
+said({ended, Node}) ->
+    [named(Node), " ended"];
 said({nodedown, Node, Info}) ->
     case proplists:get_value(nodedown_reason, Info) of
         net_tick_timeout -> [named(Node), " was lost: it fell silent"];

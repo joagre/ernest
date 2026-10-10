@@ -111,7 +111,8 @@ no_run_test() ->
         ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
                      receive {ern_frame, _, Body} -> Body end),
         %% the reaper of a run that has ended answers nothing
-        ?assertEqual(none, ern_rt:asked_of_run({spawn, fun() -> ok end, [], <<"M.f:1">>})),
+        ?assertEqual(none, ern_rt:asked_of_run({spawn, fun() -> ok end, Unit, [], <<"M.f:1">>,
+                                                node()})),
         ?assertEqual(none, ern_rt:asked_of_run({offered, <<"k">>, <<0:256>>}))
     after
         unregister(ern_gateway),
@@ -320,6 +321,36 @@ foreign_offer_test() ->
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),
     ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
+
+%% report §8.7, Appendix E.27: an offer answers Right(Unit) where it took
+%% the key, and Left(holder) where a living process's address is offered
+%% under it, the holder's Process, the same whoever offers; the caller
+%% monitors the holder, which is killed, and at its Down offers again and
+%% takes the key, which a find on this node then answers. A regression
+%% test, written after the code, which named the holder in a fault before;
+%% two offers racing for a dead holder's key are not covered
+held_key_test() ->
+    Self = self(),
+    Main = fun() ->
+               Key = {'Key', <<"held">>, <<0:256>>, <<"Int">>},
+               Holder = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.holder">>),
+               Newcomer = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.newcomer">>),
+               Taken = ern_peer:offer(Key, Holder),
+               Held = ern_peer:offer(Key, Newcomer),
+               Again = ern_peer:offer(Key, ern_rt:via(Holder, fun(Message) -> Message end)),
+               ern_rt:monitor(Holder, fun(Down) -> {ended, Down} end),
+               ern_rt:kill(Holder),
+               Down = receive {ended, Ended} -> Ended end,
+               Self ! {offers, Holder, Newcomer, [Taken, Held, Again], Down,
+                       ern_peer:offer(Key, Newcomer), ern_rt:offered(<<"held">>, <<0:256>>)}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    {offers, Holder, Newcomer, Answers, Down, Taken, Found} =
+        receive {offers, _, _, _, _, _, _} = Offers -> Offers end,
+    ?assertEqual([{'Right', 'Unit'}, {'Left', Holder}, {'Left', Holder}], Answers),
+    ?assertEqual({'Down', Holder, 'Killed', <<"M.holder">>}, Down),
+    ?assertEqual({'Right', 'Unit'}, Taken),
+    ?assertEqual({found, Newcomer}, Found).
 
 %% report §8.7, §6.6: a call's note on a process the runtime did not start,
 %% a foreign one whose address of an unbound type crossed, goes with its

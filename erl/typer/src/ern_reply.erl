@@ -4,8 +4,9 @@
 %% every position such a value can occupy is a consuming one. Also: no `as`
 %% on a reply-carrying value; no wildcard or omitted reply-carrying field;
 %% a lambda that captures a linear variable is linear itself: consumed
-%% exactly once, by a call or as spawn's direct argument, bindable by let,
-%% and legal nowhere else. Obligations holds a name for a value and
+%% exactly once, by a call or as the function a spawn starts, spawn's,
+%% spawnMonitored's, Peer.spawn's or Peer.spawnMonitored's, bindable by
+%% let, and legal nowhere else. Obligations holds a name for a value and
 %% {lambda, Name} for such a lambda bound by let.
 %%
 %% A path with a call that does not return, to a function whose result type
@@ -219,8 +220,9 @@ uses(#e_var{span = Span, namespace = [], name = Name}, Obligations, _Env) ->
             not lists:member({lambda, Name}, Obligations)
                 orelse throw({type_error, Span, "the lambda " ++ atom_to_list(Name)
                                                 ++ " captures a reply-carrying value and may only"
-                                                " be called or passed as the function spawn or"
-                                                " spawnMonitored runs"}),
+                                                " be called or passed as the function spawn,"
+                                                " spawnMonitored, Peer.spawn or"
+                                                " Peer.spawnMonitored runs"}),
             []
     end;
 uses(#e_call{span = Span, returns = false} = Call, Obligations, Env) ->
@@ -232,6 +234,16 @@ uses(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}, args = [Arg | WrapA
     %% them, not names spelled so
     ArgUses = spawned(Arg, Obligations, Env),
     sequence([ArgUses | [uses(WrapArg, Obligations, Env) || WrapArg <- WrapArgs]]);
+uses(#e_call{callee = #e_var{referent = #remote_declaration{namespace = ['Peer'],
+                                                            member_of = undefined,
+                                                            name = Spawn}},
+             args = [Peer, Arg | Rest]}, Obligations, Env)
+  when Spawn =:= spawn, length(Rest) =:= 1; Spawn =:= spawnMonitored, length(Rest) =:= 2 ->
+    %% report §8.7, §6.6: Peer.spawn and Peer.spawnMonitored, the module's
+    %% own as the checker resolved them, consume the function they start as
+    %% spawn does, a reply it captured crossing with its captures
+    sequence([uses(Peer, Obligations, Env), spawned(Arg, Obligations, Env)
+              | [uses(Other, Obligations, Env) || Other <- Rest]]);
 uses(#e_call{span = Span, callee = #e_var{namespace = [], name = LambdaName}, args = Args},
      Obligations, Env) ->
     %% a call consumes a capturing lambda bound by let
@@ -249,8 +261,8 @@ uses(#e_lambda{span = Span} = Lambda, Obligations, Env) ->
         [{Name, _} | _] ->
             throw({type_error, Span, "the reply-carrying value " ++ atom_to_list(Name)
                                      ++ " is captured by a lambda that is not called, bound by"
-                                     " `let`, or passed as the function spawn or spawnMonitored"
-                                     " runs"})
+                                     " `let`, or passed as the function spawn, spawnMonitored,"
+                                     " Peer.spawn or Peer.spawnMonitored runs"})
     end;
 uses(#fn_declaration{span = Span, params = Params, body = Body}, Obligations, Env) ->
     Visible = visible(lists:append([bound(Param#param.pattern) || Param <- Params]), Obligations),
@@ -303,7 +315,8 @@ uses(Nodes, Obligations, Env) when is_list(Nodes) ->
 uses(_, _, _) ->
     [].
 
-%% Report §6.6: the function spawn and spawnMonitored take consumes a
+%% Report §6.6, §8.7: the function a spawn takes, spawn's,
+%% spawnMonitored's, Peer.spawn's or Peer.spawnMonitored's, consumes a
 %% capturing lambda, written there or bound by `let`.
 spawned(#e_lambda{} = Lambda, Obligations, Env) ->
     captures(Lambda, Obligations, Env);

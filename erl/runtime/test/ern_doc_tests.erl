@@ -16,7 +16,9 @@ modules() ->
     [{['Template'], filename:join(?ROOT, "test/programs/template.ern")}
      | [{ern_namespace:namespace([filename:basename(File, ".ern")]), File}
         || File <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
-               ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern"))]].
+               ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern")),
+           %% an editor's lock file beside a source, `.#name.ern`, is no module
+           not lists:prefix(".#", filename:basename(File))]].
 
 %% Appendix E.0 shape rule 6: the standard library is checked, not only the template
 stdlib_present_test() ->

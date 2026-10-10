@@ -187,10 +187,16 @@ forms(Namespace, Declarations, Env, Build) ->
     DependenciesFunction = dependencies_function(Dependencies, Context),
     Entries = maps:values(Context2#emit_context.entries),
     SpawnedFunction = spawned_function(Declarations, Entries),
+    Bodies = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
+        ++ SpawnedFunction ++ Context2#emit_context.lifted,
     CodeFunction = case Build of
-                       #{code := true} -> code_function(code(Namespace, ErlangModule,
-                                                             Declarations, Canonical, Entries));
-                       _ -> []
+                       #{code := true} ->
+                           Calls = calls(Bodies, ErlangModule, Standard),
+                           code_function(code(Namespace, ErlangModule, Declarations, Canonical,
+                                              Entries)
+                                         ++ [{Namespace, {calls, Calls}}]);
+                       _ ->
+                           []
                    end,
     Exports = [export(Declaration) || Declaration <- Declarations, exported(Declaration)]
         ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
@@ -269,9 +275,10 @@ nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_l
 %% function with its reach, or for a binding the key its value is kept
 %% under (§8.5); each foreign declaration's implementation and its
 %% function, which the canonical forms name by its qualified name alone;
-%% and each lambda and local fn a spawn on a peer starts, by its identity,
-%% with its entry and its reach. A literal '$code'/0 answers, so that a
-%% load reads it without decoding the module's chunks, which costs more
+%% each lambda and local fn a spawn on a peer starts, by its identity,
+%% with its entry and its reach; and, last, under the module's namespace,
+%% the units its code calls (calls/3). A literal '$code'/0 answers, so that
+%% a load reads it without decoding the module's chunks, which costs more
 %% than the load. The forms for reading, `--emit-erl` and the golden files,
 %% have no such function.
 code(Namespace, ErlangModule, Declarations, #{identities := Hashes, reaches := Reaches},
@@ -343,6 +350,34 @@ spawnable(_) -> [].
 code_function(Code) ->
     [erl_syntax:function(erl_syntax:atom('$code'),
                          [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])].
+
+%% Report §8.7, §11.2: the other units the module's code calls, each the
+%% module of a remote call or of a function value that is an Ernest unit,
+%% whose name begins `ern@` (§11.1): the unit the shell's units name for a
+%% module, or the module's Erlang name. A peer's spawn reads a reach's
+%% bindings and foreign declarations in the units the code of the unit
+%% that runs it calls, directly or through one it calls (ern_code). A
+%% module of the standard library lists none, since no reach names what it
+%% holds (Appendix H), so that a walk from a program's unit ends there.
+calls(_Bodies, _ErlangModule, true) ->
+    [];
+calls(Bodies, ErlangModule, false) ->
+    lists:usort([Unit || Function <- Bodies,
+                         Unit <- erl_syntax_lib:fold(fun called_unit/2, [], Function),
+                         Unit =/= ErlangModule]).
+
+called_unit(Node, Units) ->
+    case erl_syntax:type(Node) of
+        module_qualifier ->
+            Module = erl_syntax:module_qualifier_argument(Node),
+            case erl_syntax:type(Module) =:= atom
+                 andalso lists:prefix("ern@", atom_to_list(erl_syntax:atom_value(Module))) of
+                true -> [erl_syntax:atom_value(Module) | Units];
+                false -> Units
+            end;
+        _ ->
+            Units
+    end.
 
 %% Report §8.5: the units of the modules this one depends on, whose
 %% top-level bindings are evaluated before its own.

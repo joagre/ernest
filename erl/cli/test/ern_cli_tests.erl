@@ -1574,8 +1574,11 @@ recompile_rule_test() ->
 %% table, each found by its identity in the unit and the function that hold
 %% it, as the unit's chunk of canonical forms names it, and the standard
 %% library's with them; a foreign declaration's module is found by its
-%% qualified name. A regression test, written after the code; the spawn by
-%% identity that reads the table is ern_peer_tests' and ern_nodes_tests'.
+%% qualified name in the units the code of the unit that names it calls,
+%% the module's own and those it calls, a unit of the standard library
+%% calling none the walk follows. A regression test, written after the
+%% code; the spawn by identity that reads the table is ern_peer_tests' and
+%% ern_nodes_tests'.
 code_table_test() ->
     Dir = tmp(),
     write(Dir, "src/geo/shape.ern",
@@ -1614,7 +1617,9 @@ code_table_test() ->
          ({#definition{kind = type, hash = Hash}, _}) ->
               ?assertEqual(none, ern_code:spawnable({hash, Hash}))
       end, Definitions),
-    ?assertEqual({lists, sum}, ern_code:foreign(['Geo', 'Shape', sum])),
+    Called = ern_code:called('ern@main'),
+    ?assertMatch(#{'ern@main' := true, 'ern@geo@shape' := true}, Called),
+    ?assertEqual([{lists, sum}], ern_code:foreign(Called, ['Geo', 'Shape', sum])),
     %% the standard library's definitions, which its units hold as a
     %% program's do
     {ok, ListBeam} = file:read_file(code:which('ern@list')),

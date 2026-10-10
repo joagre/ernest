@@ -29,7 +29,7 @@ serve(Os) ->
                                    link(Os),
                                    receive go -> start(Command, Owner, Reply) end
                                end),
-            ern_rt:opened(Pid, <<"Os.start">>),
+            ern_rt:opened(Pid, <<"Os.start">>, Owner),
             ern_rt:source_begin(Pid),
             Pid ! go,
             serve(Os);

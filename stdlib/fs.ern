@@ -241,8 +241,11 @@ export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(reply) = Remove(path = path, reply = reply), ms))
 
-/// Renames what the first path names to the second path. A link is renamed
-/// itself, not what it leads to.
+/// Renames what the first path names to the second path. A file at the second
+/// path is replaced, and a reader of that path sees the old file or the new,
+/// whole, and never a part, within one file system, the host's `rename(2)`; a
+/// program that is to keep a whole file or none writes beside it and renames
+/// over it. A link is renamed itself, not what it leads to.
 ///
 /// ### Examples
 ///

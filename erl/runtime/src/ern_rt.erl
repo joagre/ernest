@@ -31,9 +31,12 @@
 %%
 %% Fourteen tables hold a launch's state, each described where it is
 %% defined. `ern_processes` has a row {Pid, Site, Timers, Foreign,
-%% SpawnOrder} per process the runtime started or adopted, where Timers
-%% counts the timed receives the process is in, Foreign its foreign calls,
-%% and SpawnOrder its place in the order of spawns. `ern_calls` and
+%% SpawnOrder, Root, Peer} per process the runtime started or adopted,
+%% where Timers counts the timed receives the process is in, Foreign its
+%% foreign calls, SpawnOrder its place in the order of spawns, Root the
+%% process at the head of its spawn chain (started_by/1), and Peer the node
+%% of the peer whose spawn started it, which its fault's line names
+%% (§11.2), or none. `ern_calls` and
 %% `ern_callees` hold the pending calls, `ern_faults` the subscriptions to
 %% faults, `ern_terminating` the subscriptions to the program's end,
 %% `ern_held` the sources and the processes the system modules opened,
@@ -47,10 +50,10 @@
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
-         self/0, via/2, call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2,
-         monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, terminating/1,
-         proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/2,
-         forget_opened/1,
+         spawn_root/3, self/0, via/2, call/3, call/4, call_forever/2, call_forever/3, answer/2,
+         refuse/2, monitor/2, kill/1, reason/1, started_by/1, processes/0, info/1, faults/1,
+         terminating/1, proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1,
+         source_end/0, opened/3, forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
@@ -58,7 +61,7 @@
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
-         spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2,
+         spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/2, offered/2,
          asked_of_run/1, note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
@@ -180,10 +183,13 @@ send(Address, Message) ->
 %% Report §6.5: an address seen through a function is the target and the
 %% function, not a process of its own, so sending applies the function here
 %% and the message goes straight into the target's mailbox. A fault in the
-%% function is the target's, since the function is part of the protocol the
-%% target's own via(self(), wrap) built. Report §8.7: one made by an earlier
-%% start of this node is dead, and a message to it is dropped, its function
-%% not applied, whether it came from a peer's frame or a send here.
+%% function is the target's, on one node and across nodes alike: it takes
+%% the message's place in the target's mailbox, and the target faults at
+%% the wait that reaches it, as at a bad message's fault (§8.4), which
+%% `restarting` restarts (§6.9); the sender goes on. Report §8.7: one made
+%% by an earlier start of this node is dead, and a message to it is
+%% dropped, its function not applied, whether it came from a peer's frame
+%% or a send here.
 deliver({via, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
     case is_of_this_start(Maker) of
         true ->
@@ -191,7 +197,8 @@ deliver({via, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
                 Adapted -> deliver(Target, Adapted)
             catch
                 Class:Error:Stack ->
-                    exit(process_of(Target), fault_exit_reason(Class, Error, Stack))
+                    {'Fault', Cause} = reason(fault_exit_reason(Class, Error, Stack)),
+                    process_of(Target) ! {'$ern_fault', Cause}
             end;
         false ->
             ok
@@ -277,17 +284,28 @@ is_address(_) -> false.
 %% supplies it, so this is spawn/2 where the report's spawn takes one.
 -spec spawn(fun(() -> term()), binary()) -> address().
 spawn(Function, Site) ->
-    spawn_with_monitors(Function, Site, []).
+    spawn_with_monitors(Function, Site, [], chained).
 
 %% Report §6.2, §6.9: a process monitored by the caller from its start, the
 %% wait made with the spawn, so that no end comes before it.
 -spec spawn_monitored(fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
 spawn_monitored(Function, Wrap, Site) ->
-    spawn_with_monitors(Function, Site, [{erlang:self(), Wrap}]).
+    spawn_with_monitors(Function, Site, [{erlang:self(), Wrap}], chained).
 
-spawn_with_monitors(Function, Site, Monitors) ->
+%% Report §11.2: the same, the process the head of a spawn chain of its
+%% own, so that the processes it starts, directly or through one it
+%% started, are known by it (started_by/1): the shell's load evaluates a
+%% module's bindings in one.
+-spec spawn_root(fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
+spawn_root(Function, Wrap, Site) ->
+    spawn_with_monitors(Function, Site, [{erlang:self(), Wrap}], root).
+
+%% Chain: chained, where the process's root is its spawner's, root, where
+%% it is its own, or {peer, Node}, where a peer's spawn started it.
+spawn_with_monitors(Function, Site, Monitors, Chain) ->
     Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {spawn, erlang:self(), Ref, Function, Site, Monitors},
+    persistent_term:get({?MODULE, reaper})
+        ! {spawn, erlang:self(), Ref, Function, Site, Monitors, Chain},
     receive
         {Ref, Pid} -> Pid
     end.
@@ -570,15 +588,16 @@ reaper_loop(Reaper) ->
 
 reaper_loop(Reaper, Wait) ->
     receive
-        {spawn, From, Ref, Function, Site, SpawnMonitors} ->
-            reaper_loop(spawned(From, Ref, Function, Site, SpawnMonitors, Reaper));
+        {spawn, From, Ref, Function, Site, SpawnMonitors, Chain} ->
+            reaper_loop(spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper));
         %% report §8.7: a peer's question, answered while the run's tables
         %% are there (asked_of_run/1): a spawn starts where every binding
-        %% its function's reach names has its value
-        {asked, From, Ref, {spawn, Function, Bindings, Site}} ->
-            case absent_binding(Bindings) of
+        %% its function's reach names has its value, as the code of the
+        %% unit that runs it reads it (ern_code:absent_binding/2)
+        {asked, From, Ref, {spawn, Function, Unit, Bindings, Site, Peer}} ->
+            case ern_code:absent_binding(Unit, Bindings) of
                 none ->
-                    reaper_loop(spawned(From, Ref, Function, Site, [], Reaper));
+                    reaper_loop(spawned(From, Ref, Function, Site, [], {peer, Peer}, Reaper));
                 Absent ->
                     From ! {Ref, {absent, Absent}},
                     reaper_loop(Reaper)
@@ -586,13 +605,13 @@ reaper_loop(Reaper, Wait) ->
         {asked, From, Ref, Question} ->
             From ! {Ref, answer_of_run(Question)},
             reaper_loop(Reaper);
-        {adopt, Pid, Site, From, Ref} ->
-            adopted(Pid, Site, From, Ref),
+        {adopt, Pid, Site, Owner, From, Ref} ->
+            adopted(Pid, Site, Owner, From, Ref),
             reaper_loop(Reaper);
         {monitor, Pid, Caller, Wrap, Ref} ->
             reaper_loop(monitored(Pid, Caller, Wrap, Ref, Reaper));
         {report, Pid, Site, Fault} ->
-            report(Pid, Site, Fault, true),
+            report(Pid, Site, peer(Pid), Fault, true),
             reaper_loop(Reaper);
         {new_run, Pid, Ref} ->
             reaper_loop(new_run(Pid, Ref, Reaper));
@@ -636,12 +655,20 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% A process spawned on request, which starts once its row is in the
 %% table, since a timed receive it enters first counts itself there
 %% (§8.6). A monitor made with the spawn, spawnMonitored's, stands as
-%% monitor's does.
-spawned(From, Ref, Function, Site, SpawnMonitors,
+%% monitor's does. Its root is its spawner's, where Chain says so and the
+%% spawner is a process of the runtime's, and else itself; a peer's spawn,
+%% {peer, Node}, heads a chain of its own, and its row keeps the peer's
+%% node, which its fault's line names (§11.2).
+spawned(From, Ref, Function, Site, SpawnMonitors, Chain,
         #reaper{monitors = Monitors, monitoring = Monitoring} = Reaper) ->
     Started = fun() -> receive Ref -> run(Function) end end,
     {Pid, _MonitorRef} = erlang:spawn_monitor(Started),
-    ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order()}),
+    {Root, Peer} = case Chain of
+                       chained -> {root(From, Pid), none};
+                       root -> {Pid, none};
+                       {peer, Node} -> {Pid, Node}
+                   end,
+    ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order(), Root, Peer}),
     Pid ! Ref,
     From ! {Ref, Pid},
     Monitoring1 = lists:foldl(fun({Caller, _}, Acc) -> added(Caller, Pid, Acc) end,
@@ -654,11 +681,20 @@ spawned(From, Ref, Function, Site, SpawnMonitors,
 
 %% Report Appendix E.18, E.23: a listener, a socket or a running program,
 %% which its system process starts, is a process of the program's as one
-%% spawned is, monitored here and listed.
-adopted(Pid, Site, From, Ref) ->
+%% spawned is, monitored here and listed, its root its owner's, the
+%% process that opened it.
+adopted(Pid, Site, Owner, From, Ref) ->
     _ = erlang:monitor(process, Pid),
-    ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order()}),
+    ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order(), root(Owner, Pid), none}),
     From ! {Ref, adopted}.
+
+%% The root of Pid, started by Parent: Parent's where the runtime started
+%% or adopted Parent, and else Pid itself, the head of its chain.
+root(Parent, Pid) ->
+    case ets:lookup(?PROCESSES, Parent) of
+        [{_, _, _, _, _, Root, _}] -> Root;
+        [] -> Pid
+    end.
 
 %% A monitor of Pid that Caller made. A process the runtime did not start
 %% is monitored from here; report §8.6: its death would deliver a message,
@@ -730,10 +766,10 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
 %% did not start, or of one that had ended, is not known.
 delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = MonitorRefs}) ->
     case ets:take(?PROCESSES, Pid) of
-        [{_, Site, _, _, _}] ->
+        [{_, Site, _, _, _, _, Peer}] ->
             uncalled(Pid),
             Ended = ended_with_program(Pid, ExitReason),
-            died(Pid, Site, Ended),
+            died(Pid, Site, Peer, Ended),
             Down = {'Down', Pid, reason(Ended), Site},
             lists:foreach(fun({Caller, {raw, Tag}}) -> Caller ! {Tag, Site, ExitReason};
                              ({Caller, Wrap}) -> wrapped(Caller, Wrap, Down)
@@ -807,7 +843,7 @@ next_spawn_order() ->
 %% none after, since a spawn it is asked for then was asked by a process
 %% that is itself ending. It answers nothing more until it is stopped.
 ended_program(From, Ref) ->
-    Ended = [Pid || {Pid, _, _, _, _} <- live_rows()],
+    Ended = [Pid || {Pid, _, _, _, _, _, _} <- live_rows()],
     lists:foreach(fun(Pid) -> exit(Pid, {ern, program_end}) end, Ended),
     %% report §8.7: a node stops in order, every Down already on its way
     %% crossing before its connections close, so its end waits for the
@@ -903,13 +939,25 @@ cancelled(Recipient) ->
                       ets:delete(?HELD, {source, Pid})
                   end, Mine).
 
-%% The live processes the runtime started with their spawn sites, which
-%% the shell's :reload reads to find what still runs a module.
--spec live() -> [{pid(), binary()}].
+%% The live processes the runtime started or adopted, with their spawn
+%% sites.
 live() ->
-    try [{Pid, Site} || {Pid, Site, _, _, _} <- live_rows()]
+    try [{Pid, Site} || {Pid, Site, _, _, _, _, _} <- live_rows()]
     catch _:_ -> []
     end.
+
+%% Report §11.2, §6.9: the live processes Root started, directly or through
+%% one it started, whether that one lives or not, each with its spawn site,
+%% in the order they were spawned: those whose root is Root, which the
+%% shell's refused load kills. Root itself is not among them.
+-spec started_by(pid()) -> [{pid(), binary()}].
+started_by(Root) ->
+    Rows = try ets:match_object(?PROCESSES, {'_', '_', '_', '_', '_', Root, '_'})
+           catch error:badarg -> []
+           end,
+    [{Pid, Site} || {_, Pid, Site} <- lists:sort([{Order, Pid, Site}
+                                                  || {Pid, Site, _, _, Order, _, _} <- Rows]),
+                    Pid =/= Root, erlang:is_process_alive(Pid)].
 
 %% Appendix E.21: Process.live, the live processes the runtime started or
 %% adopted, the system processes excepted, which are the runtime's.
@@ -925,7 +973,7 @@ processes() ->
 info(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len])} of
-        {[{_, Site, _, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
+        {[{_, Site, _, _, _, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
             Activity = case Status of
                            waiting ->
                                case ets_lookup(?CALLS, Pid) of
@@ -979,11 +1027,13 @@ terminating(Address) ->
 %% Report §11.2, Appendix E.21: a fault, which each subscriber is sent as a
 %% FaultReport, each delivery a process of its own as a monitor's is, and
 %% which `ern run`'s reporter, the runtime's own subscriber, is given as it
-%% happens, before the process's end reaches anyone who waits on it. The
-%% fields are in declared order: process, site, cause, restarted, trace.
-%% The reaper reports, so that a delivery is linked to a process that lives
-%% as long as the run; a process that restarts sends it its fault.
-report(Pid, Site, Fault, Restarted) ->
+%% happens, before the process's end reaches anyone who waits on it, with
+%% the peer whose spawn started the process, which its line names (§8.7),
+%% or none. The fields are in declared order: process, site, cause,
+%% restarted, trace. The reaper reports, so that a delivery is linked to a
+%% process that lives as long as the run; a process that restarts sends it
+%% its fault.
+report(Pid, Site, Peer, Fault, Restarted) ->
     {Cause, Trace} = case Fault of
                          {ern, fault, FaultCause, FaultTrace} -> {FaultCause, FaultTrace};
                          {ern, fault, FaultCause} -> {FaultCause, <<>>};
@@ -992,7 +1042,7 @@ report(Pid, Site, Fault, Restarted) ->
     Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace},
     case persistent_term:get({?MODULE, reporter}, undefined) of
         undefined -> ok;
-        Reporter -> Reporter(Report)
+        Reporter -> Reporter(Report, Peer)
     end,
     Subscribers = [Address || {_, Address} <- matching_rows(?FAULTS, '_')],
     lists:foreach(fun(Address) ->
@@ -1000,19 +1050,28 @@ report(Pid, Site, Fault, Restarted) ->
                   end, Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, the counts of its
-%% timed waits and of its foreign calls in progress, and its spawn order.
+%% timed waits and of its foreign calls in progress, its spawn order, its
+%% root, and the peer whose spawn started it, or none.
 live_rows() ->
     ets:tab2list(?PROCESSES).
 
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
 %% subscription to faults or to the program's end it held ends with it.
-died(Pid, Site, ExitReason) ->
+died(Pid, Site, Peer, ExitReason) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?TERMINATING, Pid),
     ets:delete(?RESTARTS, Pid),
     case reason(ExitReason) of
-        {'Fault', _} -> report(Pid, Site, ExitReason, false);
+        {'Fault', _} -> report(Pid, Site, Peer, ExitReason, false);
         _ -> ok
+    end.
+
+%% Report §11.2, §8.7: the node of the peer whose spawn started a live
+%% process, or none.
+peer(Pid) ->
+    case ets:lookup(?PROCESSES, Pid) of
+        [{_, _, _, _, _, _, Peer}] -> Peer;
+        [] -> none
     end.
 
 %% Report §8.6. Two snapshots of every live process's status and reduction
@@ -1053,7 +1112,7 @@ look() ->
         false ->
             delivering;
         true ->
-            Pids = [Pid || {Pid, _, _, _, _} <- live_rows()],
+            Pids = [Pid || {Pid, _, _, _, _, _, _} <- live_rows()],
             First = snapshot(Pids),
             Waits = Pids =/= []
                 andalso lists:all(fun({_, Status, _}) -> Status =:= waiting end, First)
@@ -1075,7 +1134,7 @@ nothing_delivers() ->
 %% Whether a process is in a timed receive or a foreign call, found at the
 %% first such row.
 counted() ->
-    ets:select(?PROCESSES, [{{'_', '_', '$1', '$2', '_'},
+    ets:select(?PROCESSES, [{{'_', '_', '$1', '$2', '_', '_', '_'},
                              [{'orelse', {'>', '$1', 0}, {'>', '$2', 0}}], [true]}], 1)
         =/= '$end_of_table'.
 
@@ -1186,16 +1245,17 @@ sources() ->
 %% and forgotten with its sources when it ends, which the process it is
 %% linked to learns. Report Appendix E.21: it is a process of the program's
 %% too, listed by Process.live, known to Process.info and reported by
-%% Process.faults, under Site, the function that opened it.
--spec opened(pid(), binary()) -> ok.
-opened(Pid, Site) ->
+%% Process.faults, under Site, the function that opened it, and started by
+%% Owner, the process that asked for it (started_by/1).
+-spec opened(pid(), binary(), pid()) -> ok.
+opened(Pid, Site, Owner) ->
     try ets:insert(?HELD, {{opened, Pid}}) catch _:_ -> true end,
     case persistent_term:get({?MODULE, reaper}, none) of
         none ->
             ok;
         Reaper ->
             Ref = make_ref(),
-            Reaper ! {adopt, Pid, Site, erlang:self(), Ref},
+            Reaper ! {adopt, Pid, Site, Owner, erlang:self(), Ref},
             receive {Ref, adopted} -> ok end
     end.
 
@@ -1798,8 +1858,9 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% arguments => the program's arguments, Os.arguments, none by default;
 %% exit => fault, where Os.exit faults its caller rather than ending the
 %% program, as in the shell and under `ern test` (report §11.2); faults =>
-%% fun((FaultReport) -> any()), given every fault as it happens (report
-%% §11.2); stdout, stderr => fun((binary()) -> any()), or {fd, N} to write
+%% fun((FaultReport, Peer) -> any()), given every fault as it happens with
+%% the node of the peer whose spawn started the process, or none (report
+%% §11.2, §8.7); stdout, stderr => fun((binary()) -> any()), or {fd, N} to write
 %% to the file descriptor through a port, which learns when the stream has
 %% gone (§8.2); stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
@@ -1934,7 +1995,7 @@ untold(Subscriptions, Waiting) ->
     lists:sort([{Order, Subscriber, Address, Site}
                 || {Subscriber, Address, false} <- Subscriptions,
                    not is_map_key(Subscriber, Waiting),
-                   [{_, Site, _, _, Order}] <- [ets_lookup(?PROCESSES, Subscriber)]]).
+                   [{_, Site, _, _, Order, _, _}] <- [ets_lookup(?PROCESSES, Subscriber)]]).
 
 %% Each of them told, by a teller of its own, and its run marked told, so
 %% that no later read tells it again. A row gone since the read, by its
@@ -2107,7 +2168,7 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
                 EntryPoint()
             end,
     EntryProcess = spawn_with_monitors(Entry, Site,
-                                       [{erlang:self(), {raw, {entry_down, Launch}}}]),
+                                       [{erlang:self(), {raw, {entry_down, Launch}}}], chained),
     case entry_end(EntryProcess, Launch) of
         {{fault, Cause}, FaultSite} when FaultSite =/= Site ->
             {initializer_fault, FaultSite, Cause};
@@ -2240,7 +2301,7 @@ initializing(Site) ->
 -spec site() -> binary().
 site() ->
     case ets_lookup(?PROCESSES, erlang:self()) of
-        [{_, Site, _, _, _}] -> Site;
+        [{_, Site, _, _, _, _, _}] -> Site;
         _ -> <<>>
     end.
 
@@ -2255,9 +2316,9 @@ binding(Key) ->
     end.
 
 %% Report §8.7: a top-level binding's value, kept under Key, in the run in
-%% progress, as a peer's spawn finds it (ern_code:value/1): its value where
-%% the initializers of its unit have run, and absent where they have not,
-%% or where a binding before it faulted (§8.5, §11.2).
+%% progress, as a peer's spawn finds it (ern_code:absent_binding/2): its
+%% value where the initializers of its unit have run, and absent where they
+%% have not, or where a binding before it faulted (§8.5, §11.2).
 -spec binding_value(module(), term()) -> {value, term()} | absent.
 binding_value(Unit, Key) ->
     case is_initialized(Unit) of
@@ -2277,17 +2338,6 @@ binding_value(Unit, Key) ->
 -spec is_initialized(module()) -> boolean().
 is_initialized(Unit) ->
     try ets:member(?INITIALIZED, Unit) catch error:badarg -> false end.
-
-%% Report §8.7: the first of a reach's bindings, each by its identity,
-%% without its value in the run in progress, or none. Nothing is
-%% initialized because a peer asked.
-absent_binding([]) ->
-    none;
-absent_binding([Binding | Bindings]) ->
-    case ern_code:value(Binding) of
-        {value, _} -> absent_binding(Bindings);
-        _ -> Binding
-    end.
 
 %% Report §6.9: a function that runs F, and on a fault runs it again in the
 %% same process, until the limit's restarts within its milliseconds have
@@ -2381,7 +2431,7 @@ on_this_node(Pid) ->
 -spec spawn_order(pid()) -> non_neg_integer().
 spawn_order(Pid) ->
     case ets_lookup(?PROCESSES, Pid) of
-        [{_, _, _, _, SpawnOrder}] -> SpawnOrder;
+        [{_, _, _, _, SpawnOrder, _, _}] -> SpawnOrder;
         _ -> 0
     end.
 
@@ -2502,7 +2552,8 @@ end_program(Launch, Reaper, System) ->
         {Ref, ended} ->
             ok;
         {'DOWN', MonitorRef, process, _, _} ->
-            lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
+            lists:foreach(fun({Pid, _, _, _, _, _, _}) -> exit(Pid, {ern, program_end}) end,
+                          live_rows())
     end,
     erlang:demonitor(MonitorRef, [flush]),
     Gone = [Name || Name <- [stdout, stderr],
@@ -2593,31 +2644,43 @@ declared_dependencies(ErlangModule) ->
     end.
 
 %% Report §8.7: an offer under a key, its name and its type's hash, of an
-%% address of this node's, for as long as its process lives; a key a
-%% living process holds faults the caller, and so does an address of
-%% another node's process.
--spec offer({binary(), binary()}, address(), binary()) -> 'Unit'.
-offer(Key, Address, Name) ->
+%% address of this node's, for as long as its process lives: `Right(Unit)`
+%% where it took the key, and `Left(Holder)`, the process whose address is
+%% offered under it, where that process lives; an address of another
+%% node's process faults the caller. The row of a holder that has ended
+%% stands until the reaper learns of the end, and is taken by one offer
+%% alone, so that two offers never both take a key.
+-spec offer({binary(), binary()}, address()) -> {'Right', 'Unit'} | {'Left', pid()}.
+offer(Key, Address) ->
     Process = process_of(Address),
     node(Process) =:= node() orelse fault(<<"a node offers only its own processes">>),
     case ets:insert_new(?OFFERS, {Key, Address, Process}) of
         true ->
-            ok;
+            held_while_alive(Key, Process),
+            {'Right', ?UNIT};
         false ->
             case ets:lookup(?OFFERS, Key) of
-                [{_, _, Holder}] ->
+                [{_, _, Holder} = Row] ->
                     case erlang:is_process_alive(Holder) of
-                        true -> fault(<<Name/binary, " is offered by a living process">>);
-                        false -> ok
+                        true ->
+                            {'Left', Holder};
+                        false ->
+                            ets:delete_object(?OFFERS, Row),
+                            offer(Key, Address)
                     end;
                 [] ->
-                    ok
-            end,
-            ets:insert(?OFFERS, {Key, Address, Process})
-    end,
+                    offer(Key, Address)
+            end
+    end.
+
+%% Report §8.7: the offer's process holds the key while it lives, its end
+%% ending the offer (unoffered/1). A process that ended before its row of
+%% keys was written may have been read by the reaper already, so its offer
+%% goes here.
+held_while_alive(Key, Process) ->
     ets:insert(?OFFERED, {Process, Key}),
     watch(Process),
-    ?UNIT.
+    erlang:is_process_alive(Process) orelse unoffered(Process).
 
 %% The reaper watches every process the runtime started or opened, and is
 %% asked to watch any other that holds an offer or a call's note, so that
@@ -2646,16 +2709,18 @@ offered(Name, Hash) ->
 %% Report §8.7: what a peer's frame asks of the run in progress, answered
 %% by its reaper, which ends before the run's tables go (end_program/3), so
 %% that no answer reads a table that is gone: what this node offers under a
-%% name at a type's hash (offered/2), or a process started on this node, as
-%% spawn/2 starts one, where every binding of the function's reach, each by
-%% its identity, has its value here, else `{absent, Binding}`, the first
-%% that has none. None where no run is in
-%% progress, its reaper ended or not yet begun: as a run ends, and between
-%% two runs of `ern test` over a directory, in one host. The gateway's
-%% worker that asks waits on the reaper's end as well as on its answer,
-%% since a frame comes at any time.
+%% name at a type's hash (offered/2), or a process started on this node for
+%% the peer of node Peer, as spawn/2 starts one but heading a chain of its
+%% own, where every binding of the function's reach, each by its identity,
+%% has its value here as the code of the unit that runs it reads it, else
+%% `{absent, Binding}`, the first that has none. None where
+%% no run is in progress, its reaper ended or not yet begun: as a run ends,
+%% and between two runs of `ern test` over a directory, in one host. The
+%% gateway's worker that asks waits on the reaper's end as well as on its
+%% answer, since a frame comes at any time.
 -spec asked_of_run({offered, binary(), binary()}
-                   | {spawn, fun(() -> term()), [{[atom()], binary()}], binary()}) ->
+                   | {spawn, fun(() -> term()), module(), [{[atom()], binary()}], binary(),
+                      node()}) ->
           {answered, term()} | none.
 asked_of_run(Question) ->
     case persistent_term:get({?MODULE, reaper}, none) of

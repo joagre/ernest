@@ -2673,15 +2673,16 @@ commands_mirror_test() ->
                             [global, {capture, all_but_first, binary}]),
     ?assertEqual(lists:sort(lists:append(Named)), lists:sort(lists:append(Listed))).
 
-%% report §11.2, Appendix E.21: the shell is a subscriber of Process.faults.
-%% An input a signal ends with a fault answers with it rather than waiting
-%% for a `Done` that never comes; a restart is reported as one, and the
-%% end after it; `:faults` keeps both; a binding `:load` evaluates is
-%% reported by `:load` alone. A regression test for the move off the front
-%% end's watcher; it does not cover a process `:reload` ends. The input
-%% that spawns the restarting process waits for its end, so that `:faults`
-%% comes after both faults: sent at once, it came first under the host's
-%% modified timing
+%% report §11.2, Appendix E.21, §6.5: the shell is a subscriber of
+%% Process.faults. An input that faults at its wait, an adapted address's
+%% function having faulted on the message it waits for, answers with the
+%% fault rather than waiting for a `Done` that never comes; a restart is
+%% reported as one, and the end after it; `:faults` keeps both; a binding
+%% `:load` evaluates is reported by `:load` alone. A regression test for
+%% the move off the front end's watcher; it does not cover a process
+%% `:reload` ends. The input that spawns the restarting process waits for
+%% its end, so that `:faults` comes after both faults: sent at once, it
+%% came first under the host's modified timing
 fault_subscriber_test_() ->
     {timeout, 60, fun fault_subscriber/0}.
 
@@ -2690,7 +2691,8 @@ fault_subscriber() ->
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
     InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ["send(via(self(), fn(x) = x / List.size([])), 1)\n",
+    ok = file:write_file(InputFile, ["{ send(via(self(), fn(x) = x / List.size([])), 1);"
+                                     " receive { n -> n } }\n",
                                      "1 + 1\n",
                                      "let r = restarting(RestartLimit(restarts = 1,"
                                      " within = 60000),"
@@ -3289,6 +3291,62 @@ refused_load_kills() ->
                                                 "> no process of the session's is running\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Server, compiled from server.ern\n> 2 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)).
+
+%% report §11.2, §6.9: a refused `:load` kills every process its evaluation
+%% started, whatever code it runs: here one started through a function of
+%% a module the session loaded before, which runs that module's code and
+%% holds a function of the refused module in its state. The refusal names
+%% it by its spawn site; `:processes` lists the process the earlier load
+%% started alone, which runs on; and a message that would have the killed
+%% process call the function reaches nothing. A regression test, written
+%% after the fix (findings V4, V1): the host's check of a process's code,
+%% which sees the code a process runs and not the functions it holds, did
+%% not find it, so it ran on unnamed after its function's module was
+%% purged, and faulted with the host's `badfun` once it called it
+refused_load_kills_holder_test_() ->
+    {timeout, 60, fun refused_load_kills_holder/0}.
+
+refused_load_kills_holder() ->
+    Dir = scratch("ern_refused_holder_"),
+    ok = file:write_file(filename:join(Dir, "runner.ern"),
+                         ["// A hub that steps every runner started with it.\n\n",
+                          "export type Msg = Tick\n\n",
+                          "type HubMsg = Join(Address(Msg)) | Each\n\n",
+                          "let hub : Address(HubMsg) = spawn(fn() = hubbed([]))\n\n",
+                          "fn hubbed(runners : List(Address(Msg))) : Unit with HubMsg =\n",
+                          "    receive {\n",
+                          "        Join(runner) -> hubbed(runner :: runners)\n",
+                          "      | Each -> {\n",
+                          "            List.foreach(runners, fn(runner) = send(runner, Tick));\n",
+                          "            hubbed(runners)\n",
+                          "        }\n",
+                          "    }\n\n",
+                          "export fn start(step : (Int) -> Int) : Unit with m =\n",
+                          "    send(hub, Join(spawn(fn() = stepping(step, 0))))\n\n",
+                          "export fn tick() : Unit with m =\n",
+                          "    send(hub, Each)\n\n",
+                          "fn stepping(step : (Int) -> Int, count : Int) : Unit with Msg =\n",
+                          "    receive {\n",
+                          "        Tick -> {\n",
+                          "            Io.println(\"stepped to \" <> Int.toString(step(count)));\n",
+                          "            stepping(step, step(count))\n",
+                          "        }\n",
+                          "    }\n"]),
+    ok = file:write_file(filename:join(Dir, "bad.ern"),
+                         ["fn next(count : Int) : Int = count + 1\n\n",
+                          "export let started : Unit = Runner.start(next)\n\n",
+                          "export let broken : Int = 1 / List.size([])\n"]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Runner\n:load Bad\n:processes\n",
+                                     "Runner.tick()\n:processes\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Bad.broken:5 faulted: division by zero; nothing"
+                                                " was loaded, and the process spawned at"
+                                                " Runner.start:19 was killed\n"
+                                                "> Runner.hub:7\n">>)),
+    ?assertEqual(2, ern_pty:count(Output, <<"> Runner.hub:7\n">>)),
+    [?assertEqual(nomatch, binary:match(Output, Text))
+     || Text <- [<<"stepped">>, <<"badfun">>, <<"undef">>, <<"Runner.start:19 faulted">>]].
 
 %% report §11.2, §6.10: a function of a previous version that a process
 %% holds in its state, and not in its code, keeps running that version

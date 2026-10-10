@@ -46,7 +46,7 @@ hash(QualifiedName, Definitions) ->
 %% type by its hash, which runs nothing; a binding by its qualified name
 %% with its hash, whose value a run finds absent before its unit's
 %% initializers have run; a foreign declaration's implementation by its
-%% qualified name
+%% qualified name; and the units its code calls, here none
 unit_load_fills_table_test() ->
     Beam = loaded(['Tablefill'], ?SOURCE),
     Definitions = definitions(Beam),
@@ -59,21 +59,27 @@ unit_load_fills_table_test() ->
                  ern_code:spawnable({hash, hash(['Tablefill', hidden], Definitions)})),
     ?assertEqual(none, ern_code:spawnable({hash, hash(['Tablefill', 'Box'], Definitions)})),
     Answer = {['Tablefill', answer], hash(['Tablefill', answer], Definitions)},
+    Missing = {['Tablefill', missing], <<0:256>>},
     Self = self(),
     Entry = fun() ->
-                Self ! {values, [ern_code:value(Identity)
-                                 || Identity <- [Answer, {['Tablefill', missing], <<0:256>>}]]}
+                Self ! {absent, [ern_code:absent_binding(Unit, [Identity])
+                                 || Identity <- [Answer, Missing]]}
             end,
     ok = ern_rt:run_main(Entry, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({values, [absent, none]}, receive {values, _} = Values -> Values end),
-    ?assertEqual({lists, reverse}, ern_code:foreign(['Tablefill', backwards])),
+    ?assertEqual({absent, [Answer, Missing]}, receive {absent, _} = Absent -> Absent end),
+    Called = ern_code:called(Unit),
+    ?assertEqual(#{Unit => true}, Called),
+    ?assertEqual([{lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
     ?assertEqual({Unit, backwards, 1, {[], [['Tablefill', backwards]]}},
                  ern_code:spawnable({foreign, ['Tablefill', backwards]})),
-    ?assertEqual(none, ern_code:foreign(['Tablefill', missing])),
-    %% every definition the chunk holds, and nothing else
+    ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
+    %% every definition the chunk holds, and nothing else, and the calls
     ?assertEqual(lists:sort(maps:keys(Definitions)),
                  lists:sort([QualifiedName || {QualifiedName, Held} <- Unit:'$code'(),
-                                              element(1, Held) =/= foreign])),
+                                              not lists:member(element(1, Held),
+                                                               [foreign, calls])])),
+    ?assertEqual([{['Tablefill'], {calls, []}}],
+                 [Calls || {_, {calls, _}} = Calls <- Unit:'$code'()]),
     ern_code:unloaded(Unit),
     code:purge(Unit),
     code:delete(Unit).
@@ -142,9 +148,9 @@ one_hash_in_two_units_test() ->
     ?assertEqual(none, ern_code:spawnable({hash, Hash})),
     [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tableother']].
 
-%% report §8.7, §8.5: a binding's value by its identity, in the run in
-%% progress: its value where its unit's initializers have run, absent where
-%% they have not, and none where no unit holds it
+%% report §8.7, §8.5: a binding by its identity has its value in the run in
+%% progress where its unit's initializers have run, and none where they
+%% have not, or where no unit holds it
 binding_value_test() ->
     Run = definitions(loaded(['Tableran'], "export let answer : Int = 6 * 7\n")),
     NotRun = definitions(loaded(['Tablenotrun'], "export let other : Int = 1\n")),
@@ -153,29 +159,29 @@ binding_value_test() ->
     Unknown = {['Tableran', gone], <<0:256>>},
     Self = self(),
     Entry = fun() ->
-                Self ! {values, [ern_code:value(Identity) || Identity <- [Ran, Unrun, Unknown]]}
+                Self ! {absent, [ern_code:absent_binding('ern@tableran', [Ran]),
+                                 ern_code:absent_binding('ern@tablenotrun', [Unrun]),
+                                 ern_code:absent_binding('ern@tableran', [Ran, Unknown])]}
             end,
     ok = ern_rt:run_main(Entry, <<"main">>,
                          #{init => fun() -> ern_rt:init_modules(['ern@tableran']) end,
                            stdout => fun(_) -> ok end}),
-    ?assertEqual({values, [{value, 42}, absent, none]}, receive {values, _} = V -> V end),
+    ?assertEqual({absent, [none, Unrun, Unknown]}, receive {absent, _} = V -> V end),
     [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
      || Unit <- ['ern@tableran', 'ern@tablenotrun']].
 
 %% report §8.7, §11.2: two versions of a module, each a unit of its own as
 %% the shell's load and reload make them, hold the definitions the second
-%% did not change under one identity; a lookup answers, for the function
-%% and for its reach's binding alike, the latest loaded of the units whose
-%% initializers have run, whose code reads its own bindings, and where
-%% none has run, the latest loaded for the function and no value for the
-%% binding. The first is a node's build's, loaded at its start and never
-%% evaluated, beside a unit the shell's load brought; then both evaluated,
-%% as a reload leaves them, the second's value the one answered, here made
-%% to differ from the first's as a service binding's does. A regression
-%% test, written after the fix (findings S2, N1, N5): the first unit loaded
-%% answered, so a peer's spawn of a function the shell's load had
-%% evaluated was refused, the binding said to have no value here, and after
-%% a reload a peer found the previous version's value
+%% did not change under one identity; a lookup answers, for the function,
+%% the latest loaded of the units whose initializers have run, whose code
+%% reads its own bindings, and where none has run, the latest loaded, its
+%% binding then without its value. The first is a node's build's, loaded at
+%% its start and never evaluated, beside a unit the shell's load brought;
+%% then both evaluated, as a reload leaves them. A regression test, written
+%% after the fix (findings S2, N1, N5): the first unit loaded answered, so
+%% a peer's spawn of a function the shell's load had evaluated was refused,
+%% the binding said to have no value here, and after a reload a peer found
+%% the previous version's value
 versions_answer_the_evaluated_unit_test() ->
     Namespace = ['Tableversions'],
     Text = "export let answer : Int = 6 * 7\nexport fn same(n : Int) : Int = n * 3\n",
@@ -196,34 +202,81 @@ versions_answer_the_evaluated_unit_test() ->
     Self = self(),
     Entry = fun() ->
                 {Unit, same, 1, _} = ern_code:spawnable({hash, Same}),
-                Self ! {answered, Unit, ern_code:value(Answer)}
+                Self ! {answered, Unit, ern_code:absent_binding(Unit, [Answer])}
             end,
     Answered = fun(Initialized) ->
-                   Init = fun() ->
-                              ern_rt:init_modules(Initialized),
-                              %% the second version's value another, as a
-                              %% service's address is at each evaluation
-                              [persistent_term:put({'ern@tableversions$2', answer}, 43)
-                               || lists:member('ern@tableversions$2', Initialized)]
-                          end,
+                   Init = fun() -> ern_rt:init_modules(Initialized) end,
                    ok = ern_rt:run_main(Entry, <<"main">>,
                                         #{init => Init, stdout => fun(_) -> ok end}),
                    receive {answered, _, _} = Found -> Found end
                end,
-    %% none evaluated: the latest loaded runs a function, and no value is
-    ?assertEqual({answered, 'ern@tableversions$2', absent}, Answered([])),
+    %% none evaluated: the latest loaded runs a function, without the value
+    ?assertEqual({answered, 'ern@tableversions$2', Answer}, Answered([])),
     %% the build's alone evaluated, a node running a program over it
-    ?assertEqual({answered, 'ern@tableversions', {value, 42}},
-                 Answered(['ern@tableversions'])),
+    ?assertEqual({answered, 'ern@tableversions', none}, Answered(['ern@tableversions'])),
     %% the shell's load evaluated and the build's not
-    ?assertEqual({answered, 'ern@tableversions$2', {value, 43}},
-                 Answered(['ern@tableversions$2'])),
+    ?assertEqual({answered, 'ern@tableversions$2', none}, Answered(['ern@tableversions$2'])),
     %% both evaluated, as after a reload: the latest version's
-    ?assertEqual({answered, 'ern@tableversions$2', {value, 43}},
+    ?assertEqual({answered, 'ern@tableversions$2', none},
                  Answered(['ern@tableversions', 'ern@tableversions$2'])),
     [persistent_term:erase({Unit, answer}) || {Unit, _} <- Versions],
     [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
      || {Unit, _} <- Versions].
+
+%% A module compiled against Interfaces, each namespace Units names called
+%% as that unit, its own among them, as the shell compiles a version,
+%% loaded and put in the table: its unit, its interface as compiled, and
+%% its definitions.
+compiled(Namespace, Text, Interfaces, Units) ->
+    {ok, Declarations} = ern_parser:parse_string(Text),
+    {ok, Typed, Interface, Env} = ern_typecheck:check(Namespace, Declarations, Interfaces),
+    Build = #{source_hash => <<>>, deps => [], units => Units},
+    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {module, Unit} = code:load_binary(Unit, "test", Beam),
+    ok = ern_code:loaded(Unit),
+    {ok, #{interface := Compiled}} = ern_interface:read(Beam),
+    {Unit, Compiled, definitions(Beam)}.
+
+%% report §8.7, §11.2: a reach's binding is read in the unit the code of
+%% the unit that runs the function reads it from, the units its code calls
+%% walked: a build's caller, never evaluated, calls the build's greeter,
+%% never evaluated either, though a second version of the greeter, which
+%% holds the binding under one identity, has been; the caller compiled
+%% again against the second version reads the second's. A regression test,
+%% written after the fix (finding S2's read-back): the binding was found by
+%% its identity alone, in the second version, and the build's caller then
+%% ran and read the build's greeter, which had no value
+reach_read_where_the_code_reads_test() ->
+    Greeter = ['Tablegreet'],
+    Caller = ['Tablecaller'],
+    Greet = "let greeting : String = \"hello\"\nexport fn hello() : String = greeting\n",
+    Call = "export fn call() : String = Tablegreet.hello()\n",
+    Second = #{Greeter => 'ern@tablegreet$2'},
+    {_, BuildGreet, BuildGreetDefinitions} = compiled(Greeter, Greet, [], #{}),
+    {_, LoadedGreet, _} = compiled(Greeter, [Greet, "export fn other() : Int = 1\n"], [], Second),
+    {_, _, CallDefinitions} = compiled(Caller, Call, [BuildGreet], #{}),
+    {_, _, _} = compiled(Caller, Call, [LoadedGreet], Second#{Caller => 'ern@tablecaller$2'}),
+    Greeting = {['Tablegreet', greeting], hash(['Tablegreet', greeting], BuildGreetDefinitions)},
+    {_, _, _, {[Greeting], []}} = ern_code:spawnable({hash, hash(['Tablecaller', call],
+                                                                 CallDefinitions)}),
+    ?assertEqual(#{'ern@tablecaller' => true, 'ern@tablegreet' => true},
+                 ern_code:called('ern@tablecaller')),
+    Self = self(),
+    Entry = fun() ->
+                Self ! {absent, [ern_code:absent_binding(Unit, [Greeting])
+                                 || Unit <- ['ern@tablecaller', 'ern@tablecaller$2']]}
+            end,
+    Absent = fun(Initialized) ->
+                 Init = fun() -> ern_rt:init_modules(Initialized) end,
+                 ok = ern_rt:run_main(Entry, <<"main">>,
+                                      #{init => Init, stdout => fun(_) -> ok end}),
+                 receive {absent, Found} -> Found end
+             end,
+    ?assertEqual([Greeting, none], Absent(['ern@tablegreet$2'])),
+    ?assertEqual([none, none], Absent(['ern@tablegreet', 'ern@tablegreet$2'])),
+    Units = ['ern@tablegreet', 'ern@tablegreet$2', 'ern@tablecaller', 'ern@tablecaller$2'],
+    [persistent_term:erase({Unit, greeting}) || Unit <- Units],
+    [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end || Unit <- Units].
 
 %% report §8.7: a module a foreign declaration names is on the node where it
 %% is loaded, or where the host would load it from

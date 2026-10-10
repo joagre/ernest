@@ -433,8 +433,9 @@ has(Text, Part) ->
 
 %% report §8.7: two nodes that list each other connect over TLS with a
 %% certificate on each side, by the first operation that needs it, and each
-%% says so naming the other; a node that ends is lost to the other, which
-%% says it closed; and the host's own reports of its nodes are not written
+%% says so naming the other; a node whose program ends tells the other,
+%% which says it ended and not that it was lost; and the host's own reports
+%% of its nodes are not written
 connect_test_() ->
     nodes_test(60, fun connect/1).
 
@@ -449,14 +450,15 @@ connect(Base) ->
     prints(B, "waiting"),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
-    says(B, "the peer a was lost: it closed"),
+    says(B, "the peer a ended"),
     stop(B, WaitB),
     {OutA, ErrA} = said(A),
     {_, ErrB} = said(B),
     has(OutA, "connect: true"),
     has(ErrA, "the peer b connected"),
     has(ErrB, "the peer a connected"),
-    has(ErrB, "the peer a was lost: it closed"),
+    has(ErrB, "the peer a ended"),
+    ?assertEqual(nomatch, string:find(ErrB, "was lost")),
     ?assertEqual(nomatch, string:find(ErrB, "**")),
     %% a node's ernest.pid is there while it runs and gone at its end
     ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))).
@@ -974,10 +976,12 @@ store_and_desk(Base) ->
 %% adapted address made on the store reaches its target through the store;
 %% kill crosses, and a Down from another node's process has an empty site;
 %% Process.info answers None for another node's process; an offer of
-%% another node's process and an offer under a key a living process holds
-%% fault; a lost connection gives a monitor Unreachable with an empty site,
-%% a find after it Unreachable, and a callForever on its process faults
-%% with the callee unreachable
+%% another node's process faults, and one under a key a living process
+%% holds answers that process; a lost connection gives a monitor
+%% Unreachable with an empty site, a find after it Unreachable, and a
+%% callForever on its process faults with the callee unreachable; and a
+%% node killed outright, which tells its peers nothing, is said as lost,
+%% its connection closed
 find_test_() ->
     nodes_test(90, fun find/1).
 
@@ -992,8 +996,10 @@ find(Base) ->
     _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(137, WaitStore()),
     ?assertEqual(0, WaitDesk()),
-    {Out, _} = said(Desk),
+    {Out, Err} = said(Desk),
     {StoreOut, _} = said(Store),
+    has(Err, "the peer store was lost: it closed"),
+    ?assertEqual(nomatch, string:find(Err, "the peer store ended")),
     has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
     [has(Out, Line)
      || Line <- ["early: Left(Unreachable)", "peers: [\"store\", \"gone\"]", "info: None",
@@ -1002,9 +1008,242 @@ find(Base) ->
                  "timeout: Left(Timeout)", "no upper bound: Right", "through the via: 7",
                  "killed: Killed \"\"",
                  "another node's: Fault(\"a node offers only its own processes\")",
-                 "twice: Fault(\"twice is offered by a living process\")",
+                 "twice, first: Right(Unit)", "twice, again held by itself: true",
+                 "twice: Returned",
                  "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
                  "call forever: Fault(\"callee is unreachable\")"]].
+
+%% report §8.7, Appendix E.27: a key handed over on a node: the server's
+%% first service takes the key, Right(Unit), and a newcomer's offer under it
+%% answers the holder, Left(holder), which the newcomer monitors; the
+%% client finds the first service, calls it and kills it across nodes; at
+%% the holder's Down the newcomer offers again and takes the key, and the
+%% client's next find reaches the newcomer. A regression test, written
+%% after the code, which faulted the newcomer's offer
+handover_test_() ->
+    nodes_test(60, fun handover/1).
+
+handover(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "server.ern"), <<"
+// Report §8.7, Appendix E.27: a key handed over: the first service takes
+// it, and a newcomer finds it held, monitors the holder and takes the key
+// at the holder's end.
+
+export type Msg = Which(Reply(String))
+
+export let key : Peer.Key(Msg) = Peer.key(\"handover\")
+
+type Newcomer = Asked(Msg) | Ended(Down)
+
+export fn main() : Unit with Unit = {
+    let first = spawn(fn() = serve());
+    Io.println(\"taken: \" <> Io.show(Peer.offer(key, first)));
+    let _ = spawn(fn() = newcomer(Process.fromAddress(first)));
+    held()
+}
+
+fn serve() : Unit with Msg =
+    receive {
+        Which(reply) -> {
+            answer(reply, \"first\");
+            serve()
+        }
+    }
+
+fn newcomer(first : Process) : Unit with Newcomer = {
+    let service = via(self(), Asked);
+    match Peer.offer(key, service) {
+        Left(holder) -> {
+            Io.println(\"held by the first: \" <> Io.show(holder == first));
+            monitor(holder, Ended);
+            receive {
+                Ended(_) -> Io.println(\"then taken: \" <> Io.show(Peer.offer(key, service)))
+            }
+        }
+      | Right(_) -> Io.println(\"taken at once\")
+    };
+    serving()
+}
+
+fn serving() : Unit with Newcomer =
+    receive {
+        Asked(Which(reply)) -> {
+            answer(reply, \"newcomer\");
+            serving()
+        }
+      | Ended(_) -> serving()
+    }
+
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn held() : Unit with Unit = receive { _ -> held() }
+"/utf8>>),
+    ok = file:write_file(filename:join(Root, "client.ern"), <<"
+// Report §8.7: the client finds the server's service, calls it and kills
+// it, and once the test says the key is taken finds it again.
+
+export fn main() : Unit with Never =
+    match Peer.find(Server.key, 10000) {
+        Right(first) -> {
+            Io.println(\"first: \" <> asked(first));
+            kill(first);
+            Io.println(\"killed\");
+            // until the test, which has seen the key taken, says so
+            let _ = Io.readLine();
+            match Peer.find(Server.key, 10000) {
+                Right(newcomer) -> Io.println(\"then: \" <> asked(newcomer))
+              | Left(failure) -> Io.println(\"then: \" <> Io.show(failure))
+            }
+        }
+      | Left(failure) -> Io.println(\"first: \" <> Io.show(failure))
+    }
+
+fn asked(service : Address(Server.Msg)) : String with m =
+    Io.show(Address.call(service, fn(reply) = Server.Which(reply), 10000))
+"/utf8>>),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    PortServer = free_port(),
+    Server = made(Base, "server", PortServer),
+    Client = made(Base, "client", none),
+    lists(Server, [{"client", Client, none}]),
+    lists(Client, [{"server", Server, PortServer}]),
+    edit(Client, fun(Conf) -> Conf#{<<"keys">> => #{<<"handover">> => [<<"server">>]}} end),
+    WaitServer = start(Server, filename:join(Root, "server.erc"), []),
+    prints(Server, "held by the first: true"),
+    {Input, WaitClient} = started(Client, filename:join(Root, "client.erc"), []),
+    prints(Client, "killed"),
+    prints(Server, "then taken: Right(Unit)"),
+    true = port_command(Input, "taken\n"),
+    ?assertEqual(0, WaitClient()),
+    stop(Server, WaitServer),
+    {Out, _} = said(Client),
+    {ServerOut, _} = said(Server),
+    has(ServerOut, "taken: Right(Unit)"),
+    has(Out, "first: Some(\"first\")"),
+    has(Out, "then: Some(\"newcomer\")").
+
+%% report §8.7, §6.6: a reply crosses with a spawned function's captures,
+%% and the spawned process answers it: a process on a calls a service on
+%% a, which hands the call's reply to a lambda it spawns on b, and the
+%% lambda answers it there, the caller reading Some(49); and a process a
+%% spawned on b calls the same service, its call noted on a, and is
+%% answered from a third process, on b, reading Some(64). A node ended by
+%% termination tells its peer that it ends, which says so. A regression
+%% test, written after the code, which refused the lambda; that a's note
+%% is let go by the call's end is read from the code and not seen here
+reply_crosses_test_() ->
+    nodes_test(60, fun reply_crosses/1).
+
+reply_crosses(Base) ->
+    {Program, A, B} = squares(Base),
+    WaitB = start(B, Program, []),
+    prints(B, "waiting"),
+    WaitA = start(A, Program, ["ask", "b"]),
+    prints(B, "answered there: "),
+    stop(A, WaitA),
+    says(B, "the peer a ended"),
+    stop(B, WaitB),
+    {OutA, _} = said(A),
+    {OutB, ErrB} = said(B),
+    has(OutA, "answered here: Some(49)"),
+    has(OutA, "spawned there: true"),
+    has(OutB, "answered there: Some(64)"),
+    ?assertEqual(nomatch, string:find(ErrB, "the peer a was lost")).
+
+%% report §11.2, §8.7: a process a peer spawned that faults is reported on
+%% the node it runs on with the spawner's site and, after the cause, the
+%% peer that spawned it, as it restarts and as it ends; a process it spawns
+%% there is reported without it, its site this node's. A regression test,
+%% written after the code, whose line named the spawner's site alone
+peer_fault_test_() ->
+    nodes_test(60, fun peer_fault/1).
+
+peer_fault(Base) ->
+    {Program, A, B} = squares(Base),
+    WaitB = start(B, Program, []),
+    prints(B, "waiting"),
+    WaitA = start(A, Program, ["fault", "b"]),
+    prints(A, "faulting there: true"),
+    says(B, "Squares.main:20 faulted: division by zero, spawned by the peer a"),
+    says(B, "Squares.spawning:46 faulted: division by zero\n"),
+    stop(A, WaitA),
+    stop(B, WaitB),
+    {_, ErrB} = said(B),
+    has(ErrB, "Squares.main:20 faulted, restarted: division by zero, spawned by the peer a\n"),
+    ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")).
+
+%% The program of two nodes, a and b, each listing the other, a dialling b:
+%% a service on a whose answer is given on b, by a lambda it spawns there
+%% with the request's reply among its captures, and a function a spawns on
+%% b that faults, restarting once, after it spawns one there that faults.
+squares(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "squares.ern"), <<"
+// Report §8.7, §6.6, §11.2: a service whose answer is given on a peer, by
+// a lambda it spawns there with the request's reply among its captures,
+// and a function spawned on a peer that faults there.
+
+type Msg = Square(n : Int, reply : Reply(Int))
+
+export fn main() : Unit with Unit =
+    match Os.arguments {
+        [\"ask\", peer] -> {
+            let service = spawn(fn() = serve(peer));
+            Io.println(\"answered here: \" <> asked(service, 7));
+            let there = Peer.spawn(peer, fn() : Unit with Never =
+                Io.println(\"answered there: \" <> asked(service, 8)), 5000);
+            Io.println(\"spawned there: \" <> Io.show(Either.isRight(there)));
+            held()
+        }
+      | [\"fault\", peer] -> {
+            let limit = RestartLimit(restarts = 1, within = 60000);
+            let faulting = Peer.spawn(peer, restarting(limit, spawning), 5000);
+            Io.println(\"faulting there: \" <> Io.show(Either.isRight(faulting)));
+            held()
+        }
+      | _ -> {
+            Io.println(\"waiting\");
+            held()
+        }
+    }
+
+fn serve(peer : String) : Unit with Msg =
+    receive {
+        Square(n = n, reply = reply) -> {
+            match Peer.spawn(peer, fn() : Unit with Never = answer(reply, n * n), 5000) {
+                Right(_) -> Unit
+              | Left(failure) -> Io.println(\"no spawn: \" <> Io.show(failure))
+            };
+            serve(peer)
+        }
+    }
+
+fn asked(service : Address(Msg), n : Int) : String with m =
+    Io.show(Address.call(service, fn(reply) = Square(n = n, reply = reply), 10000))
+
+// A process that faults, spawned here, and then a fault of its own.
+fn spawning() : Unit with Never = {
+    let _ = spawn(fn() : Unit with Never = divided());
+    divided()
+}
+
+fn divided() : Unit with Never = {
+    let _ = 1 / List.size([]);
+    Unit
+}
+
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn held() : Unit with Unit = receive { _ -> held() }
+"/utf8>>),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    PortB = free_port(),
+    A = made(Base, "a", none),
+    B = made(Base, "b", PortB),
+    lists(A, [{"b", B, PortB}]),
+    lists(B, [{"a", A, none}]),
+    {filename:join(Root, "squares.erc"), A, B}.
 
 %% report §8.7, §6.7, Appendix E.27, §8.2: work on a peer is a process
 %% spawned at the node the program names, whose spawn answers its address or
@@ -1035,7 +1274,7 @@ spawn_on_peer(Base) ->
      || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Timeout", "no upper bound: Right"]],
-    has(StoreErr, "the peer desk's spawn at Desk.spawns:70 was not loaded: the binding"
+    has(StoreErr, "the peer desk's spawn at Desk.spawns:74 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     has(StoreOut, "the store squares 49"),
     has(StoreOut, "the store squares 64"),
@@ -1281,9 +1520,9 @@ twins(Dir, Changed) ->
              "\n"
              "export fn main() : Unit with Unit = {\n"
              "    let pinged = spawn(fn() : Unit with Twin.Msg = answered());\n"
-             "    Peer.offer(Twin.stableKey, pinged);\n"
+             "    let _ = Peer.offer(Twin.stableKey, pinged);\n"
              "    let shaped = spawn(fn() : Unit with Twin.Shape = held());\n"
-             "    Peer.offer(Twin.shapeKey, shaped);\n"
+             "    let _ = Peer.offer(Twin.shapeKey, shaped);\n"
              "    Io.println(\"offered\");\n"
              "    held()\n"
              "}\n"
@@ -1689,6 +1928,279 @@ shell_node_versions(Base) ->
     has(DeskOut, "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
                  " Greet.greeter has no value here"),
     ?assertEqual(1, length(string:split(DeskOut ++ DeskErr, "has no value here", all)) - 1).
+
+%% report §8.7, §11.2: a shell that is a node over a build answers a peer's
+%% spawn of a build function only where every binding its reach names has
+%% its value as its code reads it. The build's caller calls the build's
+%% greeter, which the session never evaluated, though it loaded a changed
+%% greeter from source, which holds the binding under one identity: the
+%% spawn is NotLoaded, the node saying the binding has no value here, true
+%% of the code that would run. Once the session has loaded the caller from
+%% source too, compiled against its greeter, the spawn runs there. A
+%% regression test, written after the fix (finding S2's read-back): the
+%% binding was found by its identity in the session's greeter, the build's
+%% caller ran, and its process faulted, the binding read in the build's
+%% greeter having no value
+shell_node_reach_test_() ->
+    nodes_test(90, fun shell_node_reach/1).
+
+shell_node_reach(Base) ->
+    Root = filename:join(Base, "build"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    Greet = "let greeting : String = \"hello from the greeter\"\n"
+            "\n"
+            "export fn hello() : Unit with Never = Io.println(greeting)\n",
+    Caller = "export fn call() : Unit with Never = Greet.hello()\n",
+    ok = file:write_file(filename:join(Root, "greet.ern"), Greet),
+    ok = file:write_file(filename:join(Root, "caller.ern"), Caller),
+    ok = file:write_file(filename:join(Root, "store.ern"),
+                         "// A spawn on the shell's node of Caller.call at each line.\n"
+                         "\n"
+                         "export fn main() : Unit with Unit = {\n"
+                         "    Io.println(\"ready\");\n"
+                         "    spawning()\n"
+                         "}\n"
+                         "\n"
+                         "fn spawning() : Unit with m =\n"
+                         "    match Io.readLine() {\n"
+                         "        Some(name) -> {\n"
+                         "            let spawned = Peer.spawn(\"desk\", Caller.call, 5000);\n"
+                         "            let answer = match spawned {\n"
+                         "                Right(_) -> \"Right\"\n"
+                         "              | Left(failure) -> Io.show(failure)\n"
+                         "            };\n"
+                         "            Io.println(name <> \": \" <> answer);\n"
+                         "            spawning()\n"
+                         "        }\n"
+                         "      | None -> Unit\n"
+                         "    }\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    Other = "\nexport fn other() : Unit with Never = Io.println(\"other\")\n",
+    ok = file:write_file(filename:join(Source, "greet.ern"), [Greet, Other]),
+    ok = file:write_file(filename:join(Source, "caller.ern"), Caller),
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
+    prints(Store, "ready"),
+    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
+    true = port_command(DeskInput, ":load Greet\n"),
+    prints(Desk, "Greet, compiled from greet.ern"),
+    %% the desk dials the store, which does not hold the lambda
+    true = port_command(DeskInput,
+                        "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+    prints(Desk, "Left(NotLoaded) : Either(Io.Error, Address(Never))"),
+    true = port_command(StoreInput, "first\n"),
+    prints(Store, "first: NotLoaded"),
+    true = port_command(DeskInput, ":load Caller\n"),
+    prints(Desk, "Caller, compiled from caller.ern"),
+    true = port_command(StoreInput, "second\n"),
+    prints(Store, "second: Right"),
+    prints(Desk, "hello from the greeter"),
+    true = port_command(DeskInput, ":quit\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {DeskOut, DeskErr} = said(Desk),
+    %% the shell writes the node's lines on its screen
+    has(DeskOut, "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
+                 " Greet.greeting has no value here"),
+    [?assertEqual(nomatch, string:find(Text, "fault")) || Text <- [DeskOut, DeskErr]].
+
+%% report §11.2, §6.9, §8.7: on a shell that is a node over a build, a
+%% refused `:load` that evaluated a unit of the build, which the node held
+%% and the session had not evaluated, kills the process that unit's binding
+%% spawned and names it, and leaves the unit as it was before the load: a
+%% peer's spawn of its function is NotLoaded, its binding without its value
+%% here, before the load and after it alike. A regression test, written
+%% after the fix (findings V4, V1): the process ran on unnamed, since it ran
+%% no code the load brought, while the load erased the unit's values
+refused_build_load_test_() ->
+    nodes_test(90, fun refused_build_load/1).
+
+refused_build_load(Base) ->
+    Root = filename:join(Base, "build"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    ok = file:write_file(filename:join(Root, "greet.ern"),
+                         "// A greeter whose service is a binding, and what a peer spawns.\n"
+                         "\n"
+                         "export type Msg = Greet(String)\n"
+                         "\n"
+                         "let greeter : Address(Msg) = spawn(fn() : Unit with Msg = greeted(0))\n"
+                         "\n"
+                         "fn greeted(count : Int) : Unit with Msg =\n"
+                         "    receive {\n"
+                         "        Greet(who) -> {\n"
+                         "            Io.println(who <> \" greeted \" <> Int.toString(count));\n"
+                         "            greeted(count + 1)\n"
+                         "        }\n"
+                         "    }\n"
+                         "\n"
+                         "export fn hello() : Unit with Never = send(greeter, Greet(\"hello\"))\n"),
+    ok = file:write_file(filename:join(Root, "store.ern"),
+                         "// A spawn on the shell's node of Greet.hello at each line.\n"
+                         "\n"
+                         "export fn main() : Unit with Unit = {\n"
+                         "    Io.println(\"ready\");\n"
+                         "    spawning()\n"
+                         "}\n"
+                         "\n"
+                         "fn spawning() : Unit with m =\n"
+                         "    match Io.readLine() {\n"
+                         "        Some(name) -> {\n"
+                         "            let spawned = Peer.spawn(\"desk\", Greet.hello, 5000);\n"
+                         "            let answer = match spawned {\n"
+                         "                Right(_) -> \"Right\"\n"
+                         "              | Left(failure) -> Io.show(failure)\n"
+                         "            };\n"
+                         "            Io.println(name <> \": \" <> answer);\n"
+                         "            spawning()\n"
+                         "        }\n"
+                         "      | None -> Unit\n"
+                         "    }\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    ok = file:write_file(filename:join(Source, "bad.ern"),
+                         "export let greeted : Unit = Greet.hello()\n"
+                         "\n"
+                         "export let broken : Int = 1 / List.size([])\n"),
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
+    prints(Store, "ready"),
+    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
+    %% the desk dials the store, which does not hold the lambda
+    true = port_command(DeskInput,
+                        "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+    prints(Desk, "Left(NotLoaded) : Either(Io.Error, Address(Never))"),
+    true = port_command(StoreInput, "before\n"),
+    prints(Store, "before: NotLoaded"),
+    true = port_command(DeskInput, ":load Bad\n"),
+    prints(Desk, "Bad.broken:3 faulted: division by zero; nothing was loaded, and the process"
+                 " spawned at Greet.greeter:5 was killed"),
+    true = port_command(DeskInput, ":processes\n"),
+    prints(Desk, "no process of the session's is running"),
+    true = port_command(StoreInput, "after\n"),
+    prints(Store, "after: NotLoaded"),
+    true = port_command(DeskInput, ":quit\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {DeskOut, DeskErr} = said(Desk),
+    %% the shell writes the node's lines on its screen
+    ?assertEqual(2, length(string:split(DeskOut, "the peer store's spawn at Store.spawning:11 was"
+                                                 " not loaded: the binding Greet.greeter has no"
+                                                 " value here", all)) - 1),
+    ?assertEqual(nomatch, string:find(DeskErr, "fault")).
+
+%% report §6.5, §8.4, §6.9, §8.7: a fault in an adapted address's function,
+%% applied where the address was made as a message from another node
+%% arrives, takes the message's place in the target's mailbox: the
+%% restarting target faults at its wait, is reported restarted with the
+%% cause, and its new run takes the next message; the sender goes on. A
+%% regression test, written after the fix (finding W3): the fault killed the
+%% target by an exit signal, so it ended without a restart, and the next
+%% message was lost
+adapted_fault_test_() ->
+    nodes_test(90, fun adapted_fault/1).
+
+adapted_fault(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "adapted.ern"),
+                         "// A restarting worker behind an adapted address whose function\n"
+                         "// divides by what is sent, offered on one node and sent to from\n"
+                         "// the other a line at a time.\n"
+                         "\n"
+                         "type Msg = Work(Int)\n"
+                         "\n"
+                         "let key : Peer.Key(Int) = Peer.key(\"work\")\n"
+                         "\n"
+                         "export fn main() : Unit with Unit =\n"
+                         "    match Os.arguments {\n"
+                         "        [\"make\"] -> make()\n"
+                         "      | _ -> sending()\n"
+                         "    }\n"
+                         "\n"
+                         "fn make() : Unit with Unit = {\n"
+                         "    let maker = self();\n"
+                         "    let worker = spawn(restarting(RestartLimit(restarts = 3,"
+                         " within = 60000),\n"
+                         "                                  fn() : Unit with Msg = {\n"
+                         "                                      send(maker, Unit);\n"
+                         "                                      work()\n"
+                         "                                  }));\n"
+                         "    let _ = Peer.offer(key, via(worker, fn(n) = Work(100 / n)));\n"
+                         "    runs(1)\n"
+                         "}\n"
+                         "\n"
+                         "fn runs(count : Int) : Unit with Unit =\n"
+                         "    receive {\n"
+                         "        _ -> {\n"
+                         "            Io.println(\"run \" <> Int.toString(count));\n"
+                         "            runs(count + 1)\n"
+                         "        }\n"
+                         "    }\n"
+                         "\n"
+                         "fn work() : Unit with Msg =\n"
+                         "    receive {\n"
+                         "        Work(n) -> {\n"
+                         "            Io.println(\"took \" <> Int.toString(n));\n"
+                         "            work()\n"
+                         "        }\n"
+                         "    }\n"
+                         "\n"
+                         "fn sending() : Unit with Unit =\n"
+                         "    match Peer.find(key, 5000) {\n"
+                         "        Right(work) -> {\n"
+                         "            Io.println(\"found\");\n"
+                         "            sent(work)\n"
+                         "        }\n"
+                         "      | Left(failure) -> Io.println(Io.show(failure))\n"
+                         "    }\n"
+                         "\n"
+                         "fn sent(work : Address(Int)) : Unit with Unit =\n"
+                         "    match Io.readLine() {\n"
+                         "        Some(\"zero\") -> {\n"
+                         "            send(work, 0);\n"
+                         "            Io.println(\"sent 0\");\n"
+                         "            sent(work)\n"
+                         "        }\n"
+                         "      | Some(_) -> {\n"
+                         "            send(work, 5);\n"
+                         "            Io.println(\"sent 5\");\n"
+                         "            sent(work)\n"
+                         "        }\n"
+                         "      | None -> Unit\n"
+                         "    }\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    Program = filename:join(Root, "adapted.erc"),
+    PortMaker = free_port(),
+    Maker = made(Base, "maker", PortMaker),
+    Sender = made(Base, "sender", none),
+    lists(Maker, [{"sender", Sender, none}]),
+    lists(Sender, [{"maker", Maker, PortMaker}]),
+    edit(Sender, fun(Conf) -> Conf#{<<"keys">> => #{<<"work">> => [<<"maker">>]}} end),
+    WaitMaker = start(Maker, Program, ["make"]),
+    prints(Maker, "run 1"),
+    {SenderInput, WaitSender} = started(Sender, Program, []),
+    prints(Sender, "found"),
+    true = port_command(SenderInput, "zero\n"),
+    prints(Sender, "sent 0"),
+    says(Maker, "faulted, restarted: division by zero"),
+    %% the new run has begun, its mailbox emptied of the old (§6.9)
+    prints(Maker, "run 2"),
+    true = port_command(SenderInput, "five\n"),
+    prints(Sender, "sent 5"),
+    prints(Maker, "took 20"),
+    stop(Sender, WaitSender),
+    stop(Maker, WaitMaker),
+    {_, SenderErr} = said(Sender),
+    ?assertEqual(nomatch, string:find(SenderErr, "fault")).
 
 %%
 %% The end told, and the standing address (report §8.6, Appendix E.23, G.7)

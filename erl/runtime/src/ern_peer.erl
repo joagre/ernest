@@ -75,11 +75,12 @@ key(Name, Hash, Text) ->
     {'Key', Name, Hash, Text}.
 
 %% Report §8.7: an offer under the key's name and its type's hash, for as
-%% long as its process lives, a process of this node; a key a living process
-%% holds faults the caller.
--spec offer({'Key', binary(), binary(), binary()}, ern_rt:address()) -> 'Unit'.
+%% long as its process lives, a process of this node: `Right(Unit)` where
+%% it took the key, and `Left(Holder)` where a living process holds it.
+-spec offer({'Key', binary(), binary(), binary()}, ern_rt:address()) ->
+          {'Right', 'Unit'} | {'Left', pid()}.
 offer({'Key', Name, Hash, _Text}, Address) ->
-    ern_rt:offer({Name, Hash}, Address, Name).
+    ern_rt:offer({Name, Hash}, Address).
 
 %% Report §8.7: the first address offered under the key's name at its type's
 %% hash by a peer `keys` lists for it, asked in order, each given the time
@@ -277,16 +278,18 @@ frame(_From, _Body) ->
 
 %% A process a peer's spawn starts here, where this node holds the function
 %% and every module its reach's foreign declarations call, and the run in
-%% progress holds the value of every binding its reach names; else
+%% progress holds the value of every binding its reach names, each as the
+%% code of the unit that runs it reads it (ern_code:called/1), its row
+%% keeping the peer's node, which its fault's line names (§11.2); else
 %% `NotLoaded` and what this node lacked, the first met, or `Unreachable`
 %% where no run is in progress to start it.
 spawned_here({lacked, Lacked}, _Ref, _From, _Monitored, Site) ->
     not_loaded(Site, Lacked);
-spawned_here({found, Function, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
-    case absent_module(Foreigns) of
+spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
+    case absent_module(Unit, Foreigns) of
         none ->
             Held = held(Function, Ref, From, Monitored),
-            case ern_rt:asked_of_run({spawn, Held, Bindings, Site}) of
+            case ern_rt:asked_of_run({spawn, Held, Unit, Bindings, Site, node(From)}) of
                 {answered, Pid} when is_pid(Pid) -> {{spawned, Pid}, ok};
                 {answered, {absent, Binding}} -> not_loaded(Site, absent(Binding));
                 none -> {{failed, 'Unreachable'}, ok}
@@ -306,10 +309,10 @@ not_loaded(Site, Lacked) ->
 %% unit the code table answers for its identity, one whose bindings have
 %% their values where one holds it (§11.2), runs it over the values it
 %% captured ('$spawned'/2), in the process, and `restarting` runs it so;
-%% with the reach it names, or what this node lacked, or unreadable where
-%% the frame names it in no way the compiler writes. A peer's names are
-%% taken as atoms only where this node has them already, so that what a
-%% peer sends makes none.
+%% with that unit and the reach it names, or what this node lacked, or
+%% unreadable where the frame names it in no way the compiler writes. A
+%% peer's names are taken as atoms only where this node has them already,
+%% so that what a peer sends makes none.
 process_function({restarting, 'Unlimited' = Limit, Inner})
   when element(1, Inner) =/= restarting ->
     restarting(Limit, process_function(Inner));
@@ -335,8 +338,8 @@ process_function({foreign, Names}) when is_list(Names), Names =/= [] ->
 process_function(_) ->
     unreadable.
 
-restarting(Limit, {found, Function, Reach}) ->
-    {found, ern_rt:restarting(Limit, Function), Reach};
+restarting(Limit, {found, Function, Unit, Reach}) ->
+    {found, ern_rt:restarting(Limit, Function), Unit, Reach};
 restarting(_, Other) ->
     Other.
 
@@ -344,7 +347,7 @@ restarting(_, Other) ->
 %% takes as many as came; a function of the identity that takes another
 %% number is one no compiler writes a frame for.
 unit_function({Unit, Function, Arity, Reach}, Captures, _) when length(Captures) =:= Arity ->
-    {found, fun() -> Unit:'$spawned'(Function, Captures) end, Reach};
+    {found, fun() -> Unit:'$spawned'(Function, Captures) end, Unit, Reach};
 unit_function({_, _, _, _}, _, _) ->
     unreadable;
 unit_function(none, _, Identity) ->
@@ -363,19 +366,29 @@ existing_atoms(Names) ->
     end.
 
 %% Report §8.7: the first foreign declaration of a reach whose module is not
-%% on this node, as what this node lacked, or none.
-absent_module([]) ->
+%% on this node, as what this node lacked, or none: each found in the units
+%% the code of Unit, which runs the function, calls (ern_code:called/1).
+absent_module(_Unit, []) ->
     none;
-absent_module([QualifiedName | QualifiedNames]) ->
+absent_module(Unit, QualifiedNames) ->
+    Called = ern_code:called(Unit),
+    case [Lacked || QualifiedName <- QualifiedNames,
+                    Lacked <- [lacked_module(Called, QualifiedName)], Lacked =/= none] of
+        [] -> none;
+        [First | _] -> First
+    end.
+
+lacked_module(Called, QualifiedName) ->
     Named = identity_text(QualifiedName),
-    case ern_code:foreign(QualifiedName) of
-        none ->
+    case ern_code:foreign(Called, QualifiedName) of
+        [] ->
             ["this node does not have ", Named];
-        {HostModule, _} ->
-            case ern_code:present(HostModule) of
-                true -> absent_module(QualifiedNames);
-                false -> ["the module ", atom_to_binary(HostModule), ", which ", Named,
-                          " calls, is not here"]
+        Implementations ->
+            case [HostModule || {HostModule, _} <- Implementations,
+                                not ern_code:present(HostModule)] of
+                [] -> none;
+                [HostModule | _] -> ["the module ", atom_to_binary(HostModule), ", which ", Named,
+                                     " calls, is not here"]
             end
     end.
 

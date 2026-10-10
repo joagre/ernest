@@ -83,7 +83,7 @@ round_inputs(Step) ->
 %% be mid-work.
 -spec mark(integer()) -> 'Unit'.
 mark(Round) ->
-    Ending = [Pid || {Pid, _, _, _, _} <- ets:tab2list(ern_processes),
+    Ending = [Pid || {Pid, _, _, _, _, _, _} <- ets:tab2list(ern_processes),
                      not erlang:is_process_alive(Pid)],
     [begin
          MonitorRef = erlang:monitor(process, Pid),

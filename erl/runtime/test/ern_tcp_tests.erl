@@ -636,7 +636,7 @@ fault_at_the_programs_end_not_reported() ->
 %% an accept on its listeners.
 program_ended_under_accepts() ->
     Self = self(),
-    Reporter = fun(Report) -> Self ! {reported, Report} end,
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     ok = ern_rt:run_main(
            fun() ->
                Acceptors = [begin
@@ -674,7 +674,7 @@ restarting_at_the_programs_end_not_restarted() ->
 %% each run of an acceptor's function sends `ran`.
 program_ended_under_restarting_accepts() ->
     Self = self(),
-    Reporter = fun(Report) -> Self ! {reported, Report} end,
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     ok = ern_rt:run_main(
            fun() ->
                Acceptors = [begin

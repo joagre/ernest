@@ -888,22 +888,29 @@ as_node(Options, LoadPath, Run) ->
 no_main_file() ->
     "--main names the function to spawn from the file the shell loads, and no file is given".
 
-%% Report §11.2: every fault on standard error as it happens, a line each,
-%% the spawn site and the cause, and beneath a failure of the runtime or a
-%% foreign function's raise the host's stack. It goes through standard
-%% error's process, so that it keeps its place among what the program
-%% wrote there, and is flushed with it when the program ends. The runtime's
-%% own subscriber of Process.faults (Appendix E.21).
-%% Where standard error is neither a terminal nor a service manager's
+%% Report §11.2: every fault on standard error as it happens, a line each:
+%% the spawn site and the cause; after the cause, for a process a peer
+%% spawned, the peer, named as a node's line names it (§8.7), since the
+%% site is the spawner's; and beneath a failure of the runtime or a foreign
+%% function's raise the host's stack. It goes through standard error's
+%% process, so that it keeps its place among what the program wrote there,
+%% and is flushed with it when the program ends. The runtime's own
+%% subscriber of Process.faults (Appendix E.21), given the peer's node or
+%% none. Where standard error is neither a terminal nor a service manager's
 %% journal, each line begins with the time, in UTC as RFC 3339 writes it.
-report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Stamped) ->
+report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Peer, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
               end,
+    SpawnedBy = case Peer of
+                    none -> [];
+                    _ -> [", spawned by ", ern_carrier:named(Peer)]
+                end,
     ern_rt:send(ern_rt:system_process(stderr),
                 iolist_to_binary([stamp(Stamped), Site, Faulted, ern_show:controls(Cause, line),
-                                  "\n", ern_show:controls(iolist_to_binary(Trace), lines)])).
+                                  SpawnedBy, "\n",
+                                  ern_show:controls(iolist_to_binary(Trace), lines)])).
 
 %% Report §11.2, §8.7: what a line on standard error begins with, a fault's
 %% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
@@ -925,10 +932,14 @@ reporting_options(RunOptions, ErrorDevice) ->
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
             Stamped = is_stamped(),
-            RunOptions#{faults => fun(FaultReport) -> report_fault(FaultReport, Stamped) end,
+            RunOptions#{faults => fun(FaultReport, Peer) ->
+                                      report_fault(FaultReport, Peer, Stamped)
+                                  end,
                         say => fun ern_carrier:say/1, stdout => {fd, 1}, stderr => {fd, 2}};
         device ->
-            RunOptions#{faults => fun(FaultReport) -> report_fault(FaultReport, false) end,
+            RunOptions#{faults => fun(FaultReport, Peer) ->
+                                      report_fault(FaultReport, Peer, false)
+                                  end,
                         stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
     end.
 
@@ -1118,8 +1129,8 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
                                                 exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
-    Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport) ->
-                   ets:member(Running, Process) orelse Report(FaultReport)
+    Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport, Peer) ->
+                   ets:member(Running, Process) orelse Report(FaultReport, Peer)
                end,
     Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),
     ets:delete(Running),

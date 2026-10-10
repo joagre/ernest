@@ -21,7 +21,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
 of 2026-10-09*). MVP 3.1 is under way, items 1 to 7 done on 2026-10-09 and 10. The road to 1.0 is MVP 3.1, 3.2,
-the tour and the review; the back end, ehttpd, the website and the shell's second round follow
+3.25, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ends with a read of what it built, its item
 9, and MVP 3.2 with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
 *Ernest 0.4.0 Ends MVP 3.2*); any other release waits until the user calls it.
@@ -76,12 +76,13 @@ paragraph under "Done".
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | design read through 2026-10-09; the principles review runs before its item 1 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
+| MVP 3.25 | placing work by load: the proposal `proposals/balancer/suggestion.md`, a computation run where there is room and its value back, discussed with the user before MVP 3.2's report is written and built here after it | the proposal stands on MVP 3.2; added 2026-10-10 |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
-| MVP 4.0 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
 | MVP 4.3 | the shell's second round | |
+| MVP 4.4 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
 
 ---
 
@@ -355,6 +356,41 @@ before anything is let go; the exchange before the unit it fills; the let-go onc
 what stands on the exchange, the bare node and the shell; `Code`, which reads the table; and the
 tests and measurements over all of it.
 
+**Before item 1, the feedback pass.** The lines of [`language_feedback.md`](language_feedback.md)
+are sorted as a read's findings are (`full_review.md`, *The findings*): fixed now, decided with the
+user one at a time against §0, folded into the item of this milestone that touches them, or
+dropped with the principle named; none is deferred again. The log's *Later* is read with one
+question, which entries this milestone's work touches, code crossing with a spawn, the bare node,
+`Code` and the unit let go, so that an entry whose "what would change it" this milestone
+supplies is decided inside it and not found again by its read. Decided with the user on
+2026-10-10 and run the same evening (the log's *The Feedback Pass Before MVP 3.2*): 94 is item 2's, 96
+went to *Later*, 97 and 98 are MVP 4.3's, 99 and 100 are settled, and 91's rule, the shell's
+evaluation process living while the session runs, is §11.2's, built with MVP 3.1's read; item 1
+rewrites *Later*'s five entries this milestone touches.
+
+**Second, before item 1, MVP 3.25's discussion.** The proposal `proposals/balancer/suggestion.md`
+is discussed with the user before this milestone's report is written, since what it decides, the
+shape of a spawn that chooses its peer, whether a node is a place for its own work, and whether
+`Balancer` and `Load` stay as they are, may change what item 1 writes into §8.7 and Appendix G;
+deciding it after would write the spawn twice. The discussion stays in the proposal until the user
+says it is ready, as CLAUDE.md has it, and nothing of it enters the report before item 1; what it
+decides is built as MVP 3.25 after this milestone, or as this milestone's own items where it is the
+spawn's shape. Decided with the user on 2026-10-10 (the log's *A Milestone for Placing Work by Load*).
+
+**Third, before item 1, an example of typed channels.** One program under `examples/`, run by the
+tests as the others are, with comments as its only text, for a reader who doubts that a typed
+mailbox is sound: `soundness.md`'s argument made concrete, one doubt per fragment, each with the
+line the checker refuses and the one it accepts, and Ernest's two stated limits, foreign code and a
+peer trusted past the check, and a lost message, in a comment. It carries each aspect of a typed
+mailbox in a line or two: a mailbox type and `with`; `Address(m)` and a `send` checked against it; `via`
+and a fault in its function; `Reply(a)` answered once and `Address.call`; a `monitor` whose `Down`
+arrives in the watcher's own type; `Os.terminating` through a wrap; `restarting` keeping its
+address; a key typed across two nodes, `OtherType` and a standing address; a reply handed to a
+function spawned on a peer; and the one refusal, a bound type that cannot cross, in a comment with
+the error's words. Written once MVP 3.1's read is committed, since its verdicts change what the
+example shows, and before this milestone reshapes the spawn; what writing it finds goes to
+`language_feedback.md`, and it seeds the tour's outline (MVP 3.3). Asked for on 2026-10-10.
+
 1. **The report and the soundness argument.** §8.7 for the spawn that carries its code, the
    four frames, verification, quarantine and one load, `Refused` with the peer's text, a peer
    that may spawn on a node running what it sends, and the bare node; §11.2 for a bare node, for
@@ -412,7 +448,7 @@ tests and measurements over all of it.
    prompt. A function typed at the shell spawning on a peer with its code, where MVP 3.1 answered
    `NotLoaded`; the refusal of a node without a program lifted from `docs/development.md`'s
    table.
-6. **`Code`.** `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
+6. **`Code`.** §11.1's outcome for a build written under a running node, which MVP 3.1 states as reaching the node at its next start alone, is restated here for a node that reads a unit after its start. `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
    forms and its reach's read from the load path, verified against their hashes and made a unit
    as a load of the shell's is, counted against the limits, `Left` for a file that is no `.erc`
    of this `ern` or whose reach the load path lacks; `Code.hashes(path)`, the `.erc`'s table of
@@ -455,6 +491,18 @@ tests and measurements over all of it.
    user on 2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*).
 
 ---
+
+## MVP 3.25 (placing work by load)
+
+The proposal [`suggestion.md`](../proposals/balancer/suggestion.md), written on 2026-10-10 from a
+program written against `Balancer` that day, asks how a program runs a computation where there is
+room and gets its value back, and what `Balancer`, `Load` and `Peer` give today. It stands on MVP
+3.2 as `mvp3.2.md` designs it, so it is built once MVP 3.2 is, and discussed before MVP 3.2's
+item 1 writes its report, in the proposal and nowhere else until the user says it is ready, as CLAUDE.md's rule for a proposal has it; nothing of
+it is in the report, this plan or the log meanwhile, and this milestone says only that the
+discussion happens here. What the discussion decides, a shape in the library, in `Peer`, or none,
+is built as this milestone's items, written then. Added at the user's word on 2026-10-10 (the
+log's *A Milestone for Placing Work by Load*).
 
 ## MVP 3.3 (the tour)
 
@@ -501,22 +549,6 @@ Release Is for Others*), after the language was argued in MVP 2.99c:
   point at what changed rather than list it (the log's *A Release Carries No History*).
 
 ---
-
-## MVP 4.0 (a back end to BEAM's own instructions)
-
-The first milestone after Ernest 1.0, decided with the user on 2026-10-10 (the log's *The Road
-to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format, writing the
-BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
-record instructions among them), with Ernest's proven types written as the loader's typed
-registers, so that the JIT emits code without the run-time type tests the Erlang compiler must
-keep. It changes no rule of the language, and it makes the soundness argument load-bearing for
-the VM's memory safety: a value from outside, a peer's message, foreign code's return, is fully
-checked before its register is typed, which §8.4's checks and the argument's section 7 must
-then be read as carrying. Conditions before it is built: the language promised (MVP 3.9), OTP
-pinned for the long term, and `make bench`'s numbers for what the type tests cost today, which
-decide whether it is worth its cost. A first, safe step to measure against: a type guard at each
-function's entry, from which the Erlang compiler's own inference types the body. Its design is a
-proposal first, discussed with the user, as MVP 3.1's was.
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
 
@@ -605,7 +637,10 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
    a running program an input opens end with the input's process, their owner (§11.2), and
    the session could own them instead, so that they live until it ends, by a way the shell
-   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
+   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30). Half decided
+   2026-10-10 by feedback entry 91: what a `:load`'s binding opens is the evaluation process's,
+   which lives while the session runs (§11.2), so the decision left is the input's own process
+   alone, which MVP 3.1's read kept ending with the input (its W10).
 6. **A previous version at the prompt**, a decision with the user: whether a previous version's
    constructors may be written at the prompt, `Counter$1.Inc`, and whether `:processes` names
    the version a process runs (`language_feedback.md`'s entries 97 and 98, placed here
@@ -614,6 +649,22 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
    2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
    it fails again its step file in the run's directory says which expectation went unmet, and
    the fix follows from it; diagnosed here where it recurs, and nowhere before.
+
+## MVP 4.4 (a back end to BEAM's own instructions)
+
+The first milestone after Ernest 1.0, decided with the user on 2026-10-10 (the log's *The Road
+to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format, writing the
+BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
+record instructions among them), with Ernest's proven types written as the loader's typed
+registers, so that the JIT emits code without the run-time type tests the Erlang compiler must
+keep. It changes no rule of the language, and it makes the soundness argument load-bearing for
+the VM's memory safety: a value from outside, a peer's message, foreign code's return, is fully
+checked before its register is typed, which §8.4's checks and the argument's section 7 must
+then be read as carrying. Conditions before it is built: the language promised (MVP 3.9), OTP
+pinned for the long term, and `make bench`'s numbers for what the type tests cost today, which
+decide whether it is worth its cost. A first, safe step to measure against: a type guard at each
+function's entry, from which the Erlang compiler's own inference types the body. Its design is a
+proposal first, discussed with the user, as MVP 3.1's was.
 
 ---
 

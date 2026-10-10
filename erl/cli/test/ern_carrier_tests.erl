@@ -118,8 +118,9 @@ listed_test() ->
 
 %% report §8.7: the lines a node says of its connections: a peer connected,
 %% by its name, or by its key's digest where it is not listed; a peer lost,
-%% fallen silent or closed; a living connection replaced by another from the
-%% same node; nothing for the node's own start
+%% fallen silent or closed; a peer ended, having told this node it ends; a
+%% living connection replaced by another from the same node; nothing for the
+%% node's own start
 said_test() ->
     Own = configured(),
     Peer = configured(),
@@ -136,6 +137,7 @@ said_test() ->
                  Said({nodedown, Store, [{nodedown_reason, net_tick_timeout}]})),
     ?assertEqual(<<"the peer store was lost: it closed">>,
                  Said({nodedown, Store, [{nodedown_reason, connection_closed}]})),
+    ?assertEqual(<<"the peer store ended">>, Said({ended, Store})),
     ?assertEqual(<<"the peer store's connection was replaced by another from the same node">>,
                  Said({nodedown, Store, [{nodedown_reason, wait_pending}]})),
     ?assertEqual(none, ern_carrier:said({nodeup, node(), []})).

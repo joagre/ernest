@@ -17,7 +17,7 @@ export let key : Peer.Key(Msg) = Peer.key("pair")
 // The second node's program: its entry process offers itself under the
 // key, says so on its standard output, and serves.
 export fn main() : Unit with Msg = {
-    Peer.offer(key, self());
+    let _ = Peer.offer(key, self());
     Io.println("offered");
     serve()
 }
