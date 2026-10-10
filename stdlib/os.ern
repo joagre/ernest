@@ -232,9 +232,10 @@ export foreign fn exit(status : Int) : a with m =
 /// the end waits, and for whom.
 ///
 /// A process holds one subscription: a second call replaces the first, and its
-/// `wrap` is used from then on. A subscription ends with its process. One made
-/// while the end waits is told at once. In the shell and under `ern test`, a
-/// process is told the same way.
+/// `wrap` is used from then on. A subscription ends when its process dies or
+/// restarts, and a process is told once in each run. One that subscribes while
+/// the end waits is told at once, a restarted run among them. In the shell and
+/// under `ern test`, a process is told the same way.
 ///
 /// ### Examples
 ///

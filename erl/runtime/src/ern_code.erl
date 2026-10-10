@@ -109,41 +109,70 @@ forget(Unit, UnitRows) ->
 %% position, or a foreign function by its qualified name; the unit and the
 %% function that run it, its arity, which is how many values it captured,
 %% and its reach, the bindings and the foreign declarations it names, or
-%% none where no unit of this node holds it.
+%% none where no unit of this node holds it. Where units hold it, the one
+%% that runs it is answering/1's.
 -spec spawnable({hash, binary()} | {lambda, binary(), pos_integer()} | {foreign, [atom()]}) ->
           {module(), atom(), arity(), reach()} | none.
 spawnable({foreign, QualifiedName} = Key) ->
-    case lookup(Key) of
-        [{_, Unit, {foreign, _, _, Function, Arity}} | _] ->
+    case answering(lookup(Key)) of
+        {_, Unit, {foreign, _, _, Function, Arity}} ->
             {Unit, Function, Arity, {[], [QualifiedName]}};
-        [] ->
+        none ->
             none
     end;
 spawnable(Key) ->
-    case [{Unit, Function, Arity, Reach}
-          || {_, Unit, {function, Function, Arity, Reach}} <- lookup(Key)] of
-        [Held | _] -> Held;
-        [] -> none
+    case answering([Row || {_, _, {function, _, _, _}} = Row <- lookup(Key)]) of
+        {_, Unit, {function, Function, Arity, Reach}} -> {Unit, Function, Arity, Reach};
+        none -> none
     end.
 
-%% A top-level binding's value by its identity, in the run in progress: its
-%% value where its unit's initializers have run, absent where they have
-%% not or where a binding before it faulted (§8.5, §11.2), and none where
-%% no unit of this node holds it.
+%% A top-level binding's value by its identity, in the run in progress
+%% (§8.5, §11.2): the value the latest loaded of the units that hold it
+%% and whose initializers have run gave it, where that unit has one;
+%% absent where no unit that holds it has been initialized, or where a
+%% binding before it faulted; none where no unit of this node holds it.
 -spec value({[atom()], binary()}) -> {value, term()} | absent | none.
 value({QualifiedName, Hash}) ->
     case lookup({binding, QualifiedName, Hash}) of
-        [{_, Unit, {binding, Key}} | _] -> ern_rt:binding_value(Unit, Key);
-        [] -> none
+        [] ->
+            none;
+        Rows ->
+            case [Row || {_, Unit, _} = Row <- Rows, ern_rt:is_initialized(Unit)] of
+                [] ->
+                    absent;
+                Initialized ->
+                    {_, Unit, {binding, Key}} = lists:last(Initialized),
+                    ern_rt:binding_value(Unit, Key)
+            end
     end.
 
 %% A foreign declaration's implementation by its qualified name, the host's
-%% module and function it names (§8.4), or none.
+%% module and function it names (§8.4), in the unit answering/1 takes, or
+%% none.
 -spec foreign([atom()]) -> {module(), atom()} | none.
 foreign(QualifiedName) ->
-    case lookup({foreign, QualifiedName}) of
-        [{_, _, {foreign, HostModule, HostFunction, _, _}} | _] -> {HostModule, HostFunction};
-        [] -> none
+    case answering(lookup({foreign, QualifiedName})) of
+        {_, _, {foreign, HostModule, HostFunction, _, _}} -> {HostModule, HostFunction};
+        none -> none
+    end.
+
+%% Report §8.7, §11.2: the row, among one identity's, of the unit that
+%% answers a peer for it. A node holds one identity in several units where
+%% a shell that is a node holds its build's, loaded at its start and never
+%% evaluated, beside the units its loads and its reloads brought, each
+%% evaluated. A function's code reads its own unit's bindings, so the unit
+%% that answers is one whose initializers have run, the latest loaded of
+%% them, as the session uses its latest version; where none has run, the
+%% latest loaded, since a function whose reach names no binding runs from
+%% any unit, and the reach's check (value/1) refuses one that names a
+%% binding. The table is a bag, which keeps one key's rows in the order
+%% they were inserted, so the last row is the latest unit loaded.
+answering([]) ->
+    none;
+answering(Rows) ->
+    case [Row || {_, Unit, _} = Row <- Rows, ern_rt:is_initialized(Unit)] of
+        [] -> lists:last(Rows);
+        Initialized -> lists:last(Initialized)
     end.
 
 %% Whether a module a foreign declaration names is on this node: loaded, or

@@ -303,12 +303,13 @@ not_loaded(Site, Lacked) ->
     {{failed, 'NotLoaded'}, {not_loaded, Site, Lacked}}.
 
 %% Report §8.7: the function a spawn frame names, as this node runs it: the
-%% unit that holds its identity runs it over the values it captured
-%% ('$spawned'/2), in the process, and `restarting` runs it so; with the
-%% reach it names, or what this node lacked, or unreadable where the frame
-%% names it in no way the compiler writes. A peer's names are taken as
-%% atoms only where this node has them already, so that what a peer sends
-%% makes none.
+%% unit the code table answers for its identity, one whose bindings have
+%% their values where one holds it (§11.2), runs it over the values it
+%% captured ('$spawned'/2), in the process, and `restarting` runs it so;
+%% with the reach it names, or what this node lacked, or unreadable where
+%% the frame names it in no way the compiler writes. A peer's names are
+%% taken as atoms only where this node has them already, so that what a
+%% peer sends makes none.
 process_function({restarting, 'Unlimited' = Limit, Inner})
   when element(1, Inner) =/= restarting ->
     restarting(Limit, process_function(Inner));

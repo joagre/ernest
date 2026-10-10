@@ -49,7 +49,7 @@
 %% parameter the program does not write. standard: whether the module is
 %% the standard library's own. outer: while a pattern is compiled, the
 %% variables in scope where it began, else undefined. canonical: the
-%% module's canonical forms as ern_canonical:module/4 gives them, by which
+%% module's canonical forms as ern_canonical:module/5 gives them, by which
 %% a key and a spawn on a peer name a type and a function (report §8.7).
 %% let_lambdas: the Erlang variable a `let` binds to a lambda => the lambda
 %% and the variables in force at it, which its captures are, for a spawn on
@@ -92,7 +92,10 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% (report §11.1); `source` goes to the documentation; `session_offset`
 %% marks an input of the shell, which is compiled and not written, and is
 %% not kept, with the line offset its spawn sites are written with;
-%% `standard` marks a module of the standard library's own source root.
+%% `form_namespace`, which the shell gives an input, is the namespace its
+%% types' forms hold their qualified names under, the session's one
+%% (Appendix H, §11.2), and is not kept; `standard` marks a module of the
+%% standard library's own source root.
 %% `units` names the unit of each namespace whose unit is not its module's
 %% Erlang name, the module's own among them, as the shell gives them where
 %% a reload brought a version as a unit of its own (report §11.2), and is
@@ -104,8 +107,8 @@ compile(Namespace, Declarations, Interface, Env) ->
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
-                session_offset => non_neg_integer(), standard => boolean(),
-                units => #{[atom()] => atom()}}) ->
+                session_offset => non_neg_integer(), form_namespace => [atom()],
+                standard => boolean(), units => #{[atom()] => atom()}}) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
     %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
@@ -113,10 +116,11 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
     %% definitions, and the hashes of other modules' definitions its own
     %% forms name, which the recompile rule compares
     Canonical = ern_canonical:module(Namespace, Declarations, Env,
-                                     maps:get(standard, Build, false)),
+                                     maps:get(standard, Build, false),
+                                     maps:get(form_namespace, Build, Namespace)),
     #{references := References} = Canonical,
     Forms = forms(Namespace, Declarations, Env, Build#{code => true, canonical => Canonical}),
-    Facts = (maps:without([source, session_offset, standard, units], Build))
+    Facts = (maps:without([source, session_offset, form_namespace, standard, units], Build))
         #{references => References},
     Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,

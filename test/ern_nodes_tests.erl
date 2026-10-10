@@ -291,12 +291,16 @@ started(Dir, Program, Arguments) ->
 
 %% A shell that is a node, its source root SourceRoot, reading its inputs
 %% from the port's writes, in line mode; its HOME a directory of its own,
-%% so that no person's startup file runs.
+%% so that no person's startup file runs. Its load path is LoadPath's
+%% directories, a build among them, which a node reads whole at its start.
 shell_started(Dir, SourceRoot) ->
+    shell_started(Dir, SourceRoot, []).
+
+shell_started(Dir, SourceRoot, LoadPath) ->
     Home = Dir ++ ".home",
     ok = filelib:ensure_path(Home),
     launched(Dir, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Dir, " --source-root ",
-                   SourceRoot]).
+                   SourceRoot, [[" --load-path ", Root] || Root <- LoadPath]]).
 
 %% A node started by the command Words, its standard input the port's
 %% writes.
@@ -1420,18 +1424,76 @@ two_builds(Base) ->
                  "the peer asker's spawn at Asker.spawned:27 was not loaded: the module"
                  " ern_twins_host, which Twin.absent calls, is not here"]].
 
-%% report §11.2, §8.7: a key at a type the session declares names that type
-%% by its hash, as any key does: a shell that is a node offers a service
-%% under a key at a type its first input declares, and another shell node,
-%% whose first input declares the same type, finds it and sends to it. A
-%% regression test, written after the code: the shell's test asserted the
-%% printed types alone. It does not cover the same declaration at another
-%% input of a session, which declares another type, the input's being in
-%% its qualified name
+%% report §11.2, §8.7, Appendix H: a key at a type the session declares
+%% names that type by its hash, as any key does, and the hash is the
+%% session's whatever input declares the type: two shells that are nodes
+%% declare one type at different inputs, the first at its first and the
+%% second at its second, after a declaration of its own, whose input keeps
+%% its module and so its namespace, and each offers a service under a key
+%% at it; each finds the other's and sends to it. A regression test, written after the
+%% code: the shell's test asserted the printed types alone (V12). Then
+%% written again after the fix (V11): the type was hashed under its input's
+%% namespace, so the two shells held two types and a find answered
+%% `OtherType`
 shell_key_test_() ->
     nodes_test(90, fun shell_key/1).
 
 shell_key(Base) ->
+    Root = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Root),
+    [PortA, PortB] = [free_port(), free_port()],
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", PortB),
+    lists(A, [{"b", B, PortB}]),
+    lists(B, [{"a", A, PortA}]),
+    edit(A, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"b">>]}} end),
+    edit(B, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"a">>]}} end),
+    Declared = "type T = T(Int)\nlet k : Peer.Key(T) = Peer.key(\"t\")\n",
+    Offered = fun(Node) ->
+                  ["let server : Address(T) = spawn(fn() : Unit with T =\n"
+                   "    receive {\n"
+                   "        T(n) -> Io.println(\"", Node, " got \" <> Int.toString(n))\n"
+                   "    })\n"
+                   "Peer.offer(k, server)\n"
+                   "Io.println(\"offered\")\n"]
+              end,
+    Found = fun(Count) ->
+                ["match Peer.find(k, 5000) {\n"
+                 "    Right(server) -> {\n"
+                 "        send(server, T(", Count, "));\n"
+                 "        Io.println(\"found\")\n"
+                 "    }\n"
+                 "  | Left(failure) -> Io.println(Io.show(failure))\n"
+                 "}\n"]
+            end,
+    {InputA, WaitA} = shell_started(A, Root),
+    true = port_command(InputA, [Declared, Offered("a")]),
+    prints(A, "offered"),
+    {InputB, WaitB} = shell_started(B, Root),
+    true = port_command(InputB, ["type U = U\n", Declared, Offered("b"), Found("5")]),
+    prints(B, "found"),
+    prints(A, "a got 5"),
+    true = port_command(InputA, Found("7")),
+    prints(A, "found"),
+    prints(B, "b got 7"),
+    true = port_command(InputB, ":quit\n"),
+    ?assertEqual(0, WaitB()),
+    true = port_command(InputA, ":quit\n"),
+    ?assertEqual(0, WaitA()),
+    [?assertEqual(nomatch, string:find(Out, "OtherType")) || {Out, _} <- [said(A), said(B)]].
+
+%% report §11.2, §8.7: what a `let` at the prompt binds has its value in the
+%% session, so a function typed at the prompt whose reach names it runs on
+%% a shell that is a node where a peer's spawn names it: two shells type
+%% one `let` and one function over it, and the second spawns the function
+%% on the first, which runs it with its own value. A regression test,
+%% written before the fix: the module that holds what a `let` binds was
+%% never counted as evaluated, so the spawn was refused and the node said
+%% the binding had no value there, which was false
+shell_binding_spawned_test_() ->
+    nodes_test(90, fun shell_binding_spawned/1).
+
+shell_binding_spawned(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
     PortA = free_port(),
@@ -1439,32 +1501,23 @@ shell_key(Base) ->
     B = made(Base, "b", none),
     lists(A, [{"b", B, none}]),
     lists(B, [{"a", A, PortA}]),
-    edit(B, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"a">>]}} end),
-    Declared = "type T = T(Int)\nlet k : Peer.Key(T) = Peer.key(\"t\")\n",
+    Typed = "let x = 5\nfn f() : Unit with Never = Io.println(\"x is \" <> Int.toString(x))\n",
     {InputA, WaitA} = shell_started(A, Root),
-    true = port_command(InputA, [Declared,
-                                 "let server : Address(T) = spawn(fn() : Unit with T =\n"
-                                 "    receive {\n"
-                                 "        T(n) -> Io.println(\"a got \" <> Int.toString(n))\n"
-                                 "    })\n"
-                                 "Peer.offer(k, server)\n"
-                                 "Io.println(\"offered\")\n"]),
-    prints(A, "offered"),
+    true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
+    prints(A, "typed"),
     {InputB, WaitB} = shell_started(B, Root),
-    true = port_command(InputB, [Declared,
-                                 "match Peer.find(k, 5000) {\n"
-                                 "    Right(server) -> {\n"
-                                 "        send(server, T(5));\n"
-                                 "        Io.println(\"found\")\n"
-                                 "    }\n"
-                                 "  | Left(failure) -> Io.println(Io.show(failure))\n"
-                                 "}\n"]),
-    prints(B, "found"),
-    prints(A, "a got 5"),
+    true = port_command(InputB, [Typed, "match Peer.spawn(\"a\", f, 5000) {\n"
+                                        "    Right(_) -> Io.println(\"spawned\")\n"
+                                        "  | Left(failure) -> Io.println(Io.show(failure))\n"
+                                        "}\n"]),
+    prints(B, "spawned"),
+    prints(A, "x is 5"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
-    ?assertEqual(0, WaitA()).
+    ?assertEqual(0, WaitA()),
+    {OutA, _} = said(A),
+    ?assertEqual(nomatch, string:find(OutA, "has no value here")).
 
 %% report §11.2, §8.7: a shell that is a node loads a module, and a peer
 %% of the build that holds the module spawns a function of it there by its
@@ -1521,6 +1574,122 @@ shell_node(Base) ->
     has(StoreErr, "the peer desk's spawn at input 2:1 was not loaded: this node does not have"
                   " its function").
 
+%% report §8.7, §11.2: a shell that is a node over a build answers a peer
+%% from the latest unit whose bindings have their values, as the session
+%% uses it. Before anything is loaded the build's unit, read at the node's
+%% start and never evaluated, answers no peer whose function's reach names
+%% a binding: the spawn is NotLoaded and the node says the binding has no
+%% value here, which is true. After `:load` of the module's source, changed
+%% in another function, the same spawn runs in the session's unit, its
+%% service the session's. After a `:reload` that leaves the service binding
+%% unchanged, evaluated again and so a service of its own, a peer's spawn
+%% sends to the new version's service, which the session sends to next. A
+%% regression test, written after the fix (findings S2, V3, N1, N5): the
+%% table answered the first unit loaded, so the spawn after the `:load` was
+%% refused with that line, then false, and the one after the `:reload`
+%% reached the previous version's service
+shell_node_versions_test_() ->
+    nodes_test(90, fun shell_node_versions/1).
+
+shell_node_versions(Base) ->
+    Root = filename:join(Base, "build"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    Greet = fun(Other) ->
+                ["// A greeter whose service is a binding, and what a peer spawns.\n"
+                 "\n"
+                 "export type Msg = Greet(String)\n"
+                 "\n"
+                 "let greeter : Address(Msg) = spawn(fn() : Unit with Msg = greeted(0))\n"
+                 "\n"
+                 "fn greeted(count : Int) : Unit with Msg =\n"
+                 "    receive {\n"
+                 "        Greet(who) -> {\n"
+                 "            Io.println(who <> \" greeted \" <> Int.toString(count));\n"
+                 "            greeted(count + 1)\n"
+                 "        }\n"
+                 "    }\n"
+                 "\n"
+                 "export fn greet(who : String) : Unit with Never = send(greeter, Greet(who))\n"
+                 "\n"
+                 "export fn hello() : Unit with Never = greet(\"hello\")\n"
+                 "\n"
+                 "export fn wave() : Unit with Never = greet(\"wave\")\n",
+                 Other]
+            end,
+    ok = file:write_file(filename:join(Root, "greet.ern"), Greet("")),
+    ok = file:write_file(filename:join(Root, "store.ern"),
+                         "// A spawn on the shell's node of the function each line names.\n"
+                         "\n"
+                         "export fn main() : Unit with Unit = {\n"
+                         "    Io.println(\"ready\");\n"
+                         "    spawning()\n"
+                         "}\n"
+                         "\n"
+                         "fn spawning() : Unit with m =\n"
+                         "    match Io.readLine() {\n"
+                         "        Some(\"wave\") -> told(\"wave\", Peer.spawn(\"desk\", Greet.wave,"
+                         " 5000))\n"
+                         "      | Some(name) -> told(name, Peer.spawn(\"desk\", Greet.hello,"
+                         " 5000))\n"
+                         "      | None -> Unit\n"
+                         "    }\n"
+                         "\n"
+                         "fn told(name : String, spawned : Either(Io.Error, Address(Never)))"
+                         " : Unit with m = {\n"
+                         "    let answer = match spawned {\n"
+                         "        Right(_) -> \"Right\"\n"
+                         "      | Left(failure) -> Io.show(failure)\n"
+                         "    };\n"
+                         "    Io.println(name <> \": \" <> answer);\n"
+                         "    spawning()\n"
+                         "}\n"),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    Changed = fun(Text) ->
+                  ok = file:write_file(filename:join(Source, "greet.ern"),
+                                       Greet(["\nexport fn other() : Unit with Never ="
+                                              " Io.println(\"", Text, "\")\n"]))
+              end,
+    Changed("another function"),
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
+    prints(Store, "ready"),
+    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
+    %% the desk dials the store, which does not hold the lambda
+    true = port_command(DeskInput,
+                        "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+    prints(Desk, "Left(NotLoaded) : Either(Io.Error, Address(Never))"),
+    true = port_command(StoreInput, "first\n"),
+    prints(Store, "first: NotLoaded"),
+    true = port_command(DeskInput, ":load Greet\n"),
+    prints(Desk, "Greet, compiled from greet.ern"),
+    true = port_command(StoreInput, "loaded\n"),
+    prints(Store, "loaded: Right"),
+    prints(Desk, "hello greeted 0"),
+    true = port_command(DeskInput, "Greet.greet(\"prompt\")\n"),
+    prints(Desk, "prompt greeted 1"),
+    Changed("another function changed"),
+    true = port_command(DeskInput, ":reload\n"),
+    prints(Desk, "Greet, compiled again"),
+    true = port_command(StoreInput, "wave\n"),
+    prints(Store, "wave: Right"),
+    prints(Desk, "wave greeted 0"),
+    true = port_command(DeskInput, "Greet.greet(\"again\")\n"),
+    prints(Desk, "again greeted 1"),
+    true = port_command(DeskInput, ":quit\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {DeskOut, DeskErr} = said(Desk),
+    ?assertEqual(nomatch, string:find(DeskOut, "wave greeted 2")),
+    %% the shell writes the node's lines on its screen
+    has(DeskOut, "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
+                 " Greet.greeter has no value here"),
+    ?assertEqual(1, length(string:split(DeskOut ++ DeskErr, "has no value here", all)) - 1).
+
 %%
 %% The end told, and the standing address (report §8.6, Appendix E.23, G.7)
 %%
@@ -1552,7 +1721,7 @@ end_told_on_a_node(Base) ->
     prints(Store, "offered"),
     terminated(Store),
     prints(Store, "told"),
-    says(Store, "the end waits for 1 subscriber"),
+    says(Store, "the end waits for 1 subscriber: Keeper.main"),
     ?assertEqual(0, (start(Desk, filename:join(Root, "asker.erc"), []))()),
     true = port_command(StoreInput, "go\n"),
     ?assertEqual(143, WaitStore()),
@@ -1561,9 +1730,9 @@ end_told_on_a_node(Base) ->
     has(DeskOut, "asked: Some(3)"),
     has(StoreErr, "the subscriber Keeper.main answered").
 
-%% report §8.6: a second termination ends the node at once, past a
-%% subscriber that does not answer. Written after the code (MVP 3.1's item
-%% 8)
+%% report §8.6, §11.2: a second termination ends the node at once, past a
+%% subscriber that does not answer, which the node says. Written after the
+%% code (MVP 3.1's item 8), the line after that
 second_termination_test_() ->
     nodes_test(60, fun second_termination/1).
 
@@ -1573,11 +1742,12 @@ second_termination(Base) ->
     WaitStore = start(Store, filename:join(Root, "keeper.erc"), ["hold"]),
     prints(Store, "offered"),
     terminated(Store),
-    says(Store, "the end waits for 1 subscriber"),
+    says(Store, "the end waits for 1 subscriber: Keeper.main"),
     terminated(Store),
     ?assertEqual(143, WaitStore()),
     {_, Err} = said(Store),
-    ?assertEqual(nomatch, string:find(Err, "answered")).
+    has(Err, "the end was cut short, 1 subscriber unanswered: Keeper.main"),
+    ?assertEqual(nomatch, string:find(Err, "the subscriber Keeper.main")).
 
 %% Appendix G.7, report §8.7: a standing address reaches the counter, a
 %% call through it answers None while the counter's node is stopped, it

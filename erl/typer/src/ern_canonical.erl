@@ -1,7 +1,7 @@
 %% The canonical form of report Appendix H: each definition of a checked
 %% module as the term its hash is taken of, the hashes, and the chunk
 %% "ErnC" of a compiled module that holds them (§8.7, §11.1). The emitter
-%% calls module/4 and writes the chunk, and the interface carries each
+%% calls module/5 and writes the chunk, and the interface carries each
 %% definition's hash by its qualified name (interface/2), by which a
 %% dependent's forms name it, and each function's reach, the bindings and
 %% the foreign declarations it names transitively, by which a dependent's
@@ -19,8 +19,8 @@
 %% or the hash of what it names.
 -module(ern_canonical).
 
--export([form_version/0, chunk_name/0, bytes/1, module/4, interface/2, lambdas/2, encode/1,
-         read/1]).
+-export([form_version/0, chunk_name/0, bytes/1, module/4, module/5, interface/2, lambdas/2,
+         encode/1, read/1]).
 
 -export_type([canonical/0, reach/0]).
 
@@ -49,23 +49,24 @@
 -type reach() :: {[{[atom()], binary()}], [[atom()]]}.
 
 %% The walk of one definition (Appendix H): env, the checker's; namespace,
-%% the module's; standard, whether the module is the standard library's
-%% own, whose every reference is by name; own, the module's declarations by
-%% qualified name, each function, binding, type or foreign; scope, each
-%% local's name to its number; outer, the scope where the pattern being
-%% walked began, undefined outside a pattern; bound, the locals that pattern
-%% has bound; segments, the locals a bitstring pattern's earlier segments
-%% bound; locals, the numbers taken; variables, each type variable, {tvar,
-%% Id} or {name, Name}, to its number; names, each variable the annotation
-%% being walked writes, by its name, to the type variable the checker gave
-%% its place (matched/3); references, the other modules'
-%% definitions referenced by hash; functions, the span of each lambda and
-%% local function met, reversed, in the order the walk meets them, which is
-%% their positions' (lambdas/2); keys, each key's message type with its
-%% form, its own module's types left open.
--record(walk, {env, namespace, standard, own, scope = #{}, outer, bound = #{},
-               segments = #{}, locals = 0, variables = #{}, names = #{}, references = [],
-               functions = [], keys = []}).
+%% the module's; form_namespace, the namespace a type's form holds its
+%% qualified name under (module/5); standard, whether the module is the
+%% standard library's own, whose every reference is by name; own, the
+%% module's declarations by qualified name, each function, binding, type or
+%% foreign; scope, each local's name to its number; outer, the scope where
+%% the pattern being walked began, undefined outside a pattern; bound, the
+%% locals that pattern has bound; segments, the locals a bitstring
+%% pattern's earlier segments bound; locals, the numbers taken; variables,
+%% each type variable, {tvar, Id} or {name, Name}, to its number; names,
+%% each variable the annotation being walked writes, by its name, to the
+%% type variable the checker gave its place (matched/3); references, the
+%% other modules' definitions referenced by hash; functions, the span of
+%% each lambda and local function met, reversed, in the order the walk
+%% meets them, which is their positions' (lambdas/2); keys, each key's
+%% message type with its form, its own module's types left open.
+-record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
+               bound = #{}, segments = #{}, locals = 0, variables = #{}, names = #{},
+               references = [], functions = [], keys = []}).
 
 -spec form_version() -> pos_integer().
 form_version() ->
@@ -97,10 +98,21 @@ hash(Term) ->
 %% standard library's own.
 -spec module([atom()], [tuple()], ern_typecheck:env(), boolean()) -> canonical().
 module(Namespace, Typed, Env, Standard) ->
+    module(Namespace, Typed, Env, Standard, Namespace).
+
+%% The same, each type's form holding its qualified name under
+%% FormNamespace: the module's own, or, for an input of a shell's session,
+%% the session's one namespace, whatever input declares the type, so that
+%% one declaration is one type in every session and at every input
+%% (Appendix H, §11.2). The checker's names, the unit and what prints keep
+%% the input's namespace.
+-spec module([atom()], [tuple()], ern_typecheck:env(), boolean(), [atom()]) -> canonical().
+module(Namespace, Typed, Env, Standard, FormNamespace) ->
     Own = maps:from_list([{QualifiedName, Kind}
                           || Declaration <- Typed,
                              {QualifiedName, Kind} <- declared(Namespace, Declaration)]),
-    Walk = #walk{env = Env, namespace = Namespace, standard = Standard, own = Own},
+    Walk = #walk{env = Env, namespace = Namespace, form_namespace = FormNamespace,
+                 standard = Standard, own = Own},
     Opened = [{QualifiedName, Kind, opened(Declaration, Walk)}
               || Declaration <- Typed,
                  {QualifiedName, Kind} <- declared(Namespace, Declaration), Kind =/= foreign],
@@ -175,7 +187,8 @@ opened(#let_declaration{scheme = #scheme{type = Type} = Scheme, annotation = Ann
 opened(#abstract_declaration{declaration = Declaration}, Walk) ->
     opened(Declaration, Walk);
 opened(#type_declaration{name = Name, derives = Derives},
-       #walk{namespace = Namespace, env = Env, own = Own} = Walk) ->
+       #walk{namespace = Namespace, form_namespace = FormNamespace, env = Env,
+             own = Own} = Walk) ->
     #type_info{params = Params, constructors = Constructors} =
         ern_typecheck:lookup_type(Namespace ++ [Name], Env),
     %% report Appendix H: the parameters are the variables 1 to its arity
@@ -188,7 +201,7 @@ opened(#type_declaration{name = Name, derives = Derives},
                                _ -> {none, Walk1}
                            end,
     {ConstructorForms, Walk3} = lists:mapfoldl(fun constructor_declared/2, Walk2, Constructors),
-    {{type, Namespace ++ [Name], length(Params), Derives =/= undefined, CompareForm,
+    {{type, FormNamespace ++ [Name], length(Params), Derives =/= undefined, CompareForm,
       ConstructorForms},
      Walk3}.
 

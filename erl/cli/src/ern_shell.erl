@@ -30,6 +30,14 @@
 %% inside it for the input's own.
 -define(ENTRY, '$input').
 
+%% Report Appendix H, §11.2: the session's one namespace, which a type an
+%% input declares is hashed under, whatever input declares it, so that one
+%% declaration is one type at every input and in every session. It is the
+%% form's alone: the checker, the unit and what prints name the type under
+%% its input's namespace. No `.erc` holds a session type, which only an
+%% input's unit, compiled in memory, declares.
+-define(SESSION_NAMESPACE, ['$Session']).
+
 %% The session so far: the load path, the source root, the interfaces of
 %% the modules behind the session, and the scope those modules make
 %% (report §11.2), which the checker takes as its fourth argument.
@@ -640,7 +648,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Serial, Address) ->
     Descriptor = ern_descriptor:describe(Type, Env, []),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
-              units => Session#session.units},
+              form_namespace => ?SESSION_NAMESPACE, units => Session#session.units},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
     %% report §11.1: the interface as compiled, with the hash of each of its
     %% definitions, by which a later input's forms name them
@@ -2635,26 +2643,77 @@ install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_ha
 %% hash made the previous version's wherever the session held it: renamed
 %% to the version's namespace, `Counter$1`, in the session's own interfaces
 %% and the previous versions', which the checker is given beside the loaded
-%% modules' and which reach that version's unit. The session, and each type
-%% renamed, by its new name, with the name it had.
+%% modules' and which reach that version's unit. A previous version's type
+%% whose hash the new version declares again is the current version's
+%% again (returned/3), renamed back in the same places at the same time.
+%% The session, and each type renamed to a previous version, by its new
+%% name, with the name it had.
 versioned(Before, After, Compiled) ->
     Reloaded = [Namespace || #compiled{namespace = Namespace} <- Compiled,
                              is_map_key(Namespace, Before#session.source_hashes)],
     {Renames, Previous, Units, Versions} =
         lists:foldl(fun(Namespace, Acc) -> previous_version(Before, After, Namespace, Acc) end,
                     {#{}, [], After#session.units, After#session.versions}, Reloaded),
+    {Returns, Kept, Units1} = returned(After, Reloaded, Units),
+    Moves = maps:merge(Renames, Returns),
     Renamed = fun(#interface{namespace = [Segment]} = Interface) ->
                       case is_session_segment(Segment) of
-                          true -> renamed(Interface, Renames);
+                          true -> renamed(Interface, Moves);
                           false -> Interface
                       end;
                  (Interface) ->
                       Interface
               end,
     Session = After#session{interfaces = lists:map(Renamed, After#session.interfaces),
-                            previous = renamed(After#session.previous ++ Previous, Renames),
-                            units = Units, versions = Versions},
+                            previous = renamed(Kept ++ Previous, Moves),
+                            units = Units1, versions = Versions},
     {Session, #{To => From || From := To <- Renames}}.
+
+%% Report §11.2, §8.7: the previous versions' types whose hashes a reloaded
+%% module's new version declares, each the current version's again, since
+%% a type is its hash: each renamed back to the name the new version gives
+%% it, Returns; the previous versions' interfaces without them, their
+%% constructors and their members, Kept, one left with no type gone; and
+%% the units without the namespace of an interface gone. One hash is one
+%% canonical form, so the constructors are the same terms, and a process of
+%% the previous version reads a message of the current one as its own.
+returned(#session{interfaces = Interfaces, previous = PreviousInterfaces}, Reloaded, Units) ->
+    Declared = maps:from_list([{Hash, QualifiedName}
+                               || Namespace <- Reloaded,
+                                  #interface{identities = Identities} = Interface
+                                      <- [interface_of(Namespace, Interfaces)],
+                                  QualifiedName <- declared_types(Interface),
+                                  #{QualifiedName := Hash} <- [Identities]]),
+    Returns = maps:from_list([{QualifiedName, Current}
+                              || #interface{identities = Identities} = Interface
+                                     <- PreviousInterfaces,
+                                 QualifiedName <- declared_types(Interface),
+                                 #{QualifiedName := Hash} <- [Identities],
+                                 #{Hash := Current} <- [Declared]]),
+    Without = [without_types(Interface, Returns) || Interface <- PreviousInterfaces],
+    {Kept, Gone} = lists:partition(fun(Interface) -> declared_types(Interface) =/= [] end,
+                                   Without),
+    {Returns, Kept, maps:without([Namespace || #interface{namespace = Namespace} <- Gone], Units)}.
+
+%% The types an interface declares, public and private, by their qualified
+%% names.
+declared_types(#interface{types = Types, private_types = PrivateTypes}) ->
+    maps:keys(Types) ++ maps:keys(PrivateTypes).
+
+%% An interface without the types Gone names, their constructors, which
+%% their records hold, their members, and their hashes.
+without_types(#interface{types = Types, private_types = PrivateTypes, values = Values,
+                         identities = Identities} = Interface, Gone) ->
+    IsGone = fun(QualifiedName, _) ->
+                     is_map_key(QualifiedName, Gone)
+                         orelse is_map_key(lists:droplast(QualifiedName), Gone)
+             end,
+    Interface#interface{types = maps:without(maps:keys(Gone), Types),
+                        private_types = maps:without(maps:keys(Gone), PrivateTypes),
+                        values = maps:filter(fun(Name, Scheme) -> not IsGone(Name, Scheme) end,
+                                             Values),
+                        identities = maps:filter(fun(Name, Hash) -> not IsGone(Name, Hash) end,
+                                                 Identities)}.
 
 %% A previous version's interface, of the types the new version does not
 %% hold of one hash, their constructors and their members, under the
@@ -3053,6 +3112,9 @@ bound(#session{last_holder = LastHolder} = Session, Bindings, Env, Hash) ->
     ErlangModule = ern_namespace:erlang_module(HolderNamespace),
     TypeState = ern_typecheck:type_state(Env),
     [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bindings],
+    %% report §8.7, §11.2: its bindings have their values, so a peer's spawn
+    %% of a function whose reach names one finds it
+    ern_rt:initialized(ErlangModule),
     Names = [Name || {Name, _, _} <- Bindings],
     Code = [{HolderNamespace ++ [Name], {binding, Hash, {ErlangModule, Name}}} || Name <- Names],
     {module, ErlangModule} =
@@ -3209,28 +3271,77 @@ input_site(ErlangModule, Line) ->
 %% Report §11.2: the session is a scope of its own. The interface behind an
 %% input joins the ones the checker is given, and what it declares joins the
 %% scope under the unqualified name, which a later declaration of that name
-%% overwrites.
-joined(#session{interfaces = Interfaces, scope = Scope} = Session, #interface{} = Interface) ->
+%% overwrites. A type declared again with its hash unchanged is the type it
+%% was (redeclared/2): its name names that type again.
+joined(#session{interfaces = Interfaces, scope = Scope} = Session, #interface{} = Declaring) ->
+    {Interface, Again} = redeclared(Declaring, Interfaces),
     #interface{namespace = Namespace, types = InterfaceTypes, values = InterfaceValues} = Interface,
+    SessionTypes = maps:get(types, Scope, #{}),
+    Named = [TypeInfo#type_info.qualified_name || TypeInfo <- Again]
+        ++ maps:keys(InterfaceTypes),
     %% a type declared again starts with no members: the earlier type's
-    %% belong to it, and its name now names another
-    Declared = [lists:last(QualifiedName) || QualifiedName <- maps:keys(InterfaceTypes)],
+    %% belong to it, and its name now names another; a type of the same
+    %% hash that its name named already keeps them
+    Declared = [lists:last(QualifiedName) || QualifiedName <- Named,
+                                             maps:get(lists:last(QualifiedName), SessionTypes,
+                                                      none) =/= QualifiedName],
     Kept = maps:filter(fun({MemberOf, _}, _) -> not lists:member(MemberOf, Declared);
                           (_, _) -> true
                        end, maps:get(values, Scope, #{})),
     Values = maps:merge(Kept, maps:from_list([{value_key(Namespace, QualifiedName), QualifiedName}
                                               || QualifiedName <- maps:keys(InterfaceValues)])),
-    Types = maps:merge(maps:get(types, Scope, #{}),
-                       maps:from_list([{lists:last(QualifiedName), QualifiedName}
-                                       || QualifiedName <- maps:keys(InterfaceTypes)])),
+    Types = maps:merge(SessionTypes, maps:from_list([{lists:last(QualifiedName), QualifiedName}
+                                                     || QualifiedName <- Named])),
     NewConstructors = [{lists:last(QualifiedName), QualifiedName}
                        || #type_info{constructors = TypeConstructors}
-                              <- maps:values(InterfaceTypes),
+                              <- Again ++ maps:values(InterfaceTypes),
                           #constructor_info{qualified_name = QualifiedName} <- TypeConstructors],
     Constructors = maps:merge(maps:get(constructors, Scope, #{}), maps:from_list(NewConstructors)),
     Session#session{interfaces = Interfaces ++ [Interface],
                     scope = Scope#{values => Values, types => Types,
                                    constructors => Constructors}}.
+
+%% Report §11.2, Appendix H: an input's interface where a type it declares
+%% has the hash of a type an earlier input of the session declared, which
+%% it is: renamed to the earlier type wherever the interface names it, and
+%% no longer the input's own; with the earlier types' records. The input's
+%% module needs the earlier input's from then on, as a module whose
+%% interface names its type does (record_uses/3).
+redeclared(#interface{namespace = [Own] = Namespace, types = Declared,
+                      identities = Identities} = Interface,
+           Interfaces) ->
+    Held = maps:from_list([{Hash, TypeInfo}
+                           || #interface{namespace = [Segment], types = Types,
+                                         identities = HeldIdentities} <- Interfaces,
+                              Segment =/= Own, is_session_segment(Segment),
+                              QualifiedName := TypeInfo <- Types,
+                              #{QualifiedName := Hash} <- [HeldIdentities]]),
+    Again = #{QualifiedName => maps:get(Hash, Held)
+              || QualifiedName := _ <- Declared, #{QualifiedName := Hash} <- [Identities],
+                 is_map_key(Hash, Held)},
+    case maps:size(Again) of
+        0 ->
+            {Interface, []};
+        _ ->
+            Renames = #{QualifiedName => Earlier#type_info.qualified_name
+                        || QualifiedName := Earlier <- Again},
+            Renamed = renamed(Interface, Renames),
+            needs_named(Namespace, Renamed),
+            {Renamed#interface{types = maps:without(maps:keys(Renames), Renamed#interface.types),
+                               identities = maps:without(maps:keys(Renames), Identities)},
+             maps:values(Again)}
+    end.
+
+%% A session module's needs, the session's modules Term names among them.
+needs_named(Namespace, Term) ->
+    ErlangModule = ern_namespace:erlang_module(Namespace),
+    case uses() of
+        #{ErlangModule := {Namespace, Needs, Keys}} = Uses ->
+            Needs1 = lists:usort(Needs ++ mentions(Term, Namespace)),
+            set_uses(Uses#{ErlangModule := {Namespace, Needs1, Keys}});
+        _ ->
+            ok
+    end.
 
 %% A name as an input after this one writes it: a type member under the
 %% type that owns it (report §4.2), anything else under its own name.

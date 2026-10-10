@@ -1191,9 +1191,11 @@ signal_end() ->
 %% comes while the end waits counts, and a second cuts the wait short with
 %% the status of what began it. Two signals are sent there, a termination
 %% and a hangup, which is a termination for a program that is no node,
-%% since nothing shows when the first has reached the runner. A regression
-%% test, written after the fix: once a termination had come, `ern` ended by
-%% it whatever ended the program.
+%% since nothing shows when the first has reached the runner. A wait cut
+%% short, by the subscriber's Os.exit or by the second termination, says
+%% on standard error whom it left unanswered (§11.2). A regression test,
+%% written after the fix: once a termination had come, `ern` ended by it
+%% whatever ended the program; the cut-short line, written after the code.
 end_status_test_() ->
     {timeout, 60, fun end_status/0}.
 
@@ -1251,10 +1253,10 @@ end_status() ->
                          "      | Ready -> held(reply)\n"
                          "    }\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/told.ern"),
-    Python = "import subprocess, signal\n"
+    Python = "import subprocess, signal, re\n"
              "def run(name, how, began, until, signals, close=False):\n"
              "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/told.erc', how,"
-             " began], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)\n"
+             " began], stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n"
              "    for line in p.stdout:\n"
              "        if line == until + b'\\n':\n"
              "            break\n"
@@ -1262,14 +1264,22 @@ end_status() ->
              "        p.stdout.close()\n"
              "    for s in signals:\n"
              "        p.send_signal(s)\n"
-             "    print(name, p.wait(timeout=30))\n"
+             "    status = p.wait(timeout=30)\n"
+             "    cut = [re.sub(rb'^\\S+Z ', b'', line).decode()\n"
+             "           for line in p.stderr.read().splitlines() if b'cut short' in line]\n"
+             "    print(name, status, *cut)\n"
              "run('answered', 'answer', 'termination', b'running', [signal.SIGTERM])\n"
              "run('exited', 'exit', 'termination', b'running', [signal.SIGTERM])\n"
              "run('gone', 'answer', 'termination', b'running', [signal.SIGTERM], True)\n"
              "run('exit began', 'hold', 'exit', b'told', [signal.SIGTERM, signal.SIGHUP])\n"
              "run('return began', 'hold', 'return', b'told', [signal.SIGTERM, signal.SIGHUP])\n",
     ok = file:write_file(Dir ++ "/statuses.py", Python),
-    ?assertEqual({0, <<"answered -15\nexited 5\ngone 141\nexit began 3\nreturn began 0\n">>},
+    Cut = "the end was cut short, 1 subscriber unanswered: Told.main:6",
+    ?assertEqual({0, iolist_to_binary(["answered -15\n",
+                                       "exited 5 ", Cut, "\n",
+                                       "gone 141\n",
+                                       "exit began 3 ", Cut, "\n",
+                                       "return began 0 ", Cut, "\n"])},
                  sh("python3 " ++ Dir ++ "/statuses.py")).
 
 %% report §8.6, §11.2: a subscriber that faults while it is told has its
@@ -1307,11 +1317,79 @@ fault_before_its_end() ->
     lists:foreach(
       fun(_) ->
           {0, Output} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc"),
-          ?assertEqual([<<"the end waits for 1 subscriber">>,
+          ?assertEqual([<<"the end waits for 1 subscriber: Faulty.main:14">>,
                         <<"Faulty.main:14 faulted: division by zero">>,
                         <<"the subscriber Faulty.main:14 ended without answering">>],
                        unstamped_lines(Output))
       end, lists:seq(1, 5)).
+
+%% report §8.6, §6.9, §11.2, Appendix E.23: a subscriber that faults when
+%% it is told restarts, its fault's line written as a restart's before the
+%% line that it restarted without answering; its new run subscribes again,
+%% is told, said as it is told, prints and answers, and the end waits for
+%% it. A holder, a
+%% second subscriber, answers once the new run has been told, so that the
+%% end waits for that run whatever order the host schedules it in; which
+%% of the two answers is said first is the host's scheduling, and the test
+%% does not fix it. A regression test, written after the code: the
+%% restarted run's subscription was never told, and the end went on
+%% without it.
+restarted_subscriber_test_() ->
+    {timeout, 60, fun restarted_subscriber/0}.
+
+restarted_subscriber() ->
+    Dir = "build/restarted_subscriber",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/restarted.ern",
+                         "type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
+                         "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
+                         "    Os.terminating(Terminating);\n"
+                         "    send(main, Ready);\n"
+                         "    receive {\n"
+                         "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
+                         "    }\n"
+                         "}\n"
+                         "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit with Msg"
+                         " = {\n"
+                         "    Os.terminating(Terminating);\n"
+                         "    send(main, Ready);\n"
+                         "    count(holder, 0)\n"
+                         "}\n"
+                         "fn count(holder : Address(Msg), n : Int) : Unit with Msg = receive {\n"
+                         "    Add(k) -> count(holder, n + k)\n"
+                         "  | Terminating(reply) -> if n > 0 then {\n"
+                         "        let _ = 1 / List.size([]);\n"
+                         "        answer(reply, Unit)\n"
+                         "    } else {\n"
+                         "        Io.println(\"told again\");\n"
+                         "        send(holder, Done);\n"
+                         "        answer(reply, Unit)\n"
+                         "    }\n"
+                         "}\n"
+                         "export fn main() : Unit with Msg = {\n"
+                         "    let me = self();\n"
+                         "    let holder = spawn(fn() : Unit with Msg = hold(me));\n"
+                         "    let limit = RestartLimit(restarts = 1, within = 5000);\n"
+                         "    let k = spawn(restarting(limit, fn() : Unit with Msg"
+                         " = keeper(holder, me)));\n"
+                         "    send(k, Add(1));\n"
+                         "    receive { Ready -> Unit };\n"
+                         "    receive { Ready -> Unit }\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/restarted.ern"),
+    ErrorFile = Dir ++ "/err",
+    ?assertEqual({0, <<"told again\n">>},
+                 sh("../bin/ern run " ++ Dir ++ "/restarted.erc 2> " ++ ErrorFile)),
+    {ok, Said} = file:read_file(ErrorFile),
+    [Waits, Faulted, Restarted, Too | Answers] = unstamped_lines(Said),
+    ?assertEqual({<<"the end waits for 2 subscribers: Restarted.main:27, Restarted.main:29">>,
+                  <<"Restarted.main:29 faulted, restarted: division by zero">>,
+                  <<"the subscriber Restarted.main:29 restarted without answering">>,
+                  <<"the end waits for Restarted.main:29 too">>},
+                 {Waits, Faulted, Restarted, Too}),
+    ?assertEqual([<<"the subscriber Restarted.main:27 answered">>,
+                  <<"the subscriber Restarted.main:29 answered">>],
+                 lists:sort(Answers)).
 
 %% report §8.6, §11.2: while the end waits for its subscribers, a fault is
 %% the process's own, its line written as it happens and its monitors
@@ -1330,7 +1408,7 @@ fault_while_the_end_waits() ->
     ?assertEqual({0, <<"Fault(\"division by zero\")\n">>},
                  sh("../bin/ern run " ++ Dir ++ "/waited.erc return 2> " ++ ErrorFile)),
     {ok, Said} = file:read_file(ErrorFile),
-    ?assertEqual([<<"the end waits for 1 subscriber">>,
+    ?assertEqual([<<"the end waits for 1 subscriber: Waited.started:16">>,
                   <<"Waited.started:15 faulted: division by zero">>,
                   <<"the subscriber Waited.started:16 answered">>],
                  unstamped_lines(Said)).
@@ -1366,7 +1444,7 @@ fault_while_a_termination_waits() ->
     Faulted = <<"Waited.started:15 faulted: division by zero">>,
     KeeperAnswered = <<"the subscriber Waited.started:16 answered">>,
     [Waits | Lines] = unstamped_lines(Said),
-    ?assertEqual(<<"the end waits for 2 subscribers">>, Waits),
+    ?assertEqual(<<"the end waits for 2 subscribers: Waited.main, Waited.started:16">>, Waits),
     ?assertEqual(lists:sort([<<"the subscriber Waited.main answered">>, Faulted, KeeperAnswered]),
                  lists:sort(Lines)),
     %% the keeper answers once the worker's Down has come

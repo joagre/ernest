@@ -293,6 +293,30 @@ renamed_type_test() ->
     {#{definitions := InU}, _} = canonical(['U'], "type T = A(Int)", []),
     ?assertNotEqual((named(InT, 'T'))#definition.hash, (named(InU, 'T'))#definition.hash).
 
+%% report Appendix H, §11.2: a type a shell session declares holds its
+%% qualified name under the session's one namespace whatever input declares
+%% it, so that one declaration at two inputs is one type, its key's hash
+%% one; the checker's namespace, the input's, stays in the type's record. A
+%% regression test, written after the fix (finding V11): the form held the
+%% input's namespace
+session_namespace_test() ->
+    Text = "type Msg = A(Int)\nlet k : Peer.Key(Msg) = Peer.key(\"k\")\n",
+    Session = ['$Session'],
+    Canonical = fun(Namespace) ->
+                    {ok, Declarations} = ern_parser:parse_string(Text),
+                    {ok, Typed, _, Env} = ern_typecheck:check(Namespace, Declarations, []),
+                    ern_canonical:module(Namespace, Typed, Env, false, Session)
+                end,
+    #{definitions := First, keys := FirstKeys} = Canonical(['$Input1']),
+    #{definitions := Third, keys := ThirdKeys} = Canonical(['$Input3']),
+    ?assertEqual({type, ['$Session', 'Msg'], 0, false, none,
+                  [{'A', {positional, applied('Int')}}]},
+                 (named(First, 'Msg'))#definition.form),
+    ?assertEqual(['$Input1', 'Msg'], (named(First, 'Msg'))#definition.qualified_name),
+    ?assertEqual((named(First, 'Msg'))#definition.hash, (named(Third, 'Msg'))#definition.hash),
+    ?assertEqual(maps:get({tcon, ['$Input1', 'Msg'], []}, FirstKeys),
+                 maps:get({tcon, ['$Input3', 'Msg'], []}, ThirdKeys)).
+
 %% report Appendix H: derives compare is in a type's hash; whether a type is
 %% exported or abstract is not
 type_flags_test() ->

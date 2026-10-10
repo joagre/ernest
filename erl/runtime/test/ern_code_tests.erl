@@ -163,13 +163,20 @@ binding_value_test() ->
      || Unit <- ['ern@tableran', 'ern@tablenotrun']].
 
 %% report §8.7, §11.2: two versions of a module, each a unit of its own as
-%% the shell's reload makes them, hold the definitions the reload did not
-%% change under one identity; a lookup answers the unit loaded first, whose
-%% code reads its own bindings, so that a spawn runs a function in the unit
-%% whose bindings its check read: a node's build's, loaded at its start,
-%% beside a unit the shell's load brought. A regression test, written after
-%% the code (MVP 3.1's item 5)
-versions_answer_the_first_unit_test() ->
+%% the shell's load and reload make them, hold the definitions the second
+%% did not change under one identity; a lookup answers, for the function
+%% and for its reach's binding alike, the latest loaded of the units whose
+%% initializers have run, whose code reads its own bindings, and where
+%% none has run, the latest loaded for the function and no value for the
+%% binding. The first is a node's build's, loaded at its start and never
+%% evaluated, beside a unit the shell's load brought; then both evaluated,
+%% as a reload leaves them, the second's value the one answered, here made
+%% to differ from the first's as a service binding's does. A regression
+%% test, written after the fix (findings S2, N1, N5): the first unit loaded
+%% answered, so a peer's spawn of a function the shell's load had
+%% evaluated was refused, the binding said to have no value here, and after
+%% a reload a peer found the previous version's value
+versions_answer_the_evaluated_unit_test() ->
     Namespace = ['Tableversions'],
     Text = "export let answer : Int = 6 * 7\nexport fn same(n : Int) : Int = n * 3\n",
     Versions = [{'ern@tableversions', #{}},
@@ -185,16 +192,36 @@ versions_answer_the_first_unit_test() ->
          end || {_, Units} <- Versions],
     Same = hash(['Tableversions', same], First),
     Same = hash(['Tableversions', same], Second),
-    ?assertMatch({'ern@tableversions', same, 1, _}, ern_code:spawnable({hash, Same})),
     Answer = {['Tableversions', answer], hash(['Tableversions', answer], First)},
     Self = self(),
-    Entry = fun() -> Self ! {value, ern_code:value(Answer)} end,
-    %% the second version's bindings evaluated and the first's not, as a
-    %% node's build's beside the shell's load: the first unit answers
-    ok = ern_rt:run_main(Entry, <<"main">>,
-                         #{init => fun() -> ern_rt:init_modules(['ern@tableversions$2']) end,
-                           stdout => fun(_) -> ok end}),
-    ?assertEqual({value, absent}, receive {value, _} = Value -> Value end),
+    Entry = fun() ->
+                {Unit, same, 1, _} = ern_code:spawnable({hash, Same}),
+                Self ! {answered, Unit, ern_code:value(Answer)}
+            end,
+    Answered = fun(Initialized) ->
+                   Init = fun() ->
+                              ern_rt:init_modules(Initialized),
+                              %% the second version's value another, as a
+                              %% service's address is at each evaluation
+                              [persistent_term:put({'ern@tableversions$2', answer}, 43)
+                               || lists:member('ern@tableversions$2', Initialized)]
+                          end,
+                   ok = ern_rt:run_main(Entry, <<"main">>,
+                                        #{init => Init, stdout => fun(_) -> ok end}),
+                   receive {answered, _, _} = Found -> Found end
+               end,
+    %% none evaluated: the latest loaded runs a function, and no value is
+    ?assertEqual({answered, 'ern@tableversions$2', absent}, Answered([])),
+    %% the build's alone evaluated, a node running a program over it
+    ?assertEqual({answered, 'ern@tableversions', {value, 42}},
+                 Answered(['ern@tableversions'])),
+    %% the shell's load evaluated and the build's not
+    ?assertEqual({answered, 'ern@tableversions$2', {value, 43}},
+                 Answered(['ern@tableversions$2'])),
+    %% both evaluated, as after a reload: the latest version's
+    ?assertEqual({answered, 'ern@tableversions$2', {value, 43}},
+                 Answered(['ern@tableversions', 'ern@tableversions$2'])),
+    [persistent_term:erase({Unit, answer}) || {Unit, _} <- Versions],
     [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
      || {Unit, _} <- Versions].
 

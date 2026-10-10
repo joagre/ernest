@@ -56,8 +56,8 @@
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
-         binding_value/2, restarting/2, restart_now/0, ask_restart/1, start_cause/0,
-         is_restarting/0, on_this_node/1,
+         binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
+         start_cause/0, is_restarting/0, on_this_node/1,
          spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/3, offered/2,
          asked_of_run/1, note_call/3, drop_note/1, drop_notes/1, ordered/1]).
 
@@ -91,7 +91,9 @@
 %% process's row
 -define(FAULTS, ern_faults).
 %% Appendix E.23: each subscription to the program's end, {Subscriber,
-%% Address}, by the subscriber, the latest of each, which the end reads
+%% Address, Told}, by the subscriber, the latest of each, which the end
+%% reads; Told says whether the end has told the subscriber's run, and goes
+%% with the row at a restart (report §6.9)
 -define(TERMINATING, ern_terminating).
 %% report §8.6: what a system process, a listener, a socket or a running
 %% program holds that can still deliver, {{source, Holder}, Count}, and the
@@ -528,6 +530,13 @@ monitor(Process, Wrap) ->
     Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
+%% The caller's monitors cancelled by the reaper (monitors_cancelled/2): a
+%% teller's, once it has its word (tell/4).
+cancel_monitors() ->
+    Ref = make_ref(),
+    persistent_term:get({?MODULE, reaper}) ! {cancel_monitors, erlang:self(), Ref},
+    receive {Ref, cancelled} -> ok end.
+
 -spec kill(address()) -> 'Unit'.
 kill(Address) ->
     %% report §8.2: no program can name a system process, whose reference is
@@ -587,6 +596,10 @@ reaper_loop(Reaper, Wait) ->
             reaper_loop(Reaper);
         {new_run, Pid, Ref} ->
             reaper_loop(new_run(Pid, Ref, Reaper));
+        {cancel_monitors, Caller, Ref} ->
+            Reaper1 = monitors_cancelled(Caller, Reaper),
+            Caller ! {Ref, cancelled},
+            reaper_loop(Reaper1);
         {end_program, From, Ref} ->
             ended_program(From, Ref);
         {'DOWN', _MonitorRef, process, Pid, ExitReason} ->
@@ -664,17 +677,28 @@ monitored(Pid, Caller, Wrap, Ref,
     Reaper#reaper{monitors = added(Pid, {Caller, Wrap}, Monitors),
                   monitoring = added(Caller, Pid, Monitoring), monitor_refs = MonitorRefs1}.
 
-%% Report §6.9: a restarted process's monitors and its subscription to
-%% faults are cancelled, with what is on its way to it; the monitors of it
-%% stand, since a restart is not a death.
-new_run(Pid, Ref, #reaper{monitors = Monitors, monitoring = Monitoring,
-                          monitor_refs = MonitorRefs} = Reaper) ->
+%% Report §6.9: a restarted process's monitors and its subscriptions to
+%% faults and to the program's end are cancelled, with what is on its way
+%% to it; the monitors of it stand, since a restart is not a death. A
+%% subscription to the end its new run makes is a new one, which the end
+%% tells if it waits (told/3).
+new_run(Pid, Ref, Reaper) ->
     ets:delete(?FAULTS, Pid),
-    {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:get(Pid, Monitoring, []), Monitors,
-                                            MonitorRefs),
+    ets:delete(?TERMINATING, Pid),
+    Reaper1 = monitors_cancelled(Pid, Reaper),
     cancelled(Pid),
     Pid ! {Ref, fresh},
-    Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Pid, Monitoring),
+    Reaper1.
+
+%% A caller's own monitors cancelled, taken from the processes it
+%% monitored: at its restart (new_run/3), and for a process the runtime
+%% did not start, whose end the reaper does not see, when it asks
+%% (cancel_monitors/0).
+monitors_cancelled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
+                                   monitor_refs = MonitorRefs} = Reaper) ->
+    {Monitors1, MonitorRefs1} = unmonitored(Caller, maps:get(Caller, Monitoring, []), Monitors,
+                                            MonitorRefs),
+    Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Caller, Monitoring),
                   monitor_refs = MonitorRefs1}.
 
 %% A process that ended: each monitor of it told, and the monitors of it,
@@ -741,12 +765,12 @@ ended_with_program(Pid, ExitReason) ->
 %% while the end waits, a fault is the process's own. Whether a fault of
 %% Pid is so: the entry process's own fault is its own; the runner marks
 %% the wait over once the end's wait has returned (run_main/3); and a
-%% subscription's row stands while its subscriber lives (died/3), so that
-%% with none standing no subscriber waits. A fault the entry's end causes
-%% comes after that end, so the entry found dead here is the program's
-%% end, whatever order the two signals came in. The reaper asks it of a
-%% process that ended, and a restarting process of its own fault before
-%% it restarts (restarts/4).
+%% subscription's row stands while its subscriber's run lives (died/3,
+%% new_run/3), so that with none standing no subscriber waits. A fault the
+%% entry's end causes comes after that end, so the entry found dead here is
+%% the program's end, whatever order the two signals came in. The reaper
+%% asks it of a process that ended, and a restarting process of its own
+%% fault before it restarts (restarts/4).
 is_program_ending(Pid) ->
     case ets_lookup(?LAUNCH, entry_process) of
         [{_, Pid}] ->
@@ -935,14 +959,19 @@ faults(Address) ->
 
 %% Appendix E.23, report §8.6: Os.terminating, the caller subscribed to the
 %% program's end, Address being the caller seen through its wrap. A process
-%% holds one subscription, the latest, which ends when it dies (the
-%% reaper's DOWN). One made while the end waits is told at once: the runner
-%% that waits is told of it, and tells it.
+%% holds one subscription, the latest, which ends when it dies or restarts
+%% (died/3, new_run/3); a later one in the same run takes the place of the
+%% first and keeps whether the end has told the run. One made while the end
+%% waits is told at once: the runner that waits is told of it, and tells it.
 -spec terminating(address()) -> 'Unit'.
 terminating(Address) ->
-    try ets:insert(?TERMINATING, {process_of(Address), Address}) catch _:_ -> true end,
+    Subscriber = process_of(Address),
+    try ets:update_element(?TERMINATING, Subscriber, {2, Address})
+            orelse ets:insert(?TERMINATING, {Subscriber, Address, false})
+    catch _:_ -> true
+    end,
     case ets_lookup(?LAUNCH, ending) of
-        [{ending, Runner, Launch}] -> Runner ! {subscribed, Launch};
+        [{ending, Runner, Launch}] -> Runner ! {subscribed, Launch, Subscriber};
         [] -> ok
     end,
     ?UNIT.
@@ -1815,85 +1844,121 @@ run_main(EntryPoint, Site, Options) ->
 %% program at once with its status, and a second termination, which ends
 %% it at once; no deadlock is found, a subscriber's subscription standing
 %% (look/0), and a fault is the process's own (is_program_ending/1). A
-%% subscription made while it waits is told at once (terminating/1).
-%% Report §11.2: the wait is said, once with how many it waits for, and
-%% each subscriber as it answers, ends or restarts, by Say, the runner's
-%% own line on standard error. The outcome the program ends with.
+%% subscription made while it waits is told at once (terminating/1), a
+%% restarted run's among them, since a restart ends the subscription with
+%% the run (§6.9, new_run/3). Report §11.2: the wait is said by Say, the
+%% runner's own line on standard error: once, with how many it waits for
+%% and which; each subscriber told later as it is told; each as it
+%% answers, ends or restarts; and a wait cut short. A subscriber is named
+%% by its spawn site, several in the order their processes were spawned
+%% (Appendix E.22), so that a line is the same from run to run. The
+%% outcome the program ends with.
 told(Outcome, Launch, Say) ->
     true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
-    case untold(#{}) of
+    case untold(subscriptions(), #{}) of
         [] ->
-            ets:delete(?LAUNCH, ending),
-            %% a process that subscribed after the read, while the mark
-            %% stood, told a runner that waits for no word: the table is
-            %% read once more now that the mark has gone, and what it finds
-            %% is told; a subscription made after that read is too late, as
-            %% a monitor made at a process's end is
-            case untold(#{}) of
+            case last_read() of
                 [] -> Outcome;
                 _ -> told(Outcome, Launch, Say)
             end;
         Untold ->
-            Count = length(Untold),
-            Say(["the end waits for ", integer_to_list(Count),
-                 case Count of 1 -> " subscriber"; _ -> " subscribers" end]),
-            Told = tell_all(Launch, Untold, #{}),
-            Waited = waited(Outcome, Launch, Say, Told, terminations(Outcome)),
-            ets:delete(?LAUNCH, ending),
-            Waited
+            Sites = [Site || {_, _, _, Site} <- Untold],
+            Say(["the end waits for ", counted(Sites), ": ", lists:join(", ", Sites)]),
+            waited(Outcome, Launch, Say, tell_all(Launch, Untold, #{}), terminations(Outcome))
     end.
 
 %% The terminations the program has had: one where one began the end.
 terminations({signal, _}) -> 1;
 terminations(_) -> 0.
 
-%% The end's wait, Told holding each subscriber told, waiting with its
-%% teller and its spawn site, or done. Where none waits, a subscription
-%% whose word is still on its way to the runner is told too, and the wait
-%% is over once there is none.
-waited(Outcome, Launch, Say, Told, Terminations) ->
-    case [Subscriber || Subscriber := {waiting, _, _} <- Told] of
+%% The end's wait, Waiting holding each subscriber told and not yet heard
+%% of, with its spawn order, its spawn site and its teller. A word, a
+%% teller's or a new subscription's, reads its subscriber's row alone, so
+%% that what a word costs does not grow with the subscribers. A subscriber
+%% that restarted while it was waited for may subscribe again in its new
+%% run before its teller's word comes; that subscription is told once the
+%% word has come, so that the old run's line is said before the new run's.
+%% Where none is waited for, the wait is over once a last read finds no
+%% one to tell.
+waited(Outcome, Launch, Say, Waiting, Terminations) when map_size(Waiting) =:= 0 ->
+    case last_read() of
         [] ->
-            case untold(Told) of
-                [] -> Outcome;
-                Untold -> waited(Outcome, Launch, Say, tell_all(Launch, Untold, Told), Terminations)
-            end;
-        _ ->
-            receive
-                {said, Launch, Subscriber, How} ->
-                    {waiting, _, Site} = maps:get(Subscriber, Told),
-                    Say(["the subscriber ", Site, " ", How]),
-                    waited(Outcome, Launch, Say, Told#{Subscriber := done}, Terminations);
-                {subscribed, Launch} ->
-                    waited(Outcome, Launch, Say, tell_all(Launch, untold(Told), Told),
-                           Terminations);
-                {exit, Launch, Status} ->
-                    cut_short(Told),
-                    {exit, Status};
-                {signal, Launch, _} when Terminations >= 1 ->
-                    cut_short(Told),
-                    Outcome;
-                {signal, Launch, _} ->
-                    waited(Outcome, Launch, Say, Told, Terminations + 1)
-            end
+            Outcome;
+        Untold ->
+            true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting), Terminations)
+    end;
+waited(Outcome, Launch, Say, Waiting, Terminations) ->
+    receive
+        {said, Launch, Subscriber, How} ->
+            {_, Site, _} = maps:get(Subscriber, Waiting),
+            Say(["the subscriber ", Site, " ", How]),
+            Waiting1 = maps:remove(Subscriber, Waiting),
+            Untold = untold(subscription(Subscriber), Waiting1),
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1), Terminations);
+        {subscribed, Launch, Subscriber} ->
+            Untold = untold(subscription(Subscriber), Waiting),
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting), Terminations);
+        {exit, Launch, Status} ->
+            cut_short(Say, Waiting),
+            {exit, Status};
+        {signal, Launch, _} when Terminations >= 1 ->
+            cut_short(Say, Waiting),
+            Outcome;
+        {signal, Launch, _} ->
+            waited(Outcome, Launch, Say, Waiting, Terminations + 1)
     end.
 
-%% The subscribers not told yet: each live process the runtime started
-%% whose subscription stands, with its address and its spawn site.
-untold(Told) ->
-    [{Subscriber, Address, Site}
-     || {Subscriber, Address} <- ets:tab2list(?TERMINATING), not is_map_key(Subscriber, Told),
-        [{_, Site, _, _, _}] <- [ets_lookup(?PROCESSES, Subscriber)]].
+%% The subscribers a last read finds, the mark gone first: a process that
+%% subscribed after the runner's last read, while the mark stood, told a
+%% runner that waits for no word, so the table is read once more now that
+%% the mark has gone, and what it finds is told; a subscription made after
+%% that read is too late, as a monitor made at a process's end is.
+last_read() ->
+    ets:delete(?LAUNCH, ending),
+    untold(subscriptions(), #{}).
 
-%% Each of them told, by a teller of its own.
-tell_all(Launch, Untold, Told) ->
+%% Every subscription to the end, and one subscriber's, none where it has
+%% none.
+subscriptions() ->
+    ets:tab2list(?TERMINATING).
+
+subscription(Subscriber) ->
+    ets:lookup(?TERMINATING, Subscriber).
+
+%% The subscribers of Subscriptions not told yet: each live process the
+%% runtime started whose run the end has not told and that is not waited
+%% for, with its spawn order, its address and its spawn site, in the order
+%% the processes were spawned.
+untold(Subscriptions, Waiting) ->
+    lists:sort([{Order, Subscriber, Address, Site}
+                || {Subscriber, Address, false} <- Subscriptions,
+                   not is_map_key(Subscriber, Waiting),
+                   [{_, Site, _, _, Order}] <- [ets_lookup(?PROCESSES, Subscriber)]]).
+
+%% Each of them told, by a teller of its own, and its run marked told, so
+%% that no later read tells it again. A row gone since the read, by its
+%% process's end or restart, is told all the same, the teller's call ending
+%% as any call to that process would.
+tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
-    lists:foldl(fun({Subscriber, Address, Site}, Acc) ->
+    lists:foldl(fun({Order, Subscriber, Address, Site}, Acc) ->
+                    _ = ets:update_element(?TERMINATING, Subscriber, {3, true}),
                     Teller = erlang:spawn_link(fun() ->
                                                    tell(Runner, Launch, Subscriber, Address)
                                                end),
-                    Acc#{Subscriber => {waiting, Teller, Site}}
-                end, Told, Untold).
+                    Acc#{Subscriber => {Order, Site, Teller}}
+                end, Waiting, Untold).
+
+%% Report §11.2: subscribers told once the wait has been said, each said
+%% as it is told.
+tell_late(Launch, Say, Untold, Waiting) ->
+    lists:foreach(fun({_, _, _, Site}) -> Say(["the end waits for ", Site, " too"]) end, Untold),
+    tell_all(Launch, Untold, Waiting).
+
+%% Report §11.2: how many subscribers the sites name.
+counted([_]) -> "1 subscriber";
+counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 
 %% Report §8.6: a subscriber told, `wrap(reply)` delivered to it by a
 %% process of its own, as a monitor's Down is, a fault in the wrap the
@@ -1903,7 +1968,10 @@ tell_all(Launch, Untold, Told) ->
 %% reaper gives once it has reported the subscriber's fault, so that the
 %% fault's line comes before the line that it ended without answering; a
 %% restart reports its fault before it ends the calls waiting on it
-%% (restarts/4).
+%% (restarts/4). Once it has its word, its monitor goes, as a caller's
+%% goes with its call (settled/1): the reaper does not see a teller end,
+%% and a subscriber that restarts at each telling is told by a teller
+%% each time.
 tell(Runner, Launch, Subscriber, Address) ->
     Reply = pending(Address),
     Ended = make_ref(),
@@ -1916,15 +1984,24 @@ tell(Runner, Launch, Subscriber, Address) ->
               Ended -> <<"ended without answering">>
           end,
     settled(Reply),
+    cancel_monitors(),
     Runner ! {said, Launch, Subscriber, How}.
 
-%% The tellers still waiting, ended, where an Os.exit or a second
-%% termination cuts the wait short.
-cut_short(Told) ->
-    lists:foreach(fun(Teller) ->
+%% Where an Os.exit or a second termination cuts the wait short: the
+%% subscribers still waited for said, in the order their processes were
+%% spawned (report §11.2), their tellers ended, and the mark gone. The
+%% host's interrupt cuts it short too, but halts the host at once (bin/ern
+%% starts it with +B), so no word of it reaches the runner and nothing is
+%% said.
+cut_short(Say, Waiting) ->
+    Unanswered = lists:sort(maps:values(Waiting)),
+    Sites = [Site || {_, Site, _} <- Unanswered],
+    Say(["the end was cut short, ", counted(Sites), " unanswered: ", lists:join(", ", Sites)]),
+    ets:delete(?LAUNCH, ending),
+    lists:foreach(fun({_, _, Teller}) ->
                       erlang:unlink(Teller),
                       exit(Teller, kill)
-                  end, [Teller || _ := {waiting, Teller, _} <- Told]).
+                  end, Unanswered).
 
 %% Report §8.6, §11.2: where the sinks pass what they are given to a
 %% process of the program's, as the shell's pass it to its screen, what
@@ -2183,7 +2260,7 @@ binding(Key) ->
 %% or where a binding before it faulted (§8.5, §11.2).
 -spec binding_value(module(), term()) -> {value, term()} | absent.
 binding_value(Unit, Key) ->
-    case ets:member(?INITIALIZED, Unit) of
+    case is_initialized(Unit) of
         true ->
             case persistent_term:get(Key, '$unevaluated') of
                 '$unevaluated' -> absent;
@@ -2192,6 +2269,14 @@ binding_value(Unit, Key) ->
         false ->
             absent
     end.
+
+%% Report §8.7, §11.2: whether a unit's initializers have run in the run in
+%% progress, by the run's start or the shell's load or reload, so that the
+%% code table answers a peer from a unit whose bindings have their values
+%% (ern_code). Outside a run there is no table, and none has.
+-spec is_initialized(module()) -> boolean().
+is_initialized(Unit) ->
+    try ets:member(?INITIALIZED, Unit) catch error:badarg -> false end.
 
 %% Report §8.7: the first of a reach's bindings, each by its identity,
 %% without its value in the run in progress, or none. Nothing is
@@ -2341,10 +2426,11 @@ fault_cause({ern, fault, Cause, _Trace}) -> Cause.
 
 %% Report §6.9: a restart begins a new run with nothing of the old. What
 %% the process asked the runtime for is cancelled, with what is on its way
-%% to it: its monitors and its subscription to faults by the reaper, its
-%% alarms by the clock, its keys by the terminal; then its mailbox is
-%% emptied, before the calls waiting on it are told they have ended, so
-%% that the request of an ended call is not taken by the new run.
+%% to it: its monitors and its subscriptions to faults and to the program's
+%% end by the reaper, its alarms by the clock, its keys by the terminal;
+%% then its mailbox is emptied, before the calls waiting on it are told
+%% they have ended, so that the request of an ended call is not taken by
+%% the new run.
 %% The three are asked at once, and each is monitored, so that one that has
 %% died holds up no restart.
 fresh_run() ->
@@ -2689,7 +2775,7 @@ flush_launch(Launch) ->
         {exit, Launch, _} -> flush_launch(Launch);
         {gone, Launch, _} -> flush_launch(Launch);
         {signal, Launch, _} -> flush_launch(Launch);
-        {subscribed, Launch} -> flush_launch(Launch);
+        {subscribed, Launch, _} -> flush_launch(Launch);
         {said, Launch, _, _} -> flush_launch(Launch)
     after 0 ->
         ok

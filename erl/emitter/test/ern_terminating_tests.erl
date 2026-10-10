@@ -47,7 +47,7 @@ told_at_the_entry_process_end_test() ->
                             "    send(k, Add(3))\n"
                             "}\n"),
     ?assertEqual(ok, Result),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:13\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"kept 5\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 answered\n">>)).
 
@@ -76,8 +76,8 @@ told_at_termination_test() ->
     ?assertEqual({signal, sigterm}, Result),
     ?assertMatch({_, _}, binary:match(Output, <<"kept 6\n">>)).
 
-%% report §8.6: a second termination ends the program at once, past a
-%% subscriber that has not answered
+%% report §8.6, §11.2: a second termination ends the program at once, past
+%% a subscriber that has not answered, which the runtime says
 second_termination_ends_at_once_test() ->
     {Result, Output} = kept("held(reply)",
                             "fn held(reply : Reply(Unit)) : Unit with Msg = receive {\n"
@@ -91,18 +91,23 @@ second_termination_ends_at_once_test() ->
                             "    receive { _ -> Unit }\n"
                             "}\n"),
     ?assertEqual({signal, sigterm}, Result),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:17\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end was cut short, 1 subscriber unanswered:"
+                                                " M.main:17\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"the subscriber M.main:">>)).
 
-%% report §8.6: an Os.exit while the end waits ends the program at once,
-%% with its status, a subscriber that exits there among the ways
+%% report §8.6, §11.2: an Os.exit while the end waits ends the program at
+%% once, with its status, a subscriber that exits there among the ways,
+%% and the runtime says whom the wait left unanswered
 exit_while_the_end_waits_test() ->
-    {Result, _} = kept("Os.exit(7)",
-                       "export fn main() : Unit with Never = {\n"
-                       "    let _ = spawn(keeper);\n"
-                       "    Unit\n"
-                       "}\n"),
-    ?assertEqual({exit, 7}, Result).
+    {Result, Output} = kept("Os.exit(7)",
+                            "export fn main() : Unit with Never = {\n"
+                            "    let _ = spawn(keeper);\n"
+                            "    Unit\n"
+                            "}\n"),
+    ?assertEqual({exit, 7}, Result),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end was cut short, 1 subscriber unanswered:"
+                                                " M.main:13\n">>)).
 
 %% report §8.6: a subscriber that faults while it is told is reported, and
 %% the end goes on without it
@@ -123,36 +128,167 @@ faulting_subscriber_is_reported_test() ->
     after 0 -> erlang:error(no_fault_reported)
     end.
 
-%% report §8.6, §6.9: a subscriber that faults while it is told and
-%% restarts is no answer either: its fault is reported as a restart's, and
-%% the end goes on without it. Its new run subscribes again; whether that
-%% subscription is told while the end waits is not yet decided
-%% (docs/findings.md, P1), and nothing is asserted of it
+%% report §8.6, §6.9, §11.2, Appendix E.23: a restart ends the
+%% subscription to the end with its run, and a subscription the new run
+%% makes is one made while the end waits, told at once, said as it is told,
+%% and waited for. The keeper faults when it is told, so it restarts
+%% without answering, its fault reported as a restart's; its new run is
+%% told, prints and answers. The count line names both subscribers, the
+%% holder first, as it was spawned first. A regression test,
+%% written after the code: the restarted run's subscription was never told,
+%% and the end went on without it. A keeper alone is not tested: its new
+%% run's subscription races the runner's last read of the table (told/3),
+%% which is the host's scheduling, so here a second subscriber holds the
+%% end until the new run has been told.
 restarting_subscriber_test() ->
+    {Result, Output} = restarted("{ let _ = 1 / List.size([]); answer(reply, Unit) }"),
+    ?assertEqual(ok, Result),
+    ?assertMatch({_, _}, binary:match(Output, <<"told again\n">>)),
+    ?assertEqual([<<"the end waits for 2 subscribers: M.main:24, M.main:26">>,
+                  <<"the subscriber M.main:26 restarted without answering">>,
+                  <<"the end waits for M.main:26 too">>,
+                  <<"the subscriber M.main:26 answered">>],
+                 naming(Output, <<"M.main:26">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:24 answered\n">>)),
+    ?assertEqual([{<<"M.main:26">>, <<"division by zero">>, true}], faults([])).
+
+%% report §8.6, §6.9, Appendix E.23: so too where the keeper answered
+%% before it restarted: the run it answered for has ended, and its new
+%% run's subscription is told, said as it is told, and waited for, the
+%% keeper answering twice. A regression test, written after the code: the
+%% runner held the keeper as answered, and so never told its new run.
+answered_subscriber_restarting_test() ->
+    {Result, Output} = restarted("{ answer(reply, Unit); let _ = 1 / List.size([]); Unit }"),
+    ?assertEqual(ok, Result),
+    ?assertMatch({_, _}, binary:match(Output, <<"told again\n">>)),
+    ?assertEqual([<<"the end waits for 2 subscribers: M.main:24, M.main:26">>,
+                  <<"the subscriber M.main:26 answered">>,
+                  <<"the end waits for M.main:26 too">>,
+                  <<"the subscriber M.main:26 answered">>],
+                 naming(Output, <<"M.main:26">>)),
+    ?assertEqual([{<<"M.main:26">>, <<"division by zero">>, true}], faults([])).
+
+%% A program whose keeper, a subscriber of Os.terminating that may restart
+%% once, is told at the end with 1 in its count and does what First says,
+%% which faults; its new run subscribes again and, told with 0, prints
+%% `told again`, lets the holder answer and answers. The holder, a second
+%% subscriber, answers once the keeper's new run has been told. Main
+%% returns once both have subscribed; the keeper's spawn site is
+%% M.main:26, the holder's M.main:24.
+restarted(First) ->
     Self = self(),
     Faults = fun({'FaultReport', _, Site, Cause, Restarted, _}) ->
                  Self ! {fault, Site, Cause, Restarted}
              end,
-    {Result, Output} = kept("{ let _ = 1 / List.size([]); answer(reply, Unit) }",
-                            "export fn main() : Unit with Never = {\n"
-                            "    let limit = RestartLimit(restarts = 1, within = 5000);\n"
-                            "    let _ = spawn(restarting(limit, keeper));\n"
-                            "    Unit\n"
-                            "}\n",
-                            #{faults => Faults}),
+    ern_emitter_tests:run(
+      ['M'],
+      ["type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
+       "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
+       "    Os.terminating(Terminating);\n"
+       "    send(main, Ready);\n"
+       "    receive {\n"
+       "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
+       "    }\n"
+       "}\n"
+       "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit with Msg = {\n"
+       "    Os.terminating(Terminating);\n"
+       "    send(main, Ready);\n"
+       "    count(holder, 0)\n"
+       "}\n"
+       "fn count(holder : Address(Msg), n : Int) : Unit with Msg = receive {\n"
+       "    Add(k) -> count(holder, n + k)\n"
+       "  | Terminating(reply) -> if n > 0 then ", First, " else {\n"
+       "        Io.println(\"told again\");\n"
+       "        send(holder, Done);\n"
+       "        answer(reply, Unit)\n"
+       "    }\n"
+       "}\n"
+       "export fn main() : Unit with Msg = {\n"
+       "    let me = self();\n"
+       "    let holder = spawn(fn() : Unit with Msg = hold(me));\n"
+       "    let limit = RestartLimit(restarts = 1, within = 5000);\n"
+       "    let k = spawn(restarting(limit, fn() : Unit with Msg = keeper(holder, me)));\n"
+       "    send(k, Add(1));\n"
+       "    receive { Ready -> Unit };\n"
+       "    receive { Ready -> Unit }\n"
+       "}\n"],
+      #{faults => Faults}).
+
+%% report §6.9, §8.6, docs/memory.md: a teller leaves nothing of its
+%% monitor in the reaper once it has its word, so a subscriber that faults
+%% at each telling under Unlimited, told by a new teller each time, grows
+%% nothing there. The keeper counts its tellings in a process of its own,
+%% reads the reaper's words after 100 of them and again after 1,100, as
+%% ern_reaper_tests' monitors_let_go_test reads them, and answers; the
+%% holder answers once it has. A regression test, written after the fix:
+%% each teller's monitor stayed in the reaper until the subscriber died.
+tellers_leave_no_monitor_test() ->
+    {Result, Output} = ern_emitter_tests:run(
+        "type Msg = Ready | Done | Terminating(Reply(Unit))\n"
+        "type Count = Next(Reply(Int)) | Keep(Int) | Kept(Reply(Int))\n"
+        "foreign fn waits() : Int with m = \"ern_reaper_tests:reaper_words/0\"\n"
+        "fn count(n : Int, kept : Int) : Unit with Count = receive {\n"
+        "    Next(reply) -> { answer(reply, n); count(n + 1, kept) }\n"
+        "  | Keep(words) -> count(n, words)\n"
+        "  | Kept(reply) -> { answer(reply, kept); count(n, kept) }\n"
+        "}\n"
+        "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
+        "    Os.terminating(Terminating);\n"
+        "    send(main, Ready);\n"
+        "    receive {\n"
+        "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
+        "    }\n"
+        "}\n"
+        "fn keeper(counter : Address(Count), holder : Address(Msg), main : Address(Msg))"
+        " : Unit with Msg = {\n"
+        "    Os.terminating(Terminating);\n"
+        "    send(main, Ready);\n"
+        "    receive {\n"
+        "        Terminating(reply) -> told(counter, holder, reply)\n"
+        "    }\n"
+        "}\n"
+        "fn told(counter : Address(Count), holder : Address(Msg), reply : Reply(Unit))"
+        " : Unit with Msg = {\n"
+        "    let n = Address.callForever(counter, Next);\n"
+        "    if n == 100 then send(counter, Keep(waits())) else Unit;\n"
+        "    if n < 1100 then {\n"
+        "        let _ = 1 / List.size([]);\n"
+        "        answer(reply, Unit)\n"
+        "    } else {\n"
+        "        Io.println(Io.show(waits() == Address.callForever(counter, Kept)));\n"
+        "        send(holder, Done);\n"
+        "        answer(reply, Unit)\n"
+        "    }\n"
+        "}\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    let me = self();\n"
+        "    let counter = spawn(fn() : Unit with Count = count(0, 0));\n"
+        "    let holder = spawn(fn() : Unit with Msg = hold(me));\n"
+        "    let _ = spawn(restarting(Unlimited, fn() : Unit with Msg ="
+        " keeper(counter, holder, me)));\n"
+        "    receive { Ready -> Unit };\n"
+        "    receive { Ready -> Unit }\n"
+        "}\n"),
     ?assertEqual(ok, Result),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:14 restarted without"
-                                                " answering\n">>)),
-    receive
-        {fault, Site, Cause, Restarted} ->
-            ?assertEqual({<<"M.main:14">>, <<"division by zero">>, true}, {Site, Cause, Restarted})
-    after 0 -> erlang:error(no_fault_reported)
+    ?assertEqual(1100, length(binary:matches(Output, <<"restarted without answering\n">>))),
+    ?assertMatch({_, _}, binary:match(Output, <<"\ntrue\n">>)).
+
+%% The lines of Output that name Site, in their order.
+naming(Output, Site) ->
+    [Line || Line <- binary:split(Output, <<"\n">>, [global]),
+             binary:match(Line, Site) =/= nomatch].
+
+%% The faults reported, in the order they were.
+faults(Acc) ->
+    receive {fault, Site, Cause, Restarted} -> faults([{Site, Cause, Restarted} | Acc])
+    after 0 -> lists:reverse(Acc)
     end.
 
-%% report §8.6, Appendix E.23: a subscription made while the end waits is
-%% told at once, and the end waits for it too: the first subscriber, told,
-%% starts a second and answers once the second has subscribed. One whose
-%% process ended before the end is gone with it and holds nothing up
+%% report §8.6, §11.2, Appendix E.23: a subscription made while the end
+%% waits is told at once, said as it is told, and the end waits for it too:
+%% the first subscriber, told, starts a second and answers once the second
+%% has subscribed. One whose process ended before the end is gone with it
+%% and holds nothing up
 subscribed_while_the_end_waits_test() ->
     {Result, Output} = ern_emitter_tests:run(
         "type Msg = Ready | Terminating(Reply(Unit))\n"
@@ -184,7 +320,8 @@ subscribed_while_the_end_waits_test() ->
         "    Unit\n"
         "}\n"),
     ?assertEqual(ok, Result),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:26\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for M.first:15 too\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"second told\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.first:15 answered\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:26 answered\n">>)),

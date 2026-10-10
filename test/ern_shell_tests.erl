@@ -2535,6 +2535,93 @@ previous_type_went() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Shape.Vec changed: the binding v is of its"
                                                 " previous version, Shape$1.Vec\n">>)).
 
+%% report §11.2, §8.7: a previous version's type whose hash a later reload
+%% declares again is the current version's again wherever the session held
+%% it. The first version, a second that adds a constructor, and the first's
+%% text again: after the second reload a binding made under the first is
+%% refused a message of the current version, with the help that names the
+%% previous version; after the third it is of `Counter.Msg` again, the
+%% message is taken by the first version's process, which reads it as its
+%% own, and nothing names `Counter$1` or says a reload replaced it; a
+%% binding made under the second is now of the second version's type,
+%% `Counter$2.Msg`. A regression test, written after the fix (findings S3,
+%% V2): the binding kept `Counter$1.Msg`, and the send was refused with a
+%% help that had become false
+reload_brings_a_type_back_test_() ->
+    {timeout, 60, fun reload_brings_a_type_back/0}.
+
+reload_brings_a_type_back() ->
+    Dir = scratch("ern_reload_back_"),
+    Counter = fun(Reset) ->
+                  ["export type Msg = Inc(Int) | Get(reply : Reply(Int))",
+                   [" | Reset" || Reset], "\n",
+                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "    receive {\n",
+                   "        Inc(by) -> serve(n + by)\n",
+                   "      | Get(reply = r) -> { answer(r, n); serve(n) }\n",
+                   ["      | Reset -> serve(0)\n" || Reset],
+                   "    }\n",
+                   "export let service : Address(Msg) =\n",
+                   "    spawn(fn() : Unit with Msg = serve(1))\n"]
+              end,
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(false)),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Counter\n",
+                                     "let c = Counter.service\n",
+                                     write_source(Dir, "counter.ern", Counter(true)),
+                                     ":reload\n",
+                                     "send(c, Counter.Inc(5))\n",
+                                     "let d = Counter.service\n",
+                                     write_source(Dir, "counter.ern", Counter(false)),
+                                     ":reload\n",
+                                     ":type c\n",
+                                     "send(c, Counter.Inc(5))\n",
+                                     "Address.callForever(c, fn(r) = Counter.Get(reply = r))\n",
+                                     ":type d\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Again = <<"Counter, compiled again\n">>,
+    [_, Second, Third] = binary:split(Output, Again, [global]),
+    Help = <<"Counter$1.Msg is of a previous version of Counter, which a reload replaced">>,
+    ?assertMatch({_, _}, binary:match(Second, <<"expected Counter$1.Msg, found Counter.Msg">>)),
+    ?assertMatch({_, _}, binary:match(Second, Help)),
+    ?assertMatch({_, _}, binary:match(Third, <<"Counter.Msg changed: the binding d is of its"
+                                               " previous version, Counter$2.Msg\n">>)),
+    ?assertMatch({_, _}, binary:match(Third, <<"> c : Address(Counter.Msg)\n">>)),
+    ?assertMatch({_, _}, binary:match(Third, <<"> > 6 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Third, <<"> d : Address(Counter$2.Msg)\n">>)),
+    ?assertEqual(nomatch, binary:match(Third, <<"Counter$1">>)),
+    ?assertEqual(nomatch, binary:match(Third, <<"which a reload replaced">>)).
+
+%% report §11.2, Appendix H: a type declared again at the prompt with its
+%% hash unchanged is the type it was: a binding of the first declaration's
+%% type takes a constructor the second puts in scope, and `:type` prints
+%% one type, by its name; a declaration that changes the type shadows, and
+%% the binding is refused the new type's constructor, its type printed as
+%% the input that declared it. A regression test, written after the fix
+%% (finding V11): each input's type was another, by its input's namespace
+type_declared_again_test_() ->
+    {timeout, 60, fun type_declared_again/0}.
+
+type_declared_again() ->
+    InputFile = scratch_file("ern_type_again_"),
+    ok = file:write_file(InputFile,
+                         "type Msg = A | B\n"
+                         "let p : Address(Msg) = spawn(fn() : Unit with Msg =\n"
+                         "    receive { B -> Io.println(\"got B\") | A -> Unit })\n"
+                         "type Msg = A | B\n"
+                         "send(p, B)\n"
+                         ":type p\n"
+                         "type Msg = A | B | C\n"
+                         "send(p, C)\n"
+                         ":type p\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    [_, _, Same, Changed] = binary:split(Output, <<"> type Msg\n">>, [global]),
+    ?assertMatch({_, _}, binary:match(Same, <<"> p : Address(Msg)\n">>)),
+    ?assertEqual(nomatch, binary:match(Same, <<"input 5">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"got B\n">>)),
+    ?assertMatch({_, _}, binary:match(Changed, <<"expected $Input1.Msg, found Msg">>)),
+    ?assertMatch({_, _}, binary:match(Changed, <<"> p : Address($Input1.Msg)\n">>)).
+
 %% report §11.2: `:reload` names a module whose source the source root no
 %% longer holds where the session compiled it from that source, and never
 %% a library it loaded from its compiled form on the load path, whose
@@ -3376,7 +3463,7 @@ shell_told_of_the_end() ->
     %% what the subscriber prints and what the runtime says come by two
     %% streams, which nothing orders one against the other (§11.2)
     ?assertMatch({_, _}, binary:match(Output, <<"told\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: input 3:1\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber input 3:1 answered\n">>)).
 
 demo(Value) ->

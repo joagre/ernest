@@ -8,7 +8,7 @@ The rules follow the order of work. Each is stated once; the checklist at the en
 
 - **The report is the only normative document**: [`language.md`](report/language.md), §0 to §10 and Appendices A, B and F; [`toolchain.md`](report/toolchain.md), §11 and Appendices C and H; [`library.md`](report/library.md), Appendices D, E and G. None of the three ranks above another; a citation's first number or letter names its file. Nothing else in this repository overrides them.
 - **Appendix A, the grammar, wins** over the prose where they conflict.
-- **Section 0, the five principles, is the tiebreaker**: where Appendix A is ambiguous, and in every design discussion. Principles 2 to 5 construct; principle 1 audits the result.
+- **Section 0, the five principles, is the tiebreaker**: where Appendix A is ambiguous, and in every design discussion. Principles 2 to 5 construct; principle 1 audits the result. Every recommendation weighs the candidate rule against the five first, and against what it adds to the language, and names the principle that decided; they guide, and are not law, since §0 itself lets principle 1 override the others where following them surprises.
 
 ## Who owns each fact
 

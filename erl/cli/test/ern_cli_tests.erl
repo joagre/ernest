@@ -1180,7 +1180,8 @@ test_told_of_the_end_test() ->
     ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "told.erc")], group_leader())),
     Output = iolist_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Output, Line))
-     || Line <- [<<"started: passed\n">>, <<"told\n">>, <<"the end waits for 1 subscriber\n">>,
+     || Line <- [<<"started: passed\n">>, <<"told\n">>,
+                 <<"the end waits for 1 subscriber: Told.started:9\n">>,
                  <<"the subscriber Told.started:9 answered\n">>]].
 
 %% report Appendix E.24, §11.2: a test runs in a process whose mailbox type
