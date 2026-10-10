@@ -95,7 +95,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 - **A test written after the code is a regression test.** Say so, and name what it does not cover. What has found defects here is the terminal harness, a read-back of the code, an independent reader, and the user, not a test that passed on its first run.
 - **`make test` runs before the commit that closes a plan item.** While working, the area a change touches runs its own target (`docs/development.md`, *Building*).
 - **An edit to a proposal under discussion runs no test.** Commit it by its paths and push at once, since the user reads it on GitHub between questions. The documents test is owed once: before the discussion closes, or with the first commit that touches anything outside the directory. Code, the Makefile and other documents are tested as always.
-- **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says.
+- **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says; the findings of any review or read are sorted as its *The findings* says, the `fix` lines made at once and every other discussed one at a time.
 
 ## Writing
 

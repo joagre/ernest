@@ -42,7 +42,8 @@ Two models serve a review: the most advanced there is, and the one below it, whi
 - The lists become one document, `findings.md` beside this one: a line per finding, by area, each naming its reader's letter and number.
 - A line carries its decision: `cheap`, fixed in the milestone that works through the list, a batch a document; a milestone's number, planned there; `done`; or `dropped`, with the reason.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
-- The plan gives the list a milestone. A design question in it is discussed with the user, one at a time.
+- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose in the review's own session, on the most advanced model; code or a test as one batch on the one below it, built from a brief that names each line and the shape of its fix (*The models*). Every other line is a decision: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation. A milestone's read (the log's *MVP 3.0 Read Without a Release*) sorts its lines the same way.
+- The plan gives the list a milestone.
 - The document goes when every line is done or dropped, or stands in the plan as an item of its own.
 - The log gains an entry for the review: its date and commit, the principles reader's counts, the newcomer's program, and how many findings took each decision.
 
