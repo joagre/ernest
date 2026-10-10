@@ -318,7 +318,8 @@ user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's ow
 4.2, and the first program built against an installed Ernest by a build of its own, which the
 examples cannot be. Its plan lives in its repository; this one records what it asks of the
 language and the libraries, and each is written as it asks, the libraries below among them.
-Named so far for it: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
+What it will evidently ask for, named here for the milestone's size and decided one by one
+when the need comes: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
 terminal, a library over `libs/http` and `Tcp`; base64; TLS on a socket; and what of `Tcp` a
 server needs beyond what E.18 gives. What it lacks is added where it belongs and never worked around in
 Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission
