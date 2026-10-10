@@ -1128,7 +1128,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **constructor** — a case of a sum type; a value, a function, or a construction form. §3.5, §5.6.
 - **consumed** — of a reply-carrying value: answered, or handed on by one of the uses §6.6 lists, exactly once on every path. §6.6.
 - **container** — a type of the kind that holds elements and provides the container operations, a list, a map, a set. Appendix E.0.
-- **cookie** — the digest of the protocol's version, `ern`'s version and OTP's major release, by which the handshake proves the floor. §8.7.
+- **cookie** — the digest of the protocol's version, the form's version, `ern`'s major and minor and OTP's major release, or of a development build's own code, by which the handshake proves the floor. §8.7.
 - **deadlock** — no process can progress. §8.6.
 - **derives** — `derives compare` at the end of a type declaration, which gives the type the member `compare` over its constructors and fields. §3.5.
 - **detector** — the host's watch on a connection, which finds a silent peer by its ticks. §8.7.
@@ -1144,7 +1144,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **fault** — the end of a process with the reason `Fault(cause)`, or its restart where it restarts (§6.9). §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.
 - **fill** — `C(..N)`, a construction whose fields not given are the declarations of their names in the namespace `N`. §5.6.
-- **floor** — one release of `ern` on one major release of OTP, on which nodes of different builds connect. §8.7.
+- **floor** — one major and minor release of `ern` on one major release of OTP, or one development build of `ern`, on which nodes of different builds connect. §8.7.
 - **foreign address** — an address foreign code gave that names no process of the program; what is sent to it crosses into foreign code. §8.4.
 - **foreign function** — declared `foreign fn`; body is a string reference to a runtime implementation. §4.7.
 - **foreign process** — a process whose implementation lies outside the language, the system processes among them; §8.4 says which of its messages are checked. §8.4.

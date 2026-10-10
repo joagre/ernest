@@ -171,7 +171,9 @@ uninstall() {
 # The release archive: a staged tree without the helper, whose C source
 # it carries instead with the Makefile of tools/release, the README it
 # installs with the logo that README shows, and this script, packed as
-# ern-VERSION.
+# ern-VERSION. Its version text is VERSION's alone, which marks it a
+# release (report §8.7): ern_release is compiled again into it without the
+# repository's DEVELOPMENT, and stripped as the stage strips it.
 release() {
     dir=$1
     version=$2
@@ -180,6 +182,9 @@ release() {
     stage "$dir/$name"
     rm "$dir/$name/lib/ernest/erl/runtime/priv/ern_exec"
     cd "$repo"
+    erlc -Werror -DVERSION="\"$version\"" -o "$dir/$name/lib/ernest/erl/cli/ebin" \
+        erl/cli/src/ern_release.erl
+    escript tools/strip.escript "$dir/$name/lib/ernest/erl/cli/ebin"
     cp erl/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
     cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"
     cp -R "$dir/$name/share/doc/ernest/assets" "$dir/$name/assets"

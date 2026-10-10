@@ -489,7 +489,9 @@ install() ->
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     InWork = fun(Command) -> sh(Command, [{cd, Base ++ "/work"}]) end,
-    ?assertEqual({0, <<"ern ", Version/binary, "\n">>}, InWork(Ern ++ " --version")),
+    %% report §8.7: an installation of the repository's build is no release,
+    %% which its version text marks
+    ?assertEqual({0, <<"ern ", Version/binary, "-dev\n">>}, InWork(Ern ++ " --version")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = InWork(Ern ++ " build hi.ern"),
     ?assertEqual({0, <<"hi\n">>}, InWork(Ern ++ " run hi.erc")),
@@ -516,7 +518,7 @@ install() ->
     ?assertMatch({2, _}, sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b")),
     Stage = Base ++ "/stage",
     {0, _} = sh("make -s -C .. install DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
-    ?assertEqual({0, <<"ern ", Version/binary, "\n">>},
+    ?assertEqual({0, <<"ern ", Version/binary, "-dev\n">>},
                  InWork(Stage ++ "/opt/ernest/bin/ern --version")),
     {0, _} = sh("make -s -C .. uninstall DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
     ?assertEqual([],
@@ -554,7 +556,9 @@ install() ->
 %% the one it installs, and the installed guide's link to an example leads
 %% into the repository at the release's tag: a regression test, as
 %% install/0's is. The logo the README shows stands beside it in the
-%% archive, as under the prefix.
+%% archive, as under the prefix. The installed `ern` is a release, whose
+%% version text is VERSION's alone, as the repository's build is not
+%% (report §8.7): a regression test, written after the code (finding N11).
 release() ->
     Base = filename:absname("build/release"),
     ok = del(Base),
@@ -583,6 +587,9 @@ release() ->
     Tag = "v" ++ string:trim(binary_to_list(Version)),
     ?assert(links_to(Documents ++ "guide/language.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
     Ern = Base ++ "/p/bin/ern",
+    %% report §8.7: a release's version text is VERSION's alone
+    ?assertEqual({0, <<"ern ", (string:trim(Version))/binary, "\n">>},
+                 sh(Ern ++ " --version", [{cd, Base ++ "/work"}])),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = sh(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),
     ?assertEqual({0, <<"hi\n">>}, sh(Ern ++ " run hi.erc", [{cd, Base ++ "/work"}])),

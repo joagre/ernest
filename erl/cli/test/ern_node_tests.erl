@@ -366,10 +366,13 @@ permissions_test() ->
                  ++ " makes a configuration directory",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §8.7: a node writes its process number to ernest.pid as it starts
-%% and removes it at its end; a file that names a living process refuses
-%% the start, and one a dead node left, or that names no process, is
-%% replaced; a file another wrote meanwhile is not removed
+%% report §8.7: a node writes its process number to ernest.pid as it
+%% starts, holds the file locked and removes it at its end; a file a living
+%% node holds refuses the start, and one no node holds is overwritten,
+%% whatever number it names, a living process's among them; a file another
+%% wrote meanwhile is not removed. A regression test of the lock, written
+%% after the code (finding E4): a file that named a living process refused
+%% the start, the process another than a node
 pid_test() ->
     Dir = made(),
     Pid = filename:join(Dir, "ernest.pid"),
@@ -386,10 +389,37 @@ pid_test() ->
                       ?assertEqual({ok, list_to_binary(os:getpid() ++ "\n")},
                                    file:read_file(Pid)),
                       ok = ern_node:stop(Dir)
-                  end, [<<"999999\n">>, <<"not a process\n">>, <<"0\n">>]),
+                  end, [<<"999999\n">>, <<"not a process\n">>, <<"0\n">>, <<"1\n">>,
+                        list_to_binary(os:getpid() ++ "\n")]),
     ok = file:write_file(Pid, <<"1\n">>),
     ok = ern_node:stop(Dir),
     ?assertEqual({ok, <<"1\n">>}, file:read_file(Pid)).
+
+%% report §11.2, §8.7: `ern reload` and `ern stop` signal only the node that
+%% holds ernest.pid, and fail where there is no file or no node holds it,
+%% a living process the file names among the ways, which is sent nothing.
+%% A regression test, written after the code (finding E4): the file's
+%% number was signalled where it named a living process, a node or not; it
+%% does not cover the wait for the node's end, which the nodes' tests do
+signalled_test() ->
+    Dir = made(),
+    Pid = filename:join(Dir, "ernest.pid"),
+    _ = ern_node:start(Dir),
+    %% the signal 0 sends nothing, and asks whether the node lives
+    ?assertEqual(ok, ern_node:signalled(Dir, 0)),
+    ok = ern_node:stop(Dir),
+    ?assertEqual(Pid ++ ": no such file: no node runs from the directory",
+                 refusal(fun() -> ern_node:signalled(Dir, 0) end)),
+    Waiting = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary]),
+    {os_pid, Living} = erlang:port_info(Waiting, os_pid),
+    ok = file:write_file(Pid, integer_to_list(Living) ++ "\n"),
+    [?assertEqual(Pid ++ ": no node holds it: no node runs from the directory",
+                  refusal(fun() -> Job(Dir) end))
+     || Job <- [fun(Given) -> ern_node:signalled(Given, 1) end, fun ern_node:stopped/1]],
+    %% the process lives, and reads its input still
+    true = port_command(Waiting, <<"alive">>),
+    ?assertEqual(<<"alive">>, receive {Waiting, {data, Echoed}} -> Echoed end),
+    port_close(Waiting).
 
 %% report §8.7: the host's measures `measures` names start with the node,
 %% and none where the section is absent; they stop at the node's end, each

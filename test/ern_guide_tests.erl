@@ -245,9 +245,19 @@ lines(<<>>) -> [];
 lines(Text) -> binary:split(Text, <<"\n">>, [global]).
 
 %% A session not at a terminal echoes no input, and ends at the last
-%% prompt, which a program's output does not end in.
+%% prompt, which a program's output does not end in. Its start line is
+%% read as a release prints it (released/1).
 session_end(Output) ->
-    trim(string:trim(trim(Output), trailing, ">")).
+    trim(string:trim(trim(released(Output)), trailing, ">")).
+
+%% Report §11.2, §8.7: the shell's start line as a release prints it. The
+%% repository's build is no release, and its version text carries the mark
+%% (ern_release), which a document's session, shown to a release's reader,
+%% does not.
+released(Output) ->
+    {ok, Version} = file:read_file("../VERSION"),
+    binary:replace(Output, list_to_binary(["Ernest ", ern_release:version_text(), "."]),
+                   <<"Ernest ", (string:trim(Version))/binary, ".">>).
 
 %% The checked units of a document, in order: {modules, Unit} for one
 %% module or a heading's source tree, {rejected, Unit} for an example that

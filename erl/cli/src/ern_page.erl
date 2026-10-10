@@ -80,7 +80,11 @@ markdown(Text) ->
 
 %% The source's name is the chunk's own word, which a module from anywhere
 %% may have written: its control characters are written as escapes, so
-%% that none ends the comment line a manual page keeps it on.
+%% that none ends the comment line a manual page keeps it on. A page, and
+%% a manual page's header, name the release whose library they document,
+%% VERSION's text, without the mark of a build that is no release
+%% (ern_release), since `make pages` writes the release's pages from the
+%% repository's build (docs/release_review.md, step 5).
 generated(Meta) ->
     Source = case maps:get(source, Meta, <<>>) of
                  Name when is_binary(Name) ->

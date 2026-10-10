@@ -53,9 +53,11 @@ export type Info = Info(site : String, queued : Int, activity : Activity)
 export type Activity = Running | Receiving | Calling
 
 /// A fault of a process the runtime started: the process, where it was spawned,
-/// the cause, whether it restarts after the fault, and the host's stack, one
+/// the cause, whether it restarts after the fault, the host's stack, one
 /// function to a line, beneath a failure in the runtime or a foreign function's
-/// raise. The stack is empty beneath the language's own causes.
+/// raise, and the name of the peer whose spawn started the process, as the
+/// configuration lists it (report §8.7), or `None`. The stack is empty beneath
+/// the language's own causes.
 ///
 /// ### Examples
 ///
@@ -64,11 +66,17 @@ export type Activity = Running | Receiving | Calling
 ///                     site = "Main.worker:3",
 ///                     cause = "division by zero",
 ///                     restarted = false,
-///                     trace = "").cause
+///                     trace = "",
+///                     peer = None).cause
 /// // => "division by zero"
 /// ```
 export type FaultReport =
-    FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
+    FaultReport(process : Process,
+                site : String,
+                cause : String,
+                restarted : Bool,
+                trace : String,
+                peer : Optional(String))
 
 /// The process behind the address, through every `via`. Two addresses of one
 /// process give equal processes, though addresses have no equality.

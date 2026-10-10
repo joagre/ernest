@@ -12,7 +12,7 @@
 %% the moment its time ends, in slices the host takes (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, key/1, key/3, offer/2, find/2, spawn/3, spawn/4,
+-export([configure/2, tables/0, name/1, key/1, key/3, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, peers/0, frame/2, lost/1]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
@@ -40,12 +40,13 @@
 
 %% Report §8.7: the peers this node lists, each with its name on the
 %% carrier, and their names in the configuration's order, which peers/0
-%% answers; and the keys, each with its peers' names in the order a find
-%% asks them.
+%% answers, and by their names on the carrier, which name/1 answers; and
+%% the keys, each with its peers' names in the order a find asks them.
 -spec configure([{binary(), node()}], #{binary() => [binary()]}) -> ok.
 configure(Peers, Keys) ->
     persistent_term:put({?MODULE, names}, [Name || {Name, _} <- Peers]),
     persistent_term:put({?MODULE, nodes}, maps:from_list(Peers)),
+    persistent_term:put({?MODULE, named}, maps:from_list([{Node, Name} || {Name, Node} <- Peers])),
     persistent_term:put({?MODULE, keys}, Keys).
 
 %% The table of spawns waiting, owned by the process that calls this, the
@@ -58,6 +59,16 @@ tables() ->
 %% A peer's name on the carrier, or none where no peer has the name.
 node_of(Name) ->
     maps:get(Name, persistent_term:get({?MODULE, nodes}, #{}), none).
+
+%% Appendix E.21, report §8.7: the name the configuration lists the peer
+%% of a node on the carrier under, a FaultReport's `peer`, or `None` for
+%% none: no peer's spawn, or a peer a reload has removed since.
+-spec name(node() | none) -> {'Some', binary()} | 'None'.
+name(Node) ->
+    case persistent_term:get({?MODULE, named}, #{}) of
+        #{Node := Name} -> {'Some', Name};
+        #{} -> 'None'
+    end.
 
 %%
 %% The shims

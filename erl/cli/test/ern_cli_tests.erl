@@ -2271,11 +2271,14 @@ mvp_refusals_listed_test() ->
                               =:= nomatch],
     ?assertEqual([], Missing).
 
-%% report §11: --version prints the top-level VERSION file's content
+%% report §11, §8.7: --version prints the version text, the top-level
+%% VERSION file's content, and in the repository's build, which is no
+%% release, the mark after it; the release archive's is VERSION's alone,
+%% which ern_integration_tests' release test holds
 version_test() ->
     {ok, Version} = file:read_file("../../../VERSION"),
     ?assertEqual(0, ern_cli:ern(["--version"])),
-    ?assertEqual(<<"ern ", (string:trim(Version))/binary, "\n">>,
+    ?assertEqual(<<"ern ", (string:trim(Version))/binary, "-dev\n">>,
                  iolist_to_binary(?capturedOutput)).
 
 %% report §11: options are long; --help and --version stop with status 0,
@@ -2726,10 +2729,12 @@ node_without_program_test() ->
                                         " a node without one arrives in MVP 3.2">>)).
 
 %% report §11.2, §8.7: `ern reload` and `ern stop` require --config-dir,
-%% and fail where its ernest.pid is not there or names a process that has
-%% ended, saying so; their synopsis shows the option they require. A
-%% regression test, written after the code; real nodes reload and stop in
-%% test/ern_nodes_tests.erl
+%% and fail where its ernest.pid is not there or no node holds it, a file
+%% that names a process that has ended among them, saying so; their
+%% synopsis shows the option they require. A regression test, written
+%% after the code; real nodes reload and stop in test/ern_nodes_tests.erl,
+%% and a file that names a living process no node holds is
+%% ern_node_tests' signalled_test's
 signal_jobs_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
@@ -2743,8 +2748,7 @@ signal_jobs_test() ->
      || Part <- [<<"ern reload: --config-dir is required: it names the node">>,
                  <<"Usage: ern reload --config-dir dir">>,
                  <<"ernest.pid: no such file: no node runs from the directory">>,
-                 <<"ernest.pid: names a process that has ended: no node runs from the"
-                   " directory">>]].
+                 <<"ernest.pid: no node holds it: no node runs from the directory">>]].
 
 %% report §11.3: the configuration directory is its owner's alone, and one
 %% that exists is refused, whoever made it and however empty. A regression

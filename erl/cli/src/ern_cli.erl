@@ -13,8 +13,6 @@
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
 
-%% VERSION is the top-level VERSION file, passed by the Makefile.
-
 %%
 %% Entry
 %%
@@ -119,7 +117,7 @@ ern(["--help"], _ErrorDevice) ->
     usage(standard_io),
     0;
 ern(["--version"], _ErrorDevice) ->
-    io:format("ern ~s~n", [?VERSION]),
+    io:format("ern ~s~n", [ern_release:version_text()]),
     0;
 %% report §11: an empty first word names no job, as none does
 ern([[] | _], ErrorDevice) ->
@@ -761,8 +759,8 @@ report_tree([]) ->
 report_tree(Statuses) ->
     lists:max(Statuses).
 
-%% Report §8.7, §11.2: hangup sent to the node that runs from the
-%% directory, which reads its configuration again; the status says only
+%% Report §8.7, §11.2: hangup sent to the node that holds the directory's
+%% `ernest.pid`, which reads its configuration again; the status says only
 %% that the signal was delivered.
 reload(Options, [], _ErrorDevice) ->
     ern_node:signalled(node_dir(Options), 1),
@@ -770,10 +768,12 @@ reload(Options, [], _ErrorDevice) ->
 reload(_Options, _Rest, _ErrorDevice) ->
     usage_fail("reload takes no argument").
 
-%% Report §8.6, §8.7, §11.2: termination sent to the node that runs from
-%% the directory, which ends in order.
+%% Report §8.6, §8.7, §11.2: termination sent to the node that holds the
+%% directory's `ernest.pid`, which ends in order; the status says that the
+%% node has ended, which the job waits for on the node's lock, with no time
+%% of its own.
 stop(Options, [], _ErrorDevice) ->
-    ern_node:signalled(node_dir(Options), 15),
+    ern_node:stopped(node_dir(Options)),
     0;
 stop(_Options, _Rest, _ErrorDevice) ->
     usage_fail("stop takes no argument").
@@ -896,9 +896,11 @@ no_main_file() ->
 %% process, so that it keeps its place among what the program wrote there,
 %% and is flushed with it when the program ends. The runtime's own
 %% subscriber of Process.faults (Appendix E.21), given the peer's node or
-%% none. Where standard error is neither a terminal nor a service manager's
-%% journal, each line begins with the time, in UTC as RFC 3339 writes it.
-report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Peer, Stamped) ->
+%% none, by which a peer a reload has removed since is named as a node's
+%% line names one not listed, where the report's `peer` is `None`. Where
+%% standard error is neither a terminal nor a service manager's journal,
+%% each line begins with the time, in UTC as RFC 3339 writes it.
+report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace, _}, Peer, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
@@ -1129,7 +1131,7 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
                                                 exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
-    Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport, Peer) ->
+    Reporter = fun({'FaultReport', Process, _, _, _, _, _} = FaultReport, Peer) ->
                    ets:member(Running, Process) orelse Report(FaultReport, Peer)
                end,
     Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),

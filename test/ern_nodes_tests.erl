@@ -607,8 +607,8 @@ other_floor(Base) ->
     {_, Other} = client(Root, name(B), key_files(B), "another-floor", PortA, name(A), false),
     {0, OtherOut} = Other(),
     has(OtherOut, "connect: false"),
-    says(A, "the peer b was refused: it stands on another floor, another release of ern or"
-            " another major release of OTP"),
+    says(A, "the peer b was refused: it stands on another floor, another release or build of"
+            " ern or another major release of OTP"),
     stop(A, WaitA),
     {_, ErrA} = said(A),
     ?assertEqual(nomatch, string:find(ErrA, "**")).
@@ -1399,6 +1399,115 @@ stop_in_order(Base) ->
     ?assertEqual(1, Status),
     has(Said, "ernest.pid: no such file: no node runs from the directory").
 
+%% report §8.7, §11.2: a node holds ernest.pid locked for its life, which
+%% the host ends with it however it ends: a node killed leaves the file,
+%% and the next start from the directory takes it, saying nothing of a
+%% refusal, the file holding the new node's number; a running node refuses
+%% a second start, naming its number; and where the file names a living
+%% process that is no node, `ern stop` and `ern reload` fail, saying that
+%% no node holds it, and the process is sent nothing. A regression test,
+%% written after the code (finding E4): a start was refused by a file whose
+%% number a living process held, and the jobs signalled that process
+pid_lock_test_() ->
+    nodes_test(60, fun pid_lock/1).
+
+pid_lock(Base) ->
+    A = made(Base, "a", none),
+    PidFile = filename:join(A, "ernest.pid"),
+    Program = program(filename:join(Base, "build")),
+    WaitKilled = start(A, Program, []),
+    prints(A, "waiting"),
+    {ok, Killed} = file:read_file(PidFile),
+    [] = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Killed))),
+    ?assertEqual(137, WaitKilled()),
+    ?assertEqual({ok, Killed}, file:read_file(PidFile)),
+    WaitA = start(A, Program, []),
+    prints(A, "waiting"),
+    {ok, Number} = file:read_file(PidFile),
+    ?assertNotEqual(Killed, Number),
+    Again = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1; echo status $?"),
+    has(Again, " is the configuration directory of the running node "
+               ++ string:trim(binary_to_list(Number)) ++ ", which ernest.pid names"),
+    has(Again, "status 1"),
+    stop(A, WaitA),
+    {_, Err} = said(A),
+    ?assertEqual(nomatch, string:find(Err, "configuration directory")),
+    %% a living process that is no node, which reads its input and echoes it
+    Living = open_port({spawn_executable, os:find_executable("cat")}, [binary]),
+    {os_pid, LivingNumber} = erlang:port_info(Living, os_pid),
+    ok = file:write_file(PidFile, integer_to_list(LivingNumber) ++ "\n"),
+    [begin
+         {Status, Said} = signalled(Job, A),
+         ?assertEqual(1, Status),
+         has(Said, "ernest.pid: no node holds it: no node runs from the directory")
+     end || Job <- ["stop", "reload"]],
+    true = port_command(Living, <<"alive">>),
+    ?assertEqual(<<"alive">>, receive {Living, {data, Echoed}} -> Echoed end),
+    port_close(Living).
+
+%% report §11.2, §8.6, §8.7: `ern stop` returns once the node has ended,
+%% which it waits for on the lock the node holds on ernest.pid, with status
+%% 0: a node whose end waits for a subscriber is still running, its file
+%% there, until the subscriber answers, and the job returns with the node
+%% gone, its file removed, and the next `ern run` from the directory
+%% accepted at once; a second `ern stop` while the first waits is a second
+%% termination, which ends the node at once, and both return. A regression
+%% test, written after the code (findings W4, E9): the job returned once the
+%% signal was sent, and a script's next start was refused by the node still
+%% ending
+stop_waits_test_() ->
+    nodes_test(90, fun stop_waits/1).
+
+stop_waits(Base) ->
+    A = made(Base, "a", none),
+    PidFile = filename:join(A, "ernest.pid"),
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "stopping.ern"), <<"
+// Report §8.6: a subscriber of the end that answers once a line comes.
+
+type Msg = Terminating(Reply(Unit))
+
+export fn main() : Unit with Msg = {
+    Os.terminating(Terminating);
+    Io.println(\"subscribed\");
+    receive {
+        Terminating(reply) -> {
+            Io.println(\"told\");
+            let _ = Io.readLine();
+            answer(reply, Unit)
+        }
+    }
+}
+"/utf8>>),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    Program = filename:join(Root, "stopping.erc"),
+    Self = self(),
+    Stopping = fun() -> spawn_link(fun() -> Self ! {stopped, signalled("stop", A)} end) end,
+    {Port, Wait} = started(A, Program, []),
+    prints(A, "subscribed"),
+    _ = Stopping(),
+    prints(A, "told"),
+    ?assert(filelib:is_file(PidFile)),
+    true = port_command(Port, "go\n"),
+    ?assertMatch({stopped, {0, _}}, receive {stopped, _} = Stopped -> Stopped end),
+    ?assertNot(filelib:is_file(PidFile)),
+    ?assertEqual(143, Wait()),
+    {_, Err} = said(A),
+    has(Err, "the subscriber Stopping.main answered"),
+    %% the next start, and two stops
+    {_Port, WaitAgain} = started(A, Program, []),
+    prints(A, "subscribed"),
+    _ = Stopping(),
+    prints(A, "told"),
+    _ = Stopping(),
+    [?assertMatch({stopped, {0, _}}, receive {stopped, _} = Stopped -> Stopped end)
+     || _ <- [first, second]],
+    ?assertNot(filelib:is_file(PidFile)),
+    ?assertEqual(143, WaitAgain()),
+    {_, ErrAgain} = said(A),
+    has(ErrAgain, "the end was cut short, 1 subscriber unanswered: Stopping.main").
+
 %% report §8.7, §11.2: `ern reload` sends the node hangup, which reads
 %% ernest.conf again: a peer removed has its connection ended and is
 %% refused after, a peer listed again under another name is accepted, a
@@ -1757,6 +1866,48 @@ shell_binding_spawned(Base) ->
     ?assertEqual(0, WaitA()),
     {OutA, _} = said(A),
     ?assertEqual(nomatch, string:find(OutA, "has no value here")).
+
+%% report §11.2, §8.7, Appendix E.21: a shell that is a node writes a
+%% fault's line as `ern run` writes one, the peer whose spawn started the
+%% process after the cause, which the FaultReport's `peer` names. A
+%% regression test, written after the code (finding N12): the shell's line
+%% named the spawner's site alone. A shell in line mode reports a fault
+%% before its next prompt, so the shell that faulted is given two inputs
+%% after it. A local fault's report, which names no peer, is
+%% ern_rt_tests' fault_reports_test's
+shell_peer_fault_test_() ->
+    nodes_test(90, fun shell_peer_fault/1).
+
+shell_peer_fault(Base) ->
+    Root = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Root),
+    PortA = free_port(),
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    lists(A, [{"b", B, none}]),
+    lists(B, [{"a", A, PortA}]),
+    Typed = "fn divided() : Unit with Never = {\n"
+            "    Io.println(\"dividing\");\n"
+            "    let _ = 1 / List.size([]);\n"
+            "    Unit\n"
+            "}\n",
+    {InputA, WaitA} = shell_started(A, Root),
+    true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
+    prints(A, "typed"),
+    {InputB, WaitB} = shell_started(B, Root),
+    true = port_command(InputB, [Typed, "match Peer.spawn(\"a\", divided, 5000) {\n"
+                                        "    Right(_) -> Io.println(\"spawned\")\n"
+                                        "  | Left(failure) -> Io.println(Io.show(failure))\n"
+                                        "}\n"]),
+    prints(B, "spawned"),
+    prints(A, "dividing"),
+    true = port_command(InputA, ["Io.println(\"next\")\n", "Io.println(\"last\")\n"]),
+    prints(A, "last"),
+    prints(A, " faulted: division by zero, spawned by the peer b\n"),
+    true = port_command(InputB, ":quit\n"),
+    ?assertEqual(0, WaitB()),
+    true = port_command(InputA, ":quit\n"),
+    ?assertEqual(0, WaitA()).
 
 %% report §11.2, §8.7: a shell that is a node loads a module, and a peer
 %% of the build that holds the module spawns a function of it there by its

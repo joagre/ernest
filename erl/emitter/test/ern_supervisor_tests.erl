@@ -443,7 +443,7 @@ crunching(Main) ->
          "fn reportOf(c : Address(Msg)) : Unit with Process.FaultReport = {\n"
          "    let child = Process.fromAddress(c);\n"
          "    receive { Process.FaultReport(process = p, site = _, cause = _, restarted = _,\n"
-         "                                  trace = _) when p == child -> Unit }\n"
+         "                                  trace = _, peer = _) when p == child -> Unit }\n"
          "}\n"
          "foreign fn running(process : Process) : Foreign.Term with m = \"ern_waits:running/1\"\n"
          "foreign fn delivered(process : Process) : Foreign.Term with m =\n"

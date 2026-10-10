@@ -3983,8 +3983,10 @@ terminal() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)).
 
-%% report §11.2: the start line names the toolchain's version, the one
-%% `VERSION` holds, and a session at a terminal without `HOME`, or with one
+%% report §11.2, §8.7: the start line names the toolchain's version text,
+%% the one `VERSION` holds, with the mark of a build that is no release
+%% after it, as the repository's is, and a session at a terminal without
+%% `HOME`, or with one
 %% that is no absolute path, says once that it keeps no history, and which
 %% of the two. A regression test: the version was written into the shell
 %% by hand, a missing home was passed over in silence, and then an unset
@@ -4000,7 +4002,8 @@ no_home() ->
                   {expect, "2 : Int"},
                   {send, "04"}],
                  20),
-    ?assertMatch({_, _}, binary:match(Screen, <<"Ernest ", (string:trim(Version))/binary, ".">>)),
+    ?assertMatch({_, _}, binary:match(Screen, <<"Ernest ", (string:trim(Version))/binary,
+                                                "-dev.">>)),
     ?assertEqual(1, length(binary:matches(Screen, <<"the history is not kept">>))),
     Relative = pty("HOME=relative ../bin/ern shell",
                    [{expect, "HOME is no absolute path"},

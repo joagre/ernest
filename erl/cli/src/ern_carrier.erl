@@ -10,7 +10,7 @@
 %% lines a node says of its peers, one each on its standard error.
 -module(ern_carrier).
 
--export([boot_flags/1, name/1, host/1, cookie/0, start/1, list/1, booted/0,
+-export([boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
          configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1,
          names_own_host/1, say/1, named/1, said/1, filter/2]).
 
@@ -96,17 +96,51 @@ host(PublicKey) ->
 digest(PublicKey) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, PublicKey), lowercase)).
 
-%% Report §8.7: the cookie, the digest of the floor two nodes stand on:
-%% the protocol's version, `ern`'s version, which stands for the runtime's
-%% functions and the standard library, and OTP's major release, within
-%% which the host keeps its term format, its distribution and its compiled
-%% modules. Nothing of the build is in it, so that nodes of different
-%% builds connect, and the hashes tell what they share.
+%% Report §8.7: the cookie, the digest of the floor this build of `ern`
+%% stands on (cookie/2), which its version text names (ern_release), taken
+%% as the node's host first starts (boot_flags/1).
 -spec cookie() -> string().
 cookie() ->
-    Floor = {?PROTOCOL, ?VERSION, erlang:system_info(otp_release)},
+    cookie(ern_release:version_text(), fun code_digest/0).
+
+%% Report §8.7, Appendix H: the cookie of a build whose version text is
+%% VersionText: for a release, the digest of the protocol's version, the
+%% form's version, `ern`'s major and minor, which stand for the runtime's
+%% functions and the standard library, a patch adding nothing, and OTP's
+%% major release, within which the host keeps its term format, its
+%% distribution and its compiled modules; for a build that is no release,
+%% which the version text marks, the digest of its own code, which
+%% CodeDigest gives. Nothing of a program's build is in it, so that nodes of
+%% different builds connect, and the hashes tell what they share.
+-spec cookie(string(), fun(() -> binary())) -> string().
+cookie(VersionText, CodeDigest) ->
+    Floor = case string:split(VersionText, "-") of
+                [Release] ->
+                    [Major, Minor, _Patch] = string:split(Release, ".", all),
+                    {?PROTOCOL, ern_canonical:form_version(), list_to_integer(Major),
+                     list_to_integer(Minor), erlang:system_info(otp_release)};
+                [_, "dev"] ->
+                    CodeDigest()
+            end,
     binary_to_list(binary:encode_hex(crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
                                      lowercase)).
+
+%% Report §8.7: the digest of a development build's own code: each module
+%% of the directories the launcher gives the host, the toolchain's, the
+%% standard library's and the shell's, its tests aside, by the digest of its
+%% code, which the host's module_info(md5) answers too, in the order of
+%% their names. Read from the files, loading none of them: 36 milliseconds
+%% for the 91 modules of the tree at 0.3.1 where the host has read no file
+%% so before, as at a node's first start, which alone asks.
+code_digest() ->
+    Tree = filename:join(filename:dirname(code:which(?MODULE)), "../../.."),
+    Files = lists:append([filelib:wildcard(filename:join(Tree, Pattern))
+                          || Pattern <- ["erl/*/ebin/*.beam", "build/stdlib/*.beam",
+                                         "build/shell/*.beam"]]),
+    Digests = lists:sort([Digest || File <- Files,
+                                    not lists:suffix("_tests.beam", File),
+                                    {ok, Digest} <- [beam_lib:md5(File)]]),
+    crypto:hash(sha256, term_to_binary(Digests, [deterministic])).
 
 %%
 %% The node's start
@@ -409,8 +443,8 @@ host_message(Format, Args) when is_list(Format) ->
                 false -> ignore
             end;
         {_, [Node]} when is_atom(Node) ->
-            say([named(Node), " was refused: it stands on another floor, another release of"
-                               " ern or another major release of OTP"]),
+            say([named(Node), " was refused: it stands on another floor, another release or"
+                               " build of ern or another major release of OTP"]),
             stop;
         _ ->
             stop

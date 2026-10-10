@@ -183,7 +183,9 @@ end_takes_late_spawns() ->
 
 %% report Appendix E.21, §11.2: every fault reaches each subscriber as a
 %% FaultReport, a restart among them, and the runtime's reporter as it
-%% happens; a second subscription replaces the first; a kill is no fault
+%% happens; a second subscription replaces the first; a kill is no fault;
+%% the report of a process no peer spawned names no peer, a regression
+%% test of `peer`, written after the code (finding N12)
 fault_reports_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -202,8 +204,8 @@ fault_reports_test() ->
                Reports = [receive {report, First} -> First end,
                           receive {report, Second} -> Second end],
                Self ! {reports, lists:sort([{Site, Cause, Restarted}
-                                            || {'FaultReport', _, Site, Cause, Restarted, <<>>}
-                                                   <- Reports])},
+                                            || {'FaultReport', _, Site, Cause, Restarted, <<>>,
+                                                'None'} <- Reports])},
                %% every report started is delivered, so one to the first
                %% subscription would be in the mailbox
                ern_rt:timed(),
@@ -981,7 +983,7 @@ via_fault_restarts_test() ->
                ern_rt:send(Adapted, 5),
                Self ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
-    ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _},
+    ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _, _},
                  wait(reported)),
     ?assertEqual(2, wait(took)),
     ?assertEqual(alive, wait(sender)).

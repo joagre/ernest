@@ -1028,18 +1028,19 @@ terminating(Address) ->
 %% FaultReport, each delivery a process of its own as a monitor's is, and
 %% which `ern run`'s reporter, the runtime's own subscriber, is given as it
 %% happens, before the process's end reaches anyone who waits on it, with
-%% the peer whose spawn started the process, which its line names (§8.7),
-%% or none. The fields are in declared order: process, site, cause,
-%% restarted, trace. The reaper reports, so that a delivery is linked to a
-%% process that lives as long as the run; a process that restarts sends it
-%% its fault.
+%% the node of the peer whose spawn started the process, which its line
+%% names (§8.7), or none. The fields are in declared order: process, site,
+%% cause, restarted, trace, and the peer's name as the configuration lists
+%% it (§8.7). The reaper reports, so that a delivery is linked to a process
+%% that lives as long as the run; a process that restarts sends it its
+%% fault.
 report(Pid, Site, Peer, Fault, Restarted) ->
     {Cause, Trace} = case Fault of
                          {ern, fault, FaultCause, FaultTrace} -> {FaultCause, FaultTrace};
                          {ern, fault, FaultCause} -> {FaultCause, <<>>};
                          _ -> {'Fault', Described} = reason(Fault), {Described, <<>>}
                      end,
-    Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace},
+    Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace, ern_peer:name(Peer)},
     case persistent_term:get({?MODULE, reporter}, undefined) of
         undefined -> ok;
         Reporter -> Reporter(Report, Peer)

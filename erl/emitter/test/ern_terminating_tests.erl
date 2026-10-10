@@ -113,7 +113,9 @@ exit_while_the_end_waits_test() ->
 %% the end goes on without it
 faulting_subscriber_is_reported_test() ->
     Self = self(),
-    Faults = fun({'FaultReport', _, Site, Cause, _, _}, _Peer) -> Self ! {fault, Site, Cause} end,
+    Faults = fun({'FaultReport', _, Site, Cause, _, _, _}, _Peer) ->
+                 Self ! {fault, Site, Cause}
+             end,
     {Result, Output} = kept("{ let _ = 1 / List.size([]); answer(reply, Unit) }",
                             "export fn main() : Unit with Never = {\n"
                             "    let _ = spawn(keeper);\n"
@@ -177,7 +179,7 @@ answered_subscriber_restarting_test() ->
 %% M.main:26, the holder's M.main:24.
 restarted(First) ->
     Self = self(),
-    Faults = fun({'FaultReport', _, Site, Cause, Restarted, _}, _Peer) ->
+    Faults = fun({'FaultReport', _, Site, Cause, Restarted, _, _}, _Peer) ->
                  Self ! {fault, Site, Cause, Restarted}
              end,
     ern_emitter_tests:run(

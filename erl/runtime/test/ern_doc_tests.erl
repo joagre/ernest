@@ -304,6 +304,46 @@ since(File) ->
                                             Tags)],
     ?assertEqual([], Wrong).
 
+%% docs/release_review.md, step 5, report §8.7, Appendix H: a patch release
+%% adds nothing and stands on its minor's floor: where VERSION names a
+%% release no tag holds yet, a patch of the last tag's minor, the library's
+%% listings, the form's version and the protocol's version are the last
+%% tag's. Before a release VERSION names the last tag's, and nothing is
+%% compared. A tag's are read from its source's lines, since the code of
+%% today need not read it, and today's the same way. Written after the code
+%% (findings H5, H10); it compares the listings' lines and not what they
+%% mean, and a patch that moves a listing's comment alone fails it
+patch_floor_test() ->
+    {ok, VersionText} = file:read_file(filename:join(?ROOT, "VERSION")),
+    [Major, Minor, Patch] = version(VersionText),
+    {[LastMajor, LastMinor, LastPatch], Tag} = lists:last(tags()),
+    case {Major, Minor} =:= {LastMajor, LastMinor} andalso Patch > LastPatch of
+        true ->
+            Tagged = fun(Path) -> list_to_binary(os:cmd("git -C " ++ ?ROOT ++ " show " ++ Tag
+                                                        ++ ":" ++ Path ++ " 2>/dev/null")) end,
+            Today = fun(Path) ->
+                        case file:read_file(filename:join(?ROOT, Path)) of
+                            {ok, Text} -> Text;
+                            {error, enoent} -> <<>>
+                        end
+                    end,
+            ?assertEqual(patch_kept(Tagged), patch_kept(Today));
+        false ->
+            ok
+    end.
+
+%% What a patch keeps of a release, as Read reads each file: the listings'
+%% lines, and the lines that define the form's version and the protocol's.
+patch_kept(Read) ->
+    Lines = fun(Path) -> binary:split(Read(Path), <<"\n">>, [global]) end,
+    Defined = fun(Path, Prefix) ->
+                  [Line || Line <- Lines(Path), binary:longest_common_prefix([Line, Prefix])
+                                                    =:= byte_size(Prefix)]
+              end,
+    {listed(Lines("report/library.md"), outside, []),
+     Defined("erl/typer/src/ern_canonical.erl", <<"-define(FORM_VERSION,">>),
+     Defined("erl/cli/src/ern_carrier.erl", <<"-define(PROTOCOL,">>)}.
+
 %% The repository's release tags, `v0.2.0`, oldest first, each with its
 %% version.
 tags() ->

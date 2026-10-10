@@ -5,7 +5,7 @@
 %% modules answer, the one mapping of the host's errors to it.
 -module(ern_io).
 
--export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, other/2]).
+-export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1, other/2]).
 
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).
@@ -45,9 +45,18 @@ host_error(Error, Describe) -> other(Error, Describe).
 %% made of them; the host's words have a space or a capital.
 -spec helper_error(binary()) -> term().
 helper_error(Name) ->
+    case helper_reason(Name) of
+        Error when is_atom(Error) -> host_error(Error, fun file:format_error/1);
+        Words -> {'Other', Words}
+    end.
+
+%% The reason an error the helper names stands for: Erlang's name for it,
+%% or the host's own words where Erlang has none (above).
+-spec helper_reason(binary()) -> atom() | binary().
+helper_reason(Name) ->
     case is_posix_name(Name) of
-        true -> host_error(binary_to_atom(Name), fun file:format_error/1);
-        false -> {'Other', Name}
+        true -> binary_to_atom(Name);
+        false -> Name
     end.
 
 is_posix_name(<<$e, Rest/binary>>) when Rest =/= <<>> ->

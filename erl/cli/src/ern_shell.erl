@@ -3002,11 +3002,11 @@ relative(File, #session{source_root = SourceRoot}) ->
         Relative -> Relative
     end.
 
-%% The toolchain's version, the top-level VERSION file, passed by the
-%% Makefile.
+%% The toolchain's version text (ern_release), which the start line names
+%% (report §11.2).
 -spec version() -> binary().
 version() ->
-    list_to_binary(?VERSION).
+    list_to_binary(ern_release:version_text()).
 
 %% The screen writes to the terminal itself: standard output is the screen's,
 %% so a screen that printed through it would print to itself.

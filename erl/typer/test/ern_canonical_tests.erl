@@ -99,6 +99,21 @@ literal_hashes_test() ->
      || {Text, Hex} <- Expected],
     ?assertEqual(1, ern_canonical:form_version()).
 
+%% report Appendix H, §8.7: a type's definition, and a key's message type,
+%% hash to the values written here, computed once from the appendix's
+%% terms, as a literal's do, so that a change of a type's form, of its
+%% encoding or of the version changes them; the form's version is part of
+%% the floor, so a patch release moves none of them. Written after the code
+%% (findings H5, H10): no type's hash was written out
+type_hashes_test() ->
+    Shape = "type Shape = Circle(Float) | Rect(w : Float, h : Float)",
+    ?assertEqual(<<"683bc999e1be42c8308afa0b722ccdaeca7d23f85a521d888d01f8a9c6c4c6d3">>,
+                 binary:encode_hex(hash(Shape, 'Shape'), lowercase)),
+    {#{keys := Keys}, _} = canonical("let k : Peer.Key(Optional(Int)) = Peer.key(\"k\")\n"),
+    ?assertEqual(<<"702bfc8dea0b30e66c3d10f36b7fa83cfa5ca2717e73bb6323b028370d875d1f">>,
+                 binary:encode_hex(maps:get({tcon, ['Optional'], [{tcon, ['Int'], []}]}, Keys),
+                                   lowercase)).
+
 %% report Appendix H: the form of a function, as the appendix writes it:
 %% its scheme, its parameters, its annotations, its requirement and its
 %% body, a local by its number and an operator the runtime applies holding

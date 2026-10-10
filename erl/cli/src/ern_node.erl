@@ -1,13 +1,15 @@
 %% Report §8.3, §8.7, §11.3, Appendix C: a node's configuration directory,
 %% the one owner of its shape. `ern config` makes it, a key, a certificate
 %% the node signs itself and `ernest.conf`; a node started with it checks
-%% it, reads `ernest.conf` whole, writes its process number to `ernest.pid`
-%% and removes it at its end, and starts the host's measures the file
-%% names. A refusal is the runner's (ern_build:fail/1), naming the file.
+%% it, reads `ernest.conf` whole, writes its process number to `ernest.pid`,
+%% holds the file locked for its life and removes it at its end, and starts
+%% the host's measures the file names; `ern reload` and `ern stop` signal
+%% the node that holds the file. A refusal is the runner's
+%% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
 -export([create/1, start/1, start/2, stop/1, file/2, read/1, measures_changed/3, signalled/2,
-         family/1]).
+         stopped/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -145,7 +147,8 @@ start(ConfigDir, Configuration) ->
     Configuration.
 
 %% Report §8.7: a node stops the host's measures at its end, and removes
-%% `ernest.pid`, where the file is still its own.
+%% `ernest.pid`, where the file is still its own; its lock on the file goes
+%% when the host ends with it (pid_written/1).
 -spec stop(file:filename()) -> ok.
 stop(ConfigDir) ->
     measures_stopped(),
@@ -271,55 +274,25 @@ certified_key(#'OTPCertificate'{tbsCertificate = Tbs}) ->
     point_der(Point).
 
 %% Report §8.7: `ernest.pid` holds this node's process number from its
-%% start, made only where no file is there, so that two nodes started at
-%% once cannot both take it; a file that names a living process refuses the
-%% start, and one a dead node left, or that names no process, is replaced.
+%% start, and the node holds it locked for its life, through the runtime's
+%% helper, whose port this process owns until the host ends with the node,
+%% however it ends; a file a living node holds refuses the start, naming the
+%% number it holds, and one no node holds is overwritten, whatever number it
+%% names.
 pid_written(ConfigDir) ->
     PidFile = file(ConfigDir, pid),
-    case taken(PidFile) of
-        ok ->
+    case ern_os:locked(PidFile, list_to_integer(os:getpid())) of
+        locked ->
             ok;
-        held ->
-            case living(PidFile) of
-                {true, ProcessNumber} ->
-                    ern_build:fail(ern_build:shown(ConfigDir) ++ " is the configuration directory"
-                                   " of the running node " ++ integer_to_list(ProcessNumber)
-                                   ++ ", which " ++ ?PID_FILE ++ " names");
-                false ->
-                    _ = file:delete(PidFile),
-                    taken(PidFile) =:= ok
-                        orelse ern_build:fail(ern_build:shown(ConfigDir) ++ " was taken by another"
-                                              " node as this one started")
-            end
-    end.
-
-%% The file made with this process's number, or `held` where one is there.
-taken(PidFile) ->
-    case file:open(PidFile, [write, exclusive, raw, binary]) of
-        {ok, Device} ->
-            ok = file:write(Device, os:getpid() ++ "\n"),
-            ok = file:close(Device);
-        {error, eexist} ->
-            held;
-        {error, Error} ->
-            ern_build:refused(PidFile, Error)
-    end.
-
-%% Whether the file names a living process, by the helper's signal 0; a
-%% file gone meanwhile names none.
-living(PidFile) ->
-    Text = case file:read_file(PidFile) of
-               {ok, Bytes} -> string:trim(binary_to_list(Bytes));
-               {error, _} -> ""
-           end,
-    case string:to_integer(Text) of
-        {ProcessNumber, ""} when ProcessNumber > 0 ->
-            case ern_os:signal(0, ProcessNumber) of
-                none -> false;
-                _ -> {true, ProcessNumber}
-            end;
-        _ ->
-            false
+        {held, <<>>} ->
+            ern_build:fail(ern_build:shown(ConfigDir) ++ " is the configuration directory of a"
+                           " running node, which holds " ++ ?PID_FILE);
+        {held, Number} ->
+            ern_build:fail(ern_build:shown(ConfigDir) ++ " is the configuration directory of the"
+                           " running node " ++ binary_to_list(Number) ++ ", which "
+                           ++ ?PID_FILE ++ " names");
+        {failed, Text} ->
+            fail(ConfigDir, ?PID_FILE, Text)
     end.
 
 %% Report §8.7: a reload's measures: the host's services stopped and those
@@ -357,24 +330,31 @@ measures_stopped() ->
     ok.
 
 %% Report §8.7, §11.2: the signal sent to the node that runs from the
-%% directory, which its `ernest.pid` names; where there is none, or its
-%% process has ended or is another user's, the job fails, saying so.
--spec signalled(file:filename(), pos_integer()) -> ok.
+%% directory, the one that holds its `ernest.pid`, the process the file
+%% names; where there is no file, no node holds it, or its process has
+%% ended or is another user's, the job fails, saying so, and nothing is
+%% signalled.
+-spec signalled(file:filename(), non_neg_integer()) -> ok.
 signalled(ConfigDir, Number) ->
-    Text = case file:read_file(file(ConfigDir, pid)) of
-               {ok, Bytes} -> string:trim(binary_to_list(Bytes));
-               {error, _} -> fail(ConfigDir, ?PID_FILE, "no such file: no node runs from the"
-                                                        " directory")
-           end,
-    ProcessNumber = case string:to_integer(Text) of
-                        {Named, ""} when Named > 0 -> Named;
-                        _ -> fail(ConfigDir, ?PID_FILE, "names no process")
-                    end,
-    case ern_os:signal(Number, ProcessNumber) of
+    node_signalled(ConfigDir, Number, false).
+
+%% Report §8.6, §11.2: termination sent to the node as signalled/2 sends a
+%% signal, and its end waited for, on the lock it holds on `ernest.pid`,
+%% which the host lets go when the node ends, however it ends.
+-spec stopped(file:filename()) -> ok.
+stopped(ConfigDir) ->
+    node_signalled(ConfigDir, 15, true).
+
+node_signalled(ConfigDir, Number, Wait) ->
+    case ern_os:node_signalled(file(ConfigDir, pid), Number, Wait) of
         sent -> ok;
+        no_file -> fail(ConfigDir, ?PID_FILE, "no such file: no node runs from the directory");
+        no_node -> fail(ConfigDir, ?PID_FILE, "no node holds it: no node runs from the directory");
+        no_process -> fail(ConfigDir, ?PID_FILE, "names no process");
         none -> fail(ConfigDir, ?PID_FILE, "names a process that has ended: no node runs from the"
                                            " directory");
-        others -> fail(ConfigDir, ?PID_FILE, "names another user's process")
+        others -> fail(ConfigDir, ?PID_FILE, "names another user's process");
+        {failed, Text} -> fail(ConfigDir, ?PID_FILE, Text)
     end.
 
 %% Report §8.7: the host's measures `measures` names, started with their

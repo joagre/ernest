@@ -44,17 +44,41 @@ name_test() ->
     Other = (configured())#configuration.public_key,
     ?assertNot(public_key:pkix_verify_hostname(Certificate, [{dns_id, ern_carrier:host(Other)}])).
 
-%% report §8.7: the cookie is the digest of the floor, the protocol's
-%% version, 2 since MVP 3.1, `ern`'s version and OTP's major release, and
-%% nothing of the build: the same for every load path, and not changed by
-%% a module built or changed. A regression test of MVP 3.0's fingerprint,
-%% which held every compiled module of the load path
+%% report §8.7, Appendix H: the cookie is the digest of the floor: for a
+%% release, the protocol's version, 2 since MVP 3.1, the form's version,
+%% `ern`'s major and minor and OTP's major release, so that two patch levels
+%% of one minor stand on one floor and two minors do not; for a build that
+%% is no release, which its version text marks, the digest of its own code,
+%% the code of the repository's build, and two codes stand apart; and
+%% nothing of a program's build, the same for every load path and not
+%% changed by a module built. A regression test of MVP 3.0's fingerprint,
+%% which held every compiled module of the load path, and of findings H5,
+%% H10 and N11, written after the code: the cookie held `ern`'s whole
+%% version and no form's version, and a development build stood on the
+%% floor of the release it came after. It does not cover the code digest's
+%% change with a module of the toolchain's
 cookie_test() ->
+    Digest = fun(Floor) ->
+                 binary_to_list(binary:encode_hex(
+                                  crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
+                                  lowercase))
+             end,
+    Unasked = fun() -> erlang:error(code_digest_asked) end,
+    Otp = erlang:system_info(otp_release),
+    ?assertEqual(Digest({2, 1, 0, 3, Otp}), ern_carrier:cookie("0.3.1", Unasked)),
+    ?assertEqual(ern_carrier:cookie("0.3.1", Unasked), ern_carrier:cookie("0.3.7", Unasked)),
+    ?assertNotEqual(ern_carrier:cookie("0.3.1", Unasked), ern_carrier:cookie("0.4.0", Unasked)),
+    ?assertNotEqual(ern_carrier:cookie("0.3.1", Unasked), ern_carrier:cookie("1.3.1", Unasked)),
+    Code = fun(Bytes) -> fun() -> Bytes end end,
+    ?assertEqual(Digest(<<1>>), ern_carrier:cookie("0.3.1-dev", Code(<<1>>))),
+    ?assertNotEqual(ern_carrier:cookie("0.3.1-dev", Code(<<1>>)),
+                    ern_carrier:cookie("0.3.1-dev", Code(<<2>>))),
+    %% the repository's build is no release, and stands on its code's digest
     {ok, Version} = file:read_file("../../../VERSION"),
-    Floor = {2, binary_to_list(string:trim(Version)), erlang:system_info(otp_release)},
-    Digest = crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
+    Release = binary_to_list(string:trim(Version)),
+    ?assertEqual(Release ++ "-dev", ern_release:version_text()),
     Cookie = ern_carrier:cookie(),
-    ?assertEqual(binary_to_list(binary:encode_hex(Digest, lowercase)), Cookie),
+    ?assertNotEqual(ern_carrier:cookie(Release, Unasked), Cookie),
     Dir = tmp(),
     ok = file:write_file(filename:join(Dir, "one.ern"), "export fn f() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", Dir], group_leader())),

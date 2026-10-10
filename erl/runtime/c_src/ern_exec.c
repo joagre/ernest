@@ -2,8 +2,10 @@
  * ern_exec: runs one program for Os.start (report Appendix E.23), doing what
  * the host's ports cannot: the program's standard error apart from its
  * output, the end of its input while its output is still read, and a kill
- * of the program with its process group. It is C99 over POSIX.1-2008 alone,
- * so that any POSIX host builds it; Ernest runs on Linux and macOS.
+ * of the program with its process group; and a node's lock on its
+ * ernest.pid, and a signal to the node that holds one (report §8.7). It is
+ * C99 over POSIX.1-2008 alone, so that any POSIX host builds it; Ernest
+ * runs on Linux and macOS.
  *
  * Run with the argument `run`, the helper runs the program the runtime's
  * first frame names. The runtime and this helper talk over fd 0 and fd 1 in
@@ -51,8 +53,39 @@
  * helper sends that process the signal and exits 0 where it was sent, 1
  * where no such process lives, and 2 where the process lives and is not
  * this user's to signal; the signal 0 sends nothing, and so asks whether
- * the process lives. A node reads so whether the process its ernest.pid
- * names lives (report §8.7), which the host has no word for.
+ * the process lives. `ern` ends so by the signal that ended a running
+ * program (report §11.2), which the host has no word for.
+ *
+ * With the arguments `lock`, a path and a process number, the helper is a
+ * node's hold on its ernest.pid (report §8.7), which the host has no word
+ * for: it opens the file, made where it is not there, and takes the node's
+ * lock on it without waiting. Where another holds that lock, it writes an
+ * 'h' frame, the number the file holds, and exits. Where it took the lock,
+ * it writes the number and a line feed as the file's whole content, then
+ * an 'l' frame, and holds the lock until fd 0 ends, which the host ends
+ * with the node however the node ends; it ignores the signals a terminal
+ * or a service manager sends the node's process group, so that the lock
+ * goes with the node and not before it. An error is an 'f' frame and its
+ * name.
+ *
+ * With the arguments `node`, a path and a signal's number, the helper
+ * sends the signal to the node that holds the node's lock on the file at
+ * the path, the process the file names, and exits 0; given `wait` after
+ * them, it exits 0 once the lock has gone with the node, so that `ern
+ * stop` returns once the node has ended (report §11.2). It exits 1 where
+ * there is no such file, 2 where no node holds it, 3 where it names no
+ * process, 4 where the process it names has ended, and 5 where that
+ * process is not this user's to signal; an error is an 'f' frame and its
+ * name, and 6. A signal reaches only a node so, and never a process whose
+ * number a file no node holds names by chance.
+ *
+ * The locks are POSIX's record locks, which a process holds until it
+ * closes the file or ends, and which another can ask after without taking
+ * them. Two bytes of the file are locked apart, whatever it holds: the
+ * node's lock is the second, held for writing by the node; the first is
+ * held for writing while a node takes its lock and writes its number, and
+ * for reading while the number is read, so that a number read beside a
+ * node's lock is that node's, whole.
  *
  * In every mode the helper first makes its environment the one `ern` was
  * started in (report Appendix E.23, §11): the launcher clears the host's
@@ -401,6 +434,138 @@ static void user_frame(void)
     frame('u', bytes, sizeof bytes);
 }
 
+/* An 'f' frame and the error's name, which ends a job of a node's file. */
+static int failed(int error, int status)
+{
+    const char *name = posix_name(error);
+    frame('f', (const unsigned char *)name, strlen(name));
+    return status;
+}
+
+/* The bytes of a node's file that are locked (above): the number's, and
+   the node's. */
+#define NUMBER_BYTE 0
+#define NODE_BYTE 1
+
+/* A lock of the given type over one byte of a node's file, taken, let go
+   or asked after as Command says, waited for where it is F_SETLKW. */
+static int byte_lock(int fd, int command, short type, off_t byte, struct flock *lock)
+{
+    memset(lock, 0, sizeof *lock);
+    lock->l_type = type;
+    lock->l_whence = SEEK_SET;
+    lock->l_start = byte;
+    lock->l_len = 1;
+    for (;;) {
+        if (fcntl(fd, command, lock) == 0)
+            return 0;
+        if (errno != EINTR)
+            return -1;
+    }
+}
+
+/* The number a node's file holds, read whole while the number's byte is
+   held: -1 where it holds none, and -2 where it cannot be read. */
+static long number_held(int fd)
+{
+    char text[16];
+    ssize_t got = pread(fd, text, sizeof text - 1, 0);
+    if (got < 0)
+        return -2;
+    text[got] = '\0';
+    if (got > 0 && text[got - 1] == '\n')
+        text[got - 1] = '\0';
+    return number_of(text);
+}
+
+/* `lock PATH NUMBER`: the node's hold on its ernest.pid (above). The
+   signals are ignored before the lock is taken, so that none ends the hold
+   while the node lives. */
+static int hold_lock(int argc, char **argv)
+{
+    static const int ignored[] = {SIGHUP, SIGINT, SIGQUIT, SIGTERM};
+    struct flock lock;
+    unsigned char buffer[64];
+    char text[16];
+    long number;
+    size_t index;
+    int fd, length;
+
+    if (argc != 4 || (number = number_of(argv[3])) < 1)
+        return 7;
+    for (index = 0; index < sizeof ignored / sizeof ignored[0]; index++)
+        signal(ignored[index], SIG_IGN);
+    fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    if (fd < 0 || byte_lock(fd, F_SETLKW, F_WRLCK, NUMBER_BYTE, &lock) < 0)
+        return failed(errno, 1);
+    if (byte_lock(fd, F_SETLK, F_WRLCK, NODE_BYTE, &lock) < 0) {
+        long held;
+        if ((errno != EACCES && errno != EAGAIN)
+            || byte_lock(fd, F_GETLK, F_WRLCK, NODE_BYTE, &lock) < 0)
+            return failed(errno, 1);
+        if (lock.l_type == F_WRLCK) {
+            held = number_held(fd);
+            length = held < 0 ? 0 : snprintf(text, sizeof text, "%ld", held);
+            frame('h', (const unsigned char *)text, (size_t)length);
+            return 0;
+        }
+        /* held for reading alone, by an `ern stop` whose node has ended,
+           which lets it go at once; no node can take it meanwhile, since
+           this one holds the number's byte */
+        if (byte_lock(fd, F_SETLKW, F_WRLCK, NODE_BYTE, &lock) < 0)
+            return failed(errno, 1);
+    }
+    length = snprintf(text, sizeof text, "%ld\n", number);
+    if (ftruncate(fd, 0) < 0 || pwrite(fd, text, (size_t)length, 0) != length
+        || byte_lock(fd, F_SETLK, F_UNLCK, NUMBER_BYTE, &lock) < 0)
+        return failed(errno, 1);
+    frame('l', NULL, 0);
+    for (;;) {
+        ssize_t got = read(0, buffer, sizeof buffer);
+        if (got == 0 || (got < 0 && errno != EINTR))
+            return 0;
+    }
+}
+
+/* `node PATH SIGNAL [wait]`: the signal sent to the node that holds the
+   node's lock on the file (above). A node holds it for writing; held for
+   reading, it is another `ern stop`'s, waiting, and no node's. The number
+   is read while its byte is held, and the lock waited for once it is let
+   go. */
+static int signal_node(int argc, char **argv)
+{
+    struct flock lock;
+    long number, process;
+    int fd;
+
+    if (argc < 4 || argc > 5 || (argc == 5 && strcmp(argv[4], "wait") != 0))
+        return 7;
+    number = number_of(argv[3]);
+    if (number < 0 || number > SIGNALS)
+        return 7;
+    fd = open(argv[2], O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return errno == ENOENT ? 1 : failed(errno, 6);
+    if (byte_lock(fd, F_SETLKW, F_RDLCK, NUMBER_BYTE, &lock) < 0)
+        return failed(errno, 6);
+    if (byte_lock(fd, F_GETLK, F_WRLCK, NODE_BYTE, &lock) < 0)
+        return failed(errno, 6);
+    if (lock.l_type != F_WRLCK)
+        return 2;
+    process = number_held(fd);
+    if (process == -2)
+        return failed(errno, 6);
+    if (process < 1)
+        return 3;
+    if (byte_lock(fd, F_SETLK, F_UNLCK, NUMBER_BYTE, &lock) < 0)
+        return failed(errno, 6);
+    if (kill((pid_t)process, (int)number) < 0)
+        return errno == EPERM ? 5 : 4;
+    if (argc == 5 && byte_lock(fd, F_SETLKW, F_RDLCK, NODE_BYTE, &lock) < 0)
+        return failed(errno, 6);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
@@ -430,6 +595,10 @@ int main(int argc, char **argv)
     }
     if (strcmp(argv[1], "signal") == 0)
         return send_signal(argc, argv);
+    if (strcmp(argv[1], "lock") == 0)
+        return hold_lock(argc, argv);
+    if (strcmp(argv[1], "node") == 0)
+        return signal_node(argc, argv);
     if (strcmp(argv[1], "run") != 0)
         return 1;
     program_command = read_command();

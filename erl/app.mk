@@ -6,7 +6,11 @@
 EBIN = ../ebin
 ERLC = erlc
 # VERSION at the top of the repository is the toolchain's version; a bump rebuilds.
-ERLC_FLAGS = +debug_info -Werror -I ../include -DVERSION='"$(shell cat ../../../VERSION)"'
+# The repository's build is no release, which its version text marks
+# (ern_release); the release archive compiles that module without
+# DEVELOPMENT (tools/install.sh).
+ERLC_FLAGS = +debug_info -Werror -I ../include -DVERSION='"$(shell cat ../../../VERSION)"' \
+    -DDEVELOPMENT
 
 # Lets -include_lib("app/include/x.hrl") find sibling apps under erl/.
 export ERL_LIBS = $(abspath ../..)

@@ -10,8 +10,8 @@
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, signal/2, host/0, user/0, umask/0,
-         working_directory/0]).
+-export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signalled/3, host/0, user/0,
+         umask/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -97,6 +97,61 @@ signal(Number, ProcessNumber) ->
         {Port, {exit_status, 1}} -> none;
         {Port, {exit_status, 2}} -> others
     end.
+
+%% Report §8.7: a node's `ernest.pid` locked by the helper for the node's
+%% life, which writes ProcessNumber into it as its whole content. The
+%% calling process owns the helper's port, which the host closes with the
+%% node however it ends, and the lock goes then, and not before. `locked`,
+%% or `{held, Text}` where a living node holds the file, Text the number it
+%% holds, or empty where it holds none, or `{failed, Text}`, the words for
+%% what stopped the helper.
+-spec locked(file:filename(), pos_integer()) ->
+          locked | {held, binary()} | {failed, string()}.
+locked(PidFile, ProcessNumber) ->
+    Helper = open(["lock", PidFile, integer_to_list(ProcessNumber)]),
+    receive
+        {Helper, {data, <<"l">>}} -> locked;
+        {Helper, {data, <<"h", Text/binary>>}} -> ended(Helper), {held, Text};
+        {Helper, {data, <<"f", Name/binary>>}} -> ended(Helper), {failed, error_text(Name)};
+        {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
+    end.
+
+%% Report §8.7, §11.2: the signal Number sent by the helper to the node that
+%% holds the lock on PidFile, the process the file names, and where Wait is
+%% true, the node's end waited for, on its lock, which the host lets go
+%% when the node ends: `sent`; `no_file`; `no_node` where no node holds the
+%% file; `no_process` where the file names none; `none` where the process
+%% it names has ended; `others` where that process is another user's; or
+%% `{failed, Text}`.
+-spec node_signalled(file:filename(), non_neg_integer(), boolean()) ->
+          sent | no_file | no_node | no_process | none | others | {failed, string()}.
+node_signalled(PidFile, Number, Wait) ->
+    Helper = open(["node", PidFile, integer_to_list(Number) | ["wait" || Wait]]),
+    receive
+        {Helper, {data, <<"f", Name/binary>>}} -> ended(Helper), {failed, error_text(Name)};
+        {Helper, {exit_status, 0}} -> sent;
+        {Helper, {exit_status, 1}} -> no_file;
+        {Helper, {exit_status, 2}} -> no_node;
+        {Helper, {exit_status, 3}} -> no_process;
+        {Helper, {exit_status, 4}} -> none;
+        {Helper, {exit_status, 5}} -> others;
+        {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
+    end.
+
+%% Until the helper has ended, its last frame read.
+ended(Helper) ->
+    receive {Helper, {exit_status, _}} -> ok end.
+
+%% The words for an error the helper names (ern_io:helper_reason/1).
+error_text(Name) ->
+    case ern_io:helper_reason(Name) of
+        Error when is_atom(Error) -> file:format_error(Error);
+        Words -> binary_to_list(Words)
+    end.
+
+helper_failed_text() ->
+    {fault, Cause} = helper_failed(),
+    binary_to_list(Cause).
 
 %% Until the helper says whether the program started, the Start is
 %% answered by nothing else, and nothing else knows the process. Report
