@@ -87,13 +87,13 @@ collect(Acc) ->
         iolist_to_binary(lists:reverse(Acc))
     end.
 
-%% A directory of the test's own, for a program to leave a mark in; one an
-%% earlier run left under the same name is removed first.
+%% A directory of the test's own, for a program to leave a mark in, named
+%% by the run and a count so that no earlier run's is read; the test
+%% removes it once it has what it needs.
 scratch() ->
     Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
                         "ern_os_" ++ os:getpid() ++ "_"
                         ++ integer_to_list(erlang:unique_integer([positive]))),
-    file:del_dir_r(Dir),
     ok = filelib:ensure_path(Dir),
     Dir.
 
@@ -2467,6 +2467,7 @@ work_makes_no_atoms() ->
         "    work();\n"
         "    Io.println(Io.show(info(Foreign.atom(\"atom_count\")) - before))\n"
         "}\n"]),
+    ok = file:del_dir_r(Dir),
     ?assertEqual(<<"0\n">>, Output).
 
 %% report §8.4, §7.4: a type variable of a foreign function's result that no
@@ -2712,7 +2713,8 @@ unrelated_module_not_initialized_test() ->
     after
         code:del_path(Dir),
         code:purge(ErlangModule),
-        code:delete(ErlangModule)
+        code:delete(ErlangModule),
+        file:del_dir_r(Dir)
     end.
 
 %% report §10: a tail call takes constant stack space, through the branches

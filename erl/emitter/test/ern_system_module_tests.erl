@@ -103,7 +103,9 @@ os_run_timeout_kills_test() ->
     {ok, Output} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
     ?assertEqual(<<"Timeout\n">>, Output),
     timer:sleep(1000),
-    ?assertNot(filelib:is_file(Mark)).
+    Marked = filelib:is_file(Mark),
+    ok = file:del_dir_r(filename:dirname(Mark)),
+    ?assertNot(Marked).
 
 %% Appendix E.23: a program whose caller dies is killed with it. The caller
 %% says once the program has started; an absence then: the program would
@@ -124,7 +126,9 @@ os_run_dies_with_its_caller_test() ->
         "    kill(w)\n"
         "}\n"),
     timer:sleep(1000),
-    ?assertNot(filelib:is_file(Mark)).
+    Marked = filelib:is_file(Mark),
+    ok = file:del_dir_r(filename:dirname(Mark)),
+    ?assertNot(Marked).
 
 %% report §8.6, Appendix E.23: a program running is a source, so a caller
 %% that only waits for it is in no deadlock
@@ -225,6 +229,7 @@ os_start_output_waits_for_a_read_test() ->
         "    let pieces = drain(p, 0);\n"
         "    Io.println(Io.show(#(unread, pieces > 0, marked())))\n"
         "}\n"]),
+    ok = file:del_dir_r(Scratch),
     ?assertEqual(<<"#(false, true, true)\n">>, Output).
 
 %% Appendix E.23: the program reads `input`, then what write gives it,

@@ -1224,9 +1224,13 @@ source_begin(Holder) ->
 -spec source_end() -> ok.
 source_end() ->
     Key = {source, erlang:self()},
-    try ets:update_counter(?HELD, Key, {2, -1}) of
-        0 -> ets:delete_object(?HELD, {Key, 0});
-        _ -> true
+    %% the delete inside the try with the count, since the table goes with
+    %% the node's end at any moment between the two
+    try
+        case ets:update_counter(?HELD, Key, {2, -1}) of
+            0 -> ets:delete_object(?HELD, {Key, 0});
+            _ -> true
+        end
     catch _:_ ->
         true
     end,

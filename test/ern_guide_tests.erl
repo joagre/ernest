@@ -170,7 +170,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
                                  "--build-root", Build | LoadPathOptions] ++ [Dir],
                                 group_leader())),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
-    case Launch of
+    Checked = case Launch of
         none ->
             ok;
         #launch{invocation = Invocation, compiled_file = CompiledFile, words = Words,
@@ -196,7 +196,9 @@ check({modules, #{files := Files, launch := Launch}}) ->
                               ++ " 2> " ++ ErrorFile),
             {ok, Stderr} = file:read_file(ErrorFile),
             same_streams(Expected, session_end(Printed), Stderr)
-    end;
+    end,
+    ok = file:del_dir_r(Dir),
+    Checked;
 check({rejected, #{files := [{Name, Code}], shown := Shown} = Unit}) ->
     Dir = tmp(),
     File = filename:join(Dir, Name),
@@ -205,6 +207,7 @@ check({rejected, #{files := [{Name, Code}], shown := Shown} = Unit}) ->
     Status = ern_cli:ern(["build", "--source-root", Dir, File], group_leader()),
     Output = binary:replace(unicode:characters_to_binary(?capturedOutput),
                             list_to_binary(Dir ++ "/"), <<>>, [global]),
+    ok = file:del_dir_r(Dir),
     ?assertMatch({1, _}, {Status, Output}),
     %% rejected for its own reason, not for a slip in the example
     maps:get(any_reason, Unit, false) orelse
@@ -228,6 +231,7 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
     ok = write(InputFile, [[Input, <<"\n">>] || Input <- Inputs]),
     {0, Output} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
                      ++ " shell < " ++ InputFile),
+    ok = file:del_dir_r(Dir),
     ?assertEqual(trim(Expected), session_end(Output)).
 
 %% Report §11.2: a console shows standard output and standard error as a
@@ -468,10 +472,12 @@ printed(Code) ->
     ok = write(filename:join(Dir, "example.ern"), Code),
     {_, Output} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern")
                      ++ " build example.ern"),
+    ok = file:del_dir_r(Dir),
     Output.
 
-%% A fresh directory: the counter restarts with each run, so one left by an
-%% earlier run is removed first.
+%% A fresh directory of the check's own, named by the run and a count so
+%% that no earlier run's is read, and removed once the check has what it
+%% needs; one a failed check leaves stays, for a reader.
 tmp() ->
     Unique = os:getpid() ++ "_" ++ integer_to_list(erlang:unique_integer([positive])),
     Dir = filename:join(ern_pty:run_dir(), "ern_guide_" ++ Unique),
