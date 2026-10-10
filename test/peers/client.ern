@@ -1,0 +1,15 @@
+// Appendix G.7: a standing address of the counter, asked at each line on
+// the standard input, the counter's node stopped, started again and
+// replaced by another between the lines.
+
+export fn main() : Unit with Never = {
+    let counter = Standing.start(Counter.key, 2000);
+    Io.println("standing");
+    List.foreach(["first", "away", "back", "other"], fn(label) = ask(counter, label))
+}
+
+fn ask(counter : Address(Counter.Msg), label : String) : Unit with m = {
+    let _ = Io.readLine();
+    let answered = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 3000);
+    Io.println(label <> ": " <> Io.show(answered))
+}

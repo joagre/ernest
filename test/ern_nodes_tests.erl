@@ -16,7 +16,7 @@
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["balancer", "json", "load"]]).
+                    || Library <- ["balancer", "json", "load", "standing"]]).
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -392,9 +392,14 @@ seen(Dir, Stream, Part, Ms) ->
 %% A waiting node ended by termination, which ends it with 128 and the
 %% signal's number (report §11.2).
 stop(Dir, Wait) ->
+    terminated(Dir),
+    ?assertEqual(143, Wait()).
+
+%% A node sent termination, by the process its ernest.pid names.
+terminated(Dir) ->
     {ok, Pid} = file:read_file(filename:join(Dir, "ernest.pid")),
     _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
-    ?assertEqual(143, Wait()).
+    ok.
 
 %% What a node that has ended wrote, once both its streams have ended.
 said(Dir) ->
@@ -1392,6 +1397,103 @@ shell_node(Base) ->
     has(StoreErr, "the peer desk's spawn at input 2:1 was not loaded: this node does not have"
                   " its function").
 
+%%
+%% The end told, and the standing address (report §8.6, Appendix E.23, G.7)
+%%
+
+%% The directory test/peers/'s programs are built in (peers/1), the
+%% counter's keeper, its asker and the standing address's client among
+%% them.
+built(Base) ->
+    {Program, _} = peers(Base),
+    filename:dirname(Program).
+
+%% report §8.6, §8.7, Appendix E.23: termination, here `ern stop`'s, tells
+%% the node's subscriber, which the node says it waits for; while it
+%% waits, a peer finds the node's service and calls it; the node ends once
+%% the subscriber has answered, by the signal, and says the answer. Written
+%% after the code (MVP 3.1's item 8)
+end_told_on_a_node_test_() ->
+    nodes_test(90, fun end_told_on_a_node/1).
+
+end_told_on_a_node(Base) ->
+    Root = built(Base),
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    edit(Desk, fun(Conf) -> Conf#{<<"keys">> => #{<<"counter">> => [<<"store">>]}} end),
+    {StoreInput, WaitStore} = started(Store, filename:join(Root, "keeper.erc"), ["wait"]),
+    prints(Store, "offered"),
+    terminated(Store),
+    prints(Store, "told"),
+    says(Store, "the end waits for 1 subscriber"),
+    ?assertEqual(0, (start(Desk, filename:join(Root, "asker.erc"), []))()),
+    true = port_command(StoreInput, "go\n"),
+    ?assertEqual(143, WaitStore()),
+    {DeskOut, _} = said(Desk),
+    {_, StoreErr} = said(Store),
+    has(DeskOut, "asked: Some(3)"),
+    has(StoreErr, "the subscriber Keeper.main answered").
+
+%% report §8.6: a second termination ends the node at once, past a
+%% subscriber that does not answer. Written after the code (MVP 3.1's item
+%% 8)
+second_termination_test_() ->
+    nodes_test(60, fun second_termination/1).
+
+second_termination(Base) ->
+    Root = built(Base),
+    Store = made(Base, "store", none),
+    WaitStore = start(Store, filename:join(Root, "keeper.erc"), ["hold"]),
+    prints(Store, "offered"),
+    terminated(Store),
+    says(Store, "the end waits for 1 subscriber"),
+    terminated(Store),
+    ?assertEqual(143, WaitStore()),
+    {_, Err} = said(Store),
+    ?assertEqual(nomatch, string:find(Err, "answered")).
+
+%% Appendix G.7, report §8.7: a standing address reaches the counter, a
+%% call through it answers None while the counter's node is stopped, it
+%% reaches the counter again when its node starts again, and on another
+%% node that offers it once the first is stopped. Written after the code
+%% (MVP 3.1's item 8)
+standing_test_() ->
+    nodes_test(120, fun standing/1).
+
+standing(Base) ->
+    Root = built(Base),
+    {PortStore, PortOther} = {free_port(), free_port()},
+    Store = made(Base, "store", PortStore),
+    Other = made(Base, "other", PortOther),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Other, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}, {"other", Other, PortOther}]),
+    edit(Desk, fun(Conf) ->
+                   Conf#{<<"keys">> => #{<<"counter">> => [<<"store">>, <<"other">>]}}
+               end),
+    Keeper = filename:join(Root, "keeper.erc"),
+    WaitStore = start(Store, Keeper, []),
+    prints(Store, "offered"),
+    {DeskInput, WaitDesk} = started(Desk, filename:join(Root, "client.erc"), []),
+    prints(Desk, "standing"),
+    Ask = fun(Line) -> true = port_command(DeskInput, "go\n"), prints(Desk, Line) end,
+    Ask("first: Some(0)"),
+    stop(Store, WaitStore),
+    Ask("away: None"),
+    WaitStoreAgain = start(Store, Keeper, []),
+    prints(Store, "offered"),
+    Ask("back: Some(0)"),
+    stop(Store, WaitStoreAgain),
+    WaitOther = start(Other, Keeper, []),
+    prints(Other, "offered"),
+    Ask("other: Some(0)"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Other, WaitOther).
+
 %% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
 %% picks in turn until a place has a measure, and then the lower of the
 %% measures installed on each, the store's spawned there with Peer.spawn;
@@ -1441,13 +1543,16 @@ program_test_() ->
 
 pair_program(Base) ->
     _ = peers(Base),
+    second_build(Base),
     {PortA, PortB} = {free_port(), free_port()},
     A = made(Base, "a", PortA),
     B = made(Base, "b", none),
     lists(A, [{"b", B, PortB}]),
     edit(A, fun(Conf) -> Conf#{<<"keys">> => #{<<"pair">> => [<<"b">>]}} end),
     Settings = #{<<"port">> => PortB,
-                 <<"load-path">> => [list_to_binary(Library) || Library <- ?LIBRARIES]},
+                 <<"load-path">> => [list_to_binary(Library) || Library <- ?LIBRARIES],
+                 <<"build">> => <<"build/pair.erc">>,
+                 <<"second-build">> => <<"second-build/pair.erc">>},
     ok = file:write_file(filename:join(Base, "pair.json"), json:encode(Settings)),
     Command = lists:flatten([?ERN, " test --config-dir a",
                              [[" --load-path ", Library] || Library <- ?LIBRARIES],
@@ -1461,7 +1566,25 @@ pair_program(Base) ->
     ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<"failed">>)}),
     has(binary_to_list(Output), "a second node made, started with Os, found, called and stopped:"
                                 " passed"),
+    has(binary_to_list(Output), "a second node of another build, started with Os, offers at another"
+                                " type: passed"),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
+
+%% Report §8.7: a second build of test/peers/pair.ern, its `Msg` given
+%% another constructor, so that its key's type has another hash, built in
+%% Base/second-build.
+second_build(Base) ->
+    {ok, Source} = file:read_file("peers/pair.ern"),
+    Declared = <<"export type Msg = Double(n : Int, reply : Reply(Int))">>,
+    Changed = binary:replace(Source, Declared, <<Declared/binary, " | Halve(Int)">>),
+    ?assertNotEqual(Source, Changed),
+    Root = filename:join(Base, "second"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "pair.ern"), Changed),
+    0 = ern_cli:ern(["build", "--source-root", Root, "--build-root",
+                     filename:join(Base, "second-build")]
+                    ++ lists:append([["--load-path", Library] || Library <- ?LIBRARIES])
+                    ++ [filename:join(Root, "pair.ern")], group_leader()).
 
 %% A port's output to its end, and its exit status.
 collected(Port, Acc) ->

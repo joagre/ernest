@@ -1,0 +1,12 @@
+// Report §8.6, §8.7: finds the counter while its node's end waits, adds to
+// it and asks it.
+
+export fn main() : Unit with Never =
+    match Peer.find(Counter.key, 5000) {
+        Right(counter) -> {
+            send(counter, Counter.Add(3));
+            let total = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000);
+            Io.println("asked: " <> Io.show(total))
+        }
+      | Left(failure) -> Io.println("asked: " <> Io.show(failure))
+    }

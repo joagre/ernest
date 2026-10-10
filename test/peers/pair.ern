@@ -1,11 +1,14 @@
 // Report §8.7, §11.2, Appendix E.23, G.6: a program's own test of two
-// nodes. `ern test --config-dir a` runs its test as the node `a`, in the
-// directory the harness made: `a` and `b`, each made by `ern config`, `a`
-// listing `b` under the key `pair`; the build; and `pair.json`, which
-// names the port `b` listens on and the load path `a` was started with.
-// The test writes `b`'s `ernest.conf`, listing `a`, starts `b` with `Os`
-// on the same build, waits for it to offer its service, calls it through
-// `Peer.find`, and ends it with `ern stop`.
+// nodes, and of two builds. `ern test --config-dir a` runs its tests as the
+// node `a`, in the directory the harness made: `a` and `b`, each made by
+// `ern config`, `a` listing `b` under the key `pair`; the build, and a
+// second build of this module whose `Msg` has another constructor; and
+// `pair.json`, which names the port `b` listens on, the load path `a` was
+// started with and each build's file. Each test writes `b`'s
+// `ernest.conf`, listing `a`, starts `b` with `Os`, on the same build or on
+// the second, waits for it to offer its service, finds it through
+// `Peer.find` and calls it where the find answers it, and ends it with
+// `ern stop`.
 
 export type Msg = Double(n : Int, reply : Reply(Int))
 
@@ -28,18 +31,27 @@ fn serve() : Unit with Msg =
     }
 
 //
-// The test (report §9.3), run on the first node.
+// The tests (report §9.3), run on the first node.
 //
 
 let twoNodes =
     Test.Case(name = "a second node made, started with Os, found, called and stopped",
-              run = fn() = Test.equal(withSecondNode(), Right(#(Some(42), 143))))
+              run = fn() = Test.equal(withSecondNode("build"), Right(#("Some(42)", 143))))
 
-// What the second node answered, and the status it ended with.
-fn withSecondNode() : Either(String, #(Optional(Int), Int)) with m = {
+// Report §8.7: a key names its type by its hash, so a node of the second
+// build, whose Msg has another constructor, offers the key at another type.
+let twoBuilds =
+    Test.Case(name = "a second node of another build, started with Os, offers at another type",
+              run = fn() = Test.equal(withSecondNode("second-build"), Right(#("OtherType", 143))))
+
+// What the second node answered, a call's answer where the find gave its
+// address and the find's failure otherwise, and the status it ended with;
+// its program the file `pair.json` names under Build.
+fn withSecondNode(build : String) : Either(String, #(String, Int)) with m = {
     let settings <- readJson(["pair.json"]);
     let port <- Either.andThen(member(settings, "port"), integer);
     let loadPath <- Either.andThen(member(settings, "load-path"), texts);
+    let file <- Either.andThen(member(settings, build), text);
     let first <- readJson(["a", "ernest.conf"]);
     let firstKey <- member(first, "public-key");
     let firstAddress <- member(first, "listen");
@@ -57,17 +69,18 @@ fn withSecondNode() : Either(String, #(Optional(Int), Int)) with m = {
     let arguments = List.flatMap(loadPath, fn(directory) = ["--load-path", directory]);
     let program <-
         shown(Os.start(Os.Command(program = "ern",
-                                  arguments = ["run", "--config-dir", "b"]
-                                      <> arguments
-                                      <> ["build/pair.erc"],
+                                  arguments = ["run", "--config-dir", "b"] <> arguments <> [file],
                                   input = <<>>)));
     let _ <- said(program, String.toUtf8("offered"), <<>>);
-    let service <- shown(Peer.find(key, 10000));
-    let doubled = Address.call(service, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let answered = match Peer.find(key, 10000) {
+        Right(service) ->
+            Io.show(Address.call(service, fn(reply) = Double(n = 21, reply = reply), 10000))
+      | Left(failure) -> Io.show(failure)
+    };
     let stop = Os.Command(program = "ern", arguments = ["stop", "--config-dir", "b"], input = <<>>);
     let _ <- shown(Os.run(stop, 10000));
     let status <- ended(program);
-    Right(#(doubled, status))
+    Right(#(answered, status))
 }
 
 // The JSON a file of the working directory holds.
@@ -92,6 +105,12 @@ fn integer(value : Json.Value) : Either(String, Int) =
     match value {
         Json.Integer(int) -> Right(int)
       | other -> Left("not an integer: " <> Io.show(other))
+    }
+
+fn text(value : Json.Value) : Either(String, String) =
+    match value {
+        Json.Text(found) -> Right(found)
+      | other -> Left("not a string: " <> Io.show(other))
     }
 
 fn texts(value : Json.Value) : Either(String, List(String)) =

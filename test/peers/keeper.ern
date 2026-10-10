@@ -1,0 +1,43 @@
+// Report §8.6, §8.7, Appendix E.23: a counter a node offers under the
+// counter's key, whose entry process is told of the node's end and answers
+// at once, after a line on its standard input with the argument `wait`, or
+// never with `hold`.
+
+type Stop = Stop(Reply(Unit))
+
+fn count(total : Int) : Unit with Counter.Msg =
+    receive {
+        Counter.Add(amount) -> count(total + amount)
+      | Counter.Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn main() : Unit with Stop = {
+    Peer.offer(Counter.key, spawn(fn() = count(0)));
+    Os.terminating(Stop);
+    Io.println("offered");
+    receive {
+        Stop(reply) -> {
+            Io.println("told");
+            match Os.arguments {
+                ["wait"] -> {
+                    let _ = Io.readLine();
+                    answer(reply, Unit)
+                }
+              | ["hold"] -> held(reply)
+              | _ -> answer(reply, Unit)
+            }
+        }
+    }
+}
+
+// Holds the reply and never answers it.
+fn held(reply : Reply(Unit)) : Unit with Stop =
+    receive {
+        Stop(other) -> {
+            answer(other, Unit);
+            held(reply)
+        }
+    }

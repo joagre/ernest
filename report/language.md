@@ -920,6 +920,7 @@ The prelude binds no system reference. Each is a private binding of its system m
 - Mailboxes are unbounded; a program is responsible for its own backpressure.
 - What the runtime adds to an operation of the host, a check, a count or a row, costs a fraction of that operation and never a multiple, and grows with nothing but the operation's own input.
 - A system process costs its message where the process holds what the operation needs, and no message where the host answers without one.
+- A spawn and a monitor cost, beside the host's operation, a message to the runtime and its answer. A `Down` costs a process of its own, which applies its wrap (§6.9).
 - Memory is the host's. A program that exhausts it ends at once, every process with it: no process faults, no monitor is told, and the host's message is written to standard error (§11.8).
 - `Int` has arbitrary precision. A result beyond the host's integers faults with `Fault("error:system_limit")`, a limit of the host met (§7.4).
 - Bitstrings are constructed and matched by the runtime's bit syntax (§5.11).
