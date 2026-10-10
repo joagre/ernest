@@ -1,6 +1,6 @@
 %% Report §3.11: the type bound to its node, and the refusals that keep a
 %% value of one from starting towards another node. A key of a bound type
-%% is refused where the checker supplies the key's text (ern_typecheck's
+%% is refused where the checker supplies the key's type (ern_typecheck's
 %% supply of `keyed`); a spawn on a peer is read off a definition here,
 %% once the definition is inferred: its function is a declaration's name,
 %% or a lambda or a `fn` written in the definition, at the spawn or bound

@@ -919,7 +919,7 @@ supply(#shown_type{type = Type, member = exposed}, Walk) ->
     %% Appendix H, E.12: the type Foreign.from gives its value at
     {Form, Walk1} = type(Type, Walk),
     {{shown, Form}, Walk1};
-supply(#type_text{type = Type}, Walk) ->
+supply(#key_type{type = Type}, Walk) ->
     %% report §8.7: the key's message type, whose hash it carries
     {Form, #walk{keys = Keys} = Walk1} = type(Type, Walk),
     {{key, Form}, Walk1#walk{keys = [{Type, Form} | Keys]}}.

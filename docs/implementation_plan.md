@@ -201,7 +201,7 @@ and 8 below.
    `test/ern_integration_tests.erl` to their modules, where a `Test.Case` binding kept their
    functions off a peer under the rule by module (`language_feedback.md`'s entry 95). Built
    2026-10-10 (the log's *The Spawn by Hash, Built*): the cookie the floor's digest, the protocol
-   at 2; a key `{'Key', Name, Hash, Text}`, its hash the type's canonical term's; the spawn frame
+   at 2; a key `{'Key', Name, Hash}`, its hash the type's canonical term's, the text it carried gone in item 9's read (P2); the spawn frame
    by identity, a lambda or local `fn` lifted to an entry its unit's `'$spawned'/2` runs over the
    captures, `restarting` over one admitted; a function's reach of bindings and foreign modules
    computed at build time and read in one lookup each; `NotLoaded` said on the peer's standard

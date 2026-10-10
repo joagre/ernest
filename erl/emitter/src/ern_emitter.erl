@@ -992,14 +992,13 @@ name_form(_Span, _, from,
 name_form(_Span, _, from, #own_declaration{member_of = undefined, name = from}, _Type,
           [#shown_type{type = Crossing}], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     from_value(Crossing, Context);
-%% Report §8.7: Peer.key as a value, its key's type's hash and text
-%% supplied
+%% Report §8.7: Peer.key as a value, its key's type's hash supplied
 name_form(_Span, _, key,
           #remote_declaration{namespace = ['Peer'], member_of = undefined, name = key},
           _Type, [Keyed], Context) ->
     {[Name], Context1} = fresh_variables(1, "Name", Context),
-    {lambda([Name], call_remote(ern_peer, key, [erl_syntax:variable(Name)
-                                                | key_type(Keyed, Context)])),
+    {lambda([Name], call_remote(ern_peer, key, [erl_syntax:variable(Name),
+                                                key_hash(Keyed, Context)])),
      Context1};
 name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
     prelude_value(Span, QualifiedName, Type, Context);
@@ -1136,7 +1135,7 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = from
      [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     from_call(Span, Argument, Crossing, Context);
 %% Report §8.7, Appendix E.27: Peer.key makes its key with its message
-%% type's hash and text, which the checker supplied; Peer.spawn and
+%% type's hash, of the type the checker supplied; Peer.spawn and
 %% Peer.spawnMonitored send the function's identity and captures in place
 %% of the function, and the spawn's site, as a spawn on this node keeps it
 %% (§6.9)
@@ -1145,7 +1144,7 @@ call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of
                   supplies = [Keyed]},
      [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
-    {at(Span, call_remote(ern_peer, key, [ArgumentForm | key_type(Keyed, Context)])), Context1};
+    {at(Span, call_remote(ern_peer, key, [ArgumentForm, key_hash(Keyed, Context)])), Context1};
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
                                                  name = Name}},
      [PeerName, Spawned | Rest], Context) when Name =:= spawn; Name =:= spawnMonitored ->
@@ -1506,11 +1505,9 @@ site(Span,
 text_site(SiteParts) ->
     string_binary(unicode:characters_to_binary(SiteParts)).
 
-%% Report §8.7, Appendix H: a key's message type's hash, of its canonical
-%% form, and its text, as the checker printed it.
-key_type(#type_text{text = Text, type = Type}, #emit_context{canonical = #{keys := Keys}}) ->
-    [erl_syntax:abstract(maps:get(Type, Keys)),
-     string_binary(unicode:characters_to_binary(Text))].
+%% Report §8.7, Appendix H: a key's message type's hash, of its canonical form.
+key_hash(#key_type{type = Type}, #emit_context{canonical = #{keys := Keys}}) ->
+    erl_syntax:abstract(maps:get(Type, Keys)).
 
 %%
 %% Operators, report §4.8

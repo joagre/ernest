@@ -49,10 +49,10 @@
 ///
 /// since 0.4.0
 
-/// A key: the name a service is offered and found under, and the service's
-/// message type, its hash and its text, which the compiler gives where the
-/// key is made. A key starts nothing, and crosses to other nodes as any value
-/// of an unbound type does.
+/// A key: the name a service is offered and found under, and the hash of the
+/// service's message type, which the compiler gives where the key is made. A
+/// key starts nothing, and crosses to other nodes as any value of an unbound
+/// type does.
 ///
 /// ### Examples
 ///
@@ -63,12 +63,12 @@
 /// }
 /// // => Left(NotListed)
 /// ```
-export abstract type Key(m) = Key(name : String, hash : Bytes, text : String)
+export abstract type Key(m) = Key(name : String, hash : Bytes)
 
 /// A key of the name, at the message type the compiler finds where it is
 /// written, which is known whole there and crosses to other nodes. The key
-/// holds the type's hash, which a find compares, and its text with every
-/// name qualified, `Counter.Msg`, whichever module writes it.
+/// holds the name and the type's hash, which a find compares. One type has
+/// one hash whichever module writes the key.
 ///
 /// ### Examples
 ///
@@ -81,6 +81,20 @@ export abstract type Key(m) = Key(name : String, hash : Bytes, text : String)
 /// ```
 export foreign fn key(name : String) : Key(m) =
     "ern_peer:key/1"
+
+/// The name the key was made with.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let key : Peer.Key(Int) = Peer.key("squares");
+///     Peer.name(key)
+/// }
+/// // => "squares"
+/// ```
+export fn name(key : Key(m)) : String =
+    key.name
 
 /// Lets this node's peers find the address under the key, for as long as its
 /// process lives, and answers `Right(Unit)`. The address names a process of

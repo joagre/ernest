@@ -1,4 +1,4 @@
-// Report §8.7, §11.2, Appendix E.23, G.6: a program's own test of two
+// Report §8.7, §11.2, Appendix E.23, G.6, G.7: a program's own test of two
 // nodes, and of two builds. `ern test --config-dir a` runs its tests as the
 // node `a`, in the directory the harness made: `a` and `b`, each made by
 // `ern config`, `a` listing `b` under the key `pair`; the build, and a
@@ -7,8 +7,8 @@
 // started with and each build's file. Each test writes `b`'s
 // `ernest.conf`, listing `a`, starts `b` with `Os`, on the same build or on
 // the second, waits for it to offer its service, finds it through
-// `Peer.find` and calls it where the find answers it, and ends it with
-// `ern stop`.
+// `Peer.find`, or through a standing address, and calls it where the find
+// answers it, and ends it with `ern stop`.
 
 export type Msg = Double(n : Int, reply : Reply(Int))
 
@@ -34,6 +34,9 @@ fn serve() : Unit with Msg =
 // The tests (report §9.3), run on the first node.
 //
 
+// What a monitor of a process says of its end.
+type Ended = Ended(Down)
+
 let twoNodes =
     Test.Case(name = "a second node made, started with Os, found, called and stopped",
               run = fn() = Test.equal(withSecondNode("build"), Right(#("Some(42)", 143))))
@@ -44,10 +47,54 @@ let twoBuilds =
     Test.Case(name = "a second node of another build, started with Os, offers at another type",
               run = fn() = Test.equal(withSecondNode("second-build"), Right(#("OtherType", 143))))
 
+// Appendix G.7: a standing address of the key, where the second node
+// offers it at another type, faults at the first message, which finds the
+// key: the call that sent it answers None, the process's monitor reads the
+// fault, and a call after it answers None at once, the address dead. The
+// address is started, and its process monitored, before the second node
+// runs, so that the monitor is made before the fault.
+let standingAtAnotherType =
+    Test.Case(name = "a standing address of a key offered at another type faults, and is dead",
+              run = fn() = {
+                  let ended = Io.show(Fault("the key pair is offered at another type"));
+                  Test.equal(standingAgainst("second-build"), Right(#("None", ended, "None", 143)))
+              })
+
 // What the second node answered, a call's answer where the find gave its
 // address and the find's failure otherwise, and the status it ended with;
 // its program the file `pair.json` names under Build.
 fn withSecondNode(build : String) : Either(String, #(String, Int)) with m = {
+    let program <- started(build);
+    let answered = match Peer.find(key, 10000) {
+        Right(service) ->
+            Io.show(Address.call(service, fn(reply) = Double(n = 21, reply = reply), 10000))
+      | Left(failure) -> Io.show(failure)
+    };
+    let status <- stopped(program);
+    Right(#(answered, status))
+}
+
+// What a call through a standing address of the key answered once the
+// second node ran, how the address's process ended, what a call answered
+// after that, and the status the second node ended with; each wait's time
+// bounds a failure, and no success waits on it.
+fn standingAgainst(build : String) : Either(String, #(String, String, String, Int)) with Ended = {
+    let standing = Standing.start(key, 10000);
+    monitor(Process.fromAddress(standing), Ended);
+    let program <- started(build);
+    let first = Address.call(standing, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let ended = receive {
+        Ended(down) -> Io.show(down.reason)
+      | after 30000 -> "no end"
+    };
+    let second = Address.call(standing, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let status <- stopped(program);
+    Right(#(Io.show(first), ended, Io.show(second), status))
+}
+
+// The second node started on the build the file `pair.json` names under
+// Build, listing the first, once it has offered its service.
+fn started(build : String) : Either(String, Address(Os.ProgramMsg)) with m = {
     let settings <- readJson(["pair.json"]);
     let port <- Either.andThen(member(settings, "port"), integer);
     let loadPath <- Either.andThen(member(settings, "load-path"), texts);
@@ -72,15 +119,14 @@ fn withSecondNode(build : String) : Either(String, #(String, Int)) with m = {
                                   arguments = ["run", "--config-dir", "b"] <> arguments <> [file],
                                   input = <<>>)));
     let _ <- said(program, String.toUtf8("offered"), <<>>);
-    let answered = match Peer.find(key, 10000) {
-        Right(service) ->
-            Io.show(Address.call(service, fn(reply) = Double(n = 21, reply = reply), 10000))
-      | Left(failure) -> Io.show(failure)
-    };
+    Right(program)
+}
+
+// The status the second node ended with, stopped by `ern stop`.
+fn stopped(program : Address(Os.ProgramMsg)) : Either(String, Int) with m = {
     let stop = Os.Command(program = "ern", arguments = ["stop", "--config-dir", "b"], input = <<>>);
     let _ <- shown(Os.run(stop, 10000));
-    let status <- ended(program);
-    Right(#(answered, status))
+    ended(program)
 }
 
 // The JSON a file of the working directory holds.

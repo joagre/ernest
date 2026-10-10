@@ -2324,48 +2324,73 @@ export let key : Peer.Key(Msg) = Peer.key("counter")
 
 ```ernest
 // store.ern
-type Stop = Stop(Reply(Unit))
+type Msg = Request(Counter.Msg) | Terminating(Reply(Unit)) | HolderEnded(Down)
 
-let counter : Address(Counter.Msg) = spawn(fn() = count(kept()))
+type Ended = Ended(Down)
 
-fn count(total : Int) : Unit with Counter.Msg =
-    receive {
-        Counter.Add(amount) -> count(total + amount)
-      | Counter.Get(reply = reply) -> {
-            answer(reply, total);
-            count(total)
+let counter : Address(Msg) = spawn(fn() = {
+    Os.terminating(Terminating);
+    serve()
+})
+
+// The counter offered under the key, each request wrapped in `Request`,
+// and counting on from the count kept. Where a process holds the key, the
+// counter waits for its end, its requests waiting in its mailbox, and
+// offers again, so that it reads the count the holder kept last.
+fn serve() : Unit with Msg =
+    match Peer.offer(Counter.key, via(self(), Request)) {
+        Right(_) -> count(kept())
+      | Left(holder) -> {
+            monitor(holder, HolderEnded);
+            receive {
+                HolderEnded(_) -> serve()
+              | Terminating(reply) -> answer(reply, Unit)
+            }
         }
     }
 
-export fn main() : Unit with Stop = {
-    let _ = Peer.offer(Counter.key, counter);
-    Os.terminating(Stop);
+fn count(total : Int) : Unit with Msg =
     receive {
-        Stop(reply) -> {
-            match Address.call(counter, fn(get) = Counter.Get(reply = get), 1000) {
-                Some(total) -> keep(total)
-              | None -> Unit
+        Request(Counter.Add(amount)) -> count(total + amount)
+      | Request(Counter.Get(reply = reply)) -> {
+            answer(reply, total);
+            count(total)
+        }
+      | Terminating(reply) -> {
+            match keep(total) {
+                Right(_) -> Unit
+              | Left(error) -> Io.printlnError("the count was not kept: " <> Io.show(error))
             };
             answer(reply, Unit)
         }
     }
-}
 
-// The count at the last end, read from the file `count`, or 0.
+// The count at the last end, read from the file `count`: 0 where there is
+// none, at the first start, and a fault where it holds no number, since
+// nothing of the store's wrote it.
 fn kept() : Int with m =
     match Fs.read(Path("count"), 1000) {
-        Right(bytes) -> {
-            let text = Optional.withDefault(String.fromUtf8(bytes), "");
-            Optional.withDefault(String.toInt(text), 0)
+        Right(bytes) -> match Optional.andThen(String.fromUtf8(bytes), String.toInt) {
+            Some(total) -> total
+          | None -> fault("the file count holds no number")
         }
-      | Left(_) -> 0
+      | Left(Io.NotFound) -> 0
+      | Left(error) -> fault("the file count cannot be read: " <> Io.show(error))
     }
 
-fn keep(total : Int) : Unit with m =
-    match Fs.write(Path("count"), String.toUtf8(Int.toString(total)), 1000) {
-        Right(_) -> Unit
-      | Left(error) -> Io.printlnError("the count was not kept: " <> Io.show(error))
+// The count written beside the file `count` and renamed over it, so that
+// the file holds the old count or the new, whole.
+fn keep(total : Int) : Either(Io.Error, Unit) with m = {
+    let _ <- Fs.write(Path("count.new"), String.toUtf8(Int.toString(total)), 1000);
+    Fs.rename(Path("count.new"), Path("count"), 1000)
+}
+
+export fn main() : Unit with Ended = {
+    monitor(Process.fromAddress(counter), Ended);
+    receive {
+        Ended(_) -> Unit
     }
+}
 ```
 
 ```ernest
@@ -2400,7 +2425,7 @@ $ ern run desk.erc
 no store: NotListed
 ```
 
-`Peer.offer(key, address)` lets the store's peers find `counter` under the key for as long as its process lives, and faults where a living process holds the key already, so a service is one per node; a `restarting` loop keeps its address and its offer through its restarts (report §6.9). `Peer.find(key, ms)` asks the peers the desk's `ernest.conf` lists under `"counter"`, in that order, and answers the first address offered under the name at the key's message type; a peer out of reach, offering nothing, or offering the name at another type is passed over, and where none offers it the find answers the last failure met, or `Left(Timeout)`. Where a service lives is the configuration's: `"keys": {"counter": ["store"]}` on the desk, and no find names a node. The address found is used as any other: `send`, `Address.call`, `monitor` and `kill` reach the store's process as they reach one here, nothing checks a message on arrival, since the find compared the key's type, and the address is as good on a third node it is sent to (report §8.4, §8.7).
+`Peer.offer(key, address)` lets the store's peers find the counter under the key for as long as its process lives. The counter offers `via(self(), Request)`, an address of `Counter.Msg` whose messages arrive in its mailbox wrapped in `Request` (§5.5), so a peer sees the protocol alone and the counter's own type holds the end's message and a holder's `Down` beside it. A key has one holder on a node: the offer answers `Right(Unit)` where it took the key, and `Left(holder)`, that process, where a living process holds it already, as the previous version's counter does after `:reload` (§9.3). The counter then monitors the holder, waits for its end with its requests left in its mailbox, and offers again; it reads what was kept only once it holds the key, so it reads what the holder wrote last. A `restarting` loop keeps its address and its offer through its restarts (report §6.9). `Peer.find(key, ms)` asks the peers the desk's `ernest.conf` lists under `"counter"`, in that order, and answers the first address offered under the name at the key's message type; a peer out of reach, offering nothing, or offering the name at another type is passed over, and where none offers it the find answers the last failure met, or `Left(Timeout)`. Where a service lives is the configuration's: `"keys": {"counter": ["store"]}` on the desk, and no find names a node. The address found is used as any other: `send`, `Address.call`, `monitor` and `kill` reach the store's process as they reach one here, nothing checks a message on arrival, since the find compared the key's type, and the address is as good on a third node it is sent to (report §8.4, §8.7).
 
 **A loss.** A connection breaks or a peer falls silent; a node that ends in order is no loss, and a monitor on its processes gives `ProgramEnd`. Each node then ends what it held with the other and nothing else: every monitor on the peer's processes gives one `Down` with the reason `Unreachable` and an empty `site`, every call waiting on one of them answers `None`, and a `callForever` faults with `callee is unreachable`; what waited to be sent is dropped, and a later `send` vanishes until the two connect again. No other process of your own dies of it. The address outlives the loss: once the nodes connect again, which the next operation that needs it does, the same address reaches the same process, for as long as it lives and its node has not been started again. A monitor does not outlive it: a program that goes on watching calls `monitor` again, on the process the `Down` named, and while the peer stays out of reach the new monitor answers `Unreachable` once the dial has failed. A peer that fell silent is given up in 45 to 75 seconds, and one that closed at once (report §8.7).
 
@@ -2410,7 +2435,7 @@ no store: NotListed
 
 **Two builds.** A key holds the hash of its message type beside its name, and the find asks each peer for what it offers under the name and compares the hash: a peer that offers `counter` at another type is passed over as one offering nothing is, and where every listed peer does, the find answers `Left(OtherType)`. A store built with one constructor more in `Counter.Msg` is, to a desk of the earlier build, a service it cannot find, never one that reads its messages wrongly; the desk is rebuilt and started again. Nodes of different builds connect, since the floor and not the build is what the handshake proves (report §8.7).
 
-**The end.** `ern stop` is termination, as a service manager's stop is (§9.5), and the store's `main` is told of it: `Os.terminating(Stop)` subscribes the calling process, and at the end the runtime puts `Stop(reply)` in its mailbox, waits until the reply is answered, and only then ends the program. The store asks the counter its total, writes it to a file and answers; at its next start the counter reads the file. While the end waits every process runs on, and a peer still finds and calls the store, so a subscriber that needs another process's answer gets it. Nothing of the runtime's times the wait: a second `ern stop`, and the interrupt, end the program at once. `ern stop` itself returns once the node has ended, so a script that restarts a node writes `ern stop --config-dir foo && ern run --config-dir foo store.erc`. What the program keeps is its own: the runtime holds no state and reads none back, a state of more parts is written in the form the program chooses, `Json` (report Appendix G.6) among them, and where a new build changes the shape, the program's own code reads the old one. The runtime says on standard error that it waits for its subscriber, naming it by its spawn site, and that the subscriber answered, for a node and for a program that is none alike (report §8.6, Appendix E.23). A `main` that waits on nothing else waits for this message, which is the one wait a program that is to keep running has for its life; a `receive` with `after` alone would end the store on time, not on purpose.
+**The end.** `ern stop` is termination, as a service manager's stop is (§9.5), and the counter itself is told of it: `Os.terminating(Terminating)` subscribes the calling process, and at the end the runtime puts `Terminating(reply)` in its mailbox, waits until the reply is answered, and only then ends the program. Told, the counter writes its total to `count.new` beside the kept file, renames it over `count`, answers, and ends; a rename replaces a file whole, so `count` holds the old count or the new, whatever cuts the write short (report Appendix E.17). It reads `count` when it begins to count: no file is the first start, and 0, and a file that holds no number was written by nothing of the store's, so the counter faults with its cause rather than begin at 0 unsaid. While the end waits every process runs on, and a peer still finds and calls the store. Nothing of the runtime's times the wait: a second `ern stop`, and the interrupt, end the program at once. `ern stop` itself returns once the node has ended, so a script that restarts a node writes `ern stop --config-dir foo && ern run --config-dir foo store.erc`. What the program keeps is its own: the runtime holds no state and reads none back, a state of more parts is written in the form the program chooses, `Json` (report Appendix G.6) among them, and where a new build changes the shape, the program's own code reads the old one. The runtime says on standard error whom the end waits for, each subscriber by its spawn site, `the end waits for 1 subscriber: Store.counter:6`, and each as it answers, `the subscriber Store.counter:6 answered`, for a node and for a program that is none alike; where a second `ern stop` cuts the wait short, it names the subscribers that went unanswered (report §8.6, report §11.2, Appendix E.23). The store's `main` offers nothing and subscribes to nothing: it waits for its counter's end, so the store ends with a counter that faults. A program that is to keep running waits so for what it serves, or, where it waits on nothing else, for the end's own message; a `receive` with `after` alone would end it on time, not on purpose.
 
 **A service that comes back.** When the store is stopped and started again the address the desk found is dead: it died with its process, and each start of a node is a number of its own in every address (report §8.7). A client that is to go on calling the counter finds it again, or holds a *standing address* from the library `Standing` (report Appendix G.7), on the load path as any library is (§9.1). `Standing.start(Counter.key, 5000)` in `board.ern` answers an `Address(Counter.Msg)` behind which a process finds the key, forwards each message to the service found, and, when that service ends or its node is lost, finds the key again at the next message, on whichever listed peer offers it, one find under way at a time; the process ends with the one that called `start`, so at the shell's prompt, where the caller is the input's process, a standing address is started in a process that lives on, as a socket is given to one (§9.3). A find that answers `OtherType`, the key offered at another type, faults the process, and the fault's line names the key: that is what the board of an older build sees against a store whose protocol changed. A message that comes while the service is away, and whose find fails, is lost as a message to an ended process is, so a call through the address answers `None` at its own time, which says nothing of whether the request ran (report §8.7), and a client asks again with a request that is harmless run twice. The standing address is one process more on the message's way, so a message through it may pass one sent to the service directly; a program that is to monitor the service holds the address `Peer.find` gives.
 
@@ -2668,7 +2693,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 **Completion.** `Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. After a value the session knows and a `.`, it completes the fields the value's type selects: `it.co` to `it.count`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With no word begun, as after `f(`, they are the session's names, the modules in scope, and the prelude's names other than its constructors, and every other name comes from its first letters. At the start of a row `Tab` indents instead. `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-**Loading and reloading.** `:load Words` compiles the module `Words` from its source, `words.ern` under the source root, and puts it in scope. `:reload` compiles and loads again each loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. Processes running the old version go on running it, and a binding that holds a function of it keeps it: a reload unloads nothing. A binding made before a reload keeps the type it was checked under. Where the reload changed a type, the binding's type is the previous version's, which prints as `Counter$1.Msg`, and a message of the new version sent to it is a type error.
+**Loading and reloading.** `:load Words` compiles the module `Words` from its source, `words.ern` under the source root, and puts it in scope. `:reload` compiles and loads again each loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. One that offers a key, as §8.2's counter does, finds the key held by the old one, and waits on the old one's end to take it. `kill(c)`, `c` a binding that holds the old one's address, ends the old one, as does a request of its protocol that makes it write what it keeps and end; the key moves to the new one at the old one's `Down`. What the old one counted since it last wrote is lost at a `kill`, which is why a service that must lose nothing writes at each change, or on request. Processes running the old version go on running it, and a binding that holds a function of it keeps it: a reload unloads nothing. A binding made before a reload keeps the type it was checked under. Where the reload changed a type, the binding's type is the previous version's, which prints as `Counter$1.Msg`, and a message of the new version sent to it is a type error.
 
 At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup`, and then, if `--config-dir` names a configuration directory, those in its `startup`. A directory the shell merely starts in runs nothing of its own. A startup line may be a command, and one that fails is reported with its file and line.
 

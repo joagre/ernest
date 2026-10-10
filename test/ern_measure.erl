@@ -837,7 +837,7 @@ terminal_scenarios() ->
 peer_scenarios() ->
     Peer = 'ern@peer',
     Me = ern_rt:self(),
-    {Name, Hash, Text} = {<<"measured">>, <<0:256>>, <<"Int">>},
+    {Name, Hash} = {<<"measured">>, <<0:256>>},
     Withdrawn = fun() ->
                     ets:delete(ern_offers, {Name, Hash}),
                     ets:delete_object(ern_offered, {Me, {Name, Hash}})
@@ -845,10 +845,10 @@ peer_scenarios() ->
     Offers = ets:new(ern_measure_offers, [ordered_set, public]),
     Offered = ets:new(ern_measure_offered, [bag, public]),
     AcrossNodes = {not_measured, <<"acts on a peer, which a run of one node cannot reach">>},
-    [{<<"Peer.key">>, {fun() -> ern_peer:key(Name, Hash, Text) end,
-                       fun() -> {'Key', Name, Hash, Text} end}},
+    [{<<"Peer.key">>, {fun() -> ern_peer:key(Name, Hash) end,
+                       fun() -> {'Key', Name, Hash} end}},
      {<<"Peer.offer">>,
-      {fun() -> Peer:offer(ern_peer:key(Name, Hash, Text), Me), Withdrawn() end,
+      {fun() -> Peer:offer(ern_peer:key(Name, Hash), Me), Withdrawn() end,
        fun() ->
            ets:insert_new(Offers, {{Name, Hash}, Me, Me}),
            ets:insert(Offered, {Me, {Name, Hash}}),
@@ -908,10 +908,10 @@ balancer_scenarios() ->
 
 %% Appendix G.7: a standing address started and ended, its find answering
 %% at once in a launch that is no node, beside a process spawned and
-%% ended; the key's hash and text are no type's, since nothing finds it.
+%% ended; the key's hash is no type's, since nothing finds it.
 standing_scenarios() ->
     Standing = 'ern@standing',
-    Key = {'Key', <<"measured">>, <<0:256>>, <<"Measured">>},
+    Key = {'Key', <<"measured">>, <<0:256>>},
     [{<<"Standing.start">>,
       {fun() -> ern_rt:kill(Standing:start(Key, 1000)) end,
        fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].

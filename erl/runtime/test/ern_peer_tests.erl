@@ -1,9 +1,9 @@
-%% Report §8.7, Appendix E.27, E.22: what a node's gateway does with a
-%% spawn's answer and a spawn from a peer, and a supervisor's child on
-%% another node, each where a run of real nodes cannot show it whenever it
-%% runs. Real nodes are test/ern_nodes_tests.erl's. Regression tests,
-%% written after the code, the spawn by identity's (MVP 3.1's item 4) among
-%% them.
+%% Report §8.7, Appendix E.27, E.22, G.7: what a node's gateway does with a
+%% spawn's answer and a spawn from a peer, a supervisor's child on another
+%% node, and a standing address's finds, each where a run of real nodes
+%% cannot show it whenever it runs. Real nodes are test/ern_nodes_tests.erl's.
+%% Regression tests, written after the code, the spawn by identity's (MVP
+%% 3.1's item 4) among them; the standing address's was written before.
 -module(ern_peer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -310,7 +310,7 @@ foreign_offer_test() ->
     Self = self(),
     Main = fun() ->
                Foreign = spawn(fun() -> receive stop -> ok end end),
-               ern_peer:offer({'Key', <<"foreign">>, <<0:256>>, <<"Int">>}, Foreign),
+               ern_peer:offer({'Key', <<"foreign">>, <<0:256>>}, Foreign),
                Self ! {offered, ern_rt:offered(<<"foreign">>, <<0:256>>)},
                %% the reaper takes the offer away as it learns of the end
                Reaper = persistent_term:get({ern_rt, reaper}),
@@ -332,7 +332,7 @@ foreign_offer_test() ->
 held_key_test() ->
     Self = self(),
     Main = fun() ->
-               Key = {'Key', <<"held">>, <<0:256>>, <<"Int">>},
+               Key = {'Key', <<"held">>, <<0:256>>},
                Holder = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.holder">>),
                Newcomer = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.newcomer">>),
                Taken = ern_peer:offer(Key, Holder),
@@ -408,3 +408,68 @@ restart_asks_gateway_test() ->
 
 crashes() ->
     receive crash -> ern_rt:fault(<<"crashed">>) end.
+
+%% Appendix G.7: a standing address makes one find at a time. Two messages
+%% that come while a find is under way wait for it and share its outcome:
+%% where it fails, both go to the last address held, the process that
+%% stands where no address has been found, and neither starts a find of its
+%% own; a message that comes after the failure starts one. In a run that is
+%% no node a find answers NotListed at once, so the host holds the standing
+%% process still while the two come, as a find under way holds it, and its
+%% finds and its sends are read by tracing it
+standing_one_find_test() ->
+    Standing = library("standing"),
+    Self = self(),
+    Main = fun() ->
+               ern_rt:init_modules([Standing]),
+               Key = {'Key', <<"probe">>, <<0:256>>},
+               {via, _, Forwarder, _} = Address = Standing:start(Key, 1000),
+               %% the first find made, the process waits for a message
+               ok = ern_waits:until(Forwarder, fun() -> holds(Standing, Forwarder) end),
+               1 = erlang:trace_pattern({'ern@peer', find, 2}, true, [local]),
+               erlang:trace(Forwarder, true, [call, send]),
+               true = erlang:suspend_process(Forwarder),
+               ern_rt:send(Address, 1),
+               ern_rt:send(Address, 2),
+               true = erlang:resume_process(Forwarder),
+               During = traced(Forwarder, 2),
+               ern_rt:send(Address, 3),
+               After = traced(Forwarder, 3),
+               erlang:trace(Forwarder, false, [call, send]),
+               erlang:trace_pattern({'ern@peer', find, 2}, false, [local]),
+               Self ! {traced, During, After}
+           end,
+    Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, Quiet)),
+    {traced, During, After} = receive {traced, _, _} = Traced -> Traced end,
+    [_, {sent, 1, Nowhere} | _] = During,
+    ?assertEqual([find, {sent, 1, Nowhere}, {sent, 2, Nowhere}], During),
+    ?assertEqual([find, {sent, 3, Nowhere}], After),
+    ?assertNot(is_process_alive(Nowhere)).
+
+%% A library's module, compiled under build/libs, loaded.
+library(Name) ->
+    Erc = filename:join(["../../../build/libs", Name, Name ++ ".erc"]),
+    {ok, Bytes} = file:read_file(Erc),
+    Unit = list_to_atom("ern@" ++ Name),
+    {module, Unit} = code:load_binary(Unit, Erc, Bytes),
+    Unit.
+
+%% Whether the standing process waits for its next message.
+holds(Standing, Forwarder) ->
+    erlang:process_info(Forwarder, [status, current_function])
+        =:= [{status, waiting}, {current_function, {Standing, held, 4}}].
+
+%% What the traced process did, a find or a message sent and to whom, up to
+%% the message Last sent.
+traced(Pid, Last) ->
+    receive
+        {trace, Pid, call, {'ern@peer', find, _}} ->
+            [find | traced(Pid, Last)];
+        {trace, Pid, Sent, Message, To} when Sent =:= send;
+                                            Sent =:= send_to_non_existing_process ->
+            case Message of
+                Last -> [{sent, Message, To}];
+                _ -> [{sent, Message, To} | traced(Pid, Last)]
+            end
+    end.

@@ -12,7 +12,7 @@
 %% the moment its time ends, in slices the host takes (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, name/1, key/1, key/3, offer/2, find/2, spawn/3, spawn/4,
+-export([configure/2, tables/0, name/1, key/1, key/2, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, peers/0, frame/2, lost/1]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
@@ -74,23 +74,23 @@ name(Node) ->
 %% The shims
 %%
 
-%% Report §8.7, Appendix H: a key, its name, and its message type's hash
-%% and text, which the compiler supplies at the call; it starts nothing.
-%% key/1 is the declaration's, which no call reaches.
+%% Report §8.7, Appendix H: a key, its name and its message type's hash,
+%% which the compiler supplies at the call; it starts nothing. key/1 is the
+%% declaration's, which no call reaches.
 -spec key(binary()) -> no_return().
 key(_Name) ->
     erlang:error(key_without_type).
 
--spec key(binary(), binary(), binary()) -> {'Key', binary(), binary(), binary()}.
-key(Name, Hash, Text) ->
-    {'Key', Name, Hash, Text}.
+-spec key(binary(), binary()) -> {'Key', binary(), binary()}.
+key(Name, Hash) ->
+    {'Key', Name, Hash}.
 
 %% Report §8.7: an offer under the key's name and its type's hash, for as
 %% long as its process lives, a process of this node: `Right(Unit)` where
 %% it took the key, and `Left(Holder)` where a living process holds it.
--spec offer({'Key', binary(), binary(), binary()}, ern_rt:address()) ->
+-spec offer({'Key', binary(), binary()}, ern_rt:address()) ->
           {'Right', 'Unit'} | {'Left', pid()}.
-offer({'Key', Name, Hash, _Text}, Address) ->
+offer({'Key', Name, Hash}, Address) ->
     ern_rt:offer({Name, Hash}, Address).
 
 %% Report §8.7: the first address offered under the key's name at its type's
@@ -99,9 +99,9 @@ offer({'Key', Name, Hash, _Text}, Address) ->
 %% offers it at a type of another hash is passed over, the last such
 %% failure answered where no peer offers it, and `Timeout` where the time
 %% runs out.
--spec find({'Key', binary(), binary(), binary()}, integer()) ->
+-spec find({'Key', binary(), binary()}, integer()) ->
           {'Right', term()} | {'Left', atom()}.
-find({'Key', Name, Hash, _Text}, Ms) ->
+find({'Key', Name, Hash}, Ms) ->
     Deadline = ern_rt:deadline(Ms),
     Nodes = [node_of(Peer) || Peer <- maps:get(Name, persistent_term:get({?MODULE, keys}, #{}),
                                                 [])],

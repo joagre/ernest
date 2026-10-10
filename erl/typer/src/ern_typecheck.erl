@@ -2426,7 +2426,7 @@ params_and_body(#let_declaration{body = Body}) -> {[], Body}.
 %% at which the name is used, read the same way.
 %% Report §8.7, §3.11, Appendix E.27: `Peer.key` makes its key at the
 %% message type at which the name is used, read the same way, and the key
-%% holds the type's text as the compiler prints it.
+%% holds the type's hash beside its name.
 shown(Span, Referent, Type, Env) ->
     case {declared(Referent, Env), Type} of
         {{'Foreign', from}, {tfn, [Argument], _, _}} ->
@@ -3426,10 +3426,7 @@ supply(Span, Type, keyed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
                     " Peer.key(\"name\")` (§3.11)"),
     case ern_bound:binds(Message, Env) of
         false ->
-            %% every name qualified, the module's own among them, so that one
-            %% type has one text whichever module writes the key
-            {#type_text{text = ern_types:format(Message, ern_types:new()), type = Message},
-             Env};
+            {#key_type{type = Message}, Env};
         Why ->
             fail(Span, "Peer.key makes a key of " ++ Text ++ ", which is bound to its node, since"
                        " it holds " ++ Why, [],

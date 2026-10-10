@@ -2541,8 +2541,8 @@ balance(Base) ->
     has(StoreOut, "the store squares 36"),
     has(StoreOut, "loads there: #(true, true, true)").
 
-%% report §8.7, §11.2, Appendix E.23, Appendix G.6: a program's own test of two
-%% nodes, `ern test --config-dir a` as a node. The harness makes two
+%% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
+%% of two nodes, `ern test --config-dir a` as a node. The harness makes two
 %% directories as `ern config` makes them, `a` listening and listing `b`
 %% under the key `pair`, and says in `pair.json` the port `b` listens on and
 %% the load path `a` runs with; the test, in Ernest, writes `b`'s
@@ -2550,9 +2550,11 @@ balance(Base) ->
 %% and calls what it offers, and ends it with `ern stop`; a second test
 %% starts `b` with `Os` on a second build, whose `Msg` has another
 %% constructor (second_build/1), and finds `OtherType` at its key, the type
-%% it offers at having another hash. A regression test, written after the
-%% code; it does not cover a reload, whose end a program cannot see (§8.7:
-%% the signal carries nothing back)
+%% it offers at having another hash; a third holds a standing address of
+%% the key against the second build, whose process faults at the first
+%% message, the fault reported as every fault is. A regression test,
+%% written after the code; it does not cover a reload, whose end a program
+%% cannot see (§8.7: the signal carries nothing back)
 program_test_() ->
     nodes_test(90, fun pair_program/1).
 
@@ -2583,6 +2585,10 @@ pair_program(Base) ->
                                 " passed"),
     has(binary_to_list(Output), "a second node of another build, started with Os, offers at another"
                                 " type: passed"),
+    has(binary_to_list(Output), "a standing address of a key offered at another type faults, and is"
+                                " dead: passed"),
+    ?assertMatch({match, _}, re:run(Output, "Standing\\.start:[0-9]+ faulted: the key pair is"
+                                            " offered at another type")),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
 
 %% Report §8.7: a second build of test/peers/pair.ern, its `Msg` given

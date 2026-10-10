@@ -55,9 +55,9 @@ type Msg(m) = Message(m) | Went(Down)
 /// service. A message that comes while the service is away and whose find
 /// fails goes to the last address held, lost where that process has ended
 /// (report §6.2); a call through the address then answers `None` at its own
-/// time. A find that answers `OtherType` faults the process, with
-/// `the key Counter.key is offered at another type`. The process ends with
-/// the process that called `start`.
+/// time. A find that answers `OtherType` faults the process with a cause that
+/// names the key by its name, `the key counter is offered at another type`.
+/// The process ends with the process that called `start`.
 ///
 /// ### Examples
 ///
@@ -74,21 +74,37 @@ export fn start(key : Peer.Key(m), ms : Int) : Address(m) with n = {
         // where a message goes while the service has never been found: a
         // process that has ended, at which a message is lost (report §6.2)
         let nowhere : Address(m) = spawn(fn() : Unit with m = Unit);
-        held(key, ms, caller, found(key, ms, nowhere))
+        let #(address, present) = found(key, ms, nowhere);
+        held(key, ms, caller, shared(address, present))
     });
     via(standing, Message)
 }
 
 // The address the next message goes to, and whether it is the service's:
 // the service's where a find gives it, monitored from then on, and else
-// `away`, where the service was last, which may have ended.
+// `away`, where the service was last, which may have ended. A key offered
+// at another type is no absence, and no later find mends it: the process
+// faults.
 fn found(key : Peer.Key(m), ms : Int, away : Address(m)) : #(Address(m), Bool) with Msg(m) =
     match Peer.find(key, ms) {
         Right(address) -> {
             monitor(Process.fromAddress(address), Went);
             #(address, true)
         }
+      | Left(Io.OtherType) -> fault("the key " <> Peer.name(key) <> " is offered at another type")
       | Left(_) -> #(away, false)
+    }
+
+// The target a find gave, each message that came while the find was under
+// way sent to it first, so that one find is under way at a time: the
+// messages the mailbox holds now, none waited for.
+fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) with Msg(m) =
+    receive {
+        Message(message) -> {
+            send(address, message);
+            shared(address, present)
+        }
+      | after 0 -> #(address, present)
     }
 
 // Each message forwarded, the service found again first where it is away,
@@ -98,13 +114,16 @@ fn held(key : Peer.Key(m),
         caller : Process,
         target : #(Address(m), Bool)) : Unit with Msg(m) =
     receive {
-        Message(message) -> {
-            let #(address, present) = match target {
-                #(_, true) -> target
-              | #(away, false) -> found(key, ms, away)
-            };
-            send(address, message);
-            held(key, ms, caller, #(address, present))
+        Message(message) -> match target {
+            #(address, true) -> {
+                send(address, message);
+                held(key, ms, caller, target)
+            }
+          | #(away, false) -> {
+                let #(address, present) = found(key, ms, away);
+                send(address, message);
+                held(key, ms, caller, shared(address, present))
+            }
         }
       | Went(down) -> if down.process == caller then
             Unit

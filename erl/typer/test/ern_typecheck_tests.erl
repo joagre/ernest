@@ -543,9 +543,9 @@ bound_declared_type_test() ->
                                         " Peer.key(\"tree\")\n")).
 
 %% report §3.11, §8.7, Appendix E.27: a key is made at a message type known
-%% whole where it is written, which crosses, and holds the type's text as
-%% the compiler prints it with every name qualified, the module's own
-%% among them, beside the type itself, whose hash the compiler gives it
+%% whole where it is written, which crosses, and the checker supplies the
+%% type itself, every name in it qualified, the module's own among them,
+%% whose hash the compiler gives the key beside its name
 key_test() ->
     Source = "export type Msg = Add(Int) | Get(reply : Reply(Int))\n"
              "export type Box(a) = Box(a)\n",
@@ -554,8 +554,7 @@ key_test() ->
                             "export let boxes : Peer.Key(Box(Optional(Int))) ="
                             " Peer.key(\"boxes\")\n"),
     Box = {tcon, ['M', 'Box'], [{tcon, ['Optional'], [{tcon, ['Int'], []}]}]},
-    ?assertEqual([[#type_text{text = "M.Msg", type = {tcon, ['M', 'Msg'], []}}],
-                  [#type_text{text = "M.Box(Optional(Int))", type = Box}]],
+    ?assertEqual([[#key_type{type = {tcon, ['M', 'Msg'], []}}], [#key_type{type = Box}]],
                  [Supplies || #let_declaration{body = #e_call{callee = #e_var{supplies = Supplies}}}
                                   <- Typed]),
     ?assertEqual("Peer.key makes its key at a message type known whole, and here it is a",
