@@ -1,7 +1,7 @@
 // Report §8.7, §11.2, Appendix E.23, G.6, G.7: a program's own test of two
 // nodes, and of two builds. `ern test --config-dir a` runs its tests as the
 // node `a`, in the directory the harness made: `a` and `b`, each made by
-// `ern config`, `a` listing `b` under the key `pair`; the build, and a
+// `ern config`, `a` listing `b` under the service `pair`; the build, and a
 // second build of this module whose `Msg` has another constructor; and
 // `pair.json`, which names the port `b` listens on, the load path `a` was
 // started with and each build's file. Each test writes `b`'s
@@ -12,12 +12,12 @@
 
 export type Msg = Double(n : Int, reply : Reply(Int))
 
-export let key : Peer.Key(Msg) = Peer.key("pair")
+export let service : Peer.Service(Msg) = Peer.service("pair")
 
-// The second node's program: its entry process offers itself under the
-// key, says so on its standard output, and serves.
+// The second node's program: its entry process offers itself as the
+// service, says so on its standard output, and serves.
 export fn main() : Unit with Msg = {
-    let _ = Peer.offer(key, self());
+    let _ = Peer.offer(service, self());
     Io.println("offered");
     serve()
 }
@@ -41,22 +41,23 @@ let twoNodes =
     Test.Case(name = "a second node made, started with Os, found, called and stopped",
               run = fn() = Test.equal(withSecondNode("build"), Right(#("Some(42)", 143))))
 
-// Report §8.7: a key names its type by its hash, so a node of the second
-// build, whose Msg has another constructor, offers the key at another type.
+// Report §8.7: a service names its type by its hash, so a node of the
+// second build, whose Msg has another constructor, offers the service at
+// another type.
 let twoBuilds =
     Test.Case(name = "a second node of another build, started with Os, offers at another type",
               run = fn() = Test.equal(withSecondNode("second-build"), Right(#("OtherType", 143))))
 
-// Appendix G.7: a standing address of the key, where the second node
+// Appendix G.7: a standing address of the service, where the second node
 // offers it at another type, faults at the first message, which finds the
-// key: the call that sent it answers None, the process's monitor reads the
+// service: the call that sent it answers None, the process's monitor reads the
 // fault, and a call after it answers None at once, the address dead. The
 // address is started, and its process monitored, before the second node
 // runs, so that the monitor is made before the fault.
 let standingAtAnotherType =
-    Test.Case(name = "a standing address of a key offered at another type faults, and is dead",
+    Test.Case(name = "a standing address of a service offered at another type faults, and is dead",
               run = fn() = {
-                  let ended = Io.show(Fault("the key pair is offered at another type"));
+                  let ended = Io.show(Fault("the service pair is offered at another type"));
                   Test.equal(standingAgainst("second-build"), Right(#("None", ended, "None", 143)))
               })
 
@@ -65,21 +66,21 @@ let standingAtAnotherType =
 // its program the file `pair.json` names under Build.
 fn withSecondNode(build : String) : Either(String, #(String, Int)) with m = {
     let program <- started(build);
-    let answered = match Peer.find(key, 10000) {
-        Right(service) ->
-            Io.show(Address.call(service, fn(reply) = Double(n = 21, reply = reply), 10000))
+    let answered = match Peer.find(service, 10000) {
+        Right(address) ->
+            Io.show(Address.call(address, fn(reply) = Double(n = 21, reply = reply), 10000))
       | Left(failure) -> Io.show(failure)
     };
     let status <- stopped(program);
     Right(#(answered, status))
 }
 
-// What a call through a standing address of the key answered once the
+// What a call through a standing address of the service answered once the
 // second node ran, how the address's process ended, what a call answered
 // after that, and the status the second node ended with; each wait's time
 // bounds a failure, and no success waits on it.
 fn standingAgainst(build : String) : Either(String, #(String, String, String, Int)) with Ended = {
-    let standing = Standing.start(key, 10000);
+    let standing = Standing.start(service, 10000);
     monitor(Process.fromAddress(standing), Ended);
     let program <- started(build);
     let first = Address.call(standing, fn(reply) = Double(n = 21, reply = reply), 10000);

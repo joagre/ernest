@@ -50,7 +50,7 @@
 %% the standard library's own. outer: while a pattern is compiled, the
 %% variables in scope where it began, else undefined. canonical: the
 %% module's canonical forms as ern_canonical:module/5 gives them, by which
-%% a key and a spawn on a peer name a type and a function (report §8.7).
+%% a service and a spawn on a peer name a type and a function (report §8.7).
 %% let_lambdas: the Erlang variable a `let` binds to a lambda => the lambda
 %% and the variables in force at it, which its captures are, for a spawn on
 %% a peer that names it (§3.11). entries: each lambda's or local fn's
@@ -176,9 +176,9 @@ forms(Namespace, Declarations, Env) ->
 
 %% Report §8.5: with the modules this one depends on, which it declares
 %% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
-%% dependency order without reading a compiled file. Report §8.7: a key's
-%% and a spawn's hashes are the canonical forms', which a build gives and
-%% the forms for reading compute.
+%% dependency order without reading a compiled file. Report §8.7: a
+%% service's and a spawn's hashes are the canonical forms', which a build
+%% gives and the forms for reading compute.
 -spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
 forms(Namespace, Declarations, Env, Build) ->
     {Forms, _} = module_forms(Namespace, Declarations, Env, Build),
@@ -992,13 +992,13 @@ name_form(_Span, _, from,
 name_form(_Span, _, from, #own_declaration{member_of = undefined, name = from}, _Type,
           [#shown_type{type = Crossing}], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     from_value(Crossing, Context);
-%% Report §8.7: Peer.key as a value, its key's type's hash supplied
-name_form(_Span, _, key,
-          #remote_declaration{namespace = ['Peer'], member_of = undefined, name = key},
-          _Type, [Keyed], Context) ->
+%% Report §8.7: Peer.service as a value, its service's type's hash supplied
+name_form(_Span, _, service,
+          #remote_declaration{namespace = ['Peer'], member_of = undefined, name = service},
+          _Type, [ServiceType], Context) ->
     {[Name], Context1} = fresh_variables(1, "Name", Context),
-    {lambda([Name], call_remote(ern_peer, key, [erl_syntax:variable(Name),
-                                                key_hash(Keyed, Context)])),
+    {lambda([Name], call_remote(ern_peer, service, [erl_syntax:variable(Name),
+                                                    service_hash(ServiceType, Context)])),
      Context1};
 name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
     prelude_value(Span, QualifiedName, Type, Context);
@@ -1134,17 +1134,18 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = from
                   supplies = [#shown_type{type = Crossing}]},
      [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     from_call(Span, Argument, Crossing, Context);
-%% Report §8.7, Appendix E.27: Peer.key makes its key with its message
-%% type's hash, of the type the checker supplied; Peer.spawn and
+%% Report §8.7, Appendix E.27: Peer.service makes its service with its
+%% message type's hash, of the type the checker supplied; Peer.spawn and
 %% Peer.spawnMonitored send the function's identity and captures in place
 %% of the function, and the spawn's site, as a spawn on this node keeps it
 %% (§6.9)
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
-                                                 name = key},
-                  supplies = [Keyed]},
+                                                 name = service},
+                  supplies = [ServiceType]},
      [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
-    {at(Span, call_remote(ern_peer, key, [ArgumentForm, key_hash(Keyed, Context)])), Context1};
+    {at(Span, call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType, Context)])),
+     Context1};
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
                                                  name = Name}},
      [PeerName, Spawned | Rest], Context) when Name =:= spawn; Name =:= spawnMonitored ->
@@ -1505,9 +1506,10 @@ site(Span,
 text_site(SiteParts) ->
     string_binary(unicode:characters_to_binary(SiteParts)).
 
-%% Report §8.7, Appendix H: a key's message type's hash, of its canonical form.
-key_hash(#key_type{type = Type}, #emit_context{canonical = #{keys := Keys}}) ->
-    erl_syntax:abstract(maps:get(Type, Keys)).
+%% Report §8.7, Appendix H: a service's message type's hash, of its
+%% canonical form.
+service_hash(#service_type{type = Type}, #emit_context{canonical = #{services := Services}}) ->
+    erl_syntax:abstract(maps:get(Type, Services)).
 
 %%
 %% Operators, report §4.8

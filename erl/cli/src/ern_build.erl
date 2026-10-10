@@ -624,8 +624,8 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
 %% memory for `ern doc`, which writes no .erc (report §11.4): the interface
 %% its dependents are compiled against, as compiled, with its definitions'
 %% hashes (§11.1), and the compiled module where it is kept, none where it
-%% is written. Erlang source holds no interface, but a key's and a spawn's
-%% hashes as the compiled module does (§8.7), so its dependents are
+%% is written. Erlang source holds no interface, but a service's and a
+%% spawn's hashes as the compiled module does (§8.7), so its dependents are
 %% compiled against its hashes too.
 emitted(erl, Namespace, {Typed, Interface, Env}, Build, OutputBase, Relative) ->
     Erl = OutputBase ++ ".erl",

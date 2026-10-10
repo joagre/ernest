@@ -57,7 +57,7 @@ load_path() ->
     lists:append([["--load-path", Library] || Library <- ?LIBRARIES]).
 
 %% The store, which listens, and the desk, which lists it, each a directory
-%% `ern config` made, the desk's keys naming the store for the services it
+%% `ern config` made, the desk's services naming the store for each it
 %% times.
 configured(Dir) ->
     Store = filename:join(Dir, "store"),
@@ -70,13 +70,14 @@ configured(Dir) ->
                           <<"peers">> => [#{<<"name">> => <<"desk">>,
                                             <<"public-key">> => public(Desk)}]}
                 end),
-    Keys = [<<"counter">>, <<"brittle">>, <<"echo">>, <<"echo-adapted">>],
+    Services = [<<"counter">>, <<"brittle">>, <<"echo">>, <<"echo-adapted">>],
     edit(Desk, fun(Conf) ->
                    (maps:remove(<<"listen">>, Conf))#{
                        <<"peers">> => [#{<<"name">> => <<"store">>,
                                          <<"public-key">> => public(Store),
                                          <<"network-address">> => address(Port)}],
-                       <<"keys">> => maps:from_list([{Key, [<<"store">>]} || Key <- Keys])}
+                       <<"services">> => maps:from_list([{Name, [<<"store">>]}
+                                                         || Name <- Services])}
                end),
     {Store, Desk}.
 

@@ -4,11 +4,11 @@
 
 %% listen: none or {Address, Port}, the listener's interface and port;
 %% public_key: the DER of this node's SubjectPublicKeyInfo; peers: [#peer{}]
-%% in the file's order; keys: a key's name to its peers' names, in the order
-%% a find asks them; measures: the host's measures to start, each to its
-%% parameters; config_dir: the configuration directory, whose key and
+%% in the file's order; services: a service's name to its peers' names, in
+%% the order a find asks them; measures: the host's measures to start, each
+%% to its parameters; config_dir: the configuration directory, whose key and
 %% certificate the carrier's TLS takes.
--record(configuration, {config_dir, listen = none, public_key, peers = [], keys = #{},
+-record(configuration, {config_dir, listen = none, public_key, peers = [], services = #{},
                         measures = #{}}).
 
 %% A peer as listed: address none, or {Host, Port}, Host a name or an

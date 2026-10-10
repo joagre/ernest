@@ -3055,12 +3055,12 @@ load_help() ->
 %% report §11.2, §8.7: `:load` and `:reload` work in a shell that is a node
 %% as in any, and a name of a module it has not loaded is answered with the
 %% `:load` that puts it in scope; a function typed at it is the shell's own,
-%% which a peer the node does not list answers NotListed; and a key at a
-%% type the session declares, among a type's arguments too, is made. A
+%% which a peer the node does not list answers NotListed; and a service at
+%% a type the session declares, among a type's arguments too, is made. A
 %% regression test of MVP 3.0's refusals, lifted in MVP 3.1; NotLoaded on a
-%% peer, and a key at a session type that names it by its hash, so that
-%% another shell node finds it, are the real nodes' (test/ern_nodes_tests.erl,
-%% shell_node and shell_key)
+%% peer, and a service at a session type that names it by its hash, so
+%% that another shell node finds it, are the real nodes'
+%% (test/ern_nodes_tests.erl, shell_node and shell_service)
 node_shell_test_() ->
     {timeout, 60, fun node_shell/0}.
 
@@ -3076,9 +3076,11 @@ node_shell() ->
                                      ":reload\nGreet.hello()\nOther.x\nPeer.peers()\n"
                                      "Peer.spawn(\"far\", fn() : Unit with Never = Unit, 100)\n"
                                      "type T = T(Int)\n"
-                                     "let k : Peer.Key(T) = Peer.key(\"t\")\n"
-                                     "let boxed : Peer.Key(List(Optional(T))) = Peer.key(\"b\")\n"
-                                     "let plain : Peer.Key(List(Int)) = Peer.key(\"p\")\n"]),
+                                     "let service : Peer.Service(T) = Peer.service(\"t\")\n"
+                                     "let boxed : Peer.Service(List(Optional(T))) ="
+                                     " Peer.service(\"b\")\n"
+                                     "let plain : Peer.Service(List(Int)) ="
+                                     " Peer.service(\"p\")\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Dir) ++ " < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Part))
@@ -3087,9 +3089,9 @@ node_shell() ->
                  <<"help: :load Other puts it in scope">>,
                  <<"[] : List(String)">>,
                  <<"Left(NotListed) : Either(Io.Error, Address(Never))">>,
-                 <<"k : Peer.Key(T)\n">>,
-                 <<"boxed : Peer.Key(List(Optional(T)))\n">>,
-                 <<"plain : Peer.Key(List(Int))">>]],
+                 <<"service : Peer.Service(T)\n">>,
+                 <<"boxed : Peer.Service(List(Optional(T)))\n">>,
+                 <<"plain : Peer.Service(List(Int))">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"MVP 3.1">>)).
 
 %% report §11.2, Appendix E.17: what programs write goes to the file

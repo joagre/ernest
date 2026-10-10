@@ -1,18 +1,18 @@
 %% Report §8.7, Appendix E.27: the module `Peer`'s shims, and the work its
-%% frames give a node's gateway. A key holds a name and its message type's
-%% hash and text, which the compiler supplies; an offer is a row of the
-%% runtime's, kept while its process lives; a find asks the key's peers in
-%% order through their gateways, each comparing the hash; a spawn sends the
-%% function's identity and captures to the peer's gateway, which finds the
-%% function in the peer's code table and starts the process through the
-%% peer's runtime, or answers `NotLoaded`, and answers through the
-%% spawner's gateway, which ends a process no one waits for any more. A
-%% node's peers and keys are the carrier's to give (configure/2); a program
-%% that is no node has none. A wait has no upper bound: it is made against
-%% the moment its time ends, in slices the host takes (ern_rt:remaining/1).
+%% frames give a node's gateway. A service holds its name and its message
+%% type's hash, which the compiler supplies; an offer is a row of the
+%% runtime's, kept while its process lives; a find asks the service's peers
+%% in order through their gateways, each comparing the hash; a spawn sends
+%% the function's identity and captures to the peer's gateway, which finds
+%% the function in the peer's code table and starts the process through the
+%% peer's runtime, or answers `NotLoaded`, and answers through the spawner's
+%% gateway, which ends a process no one waits for any more. A node's peers
+%% and services are the carrier's to give (configure/2); a program that is
+%% no node has none. A wait has no upper bound: it is made against the
+%% moment its time ends, in slices the host takes (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, name/1, key/1, key/2, offer/2, find/2, spawn/3, spawn/4,
+-export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, peers/0, frame/2, lost/1]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
@@ -41,13 +41,13 @@
 %% Report §8.7: the peers this node lists, each with its name on the
 %% carrier, and their names in the configuration's order, which peers/0
 %% answers, and by their names on the carrier, which name/1 answers; and
-%% the keys, each with its peers' names in the order a find asks them.
+%% the services, each with its peers' names in the order a find asks them.
 -spec configure([{binary(), node()}], #{binary() => [binary()]}) -> ok.
-configure(Peers, Keys) ->
+configure(Peers, Services) ->
     persistent_term:put({?MODULE, names}, [Name || {Name, _} <- Peers]),
     persistent_term:put({?MODULE, nodes}, maps:from_list(Peers)),
     persistent_term:put({?MODULE, named}, maps:from_list([{Node, Name} || {Name, Node} <- Peers])),
-    persistent_term:put({?MODULE, keys}, Keys).
+    persistent_term:put({?MODULE, services}, Services).
 
 %% The table of spawns waiting, owned by the process that calls this, the
 %% gateway, which outlives every run of a node's program.
@@ -74,37 +74,38 @@ name(Node) ->
 %% The shims
 %%
 
-%% Report §8.7, Appendix H: a key, its name and its message type's hash,
-%% which the compiler supplies at the call; it starts nothing. key/1 is the
-%% declaration's, which no call reaches.
--spec key(binary()) -> no_return().
-key(_Name) ->
-    erlang:error(key_without_type).
+%% Report §8.7, Appendix H: a service, its name and its message type's
+%% hash, which the compiler supplies at the call; it starts nothing.
+%% service/1 is the declaration's, which no call reaches.
+-spec service(binary()) -> no_return().
+service(_Name) ->
+    erlang:error(service_without_type).
 
--spec key(binary(), binary()) -> {'Key', binary(), binary()}.
-key(Name, Hash) ->
-    {'Key', Name, Hash}.
+-spec service(binary(), binary()) -> {'Service', binary(), binary()}.
+service(Name, Hash) ->
+    {'Service', Name, Hash}.
 
-%% Report §8.7: an offer under the key's name and its type's hash, for as
-%% long as its process lives, a process of this node: `Right(Unit)` where
-%% it took the key, and `Left(Holder)` where a living process holds it.
--spec offer({'Key', binary(), binary()}, ern_rt:address()) ->
+%% Report §8.7: an offer under the service's name and its type's hash, for
+%% as long as its process lives, a process of this node: `Right(Unit)`
+%% where it took the service, and `Left(Holder)` where a living process
+%% holds it.
+-spec offer({'Service', binary(), binary()}, ern_rt:address()) ->
           {'Right', 'Unit'} | {'Left', pid()}.
-offer({'Key', Name, Hash}, Address) ->
+offer({'Service', Name, Hash}, Address) ->
     ern_rt:offer({Name, Hash}, Address).
 
-%% Report §8.7: the first address offered under the key's name at its type's
-%% hash by a peer `keys` lists for it, asked in order, each given the time
-%% left; a peer that cannot be reached, offers nothing under the name, or
-%% offers it at a type of another hash is passed over, the last such
-%% failure answered where no peer offers it, and `Timeout` where the time
-%% runs out.
--spec find({'Key', binary(), binary()}, integer()) ->
+%% Report §8.7: the first address offered under the service's name at its
+%% type's hash by a peer `services` lists for it, asked in order, each given
+%% the time left; a peer that cannot be reached, offers nothing under the
+%% name, or offers it at a type of another hash is passed over, the last
+%% such failure answered where no peer offers it, and `Timeout` where the
+%% time runs out.
+-spec find({'Service', binary(), binary()}, integer()) ->
           {'Right', term()} | {'Left', atom()}.
-find({'Key', Name, Hash}, Ms) ->
+find({'Service', Name, Hash}, Ms) ->
     Deadline = ern_rt:deadline(Ms),
-    Nodes = [node_of(Peer) || Peer <- maps:get(Name, persistent_term:get({?MODULE, keys}, #{}),
-                                                [])],
+    Nodes = [node_of(Peer)
+             || Peer <- maps:get(Name, persistent_term:get({?MODULE, services}, #{}), [])],
     found(Nodes, Name, Hash, Deadline, 'NotListed').
 
 found([], _Name, _Hash, _Deadline, Last) ->

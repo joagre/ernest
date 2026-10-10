@@ -968,7 +968,7 @@ param_occurrences(Types, Occurs, Given) ->
     param_fixpoint(Declared, Occurs, maps:map(fun(_, TypeInfo) -> Given(TypeInfo) end, Declared)).
 
 %% Report §3.9: whether each of a type's parameters occurs in no field of
-%% the type, `m` of `Peer.Key(m)`, which makes it a value position.
+%% the type, `m` of `Peer.Service(m)`, which makes it a value position.
 in_no_field(#type_info{params = Params} = TypeInfo) ->
     Fields = field_types(TypeInfo),
     [not lists:any(fun(FieldType) -> mentions(Id, FieldType) end, Fields)
@@ -2041,7 +2041,7 @@ param_type(#param{annotation = Syntax}, AnnotationVariables, Env) ->
 %% reaches through tuples and type arguments, and not under an address, a
 %% reply or a function type, whose values the parameter does not hold, nor
 %% under a declared type's parameter that occurs in no field, `m` of
-%% `Peer.Key(m)`. A regression: `Foreign.from(r)` dropped a reply, and
+%% `Peer.Service(m)`. A regression: `Foreign.from(r)` dropped a reply, and
 %% `Ets.put(t, k, r)` stored one.
 not_reply_carrying_params({tfn, Params, _, _}, TypeState, #env{types = Types}) ->
     lists:foldl(fun(Id, Acc) ->
@@ -2424,15 +2424,15 @@ params_and_body(#let_declaration{body = Body}) -> {[], Body}.
 %% requirement's `show` is (§4.9).
 %% Report §8.4, Appendix E.12: `Foreign.from` gives its value by the type
 %% at which the name is used, read the same way.
-%% Report §8.7, §3.11, Appendix E.27: `Peer.key` makes its key at the
-%% message type at which the name is used, read the same way, and the key
-%% holds the type's hash beside its name.
+%% Report §8.7, §3.11, Appendix E.27: `Peer.service` makes its service at
+%% the message type at which the name is used, read the same way, and the
+%% service holds the type's hash beside its name.
 shown(Span, Referent, Type, Env) ->
     case {declared(Referent, Env), Type} of
         {{'Foreign', from}, {tfn, [Argument], _, _}} ->
             [#pending_member{span = Span, type = Argument, member = exposed, need = exposed}];
-        {{'Peer', key}, {tfn, [_], _, {tcon, ['Peer', 'Key'], [Message]}}} ->
-            [#pending_member{span = Span, type = Message, member = keyed, need = keyed}];
+        {{'Peer', service}, {tfn, [_], _, {tcon, ['Peer', 'Service'], [Message]}}} ->
+            [#pending_member{span = Span, type = Message, member = service, need = service}];
         _ ->
             []
     end.
@@ -3414,24 +3414,24 @@ supplied(Leaf, Env) ->
 %% own operation; and a known type its member, with that member's own
 %% requirement supplied at its type, members supplying members. Outer is the
 %% member first needed, where this one supplies another's requirement.
-supply(Span, Type, keyed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
-    %% report §3.11, §8.7: a key's message type is known whole where the key
-    %% is made, and crosses
+supply(Span, Type, service, _Need, _Outer, #env{type_state = TypeState} = Env) ->
+    %% report §3.11, §8.7: a service's message type is known whole where the
+    %% service is made, and crosses
     Message = ern_types:substitute(ern_types:resolve(Type, TypeState), TypeState),
     Text = ern_types:format(Message, TypeState),
     ern_types:free_variables(Message, TypeState) =:= []
-        orelse fail(Span, "Peer.key makes its key at a message type known whole, and here it is "
-                          ++ Text, [],
-                    "annotate the key where it is bound, `let key : Peer.Key(Msg) ="
-                    " Peer.key(\"name\")` (§3.11)"),
+        orelse fail(Span, "Peer.service names a service at a message type known whole, and here"
+                          " it is " ++ Text, [],
+                    "annotate the service where it is bound, `let service : Peer.Service(Msg) ="
+                    " Peer.service(\"name\")` (§3.11)"),
     case ern_bound:binds(Message, Env) of
         false ->
-            {#key_type{type = Message}, Env};
+            {#service_type{type = Message}, Env};
         Why ->
-            fail(Span, "Peer.key makes a key of " ++ Text ++ ", which is bound to its node, since"
-                       " it holds " ++ Why, [],
-                 "a key's message type crosses to the node's peers, so a process offered under"
-                 " it receives values that cross (§3.11)")
+            fail(Span, "Peer.service names a service at " ++ Text ++ ", which is bound to its"
+                       " node, since it holds " ++ Why, [],
+                 "a service's message type crosses to the node's peers, so the process offered"
+                 " as the service receives values that cross (§3.11)")
     end;
 supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
     %% report §8.4, Appendix E.12: Foreign.from gives its value at a type

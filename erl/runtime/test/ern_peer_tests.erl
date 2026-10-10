@@ -310,7 +310,7 @@ foreign_offer_test() ->
     Self = self(),
     Main = fun() ->
                Foreign = spawn(fun() -> receive stop -> ok end end),
-               ern_peer:offer({'Key', <<"foreign">>, <<0:256>>}, Foreign),
+               ern_peer:offer({'Service', <<"foreign">>, <<0:256>>}, Foreign),
                Self ! {offered, ern_rt:offered(<<"foreign">>, <<0:256>>)},
                %% the reaper takes the offer away as it learns of the end
                Reaper = persistent_term:get({ern_rt, reaper}),
@@ -323,26 +323,26 @@ foreign_offer_test() ->
     ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
 
 %% report §8.7, Appendix E.27: an offer answers Right(Unit) where it took
-%% the key, and Left(holder) where a living process's address is offered
-%% under it, the holder's Process, the same whoever offers; the caller
+%% the service, and Left(holder) where a living process's address is
+%% offered as it, the holder's Process, the same whoever offers; the caller
 %% monitors the holder, which is killed, and at its Down offers again and
-%% takes the key, which a find on this node then answers. A regression
+%% takes the service, which a find on this node then answers. A regression
 %% test, written after the code, which named the holder in a fault before;
-%% two offers racing for a dead holder's key are not covered
-held_key_test() ->
+%% two offers racing for a dead holder's service are not covered
+held_service_test() ->
     Self = self(),
     Main = fun() ->
-               Key = {'Key', <<"held">>, <<0:256>>},
+               Service = {'Service', <<"held">>, <<0:256>>},
                Holder = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.holder">>),
                Newcomer = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.newcomer">>),
-               Taken = ern_peer:offer(Key, Holder),
-               Held = ern_peer:offer(Key, Newcomer),
-               Again = ern_peer:offer(Key, ern_rt:via(Holder, fun(Message) -> Message end)),
+               Taken = ern_peer:offer(Service, Holder),
+               Held = ern_peer:offer(Service, Newcomer),
+               Again = ern_peer:offer(Service, ern_rt:via(Holder, fun(Message) -> Message end)),
                ern_rt:monitor(Holder, fun(Down) -> {ended, Down} end),
                ern_rt:kill(Holder),
                Down = receive {ended, Ended} -> Ended end,
                Self ! {offers, Holder, Newcomer, [Taken, Held, Again], Down,
-                       ern_peer:offer(Key, Newcomer), ern_rt:offered(<<"held">>, <<0:256>>)}
+                       ern_peer:offer(Service, Newcomer), ern_rt:offered(<<"held">>, <<0:256>>)}
            end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     {offers, Holder, Newcomer, Answers, Down, Taken, Found} =
@@ -422,8 +422,8 @@ standing_one_find_test() ->
     Self = self(),
     Main = fun() ->
                ern_rt:init_modules([Standing]),
-               Key = {'Key', <<"probe">>, <<0:256>>},
-               {via, _, Forwarder, _} = Address = Standing:start(Key, 1000),
+               Service = {'Service', <<"probe">>, <<0:256>>},
+               {via, _, Forwarder, _} = Address = Standing:start(Service, 1000),
                %% the first find made, the process waits for a message
                ok = ern_waits:until(Forwarder, fun() -> holds(Standing, Forwarder) end),
                1 = erlang:trace_pattern({'ern@peer', find, 2}, true, [local]),

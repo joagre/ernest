@@ -1,16 +1,16 @@
 %% Report §3.11: the type bound to its node, and the refusals that keep a
-%% value of one from starting towards another node. A key of a bound type
-%% is refused where the checker supplies the key's type (ern_typecheck's
-%% supply of `keyed`); a spawn on a peer is read off a definition here,
-%% once the definition is inferred: its function is a declaration's name,
-%% or a lambda or a `fn` written in the definition, at the spawn or bound
-%% by a `let` the spawn names, or `restarting` applied to one of these, and
-%% what that lambda or `fn` captures, and the mailbox type of the process
-%% it starts, are neither bound nor hold a type variable, but for a mailbox
-%% type that is a variable the definition's type does not hold, which is
-%% Never; nor does its body use a member of a requirement in force, a
-%% function. Nothing else is checked, and nothing is looked through at a
-%% send. A breach is thrown as the checker's type errors are.
+%% value of one from starting towards another node. A service at a bound
+%% type is refused where the checker supplies the service's type
+%% (ern_typecheck's supply of `service`); a spawn on a peer is read off a
+%% definition here, once the definition is inferred: its function is a
+%% declaration's name, or a lambda or a `fn` written in the definition, at
+%% the spawn or bound by a `let` the spawn names, or `restarting` applied to
+%% one of these, and what that lambda or `fn` captures, and the mailbox type
+%% of the process it starts, are neither bound nor hold a type variable, but
+%% for a mailbox type that is a variable the definition's type does not
+%% hold, which is Never; nor does its body use a member of a requirement in
+%% force, a function. Nothing else is checked, and nothing is looked through
+%% at a send. A breach is thrown as the checker's type errors are.
 -module(ern_bound).
 
 -export([binds/2, check/3]).

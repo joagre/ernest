@@ -56,11 +56,11 @@
 ///   them, with its bytes.
 /// - `Invalid`: an argument the host cannot take, one that holds U+0000, a port
 ///   out of range or a time it cannot hold among them.
-/// - `NotListed`: `ernest.conf` lists no peer for a key's name, or no peer of
-///   the name.
+/// - `NotListed`: `ernest.conf` lists no peer for a service's name, or no peer
+///   of the name.
 /// - `Unreachable`: no connection to the peer could be opened, the peer refused
 ///   it, or it was lost while waiting.
-/// - `NotOffered`: the peer offers nothing under the key's name.
+/// - `NotOffered`: the peer offers nothing under the service's name.
 /// - `OtherType`: the peer offers the name at another message type.
 /// - `NotLoaded`: the peer does not have the function, a binding it reaches has
 ///   no value there, or a module a foreign declaration it reaches calls is not

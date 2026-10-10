@@ -125,7 +125,7 @@ effect_only_type_argument_test() ->
                          "fn usePure() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
 %% report §3.9: a type argument whose parameter occurs in no field of its
-%% type is a value position, as `m` of `Peer.Key(m)`: a variable that
+%% type is a value position, as `m` of `Peer.Service(m)`: a variable that
 %% stands there and after `with` ranges over types alone, so a function
 %% with it is no pure caller's, and it prints as a value variable. A
 %% regression test of the principles review's K7 (2026-10-09): the report
@@ -144,7 +144,7 @@ phantom_type_argument_test() ->
                          "fn f() : Int = make()\n")),
     %% a value of the type holds no value of the variable, so a foreign
     %% function's parameter of it leaves the variable reply-carrying (§4.7),
-    %% as `Peer.offer`'s key does
+    %% as `Peer.offer`'s service does
     {ok, _, #interface{values = Values}, Env} =
         check("export type P(e) = P(n : Int)\n"
               "export foreign fn put(p : P(a), to : Address(a)) : Unit = \"m:put/2\"\n"),
@@ -535,55 +535,58 @@ bound_type_test() ->
 bound_declared_type_test() ->
     Source = "export type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))\n"
              "export type Job = Job(run : () -> Unit with Never)\n",
-    ?assertEqual(ok, peer_ok(Source ++ "export let key : Peer.Key(Tree(Int)) ="
-                                        " Peer.key(\"tree\")\n")),
-    ?assertEqual("Peer.key makes a key of Tree(Job), which is bound to its node, since it"
-                 " holds a function",
-                 peer_refusal(Source ++ "export let key : Peer.Key(Tree(Job)) ="
-                                        " Peer.key(\"tree\")\n")).
+    ?assertEqual(ok, peer_ok(Source ++ "export let service : Peer.Service(Tree(Int)) ="
+                                        " Peer.service(\"tree\")\n")),
+    ?assertEqual("Peer.service names a service at Tree(Job), which is bound to its node, since"
+                 " it holds a function",
+                 peer_refusal(Source ++ "export let service : Peer.Service(Tree(Job)) ="
+                                        " Peer.service(\"tree\")\n")).
 
-%% report §3.11, §8.7, Appendix E.27: a key is made at a message type known
-%% whole where it is written, which crosses, and the checker supplies the
-%% type itself, every name in it qualified, the module's own among them,
-%% whose hash the compiler gives the key beside its name
-key_test() ->
+%% report §3.11, §8.7, Appendix E.27: a service is made at a message type
+%% known whole where it is written, which crosses, and the checker supplies
+%% the type itself, every name in it qualified, the module's own among
+%% them, whose hash the compiler gives the service beside its name
+service_test() ->
     Source = "export type Msg = Add(Int) | Get(reply : Reply(Int))\n"
              "export type Box(a) = Box(a)\n",
     {ok, Typed, _, _} =
-        with_peer(Source ++ "export let key : Peer.Key(Msg) = Peer.key(\"counter\")\n"
-                            "export let boxes : Peer.Key(Box(Optional(Int))) ="
-                            " Peer.key(\"boxes\")\n"),
+        with_peer(Source ++ "export let service : Peer.Service(Msg) = Peer.service(\"counter\")\n"
+                            "export let boxes : Peer.Service(Box(Optional(Int))) ="
+                            " Peer.service(\"boxes\")\n"),
     Box = {tcon, ['M', 'Box'], [{tcon, ['Optional'], [{tcon, ['Int'], []}]}]},
-    ?assertEqual([[#key_type{type = {tcon, ['M', 'Msg'], []}}], [#key_type{type = Box}]],
+    ?assertEqual([[#service_type{type = {tcon, ['M', 'Msg'], []}}], [#service_type{type = Box}]],
                  [Supplies || #let_declaration{body = #e_call{callee = #e_var{supplies = Supplies}}}
                                   <- Typed]),
-    ?assertEqual("Peer.key makes its key at a message type known whole, and here it is a",
-                 peer_refusal("export fn keyOf(name : String) : Peer.Key(a) = Peer.key(name)\n")),
-    ?assertEqual("Peer.key makes a key of (Int) -> Int, which is bound to its node, since it"
-                 " holds a function",
-                 peer_refusal("export let key : Peer.Key((Int) -> Int) = Peer.key(\"f\")\n")),
-    ?assertEqual("Peer.key makes a key of Address(Tcp.SocketMsg), which is bound to its node,"
-                 " since it holds the address of a socket",
-                 peer_refusal("export let key : Peer.Key(Address(Tcp.SocketMsg)) ="
-                              " Peer.key(\"s\")\n")).
+    ?assertEqual("Peer.service names a service at a message type known whole, and here it is a",
+                 peer_refusal("export fn serviceOf(name : String) : Peer.Service(a) ="
+                              " Peer.service(name)\n")),
+    ?assertEqual("Peer.service names a service at (Int) -> Int, which is bound to its node, since"
+                 " it holds a function",
+                 peer_refusal("export let service : Peer.Service((Int) -> Int) ="
+                              " Peer.service(\"f\")\n")),
+    ?assertEqual("Peer.service names a service at Address(Tcp.SocketMsg), which is bound to its"
+                 " node, since it holds the address of a socket",
+                 peer_refusal("export let service : Peer.Service(Address(Tcp.SocketMsg)) ="
+                              " Peer.service(\"s\")\n")).
 
-%% report §8.7, Appendix E.27: an offer is accepted only where the key and
-%% the address have one message type, and answers the key's holder or Unit
+%% report §8.7, Appendix E.27: an offer is accepted only where the service
+%% and the address have one message type, and answers the service's holder
+%% or Unit
 offer_test() ->
     Source = "export type Msg = Add(Int)\n"
-             "export let key : Peer.Key(Msg) = Peer.key(\"counter\")\n",
+             "export let service : Peer.Service(Msg) = Peer.service(\"counter\")\n",
     ?assertEqual(ok, peer_ok(Source ++ "fn serve(counter : Address(Msg)) :"
                                        " Either(Process, Unit) with m ="
-                                       " Peer.offer(key, counter)\n")),
+                                       " Peer.offer(service, counter)\n")),
     ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Int)) :"
                                                " Either(Process, Unit) with m ="
-                                               " Peer.offer(key, counter)\n")),
+                                               " Peer.offer(service, counter)\n")),
     ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Msg)) : Unit with m ="
-                                               " Peer.offer(key, counter)\n")).
+                                               " Peer.offer(service, counter)\n")).
 
 %% report §3.11, §3.8, Appendix G.1: a library's resource is a foreign type,
 %% and `Ets.Table`, which the checker names nowhere, is bound by that rule:
-%% a key of a table is refused, and so is a spawn whose function captures
+%% a service at a table is refused, and so is a spawn whose function captures
 %% one
 ets_table_bound_test() ->
     {ok, Ets} = file:read_file("../../../libs/ets/ets.ern"),
@@ -594,9 +597,10 @@ ets_table_bound_test() ->
                           ern_typecheck:check(['M'], Declarations, [Interface]),
                       Message
               end,
-    ?assertEqual("Peer.key makes a key of Ets.Table(Int, Int), which is bound to its node, since"
-                 " it holds a value of the foreign type Ets.Table",
-                 Refusal("export let key : Peer.Key(Ets.Table(Int, Int)) = Peer.key(\"t\")\n")),
+    ?assertEqual("Peer.service names a service at Ets.Table(Int, Int), which is bound to its"
+                 " node, since it holds a value of the foreign type Ets.Table",
+                 Refusal("export let service : Peer.Service(Ets.Table(Int, Int)) ="
+                         " Peer.service(\"t\")\n")),
     ?assertEqual("the function Peer.spawn starts captures table, whose type Ets.Table(Int, Int)"
                  " is bound to its node, since it holds a value of the foreign type Ets.Table",
                  Refusal("fn f(table : Ets.Table(Int, Int)) : Unit with m = {\n"

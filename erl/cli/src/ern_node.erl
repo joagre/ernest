@@ -25,7 +25,7 @@
 -define(NAME, <<"ernest">>).
 
 %% Report §8.7, Appendix E.27: what `ernest.conf` may say.
--define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"keys">>, <<"measures">>]).
+-define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
 %%
@@ -62,7 +62,7 @@ create(Given) ->
     %% order, two spaces a level, and a line feed at its end; a PEM's line
     %% breaks are escapes, as in any JSON string
     Fields = [{<<"listen">>, <<"0.0.0.0:8654">>}, {<<"public-key">>, Public}, {<<"peers">>, []},
-              {<<"keys">>, #{}}],
+              {<<"services">>, #{}}],
     Json = json:format({ordered, Fields}, fun ordered/3, #{indent => 2}),
     ok = ern_build:write_output(filename:join(ConfigDir, ?CONF), Json),
     ok = ern_build:write_output(filename:join(ConfigDir, ?CERTIFICATE), Certificate),
@@ -420,7 +420,8 @@ configuration(ConfigDir) ->
     Peers = peers(ConfigDir, maps:get(<<"peers">>, Fields, []), Family),
     #configuration{config_dir = ConfigDir, listen = Listen, public_key = PublicKey,
                    peers = Peers,
-                   keys = keys(ConfigDir, maps:get(<<"keys">>, Fields, {object, []}), Peers),
+                   services = services(ConfigDir, maps:get(<<"services">>, Fields, {object, []}),
+                                       Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none))}.
 
 %% A whole number of the file, as the host reads its numeral; one too long
@@ -580,30 +581,31 @@ public_key_der(ConfigDir, Shown, Pem) when is_binary(Pem) ->
 public_key_der(ConfigDir, Shown, _) ->
     fail(ConfigDir, ?CONF, Shown ++ " is not a string").
 
-%% Report §8.7: `keys`, a key's name to the peers that may offer it, each a
-%% listed peer once, in the order a find asks them.
-keys(ConfigDir, Item, Peers) ->
-    Names = [Name || #peer{name = Name} <- Peers],
+%% Report §8.7: `services`, a service's name to the peers that may offer
+%% it, each a listed peer once, in the order a find asks them.
+services(ConfigDir, Item, Peers) ->
+    PeerNames = [Name || #peer{name = Name} <- Peers],
     Pairs = case Item of
                 {object, Found} -> Found;
-                _ -> fail(ConfigDir, ?CONF, "keys is not a JSON object")
+                _ -> fail(ConfigDir, ?CONF, "services is not a JSON object")
             end,
-    lists:foldl(fun({Key, Listed}, Acc) ->
-                    Shown = "key " ++ json_quoted(Key),
-                    Key =/= <<>> orelse fail(ConfigDir, ?CONF, "keys names a key with no name"),
-                    is_map_key(Key, Acc) andalso fail(ConfigDir, ?CONF, "keys gives " ++ Shown
-                                                                        ++ " twice"),
+    lists:foldl(fun({Name, Listed}, Acc) ->
+                    Shown = "service " ++ json_quoted(Name),
+                    Name =/= <<>>
+                        orelse fail(ConfigDir, ?CONF, "services names a service with no name"),
+                    is_map_key(Name, Acc)
+                        andalso fail(ConfigDir, ?CONF, "services gives " ++ Shown ++ " twice"),
                     is_list(Listed) andalso lists:all(fun is_binary/1, Listed)
                         orelse fail(ConfigDir, ?CONF, Shown ++ " is not a list of peers' names"),
-                    lists:foreach(fun(Name) ->
-                                      lists:member(Name, Names)
+                    lists:foreach(fun(Peer) ->
+                                      lists:member(Peer, PeerNames)
                                           orelse fail(ConfigDir, ?CONF,
-                                                      Shown ++ " names " ++ json_quoted(Name)
+                                                      Shown ++ " names " ++ json_quoted(Peer)
                                                       ++ ", which is no peer's name")
                                   end, Listed),
                     length(Listed) =:= length(lists:usort(Listed))
                         orelse fail(ConfigDir, ?CONF, Shown ++ " names a peer twice"),
-                    Acc#{Key => Listed}
+                    Acc#{Name => Listed}
                 end, #{}, Pairs).
 
 %% Report §8.7: `measures`, `cpu`, `memory` and `disk`, each with the host's

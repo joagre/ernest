@@ -1,5 +1,5 @@
-// Report §8.6, §8.7, Appendix E.23: a counter a node offers under the
-// counter's key, whose entry process is told of the node's end and answers
+// Report §8.6, §8.7, Appendix E.23: a counter a node offers as the
+// counter's service, whose entry process is told of the node's end and answers
 // at once, after a line on its standard input with the argument `wait`, or
 // never with `hold`.
 
@@ -15,7 +15,7 @@ fn count(total : Int) : Unit with Counter.Msg =
     }
 
 export fn main() : Unit with Stop = {
-    let _ = Peer.offer(Counter.key, spawn(fn() = count(0)));
+    let _ = Peer.offer(Counter.service, spawn(fn() = count(0)));
     Os.terminating(Stop);
     Io.println("offered");
     receive {

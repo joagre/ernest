@@ -2695,21 +2695,21 @@ config_default_dir_test() ->
     ?assert(filelib:is_regular(Dir ++ "/.ernest/ernest.conf")).
 
 %% report §11.3, Appendix C: the configuration directory with no peer and
-%% no key, a private key readable only by its owner and a certificate,
+%% no service, a private key readable only by its owner and a certificate,
 %% created where --config-dir names it, its public key printed; a second
 %% creation fails
 create_config_dir_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     {ok, Conf} = file:read_file(Dir ++ "/ernest.conf"),
-    #{<<"peers">> := [], <<"keys">> := #{}, <<"listen">> := <<"0.0.0.0:8654">>,
+    #{<<"peers">> := [], <<"services">> := #{}, <<"listen">> := <<"0.0.0.0:8654">>,
       <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>> = Public} = json:decode(Conf),
     ?assertEqual(Public, unicode:characters_to_binary(?capturedOutput)),
     %% laid out as Appendix C shows it, a key a line in its order; a
     %% regression test, it was one line with its keys sorted
     ?assertMatch([<<"{">>, <<"  \"listen\": \"0.0.0.0:8654\",">>,
                   <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
-                  <<"  \"peers\": [],">>, <<"  \"keys\": {}">>, <<"}">>, <<>>],
+                  <<"  \"peers\": [],">>, <<"  \"services\": {}">>, <<"}">>, <<>>],
                  binary:split(Conf, <<"\n">>, [global])),
     ?assert(filelib:is_regular(Dir ++ "/certificate.pem")),
     {ok, #file_info{mode = Mode}} = file:read_file_info(Dir ++ "/private-key.pem"),

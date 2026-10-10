@@ -287,6 +287,7 @@ os_program_is_a_process_test() ->
         "}\n"]),
     ?assertEqual(<<"Killed\nReturned\n">>, Output),
     {ok, Written} = file:read_file(Pids),
+    ok = file:del_dir_r(Dir),
     [begin
          ?assertEqual(gone, gone(binary_to_list(Pid), 5000))
      end || Pid <- binary:split(Written, [<<" ">>, <<"\n">>], [global, trim_all])].
@@ -372,6 +373,7 @@ fs_list_names_a_name_not_utf8_test() ->
          "        fn(e) = Path.name(e.path))))\n"
          "  | Left(e) -> Io.println(Io.show(e))\n"
          "}\n"]),
+    ok = file:del_dir_r(Dir),
     ?assertEqual(<<"NotUtf8(<<99, 97, 102, 233>>)\n">>, Output).
 
 %%

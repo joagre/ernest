@@ -51,7 +51,7 @@ ends(Message, Suffix) ->
 %% report §11.3, Appendix C: `ern config` makes the directory, its owner's
 %% alone, with an ed25519 key readable by its owner alone, the certificate
 %% the node signs itself, its name a constant and its validity the longest,
-%% and `ernest.conf` with the key's public half, no peer and no key; it
+%% and `ernest.conf` with the key's public half, no peer and no service; it
 %% answers the public key
 create_test() ->
     Dir = filename:join(tmp(), "node"),
@@ -96,8 +96,8 @@ create_test() ->
     ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}}, ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may say, read whole: a
-%% listener of IPv6, peers with an address, a name, or none, keys naming
-%% them in the order a find asks them, and the host's measures
+%% listener of IPv6, peers with an address, a name, or none, services
+%% naming them in the order a find asks them, and the host's measures
 read_test() ->
     Dir = made(),
     One = other_key(),
@@ -106,16 +106,16 @@ read_test() ->
                 <<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => One,
                                   <<"network-address">> => <<"[::1]:8654">>},
                                 #{<<"name">> => <<"desk">>, <<"public-key">> => Two}],
-                <<"keys">> => #{<<"counter">> => [<<"desk">>, <<"store">>]},
+                <<"services">> => #{<<"counter">> => [<<"desk">>, <<"store">>]},
                 <<"measures">> => #{<<"cpu">> => #{},
                                     <<"memory">> => #{<<"check-interval">> => 120000,
                                                       <<"almost-full">> => 0.9},
                                     <<"disk">> => #{<<"check-interval">> => 500}}}),
-    {configuration, _, Listen, _, Peers, Keys, Measures} = ern_node:read(Dir),
+    {configuration, _, Listen, _, Peers, Services, Measures} = ern_node:read(Dir),
     ?assertEqual({{0, 0, 0, 0, 0, 0, 0, 0}, 0}, Listen),
     ?assertMatch([{peer, <<"store">>, _, {{0, 0, 0, 0, 0, 0, 0, 1}, 8654}},
                   {peer, <<"desk">>, _, none}], Peers),
-    ?assertEqual(#{<<"counter">> => [<<"desk">>, <<"store">>]}, Keys),
+    ?assertEqual(#{<<"counter">> => [<<"desk">>, <<"store">>]}, Services),
     ?assertEqual(#{cpu => #{}, memory => #{check_interval => 120000, almost_full => 0.9},
                    disk => #{check_interval => 500}}, Measures),
     %% a node without a listener runs over IPv4, and a peer's name is
@@ -173,12 +173,12 @@ read_refusals_test() ->
             <<"peers">> => [Peer(#{<<"network-address">> => <<"127.0.0.1:8654">>})]},
           "peer \"store\"'s network-address \"127.0.0.1:8654\" is IPv4, and this node runs over"
           " IPv6, its listener's family or IPv4 where it has none"},
-         {#{<<"keys">> => []}, "keys is not a JSON object"},
-         {#{<<"keys">> => #{<<"counter">> => [<<"store">>]}},
-          "key \"counter\" names \"store\", which is no peer's name"},
+         {#{<<"services">> => []}, "services is not a JSON object"},
+         {#{<<"services">> => #{<<"counter">> => [<<"store">>]}},
+          "service \"counter\" names \"store\", which is no peer's name"},
          {#{<<"peers">> => [Peer(#{})],
-            <<"keys">> => #{<<"counter">> => [<<"store">>, <<"store">>]}},
-          "key \"counter\" names a peer twice"},
+            <<"services">> => #{<<"counter">> => [<<"store">>, <<"store">>]}},
+          "service \"counter\" names a peer twice"},
          {#{<<"measures">> => []}, "measures is not a JSON object"},
          {#{<<"measures">> => #{<<"network">> => #{}}}, "measures has the unknown field network"},
          {#{<<"measures">> => #{<<"cpu">> => #{<<"check-interval">> => 60000}}},

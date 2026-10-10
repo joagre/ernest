@@ -2,12 +2,12 @@
 // Typed channels across nodes
 //
 // The counter of typed_channels.ern on a node of its own, b, reached from
-// another node, a, through a key. Node b runs serve, which offers the
-// counter under the key; node a runs main, which finds it and calls it.
+// another node, a, as a service. Node b runs serve, which offers the
+// counter as the service; node a runs main, which finds it and calls it.
 //
 // Run it from this directory. Alone it is no node, and its find answers
 // Left(NotListed). As two nodes, make a and b with ern config, list each
-// other, b with its address, and give a the key "counter" on b (guide
+// other, b with its address, and give a the service "counter" on b (guide
 // §8.1, guide §8.2); then
 //
 //     ern build typed_channels_nodes.ern
@@ -18,14 +18,14 @@
 
 type CounterMsg = Add(Int) | Get(reply : Reply(Int))
 
-// The key b offers the counter under. A key carries the hash of its message type, so a find
-// on a peer that offers "counter" at another type answers Left(OtherType); and a lost
-// connection drops what was in flight (report §8.7).
-let key : Peer.Key(CounterMsg) = Peer.key("counter")
+// The counter's service, as b offers it to its peers. A service carries the hash of its
+// message type, so a find on a peer that offers "counter" at another type answers
+// Left(OtherType); and a lost connection drops what was in flight (report §8.7).
+let service : Peer.Service(CounterMsg) = Peer.service("counter")
 
 // Node a's entry point: the counter found on b, and called across the nodes.
 export fn main() : Unit with Never =
-    match Peer.find(key, 5000) {
+    match Peer.find(service, 5000) {
         Right(counter) -> {
             send(counter, Add(2));
             send(counter, Add(3));
@@ -35,12 +35,12 @@ export fn main() : Unit with Never =
       | Left(error) -> Io.println("no counter found: " <> Io.show(error))
     }
 
-// Node b's entry point, run with --main: its own process, offered under the key, is the
+// Node b's entry point, run with --main: its own process, offered as the service, is the
 // counter.
 export fn serve() : Unit with CounterMsg = {
-    match Peer.offer(key, self()) {
+    match Peer.offer(service, self()) {
         Right(Unit) -> Io.println("offered")
-      | Left(holder) -> Io.println("the key is held by " <> Io.show(holder))
+      | Left(holder) -> Io.println("the service is held by " <> Io.show(holder))
     };
     count(0)
 }

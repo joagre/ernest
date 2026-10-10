@@ -3024,21 +3024,23 @@ update_path_test() ->
                    "base\na\nb\nc\n"
                    "Pool(name = \"r\", stats = Stats(indexed = 1, hits = 3))\n">>, Output).
 
-%% report §8.7, Appendix E.27: a key holds the name it was made with, which
-%% `Peer.name` answers, and the hash of its message type, which the
-%% checker's supply gives it whether `Peer.key` is called or taken as a
-%% value, so that two keys of one name at one type are one key. A
-%% regression test of the key of a name and a hash, written after the code;
-%% a find's comparison of the hash is the nodes' (test/ern_nodes_tests.erl)
-peer_key_name_test() ->
+%% report §8.7, Appendix E.27: a service holds the name it was made with,
+%% which `Peer.name` answers, and the hash of its message type, which the
+%% checker's supply gives it whether `Peer.service` is called or taken as a
+%% value, so that two services of one name at one type are one service. A
+%% regression test of the service of a name and a hash, written after the
+%% code; a find's comparison of the hash is the nodes'
+%% (test/ern_nodes_tests.erl)
+peer_service_name_test() ->
     {ok, Output} =
         run("type Msg = Add(Int)\n"
-            "fn made(make : (String) -> Peer.Key(Msg), name : String) : Peer.Key(Msg) =\n"
+            "fn made(make : (String) -> Peer.Service(Msg), name : String) : Peer.Service(Msg) =\n"
             "    make(name)\n"
             "export fn main() : Unit with Never = {\n"
-            "    let counter : Peer.Key(Msg) = Peer.key(\"counter\");\n"
-            "    let other = made(Peer.key, \"other\");\n"
+            "    let counter : Peer.Service(Msg) = Peer.service(\"counter\");\n"
+            "    let other = made(Peer.service, \"other\");\n"
             "    Io.println(Peer.name(counter) <> \" \" <> Peer.name(other));\n"
-            "    Io.println(Io.show(#(made(Peer.key, \"counter\") == counter, other == counter)))\n"
+            "    Io.println(Io.show(#(made(Peer.service, \"counter\") == counter,"
+            " other == counter)))\n"
             "}\n"),
     ?assertEqual(<<"counter other\n#(true, false)\n">>, Output).

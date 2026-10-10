@@ -183,13 +183,13 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
 %% which the rule, the port map and the lines read, each peer by the host
 %% its key gives, listed as the node starts, before its initializers run.
 -spec list(#configuration{}) -> ok.
-list(#configuration{peers = Peers, keys = Keys} = Configuration) ->
+list(#configuration{peers = Peers, services = Services} = Configuration) ->
     persistent_term:put({?MODULE, configuration}, Configuration),
     persistent_term:put({?MODULE, peers},
                         maps:from_list([{host(Key), Peer}
                                         || #peer{public_key = Key} = Peer <- Peers])),
     ern_peer:configure([{Name, name(Key)} || #peer{name = Name, public_key = Key} <- Peers],
-                       Keys).
+                       Services).
 
 %% Whether the host was booted with the carrier's flags (boot_flags/2),
 %% which a node needs; a host booted otherwise cannot carry one.
@@ -214,8 +214,8 @@ is_node() ->
 %% Report §8.7: hangup is a reload: `ernest.conf` read and checked again as
 %% at the start, the node's own key and `listen` unchanged, or the file
 %% refused and the configuration kept; then the names the host allows gain
-%% the new peers', the peer table the rule and the dial read, the keys and
-%% the measures are the new file's, and a peer removed, or listed under
+%% the new peers', the peer table the rule and the dial read, the services
+%% and the measures are the new file's, and a peer removed, or listed under
 %% another key, has its connection ended, both nodes running the loss. The
 %% node says that it read the file, and each peer added, removed or
 %% renamed, or why the file was refused. Whatever fails as the file is read

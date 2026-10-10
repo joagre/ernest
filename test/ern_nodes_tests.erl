@@ -941,8 +941,8 @@ peers(Base) ->
     {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
 
 %% A store that listens, a desk that dials it, and a peer the desk lists,
-%% gone, whose port nothing holds; the desk's keys, each a name's peers in
-%% the order a find asks them.
+%% gone, whose port nothing holds; the desk's services, each a name's
+%% peers in the order a find asks them.
 store_and_desk(Base) ->
     {PortStore, PortGone} = {free_port(), free_port()},
     Store = made(Base, "store", PortStore),
@@ -956,27 +956,28 @@ store_and_desk(Base) ->
               <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
               <<"doomed">>, <<"adapter">>],
     edit(Desk, fun(Conf) ->
-                   Conf#{<<"keys">> => maps:merge(
-                                          maps:from_list([{Key, [<<"store">>]} || Key <- Stored]),
-                                          #{<<"counter">> => [<<"gone">>, <<"store">>],
-                                            <<"lost">> => [<<"gone">>]})}
+                   Conf#{<<"services">> => maps:merge(
+                                              maps:from_list([{Name, [<<"store">>]}
+                                                              || Name <- Stored]),
+                                              #{<<"counter">> => [<<"gone">>, <<"store">>],
+                                                <<"lost">> => [<<"gone">>]})}
                end),
     edit(Third, fun(Conf) ->
-                    Conf#{<<"keys">> => #{<<"counter-slot">> => [<<"store">>],
-                                          <<"echo-slot">> => [<<"store">>]}}
+                    Conf#{<<"services">> => #{<<"counter-slot">> => [<<"store">>],
+                                              <<"echo-slot">> => [<<"store">>]}}
                 end),
     {Store, Desk}.
 
 %% report §8.7, Appendix E.27, §6.5, §6.9, §6.6, E.21: a find in a node's
 %% initializer answers Unreachable, the node not yet dialling; a find over
-%% a key's peers in order passes over one that cannot be reached and answers
-%% the next's address, a key not listed NotListed, a name offered at
-%% another type OtherType, a name not offered NotOffered, a key of an
-%% unreachable peer alone Unreachable, no time Timeout; a message to an
+%% a service's peers in order passes over one that cannot be reached and
+%% answers the next's address, a service not listed NotListed, a name
+%% offered at another type OtherType, a name not offered NotOffered, a
+%% service of an unreachable peer alone Unreachable, no time Timeout; a message to an
 %% adapted address made on the store reaches its target through the store;
 %% kill crosses, and a Down from another node's process has an empty site;
 %% Process.info answers None for another node's process; an offer of
-%% another node's process faults, and one under a key a living process
+%% another node's process faults, and one of a service a living process
 %% holds answers that process; a lost connection gives a monitor
 %% Unreachable with an empty site, a find after it Unreachable, and a
 %% callForever on its process faults with the callee unreachable; and a
@@ -1013,12 +1014,12 @@ find(Base) ->
                  "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
                  "call forever: Fault(\"callee is unreachable\")"]].
 
-%% report §8.7, Appendix E.27: a key handed over on a node: the server's
-%% first service takes the key, Right(Unit), and a newcomer's offer under it
-%% answers the holder, Left(holder), which the newcomer monitors; the
-%% client finds the first service, calls it and kills it across nodes; at
-%% the holder's Down the newcomer offers again and takes the key, and the
-%% client's next find reaches the newcomer. A regression test, written
+%% report §8.7, Appendix E.27: a service handed over on a node: the
+%% server's first process takes the service, Right(Unit), and a newcomer's
+%% offer of it answers the holder, Left(holder), which the newcomer
+%% monitors; the client finds the first process, calls it and kills it
+%% across nodes; at the holder's Down the newcomer offers again and takes
+%% the service, and the client's next find reaches the newcomer. A regression test, written
 %% after the code, which faulted the newcomer's offer
 handover_test_() ->
     nodes_test(60, fun handover/1).
@@ -1027,19 +1028,19 @@ handover(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "server.ern"), <<"
-// Report §8.7, Appendix E.27: a key handed over: the first service takes
-// it, and a newcomer finds it held, monitors the holder and takes the key
-// at the holder's end.
+// Report §8.7, Appendix E.27: a service handed over: the first process
+// takes it, and a newcomer finds it held, monitors the holder and takes
+// the service at the holder's end.
 
 export type Msg = Which(Reply(String))
 
-export let key : Peer.Key(Msg) = Peer.key(\"handover\")
+export let service : Peer.Service(Msg) = Peer.service(\"handover\")
 
 type Newcomer = Asked(Msg) | Ended(Down)
 
 export fn main() : Unit with Unit = {
     let first = spawn(fn() = serve());
-    Io.println(\"taken: \" <> Io.show(Peer.offer(key, first)));
+    Io.println(\"taken: \" <> Io.show(Peer.offer(service, first)));
     let _ = spawn(fn() = newcomer(Process.fromAddress(first)));
     held()
 }
@@ -1053,13 +1054,13 @@ fn serve() : Unit with Msg =
     }
 
 fn newcomer(first : Process) : Unit with Newcomer = {
-    let service = via(self(), Asked);
-    match Peer.offer(key, service) {
+    let address = via(self(), Asked);
+    match Peer.offer(service, address) {
         Left(holder) -> {
             Io.println(\"held by the first: \" <> Io.show(holder == first));
             monitor(holder, Ended);
             receive {
-                Ended(_) -> Io.println(\"then taken: \" <> Io.show(Peer.offer(key, service)))
+                Ended(_) -> Io.println(\"then taken: \" <> Io.show(Peer.offer(service, address)))
             }
         }
       | Right(_) -> Io.println(\"taken at once\")
@@ -1081,17 +1082,17 @@ fn held() : Unit with Unit = receive { _ -> held() }
 "/utf8>>),
     ok = file:write_file(filename:join(Root, "client.ern"), <<"
 // Report §8.7: the client finds the server's service, calls it and kills
-// it, and once the test says the key is taken finds it again.
+// it, and once the test says the service is taken finds it again.
 
 export fn main() : Unit with Never =
-    match Peer.find(Server.key, 10000) {
+    match Peer.find(Server.service, 10000) {
         Right(first) -> {
             Io.println(\"first: \" <> asked(first));
             kill(first);
             Io.println(\"killed\");
-            // until the test, which has seen the key taken, says so
+            // until the test, which has seen the service taken, says so
             let _ = Io.readLine();
-            match Peer.find(Server.key, 10000) {
+            match Peer.find(Server.service, 10000) {
                 Right(newcomer) -> Io.println(\"then: \" <> asked(newcomer))
               | Left(failure) -> Io.println(\"then: \" <> Io.show(failure))
             }
@@ -1108,7 +1109,7 @@ fn asked(service : Address(Server.Msg)) : String with m =
     Client = made(Base, "client", none),
     lists(Server, [{"client", Client, none}]),
     lists(Client, [{"server", Server, PortServer}]),
-    edit(Client, fun(Conf) -> Conf#{<<"keys">> => #{<<"handover">> => [<<"server">>]}} end),
+    edit(Client, fun(Conf) -> Conf#{<<"services">> => #{<<"handover">> => [<<"server">>]}} end),
     WaitServer = start(Server, filename:join(Root, "server.erc"), []),
     prints(Server, "held by the first: true"),
     {Input, WaitClient} = started(Client, filename:join(Root, "client.erc"), []),
@@ -1274,7 +1275,7 @@ spawn_on_peer(Base) ->
      || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Timeout", "no upper bound: Right"]],
-    has(StoreErr, "the peer desk's spawn at Desk.spawns:74 was not loaded: the binding"
+    has(StoreErr, "the peer desk's spawn at Desk.spawns:75 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     has(StoreOut, "the store squares 49"),
     has(StoreOut, "the store squares 64"),
@@ -1585,9 +1586,9 @@ undecodable(Pem) ->
 
 %% A program of four modules, written in Dir and built there, as one build
 %% or as another, Changed, in which one function's body and one type's
-%% constructors differ: Twin's types, keys and functions; Aside, whose
-%% binding the server's program never runs; the server, which offers a
-%% service under each key; and the asker, which finds and spawns on the
+%% constructors differ: Twin's types, services and functions; Aside,
+%% whose binding the server's program never runs; the server, which offers
+%% a process as each service; and the asker, which finds and spawns on the
 %% server. A host module the asker's build holds and the server's lacks is
 %% what Twin's foreign declaration calls. Answers the asker's and the
 %% server's programs.
@@ -1604,9 +1605,9 @@ twins(Dir, Changed) ->
             "\n"
             "export type Shape = ", Shape, "\n"
             "\n"
-            "export let stableKey : Peer.Key(Msg) = Peer.key(\"stable\")\n"
+            "export let stable : Peer.Service(Msg) = Peer.service(\"stable\")\n"
             "\n"
-            "export let shapeKey : Peer.Key(Shape) = Peer.key(\"shape\")\n"
+            "export let shape : Peer.Service(Shape) = Peer.service(\"shape\")\n"
             "\n"
             "export fn same() : Unit with Never = Io.println(\"same ran\")\n"
             "\n"
@@ -1625,13 +1626,13 @@ twins(Dir, Changed) ->
             "export fn tell() : Unit with Never = Io.println(note)\n"
             "\n"
             "export fn quiet() : Unit with Never = Io.println(\"quiet ran\")\n",
-    Server = "// Report §8.7: a service under each of Twin's keys, until the node ends.\n"
+    Server = "// Report §8.7: a process as each of Twin's services, until the node ends.\n"
              "\n"
              "export fn main() : Unit with Unit = {\n"
              "    let pinged = spawn(fn() : Unit with Twin.Msg = answered());\n"
-             "    let _ = Peer.offer(Twin.stableKey, pinged);\n"
+             "    let _ = Peer.offer(Twin.stable, pinged);\n"
              "    let shaped = spawn(fn() : Unit with Twin.Shape = held());\n"
-             "    let _ = Peer.offer(Twin.shapeKey, shaped);\n"
+             "    let _ = Peer.offer(Twin.shape, shaped);\n"
              "    Io.println(\"offered\");\n"
              "    held()\n"
              "}\n"
@@ -1658,13 +1659,13 @@ twins(Dir, Changed) ->
             "    }\n"
             "\n"
             "fn found(server : String) : Unit with Never = {\n"
-            "    let stable = match Peer.find(Twin.stableKey, 5000) {\n"
+            "    let stable = match Peer.find(Twin.stable, 5000) {\n"
             "        Right(address) ->\n"
             "            Io.show(Address.call(address, fn(reply) = Twin.Ping(reply), 5000))\n"
             "      | Left(failure) -> Io.show(failure)\n"
             "    };\n"
             "    Io.println(\"stable: \" <> stable);\n"
-            "    Io.println(\"shape: \" <> started(Peer.find(Twin.shapeKey, 5000)))\n"
+            "    Io.println(\"shape: \" <> started(Peer.find(Twin.shape, 5000)))\n"
             "}\n"
             "\n"
             "fn spawned(server : String) : Unit with Never = {\n"
@@ -1720,8 +1721,8 @@ hash_text(Dir, Module, QualifiedName) ->
     binary_to_list(binary:encode_hex(Hash, lowercase)).
 
 %% report §8.7, Appendix H, §3.11, §6.9: two nodes of different builds of
-%% one program connect; a find answers the address where the key's type is
-%% one in both builds, and a call through it is answered, and `OtherType`
+%% one program connect; a find answers the address where the service's
+%% type is one in both builds, and a call through it is answered, and `OtherType`
 %% where the type's constructors differ, its hash another; a spawn of a
 %% function both builds hold runs on the server, and one of a function
 %% whose body differs answers NotLoaded, the server saying it does not
@@ -1744,8 +1745,8 @@ two_builds(Base) ->
     lists(Asker, [{"server", Server, PortServer}]),
     lists(Server, [{"asker", Asker, none}]),
     edit(Asker, fun(Conf) ->
-                    Conf#{<<"keys">> => #{<<"stable">> => [<<"server">>],
-                                          <<"shape">> => [<<"server">>]}}
+                    Conf#{<<"services">> => #{<<"stable">> => [<<"server">>],
+                                              <<"shape">> => [<<"server">>]}}
                 end),
     WaitServer = start(Server, ServerProgram, []),
     prints(Server, "offered"),
@@ -1772,21 +1773,21 @@ two_builds(Base) ->
                  "the peer asker's spawn at Asker.spawned:27 was not loaded: the module"
                  " ern_twins_host, which Twin.absent calls, is not here"]].
 
-%% report §11.2, §8.7, Appendix H: a key at a type the session declares
-%% names that type by its hash, as any key does, and the hash is the
+%% report §11.2, §8.7, Appendix H: a service at a type the session declares
+%% names that type by its hash, as any service does, and the hash is the
 %% session's whatever input declares the type: two shells that are nodes
 %% declare one type at different inputs, the first at its first and the
 %% second at its second, after a declaration of its own, whose input keeps
-%% its module and so its namespace, and each offers a service under a key
-%% at it; each finds the other's and sends to it. A regression test, written after the
-%% code: the shell's test asserted the printed types alone (V12). Then
+%% its module and so its namespace, and each offers a process as a service
+%% at it; each finds the other's and sends to it. A regression test,
+%% written after the code: the shell's test asserted the printed types alone (V12). Then
 %% written again after the fix (V11): the type was hashed under its input's
 %% namespace, so the two shells held two types and a find answered
 %% `OtherType`
-shell_key_test_() ->
-    nodes_test(90, fun shell_key/1).
+shell_service_test_() ->
+    nodes_test(90, fun shell_service/1).
 
-shell_key(Base) ->
+shell_service(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
     [PortA, PortB] = [free_port(), free_port()],
@@ -1794,19 +1795,19 @@ shell_key(Base) ->
     B = made(Base, "b", PortB),
     lists(A, [{"b", B, PortB}]),
     lists(B, [{"a", A, PortA}]),
-    edit(A, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"b">>]}} end),
-    edit(B, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"a">>]}} end),
-    Declared = "type T = T(Int)\nlet k : Peer.Key(T) = Peer.key(\"t\")\n",
+    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"b">>]}} end),
+    edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
+    Declared = "type T = T(Int)\nlet service : Peer.Service(T) = Peer.service(\"t\")\n",
     Offered = fun(Node) ->
                   ["let server : Address(T) = spawn(fn() : Unit with T =\n"
                    "    receive {\n"
                    "        T(n) -> Io.println(\"", Node, " got \" <> Int.toString(n))\n"
                    "    })\n"
-                   "Peer.offer(k, server)\n"
+                   "Peer.offer(service, server)\n"
                    "Io.println(\"offered\")\n"]
               end,
     Found = fun(Count) ->
-                ["match Peer.find(k, 5000) {\n"
+                ["match Peer.find(service, 5000) {\n"
                  "    Right(server) -> {\n"
                  "        send(server, T(", Count, "));\n"
                  "        Io.println(\"found\")\n"
@@ -1873,7 +1874,7 @@ shell_binding_spawned(Base) ->
 
 %% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
 %% code while the session runs, since the function may be held anywhere: a
-%% shell that is a node offers under a key an adapted address made at the
+%% shell that is a node offers as a service an adapted address made at the
 %% prompt, whose function the input built and the runtime's offers hold,
 %% and a peer's message reaches the service through it after many inputs
 %% more. A regression test, written after the fix (finding W1): the input's
@@ -1890,20 +1891,20 @@ shell_offered_via(Base) ->
     B = made(Base, "b", none),
     lists(A, [{"b", B, none}]),
     lists(B, [{"a", A, PortA}]),
-    edit(B, fun(Conf) -> Conf#{<<"keys">> => #{<<"t">> => [<<"a">>]}} end),
-    Declared = "type T = T(Int)\nlet k : Peer.Key(T) = Peer.key(\"t\")\n",
+    edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
+    Declared = "type T = T(Int)\nlet service : Peer.Service(T) = Peer.service(\"t\")\n",
     {InputA, WaitA} = shell_started(A, Root),
     true = port_command(InputA,
                         [Declared,
                          "let store : Address(Int) = spawn(fn() : Unit with Int =\n"
                          "    receive { n -> Io.println(\"a got \" <> Int.toString(n)) })\n",
-                         "Peer.offer(k, via(store, fn(t) = match t { T(n) -> n }))\n",
+                         "Peer.offer(service, via(store, fn(t) = match t { T(n) -> n }))\n",
                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
                          "Io.println(\"offered\")\n"]),
     prints(A, "offered"),
     {InputB, WaitB} = shell_started(B, Root),
     true = port_command(InputB, [Declared,
-                                 "match Peer.find(k, 5000) {\n"
+                                 "match Peer.find(service, 5000) {\n"
                                  "    Right(server) -> {\n"
                                  "        send(server, T(5));\n"
                                  "        Io.println(\"found\")\n"
@@ -2321,7 +2322,7 @@ adapted_fault(Base) ->
                          "\n"
                          "type Msg = Work(Int)\n"
                          "\n"
-                         "let key : Peer.Key(Int) = Peer.key(\"work\")\n"
+                         "let service : Peer.Service(Int) = Peer.service(\"work\")\n"
                          "\n"
                          "export fn main() : Unit with Unit =\n"
                          "    match Os.arguments {\n"
@@ -2337,7 +2338,7 @@ adapted_fault(Base) ->
                          "                                      send(maker, Unit);\n"
                          "                                      work()\n"
                          "                                  }));\n"
-                         "    let _ = Peer.offer(key, via(worker, fn(n) = Work(100 / n)));\n"
+                         "    let _ = Peer.offer(service, via(worker, fn(n) = Work(100 / n)));\n"
                          "    runs(1)\n"
                          "}\n"
                          "\n"
@@ -2358,7 +2359,7 @@ adapted_fault(Base) ->
                          "    }\n"
                          "\n"
                          "fn sending() : Unit with Unit =\n"
-                         "    match Peer.find(key, 5000) {\n"
+                         "    match Peer.find(service, 5000) {\n"
                          "        Right(work) -> {\n"
                          "            Io.println(\"found\");\n"
                          "            sent(work)\n"
@@ -2387,7 +2388,7 @@ adapted_fault(Base) ->
     Sender = made(Base, "sender", none),
     lists(Maker, [{"sender", Sender, none}]),
     lists(Sender, [{"maker", Maker, PortMaker}]),
-    edit(Sender, fun(Conf) -> Conf#{<<"keys">> => #{<<"work">> => [<<"maker">>]}} end),
+    edit(Sender, fun(Conf) -> Conf#{<<"services">> => #{<<"work">> => [<<"maker">>]}} end),
     WaitMaker = start(Maker, Program, ["make"]),
     prints(Maker, "run 1"),
     {SenderInput, WaitSender} = started(Sender, Program, []),
@@ -2431,7 +2432,7 @@ end_told_on_a_node(Base) ->
     Desk = made(Base, "desk", none),
     lists(Store, [{"desk", Desk, none}]),
     lists(Desk, [{"store", Store, PortStore}]),
-    edit(Desk, fun(Conf) -> Conf#{<<"keys">> => #{<<"counter">> => [<<"store">>]}} end),
+    edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"store">>]}} end),
     {StoreInput, WaitStore} = started(Store, filename:join(Root, "keeper.erc"), ["wait"]),
     prints(Store, "offered"),
     terminated(Store),
@@ -2485,7 +2486,7 @@ standing(Base) ->
     lists(Other, [{"desk", Desk, none}]),
     lists(Desk, [{"store", Store, PortStore}, {"other", Other, PortOther}]),
     edit(Desk, fun(Conf) ->
-                   Conf#{<<"keys">> => #{<<"counter">> => [<<"store">>, <<"other">>]}}
+                   Conf#{<<"services">> => #{<<"counter">> => [<<"store">>, <<"other">>]}}
                end),
     Keeper = filename:join(Root, "keeper.erc"),
     WaitStore = start(Store, Keeper, []),
@@ -2508,7 +2509,7 @@ standing(Base) ->
 
 %% report §8.7, §6.6, Appendix E.27: examples/typed_channels_nodes.ern as
 %% two nodes, as its first comment runs them: b runs serve, which offers
-%% the counter under the key, and a runs main, which finds the counter on
+%% the counter as its service, and a runs main, which finds the counter on
 %% b and calls it across the nodes. A regression test, written with the
 %% example; a find at another type is program_test_'s
 typed_channels_test_() ->
@@ -2525,7 +2526,7 @@ typed_channels(Base) ->
     lists(ConfigDirA, [{"b", ConfigDirB, PortB}]),
     lists(ConfigDirB, [{"a", ConfigDirA, none}]),
     edit(ConfigDirA, fun(Configuration) ->
-                             Configuration#{<<"keys">> => #{<<"counter">> => [<<"b">>]}}
+                             Configuration#{<<"services">> => #{<<"counter">> => [<<"b">>]}}
                      end),
     {_, WaitB} = launched(ConfigDirB, [?ERN, " run --config-dir ", ConfigDirB,
                                        " --main TypedChannelsNodes.serve ", Program]),
@@ -2573,14 +2574,14 @@ balance(Base) ->
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two
 %% directories as `ern config` makes them, `a` listening and listing `b`
-%% under the key `pair`, and says in `pair.json` the port `b` listens on and
+%% under the service `pair`, and says in `pair.json` the port `b` listens on and
 %% the load path `a` runs with; the test, in Ernest, writes `b`'s
 %% `ernest.conf` listing `a`, starts `b` with `Os` on the same build, finds
 %% and calls what it offers, and ends it with `ern stop`; a second test
 %% starts `b` with `Os` on a second build, whose `Msg` has another
-%% constructor (second_build/1), and finds `OtherType` at its key, the type
-%% it offers at having another hash; a third holds a standing address of
-%% the key against the second build, whose process faults at the first
+%% constructor (second_build/1), and finds `OtherType` at its service, the
+%% type it offers at having another hash; a third holds a standing address
+%% of the service against the second build, whose process faults at the first
 %% message, the fault reported as every fault is. A regression test,
 %% written after the code; it does not cover a reload, whose end a program
 %% cannot see (§8.7: the signal carries nothing back)
@@ -2594,7 +2595,7 @@ pair_program(Base) ->
     A = made(Base, "a", PortA),
     B = made(Base, "b", none),
     lists(A, [{"b", B, PortB}]),
-    edit(A, fun(Conf) -> Conf#{<<"keys">> => #{<<"pair">> => [<<"b">>]}} end),
+    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"pair">> => [<<"b">>]}} end),
     Settings = #{<<"port">> => PortB,
                  <<"load-path">> => [list_to_binary(Library) || Library <- ?LIBRARIES],
                  <<"build">> => <<"build/pair.erc">>,
@@ -2614,14 +2615,14 @@ pair_program(Base) ->
                                 " passed"),
     has(binary_to_list(Output), "a second node of another build, started with Os, offers at another"
                                 " type: passed"),
-    has(binary_to_list(Output), "a standing address of a key offered at another type faults, and is"
-                                " dead: passed"),
-    ?assertMatch({match, _}, re:run(Output, "Standing\\.start:[0-9]+ faulted: the key pair is"
+    has(binary_to_list(Output), "a standing address of a service offered at another type faults,"
+                                " and is dead: passed"),
+    ?assertMatch({match, _}, re:run(Output, "Standing\\.start:[0-9]+ faulted: the service pair is"
                                             " offered at another type")),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
 
 %% Report §8.7: a second build of test/peers/pair.ern, its `Msg` given
-%% another constructor, so that its key's type has another hash, built in
+%% another constructor, so that its service's type has another hash, built in
 %% Base/second-build.
 second_build(Base) ->
     {ok, Source} = file:read_file("peers/pair.ern"),

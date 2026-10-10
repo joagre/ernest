@@ -9,11 +9,11 @@ export type Msg =
   | Slow(ms : Int, reply : Reply(Int))
   | Forward(answerer : Address(Reply(Int)), reply : Reply(Int))
 
-export let brittle : Peer.Key(Msg) = Peer.key("brittle")
+export let brittle : Peer.Service(Msg) = Peer.service("brittle")
 
-export let sleeper : Peer.Key(Msg) = Peer.key("sleeper")
+export let sleeper : Peer.Service(Msg) = Peer.service("sleeper")
 
-export let doomed : Peer.Key(Msg) = Peer.key("doomed")
+export let doomed : Peer.Service(Msg) = Peer.service("doomed")
 
 export fn serve() : Unit with Msg =
     receive {

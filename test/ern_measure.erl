@@ -829,8 +829,8 @@ terminal_scenarios() ->
     [{<<"Terminal.subscribe">>, {not_measured, <<"reads a terminal">>}},
      {<<"Terminal.size">>, {not_measured, <<"reads a terminal">>}}].
 
-%% Appendix E.27: a key as the compiler makes it, with its type's hash and
-%% text; an offer and its withdrawal beside the host's two tables written
+%% Appendix E.27: a service as the compiler makes it, with its type's
+%% hash; an offer and its withdrawal beside the host's two tables written
 %% and emptied; the peers' names beside the host's read of them. A find
 %% and a spawn act on a peer, which a run of one node cannot reach; `make
 %% bench`'s node part measures them on real nodes.
@@ -845,10 +845,10 @@ peer_scenarios() ->
     Offers = ets:new(ern_measure_offers, [ordered_set, public]),
     Offered = ets:new(ern_measure_offered, [bag, public]),
     AcrossNodes = {not_measured, <<"acts on a peer, which a run of one node cannot reach">>},
-    [{<<"Peer.key">>, {fun() -> ern_peer:key(Name, Hash) end,
-                       fun() -> {'Key', Name, Hash} end}},
+    [{<<"Peer.service">>, {fun() -> ern_peer:service(Name, Hash) end,
+                           fun() -> {'Service', Name, Hash} end}},
      {<<"Peer.offer">>,
-      {fun() -> Peer:offer(ern_peer:key(Name, Hash), Me), Withdrawn() end,
+      {fun() -> Peer:offer(ern_peer:service(Name, Hash), Me), Withdrawn() end,
        fun() ->
            ets:insert_new(Offers, {{Name, Hash}, Me, Me}),
            ets:insert(Offered, {Me, {Name, Hash}}),
@@ -908,12 +908,12 @@ balancer_scenarios() ->
 
 %% Appendix G.7: a standing address started and ended, its find answering
 %% at once in a launch that is no node, beside a process spawned and
-%% ended; the key's hash is no type's, since nothing finds it.
+%% ended; the service's hash is no type's, since nothing finds it.
 standing_scenarios() ->
     Standing = 'ern@standing',
-    Key = {'Key', <<"measured">>, <<0:256>>},
+    Service = {'Service', <<"measured">>, <<0:256>>},
     [{<<"Standing.start">>,
-      {fun() -> ern_rt:kill(Standing:start(Key, 1000)) end,
+      {fun() -> ern_rt:kill(Standing:start(Service, 1000)) end,
        fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].
 
 ets_scenarios() ->

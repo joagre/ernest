@@ -2,7 +2,7 @@
 // it and asks it.
 
 export fn main() : Unit with Never =
-    match Peer.find(Counter.key, 5000) {
+    match Peer.find(Counter.service, 5000) {
         Right(counter) -> {
             send(counter, Counter.Add(3));
             let total = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000);

@@ -120,11 +120,11 @@
 %% and once the wait is over, {wait_over}
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
-%% the key's name and its type's hash, ordered so that one name's are read
-%% together
+%% the service's name and its type's hash, ordered so that one name's are
+%% read together
 -define(OFFERS, ern_offers).
-%% report §8.7: each process's own keys, {Process, Key}, by the process, so
-%% that its end ends its offers
+%% report §8.7: each process's own services, {Process, Service}, by the
+%% process, so that its end ends its offers
 -define(OFFERED, ern_offered).
 %% report §8.7: the modules whose initializers have run, {ErlangModule},
 %% whose bindings a spawn from a peer asks for
@@ -2648,42 +2648,42 @@ declared_dependencies(ErlangModule) ->
         false -> []
     end.
 
-%% Report §8.7: an offer under a key, its name and its type's hash, of an
+%% Report §8.7: an offer of a service, its name and its type's hash, of an
 %% address of this node's, for as long as its process lives: `Right(Unit)`
-%% where it took the key, and `Left(Holder)`, the process whose address is
-%% offered under it, where that process lives; an address of another
-%% node's process faults the caller. The row of a holder that has ended
-%% stands until the reaper learns of the end, and is taken by one offer
-%% alone, so that two offers never both take a key.
+%% where it took the service, and `Left(Holder)`, the process whose address
+%% is offered as it, where that process lives; an address of another node's
+%% process faults the caller. The row of a holder that has ended stands
+%% until the reaper learns of the end, and is taken by one offer alone, so
+%% that two offers never both take a service.
 -spec offer({binary(), binary()}, address()) -> {'Right', 'Unit'} | {'Left', pid()}.
-offer(Key, Address) ->
+offer(Service, Address) ->
     Process = process_of(Address),
     node(Process) =:= node() orelse fault(<<"a node offers only its own processes">>),
-    case ets:insert_new(?OFFERS, {Key, Address, Process}) of
+    case ets:insert_new(?OFFERS, {Service, Address, Process}) of
         true ->
-            held_while_alive(Key, Process),
+            held_while_alive(Service, Process),
             {'Right', ?UNIT};
         false ->
-            case ets:lookup(?OFFERS, Key) of
+            case ets:lookup(?OFFERS, Service) of
                 [{_, _, Holder} = Row] ->
                     case erlang:is_process_alive(Holder) of
                         true ->
                             {'Left', Holder};
                         false ->
                             ets:delete_object(?OFFERS, Row),
-                            offer(Key, Address)
+                            offer(Service, Address)
                     end;
                 [] ->
-                    offer(Key, Address)
+                    offer(Service, Address)
             end
     end.
 
-%% Report §8.7: the offer's process holds the key while it lives, its end
-%% ending the offer (unoffered/1). A process that ended before its row of
-%% keys was written may have been read by the reaper already, so its offer
-%% goes here.
-held_while_alive(Key, Process) ->
-    ets:insert(?OFFERED, {Process, Key}),
+%% Report §8.7: the offer's process holds the service while it lives, its
+%% end ending the offer (unoffered/1). A process that ended before its row
+%% of services was written may have been read by the reaper already, so its
+%% offer goes here.
+held_while_alive(Service, Process) ->
+    ets:insert(?OFFERED, {Process, Service}),
     watch(Process),
     erlang:is_process_alive(Process) orelse unoffered(Process).
 
@@ -2748,8 +2748,8 @@ answer_of_run({offered, Name, Hash}) -> offered(Name, Hash).
 
 %% Report §8.7: a process's offers end with it.
 unoffered(Pid) ->
-    lists:foreach(fun({_, Key}) ->
-                      ets:select_delete(?OFFERS, [{{Key, '_', Pid}, [], [true]}])
+    lists:foreach(fun({_, Service}) ->
+                      ets:select_delete(?OFFERS, [{{Service, '_', Pid}, [], [true]}])
                   end, ets:take(?OFFERED, Pid)).
 
 %% Report §8.7: a call's note, which the gateway records as it comes: the

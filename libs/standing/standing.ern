@@ -4,24 +4,24 @@
 /// A program puts the library on its load path when it is compiled and
 /// when it is run; report Appendix G says where an installation keeps it.
 ///
-/// **What it does.** `start` spawns a process that finds the service by its
-/// key and forwards to it each message it is sent, and answers the address
-/// the program sends to. When the find fails, the service ends or its node is
-/// lost, the process finds the key again when the next message comes; a
+/// **What it does.** `start` spawns a process that finds the service and
+/// forwards to it each message it is sent, and answers the address the
+/// program sends to. When the find fails, the service ends or its node is
+/// lost, the process finds the service again when the next message comes; a
 /// message that comes while a find is under way waits for it and shares its
 /// outcome, so that one find is under way at a time. A message that comes
 /// while the service is away, and whose find fails, goes to the last address
 /// held, where it is lost as a message to an ended process is, or reaches the
 /// service where its node is back; a call through the standing address then
 /// answers `None` at its own time, which says nothing of whether the request
-/// ran. A key the configuration does not list is never found. A find that
+/// ran. A service the configuration does not list is never found. A find that
 /// answers `OtherType` is no absence but a protocol the two builds disagree
-/// on: the process faults, naming the key, and the address is dead from then
-/// on. At a shell prompt the caller is the input's process, which ends with
-/// the input, so a standing address used from the prompt is started in a
-/// process that lives on. `start` spawns two processes,
-/// the forwarder and one that ends at once and stands where no address has
-/// been found. The process ends with the process that called `start`.
+/// on: the process faults, naming the service, and the address is dead from
+/// then on. At a shell prompt the caller is the input's process, which ends
+/// with the input, so a standing address used from the prompt is started in a
+/// process that lives on. `start` spawns two processes, the forwarder and one
+/// that ends at once and stands where no address has been found. The process
+/// ends with the process that called `start`.
 ///
 /// **What it is not.** It is an ordinary process on the message's way: a
 /// message through it may pass one sent to the service directly, and it
@@ -36,8 +36,8 @@
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(Int) = Peer.key("counter");
-///     Standing.start(key, 5000)
+///     let service : Peer.Service(Int) = Peer.service("counter");
+///     Standing.start(service, 5000)
 /// }
 /// ```
 ///
@@ -47,51 +47,52 @@
 // and the end of the service it holds or of the process that started it.
 type Msg(m) = Message(m) | Went(Down)
 
-/// Spawns the process of a standing address of the service offered under
-/// `key`, and answers the address. The process finds the key within `ms`
-/// milliseconds, and again within `ms` at the first message after the find
-/// failed, the service ended or its node was lost, a message that comes
-/// during a find sharing its outcome, and forwards each message to the
-/// service. A message that comes while the service is away and whose find
-/// fails goes to the last address held, lost where that process has ended
-/// (report §6.2); a call through the address then answers `None` at its own
-/// time. A find that answers `OtherType` faults the process with a cause that
-/// names the key by its name, `the key counter is offered at another type`.
-/// The process ends with the process that called `start`.
+/// Spawns the process of a standing address of `service`, and answers the
+/// address. The process finds the service within `ms` milliseconds, and again
+/// within `ms` at the first message after the find failed, the service ended
+/// or its node was lost, a message that comes during a find sharing its
+/// outcome, and forwards each message to the service. A message that comes
+/// while the service is away and whose find fails goes to the last address
+/// held, lost where that process has ended (report §6.2); a call through the
+/// address then answers `None` at its own time. A find that answers
+/// `OtherType` faults the process with a cause that names the service by its
+/// name, `the service counter is offered at another type`. The process ends
+/// with the process that called `start`.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(Int) = Peer.key("counter");
-///     send(Standing.start(key, 5000), 1)
+///     let service : Peer.Service(Int) = Peer.service("counter");
+///     send(Standing.start(service, 5000), 1)
 /// }
 /// ```
-export fn start(key : Peer.Key(m), ms : Int) : Address(m) with n = {
+export fn start(service : Peer.Service(m), ms : Int) : Address(m) with n = {
     let caller = Process.fromAddress(self());
     let standing = spawn(fn() : Unit with Msg(m) = {
         monitor(caller, Went);
         // where a message goes while the service has never been found: a
         // process that has ended, at which a message is lost (report §6.2)
         let nowhere : Address(m) = spawn(fn() : Unit with m = Unit);
-        let #(address, present) = found(key, ms, nowhere);
-        held(key, ms, caller, shared(address, present))
+        let #(address, present) = found(service, ms, nowhere);
+        held(service, ms, caller, shared(address, present))
     });
     via(standing, Message)
 }
 
 // The address the next message goes to, and whether it is the service's:
 // the service's where a find gives it, monitored from then on, and else
-// `away`, where the service was last, which may have ended. A key offered
-// at another type is no absence, and no later find mends it: the process
-// faults.
-fn found(key : Peer.Key(m), ms : Int, away : Address(m)) : #(Address(m), Bool) with Msg(m) =
-    match Peer.find(key, ms) {
+// `away`, where the service was last, which may have ended. A service
+// offered at another type is no absence, and no later find mends it: the
+// process faults.
+fn found(service : Peer.Service(m), ms : Int, away : Address(m)) : #(Address(m), Bool) with Msg(m) =
+    match Peer.find(service, ms) {
         Right(address) -> {
             monitor(Process.fromAddress(address), Went);
             #(address, true)
         }
-      | Left(Io.OtherType) -> fault("the key " <> Peer.name(key) <> " is offered at another type")
+      | Left(Io.OtherType) ->
+            fault("the service " <> Peer.name(service) <> " is offered at another type")
       | Left(_) -> #(away, false)
     }
 
@@ -109,7 +110,7 @@ fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) with Msg(m
 
 // Each message forwarded, the service found again first where it is away,
 // until the process that started this one ends.
-fn held(key : Peer.Key(m),
+fn held(service : Peer.Service(m),
         ms : Int,
         caller : Process,
         target : #(Address(m), Bool)) : Unit with Msg(m) =
@@ -117,18 +118,18 @@ fn held(key : Peer.Key(m),
         Message(message) -> match target {
             #(address, true) -> {
                 send(address, message);
-                held(key, ms, caller, target)
+                held(service, ms, caller, target)
             }
           | #(away, false) -> {
-                let #(address, present) = found(key, ms, away);
+                let #(address, present) = found(service, ms, away);
                 send(address, message);
-                held(key, ms, caller, shared(address, present))
+                held(service, ms, caller, shared(address, present))
             }
         }
       | Went(down) -> if down.process == caller then
             Unit
         else
-            held(key, ms, caller, without(target, down.process))
+            held(service, ms, caller, without(target, down.process))
     }
 
 // The target, no longer the service's where the process that ended is the
@@ -157,8 +158,8 @@ type Seen = Started(Process) | Ended(Down)
 let away =
     Test.Case(name = "a call through a standing address whose service is away answers None",
               run = fn() = {
-                  let key : Peer.Key(Probe) = Peer.key("probe");
-                  let standing = start(key, 100);
+                  let service : Peer.Service(Probe) = Peer.service("probe");
+                  let standing = start(service, 100);
                   let first = Address.call(standing, fn(reply) = Ask(reply = reply), 100);
                   let second = Address.call(standing, fn(reply) = Ask(reply = reply), 100);
                   Test.equal(#(first, second), #(None, None))
@@ -169,8 +170,8 @@ let endsWithItsCaller =
               run = fn() = {
                   let me = self();
                   let starter = spawn(fn() : Unit with Unit = {
-                      let key : Peer.Key(Probe) = Peer.key("probe");
-                      send(me, Started(Process.fromAddress(start(key, 100))));
+                      let service : Peer.Service(Probe) = Peer.service("probe");
+                      send(me, Started(Process.fromAddress(start(service, 100))));
                       receive {
                           _ -> Unit
                       }

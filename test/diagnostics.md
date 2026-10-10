@@ -4229,35 +4229,35 @@ example.ern:5:28: a reply-carrying value, Reply(Int), passed where pair duplicat
 
 ## What crosses to another node (report §3.11)
 
-### A key at a message type not known where it is made (§3.11)
+### A service at a message type not known where it is made (§3.11)
 
 ```ernest-rejected
-fn keyOf(name : String) : Peer.Key(m) = Peer.key(name)
+fn serviceOf(name : String) : Peer.Service(m) = Peer.service(name)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:41: Peer.key makes its key at a message type known whole, and here it is m
-1 | fn keyOf(name : String) : Peer.Key(m) = Peer.key(name)
-  |                                         ^^^^^^^^
-  | = help: annotate the key where it is bound, `let key : Peer.Key(Msg) = Peer.key("name")` (§3.11)
+example.ern:1:49: Peer.service names a service at a message type known whole, and here it is m
+1 | fn serviceOf(name : String) : Peer.Service(m) = Peer.service(name)
+  |                                                 ^^^^^^^^^^^^
+  | = help: annotate the service where it is bound, `let service : Peer.Service(Msg) = Peer.service("name")` (§3.11)
 ```
 
-### A key of a type bound to its node (§3.11)
+### A service at a type bound to its node (§3.11)
 
 ```ernest-rejected
 type Msg = Run(() -> Unit)
 
-let key : Peer.Key(Msg) = Peer.key("jobs")
+let service : Peer.Service(Msg) = Peer.service("jobs")
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:27: Peer.key makes a key of Msg, which is bound to its node, since it holds a function
+example.ern:3:35: Peer.service names a service at Msg, which is bound to its node, since it holds a function
 2 | 
-3 | let key : Peer.Key(Msg) = Peer.key("jobs")
-  |                           ^^^^^^^^
-  | = help: a key's message type crosses to the node's peers, so a process offered under it receives values that cross (§3.11)
+3 | let service : Peer.Service(Msg) = Peer.service("jobs")
+  |                                   ^^^^^^^^^^^^
+  | = help: a service's message type crosses to the node's peers, so the process offered as the service receives values that cross (§3.11)
 ```
 
 ### `Peer.spawn` taken as a value (§3.11)

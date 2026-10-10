@@ -99,7 +99,7 @@ literal_hashes_test() ->
      || {Text, Hex} <- Expected],
     ?assertEqual(1, ern_canonical:form_version()).
 
-%% report Appendix H, §8.7: a type's definition, and a key's message type,
+%% report Appendix H, §8.7: a type's definition, and a service's message type,
 %% hash to the values written here, computed once from the appendix's
 %% terms, as a literal's do, so that a change of a type's form, of its
 %% encoding or of the version changes them; the form's version is part of
@@ -109,9 +109,10 @@ type_hashes_test() ->
     Shape = "type Shape = Circle(Float) | Rect(w : Float, h : Float)",
     ?assertEqual(<<"683bc999e1be42c8308afa0b722ccdaeca7d23f85a521d888d01f8a9c6c4c6d3">>,
                  binary:encode_hex(hash(Shape, 'Shape'), lowercase)),
-    {#{keys := Keys}, _} = canonical("let k : Peer.Key(Optional(Int)) = Peer.key(\"k\")\n"),
+    {#{services := Services}, _} =
+        canonical("let k : Peer.Service(Optional(Int)) = Peer.service(\"k\")\n"),
     ?assertEqual(<<"702bfc8dea0b30e66c3d10f36b7fa83cfa5ca2717e73bb6323b028370d875d1f">>,
-                 binary:encode_hex(maps:get({tcon, ['Optional'], [{tcon, ['Int'], []}]}, Keys),
+                 binary:encode_hex(maps:get({tcon, ['Optional'], [{tcon, ['Int'], []}]}, Services),
                                    lowercase)).
 
 %% report Appendix H: the form of a function, as the appendix writes it:
@@ -151,7 +152,7 @@ type_form_test() ->
 %% report Appendix H, §8.7, §3.10: a type's hash covers the compare its
 %% module declares for it, which gives its order, and no other member: a
 %% type with a written compare and one without hash apart; a change to
-%% compare's body alone changes the type's hash, the hash of a key at an
+%% compare's body alone changes the type's hash, the hash of a service at an
 %% ordered set of it, and the hash of a function that names it, and a
 %% change to its negate changes none; the type and its compare reference
 %% each other, and are one group, its form naming the compare by its
@@ -161,7 +162,7 @@ type_compare_test() ->
                    "type Coin = Coin(Int)\n"
                    "fn Coin.compare(a : Coin, b : Coin) : Ordering = " ++ Order ++ "\n"
                    "fn Coin.negate(c : Coin) : Coin = " ++ Negation ++ "\n"
-                   "let set : Peer.Key(OrderedSet.Set(Coin)) = Peer.key(\"coins\")\n"
+                   "let set : Peer.Service(OrderedSet.Set(Coin)) = Peer.service(\"coins\")\n"
                    "fn worth(c : Coin) : Int = match c { Coin(n) -> n }\n"
            end,
     First = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(x, y) }",
@@ -174,16 +175,16 @@ type_compare_test() ->
     #definition{group = {Group, 2}} = definition(First, ['Coin', compare]),
     ?assertMatch({type, ['T', 'Coin'], 0, false, {in_group, 2}, _}, TypeForm),
     ?assertNotEqual(hash("type Coin = Coin(Int)\n", 'Coin'), hash(First, 'Coin')),
-    Key = fun(Text) ->
-                  {#{keys := Keys}, _} = canonical(Text),
-                  [Hash] = maps:values(Keys),
-                  Hash
-          end,
+    Service = fun(Text) ->
+                      {#{services := Services}, _} = canonical(Text),
+                      [Hash] = maps:values(Services),
+                      Hash
+              end,
     [?assertNotEqual(Measure(First), Measure(Reversed))
-     || Measure <- [fun(Text) -> hash(Text, 'Coin') end, Key,
+     || Measure <- [fun(Text) -> hash(Text, 'Coin') end, Service,
                     fun(Text) -> hash(Text, worth) end]],
     [?assertEqual(Measure(First), Measure(Negated))
-     || Measure <- [fun(Text) -> hash(Text, 'Coin') end, Key,
+     || Measure <- [fun(Text) -> hash(Text, 'Coin') end, Service,
                     fun(Text) -> hash(Text, worth) end]],
     ?assertNotEqual(hash(First, ['Coin', negate]), hash(Negated, ['Coin', negate])).
 
@@ -310,7 +311,7 @@ renamed_type_test() ->
 
 %% report Appendix H, §11.2: a type a shell session declares holds its
 %% qualified name under the session's one namespace whatever input declares
-%% it, so that one declaration at two inputs is one type, its key's hash
+%% it, so that one declaration at two inputs is one type, its service's hash
 %% one; the checker's namespace, the input's, stays in the type's record.
 %% So does every name the session declares that a form writes: what a
 %% `let` at the prompt bound, whatever holder holds it, and a foreign
@@ -319,7 +320,7 @@ renamed_type_test() ->
 %% after the fix (finding V11): the form held the input's namespace, and
 %% then a binding's and a foreign function's held their own
 session_namespace_test() ->
-    Text = "type Msg = A(Int)\nlet k : Peer.Key(Msg) = Peer.key(\"k\")\n"
+    Text = "type Msg = A(Int)\nlet k : Peer.Service(Msg) = Peer.service(\"k\")\n"
            "foreign fn now() : Int with m = \"erlang:system_time/0\"\n"
            "fn later() : Int with m = now() + x\n",
     Session = ['$Session'],
@@ -333,16 +334,16 @@ session_namespace_test() ->
                                                               #{values => #{x => X}}),
                     ern_canonical:module(Namespace, Typed, Env, false, Session)
                 end,
-    #{definitions := First, keys := FirstKeys, reaches := FirstReaches} =
+    #{definitions := First, services := FirstServices, reaches := FirstReaches} =
         Canonical(['$Input1'], ['$Bindings1']),
-    #{definitions := Third, keys := ThirdKeys} = Canonical(['$Input3'], ['$Bindings4']),
+    #{definitions := Third, services := ThirdServices} = Canonical(['$Input3'], ['$Bindings4']),
     ?assertEqual({type, ['$Session', 'Msg'], 0, false, none,
                   [{'A', {positional, applied('Int')}}]},
                  (named(First, 'Msg'))#definition.form),
     ?assertEqual(['$Input1', 'Msg'], (named(First, 'Msg'))#definition.qualified_name),
     ?assertEqual((named(First, 'Msg'))#definition.hash, (named(Third, 'Msg'))#definition.hash),
-    ?assertEqual(maps:get({tcon, ['$Input1', 'Msg'], []}, FirstKeys),
-                 maps:get({tcon, ['$Input3', 'Msg'], []}, ThirdKeys)),
+    ?assertEqual(maps:get({tcon, ['$Input1', 'Msg'], []}, FirstServices),
+                 maps:get({tcon, ['$Input3', 'Msg'], []}, ThirdServices)),
     #definition{hash = Later, form = LaterForm} = named(First, later),
     ?assertEqual(Later, (named(Third, later))#definition.hash),
     ?assert(holds({var, {binding, ['$Session', x], <<7:256>>}, []}, LaterForm)),
@@ -552,31 +553,31 @@ local_requirement_test() ->
                          [{1, compare}]},
               _, _, _, _, _} | _]} = element(7, form(Text, sorted)).
 
-%% report Appendix H, §8.7: a key's message type stands in the form of the
-%% definition that makes the key as `{key, Type}`, so that a change to the
-%% type changes that definition's hash; the type's hash, which the key
-%% carries, is that of `{ernest_type, 1, Type}`, a declared type of the
+%% report Appendix H, §8.7: a service's message type stands in the form of
+%% the definition that makes the service as `{service, Type}`, so that a
+%% change to the type changes that definition's hash; the type's hash,
+%% which the service carries, is that of `{ernest_type, 1, Type}`, a declared type of the
 %% program by its hash and a built-in one by its name. A regression test,
 %% written after the code (MVP 3.1's item 4)
-key_type_hash_test() ->
+service_type_hash_test() ->
     Text = fun(Msg) ->
                "type Msg = " ++ Msg ++ "\n"
-               "let one : Peer.Key(Msg) = Peer.key(\"one\")\n"
-               "let maybe : Peer.Key(Optional(Msg)) = Peer.key(\"maybe\")\n"
+               "let one : Peer.Service(Msg) = Peer.service(\"one\")\n"
+               "let maybe : Peer.Service(Optional(Msg)) = Peer.service(\"maybe\")\n"
            end,
     First = Text("Add(Int)"),
-    {#{keys := Keys}, _} = canonical(First),
+    {#{services := Services}, _} = canonical(First),
     MsgHash = hash(First, 'Msg'),
     Msg = {applied, {hash, MsgHash}, []},
-    ?assert(holds({var, {named, ['Peer', key]}, [{key, Msg}]}, form(First, one))),
-    ?assertEqual(sha({ernest_type, 1, Msg}), maps:get({tcon, ['T', 'Msg'], []}, Keys)),
+    ?assert(holds({var, {named, ['Peer', service]}, [{service, Msg}]}, form(First, one))),
+    ?assertEqual(sha({ernest_type, 1, Msg}), maps:get({tcon, ['T', 'Msg'], []}, Services)),
     Optional = {applied, {named, ['Optional']}, [Msg]},
     ?assertEqual(sha({ernest_type, 1, Optional}),
-                 maps:get({tcon, ['Optional'], [{tcon, ['T', 'Msg'], []}]}, Keys)),
+                 maps:get({tcon, ['Optional'], [{tcon, ['T', 'Msg'], []}]}, Services)),
     Second = Text("Add(Int) | Sub(Int)"),
     ?assertNotEqual(hash(First, one), hash(Second, one)),
-    {#{keys := Changed}, _} = canonical(Second),
-    ?assertNotEqual(maps:get({tcon, ['T', 'Msg'], []}, Keys),
+    {#{services := Changed}, _} = canonical(Second),
+    ?assertNotEqual(maps:get({tcon, ['T', 'Msg'], []}, Services),
                     maps:get({tcon, ['T', 'Msg'], []}, Changed)).
 
 %% report §8.7, §11.1: a function's reach names each binding and each

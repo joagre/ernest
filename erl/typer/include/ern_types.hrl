@@ -53,9 +53,9 @@
 %% `show` at a type known whole, written by its descriptor (Appendix E.1),
 %% or, where member is `exposed`, the type `Foreign.from` gives its value
 %% at (Appendix E.12)
--record(key_type, {type}).
-%% a key's message type, known whole, whose hash the key carries beside its
-%% name (report §8.7, Appendix E.27, Appendix H)
+-record(service_type, {type}).
+%% a service's message type, known whole, whose hash the service carries
+%% beside its name (report §8.7, Appendix E.27, Appendix H)
 -record(pending_member, {span, type, member, need}).
 %% before the enclosing definition ends: the member at the type, and what
 %% needs it, for the error that names it (report §11.5)

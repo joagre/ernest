@@ -15,7 +15,7 @@ export type Msg =
   | Count(reply : Reply(Int))
   | Notes(callee : Process, reply : Reply(Int))
 
-export let key : Peer.Key(Msg) = Peer.key("census")
+export let service : Peer.Service(Msg) = Peer.service("census")
 
 export fn serve() : Unit with Msg =
     receive {

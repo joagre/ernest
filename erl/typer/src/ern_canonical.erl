@@ -6,7 +6,7 @@
 %% dependent's forms name it, and each function's reach, the bindings and
 %% the foreign declarations it names transitively, by which a dependent's
 %% reaches take it in (§11.1). Beside them module/4 gives the emitter the
-%% hash of each type a key is made at, and the identity and the reach of
+%% hash of each type a service is made at, and the identity and the reach of
 %% each lambda and local function, by its span, which a spawn on a peer
 %% names (§8.7).
 %%
@@ -40,7 +40,7 @@
                        references := [{[atom()], binary()}],
                        reaches := #{[atom()] => reach()},
                        functions := #{term() => {[atom()], pos_integer(), reach()}},
-                       keys := #{term() => binary()}}.
+                       services := #{term() => binary()}}.
 
 %% Report §8.7, §11.1: what a function's reach names that a peer must hold
 %% for it to run there: each top-level binding by its identity, and each
@@ -63,11 +63,11 @@
 %% references, the other modules' definitions referenced by hash;
 %% functions, the span of each lambda and local function met, reversed, in
 %% the order the walk meets them, which is their positions' (lambdas/2);
-%% keys, each key's message type with its form, its own module's types
-%% left open.
+%% services, each service's message type with its form, its own module's
+%% types left open.
 -record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
                bound = #{}, segments = #{}, locals = 0, variables = #{}, names = #{},
-               references = [], functions = [], keys = []}).
+               references = [], functions = [], services = []}).
 
 -spec form_version() -> pos_integer().
 form_version() ->
@@ -95,7 +95,7 @@ hash(Term) ->
 %% modules the forms reference by hash, which the build compares (§11.1);
 %% each definition's reach; each lambda and local function by its span,
 %% with its enclosing definition, its position there and its reach; and the
-%% hash of each type a key is made at. Standard: whether the module is the
+%% hash of each type a service is made at. Standard: whether the module is the
 %% standard library's own.
 -spec module([atom()], [tuple()], ern_typecheck:env(), boolean()) -> canonical().
 module(Namespace, Typed, Env, Standard) ->
@@ -143,9 +143,9 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
       functions => maps:from_list(
                      lists:append([functions(maps:get(QualifiedName, ByName), Walked, Reaches)
                                     || {QualifiedName, _, {_, Walked}} <- Opened])),
-      keys => maps:from_list([{Type, hash({ernest_type, ?FORM_VERSION, close(Form, Closing)})}
-                              || {_, _, {_, Walked}} <- Opened,
-                                 {Type, Form} <- Walked#walk.keys])}.
+      services => maps:from_list([{Type, hash({ernest_type, ?FORM_VERSION, close(Form, Closing)})}
+                                  || {_, _, {_, Walked}} <- Opened,
+                                     {Type, Form} <- Walked#walk.services])}.
 
 %% Report §11.1: the interface with the hashes a dependent's forms name, and
 %% the reaches of its functions that name a binding or a foreign
@@ -179,7 +179,7 @@ qualified(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 %% A definition's form with its own module's references open, and the
 %% walk that made it, which holds the other modules' definitions it
 %% references by hash, its lambdas' and local functions' spans, and its
-%% keys' types.
+%% services' types.
 opened(#fn_declaration{} = Declaration, Walk) ->
     function(Declaration, Walk);
 opened(#let_declaration{scheme = #scheme{type = Type} = Scheme, annotation = Annotation,
@@ -919,10 +919,10 @@ supply(#shown_type{type = Type, member = exposed}, Walk) ->
     %% Appendix H, E.12: the type Foreign.from gives its value at
     {Form, Walk1} = type(Type, Walk),
     {{shown, Form}, Walk1};
-supply(#key_type{type = Type}, Walk) ->
-    %% report §8.7: the key's message type, whose hash it carries
-    {Form, #walk{keys = Keys} = Walk1} = type(Type, Walk),
-    {{key, Form}, Walk1#walk{keys = [{Type, Form} | Keys]}}.
+supply(#service_type{type = Type}, Walk) ->
+    %% report §8.7: the service's message type, whose hash it carries
+    {Form, #walk{services = Services} = Walk1} = type(Type, Walk),
+    {{service, Form}, Walk1#walk{services = [{Type, Form} | Services]}}.
 
 %% Appendix E.1, §4.4: the types a `show` at Type, known whole, prints as
 %% `<abstract>` from the walk's module, each once, in the order the printer

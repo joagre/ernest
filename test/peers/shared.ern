@@ -11,8 +11,8 @@ export fn tellPeers(name : String) : Either(Io.Error, Address(Never)) with m =
                fn() : Unit with Never = Io.println("the peers here: " <> Io.show(peers)),
                5000)
 
-export fn found(key : Peer.Key(m)) : Address(m) with n =
-    match Peer.find(key, 5000) {
+export fn found(service : Peer.Service(m)) : Address(m) with n =
+    match Peer.find(service, 5000) {
         Right(address) -> address
       | Left(failure) -> fault(Io.show(failure))
     }

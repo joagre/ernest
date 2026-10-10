@@ -18,12 +18,12 @@ fn count(total : Int) : Unit with Counter.Msg =
 
 export fn main() : Unit with Unit = {
     Io.println("the store's peers: " <> Io.show(Shared.listed()));
-    let _ = Peer.offer(Counter.key, counter);
+    let _ = Peer.offer(Counter.service, counter);
     let _ = Peer.offer(Counter.adder, via(counter, fn(n) = Counter.Add(n)));
     let _ = Peer.offer(Counter.victim, spawn(fn() : Unit with Int = receive {
         _ -> Unit
     }));
-    let _ = Peer.offer(Census.key, spawn(fn() = Census.serve()));
+    let _ = Peer.offer(Census.service, spawn(fn() = Census.serve()));
     let _ = Peer.offer(Counter.counterSlot, spawn(fn() = Slot.serve(None)));
     let _ = Peer.offer(Counter.echoSlot, spawn(fn() = Slot.serve(None)));
     let fragile = spawn(fn() : Unit with Int = receive {

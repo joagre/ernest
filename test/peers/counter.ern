@@ -3,30 +3,30 @@
 
 export type Msg = Add(Int) | Get(reply : Reply(Int))
 
-export let key : Peer.Key(Msg) = Peer.key("counter")
+export let service : Peer.Service(Msg) = Peer.service("counter")
 
-export let adder : Peer.Key(Int) = Peer.key("adder")
+export let adder : Peer.Service(Int) = Peer.service("adder")
 
-export let victim : Peer.Key(Int) = Peer.key("victim")
+export let victim : Peer.Service(Int) = Peer.service("victim")
 
-export let counterSlot : Peer.Key(Slot.Msg(Address(Msg))) = Peer.key("counter-slot")
+export let counterSlot : Peer.Service(Slot.Msg(Address(Msg))) = Peer.service("counter-slot")
 
-export let echoSlot : Peer.Key(Slot.Msg(Address(Int))) = Peer.key("echo-slot")
+export let echoSlot : Peer.Service(Slot.Msg(Address(Int))) = Peer.service("echo-slot")
 
-export let fragile : Peer.Key(Int) = Peer.key("fragile")
+export let fragile : Peer.Service(Int) = Peer.service("fragile")
 
-export let strict : Peer.Key(Int) = Peer.key("strict")
+export let strict : Peer.Service(Int) = Peer.service("strict")
 
 // An echo on the store, which answers each address it is given with a 1,
 // reached straight and through an adapted address made on the store.
 export type EchoMsg = Ping(Address(Int))
 
-export let echo : Peer.Key(EchoMsg) = Peer.key("echo")
+export let echo : Peer.Service(EchoMsg) = Peer.service("echo")
 
-export let echoAdapted : Peer.Key(Address(Int)) = Peer.key("echo-adapted")
+export let echoAdapted : Peer.Service(Address(Int)) = Peer.service("echo-adapted")
 
 // An adapter on the store, which answers each address it is given with an
 // adapted address of it made there, which doubles what is sent through it.
 export type AdapterMsg = Adapt(target : Address(Int), reply : Reply(Address(Int)))
 
-export let adapter : Peer.Key(AdapterMsg) = Peer.key("adapter")
+export let adapter : Peer.Service(AdapterMsg) = Peer.service("adapter")

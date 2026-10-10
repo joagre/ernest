@@ -5,7 +5,7 @@
 // the node started again counts from 0, and answers 0.
 
 export fn main() : Unit with Never = {
-    let counter = Standing.start(Counter.key, 2000);
+    let counter = Standing.start(Counter.service, 2000);
     Io.println("standing");
     List.foreach(["first", "away", "back", "other"], fn(label) = ask(counter, label))
 }

@@ -1,5 +1,5 @@
-/// Other nodes: a service offered to this node's peers under a key, found on
-/// a peer, and a process started on one.
+/// Other nodes: a service offered to this node's peers, found on a peer, and
+/// a process started on one.
 ///
 /// A program is a node when it runs with `--config-dir`, and its peers are the
 /// nodes its configuration directory's `ernest.conf` lists, each by a name.
@@ -7,10 +7,9 @@
 /// a `kill`, it does as with one of its own; this module gives it the address
 /// of such a process to begin with (report §8.7).
 ///
-/// A service is offered under a key, a name and the service's message type,
-/// and found by the key on the peers `ernest.conf`'s `keys` lists for the
-/// name, in that order. Where a service lives is the configuration's: a find
-/// names no node.
+/// A service is offered under its name at its message type, and found on the
+/// peers `ernest.conf`'s `services` lists for the name, in that order. Where a
+/// service lives is the configuration's: a find names no node.
 ///
 /// A find and a spawn wait at most the milliseconds they are given, and answer
 /// the address or an `Io.Error`, which the program matches on; neither faults
@@ -20,16 +19,16 @@
 ///
 /// ## Examples
 ///
-/// A service offered under a key, and found by it; on a program that is no
-/// node, which lists no peer, the find answers `NotListed`:
+/// A service offered, and found; on a program that is no node, which lists no
+/// peer, the find answers `NotListed`:
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(Int) = Peer.key("squares");
-///     let _ = Peer.offer(key, spawn(fn() : Unit with Int = receive {
+///     let service : Peer.Service(Int) = Peer.service("squares");
+///     let _ = Peer.offer(service, spawn(fn() : Unit with Int = receive {
 ///         _ -> Unit
 ///     }));
-///     Peer.find(key, 1000)
+///     Peer.find(service, 1000)
 /// }
 /// // => Left(NotListed)
 /// ```
@@ -49,59 +48,59 @@
 ///
 /// since 0.4.0
 
-/// A key: the name a service is offered and found under, and the hash of the
-/// service's message type, which the compiler gives where the key is made. A
-/// key starts nothing, and crosses to other nodes as any value of an unbound
-/// type does.
+/// A service as the node's peers name it: the name it is offered and found
+/// under, and the hash of its message type, which the compiler gives where
+/// the service is made. A `Service` starts nothing, and crosses to other
+/// nodes as any value of an unbound type does.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(Int) = Peer.key("squares");
-///     Peer.find(key, 0)
+///     let service : Peer.Service(Int) = Peer.service("squares");
+///     Peer.find(service, 0)
 /// }
 /// // => Left(NotListed)
 /// ```
-export abstract type Key(m) = Key(name : String, hash : Bytes)
+export abstract type Service(m) = Service(name : String, hash : Bytes)
 
-/// A key of the name, at the message type the compiler finds where it is
-/// written, which is known whole there and crosses to other nodes. The key
-/// holds the name and the type's hash, which a find compares. One type has
-/// one hash whichever module writes the key.
+/// A service of the name, at the message type the compiler finds where it is
+/// written, which is known whole there and crosses to other nodes. The
+/// service holds the name and the type's hash, which a find compares. One
+/// type has one hash whichever module writes the service.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(String) = Peer.key("names");
-///     Peer.find(key, 0)
+///     let service : Peer.Service(String) = Peer.service("names");
+///     Peer.find(service, 0)
 /// }
 /// // => Left(NotListed)
 /// ```
-export foreign fn key(name : String) : Key(m) =
-    "ern_peer:key/1"
+export foreign fn service(name : String) : Service(m) =
+    "ern_peer:service/1"
 
-/// The name the key was made with.
+/// The name the service was made with.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(Int) = Peer.key("squares");
-///     Peer.name(key)
+///     let service : Peer.Service(Int) = Peer.service("squares");
+///     Peer.name(service)
 /// }
 /// // => "squares"
 /// ```
-export fn name(key : Key(m)) : String =
-    key.name
+export fn name(service : Service(m)) : String =
+    service.name
 
-/// Lets this node's peers find the address under the key, for as long as its
+/// Lets this node's peers find the address as the service, for as long as its
 /// process lives, and answers `Right(Unit)`. The address names a process of
 /// this node, an adapted address's target among them, and is offered at the
-/// key's message type. Where a living process's address is offered under the
-/// key's name and type already, the offer answers `Left(holder)`, that
-/// process, which the caller may monitor and offer again at its end.
+/// service's message type. Where a living process's address is offered under
+/// the service's name and type already, the offer answers `Left(holder)`,
+/// that process, which the caller may monitor and offer again at its end.
 ///
 /// ### Errors
 ///
@@ -112,29 +111,30 @@ export fn name(key : Key(m)) : String =
 ///
 /// ```ernest
 /// {
-///     let key : Peer.Key(Int) = Peer.key("squares");
+///     let service : Peer.Service(Int) = Peer.service("squares");
 ///     let first = spawn(fn() : Unit with Int = receive {
 ///         _ -> Unit
 ///     });
 ///     let second = spawn(fn() : Unit with Int = receive {
 ///         _ -> Unit
 ///     });
-///     #(Peer.offer(key, first), Peer.offer(key, second) == Left(Process.fromAddress(first)))
+///     #(Peer.offer(service, first),
+///       Peer.offer(service, second) == Left(Process.fromAddress(first)))
 /// }
 /// // => #(Right(Unit), true)
 /// ```
-export foreign fn offer(key : Key(m), address : Address(m)) : Either(Process, Unit) with n =
+export foreign fn offer(service : Service(m), address : Address(m)) : Either(Process, Unit) with n =
     "ern_peer:offer/2"
 
-/// The first address a peer `ernest.conf` lists for the key's name offers under
-/// it at the key's type, by its hash, within `ms` milliseconds. The peers are
-/// asked in the order the configuration lists them, each given the time left,
-/// and one that cannot be reached, offers nothing under the name, or offers it
-/// at a type of another hash, another version of the type, is passed over;
-/// where no peer offers it, the last of these is answered, and
+/// The first address a peer `ernest.conf` lists for the service's name offers
+/// under it at the service's type, by its hash, within `ms` milliseconds. The
+/// peers are asked in the order the configuration lists them, each given the
+/// time left, and one that cannot be reached, offers nothing under the name,
+/// or offers it at a type of another hash, another version of the type, is
+/// passed over; where no peer offers it, the last of these is answered, and
 /// `Left(Timeout)` where the time runs out. A find meets `NotListed`,
 /// `Unreachable`, `Timeout`, `NotOffered` and `OtherType`.
-export foreign fn find(key : Key(m), ms : Int) : Either(Io.Error, Address(m)) with n =
+export foreign fn find(service : Service(m), ms : Int) : Either(Io.Error, Address(m)) with n =
     "ern_peer:find/2"
 
 /// A process started on the peer of that name, running `f`, its address

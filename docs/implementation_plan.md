@@ -138,6 +138,14 @@ peer and a foreign send was cut, each a concept beside the one the example teach
 as the other examples are, and on two real nodes. What writing it found is `language_feedback.md`'s
 101 and 102; it seeds the tour's outline (MVP 3.3).
 
+**Fourth, before item 1, names read as a newcomer reads them.** `Peer.Key(m)` became
+`Peer.Service(m)` on 2026-10-10, with `Peer.service`, `"services"` in the configuration and the
+fault's words (report §8.7, Appendix E.27; the log's *The Service Named*); and with it, the same
+day, `Standing` became `Proxy`, `via` became `adapted`, `Foreign.from` became `Foreign.term` and
+`Process.info` became `Process.status` with its `Status` (§6.5, E.12, E.21, G.7; *Four Names Read
+as a Newcomer Reads Them*), all before 0.4.0 freezes a name. The reviews' newcomer now lists the
+names it could not predict.
+
 1. **The report and the soundness argument.** §8.7 for the spawn that carries its code, the
    four frames, verification, quarantine and one load, `Refused` with the peer's text, a peer
    that may spawn on a node running what it sends, and the bare node; §11.2 for a bare node, for

@@ -13,7 +13,7 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 - **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver: an address's type is the type of the mailbox it reaches.
 - **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
 - **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
-- **One build on every node.** Values cross between nodes and code does not: a message is checked at the sender against the type the receiver was compiled with, and a value bound to its node, a function, a resource or an address of one, is refused at a key or a spawn.
+- **One build on every node.** Values cross between nodes and code does not: a message is checked at the sender against the type the receiver was compiled with, and a value bound to its node, a function, a resource or an address of one, is refused at a service or a spawn.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
 
