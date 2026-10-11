@@ -59,6 +59,19 @@ basic_inference_test() ->
     %% report §3.9: List.size drops its list's elements, so len does
     ?assertEqual("(List(a!)) -> Int", type_of("export fn len(xs) = List.size(xs)", len)).
 
+%% report §3.9, §11.5: a parameter's function type whose effect variable
+%% occurs nowhere else admits a function with any mailbox type, and one
+%% with none, and the variable is printed; a result's is pure, and is not.
+%% A regression test, written after the code: the variable was made pure
+%% at generalization, and an impure argument was refused
+lone_effect_variable_test() ->
+    Ignore = "export fn ignore(f : () -> Unit with e) : Int = 5\n"
+             "fn impure() : Unit with Int = receive { _ -> Unit }\n",
+    ?assertEqual("(() -> Unit with e) -> Int", type_of(Ignore, ignore)),
+    ?assertEqual(ok, ok(Ignore ++ "fn g() : Int = ignore(impure)\n"
+                                  "fn h() : Int = ignore(fn() = Unit)\n")),
+    ?assertEqual("() -> (a!) -> #(a!, a!)", type_of("export fn pair() = fn(x) = #(x, x)", pair)).
+
 %% report §3.9, §11.5
 constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a=, a=) -> Bool", type_of("export fn equal(a, b) = a == b", equal)),
@@ -819,6 +832,99 @@ spawn_mailbox_test() ->
     ?assertEqual(ok, peer_ok("type Msg = Add(Int)\n"
                              "fn loop() : Unit with Msg = receive { Add(_) -> loop() }\n"
                              "fn f() : Unit with m = {\n" ++ spawning("", "loop"))).
+
+%% A function body that computes Function on the peer `p` and drops what
+%% the compute answers, after the given statements.
+computing(Statements, Function) ->
+    "    " ++ Statements ++ "let _ = Peer.compute(\"p\", " ++ Function ++ ", 5000);\n"
+    "    Unit\n"
+    "}\n".
+
+%% report §3.11, §8.7, Appendix E.27: the function a compute runs is checked
+%% as a spawn's, each error naming Peer.compute: its captures, a function
+%% that came as a value, a member of a requirement in force, its mailbox
+%% type, which is Never where it is a variable the definition's type does
+%% not hold, and `restarting` over a function it admits; Peer.compute is
+%% called where it is named. A regression test, written after the code
+compute_function_test() ->
+    Head = "fn work(x : Int) : Int = x\n"
+           "fn f(x : Int) : Unit with m = {\n",
+    ?assertEqual(ok, peer_ok(Head ++ computing("", "fn() = work(x)"))),
+    ?assertEqual(ok, peer_ok(Head ++ computing("let job = fn() = work(x);\n    ", "job"))),
+    ?assertEqual(ok, peer_ok("fn run() : Int = 42\n"
+                             "fn f() : Unit with m = {\n" ++ computing("", "run"))),
+    ?assertEqual("the function Peer.compute runs captures g, a function, which is bound to"
+                 " its node",
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
+                              ++ computing("", "fn() = g(1)"))),
+    ?assertEqual("the function Peer.compute runs captures socket, whose type"
+                 " Address(Tcp.SocketMsg) is bound to its node, since it holds the address of a"
+                 " socket",
+                 peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit with m = {\n"
+                              ++ computing("", "fn() = { let _ = socket; 1 }"))),
+    ?assertEqual("the function Peer.compute runs captures x, whose type a! holds a type"
+                 " variable",
+                 peer_refusal("fn f(x : a) : Unit with m = {\n"
+                              ++ computing("", "fn() = { let _ = [x]; 1 }"))),
+    ?assertEqual("Peer.compute runs job, a function that came as a value, whose captures the"
+                 " compiler does not see",
+                 peer_refusal("fn f(job : () -> Int) : Unit with m = {\n"
+                              ++ computing("", "job"))),
+    ?assertEqual("Peer.compute runs a function that uses a.show, a member of the requirement"
+                 " in force, which is a function bound to its node",
+                 peer_refusal("fn f(x : a) : Unit with Never needs a.show = {\n"
+                              ++ computing("", "fn() = { let y : a = fault(\"no\");"
+                                               " Io.show(y) }"))),
+    ?assertEqual("Peer.compute starts a process whose mailbox type Msg is bound to its node,"
+                 " since it holds a function",
+                 peer_refusal("type Msg = Up(f : (Int) -> Int)\n"
+                              "fn loop() : Int with Msg = receive { Up(f = _) -> loop() }\n"
+                              "fn f() : Unit with m = {\n" ++ computing("", "loop"))),
+    ?assertEqual("Peer.compute starts a process whose mailbox type a is not known whole here",
+                 peer_refusal("fn f(other : Address(a)) : Unit with m = {\n"
+                              ++ computing("", "fn() = { let me : Address(a) = self(); 1 }"))),
+    Limit = "let limit = RestartLimit(restarts = 1, within = 1000);\n    ",
+    ?assertEqual(ok, peer_ok("fn run() : Unit with Never = Unit\n"
+                             "fn f() : Unit with m = {\n"
+                             ++ computing(Limit, "restarting(limit, run)"))),
+    ?assertEqual("Peer.compute is called where it is named, so that the compiler sees the"
+                 " function it starts",
+                 peer_refusal("fn f() : Unit = { let c = Peer.compute; Unit }\n")).
+
+%% report §3.11, §8.7, §3.9: the value a compute answers crosses back, so
+%% the result type of its function is known whole where the compute is
+%% written and is not bound; a function with a mailbox type runs there, as
+%% a function with none does, its mailbox type Never where it is a variable
+%% the definition's type does not hold; and the call's type is
+%% Either(Io.Error, a), a the result type. A regression test, written after
+%% the code; the function with a mailbox type a regression of its own: the
+%% declaration's effect variable, which occurs once, was taken for pure,
+%% and the compute refused every function with a mailbox type
+compute_result_test() ->
+    ?assertEqual("Peer.compute answers a value of type (Int) -> Int, which is bound to its"
+                 " node, since it holds a function",
+                 peer_refusal("fn f() : Unit with m = {\n"
+                              ++ computing("", "fn() = fn(n : Int) = n + 1"))),
+    ?assertEqual("Peer.compute answers a value of type Address(Tcp.SocketMsg), which is bound"
+                 " to its node, since it holds the address of a socket",
+                 peer_refusal("fn socket() : Address(Tcp.SocketMsg) = fault(\"none\")\n"
+                              "fn f() : Unit with m = {\n" ++ computing("", "fn() = socket()"))),
+    ?assertEqual("Peer.compute answers a value of type List(a), which holds a type variable,"
+                 " so whether it crosses is not known here",
+                 peer_refusal("fn f() : Unit with m = {\n" ++ computing("", "fn() = []"))),
+    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n"
+                             ++ computing("", "fn() : Int with Int = receive { n -> n }"))),
+    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n"
+                             ++ computing("", "fn() = { Io.println(\"here\"); 42 }"))),
+    {ok, Typed} = typed_peer("fn idle() : Int with m = receive { after 1 -> 7 }\n"
+                             "fn f() : Unit with m = {\n" ++ computing("", "idle")),
+    [{Answer, Function}] = [{Answer, Function}
+                            || #fn_declaration{name = f, body = Body} <- Typed,
+                               #e_call{callee = #e_var{name = compute, type = CalleeType},
+                                       type = Answer} <- calls(Body),
+                               {tfn, [_, Function | _], _, _} <- [CalleeType]],
+    ?assertEqual("Either(Io.Error, Int)", ern_types:format(Answer, ern_types:new())),
+    ?assertMatch({tfn, [], {tcon, ['Never'], []}, {tcon, ['Int'], []}}, Function).
 
 %% report §3.10, §11.1: `==` on another module's abstract type whose fields
 %% name a private type reads the private type from the interface. A

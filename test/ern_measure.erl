@@ -832,9 +832,9 @@ terminal_scenarios() ->
 
 %% Appendix E.27: a service as the compiler makes it, with its type's
 %% hash; an offer and its withdrawal beside the host's two tables written
-%% and emptied; the peers' names beside the host's read of them. A find
-%% and a spawn act on a peer, which a run of one node cannot reach; `make
-%% bench`'s node part measures them on real nodes.
+%% and emptied; the peers' names beside the host's read of them. A find, a
+%% spawn, a compute and a utilisation act on a peer, which a run of one node
+%% cannot reach; `make bench`'s node part measures them on real nodes.
 peer_scenarios() ->
     Peer = 'ern@peer',
     Me = ern_rt:self(),
@@ -859,6 +859,8 @@ peer_scenarios() ->
      {<<"Peer.find">>, AcrossNodes},
      {<<"Peer.spawn">>, AcrossNodes},
      {<<"Peer.spawnMonitored">>, AcrossNodes},
+     {<<"Peer.compute">>, AcrossNodes},
+     {<<"Peer.utilisation">>, AcrossNodes},
      {<<"Peer.peers">>, {fun() -> Peer:peers() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}}].
 

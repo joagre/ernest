@@ -214,9 +214,11 @@ is_node() ->
 %% Report §8.7: hangup is a reload: `ernest.conf` read and checked again as
 %% at the start, the node's own key and `listen` unchanged, or the file
 %% refused and the configuration kept; then the names the host allows gain
-%% the new peers', the peer table the rule and the dial read, the services
-%% and the measures are the new file's, and a peer removed, or listed under
-%% another key, has its connection ended, both nodes running the loss. The
+%% the new peers', the peer table the rule and the dial read, the services,
+%% the measures and the utilisation are the new file's, the utilisation
+%% holding from the next ask (ern_gateway:measure/1), and a peer removed,
+%% or listed under another key, has its connection ended, both nodes
+%% running the loss. The
 %% node says that it read the file, and each peer added, removed or
 %% renamed, or why the file was refused. Whatever fails as the file is read
 %% and checked refuses the reload, the host's reason named where it is not
@@ -239,9 +241,9 @@ refuse(Refusal) ->
     say(["the reload was refused, and the configuration stays as it was: ", Refusal]).
 
 changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen, peers = Peers,
-                       measures = Measures},
+                       measures = Measures, utilisation = Utilisation},
         #configuration{public_key = NewKey, listen = NewListen, peers = NewPeers,
-                       measures = NewMeasures} = New) ->
+                       measures = NewMeasures, utilisation = NewUtilisation} = New) ->
     Conf = ern_build:shown(ern_node:file(ConfigDir, conf)),
     NewKey =:= Key orelse ern_build:fail(Conf ++ ": public-key cannot change while the node runs"),
     NewListen =:= Listen
@@ -249,6 +251,10 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
     ern_node:measures_changed(ConfigDir, Measures, NewMeasures),
     ok = allow([Added || #peer{public_key = Added} <- NewPeers]),
     ok = list(New),
+    ok = case NewUtilisation of
+             Utilisation -> ok;
+             _ -> ern_gateway:measure(NewUtilisation)
+         end,
     Removed = [Peer || #peer{public_key = Old} = Peer <- Peers,
                        not lists:keymember(Old, #peer.public_key, NewPeers)],
     lists:foreach(fun(#peer{public_key = Old}) -> erlang:disconnect_node(name(Old)) end, Removed),

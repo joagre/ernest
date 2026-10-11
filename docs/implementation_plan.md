@@ -115,15 +115,23 @@ four lines and the later form as a process that sends.
    lines and its primitives sentence land with item 2, and G.5 with item 3, since the tests hold
    a listing to the compiled module and Appendix G's sections to `libs/` (the log's *Placing
    Work by Name*, its last paragraph).
-2. **The runtime, the checker and the configuration.** The compute frame and its answer over the
-   call's note, the fault carried, the late process killed; the utilisation frame and the node's
-   measure, the run queue over the schedulers by default and the schedulers' utilisation since
-   last asked, read from `ernest.conf` at the start and at the hangup reload; the checker's rule
-   for the form's result type and its captures; `NotLoaded` where the peer lacks `f`, which MVP
-   3.2's exchange lifts; tests on real nodes: the value back, a fault carried once, a late
-   answer's process gone, utilisation on the scale under both measures, the shell's `compute` of
-   a function typed there; E.27's two listing lines and its primitives sentence, eight of the
-   nine, in the same commit.
+2. **The runtime, the checker and the configuration.** Done 2026-10-11. `Peer.compute` and
+   `Peer.utilisation` in `stdlib/peer.ern`; the checker's rule for the form's function and its
+   result type, three diagnostics; the compute frame as the call's first note, its answer through
+   the caller's alias, a fault carried whole and reported once on the caller's node, the late
+   process killed by the second note, a process that ends unanswering `Other`; the utilisation
+   frame answered by the gateway from the node's measure, `"utilisation"` in `ernest.conf` read
+   at the start and held from the next ask at a reload, any other value refused; `NotLoaded`
+   where the peer lacks `f`, which MVP 3.2's exchange lifts; tests on real nodes for each, and
+   the shell's compute of a function declared there; E.27's two listing lines and its primitives
+   sentence. Six decisions the code forced went to the report first: the gateway answers a
+   utilisation itself (§8.7 *What passes*); the run-queue measure counts the running with the
+   ready (§8.7 *Its configuration*); a restart does not end a compute, a caller's restart sends
+   the second note, and a fault once the note has gone is the peer's (§8.7 *A compute*); and a
+   lone effect variable within a parameter's type is kept at generalization and printed (§3.9,
+   §11.5), a defect of the checker's that `compute` found (the log's *Placing Work by Name*, its
+   last paragraph). `make bench` measures a compute at 1.1 of the host's ping and a utilisation
+   at 1.0.
 3. **`Placement`, `Balancer` gone, the guide and the tests.** `libs/placement`'s one function
    asking every name at once; `libs/balancer` removed with its tests and `make bench`'s pick,
    `test/peers`' balance programs rewritten to the four lines and the nodes tests with them; the

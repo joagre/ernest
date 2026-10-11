@@ -90,7 +90,12 @@ instantiate_copies_restrictions_test() ->
     ?assertEqual(FirstId, SecondId),
     ?assertEqual([equality], ern_types:restrictions(FirstId, TypeState4)).
 
-%% report §6.1
+%% report §3.9, §6.1, §11.5: a function's own effect variable that occurs
+%% nowhere else is pure, in a result's function type too; one within a
+%% parameter's type stays, since pure would refuse a function with a mailbox
+%% type there. The parameter's case is a regression test, written after the
+%% code: the variable was made pure, and `fn ignore(f : () -> Unit with e)`
+%% refused every function with a mailbox type
 elide_unused_effect_test() ->
     TypeState = ern_types:enter(ern_types:new()),
     {E, TypeState1} = ern_types:fresh(TypeState),
@@ -102,6 +107,15 @@ elide_unused_effect_test() ->
     {#scheme{type = Shared}, _} =
         ern_types:generalize({tfn, [{tfn, [int()], E, int()}], E, int()}, TypeState2),
     ?assertMatch({tfn, [{tfn, [_], {tvar, _}, _}], {tvar, _}, _}, Shared),
+    %% one that is a parameter's function's own, and nothing else, stays
+    {#scheme{type = Parameter}, _} =
+        ern_types:generalize({tfn, [{tfn, [int()], E, int()}], pure, int()}, TypeState2),
+    ?assertMatch({tfn, [{tfn, [_], {tvar, _}, _}], pure, _}, Parameter),
+    ?assertEqual("((Int) -> Int with e) -> Int", ern_types:format(Parameter, TypeState2)),
+    %% one that is a result's function's own becomes pure
+    {#scheme{type = Result}, _} =
+        ern_types:generalize({tfn, [], pure, {tfn, [int()], E, int()}}, TypeState2),
+    ?assertEqual({tfn, [], pure, {tfn, [int()], pure, int()}}, Result),
     %% a process-only one stays too
     TypeState3 = ern_types:add_restriction(E, process_only, TypeState2),
     {#scheme{type = ProcessOnly}, _} = ern_types:generalize({tfn, [int()], E, int()}, TypeState3),

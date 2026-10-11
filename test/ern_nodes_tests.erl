@@ -826,8 +826,10 @@ os_exit(Base) ->
 
 %% report §8.7, §11.2: a node whose `ernest.conf` is refused is refused with
 %% the file and the rule, as the launcher's second start says it, the first
-%% having given the host no flags. A regression test: the refusal said the
-%% host had not been started as a node
+%% having given the host no flags: peers that are no array, and a
+%% `utilisation` that names neither measure. A regression test: the refusal
+%% said the host had not been started as a node; the utilisation's was
+%% written after the code
 refused_configuration_test_() ->
     nodes_test(60, fun refused_configuration/1).
 
@@ -835,9 +837,15 @@ refused_configuration(Base) ->
     A = made(Base, "a", none),
     edit(A, fun(Conf) -> Conf#{<<"peers">> => #{}} end),
     Program = program(filename:join(Base, "build")),
-    Said = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1; echo status $?"),
+    Run = ?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1; echo status $?",
+    Said = os:cmd(Run),
     has(Said, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": peers is not a JSON array"),
-    has(Said, "status 1").
+    has(Said, "status 1"),
+    edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilisation">> => <<"cpu">>} end),
+    Measured = os:cmd(Run),
+    has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": utilisation is \"cpu\","
+                  " which is neither \"run-queue\" nor \"schedulers\""),
+    has(Measured, "status 1").
 
 %% report §8.7, §11.2: a node refused once its start has begun, by a module
 %% on its load path the program never uses whose dependency the path lacks,
@@ -954,7 +962,7 @@ store_and_desk(Base) ->
     lists(Third, [{"store", Store, PortStore}]),
     Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
               <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
-              <<"doomed">>, <<"adapter">>],
+              <<"doomed">>, <<"adapter">>, <<"watcher">>],
     edit(Desk, fun(Conf) ->
                    Conf#{<<"services">> => maps:merge(
                                               maps:from_list([{Name, [<<"store">>]}
@@ -1276,12 +1284,106 @@ spawn_on_peer(Base) ->
      || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Timeout", "no upper bound: Right"]],
-    has(StoreErr, "the peer desk's spawn at Desk.spawns:75 was not loaded: the binding"
+    has(StoreErr, "the peer desk's spawn at Desk.spawns:78 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     has(StoreOut, "the store squares 49"),
     has(StoreOut, "the store squares 64"),
     has(StoreOut, "the peers here: [\"desk\", \"third\"]"),
     ?assertEqual(nomatch, string:find(StoreOut, "never initialized")).
+
+%% report §8.7, §6.7, Appendix E.27, §11.2, E.21: work on a peer is a
+%% function run there for its value, answered within the time or a failure:
+%% a value back; a name that is no peer's NotListed; a function whose
+%% binding has no value on the store NotLoaded, which the store says; a
+%% fault in the function the caller's, which the caller's node reports once,
+%% with the caller's site, its subscriber of faults told of it, the host's
+%% stack beneath where it crossed, and the store reports nothing, its
+%% subscriber told nothing; a process killed before it answers Other with
+%% its Reason; a process whose caller ends while it waits, and one whose
+%% time runs out, killed on the store, whose watcher, monitoring each, says
+%% so; and a process that ends with the store's program Other with
+%% ProgramEnd. A regression test, written after the code; it does not cover
+%% a second note that comes before the compute's process could start, which
+%% the store's gateway reads first, nor a loss while the caller waits
+compute_test_() ->
+    nodes_test(90, fun compute_on_peer/1).
+
+compute_on_peer(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    WaitDesk = start(Desk, DeskProgram, ["compute"]),
+    prints(Store, "the abandoned compute's process ended: Killed"),
+    prints(Store, "the timed-out compute's process ended: Killed"),
+    prints(Desk, "now stop the store"),
+    stop(Store, WaitStore),
+    ?assertEqual(0, WaitDesk()),
+    {Out, Err} = said(Desk),
+    {StoreOut, StoreErr} = said(Store),
+    [has(Out, Line)
+     || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
+                 "divided: Fault(\"division by zero\")",
+                 "reported here: Desk.faulted:107 division by zero false",
+                 "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
+                 " error:badarg\")",
+                 "reported here: Desk.faulted:107 foreign function erlang:binary_to_integer/1"
+                 " raised error:badarg true",
+                 "killed: Left(Other(\"Killed\"))", "timed out: Left(Timeout)",
+                 "with the store's end: Left(Other(\"ProgramEnd\"))"]],
+    ?assertEqual(1, length(string:split(Err, "Desk.faulted:107 faulted: division by zero\n", all))
+                    - 1),
+    has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
+             " error:badarg\n    erlang:binary_to_integer/1\n"),
+    has(StoreErr, "the peer desk's compute at Desk.computes:534 was not loaded: the binding"
+                  " Lonely.greeting has no value here"),
+    [?assertEqual(nomatch, string:find(Text, Part))
+     || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
+                         {StoreOut, "the store's subscriber: division by zero"},
+                         {StoreOut, "the store's subscriber: foreign function"}]].
+
+%% report §8.7, Appendix E.27, Appendix C: how busy a peer is, on one
+%% scale: a name that is no peer's NotListed; the store's schedulers' time,
+%% as its configuration names it at its start, a fraction from 0.0 to 1.0
+%% at each ask, the host keeping the schedulers' time there from the start;
+%% a reload that leaves the entry out, the run queue by default, holds from
+%% the next ask, which answers 0.0 or more, the host keeping the time no
+%% longer; and a reload that names neither measure refused with the file and
+%% the rule, the run queue measuring still. A regression test, written after
+%% the code; that the run queue's measure is the run queue over the
+%% schedulers, and not the schedulers' time, is read from the code, since an
+%% idle node answers 0.0 or more under both
+utilisation_test_() ->
+    nodes_test(90, fun utilisation_of_peer/1).
+
+utilisation_of_peer(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    edit(Store, fun(Conf) -> Conf#{<<"utilisation">> => <<"schedulers">>} end),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["utilisation"]),
+    prints(Store, "the store keeps the schedulers' time at the start: true"),
+    prints(Desk, "now measure the run queue"),
+    edit(Store, fun(Conf) -> maps:remove(<<"utilisation">>, Conf) end),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "ernest.conf was read again"),
+    true = port_command(DeskPort, "go\n"),
+    prints(Store, "the store keeps the schedulers' time after the reload: false"),
+    prints(Desk, "now refuse a reload"),
+    edit(Store, fun(Conf) -> Conf#{<<"utilisation">> => <<"cpu">>} end),
+    ?assertMatch({0, _}, signalled("reload", Store)),
+    says(Store, "the reload was refused"),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {_, StoreErr} = said(Store),
+    [has(Out, Line) || Line <- ["not listed: Left(NotListed)", "schedulers: #(true, true)",
+                                "run queue: true", "after the refusal: true"]],
+    has(StoreErr, "the reload was refused, and the configuration stays as it was: "),
+    has(StoreErr, "ernest.conf: utilisation is \"cpu\", which is neither \"run-queue\" nor"
+                  " \"schedulers\"").
 
 %% report §8.7, §6.5, §6.9, §8.4, §3.11: a correct program's messages make
 %% no new atom on the node that receives them, a value of many shapes and
@@ -1872,6 +1974,40 @@ shell_binding_spawned(Base) ->
     ?assertEqual(0, WaitA()),
     {OutA, _} = said(A),
     ?assertEqual(nomatch, string:find(OutA, "has no value here")).
+
+%% report §11.2, §8.7, Appendix E.27: a shell that is a node computes on a
+%% peer as a program does: a function declared at its prompt has a hash, and
+%% the peer, a shell that declared one of that hash, runs it and answers its
+%% value, which the shell prints at its type; a lambda typed at the prompt,
+%% held by no peer's build, answers NotLoaded, which the peer says. A
+%% regression test, written after the code
+shell_compute_test_() ->
+    nodes_test(90, fun shell_compute/1).
+
+shell_compute(Base) ->
+    Root = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Root),
+    PortWorker = free_port(),
+    Worker = made(Base, "worker", PortWorker),
+    Desk = made(Base, "desk", none),
+    lists(Worker, [{"desk", Desk, none}]),
+    lists(Desk, [{"worker", Worker, PortWorker}]),
+    Declared = "fn answer() : Int = 6 * 7\n",
+    {InputWorker, WaitWorker} = shell_started(Worker, Root),
+    true = port_command(InputWorker, [Declared, "Io.println(\"declared\")\n"]),
+    prints(Worker, "declared"),
+    {InputDesk, WaitDesk} = shell_started(Desk, Root),
+    true = port_command(InputDesk, [Declared, "Peer.compute(\"worker\", answer, 5000)\n",
+                                    "Peer.compute(\"worker\", fn() = 6 * 7, 5000)\n"]),
+    prints(Desk, "Right(42) : Either(Io.Error, Int)"),
+    prints(Desk, "Left(NotLoaded) : Either(Io.Error, Int)"),
+    true = port_command(InputDesk, ":quit\n"),
+    ?assertEqual(0, WaitDesk()),
+    true = port_command(InputWorker, ":quit\n"),
+    ?assertEqual(0, WaitWorker()),
+    {OutWorker, _} = said(Worker),
+    has(OutWorker, "the peer desk's compute at input 3:1 was not loaded: this node does not have"
+                   " its function").
 
 %% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
 %% code while the session runs, since the function may be held anywhere: a

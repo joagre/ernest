@@ -4439,3 +4439,64 @@ example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to
   |                                  ^^^^^
   | = help: the spawn answers an address that may cross to another node, so its messages are values that cross (§3.11)
 ```
+
+### A compute whose function answers a value bound to its node (§3.11)
+
+```ernest-rejected
+fn adder() : Unit with m = {
+    let _ = Peer.compute("worker", fn() = fn(n : Int) = n + 1, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:36: Peer.compute answers a value of type (Int) -> Int, which is bound to its node, since it holds a function
+1 | fn adder() : Unit with m = {
+2 |     let _ = Peer.compute("worker", fn() = fn(n : Int) = n + 1, 1000);
+  |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: the value crosses back to this node, so its type is one that crosses; answer what crosses (§3.11)
+```
+
+### A compute whose function's result type holds a type variable (§3.11, §3.9)
+
+```ernest-rejected
+fn empties() : Unit with m = {
+    let _ = Peer.compute("worker", fn() = [], 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:36: Peer.compute answers a value of type List(a), which holds a type variable, so whether it crosses is not known here
+1 | fn empties() : Unit with m = {
+2 |     let _ = Peer.compute("worker", fn() = [], 1000);
+  |                                    ^^^^^^^^^
+  | = help: give the function its result type, `fn() : Int = ...`: the value crosses back to this node, and its type is known whole where the compute is written (§3.11)
+```
+
+### A compute's process whose mailbox type is bound to its node (§3.11)
+
+```ernest-rejected
+type Msg = Run(Address(Tcp.SocketMsg))
+
+fn serve() : Int with Msg =
+    receive {
+        Run(_) -> serve()
+    }
+
+fn start() : Unit with m = {
+    let _ = Peer.compute("worker", serve, 1000);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:9:36: Peer.compute starts a process whose mailbox type Msg is bound to its node, since it holds the address of a socket
+8 | fn start() : Unit with m = {
+9 |     let _ = Peer.compute("worker", serve, 1000);
+  |                                    ^^^^^
+  | = help: the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses (§3.11)
+```

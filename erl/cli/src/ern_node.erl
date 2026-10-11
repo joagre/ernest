@@ -25,7 +25,8 @@
 -define(NAME, <<"ernest">>).
 
 %% Report §8.7, Appendix E.27: what `ernest.conf` may say.
--define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>]).
+-define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>,
+                 <<"utilisation">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
 %%
@@ -422,7 +423,9 @@ configuration(ConfigDir) ->
                    peers = Peers,
                    services = services(ConfigDir, maps:get(<<"services">>, Fields, {object, []}),
                                        Peers),
-                   measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none))}.
+                   measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none)),
+                   utilisation = utilisation(ConfigDir,
+                                             maps:get(<<"utilisation">>, Fields, <<"run-queue">>))}.
 
 %% A whole number of the file, as the host reads its numeral; one too long
 %% for the host to hold, which the host would raise for, is refused with the
@@ -643,6 +646,19 @@ fraction(ConfigDir, Shown, Full) ->
     is_number(Full) andalso Full >= 0 andalso Full =< 1
         orelse fail(ConfigDir, ?CONF, Shown ++ "'s almost-full is not a fraction from 0 to 1"),
     Full.
+
+%% Report §8.7: `utilisation`, how the node measures how busy it is for its
+%% peers, `run-queue`, the default where the entry is absent, or
+%% `schedulers`.
+utilisation(_ConfigDir, <<"run-queue">>) ->
+    run_queue;
+utilisation(_ConfigDir, <<"schedulers">>) ->
+    schedulers;
+utilisation(ConfigDir, Text) when is_binary(Text) ->
+    fail(ConfigDir, ?CONF, "utilisation is " ++ json_quoted(Text) ++ ", which is neither"
+                           " \"run-queue\" nor \"schedulers\"");
+utilisation(ConfigDir, _) ->
+    fail(ConfigDir, ?CONF, "utilisation is neither \"run-queue\" nor \"schedulers\"").
 
 %%
 %% Utilities

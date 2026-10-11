@@ -276,15 +276,15 @@ free_variables(Type, TypeState, Acc) ->
 monomorphic(Type) -> #scheme{quantified = [], type = Type}.
 
 %% Quantify the variables of Type created at a deeper level than the
-%% current one, carrying their restrictions. An effect variable that is
-%% free, unrestricted, and occurs nowhere else is replaced by pure: the two
-%% are equivalent for callers and pure prints better.
+%% current one, carrying their restrictions, every effect variable among
+%% them (report §3.9), but for a function's own effect that occurs nowhere
+%% else, outside a parameter, which is pure (elided_own_effect/3).
 -spec generalize(type(), type_state()) -> {#scheme{}, type_state()}.
 generalize(Type, TypeState) -> generalize(Type, [], TypeState).
 
 -spec generalize(type(), [id()], type_state()) -> {#scheme{}, type_state()}.
 generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeState) ->
-    Elided = elide_pure_effects(substitute(Type, TypeState), Keep, TypeState),
+    Elided = elided_own_effect(substitute(Type, TypeState), Keep, TypeState),
     Ids = [Id || Id <- free_variables(Elided, TypeState),
                  (maps:get(Id, Variables))#type_variable.level > Level
                      orelse lists:member(Id, Keep)],
@@ -294,14 +294,34 @@ generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeS
     Quantified = [{Id, (maps:get(Id, Variables))#type_variable.restrictions} || Id <- Ids],
     {#scheme{quantified = Quantified, type = Elided, names = Names}, TypeState}.
 
-elide_pure_effects(Type, Keep, TypeState) ->
-    Counts = count_variables(Type, #{}),
-    Effects = effect_positions(Type, []),
-    Elide = [Id || Id <- Effects,
-                   maps:get(Id, Counts) =:= 1,
-                   not lists:member(process_only, restrictions(Id, TypeState)),
-                   not lists:member(Id, Keep)],
-    replace_effects(Type, Elide).
+%% Report §3.9, §11.5: a function type's own effect variable that occurs
+%% nowhere else in the type, unrestricted and not kept, is pure, in the
+%% type itself and within its result alike, since every caller binds such a
+%% variable as it binds pure; one within a parameter's type stays, since
+%% pure there would refuse a function with a mailbox type where the variable
+%% admits one. Generalization and printing apply it alike.
+elided_own_effect(Type, Keep, TypeState) ->
+    elided_own_effect(Type, count_variables(Type, #{}), Keep, TypeState).
+
+elided_own_effect({tfn, Params, Effect, Result}, Counts, Keep, TypeState) ->
+    Kept = case Effect of
+               {tvar, Id} ->
+                   case maps:get(Id, Counts) =:= 1
+                       andalso not lists:member(process_only, restrictions(Id, TypeState))
+                       andalso not lists:member(Id, Keep) of
+                       true -> pure;
+                       false -> Effect
+                   end;
+               _ ->
+                   Effect
+           end,
+    {tfn, Params, Kept, elided_own_effect(Result, Counts, Keep, TypeState)};
+elided_own_effect({tcon, QualifiedName, Args}, Counts, Keep, TypeState) ->
+    {tcon, QualifiedName, [elided_own_effect(Arg, Counts, Keep, TypeState) || Arg <- Args]};
+elided_own_effect({ttuple, Elements}, Counts, Keep, TypeState) ->
+    {ttuple, [elided_own_effect(Element, Counts, Keep, TypeState) || Element <- Elements]};
+elided_own_effect(Type, _Counts, _Keep, _TypeState) ->
+    Type.
 
 count_variables({tvar, Id}, Counts) -> maps:update_with(Id, fun(Count) -> Count + 1 end, 1, Counts);
 count_variables({tcon, _, Args}, Counts) -> lists:foldl(fun count_variables/2, Counts, Args);
@@ -316,24 +336,6 @@ effect_positions({tfn, Params, Effect, Result}, Acc) ->
 effect_positions({tcon, _, Args}, Acc) -> lists:foldl(fun effect_positions/2, Acc, Args);
 effect_positions({ttuple, Elements}, Acc) -> lists:foldl(fun effect_positions/2, Acc, Elements);
 effect_positions(_, Acc) -> Acc.
-
-replace_effects({tfn, Params, Effect, Result}, Elide) ->
-    Kept = case Effect of
-               {tvar, Id} ->
-                   case lists:member(Id, Elide) of
-                       true -> pure;
-                       false -> Effect
-                   end;
-               _ -> Effect
-           end,
-    {tfn, [replace_effects(Param, Elide) || Param <- Params], Kept,
-     replace_effects(Result, Elide)};
-replace_effects({tcon, QualifiedName, Args}, Elide) ->
-    {tcon, QualifiedName, [replace_effects(Arg, Elide) || Arg <- Args]};
-replace_effects({ttuple, Elements}, Elide) ->
-    {ttuple, [replace_effects(Element, Elide) || Element <- Elements]};
-replace_effects(Type, _) ->
-    Type.
 
 %% Fresh variables for the quantified ones, restrictions copied.
 -spec instantiate(#scheme{}, type_state()) -> {type(), type_state()}.
@@ -419,9 +421,9 @@ is_variable(_) -> false.
 
 -spec format(type() | pure, type_state()) -> string().
 format(Type, TypeState) ->
-    %% report §11.5: an effect variable that occurs once, and is not
-    %% process-only, prints as pure
-    Elided = elide_pure_effects(substitute(Type, TypeState), [], TypeState),
+    %% report §11.5: a function's own effect variable that occurs nowhere
+    %% else, outside a parameter, and is not process-only, prints as pure
+    Elided = elided_own_effect(substitute(Type, TypeState), [], TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten(Text).
@@ -431,8 +433,12 @@ format(Type, TypeState) ->
 %% two variables never share one.
 -spec format_pair(type(), type(), type_state()) -> {string(), string()}.
 format_pair(Expected, Actual, TypeState) ->
+    {ttuple, [SubstitutedExpected, SubstitutedActual]} = Substituted =
+        substitute({ttuple, [Expected, Actual]}, TypeState),
+    Counts = count_variables(Substituted, #{}),
     {ttuple, [ElidedExpected, ElidedActual]} = Elided =
-        elide_pure_effects(substitute({ttuple, [Expected, Actual]}, TypeState), [], TypeState),
+        {ttuple, [elided_own_effect(SubstitutedExpected, Counts, [], TypeState),
+                  elided_own_effect(SubstitutedActual, Counts, [], TypeState)]},
     EffectOnly = effect_only_variables(Elided, TypeState),
     Names = #variable_names{effect_only = EffectOnly},
     {ExpectedText, Names1} = format_type(ElidedExpected, TypeState, Names),
@@ -529,7 +535,7 @@ type_name(QualifiedName, #type_state{namespace = Namespace, session_types = Sess
 -spec format_scheme(#scheme{}, type_state()) -> string().
 format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
-    Elided = elide_pure_effects(substitute(Type, SchemeState), [], SchemeState),
+    Elided = elided_own_effect(substitute(Type, SchemeState), [], SchemeState),
     EffectOnly = effect_only_variables(Elided, SchemeState),
     {Text, Names} = format_type(Elided, SchemeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten([Text | requirement_text(over_variables(Requirement), SchemeState, Names)]).
@@ -538,7 +544,7 @@ format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeStat
 %% use, ending in its requirement at that use, each member at its type.
 -spec format_with_requirement(type(), [{type(), atom()}], type_state()) -> string().
 format_with_requirement(Type, Requirement, TypeState) ->
-    Elided = elide_pure_effects(substitute(Type, TypeState), [], TypeState),
+    Elided = elided_own_effect(substitute(Type, TypeState), [], TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, Names} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten([Text | requirement_text([{substitute(Instance, TypeState), Member}
@@ -592,7 +598,7 @@ scheme_state(#scheme{quantified = Quantified, names = Names},
           {string(), string(), string()}.
 format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
-    case elide_pure_effects(substitute(Type, SchemeState), [], SchemeState) of
+    case elided_own_effect(substitute(Type, SchemeState), [], SchemeState) of
         {tfn, ParamTypes, Effect, Result} = Elided ->
             Names = #variable_names{effect_only = effect_only_variables(Elided, SchemeState)},
             {Shown, Names1} = lists:mapfoldl(fun(ParamType, Acc) ->

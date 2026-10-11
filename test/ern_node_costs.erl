@@ -5,7 +5,10 @@
 %% signals, beside a call to one here; and a round trip to the store's
 %% echo, the message sent straight and through the adapted address made on
 %% the store, whose difference is the gateway's step; a find of the store's
-%% counter; and a spawn on the store of a process that ends at once. Two
+%% counter; a spawn on the store of a process that ends at once; a compute
+%% there of a function that answers at once, which §10 costs at a spawn's
+%% and a call's answer; and a utilisation of the store, its frame and its
+%% answer. Two
 %% plain nodes of the host's time its ping over TCP, which TLS is set
 %% beside. It measures and asserts nothing, so it is not part of `make
 %% test`.
@@ -15,7 +18,7 @@
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["balancer", "json", "load"]]).
+                    || Library <- ["balancer", "json", "load", "proxy"]]).
 
 %% Prints the table, the nodes' directories under Dir, and halts.
 -spec main([string()]) -> no_return().
@@ -46,7 +49,11 @@ main([Dir]) ->
             {"a find of the other node's service", maps:get("find", Costs), none},
             {"  beside the host's ping", maps:get("find", Costs) / Ping, ratio},
             {"a spawn on the other node", maps:get("spawn", Costs), none},
-            {"  beside the host's ping", maps:get("spawn", Costs) / Ping, ratio}],
+            {"  beside the host's ping", maps:get("spawn", Costs) / Ping, ratio},
+            {"a compute on the other node", maps:get("compute", Costs), none},
+            {"  beside the host's ping", maps:get("compute", Costs) / Ping, ratio},
+            {"a utilisation of the other node", maps:get("utilisation", Costs), none},
+            {"  beside the host's ping", maps:get("utilisation", Costs) / Ping, ratio}],
     io:format("~-48s ~12s~n", ["between two nodes on this machine", "µs or ratio"]),
     lists:foreach(fun({Name, Value, none}) -> io:format("~-48ts ~12.1f~n", [Name, Value]);
                      ({Name, Value, ratio}) -> io:format("~-48ts ~11.1fx~n", [Name, Value])

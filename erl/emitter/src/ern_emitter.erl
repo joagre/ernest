@@ -1135,10 +1135,10 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = term
      [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
     term_call(Span, Argument, Crossing, Context);
 %% Report §8.7, Appendix E.27: Peer.service makes its service with its
-%% message type's hash, of the type the checker supplied; Peer.spawn and
-%% Peer.spawnMonitored send the function's identity and captures in place
-%% of the function, and the spawn's site, as a spawn on this node keeps it
-%% (§6.9)
+%% message type's hash, of the type the checker supplied; Peer.spawn,
+%% Peer.spawnMonitored and Peer.compute send the function's identity and
+%% captures in place of the function, and the spawn's or the compute's
+%% site, as a spawn on this node keeps it (§6.9)
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
                                                  name = service},
                   supplies = [ServiceType]},
@@ -1148,11 +1148,16 @@ call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of
      Context1};
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
                                                  name = Name}},
-     [PeerName, Spawned | Rest], Context) when Name =:= spawn; Name =:= spawnMonitored ->
+     [PeerName, Spawned | Rest], Context)
+  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
     {PeerForm, Context1} = expr(PeerName, Context),
     {SpawnedForm, Context2} = spawned(Spawned, Context1),
     {RestForms, Context3} = exprs(Rest, Context2),
-    Function = case Name of spawn -> spawn; spawnMonitored -> spawn_monitored end,
+    Function = case Name of
+                   spawn -> spawn;
+                   spawnMonitored -> spawn_monitored;
+                   compute -> compute
+               end,
     {at(Span, call_remote(ern_peer, Function,
                           [PeerForm, SpawnedForm | RestForms] ++ [site(Span, Context)])),
      Context3};
@@ -1916,17 +1921,18 @@ field_sets(Names, FieldSets, Context) ->
     end.
 
 %%
-%% A spawn on a peer, report §8.7 and §3.11
+%% A spawn on a peer, and a compute, report §8.7 and §3.11
 %%
 
-%% The function a spawn on a peer starts, as its frame names it in place of
-%% the function: a declaration by its identity, `{function, Hash}`, or a
-%% foreign one by its qualified name, `{foreign, Names}`, its names as text
-%% so that a peer that lacks it makes no atom of them; a lambda or a local
-%% fn by its identity and the values it captured, in the order its body
-%% first names them, `{lambda, Hash, Position, Captures}`, an entry of this
-%% module running it over them; and `restarting` over one of these with its
-%% limit, `{restarting, Limit, Spawned}`. The checker admitted only these
+%% The function a spawn on a peer starts, or a compute runs, as its frame
+%% names it in place of the function: a declaration by its identity,
+%% `{function, Hash}`, or a foreign one by its qualified name, `{foreign,
+%% Names}`, its names as text so that a peer that lacks it makes no atom of
+%% them; a lambda or a local fn by its identity and the values it captured,
+%% in the order its body first names them, `{lambda, Hash, Position,
+%% Captures}`, an entry of this module running it over them; and
+%% `restarting` over one of these with its limit, `{restarting, Limit,
+%% Spawned}`. The checker admitted only these
 %% (ern_bound).
 spawned(#e_call{callee = #e_var{referent = {prelude, [restarting]}}, args = [Limit, Function]},
         Context) ->

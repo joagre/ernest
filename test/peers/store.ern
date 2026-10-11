@@ -1,8 +1,9 @@
 // Report §8.7: the store, which offers a counter, an adapted address of it,
 // a process to be killed, a census of its atoms, two slots, a fragile
 // process behind an adapted address whose function faults, an adapter
-// that makes adapted addresses here, and the services the desk calls, and
-// waits.
+// that makes adapted addresses here, the services the desk calls, and a
+// watcher of the processes the desk's computes start here; says each fault
+// its subscriber of faults is told of; and waits.
 
 let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
@@ -18,6 +19,15 @@ fn count(total : Int) : Unit with Counter.Msg =
 
 export fn main() : Unit with Unit = {
     Io.println("the store's peers: " <> Io.show(Shared.listed()));
+    let me = self();
+    let _ = spawn(fn() : Unit with Process.FaultReport = {
+        Process.faults(fn(report) = report);
+        send(me, Unit);
+        reports()
+    });
+    receive {
+        _ -> Unit
+    };
     let _ = Peer.offer(Counter.service, counter);
     let _ = Peer.offer(Counter.adder, adapted(counter, fn(n) = Counter.Add(n)));
     let _ = Peer.offer(Counter.victim, spawn(fn() : Unit with Int = receive {
@@ -43,9 +53,34 @@ export fn main() : Unit with Unit = {
     let _ = Peer.offer(Counter.echo, echoer);
     let _ = Peer.offer(Counter.echoAdapted, adapted(echoer, fn(back) = Counter.Ping(back)));
     let _ = Peer.offer(Counter.adapter, spawn(fn() = adapts()));
+    let _ = Peer.offer(Counter.watcher, spawn(fn() = watching()));
     Io.println("offered");
     wait()
 }
+
+// Each fault of the store's processes, as its subscriber is told of it.
+fn reports() : Unit with Process.FaultReport =
+    receive {
+        report -> {
+            Io.println("the store's subscriber: " <> report.cause);
+            reports()
+        }
+    }
+
+// The processes the desk's computes start here, each monitored once it
+// says so, before it is answered, and how each ended.
+fn watching() : Unit with Counter.WatcherMsg =
+    receive {
+        Counter.Watch(process = process, label = label, reply = reply) -> {
+            monitor(process, fn(down) = Counter.Ended(label = label, down = down));
+            answer(reply, Unit);
+            watching()
+        }
+      | Counter.Ended(label = label, down = down) -> {
+            Io.println(label <> " ended: " <> Io.show(down.reason));
+            watching()
+        }
+    }
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
 fn wait() : Unit with Unit =

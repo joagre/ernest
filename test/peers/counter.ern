@@ -30,3 +30,11 @@ export let echoAdapted : Peer.Service(Address(Int)) = Peer.service("echo-adapted
 export type AdapterMsg = Adapt(target : Address(Int), reply : Reply(Address(Int)))
 
 export let adapter : Peer.Service(AdapterMsg) = Peer.service("adapter")
+
+// A watcher on the store of the processes the desk's computes start there,
+// each watched once it says so, under a label, which says how each ended.
+export type WatcherMsg =
+    Watch(process : Process, label : String, reply : Reply(Unit))
+  | Ended(label : String, down : Down)
+
+export let watcher : Peer.Service(WatcherMsg) = Peer.service("watcher")

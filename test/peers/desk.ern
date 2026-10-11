@@ -1,7 +1,8 @@
-// Report §8.7: the desk, which finds the store's services and spawns on it,
-// printing what each answers; the test ends the store where it says so.
+// Report §8.7: the desk, which finds the store's services, spawns and
+// computes on it and asks how busy it is, printing what each answers; the
+// test ends the store where it says so.
 
-type Msg = Died(Down)
+type Msg = Died(Down) | Reported(Process.FaultReport) | Started(String)
 
 let early : Either(Io.Error, Address(Counter.Msg)) = Peer.find(Counter.service, 100)
 
@@ -17,6 +18,8 @@ export fn main() : Unit with Msg =
       | ["silence"] -> silenced()
       | ["dial"] -> dialled()
       | ["costs"] -> costs()
+      | ["compute"] -> computes()
+      | ["utilisation"] -> utilisations()
       | _ -> Unit
     }
 
@@ -437,8 +440,10 @@ fn dialled() : Unit with Msg = {
 // The proposal's section 9, `make bench`: the microseconds of the host's
 // round trip to the store, of a call to a process there and to one here,
 // of a message to the store's counter, sent straight and through the
-// adapted address made on the store, of a find of the counter, and of a
-// spawn there of a process that ends at once, each over many, a line each.
+// adapted address made on the store, of a find of the counter, of a spawn
+// there of a process that ends at once, of a compute there of a function
+// that answers at once, and of a utilisation of the store, each over many,
+// a line each.
 fn costs() : Unit with Msg = {
     let counter = Shared.found(Counter.service);
     let brittle = Shared.found(Calls.brittle);
@@ -470,6 +475,16 @@ fn costs() : Unit with Msg = {
     Io.println("spawn "
                    <> Io.show(timed(rounds, fn() = {
                        let _ = Work.idleOn("store", 5000);
+                       Unit
+                   })));
+    Io.println("compute "
+                   <> Io.show(timed(rounds, fn() = {
+                       let _ = Peer.compute("store", fn() = 1, 5000);
+                       Unit
+                   })));
+    Io.println("utilisation "
+                   <> Io.show(timed(rounds, fn() = {
+                       let _ = Peer.utilisation("store", 5000);
                        Unit
                    })))
 }
@@ -503,3 +518,172 @@ fn pinged(left : Int, ping : (Address(Int)) -> Unit with Int) : Unit with Int =
 
 foreign fn pings(process : Process, count : Int) : Float with m =
     "ern_peers_host:pings/2"
+
+// Report §8.7: computes on the store: the value back; a name that is no
+// peer's; a function whose binding has no value there; a fault in the
+// function, the caller's, which this node reports once, the stack that
+// crossed with it beneath, and the store not at all; a process killed
+// before it answers; one whose caller ends while it waits, and one whose
+// time runs out, each killed on the store, whose watcher says so; and,
+// last, one that ends with the store's program, once the test has stopped
+// the store.
+fn computes() : Unit with Msg = {
+    Process.faults(Reported);
+    Io.println("value: " <> Io.show(Peer.compute("store", fn() = 6 * 7, 5000)));
+    Io.println("not listed: " <> Io.show(Peer.compute("nobody", fn() = 6 * 7, 5000)));
+    Io.println("not loaded: " <> Io.show(Peer.compute("store", Lonely.speak, 5000)));
+    faulted("divided", fn() : Unit with Never = {
+        let _ = Peer.compute("store", fn() = 1 / List.size([]), 5000);
+        Unit
+    });
+    reported();
+    faulted("raised", fn() : Unit with Never = {
+        let _ = Peer.compute("store", fn() = toInteger("x"), 5000);
+        Unit
+    });
+    reported();
+    let killed =
+        Peer.compute("store",
+                     fn() : Int with Int = {
+                         kill(self());
+                         receive {
+                             n -> n
+                         }
+                     },
+                     5000);
+    Io.println("killed: " <> Io.show(killed));
+    let watcher = Shared.found(Counter.watcher);
+    let me = self();
+    let abandoned = spawn(fn() : Unit with Never = {
+        let _ =
+            Peer.compute("store",
+                         fn() : Int with Int = {
+                             watchedBy(watcher, "the abandoned compute's process");
+                             send(me, Started("abandoned"));
+                             receive {
+                                 n -> n
+                             }
+                         },
+                         600000);
+        Unit
+    });
+    receive {
+        Started(label) when label == "abandoned" -> kill(abandoned)
+    };
+    timedOut(watcher, 1);
+    let _ = spawnMonitored(fn() : Unit with Never = {
+                               let ended =
+                                   Peer.compute("store",
+                                                fn() : Int with Int = {
+                                                    send(me, Started("ending"));
+                                                    receive {
+                                                        n -> n
+                                                    }
+                                                },
+                                                600000);
+                               Io.println("with the store's end: " <> Io.show(ended))
+                           },
+                           Died);
+    receive {
+        Started(label) when label == "ending" -> Io.println("now stop the store")
+    };
+    ended("ending")
+}
+
+// The fault this node's subscriber was told of, its site, its cause and
+// whether a stack came with it.
+fn reported() : Unit with Msg =
+    receive {
+        Reported(report) ->
+            Io.println("reported here: "
+                           <> report.site
+                           <> " "
+                           <> report.cause
+                           <> " "
+                           <> Io.show(report.trace != ""))
+    }
+
+// The process running the function on the store watched there under the
+// label once it says so.
+fn watchedBy(watcher : Address(Counter.WatcherMsg), label : String) : Unit with m = {
+    let process = Process.fromAddress(self());
+    Address.callForever(watcher,
+                        fn(reply) = Counter.Watch(process = process, label = label, reply = reply))
+}
+
+// A compute whose time runs out, given twice the time at each try until its
+// process has started on the store before the time ran out, as its word here
+// says: the start is what the time waits for, and no time is chosen. Each
+// process that started is killed there, and the store's watcher says so.
+fn timedOut(watcher : Address(Counter.WatcherMsg), ms : Int) : Unit with Msg = {
+    let me = self();
+    let late =
+        Peer.compute("store",
+                     fn() : Int with Int = {
+                         watchedBy(watcher, "the timed-out compute's process");
+                         send(me, Started("timed out"));
+                         receive {
+                             n -> n
+                         }
+                     },
+                     ms);
+    receive {
+        Started(label) when label == "timed out" -> Io.println("timed out: " <> Io.show(late))
+      | after 0 -> timedOut(watcher, ms * 2)
+    }
+}
+
+foreign fn toInteger(text : String) : Int =
+    "erlang:binary_to_integer/1"
+
+// Report §8.7: how busy the store is, as its configuration measures it:
+// the schedulers' time at its start, from 0.0 to 1.0, which the host keeps
+// there; then the run queue, from the next ask after the reload that names
+// it, 0.0 or more, the host keeping the schedulers' time no longer; and,
+// after a reload refused, the run queue still.
+fn utilisations() : Unit with Msg = {
+    Io.println("not listed: " <> Io.show(Peer.utilisation("nobody", 1000)));
+    Io.println("schedulers: "
+                   <> Io.show(#(fraction(Peer.utilisation("store", 5000)),
+                                fraction(Peer.utilisation("store", 5000)))));
+    keeps("at the start");
+    Io.println("now measure the run queue");
+    let _ = Io.readLine();
+    Io.println("run queue: " <> Io.show(waiting(Peer.utilisation("store", 5000))));
+    keeps("after the reload");
+    Io.println("now refuse a reload");
+    let _ = Io.readLine();
+    Io.println("after the refusal: " <> Io.show(waiting(Peer.utilisation("store", 5000))))
+}
+
+// Whether the answer is a fraction from 0.0 to 1.0.
+fn fraction(answer : Either(Io.Error, Float)) : Bool =
+    match answer {
+        Right(utilisation) -> utilisation >= 0.0 && utilisation <= 1.0
+      | Left(_) -> false
+    }
+
+// Whether the answer is 0.0 or more.
+fn waiting(answer : Either(Io.Error, Float)) : Bool =
+    match answer {
+        Right(utilisation) -> utilisation >= 0.0
+      | Left(_) -> false
+    }
+
+// Whether the host keeps the schedulers' time on the store, which the store
+// says, a spawn there asking.
+fn keeps(moment : String) : Unit with m = {
+    let _ =
+        Peer.spawn("store",
+                   fn() : Unit with Never =
+                       Io.println("the store keeps the schedulers' time "
+                                      <> moment
+                                      <> ": "
+                                      <> Io.show(statistic(Foreign.atom("scheduler_wall_time"))
+                                                     != Foreign.atom("undefined"))),
+                   5000);
+    Unit
+}
+
+foreign fn statistic(item : Foreign.Term) : Foreign.Term with m =
+    "erlang:statistics/1"

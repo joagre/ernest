@@ -1,16 +1,18 @@
 %% Report §3.11: the type bound to its node, and the refusals that keep a
 %% value of one from starting towards another node. A service at a bound
 %% type is refused where the checker supplies the service's type
-%% (ern_typecheck's supply of `service`); a spawn on a peer is read off a
-%% definition here, once the definition is inferred: its function is a
-%% declaration's name, or a lambda or a `fn` written in the definition, at
-%% the spawn or bound by a `let` the spawn names, or `restarting` applied to
-%% one of these, and what that lambda or `fn` captures, and the mailbox type
-%% of the process it starts, are neither bound nor hold a type variable, but
-%% for a mailbox type that is a variable the definition's type does not
-%% hold, which is Never; nor does its body use a member of a requirement in
-%% force, a function. Nothing else is checked, and nothing is looked through
-%% at a send. A breach is thrown as the checker's type errors are.
+%% (ern_typecheck's supply of `service`); a spawn on a peer, and a compute,
+%% are read off a definition here, once the definition is inferred: the
+%% function is a declaration's name, or a lambda or a `fn` written in the
+%% definition, at the spawn or the compute or bound by a `let` it names, or
+%% `restarting` applied to one of these, and what that lambda or `fn`
+%% captures, and the mailbox type of the process it starts, are neither
+%% bound nor hold a type variable, but for a mailbox type that is a
+%% variable the definition's type does not hold, which is Never; nor does
+%% its body use a member of a requirement in force, a function. A compute's
+%% function's result type, which crosses back, is neither bound nor holds a
+%% type variable. Nothing else is checked, and nothing is looked through at
+%% a send. A breach is thrown as the checker's type errors are.
 -module(ern_bound).
 
 -export([binds/2, check/3]).
@@ -100,12 +102,13 @@ first(Binds, [Type | Types]) ->
 %% A spawn on a peer
 %%
 
-%% Report §3.11: every spawn on a peer in a definition, its typed body read
-%% once its types are known; Held are the type variables the definition's
-%% type holds. Answers the env with each spawned process's mailbox type
-%% that is a variable Held leaves out bound to Never. Scope holds, for each
-%% local name a `let` binds to a lambda or a block declares with `fn`, that
-%% lambda or declaration, and for each name bound since, `value`.
+%% Report §3.11: every spawn on a peer and every compute in a definition,
+%% its typed body read once its types are known; Held are the type
+%% variables the definition's type holds. Answers the env with each started
+%% process's mailbox type that is a variable Held leaves out bound to
+%% Never. Scope holds, for each local name a `let` binds to a lambda or a
+%% block declares with `fn`, that lambda or declaration, and for each name
+%% bound since, `value`.
 -spec check(tuple(), [ern_types:id()], ern_typecheck:env()) -> ern_typecheck:env().
 check(#fn_declaration{params = Params, body = Body}, Held, Env) ->
     never(walk(Body, shadowed(param_names(Params), #{}), {Held, Env}), Env);
@@ -124,7 +127,7 @@ never(Variables, Env) ->
     ern_typecheck:set_type_state(TypeState, Env).
 
 %% The mailbox types taken as Never under a node: walk/3 answers the
-%% variables each spawn in it leaves so.
+%% variables each spawn or compute in it leaves so.
 walk(#e_call{callee = #e_var{referent = Referent} = Callee, args = Args}, Scope, Context) ->
     Spawned = case spawn_name(Referent) of
                   none -> walk(Callee, Scope, Context);
@@ -169,20 +172,25 @@ statement(#fn_declaration{params = Params, body = Body}, Scope, Context) ->
 statement(Expr, Scope, Context) ->
     {walk(Expr, Scope, Context), Scope}.
 
-%% Appendix E.27: `Peer.spawn` and `Peer.spawnMonitored`, the module's own
-%% functions as the checker resolved them, not names spelled so.
+%% Appendix E.27: `Peer.spawn`, `Peer.spawnMonitored` and `Peer.compute`,
+%% the module's own functions as the checker resolved them, not names
+%% spelled so.
 spawn_name(#remote_declaration{namespace = ['Peer'], member_of = undefined, name = Name})
-  when Name =:= spawn; Name =:= spawnMonitored ->
+  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
     "Peer." ++ atom_to_list(Name);
 spawn_name(_) ->
     none.
 
-%% Report §3.11: the function the spawn starts, written where its captures
-%% are seen, each capture and the process's mailbox type neither bound nor
-%% holding a type variable, but for a mailbox type that is Never.
+%% Report §3.11: the function the spawn or the compute starts, written
+%% where its captures are seen, each capture and the process's mailbox type
+%% neither bound nor holding a type variable, but for a mailbox type that is
+%% Never; and a compute's result type, which crosses back, neither bound nor
+%% holding one.
 spawned(Name, #e_var{type = CalleeType}, [_Peer, Function | _], Scope, {Held, Env}) ->
     Captures = restarted_captures(Name, Function, Scope, Env),
     lists:foreach(fun(Capture) -> capture_crosses(Name, Capture, Env) end, Captures),
+    Name =:= "Peer.compute"
+        andalso result_crosses(Name, ern_ast:span(Function), function_type(CalleeType, Env), Env),
     mailbox_crosses(Name, ern_ast:span(Function), mailbox(CalleeType, Env), Held, Env).
 
 %% Report §3.11, §6.9: `restarting` applied to a function the spawn admits
@@ -205,26 +213,26 @@ captures(Name, #e_var{span = Span, namespace = [], name = Local, referent = var}
         #{Local := {local_fn, #fn_declaration{params = Params, body = Body} = Fn}} ->
             body_captures(Name, Fn, ern_ast:free_uses(Body, [Local | param_names(Params)]), Env);
         _ ->
-            fail(Span, Name ++ " starts " ++ atom_to_list(Local) ++ ", a function that came as a"
-                       " value, whose captures the compiler does not see",
-                 "write the lambda at the spawn, bind it with `let`, or declare it with `fn`,"
-                 " in this definition (§3.11)")
+            fail(Span, Name ++ verb(Name) ++ atom_to_list(Local) ++ ", a function that came as"
+                       " a value, whose captures the compiler does not see",
+                 "write the lambda at " ++ act(Name) ++ ", bind it with `let`, or declare it"
+                 " with `fn`, in this definition (§3.11)")
     end;
 captures(Name, #e_var{span = Span, name = Declared, referent = Referent}, _Scope, Env) ->
     case ern_typecheck:is_top_let(Referent, Env) of
         false ->
             [];
         true ->
-            fail(Span, Name ++ " starts " ++ atom_to_list(Declared) ++ ", a top-level `let`,"
+            fail(Span, Name ++ verb(Name) ++ atom_to_list(Declared) ++ ", a top-level `let`,"
                        " whose value may hold captures the compiler does not see",
-                 "declare it with `fn`, or write a lambda at the spawn (§3.11)")
+                 "declare it with `fn`, or write a lambda at " ++ act(Name) ++ " (§3.11)")
     end;
 captures(Name, Function, _Scope, _Env) ->
     fail(ern_ast:span(Function),
-         Name ++ " starts a function written where the compiler sees what it captures: a"
+         Name ++ verb(Name) ++ "a function written where the compiler sees what it captures: a"
                  " declaration's name, or a lambda or a `fn` written in this definition",
-         "write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this"
-         " definition (§3.11)").
+         "write the lambda at " ++ act(Name) ++ ", bind it with `let`, or declare it with"
+         " `fn`, in this definition (§3.11)").
 
 %% Report §3.11, §4.9: the locals a lambda's or a local fn's body names, its
 %% captures, where the body uses no member of a requirement in force, which
@@ -250,12 +258,12 @@ body_captures(Name, Function, Uses, Env) ->
         [{Variable, Member} | _] ->
             fail(ern_ast:span(Function),
                  %% the variable as an error names it, without a printed type's marks
-                 Name ++ " starts a function that uses "
+                 Name ++ verb(Name) ++ "a function that uses "
                      ++ string:trim(ern_types:format(Variable, TypeState), trailing, "=!+")
                      ++ "." ++ atom_to_list(Member) ++ ", a member of the requirement in force,"
                      " which is a function bound to its node",
-                 "give the process what it needs as a value it captures, or spawn on this node"
-                 " (§3.11)")
+                 "give the process what it needs as a value it captures, or "
+                 ++ here(Name) ++ " (§3.11)")
     end.
 
 %% The locals among the uses, each once at its first use.
@@ -275,11 +283,12 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
     case binds(Substituted, Env) of
         false ->
             ern_types:free_variables(Substituted, TypeState) =:= []
-                orelse fail(Span, "the function " ++ Name ++ " starts captures "
+                orelse fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures "
                                   ++ atom_to_list(Local) ++ ", whose type " ++ Text
                                   ++ " holds a type variable",
-                            "a value a spawn on a peer captures has a type known whole, since"
-                            " a type variable could stand for one bound to its node (§3.11)");
+                            "a value " ++ act_on_peer(Name) ++ " captures has a type known"
+                            " whole, since a type variable could stand for one bound to its node"
+                            " (§3.11)");
         Why ->
             %% a function's type at its use has the effect of its use's
             %% context (§3.9), not the binding's, so it is named, not shown
@@ -288,19 +297,47 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
                        _ -> ", whose type " ++ Text ++ " is bound to its node, since it holds "
                                 ++ Why
                    end,
-            fail(Span, "the function " ++ Name ++ " starts captures " ++ atom_to_list(Local)
+            fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures " ++ atom_to_list(Local)
                        ++ What,
                  "a value of a bound type never crosses to another node; give the process"
                  " what crosses (§3.11)")
     end.
 
-%% The mailbox type of the process the spawn starts: the effect of the
-%% function it takes, its second parameter, at this use.
-mailbox(CalleeType, Env) ->
+%% The function the spawn or the compute takes, its second parameter, at
+%% this use.
+function_type(CalleeType, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     {tfn, [_, Function | _], _, _} = ern_types:substitute(CalleeType, TypeState),
-    {tfn, [], Mailbox, _} = ern_types:resolve(Function, TypeState),
+    ern_types:resolve(Function, TypeState).
+
+%% The mailbox type of the process the spawn or the compute starts: the
+%% effect of the function it takes.
+mailbox(CalleeType, Env) ->
+    {tfn, [], Mailbox, _} = function_type(CalleeType, Env),
     Mailbox.
+
+%% Report §3.11, §8.7: the result type of the function a compute runs,
+%% whose value crosses back to the caller's node, known whole where the
+%% compute is written, and neither bound nor holding a type variable, which
+%% an instance could make bound.
+result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
+    TypeState = ern_typecheck:type_state(Env),
+    Substituted = ern_types:substitute(Result, TypeState),
+    Text = ern_types:format(Substituted, TypeState),
+    case binds(Substituted, Env) of
+        false ->
+            ern_types:free_variables(Substituted, TypeState) =:= []
+                orelse fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which holds a"
+                                  " type variable, so whether it crosses is not known here",
+                            "give the function its result type, `fn() : Int = ...`: the value"
+                            " crosses back to this node, and its type is known whole where the"
+                            " compute is written (§3.11)");
+        Why ->
+            fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which is bound to its"
+                       " node, since it holds " ++ Why,
+                 "the value crosses back to this node, so its type is one that crosses; answer"
+                 " what crosses (§3.11)")
+    end.
 
 %% Answers the variable a mailbox type is, to be taken as Never, where the
 %% definition's type does not hold it, and else none.
@@ -315,7 +352,7 @@ mailbox_crosses(Name, Span, Mailbox, Held, Env) ->
                 true ->
                     fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                                ++ " is not known whole here",
-                         "give the function its mailbox type, `fn() : Unit with Msg = ...`: an"
+                         "give the function its mailbox type, " ++ annotated(Name) ++ ": an"
                          " instance of this definition could make the variable a type bound to"
                          " its node (§3.11)")
             end;
@@ -323,16 +360,43 @@ mailbox_crosses(Name, Span, Mailbox, Held, Env) ->
             ern_types:free_variables(Mailbox, TypeState) =:= []
                 orelse fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                                   ++ " is not known whole here",
-                            "give the function its mailbox type, `fn() : Unit with Msg = ...`:"
-                            " a type variable in it could stand for a type bound to its node"
+                            "give the function its mailbox type, " ++ annotated(Name) ++ ": a"
+                            " type variable in it could stand for a type bound to its node"
                             " (§3.11)"),
             [];
         {Why, _} ->
             fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                        ++ " is bound to its node, since it holds " ++ Why,
-                 "the spawn answers an address that may cross to another node, so its"
-                 " messages are values that cross (§3.11)")
+                 bound_mailbox_help(Name))
     end.
+
+%% The help of a bound mailbox type: a spawn answers the process's address,
+%% which may cross; a compute's function is checked as a spawn's, one rule
+%% for the function a peer runs (§3.11).
+bound_mailbox_help("Peer.compute") ->
+    "the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses"
+    " (§3.11)";
+bound_mailbox_help(_) ->
+    "the spawn answers an address that may cross to another node, so its messages are values"
+    " that cross (§3.11)".
+
+%% What the operation does with its function, in the report's words
+%% (§3.11): a spawn starts it, a compute runs it.
+verb("Peer.compute") -> " runs ";
+verb(_) -> " starts ".
+
+%% The operation as a help names it, the one written (§3.11).
+act("Peer.compute") -> "the compute";
+act(_) -> "the spawn".
+
+act_on_peer("Peer.compute") -> "a compute on a peer";
+act_on_peer(_) -> "a spawn on a peer".
+
+here("Peer.compute") -> "run the function on this node, `f()`";
+here(_) -> "spawn on this node".
+
+annotated("Peer.compute") -> "`fn() : Int with Msg = ...`";
+annotated(_) -> "`fn() : Unit with Msg = ...`".
 
 %%
 %% Utilities

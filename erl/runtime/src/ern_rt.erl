@@ -46,12 +46,14 @@
 %% and whether the end waits for its subscribers. A node's (§8.7):
 %% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
 %% modules whose initializers have run, whose bindings a peer's spawn asks
-%% for, and `ern_notes` the notes of calls from other nodes.
+%% for, and `ern_notes` the notes of calls from other nodes, a compute's
+%% among them.
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
-         spawn_root/3, self/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, answer/2,
-         refuse/2, monitor/2, kill/1, reason/1, started_by/1, processes/0, status/1, faults/1,
+         spawn_root/3, self/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/3,
+         answer/2, refuse/2, monitor/2, kill/1, reason/1, started_by/1, processes/0, status/1,
+         faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
          source_end/0, opened/3, forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
@@ -62,7 +64,8 @@
          binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
          spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/2, offered/2,
-         asked_of_run/1, note_call/3, drop_note/1, drop_notes/1, ordered/1]).
+         asked_of_run/1, note_call/3, drop_note/1, note_compute/2, computed/2, is_launched/0,
+         drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -132,8 +135,17 @@
 %% Report §8.7: the notes of calls from other nodes on this node's
 %% processes, {{CallerNode, Reply}, Callee, Caller}, by the caller's node,
 %% so that a loss drops a peer's together; each beside its row of CALLEES,
-%% which a restart reads.
+%% which a restart reads. A compute's note, its frame, is {{CallerNode,
+%% Alias}, none, Caller} until its process is started, and then names the
+%% process, whose row of CALLEES, {{Callee, Caller}, {compute, Alias}},
+%% says it is a compute's, which a restart does not end and whose end its
+%% caller is told of.
 -define(NOTES, ern_notes).
+%% Report §9.3: the descriptor of the prelude's Reason, by which a
+%% compute's answer writes the Reason of a process that ended before it
+%% answered as `Io.show` writes it (§8.7).
+-define(REASON, {con, [{'Returned', []}, {'Killed', []}, {'ProgramEnd', []}, {'Fault', [string]},
+                       {'Unknown', []}, {'Unreachable', []}]}).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 %% How long the reaper waits without a message before it looks for a
@@ -474,17 +486,107 @@ settled(Reply) ->
 
 %% The pending call of Caller, gone from both tables; report §8.7: where
 %% its callee is of another node, whose note no answer there, restart or end
-%% has let go, the second note tells that node the call is over.
+%% has let go, the second note tells that node the call is over, and so it
+%% tells the peer a compute waits on.
 uncalled(Caller) ->
     case ets:take(?CALLS, Caller) of
         [{_, Callee, Reply}] ->
             ets:delete(?CALLEES, {Callee, Caller}),
-            node(Callee) =:= node()
-                orelse erlang:send({ern_gateway, node(Callee)},
-                                   {ern_frame, Caller, {call_over, Reply}});
+            case gateway_of(Callee) of
+                none -> true;
+                Gateway -> erlang:send(Gateway, {ern_frame, Caller, {call_over, Reply}})
+            end;
         [] ->
             true
     end.
+
+%% The gateway a call's second note goes to: the peer's a compute waits on
+%% (compute/3), the node's of a callee of another node, or none.
+gateway_of({ern_gateway, _} = Gateway) -> Gateway;
+gateway_of(Callee) when node(Callee) =:= node() -> none;
+gateway_of(Callee) -> {ern_gateway, node(Callee)}.
+
+%% Report §8.7, §6.6: a compute on a peer, whose wait is a call's: the
+%% caller's row in the table of calls, its callee the peer's gateway, so
+%% that the call's second note follows where its time runs out, where it is
+%% asked to restart, and where it ends while it waits (delivered_down/3);
+%% an alias, which takes one answer and drops a late one; and a watch of
+%% the peer's gateway, as a find keeps one, whose end is a loss, which drops
+%% the peer's notes, so that no second note follows it. The frame, which
+%% Frame makes of the alias, is the call's first note. The answer is the
+%% value, the caller's fault with the cause and the host's stack that
+%% crossed (§11.2), `Other` with the Reason of a process that ended before
+%% it answered, or the failure the peer answered or the wait met.
+-spec compute(node(), fun((reference()) -> term()), integer()) ->
+          {'Right', term()} | {'Left', term()}.
+compute(Node, Frame, Deadline) ->
+    Gateway = {ern_gateway, Node},
+    MonitorRef = erlang:monitor(process, Gateway),
+    Alias = erlang:alias([reply]),
+    ets:insert(?CALLS, {erlang:self(), Gateway, Alias}),
+    erlang:send(Gateway, {ern_frame, erlang:self(), Frame(Alias)}),
+    Answer = computed_answer(Alias, MonitorRef, Deadline),
+    erlang:demonitor(MonitorRef, [flush]),
+    case Answer of
+        {'Right', _} = Value -> Value;
+        {'Left', _} = Failure -> Failure;
+        {faulted, Cause, <<>>} -> fault(Cause);
+        {faulted, Cause, Trace} -> fault(Cause, Trace);
+        {ended, Reason} -> {'Left', {'Other', ern_show:show(?REASON, Reason)}};
+        {fault, Cause} -> fault(Cause);
+        '$ern_restart' -> restart_now()
+    end.
+
+%% The compute's answer through the alias, which lets the caller's row go
+%% with no second note, the peer having let its note go; a loss, after
+%% which none comes; a restart asked for or a foreign message's fault,
+%% taken at a call's wait, which end the compute with its second note; or
+%% the time run out, after which an answer that came first is taken, and
+%% otherwise the second note sent.
+computed_answer(Alias, MonitorRef, Deadline) ->
+    receive
+        {Alias, _, _} = Message -> answer_taken(Message);
+        {Alias, _, _, _} = Message -> answer_taken(Message);
+        {'DOWN', MonitorRef, process, _, _} ->
+            erlang:unalias(Alias),
+            closed(erlang:self()),
+            {'Left', 'Unreachable'};
+        '$ern_restart' ->
+            over(Alias),
+            '$ern_restart';
+        {'$ern_fault', Cause} ->
+            over(Alias),
+            {fault, Cause}
+    after remaining(Deadline) ->
+        case remaining(Deadline) of
+            0 ->
+                erlang:unalias(Alias),
+                receive
+                    {Alias, _, _} = Message -> answer_taken(Message);
+                    {Alias, _, _, _} = Message -> answer_taken(Message)
+                after 0 ->
+                    uncalled(erlang:self()),
+                    {'Left', 'Timeout'}
+                end;
+            _ ->
+                computed_answer(Alias, MonitorRef, Deadline)
+        end
+    end.
+
+answer_taken(Message) ->
+    closed(erlang:self()),
+    case Message of
+        {_, computed, Value} -> {'Right', Value};
+        {_, failed, Error} -> {'Left', Error};
+        {_, ended, Reason} -> {ended, Reason};
+        {_, faulted, Cause, Trace} -> {faulted, Cause, Trace}
+    end.
+
+%% The compute given up before its answer: the alias goes, and the second
+%% note tells the peer.
+over(Alias) ->
+    erlang:unalias(Alias),
+    uncalled(erlang:self()).
 
 %% Report §8.7: the pending call of the caller, gone from both tables where
 %% its callee's node has already let its note go: by an answer given there,
@@ -573,6 +675,9 @@ reason({ern, program_end}) -> 'ProgramEnd';
 reason({ern, fault, Cause}) -> {'Fault', Cause};
 %% report §6.9, §11.2: the host's stack is the report's, never the cause's
 reason({ern, fault, Cause, _Trace}) -> {'Fault', Cause};
+%% report §8.7: a compute's process dies of the fault it carried to its
+%% caller as any process dies of a fault
+reason({ern, carried, Cause, _Trace}) -> {'Fault', Cause};
 %% report §6.9: a monitor made after the end cannot say how it ended
 reason(noproc) -> 'Unknown';
 %% report §6.9, §8.7: the process's node went out of reach, and the process
@@ -603,6 +708,17 @@ reaper_loop(Reaper, Wait) ->
                     From ! {Ref, {absent, Absent}},
                     reaper_loop(Reaper)
             end;
+        %% report §8.7: a compute starts as a spawn does, its process
+        %% running the function for its caller (computing/2)
+        {asked, From, Ref, {compute, Function, Unit, Bindings, Site, Peer, Caller, Alias}} ->
+            case ern_code:absent_binding(Unit, Bindings) of
+                none ->
+                    reaper_loop(spawned(From, Ref, computing(Function, Alias), Site, [],
+                                        {compute, Peer, Caller, Alias}, Reaper));
+                Absent ->
+                    From ! {Ref, {absent, Absent}},
+                    reaper_loop(Reaper)
+            end;
         {asked, From, Ref, Question} ->
             From ! {Ref, answer_of_run(Question)},
             reaper_loop(Reaper);
@@ -629,9 +745,9 @@ reaper_loop(Reaper, Wait) ->
         %% process's do
         {watch, Pid} ->
             reaper_loop(watched(Pid, Reaper));
-        {'WATCHED_DOWN', _MonitorRef, process, Pid, _ExitReason} ->
+        {'WATCHED_DOWN', _MonitorRef, process, Pid, ExitReason} ->
             unoffered(Pid),
-            drop_callee_notes(Pid),
+            drop_callee_notes(Pid, ExitReason),
             reaper_loop(Reaper#reaper{watched = maps:remove(Pid, Reaper#reaper.watched)})
     after Wait ->
         case look() of
@@ -659,7 +775,10 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% monitor's does. Its root is its spawner's, where Chain says so and the
 %% spawner is a process of the runtime's, and else itself; a peer's spawn,
 %% {peer, Node}, heads a chain of its own, and its row keeps the peer's
-%% node, which its fault's line names (§11.2).
+%% node, which its fault's line names (§11.2), and so does a peer's
+%% compute, {compute, Node, Caller, Alias}, whose process starts only once
+%% its note names it (is_noted/2), and otherwise never runs, answered
+%% `over`.
 spawned(From, Ref, Function, Site, SpawnMonitors, Chain,
         #reaper{monitors = Monitors, monitoring = Monitoring} = Reaper) ->
     Started = fun() -> receive Ref -> run(Function) end end,
@@ -667,11 +786,18 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain,
     {Root, Peer} = case Chain of
                        chained -> {root(From, Pid), none};
                        root -> {Pid, none};
-                       {peer, Node} -> {Pid, Node}
+                       {peer, Node} -> {Pid, Node};
+                       {compute, Node, _, _} -> {Pid, Node}
                    end,
     ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order(), Root, Peer}),
-    Pid ! Ref,
-    From ! {Ref, Pid},
+    case is_noted(Chain, Pid) of
+        true ->
+            Pid ! Ref,
+            From ! {Ref, Pid};
+        false ->
+            exit(Pid, {ern, killed}),
+            From ! {Ref, over}
+    end,
     Monitoring1 = lists:foldl(fun({Caller, _}, Acc) -> added(Caller, Pid, Acc) end,
                               Monitoring, SpawnMonitors),
     Monitors1 = case SpawnMonitors of
@@ -743,7 +869,7 @@ monitors_cancelled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
     unoffered(Pid),
-    drop_callee_notes(Pid),
+    drop_callee_notes(Pid, ExitReason),
     delivered_down(Pid, ExitReason, Reaper),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
         orelse is_map_key(Pid, MonitorRefs) of
@@ -854,10 +980,16 @@ ended_program(From, Ref) ->
     From ! {Ref, ended},
     ended_program().
 
+%% Report §8.7: a process's death as the node stops, a compute's told to
+%% its caller, as every Down crosses, before the connections close.
 wait_for_end(Pid) ->
     case erlang:process_info(Pid, trap_exit) of
-        {trap_exit, true} -> ok;
-        _ -> receive {'DOWN', _, process, Pid, _} -> ok end
+        {trap_exit, true} ->
+            ok;
+        _ ->
+            receive
+                {'DOWN', _, process, Pid, ExitReason} -> drop_callee_notes(Pid, ExitReason)
+            end
     end.
 
 ended_program() ->
@@ -1057,14 +1189,69 @@ report(Pid, Site, Peer, Fault, Restarted) ->
 live_rows() ->
     ets:tab2list(?PROCESSES).
 
+%% Report §8.7: a compute's process named by its note before it runs, its
+%% row of CALLEES first, so that the call's second note, which the gateway
+%% may read meanwhile, finds the process by the note and kills it; where
+%% the note has gone, the second note read or the connection lost, or was
+%% never written, the compute having come between two launches, the
+%% process does not run. Any other process runs.
+is_noted({compute, _, Caller, Alias}, Pid) ->
+    ets:insert(?CALLEES, {{Pid, Caller}, {compute, Alias}}),
+    case ets:update_element(?NOTES, {node(Alias), Alias}, {2, Pid}) of
+        true ->
+            true;
+        false ->
+            ets:delete(?CALLEES, {Pid, Caller}),
+            false
+    end;
+is_noted(_, _) ->
+    true.
+
+%% Report §8.7: what a compute's process runs: the function, whose value
+%% goes to the caller through its alias once the process has let its note
+%% go, as an answer given here does; a fault in it goes there too, its
+%% cause and its trace, and the process dies of it, its end marked
+%% carried, so that this node reports nothing of it (died/4). Where the
+%% note has gone already, the call over or the connection lost, no caller
+%% waits: nothing is answered, and a fault is this node's, reported as any
+%% process's is. Report §8.6: a fault as the program ends ends the process
+%% with the program, whose end tells the caller (ended_program/2).
+computing(Function, Alias) ->
+    fun() ->
+        Answer = try {computed, Function()}
+                 catch Class:Error:Stack -> {faulted, fault_exit_reason(Class, Error, Stack)}
+                 end,
+        answered_compute(Answer, Alias)
+    end.
+
+answered_compute({computed, Value}, Alias) ->
+    dropped_note(Alias) andalso erlang:send(Alias, {Alias, computed, Value}),
+    ok;
+answered_compute({faulted, Fault}, Alias) ->
+    is_program_ending(erlang:self()) andalso end_with_program(),
+    case dropped_note(Alias) of
+        true ->
+            {Cause, Trace} = case Fault of
+                                 {ern, fault, FaultCause} -> {FaultCause, <<>>};
+                                 {ern, fault, FaultCause, FaultTrace} -> {FaultCause, FaultTrace}
+                             end,
+            Alias ! {Alias, faulted, Cause, Trace},
+            throw({ern, carried, Cause, Trace});
+        false ->
+            throw(Fault)
+    end.
+
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
 %% subscription to faults or to the program's end it held ends with it.
 died(Pid, Site, Peer, ExitReason) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?TERMINATING, Pid),
     ets:delete(?RESTARTS, Pid),
-    case reason(ExitReason) of
-        {'Fault', _} -> report(Pid, Site, Peer, ExitReason, false);
+    case {ExitReason, reason(ExitReason)} of
+        %% report §8.7: a fault a compute carried to its caller is reported
+        %% once, on the caller's node, and told no subscriber here
+        {{ern, carried, _, _}, _} -> ok;
+        {_, {'Fault', _}} -> report(Pid, Site, Peer, ExitReason, false);
         _ -> ok
     end.
 
@@ -1366,6 +1553,7 @@ run(Function) ->
 fault_exit_reason(error, badarith, _) -> {ern, fault, <<"division by zero">>};
 fault_exit_reason(throw, {ern, fault, Cause}, _) -> {ern, fault, Cause};
 fault_exit_reason(throw, {ern, fault, Cause, Trace}, _) -> {ern, fault, Cause, Trace};
+fault_exit_reason(throw, {ern, carried, Cause, Trace}, _) -> {ern, carried, Cause, Trace};
 fault_exit_reason(Class, Error, Stack) ->
     {ern, fault, format("~p:~p", [Class, Error]), trace(Stack)}.
 
@@ -2532,10 +2720,13 @@ within_limit({Restarts, Within}, Times) ->
     end.
 
 %% Report §6.6, §6.9: a restart ends every call waiting on the process, each
-%% caller told the cause, which a callForever faults with.
+%% caller told the cause, which a callForever faults with. Report §8.7: a
+%% compute's process that restarts runs its function again, and its caller
+%% waits on for the value, so its row is no call the restart ends.
 restarted(Cause) ->
     Self = erlang:self(),
-    Callers = try ets:select(?CALLEES, [{{{Self, '$1'}, '$2'}, [], [{{'$1', '$2'}}]}])
+    Callers = try ets:select(?CALLEES, [{{{Self, '$1'}, '$2'}, [{is_reference, '$2'}],
+                                         [{{'$1', '$2'}}]}])
               catch _:_ -> []
               end,
     lists:foreach(fun({Caller, Reply}) ->
@@ -2719,14 +2910,18 @@ offered(Name, Hash) ->
 %% the peer of node Peer, as spawn/2 starts one but heading a chain of its
 %% own, where every binding of the function's reach, each by its identity,
 %% has its value here as the code of the unit that runs it reads it, else
-%% `{absent, Binding}`, the first that has none. None where
+%% `{absent, Binding}`, the first that has none; or a process started so
+%% for a compute, which runs the function for its caller, or `over` where
+%% its note has gone (is_noted/2). None where
 %% no run is in progress, its reaper ended or not yet begun: as a run ends,
 %% and between two runs of `ern test` over a directory, in one host. The
 %% gateway's worker that asks waits on the reaper's end as well as on its
 %% answer, since a frame comes at any time.
 -spec asked_of_run({offered, binary(), binary()}
                    | {spawn, fun(() -> term()), module(), [{[atom()], binary()}], binary(),
-                      node()}) ->
+                      node()}
+                   | {compute, fun(() -> term()), module(), [{[atom()], binary()}], binary(),
+                      node(), pid(), reference()}) ->
           {answered, term()} | none.
 asked_of_run(Question) ->
     case persistent_term:get({?MODULE, reaper}, none) of
@@ -2769,11 +2964,49 @@ note_call(Callee, Caller, Reply) ->
     end,
     ok.
 
-%% Report §8.7: the second note, that the call is over.
+%% Report §8.7: the second note, that the call is over; a compute's
+%% process is killed by it where it still runs.
 -spec drop_note(reference()) -> ok.
 drop_note(Reply) ->
-    dropped_note(Reply),
+    case ets:take(?NOTES, {node(Reply), Reply}) of
+        [{_, Callee, Caller}] ->
+            case ets:take(?CALLEES, {Callee, Caller}) of
+                [{_, {compute, _}}] -> exit(Callee, {ern, killed});
+                _ -> true
+            end;
+        [] ->
+            true
+    end,
     ok.
+
+%% Report §8.7: a compute's frame, which the gateway records as it comes,
+%% in the order the call's notes came, as the call's first note: the caller
+%% of another node waits with the alias, and the process that runs the
+%% function is not yet started (is_noted/2).
+-spec note_compute(pid(), reference()) -> ok.
+note_compute(Caller, Alias) ->
+    ets:insert(?NOTES, {{node(Alias), Alias}, none, Caller}),
+    ok.
+
+%% Report §8.7: a compute this node starts no process for answered, its
+%% note let go as an answer given here lets it go: `NotLoaded`, or
+%% `Unreachable` where no launch is in progress to start it. Between two
+%% launches there is no table, and no note.
+-spec computed(reference(), 'NotLoaded' | 'Unreachable') -> ok.
+computed(Alias, Error) ->
+    try dropped_note(Alias) catch error:badarg -> false end,
+    Alias ! {Alias, failed, Error},
+    ok.
+
+%% Report §8.7, §11.2: whether a launch is in progress, its reaper living,
+%% which a peer's question asks of: between two launches of `ern test` over
+%% a directory, in one host, none is.
+-spec is_launched() -> boolean().
+is_launched() ->
+    case persistent_term:get({?MODULE, reaper}, none) of
+        none -> false;
+        Reaper -> erlang:is_process_alive(Reaper)
+    end.
 
 %% Report §8.7: a loss drops every note of the peer.
 -spec drop_notes(node()) -> ok.
@@ -2792,12 +3025,23 @@ dropped_note(Reply) ->
 
 %% Report §8.7: a callee's end drops the notes of its callers of other
 %% nodes, whose monitors tell them; its own node's callers drop their rows.
-drop_callee_notes(Pid) ->
-    Remote = ets:select(?CALLEES, [{{{Pid, '$1'}, '$2'}, [{'=/=', {node, '$1'}, node()}],
+%% A compute's process that ends before it answers, killed or with the
+%% program, tells its caller how through the note, since the caller
+%% watches no process of this node, whichever node the caller's is; one
+%% whose note has gone tells no one.
+drop_callee_notes(Pid, ExitReason) ->
+    Remote = ets:select(?CALLEES, [{{{Pid, '$1'}, '$2'},
+                                    [{'orelse', {'=/=', {node, '$1'}, node()}, {is_tuple, '$2'}}],
                                     [{{'$1', '$2'}}]}]),
-    lists:foreach(fun({Caller, Reply}) ->
-                      ets:delete(?CALLEES, {Pid, Caller}),
-                      ets:delete(?NOTES, {node(Reply), Reply})
+    lists:foreach(fun({Caller, {compute, Alias}}) ->
+                          ets:delete(?CALLEES, {Pid, Caller}),
+                          case ets:take(?NOTES, {node(Alias), Alias}) of
+                              [_] -> Alias ! {Alias, ended, reason(ExitReason)};
+                              [] -> ok
+                          end;
+                     ({Caller, Reply}) ->
+                          ets:delete(?CALLEES, {Pid, Caller}),
+                          ets:delete(?NOTES, {node(Reply), Reply})
                   end, Remote).
 
 %% Report §8.5: dependency order, which each compiled module declares as
