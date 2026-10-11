@@ -20,7 +20,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). The road to 1.0 is MVP 3.1, 3.25,
+of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). MVP 3.2's item 1, the report for code with a spawn, is done the same day (the log's *The Report for Code with a Spawn*). The road to 1.0 is MVP 3.1, 3.25,
 3.2, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ended with a read of what it built, its item
 9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
@@ -145,21 +145,30 @@ day, fifteen names a cold reader could not predict, `Standing` to `Proxy`, `via`
 a Newcomer Reads Them*; E.0's tenth shape rule), all before 0.4.0 freezes a name. The reviews'
 newcomer now lists the names it could not predict.
 
-1. **The report and the soundness argument.** §8.7 for the spawn that carries its code, the
-   four frames, verification, quarantine and one load, `Refused` with the peer's text, a peer
-   that may spawn on a node running what it sends, and the bare node; §11.2 for a bare node, for
-   what a node lets go and for a function typed at the shell spawned with its code; §8.1, §8.5,
-   §8.6 and §11.8 for a bare node's entry process, which runs no `main` and ends by termination;
-   §6.10, whose cross-node sentence is completed by a spawn that carries its code; Appendix G.1
-   for a unit a table's function holds, never let go; Appendix E's page for `Code`, its hashes
-   `String`s, and `running` a form counted as `Peer.spawn` is (§3.11, §0); Appendix F
-   and `style.md`'s glossary for exchange and bare node; `soundness.md`'s section 7 extended to
-   code that crosses. The log's entries, pointing at `code.md`. With them, as the build reaches
-   each: `architecture.md` for the exchange's process and the let-go; `memory.md` for what a
-   node holds of received code and when it lets go; `docs/development.md`'s table, from which the refusal of a node without a program
-   goes. Decided with it, a named decision of this item: what a reply that crossed with a function a
-   failed `Peer.spawn` dropped does, the caller's call ending at once as at a callee's death, or
-   waiting out its time (`language_feedback.md`'s entry 102, placed here 2026-10-10).
+**Fifth, with item 2, two shell tests under load.** `command_argument` in `test/ern_shell_tests.erl`
+failed once in the whole suite on 2026-10-11, its final bytes not holding the completed line before
+the listing, and passed alone three times; `reader_and_screen_ends` waits a fixed 300 ms, which
+MVP 3.25's item 2 saw fail once under load. Both are read with item 2's build: each wait derived
+from what the pty's bytes show it waits for, and no number chosen.
+
+1. **The report and the soundness argument.** Done 2026-10-11. §8.7's *The exchange*: a peer
+   that lacks the function asks for its reach, the four frames beside the nine, each form
+   verified against its hash on arrival and held apart until the reach is whole, one load,
+   `Other(text)` with the peer's reason for a reach it cannot compile or load, a peer that may
+   spawn on a node running what it sends, and the bare node in *Its start and its end*; §11.2's
+   bare node in place of the refusal, *What a node holds* with the let-go, and a shell's function
+   carried with its code; §8.1, §8.5, §8.6 and §11.8 for the bare node's entry process; §6.10's
+   fix crossing with the spawn and its upgrade written over `Code.running`, which §3.11 makes a
+   form; §10's cost line and the let-go's limits; Appendix E.28's page for `Code` in prose, its
+   listing landing with item 6, since the tests hold Appendix E's listings to `stdlib/`; E.1 and
+   E.27; G.1; Appendix F's bare node, code frame and exchange, and the glossary's; Appendix H's
+   form crossing; `soundness.md`'s section 7. The named decision: a reply a failed spawn's
+   function held ends its call at once, `Address.call` `None` and `callForever` `Fault("callee did
+   not start")` (§6.6, §8.7), built in item 3. The proposal's `Refused` is `Other(text)`, since
+   `Io.Error`'s `Refused` carries no text (the log's *The Report for Code with a Spawn*). With
+   the build, as it reaches each: `architecture.md` for the exchange's process and the let-go;
+   `memory.md` for what a node holds of received code and when it lets go; `docs/development.md`'s
+   table, from which the refusal of a node without a program goes in item 5.
 2. **The limit a table sets.** A unit whose function an `Ets.Table` holds is never let go, since
    the host's check sees a process's functions and not a table's, stated in §11.2 and G.1 and
    counted against the limits of section 7; no refusal of the compiler's (the review of
@@ -174,7 +183,9 @@ newcomer now lists the names it could not predict.
    is complete, what the peer said it has pinned meanwhile; a faulty frame ending the connection;
    a reach the peer cannot compile or load failing the spawn with `Refused` and the peer's
    text; the exchange in a process of its own on each node, the gateways only passing its frames,
-   the spawn's time covering it, two spawns waiting on one hash sharing one exchange.
+   the spawn's time covering it, two spawns waiting on one hash sharing one exchange; a reply a
+   failed spawn's function held ending its call at once, `Fault("callee did not start")` (§6.6,
+   §8.7).
 4. **A unit on arrival, and the let-go.** Every unit's functions named by their position in it,
    the build's as an arrival's, so that a unit adds one atom, its name, a trace and the shell
    showing a function by the name its build gives its hash, and every caller by name, the entry
@@ -212,7 +223,8 @@ newcomer now lists the names it could not predict.
    declaration of any arity whose result is `Unit with m` known whole where it is written, the
    host's stack of each process mapped through the table to hashes, the processes with a frame of
    `f` itself, typed `Address(m)`, a snapshot; hashes as `String`s, the digest in hexadecimal;
-   the page with its executed examples, section 3's upgrade tool among them under `examples/`.
+   the page with its executed examples, section 3's upgrade tool among them under `examples/`;
+   E.28's listing block, which the tests hold to the module, lands here.
 7. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes on
    one machine: a spawn of a function typed at a shell that is a node ships exactly the lacking
    definitions, verified and loaded at once, and the process runs; a spawn onto a bare node ships
