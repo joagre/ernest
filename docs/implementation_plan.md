@@ -223,13 +223,13 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    as the gateway's worker reads a frame; a binding reference links to any unit that holds the
    binding's identity with its value, as the exchange's `NotLoaded` check reads it; a foreign
    declaration's call is emitted from the reach's module and function; the let-go reads
-   `ern_exchange:pinned/0`. **A decision with the user, for item 4:** a `foreign fn` spawned by
-   its name has no hash and crosses in no code frame, so a peer that lacks its declaration
-   answers `NotLoaded`, a bare node always; the recommendation is that its declaration cross with
-   the reach, its name, type and the host's module and function, which the reach carries for
-   every foreign declaration already, and that item 4 make its entry on the peer, so that a bare
-   node takes whatever a program spawns (§0's principle 1); the other way is to keep `NotLoaded`
-   and state it in §8.7.
+   `ern_exchange:pinned/0`. Decided 2026-10-11 (§8.7, *The exchange*; the log's *The Report for
+   Code with a Spawn*): a `foreign fn` spawned or computed by its name, which has no hash,
+   crosses as its declaration where the peer lacks it, its name, type and the host's module and
+   function, in the reach and in no code frame, so the reach's foreign entries gain the declared
+   type; the peer makes an entry that calls the host's function through §8.4's check, and a
+   received definition calls what the sender's declaration names; the refusal the peer answers
+   meanwhile, `NotLoaded` naming this item, leaves `docs/development.md`'s table here.
 5. **The bare node, and the shell.** `ern run --config-dir dir` with no `.erc`: the runtime and
    the system processes, the entry process evaluating the standard library's bindings and
    waiting, the node listening and taking spawns, ending by termination alone, refused without

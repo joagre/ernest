@@ -575,7 +575,7 @@ process_function({foreign, Names}) when is_list(Names), Names =/= [] ->
             unreadable;
         none ->
             Named = ern_show:controls(iolist_to_binary(lists:join(".", Names)), line),
-            {lacked, ["this node does not have ", Named]};
+            {lacked, ["this node does not have ", Named, declaration_crosses()]};
         QualifiedName ->
             unit_function(ern_code:spawnable({foreign, QualifiedName}), [],
                           {foreign, QualifiedName})
@@ -596,9 +596,17 @@ unit_function({Unit, Function, Arity, Reach}, Captures, _) when length(Captures)
 unit_function({_, _, _, _}, _, _) ->
     unreadable;
 unit_function(none, _, {foreign, QualifiedName}) ->
-    {lacked, ["this node does not have its function, ", identity_text(QualifiedName)]};
+    {lacked, ["this node does not have its function, ", identity_text(QualifiedName),
+              declaration_crosses()]};
 unit_function(none, _, Identity) ->
     {lacks, Identity}.
+
+%% Report §8.7, The exchange: a foreign function spawned by its name, which
+%% has no hash, crosses as its declaration where the peer lacks it, which
+%% MVP 3.2's item 4 builds; until then the peer runs its own declaration of
+%% the name alone, and says so (docs/development.md).
+declaration_crosses() ->
+    "; a foreign function's declaration crosses in MVP 3.2's item 4".
 
 identity_text(QualifiedName) ->
     lists:join(".", [atom_to_binary(Name) || Name <- QualifiedName]).

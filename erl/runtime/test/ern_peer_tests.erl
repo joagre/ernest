@@ -188,7 +188,9 @@ spawn_by_identity_test() ->
         ?assertEqual([{{failed, 'NotLoaded'}, {not_loaded, spawn, <<"M.f:1">>, Lacked}}
                       || Lacked <- ["the binding Peerreach.greeting has no value here",
                                     "the binding Peerreach.greeting has no value here",
-                                    Absent, Absent, "this node does not have Peernone.never"]],
+                                    Absent, Absent,
+                                    "this node does not have Peernone.never; a foreign function's"
+                                    " declaration crosses in MVP 3.2's item 4"]],
                      [{Answer, {not_loaded, spawn, Site,
                                 lists:flatten(io_lib:format("~ts", [Lacked]))}}
                       || {Answer, {not_loaded, spawn, Site, Lacked}}
