@@ -99,7 +99,7 @@ check_examples(Namespace, Source, Docs) ->
     Outside = [{Number, Body, Value} || {Number, Body, Value, outside} <- WithResult],
     Text = iolist_to_binary([Source, "\n", example_fns(Inside), example_mains(Namespace, Inside)]),
     {ok, Typed, Interface, Env} = checked(Namespace, Text, Libraries),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
     Original = code:which(ErlangModule),
     {module, ErlangModule} = code:load_binary(ErlangModule, "doc examples", Beam),
     %% report §11.1: a module that uses another is compiled against its
@@ -144,7 +144,7 @@ example_module(Examples, Interfaces) ->
     Text = iolist_to_binary([example_fns(Examples), example_mains(['Docexample'], Examples)]),
     {ok, Declarations} = ern_parser:parse_string(Text),
     {ok, Typed, Interface, Env} = ern_typecheck:check(['Docexample'], Declarations, Interfaces),
-    {ok, ExampleModule, Beam} = ern_emitter:compile(['Docexample'], Typed, Interface, Env),
+    {ok, ExampleModule, Beam} = ern_compile:compile(['Docexample'], Typed, Interface, Env),
     {module, ExampleModule} = code:load_binary(ExampleModule, "doc examples", Beam),
     ExampleModule.
 
@@ -177,7 +177,9 @@ run_example_here(ErlangModule, Initialized, Number, Expected) ->
     %% the value goes to stdout, what the example prints itself may go to
     %% either sink, and the two are separate processes, so only stdout's
     %% last line is the value
-    Result = ern_rt:run_main(fun() -> ErlangModule:Main() end, atom_to_binary(Main),
+    %% report §11.1: the unit names its functions by their position
+    MainFunction = ern_named:function(ErlangModule, Main),
+    Result = ern_rt:run_main(MainFunction, atom_to_binary(Main),
                              #{init => Init, stdout => fun(Bytes) -> Self ! {out, Bytes} end,
                                stderr => fun(Bytes) -> Self ! {err, Bytes} end}),
     ?assertEqual(ok, Result),
@@ -551,18 +553,21 @@ fences(Doc) ->
 
 %% plan MVP 2.5: every value a compiled standard library interface
 %% declares is exported by its module with the arity of its type and its
-%% requirement (report §4.9)
+%% requirement (report §4.9), as the function of the number the interface
+%% gives it (report §11.1)
 stdlib_targets_test() ->
     Missing = [{QualifiedName, Arity}
-               || #interface{namespace = Namespace,
-                             values = Values} <- ern_prelude:stdlib_interfaces(),
+               || #interface{namespace = Namespace, values = Values,
+                             positions = Positions} <- ern_prelude:stdlib_interfaces(),
                   {QualifiedName, Scheme} <- maps:to_list(Values),
                   Arity <- [arity(Scheme)],
                   ErlangModule <- [ern_namespace:erlang_module(Namespace)],
                   code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
-                      orelse not erlang:function_exported(ErlangModule,
-                                                          lists:last(QualifiedName),
-                                                          Arity)],
+                      orelse not is_map_key(QualifiedName, Positions)
+                      orelse not erlang:function_exported(
+                                   ErlangModule,
+                                   ern_emitter:function_name(maps:get(QualifiedName, Positions)),
+                                   Arity)],
     ?assertEqual([], Missing),
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 

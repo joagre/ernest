@@ -237,8 +237,10 @@ failed_spawn_ends_replies_test() ->
     _ = loaded(['Peerheld'], ?HELD),
     Self = self(),
     Main = fun() ->
-               Alone = ern_rt:spawn(fun() -> Unit:alone(<<"nobody">>) end, <<"M.f:1">>),
-               Whole = ern_rt:spawn(fun() -> Unit:whole(<<"nobody">>) end, <<"M.f:2">>),
+               AloneFunction = ern_named:function(Unit, alone),
+               WholeFunction = ern_named:function(Unit, whole),
+               Alone = ern_rt:spawn(fun() -> AloneFunction(<<"nobody">>) end, <<"M.f:1">>),
+               Whole = ern_rt:spawn(fun() -> WholeFunction(<<"nobody">>) end, <<"M.f:2">>),
                Asks = [{Alone, fun(Reply) -> {'Ask', Reply} end},
                        {Whole, fun(Reply) -> {'Request', {'Ask', Reply}} end}],
                Called = [ern_rt:call(Server, Request, 600000) || {Server, Request} <- Asks],
@@ -529,7 +531,7 @@ spawn_captures_in_order_test() ->
            "    Unit\n"
            "}\n",
     {ok, Typed, _, Env} = ern_typecheck:check_string(['Captures'], Text),
-    Forms = ern_emitter:forms(['Captures'], Typed, Env),
+    Forms = ern_compile:forms(['Captures'], Typed, Env),
     Bound = maps:from_list(
               found(fun({match, _, {var, _, Variable}, {Kind, _, _} = Value})
                           when Kind =:= bin; Kind =:= integer ->
@@ -567,7 +569,7 @@ found(Test, Term) ->
 loaded(Namespace, Text) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
     Build = #{source_hash => <<>>, deps => []},
-    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
     ok = ern_code:loaded(Unit),
@@ -587,7 +589,7 @@ supervisor_on_another_node_test() ->
     Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
     ?assertEqual(false, ern_rt:on_this_node(Elsewhere)),
     ?assert(ern_rt:on_this_node(self())),
-    Child = 'ern@supervisor':child(Elsewhere, fun() -> 'Unit' end),
+    Child = (ern_named:function('ern@supervisor', child))(Elsewhere, fun() -> 'Unit' end),
     ?assertThrow({ern, fault, <<"a child runs on its supervisor's node">>}, Child()).
 
 %% report §8.7: an offer lasts as long as its process lives, a process the
@@ -704,27 +706,30 @@ crashes() ->
 %% own; a message that comes after the failure starts one. In a run that is
 %% no node a find answers NotListed at once, so the host holds the proxy's
 %% process still while the two come, as a find under way holds it, and its
-%% finds and its sends are read by tracing it
+%% finds and its sends are read by tracing it; each unit's function by its
+%% number (report §11.1)
 proxy_one_find_test() ->
     Proxy = library("proxy"),
+    Start = ern_named:function(Proxy, start),
+    {Find, 2} = ern_code:function('ern@peer', ['Peer', find]),
     Self = self(),
     Main = fun() ->
                ern_rt:init_modules([Proxy]),
                Service = {'Service', <<"probe">>, <<0:256>>},
-               {adapted, _, Forwarder, _} = Address = Proxy:start(Service, 1000),
+               {adapted, _, Forwarder, _} = Address = Start(Service, 1000),
                %% the first find made, the process waits for a message
                ok = ern_waits:until(Forwarder, fun() -> holds(Proxy, Forwarder) end),
-               1 = erlang:trace_pattern({'ern@peer', find, 2}, true, [local]),
+               1 = erlang:trace_pattern({'ern@peer', Find, 2}, true, [local]),
                erlang:trace(Forwarder, true, [call, send]),
                true = erlang:suspend_process(Forwarder),
                ern_rt:send(Address, 1),
                ern_rt:send(Address, 2),
                true = erlang:resume_process(Forwarder),
-               During = traced(Forwarder, 2),
+               During = traced(Forwarder, Find, 2),
                ern_rt:send(Address, 3),
-               After = traced(Forwarder, 3),
+               After = traced(Forwarder, Find, 3),
                erlang:trace(Forwarder, false, [call, send]),
-               erlang:trace_pattern({'ern@peer', find, 2}, false, [local]),
+               erlang:trace_pattern({'ern@peer', Find, 2}, false, [local]),
                Self ! {traced, During, After}
            end,
     Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
@@ -743,21 +748,23 @@ library(Name) ->
     {module, Unit} = code:load_binary(Unit, Erc, Bytes),
     Unit.
 
-%% Whether the proxy's process waits for its next message.
+%% Whether the proxy's process waits for its next message, in its function
+%% `held`.
 holds(Proxy, Forwarder) ->
+    {Held, 4} = ern_code:function(Proxy, ['Proxy', held]),
     erlang:process_info(Forwarder, [status, current_function])
-        =:= [{status, waiting}, {current_function, {Proxy, held, 4}}].
+        =:= [{status, waiting}, {current_function, {Proxy, Held, 4}}].
 
-%% What the traced process did, a find or a message sent and to whom, up to
-%% the message Last sent.
-traced(Pid, Last) ->
+%% What the traced process did, a find, a call of Peer.find's function
+%% Find, or a message sent and to whom, up to the message Last sent.
+traced(Pid, Find, Last) ->
     receive
-        {trace, Pid, call, {'ern@peer', find, _}} ->
-            [find | traced(Pid, Last)];
+        {trace, Pid, call, {'ern@peer', Find, _}} ->
+            [find | traced(Pid, Find, Last)];
         {trace, Pid, Sent, Message, To} when Sent =:= send;
                                             Sent =:= send_to_non_existing_process ->
             case Message of
                 Last -> [{sent, Message, To}];
-                _ -> [{sent, Message, To} | traced(Pid, Last)]
+                _ -> [{sent, Message, To} | traced(Pid, Find, Last)]
             end
     end.

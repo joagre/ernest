@@ -12,6 +12,9 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
+-include_lib("emitter/include/ern_unit.hrl").
+-include_lib("cli/include/ern_build.hrl").
 
 %%
 %% Helpers
@@ -34,13 +37,13 @@ run_at_terminal(Text) ->
 run(Namespace, Text, Options) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
     Build = #{source_hash => <<>>, deps => [], standard => maps:get(standard, Options, false)},
-    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     Self = self(),
     %% standard error is read with standard output, where `Io.debug` writes
     %% (Appendix E.1), unless the test reads it apart
     Collect = fun(Written) -> Self ! {out, Written} end,
-    Result = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    Result = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                              (maps:merge(#{stderr => Collect}, maps:remove(standard, Options)))
                                  #{init => fun() -> init(ErlangModule) end, stdout => Collect,
                                    stdin => fun() -> eof end}),
@@ -57,7 +60,7 @@ emitter_defect_test() ->
         ern_typecheck:check_string(['M'], "fn f() : Int = {\n    let x = 1;\n    x\n}\n"),
     Broken = without_last_statement(Typed),
     ?assertError({emitter_defect, _, "a block ends with a `let`"},
-                 ern_emitter:compile(['M'], Broken, Interface, Env)).
+                 ern_compile:compile(['M'], Broken, Interface, Env)).
 
 without_last_statement(#e_block{statements = Statements} = Block) ->
     Block#e_block{statements = lists:droplast(Statements)};
@@ -115,7 +118,7 @@ source_file(Base) ->
 example_forms(Base) ->
     {Namespace, Source} = example(Base),
     {ok, Typed, _, Env} = ern_typecheck:check_string(Namespace, Source),
-    normalize(ern_emitter:forms(Namespace, Typed, Env)).
+    normalize(ern_compile:forms(Namespace, Typed, Env)).
 
 target_forms(File) ->
     {ok, Forms} = epp:parse_file("../../../test/target/" ++ File, []),
@@ -190,7 +193,7 @@ validator_refusal_compiled_again_test() ->
            "\n"
            "export fn main() : Unit with Never = Io.println(Int.toString(h([1000, -79], -62)))\n",
     {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
-    Forms = ern_emitter:forms(['M'], Typed, Env),
+    Forms = ern_compile:forms(['M'], Typed, Env),
     ?assertMatch({error, [{_, [{_, beam_validator, _} | _]}], _},
                  compile:noenv_forms(Forms, [return_errors])),
     ?assertEqual({ok, <<"-79\n">>}, run(Text)).
@@ -256,7 +259,7 @@ let_of_function_type_remote_test() ->
         ern_typecheck:check_string(['M'], "export let g = fn() = 1\n"
                                           "export let h = fn(x : Int) = x + 1\n"
                                           "export fn f(x : Int) : Int = x * 2\n"),
-    {ok, DependencyModule, DependencyBeam} = ern_emitter:compile(['M'], DependencyTyped,
+    {ok, DependencyModule, DependencyBeam} = ern_compile:compile(['M'], DependencyTyped,
                                                                  DependencyInterface,
                                                                  DependencyEnv),
     {module, DependencyModule} = code:load_binary(DependencyModule, "test", DependencyBeam),
@@ -272,10 +275,10 @@ let_of_function_type_remote_test() ->
         "}\n"
         "fn twice(f : (Int) -> Int, n : Int) : Int = f(f(n))\n"),
     {ok, Typed, Interface2, Env} = ern_typecheck:check(['Main'], Declarations, [Interface]),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['Main'], Typed, Interface2, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['Main'], Typed, Interface2, Env),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     Self = self(),
-    ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                     #{init => fun() -> init(DependencyModule), init(ErlangModule) end,
                       stdout => fun(Text) -> Self ! {out, Text} end}),
     ?assertEqual(<<"1\n3\n2\n6\n">>, collect([])).
@@ -303,7 +306,7 @@ golden_source(Name) ->
     emitted(Namespace, Typed, Env).
 
 emitted(Namespace, Typed, Env) ->
-    unicode:characters_to_binary(ern_emitter:erl_source(Namespace, Typed, Env)).
+    unicode:characters_to_binary(ern_compile:erl_source(Namespace, Typed, Env)).
 
 %% report §11.1: the emitted source of every example is what the
 %% golden file holds; a difference is written beside it as .new
@@ -330,6 +333,169 @@ write_golden() ->
                       file:delete(File ++ ".new"),
                       io:format("~s~n", [File])
                   end, golden_names()).
+
+%%
+%% Every unit from its forms, report §11.1 and Appendix H
+%%
+
+%% report Appendix H, §11.1, §8.7: the emitter makes every unit from its
+%% definitions' canonical forms, with what the build adds that is no
+%% definition's and the link of what the forms reference outside it, and
+%% reads no typed tree: each module of test/programs, of the standard
+%% library and of the shell, made from its forms as the hash takes them,
+%% which hold no line and no local's name, is the code made from them with
+%% the source woven in but for its lines, its variables' names and its
+%% spawn sites' lines, and the host compiles it. A form that lacked what
+%% the emitter reads would fail here, as a definition that arrives (§8.7)
+%% would. Written after the code
+units_from_forms_alone_test_() ->
+    {timeout, 600, fun units_from_forms_alone/0}.
+
+units_from_forms_alone() ->
+    Programs = "../../../test/programs",
+    Roots = [{Programs, filelib:wildcard(Programs ++ "/*.ern"), []},
+             {Programs ++ "/modules", ern_build:sources(Programs ++ "/modules"), []},
+             {"../../../stdlib", ern_build:sources("../../../stdlib"), []},
+             {"../../../shell", ern_build:sources("../../../shell"),
+              ["../../../build/libs/ansi", "../../../build/libs/markdown"]}],
+    %% every program, every module of the library and both of the shell
+    [?assertEqual(length(Files), units_from_forms(SourceRoot, Files, LoadPath))
+     || {SourceRoot, Files, LoadPath} <- Roots].
+
+%% Each module of Files under Root in the order a build compiles it, checked
+%% against its dependencies as the build checks it, its unit made from its
+%% forms with and without the source and compared; how many were made.
+units_from_forms(Root, Files, LoadPath) ->
+    SourceRoot = ern_build:absolute(Root),
+    Roots = [filename:join(scratch(), "build") | LoadPath],
+    Standard = ern_build:is_stdlib_root(SourceRoot),
+    Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot) || File <- Files],
+    {_, Made} =
+        lists:foldl(
+          fun(#build_module{namespace = Namespace, declarations = Declarations,
+                            dependencies = Dependencies}, {Interfaces, Acc}) ->
+                  Given = ern_build:dependency_interfaces(Namespace, Dependencies, Interfaces,
+                                                          Roots, SourceRoot),
+                  {ok, Typed, Interface, Env} =
+                      ern_typecheck:check(Namespace, Declarations, [I || {_, I} <- Given]),
+                  Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
+                  Build = #{standard => Standard, code => true,
+                            deps => [{Dependency, <<>>} || {Dependency, _} <- Given]},
+                  Sourced = ern_compile:unit(Namespace, Typed, Env, Canonical, Build),
+                  same_but_the_source(Sourced, Sourced#unit{sourced = #{}}),
+                  {Interfaces#{Namespace => ern_canonical:interface(Interface, Canonical)},
+                   [Namespace | Acc]}
+          end, {#{}, []}, ern_build:compile_order(Modules, SourceRoot, Roots)),
+    length(Made).
+
+%% The unit made with the source and from its forms alone, the same code but
+%% for the source's lines, names and sites' lines, and the host compiles the
+%% second.
+same_but_the_source(Sourced, Alone) ->
+    {WithSource, _} = ern_emitter:unit(Sourced),
+    {FromForms, _} = ern_emitter:unit(Alone),
+    ?assertMatch({ok, _, _}, compile:noenv_forms(FromForms, [return_errors])),
+    ?assertEqual(ok, same_code(normalize(WithSource), normalize(FromForms))).
+
+%% Two normalized forms the same but where a string of the first is the
+%% second's with a line after a colon, a spawn site's (report §6.9).
+same_code({string, Anno, Text}, {string, Anno, Text}) ->
+    ok;
+same_code({string, Anno, WithLine}, {string, Anno, Text}) ->
+    case lists:prefix(Text ++ ":", WithLine)
+         andalso lists:all(fun(Char) -> Char >= $0 andalso Char =< $9 end,
+                           lists:nthtail(length(Text) + 1, WithLine)) of
+        true -> ok;
+        false -> {differs, WithLine, Text}
+    end;
+same_code(First, Second) when is_tuple(First), is_tuple(Second),
+                              tuple_size(First) =:= tuple_size(Second) ->
+    same_code(tuple_to_list(First), tuple_to_list(Second));
+same_code([First | Firsts], [Second | Seconds]) ->
+    case same_code(First, Second) of
+        ok -> same_code(Firsts, Seconds);
+        Differs -> Differs
+    end;
+same_code(Same, Same) ->
+    ok;
+same_code(First, Second) ->
+    {differs, First, Second}.
+
+%% report §11.1: a unit's functions are named by their position in it, its
+%% definitions in the order of their forms, a type taking its position, and
+%% its foreign functions after them; a local function lifted to its own
+%% function by its definition's position and its own among the
+%% definition's lambdas and local functions, and the entry a spawn on a
+%% peer starts one by, '.entry' after; and two builds of one module, as on
+%% two nodes, name them alike. Written after the code
+functions_named_by_position_test() ->
+    Text = "export type Box = Box(Int)\n"
+           "export fn Box.compare(a : Box, b : Box) : Ordering = Equal\n"
+           "let base : Int = 1\n"
+           "export fn twice(n : Int) : Int = {\n"
+           "    fn add(k : Int) : Int = k + n;\n"
+           "    add(n)\n"
+           "}\n"
+           "export fn start(n : Int) : Either(Io.Error, Address(Never)) with m =\n"
+           "    Peer.spawn(\"p\", fn() : Unit with Never = { let _ = n + base; Unit }, 100)\n"
+           "export foreign fn backwards(list : List(Int)) : List(Int) = \"lists:reverse/1\"\n",
+    Compiled = fun() ->
+                       {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Numbered'], Text),
+                       {ok, Unit, Beam} = ern_compile:compile(['Numbered'], Typed, Interface, Env),
+                       {Unit, Beam}
+               end,
+    {Unit, Beam} = Compiled(),
+    {module, Unit} = code:load_binary(Unit, "test", Beam),
+    Functions = [Function || {Function, _} <- Unit:module_info(functions)],
+    ?assertEqual(['$2', '$3', '$4', '$4.1', '$5', '$5.1.entry', '$6', '$code', '$init',
+                  '$spawned'],
+                 lists:sort([Function || Function <- Functions,
+                                         lists:prefix("$", atom_to_list(Function)),
+                                         not lists:prefix("$type_", atom_to_list(Function))])),
+    ?assertEqual({'$4', 1}, ern_code:function(Unit, ['Numbered', twice])),
+    ?assertEqual({'$2', 2}, ern_code:function(Unit, ['Numbered', 'Box', compare])),
+    ?assertEqual({'$3', 0}, ern_code:function(Unit, ['Numbered', base])),
+    ?assertEqual({'$6', 1}, ern_code:function(Unit, ['Numbered', backwards])),
+    ?assertEqual(none, ern_code:function(Unit, ['Numbered', 'Box'])),
+    %% a second build of the module names every function alike
+    {Unit, Again} = Compiled(),
+    ?assertEqual(beam_functions(Beam), beam_functions(Again)),
+    code:purge(Unit),
+    code:delete(Unit).
+
+beam_functions(Beam) ->
+    {ok, {_, [{exports, Exports}]}} = beam_lib:chunks(Beam, [exports]),
+    Exports.
+
+%% report §11.2, §11.1: a fault's trace shows each function of a unit,
+%% which the unit names by its position, by the name its build gives it: a
+%% definition's by its own, a member's by its type's and its own, a fun of
+%% one as the host names a fun after the function it is written in, and a
+%% local function lifted to a function of its own by its definition's name
+%% and its position. Written after the code
+trace_names_functions_test() ->
+    Text = "foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
+           "type Vec = Vec(Int)\n"
+           "fn Vec.+(a : Vec, b : Vec) : Vec = {\n"
+           "    fn inner(n : Int) : Int = boom(n) + 1;\n"
+           "    Vec(inner(1))\n"
+           "}\n"
+           "fn helper(n : Int) : Int =\n"
+           "    List.size(List.map([n], fn(k : Int) : Int = match Vec(k) + Vec(n) {\n"
+           "        Vec(m) -> m\n"
+           "    })) + 1\n"
+           "export fn main() : Unit with Never = Io.println(Int.toString(helper(3)))\n",
+    {Result, _} = run(['Traced'], Text, #{}),
+    {fault, _, Trace} = Result,
+    Lines = [string:trim(Line) || Line <- string:split(binary_to_list(Trace), "\n", all),
+                                  Line =/= ""],
+    Named = [Line || Line <- Lines, lists:prefix("ern@traced:", Line)],
+    ?assertMatch(["ern@traced:boom/1" ++ _, "ern@traced:'Vec.+$1'/1" ++ _,
+                  "ern@traced:'Vec.+'/2" ++ _, "ern@traced:'-helper/1-fun-0-'/2" ++ _,
+                  "ern@traced:helper/1" ++ _ | _],
+                 Named),
+    %% the standard library's unit too, List.map's function by its name
+    ?assert(lists:any(fun(Line) -> lists:prefix("ern@list:map/2", Line) end, Lines)).
 
 %%
 %% The test programs, hello and services run and print what their headers
@@ -374,7 +540,7 @@ docs_chunk_test() ->
                "export fn area(shape : Shape) : Int = 0\n">>,
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
     Build = #{source_hash => <<>>, deps => [], source => <<"shapes.ern">>},
-    {ok, 'ern@shapes', Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, 'ern@shapes', Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {ok, {docs_v1, _, ernest, <<"text/markdown">>, ModuleDoc, Meta, Entries}} =
         ern_docs:read(Beam),
     ?assertEqual(#{<<"en">> => <<"The module.">>}, ModuleDoc),
@@ -406,7 +572,7 @@ docs_chunk_keys_and_types_test() ->
                "export fn unique(list : List(a)) : List(a) needs a.compare =\n"
                "    OrderedSet.toList(OrderedSet.fromList(list))\n">>,
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
-    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, #{}),
+    {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, #{}),
     {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
     Keys = [Key || {Key, _, _, _, _} <- Entries],
     ?assert(lists:member({function, unique, 2}, Keys)),
@@ -421,12 +587,15 @@ interface_chunk_test() ->
     {Namespace, Source} = example("stack"),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
     Build = #{source_hash => <<"s">>, deps => [{['Net', 'Http'], <<"h">>}]},
-    {ok, 'ern@stack', Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, 'ern@stack', Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {ok, #{interface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
         ern_interface:read(Beam),
     ?assertEqual(['Stack'], Read#interface.namespace),
     ?assert(is_map_key(['Stack', push], Read#interface.values)),
-    ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Read)),
+    %% the checker's interface, with the numbers the compiler gives the
+    %% unit's functions (report §11.1)
+    ?assertEqual(ern_interface:hash(Interface#interface{positions = Read#interface.positions}),
+                 ern_interface:hash(Read)),
     {ok, _, Interface2, _} = ern_typecheck:check_string(Namespace,
                                                         <<"fn f(x) = x\n", Source/binary>>),
     ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Interface2)),
@@ -451,7 +620,7 @@ builds_functions_test() ->
     Builds = fun(Source) ->
                  Namespace = ['Builds'],
                  {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
-                 {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
+                 {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
                  {ok, #{builds_functions := Built}} = ern_interface:read(Beam),
                  {Source, Built}
              end,
@@ -477,7 +646,7 @@ builds_functions_test() ->
 stale_chunk_test() ->
     {Namespace, Source} = example("stack"),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
-    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
+    {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
     {ok, {_, [{"ErnI", Chunk}]}} = beam_lib:chunks(Beam, ["ErnI"]),
     Old = term_to_binary((binary_to_term(Chunk))#{format => 0}),
     {ok, _, Stale} = compile:forms([{attribute, 1, module, x}],
@@ -491,7 +660,7 @@ stale_chunk_test() ->
 erl_source_test() ->
     {Namespace, Source} = example("hello"),
     {ok, Typed, _, Env} = ern_typecheck:check_string(Namespace, Source),
-    Emitted = unicode:characters_to_binary(ern_emitter:erl_source(Namespace, Typed, Env)),
+    Emitted = unicode:characters_to_binary(ern_compile:erl_source(Namespace, Typed, Env)),
     ?assertMatch({_, _}, binary:match(Emitted, <<"-module(ern@hello).">>)).
 
 %% report §4.2: the module atom is ern@ and the path with @ for /
@@ -1909,13 +2078,15 @@ size_read_after_scrutinee_test() ->
            "    let _ = first(<<7, 8>>);\n"
            "    Unit\n"
            "}\n",
-    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
+    %% a namespace of its own: a binding's value is kept under its unit and
+    %% its getter, which a unit of another test's of one name may have set
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['SizeRead'], Text),
     Build = #{source_hash => <<>>, deps => [], standard => false},
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env, Build),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['SizeRead'], Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     Self = self(),
     %% Io.debug writes to standard error (Appendix E.1)
-    Result = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    Result = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                              #{init => fun() -> ok end,
                                stderr => fun(Written) -> Self ! {out, Written} end,
                                stdin => fun() -> eof end}),
@@ -2351,7 +2522,8 @@ prelude_targets_test() ->
 %% The emission of a prelude name, as ern_emitter makes it: Int's
 %% arithmetic and negate, and the `<>` of String and Bytes, are inline and
 %% have no target; Float's operators, and the `<>` of List and Path, are
-%% their modules' functions (report §4.8).
+%% their modules' functions (report §4.8), each the function its unit names
+%% it by (report §11.1, ern_code:function/2).
 prelude_target(QualifiedName, Text) ->
     {ok, Syntax} = ern_parser:parse_type(Text),
     Arity = case Syntax of
@@ -2377,7 +2549,12 @@ prelude_target(QualifiedName, Text) ->
             {erlang, is_atom, 1};
         [TypeName, '<>'] when TypeName =:= 'String'; TypeName =:= 'Bytes' ->
             {erlang, is_atom, 1};
-        [Namespace, Function] -> {ern_namespace:erlang_module([Namespace]), Function, Arity}
+        [Namespace, _] ->
+            Unit = ern_namespace:erlang_module([Namespace]),
+            case ern_code:function(Unit, QualifiedName) of
+                {Function, _} -> {Unit, Function, Arity};
+                none -> {Unit, none, Arity}
+            end
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a
@@ -2670,9 +2847,9 @@ io_write_waits_test() ->
         "    });\n"
         "    Io.printlnError(Io.show(kept))\n"
         "}\n"),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
-    ok = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    ok = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                          #{stdout => fun(_) -> counters:add(Taken, 1, 1) end,
                            stderr => fun(Text) -> Self ! {err, Text} end}),
     persistent_term:erase({?MODULE, taken}),
@@ -2690,9 +2867,9 @@ io_write_error_test() ->
     Self = self(),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
         "export fn main() : Unit with Never = Io.writeError(<<104, 105, 255>>)\n"),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
-    ok = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    ok = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                          #{stdout => fun(Text) -> Self ! {out, Text} end,
                            stderr => fun(Text) -> Self ! {err, Text} end}),
     ?assertEqual(<<104, 105, 255>>, receive {err, Text} -> Text after 5000 -> none end),
@@ -2704,7 +2881,7 @@ io_write_error_test() ->
 unrelated_module_not_initialized_test() ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Aside'],
         "let noisy = Io.debug(\"initialized\")\n"),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['Aside'], Typed, Interface, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['Aside'], Typed, Interface, Env),
     Dir = scratch(),
     ok = file:write_file(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"), Beam),
     true = code:add_patha(Dir),
@@ -2730,10 +2907,11 @@ tail_calls_constant_stack_test() ->
         "        0 -> { let next = acc + 1; count(n - 1, next) }\n"
         "      | _ -> count(n - 1, acc + 1)\n"
         "    }\n"),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     Self = self(),
-    {_, MonitorRef} = spawn_opt(fun() -> Self ! {counted, ErlangModule:count(10000000, 0)} end,
+    Counting = ern_named:function(ErlangModule, count),
+    {_, MonitorRef} = spawn_opt(fun() -> Self ! {counted, Counting(10000000, 0)} end,
                                 [monitor, {max_heap_size, #{size => 100000, kill => true,
                                                             error_logger => false}}]),
     Result = receive
@@ -2753,7 +2931,7 @@ tail_calls_through_operators_test() ->
         "    n == 0 || (n > 0 && all(n - 1))\n"
         "export fn down(n : Int) : Int =\n"
         "    if n == 0 then 0 else n - 1 |> down\n"),
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     Self = self(),
     OutcomeOf = fun(Function) ->
@@ -2766,8 +2944,10 @@ tail_calls_through_operators_test() ->
                         {'DOWN', MonitorRef, process, _, ExitReason} -> {died, ExitReason}
                     end
                 end,
-    ?assertEqual(true, OutcomeOf(fun() -> ErlangModule:all(10000000) end)),
-    ?assertEqual(0, OutcomeOf(fun() -> ErlangModule:down(10000000) end)).
+    All = ern_named:function(ErlangModule, all),
+    Down = ern_named:function(ErlangModule, down),
+    ?assertEqual(true, OutcomeOf(fun() -> All(10000000) end)),
+    ?assertEqual(0, OutcomeOf(fun() -> Down(10000000) end)).
 
 %% report §10: processes are scheduled preemptively, so one that computes
 %% for ever does not keep another from running; and Int has arbitrary
@@ -2848,12 +3028,12 @@ system_reference_private_test() ->
 deps_test() ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], "export let one = 1\n"),
     Build = #{source_hash => <<>>, deps => [{['Net', 'Http'], <<"hash">>}]},
-    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env, Build),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     ?assert(erlang:function_exported(ErlangModule, '$deps', 0)),
     ?assertEqual(['ern@net@http'], ErlangModule:'$deps'()),
     {ok, Typed2, Interface2, Env2} = ern_typecheck:check_string(['N'], "export let one = 1\n"),
-    {ok, ErlangModule2, Beam2} = ern_emitter:compile(['N'], Typed2, Interface2, Env2),
+    {ok, ErlangModule2, Beam2} = ern_compile:compile(['N'], Typed2, Interface2, Env2),
     {module, ErlangModule2} = code:load_binary(ErlangModule2, "test", Beam2),
     ?assertNot(erlang:function_exported(ErlangModule2, '$deps', 0)).
 

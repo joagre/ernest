@@ -2,8 +2,9 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$spawned'/2]).
+-export(['$1'/0, '$spawned'/2]).
 
-main() -> ern@io:println(<<"hello, world">>).
+%% Hello.main
+'$1'() -> ern@io:'$8'(<<"hello, world">>).
 
-'$spawned'(main, []) -> main().
+'$spawned'('$1', []) -> '$1'().

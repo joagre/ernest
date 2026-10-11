@@ -8,7 +8,16 @@
 %% reaches take it in (§11.1). Beside them module/4 gives the emitter the
 %% hash of each type a service is made at, and the identity and the reach of
 %% each lambda and local function, by its span, which a spawn on a peer
-%% names (§8.7).
+%% names (§8.7). It gives the back end too, beside each definition's form,
+%% its sourced form, the form with the source woven in, each node's line
+%% and column and the name of each local the source binds, which the hash
+%% leaves out (stripped/1); the position of each function in the unit, its
+%% definitions in the order of their forms and then its foreign functions
+%% (§11.1), by which its unit and a dependent name it; the foreign
+%% functions' schemes as forms write them; the qualified name each
+%% reference to another module's declaration names (links); and a type's
+%% shape as a form writes it, by which the build links a type of another
+%% module (declared_type/4).
 %%
 %% A form is made in two steps. The walk writes each definition with a
 %% reference to another definition of its own module left open, `{'$own',
@@ -20,9 +29,10 @@
 -module(ern_canonical).
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
-         interface/2, lambdas/2, references/1, verified/2, encode/1, read/1]).
+         interface/2, declared_type/4, stripped/1, lambdas/2, references/1, verified/2, encode/1,
+         read/1]).
 
--export_type([canonical/0, reach/0]).
+-export_type([canonical/0, reach/0, source/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -36,11 +46,20 @@
 -define(AT_TYPE, ['+', '-', '*', '/', '%', '<>', '<', '<=', '>', '>=']).
 
 -type canonical() :: #{definitions := [#definition{}],
+                       sourced := #{[atom()] => term()},
+                       positions := #{[atom()] => pos_integer()},
+                       foreign_schemes := #{[atom()] => term()},
+                       links := [{term(), [atom()]}],
                        identities := #{[atom()] => binary() | foreign},
                        references := [{[atom()], binary()}],
                        reaches := #{[atom()] => reach()},
                        functions := #{term() => {[atom()], pos_integer(), reach()}},
                        services := #{term() => binary()}}.
+
+%% Where a node of a sourced form was written, its line and column, and
+%% the name of the local it binds, a pattern's variable or a local
+%% function, none for any other node (at/3).
+-type source() :: {pos_integer(), pos_integer(), atom()}.
 
 %% Report §8.7, §11.1: what a function's reach names that a peer must hold
 %% for it to run there: each top-level binding by its identity, and each
@@ -64,10 +83,14 @@
 %% functions, the span of each lambda and local function met, reversed, in
 %% the order the walk meets them, which is their positions' (lambdas/2);
 %% services, each service's message type with its form, its own module's
-%% types left open.
+%% types left open; lambdas, each local a `let` binds to a lambda, by its
+%% number, with the lambda and the scope where it was written, whose
+%% captures a spawn on a peer that names the local holds (held/2); links,
+%% each reference to another module's declaration the walk wrote, with the
+%% qualified name it names, by which the build links it (module/5).
 -record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
                bound = #{}, segments = #{}, locals = 0, variables = #{}, names = #{},
-               references = [], functions = [], services = []}).
+               references = [], functions = [], services = [], lambdas = #{}, links = []}).
 
 -spec form_version() -> pos_integer().
 form_version() ->
@@ -134,8 +157,8 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
     Opened = [{QualifiedName, Kind, opened(Declaration, Walk)}
               || Declaration <- Typed,
                  {QualifiedName, Kind} <- declared(Namespace, Declaration), Kind =/= foreign],
-    Definitions = closed([{QualifiedName, Kind, Form}
-                          || {QualifiedName, Kind, {Form, _}} <- Opened]),
+    {Definitions, Sourced} = closed([{QualifiedName, Kind, Form}
+                                        || {QualifiedName, Kind, {Form, _}} <- Opened]),
     References = lists:usort(lists:append([Walked#walk.references
                                            || {_, _, {_, Walked}} <- Opened])),
     Reaches = reaches(Definitions, maps:from_list([{Hash, ern_typecheck:reach(QualifiedName, Env)}
@@ -144,7 +167,17 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
     ByName = maps:from_list([{QualifiedName, Definition}
                              || #definition{qualified_name = QualifiedName} = Definition
                                     <- Definitions]),
+    ForeignSchemes = [{QualifiedName, closed_scheme(Scheme, Walk)}
+                      || #foreign_fn_declaration{scheme = Scheme} = Declaration <- Typed,
+                         {QualifiedName, foreign} <- declared(Namespace, Declaration)],
     #{definitions => Definitions,
+      sourced => Sourced,
+      positions => positions(Namespace, Typed, Definitions),
+      foreign_schemes => maps:from_list([{QualifiedName, close(Form, Closing)}
+                                         || {QualifiedName, {Form, _}} <- ForeignSchemes]),
+      links => lists:usort(lists:append([Walked#walk.links || {_, _, {_, Walked}} <- Opened]
+                                        ++ [Walked#walk.links
+                                            || {_, {_, Walked}} <- ForeignSchemes])),
       identities => maps:from_list([{QualifiedName, Hash}
                                     || #definition{qualified_name = QualifiedName,
                                                    hash = Hash} <- Definitions]
@@ -161,14 +194,27 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
                                   || {_, _, {_, Walked}} <- Opened,
                                      {Type, Form} <- Walked#walk.services])}.
 
-%% Report §11.1: the interface with the hashes a dependent's forms name, and
-%% the reaches of its functions that name a binding or a foreign
-%% declaration, which a dependent's reaches take in.
+%% Report §11.1: the interface with the hashes a dependent's forms name, the
+%% reaches of its functions that name a binding or a foreign declaration,
+%% which a dependent's reaches take in, and the position of each function
+%% in the unit, by which a dependent calls it.
 -spec interface(#interface{}, canonical()) -> #interface{}.
-interface(Interface, #{identities := Identities, reaches := Reaches}) ->
+interface(Interface, #{identities := Identities, reaches := Reaches, positions := Positions}) ->
     Interface#interface{identities = Identities,
                         reaches = maps:filter(fun(_, Reach) -> Reach =/= {[], []} end,
-                                              Reaches)}.
+                                              Reaches),
+                        positions = Positions}.
+
+%% Report §11.1: the position of each function in the module's unit: its
+%% definitions in the order of their forms, counted from 1, a type taking
+%% its position though it has no function, then its foreign functions in
+%% the order the module declares them.
+positions(Namespace, Typed, Definitions) ->
+    Defined = [QualifiedName || #definition{qualified_name = QualifiedName} <- Definitions],
+    Foreign = [QualifiedName || #foreign_fn_declaration{} = Declaration <- Typed,
+                                {QualifiedName, foreign} <- declared(Namespace, Declaration)],
+    maps:from_list([{QualifiedName, Number}
+                    || {Number, QualifiedName} <- lists:enumerate(Defined ++ Foreign)]).
 
 %% What a declaration declares: a function, a binding, a type, or a foreign
 %% declaration, which has no hash (Appendix H).
@@ -195,13 +241,14 @@ qualified(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 %% references by hash, its lambdas' and local functions' spans, and its
 %% services' types.
 opened(#fn_declaration{} = Declaration, Walk) ->
-    function(Declaration, Walk);
+    {Form, Walk1} = function(Declaration, Walk),
+    {at(Declaration, Form, none), Walk1};
 opened(#let_declaration{scheme = #scheme{type = Type} = Scheme, annotation = Annotation,
-                        body = Body}, Walk) ->
+                        body = Body} = Declaration, Walk) ->
     {SchemeForm, Walk1} = scheme(Scheme, matched(Annotation, Type, Walk)),
     {AnnotationForm, Walk2} = annotation(Annotation, Walk1),
     {BodyForm, Walk3} = expr(Body, Walk2),
-    {{binding, SchemeForm, AnnotationForm, BodyForm}, Walk3};
+    {at(Declaration, {binding, SchemeForm, AnnotationForm, BodyForm}, none), Walk3};
 opened(#abstract_declaration{declaration = Declaration}, Walk) ->
     opened(Declaration, Walk);
 opened(#type_declaration{name = Name, derives = Derives},
@@ -222,6 +269,29 @@ opened(#type_declaration{name = Name, derives = Derives},
       CompareForm, ConstructorForms},
      Walk3}.
 
+%% Report §8.4, §11.1, Appendix H: a type of another module as the back end
+%% reads it, of a unit that names it: its arity, its parameters the
+%% variables 1 to it, and its constructors as its form writes them, each
+%% reference as a form of the module Namespace writes it, under
+%% FormNamespace (module/5), with the qualified name each reference to
+%% another module's declaration names; foreign for a foreign type, which has
+%% none.
+-spec declared_type([atom()], ern_typecheck:env(), [atom()], [atom()]) ->
+          {non_neg_integer(), [term()], [{term(), [atom()]}]} | foreign.
+declared_type(QualifiedName, Env, Namespace, FormNamespace) ->
+    case ern_typecheck:described_type(QualifiedName, Env) of
+        #type_info{foreign = true} ->
+            foreign;
+        #type_info{params = Params, constructors = Constructors} ->
+            Walk = #walk{env = Env, namespace = Namespace, form_namespace = FormNamespace,
+                         standard = false, own = #{}},
+            Walk1 = lists:foldl(fun(Param, Acc) -> element(2, variable(Param, Acc)) end, Walk,
+                                Params),
+            {Forms, #walk{links = Links}} =
+                lists:mapfoldl(fun constructor_declared/2, Walk1, Constructors),
+            {length(Params), Forms, Links}
+    end.
+
 constructor_declared(#constructor_info{name = Name, fields = none}, Walk) ->
     {{Name, none}, Walk};
 constructor_declared(#constructor_info{name = Name, fields = positional,
@@ -240,10 +310,11 @@ constructor_declared(#constructor_info{name = Name, fields = {named, Fields},
 %% Groups and hashes, report §8.7 and Appendix H
 %%
 
-%% Opened, each definition with its own module's references open, in source
-%% order, as definitions with their hashes, in source order: each strongly
-%% connected component of the references, in dependency order, its open
-%% references closed and its forms hashed.
+%% Opened, each definition's sourced form with its own module's
+%% references open, in source order, as definitions with their hashes, in
+%% source order, and each sourced form closed, by its qualified name:
+%% each strongly connected component of the references, in dependency
+%% order, its open references closed and its forms hashed.
 closed(Opened) ->
     Graph = digraph:new(),
     Sources = maps:from_list([{QualifiedName, Index}
@@ -257,37 +328,48 @@ closed(Opened) ->
     digraph:delete(Graph),
     ByName = maps:from_list([{QualifiedName, {Kind, Form}}
                              || {QualifiedName, Kind, Form} <- Opened]),
-    {Definitions, _} =
+    {Hashed, _} =
         lists:foldl(fun(Component, {Acc, Closed}) ->
                         Members = lists:sort(fun(A, B) ->
                                                  maps:get(A, Sources) =< maps:get(B, Sources)
                                              end, Component),
-                        Hashed = component(Members, ByName, Closed),
-                        {Hashed ++ Acc, lists:foldl(fun closing/2, Closed, Hashed)}
+                        Pairs = component(Members, ByName, Closed),
+                        {Pairs ++ Acc,
+                         lists:foldl(fun closing/2, Closed,
+                                     [Definition || {Definition, _} <- Pairs])}
                     end, {[], #{}}, Components),
-    lists:sort(fun(#definition{qualified_name = A}, #definition{qualified_name = B}) ->
-                   maps:get(A, Sources) =< maps:get(B, Sources)
-               end, Definitions).
+    Definitions = lists:sort(fun(#definition{qualified_name = A},
+                                 #definition{qualified_name = B}) ->
+                                 maps:get(A, Sources) =< maps:get(B, Sources)
+                             end, [Definition || {Definition, _} <- Hashed]),
+    {Definitions, maps:from_list([{QualifiedName, Sourced}
+                                  || {#definition{qualified_name = QualifiedName}, Sourced}
+                                         <- Hashed])}.
 
 %% Report Appendix H: a definition alone is hashed as its form; a group of
 %% two or more as its forms in source order, and each member as the
-%% group's hash and its position.
+%% group's hash and its position. The form is the sourced form
+%% stripped, and each comes with its sourced form closed.
 component([QualifiedName], ByName, Closed) ->
     {Kind, Opened} = maps:get(QualifiedName, ByName),
-    Form = close(Opened, Closed#{QualifiedName => {in_group, 1}}),
-    [#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
-                 hash = hash(hashed([Form]))}];
+    Sourced = close(Opened, Closed#{QualifiedName => {in_group, 1}}),
+    Form = stripped(Sourced),
+    [{#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
+                  hash = hash(hashed([Form]))},
+      Sourced}];
 component(Members, ByName, Closed) ->
     InGroup = maps:from_list([{QualifiedName, {in_group, Position}}
                               || {Position, QualifiedName} <- lists:enumerate(Members)]),
     Linking = maps:merge(Closed, InGroup),
-    Forms = [{QualifiedName, Kind, close(Opened, Linking)}
-             || QualifiedName <- Members, {Kind, Opened} <- [maps:get(QualifiedName, ByName)]],
-    GroupHash = hash(hashed([Form || {_, _, Form} <- Forms])),
-    [#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
-                 hash = member_hash(GroupHash, Position),
-                 group = {GroupHash, Position}}
-     || {Position, {QualifiedName, Kind, Form}} <- lists:enumerate(Forms)].
+    Forms = [{QualifiedName, Kind, stripped(Sourced), Sourced}
+             || QualifiedName <- Members, {Kind, Opened} <- [maps:get(QualifiedName, ByName)],
+                Sourced <- [close(Opened, Linking)]],
+    GroupHash = hash(hashed([Form || {_, _, Form, _} <- Forms])),
+    [{#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
+                  hash = member_hash(GroupHash, Position),
+                  group = {GroupHash, Position}},
+      Sourced}
+     || {Position, {QualifiedName, Kind, Form, Sourced}} <- lists:enumerate(Forms)].
 
 %% A hashed definition as the reference that names it: a binding by its
 %% qualified name with its hash, any other by its hash.
@@ -295,6 +377,18 @@ closing(#definition{qualified_name = QualifiedName, kind = binding, hash = Hash}
     Closed#{QualifiedName => {binding, QualifiedName, Hash}};
 closing(#definition{qualified_name = QualifiedName, hash = Hash}, Closed) ->
     Closed#{QualifiedName => {hash, Hash}}.
+
+%% Report Appendix H: a sourced form as its form, the source woven into
+%% it taken out, which is what is hashed, recorded and crosses.
+-spec stripped(term()) -> term().
+stripped({'$at', _, Node}) ->
+    stripped(Node);
+stripped(Term) when is_tuple(Term) ->
+    list_to_tuple(stripped(tuple_to_list(Term)));
+stripped([Head | Tail]) ->
+    [stripped(Head) | stripped(Tail)];
+stripped(Term) ->
+    Term.
 
 close({'$own', QualifiedName}, Linking) ->
     maps:get(QualifiedName, Linking);
@@ -562,11 +656,13 @@ type_variables(_, Acc) -> Acc.
 %% A foreign function's scheme, numbered by itself (Appendix H), and the
 %% other modules' types it names recorded.
 closed_scheme(Scheme, #walk{env = Env, standard = Standard, own = Own, namespace = Namespace,
-                            form_namespace = FormNamespace, references = References} = Walk) ->
-    {Form, #walk{references = Named}} =
+                            form_namespace = FormNamespace, references = References,
+                            links = Links} = Walk) ->
+    {Form, #walk{references = Named, links = Linked}} =
         scheme(Scheme, #walk{env = Env, standard = Standard, own = Own, namespace = Namespace,
-                             form_namespace = FormNamespace, references = References}),
-    {Form, Walk#walk{references = Named}}.
+                             form_namespace = FormNamespace, references = References,
+                             links = Links}),
+    {Form, Walk#walk{references = Named, links = Linked}}.
 
 %%
 %% Types and annotations
@@ -719,7 +815,8 @@ program_reference(_, QualifiedName, #walk{env = Env, references = References} = 
                             true -> {binding, form_name(QualifiedName, Walk), Hash};
                             false -> {hash, Hash}
                         end,
-            {Reference, Walk#walk{references = [{QualifiedName, Hash} | References]}};
+            {Reference, Walk#walk{references = [{QualifiedName, Hash} | References],
+                                  links = [{Reference, QualifiedName} | Walk#walk.links]}};
         undefined ->
             %% every interface the compiler is given was compiled with its
             %% hashes, so a name without one is the toolchain's defect
@@ -728,13 +825,15 @@ program_reference(_, QualifiedName, #walk{env = Env, references = References} = 
 
 %% A foreign function by its qualified name and its scheme; a foreign type,
 %% which has none, by its name.
-foreign_reference(QualifiedName, Env, Walk) ->
+foreign_reference(QualifiedName, Env, #walk{links = Links} = Walk) ->
     case ern_typecheck:global_scheme(QualifiedName, Env) of
         undefined ->
-            {{named, form_name(QualifiedName, Walk)}, Walk};
+            Reference = {named, form_name(QualifiedName, Walk)},
+            {Reference, Walk#walk{links = [{Reference, QualifiedName} | Links]}};
         Scheme ->
             {Form, Walk1} = closed_scheme(Scheme, Walk),
-            {{foreign, form_name(QualifiedName, Walk), Form}, Walk1}
+            Reference = {foreign, form_name(QualifiedName, Walk), Form},
+            {Reference, Walk1#walk{links = [{Reference, QualifiedName} | Walk1#walk.links]}}
     end.
 
 %% Report Appendix H, §11.2, §2.3: a qualified name as a form writes it:
@@ -757,9 +856,21 @@ form_name(QualifiedName, _) ->
 %% Expressions, report Appendix H
 %%
 
-expr(#e_literal{kind = Kind, value = Value}, Walk) ->
+%% An expression's form, its source woven in.
+expr(Expr, Walk) ->
+    {Form, Walk1} = expr_form(Expr, Walk),
+    {at(Expr, Form, none), Walk1}.
+
+%% The source a node was written at, woven into its form for the back end:
+%% its line and column, and the name of a local it binds, or none. The
+%% hash leaves it out (stripped/1).
+at(Node, Form, Name) ->
+    {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Node)),
+    {'$at', {Line, Column, Name}, Form}.
+
+expr_form(#e_literal{kind = Kind, value = Value}, Walk) ->
     {{literal, Kind, literal(Kind, Value)}, Walk};
-expr(#e_var{referent = {prelude, ['Address', Name]} = Referent, supplies = Supplies,
+expr_form(#e_var{referent = {prelude, ['Address', Name]} = Referent, supplies = Supplies,
             type = Type}, Walk)
   when Name =:= call; Name =:= callForever ->
     %% report §6.6: the reply is checked against the answer's type
@@ -769,34 +880,45 @@ expr(#e_var{referent = {prelude, ['Address', Name]} = Referent, supplies = Suppl
         ern_typecheck:resolve_type(Type, Walk2#walk.env),
     {AnswerForm, Walk3} = type(Answer, Walk2),
     {{var, Reference, SupplyForms, AnswerForm}, Walk3};
-expr(#e_var{referent = Referent, name = Name, supplies = Supplies}, Walk) ->
+expr_form(#e_var{referent = Referent, name = Name, supplies = Supplies}, Walk) ->
     {Reference, Walk1} = value_reference(Referent, Name, Walk),
     {SupplyForms, Walk2} = lists:mapfoldl(fun supply/2, Walk1, Supplies),
     {{var, Reference, SupplyForms}, Walk2};
-expr(#e_constructor{span = Span, namespace = Namespace, name = Name, base = Base, args = Args},
+expr_form(#e_constructor{span = Span, namespace = Namespace, name = Name, base = Base, args = Args},
      Walk) ->
     {Constructor, Walk1} = constructor(Span, Namespace, Name, Walk),
     {ArgForms, Walk2} = construction(Base, Args, Walk1),
     {{construct, Constructor, ArgForms}, Walk2};
-expr(#e_tuple{elements = Elements}, Walk) ->
+expr_form(#e_tuple{elements = Elements}, Walk) ->
     {Forms, Walk1} = lists:mapfoldl(fun expr/2, Walk, Elements),
     {{tuple, Forms}, Walk1};
-expr(#e_list{elements = Elements}, Walk) ->
+expr_form(#e_list{elements = Elements}, Walk) ->
     {Forms, Walk1} = lists:mapfoldl(fun expr/2, Walk, Elements),
     {{list, Forms}, Walk1};
-expr(#e_bitstring{segments = Segments}, Walk) ->
+expr_form(#e_bitstring{segments = Segments}, Walk) ->
     {Forms, Walk1} = lists:mapfoldl(fun(#bit_segment{value = Value, specs = Specs}, Acc) ->
                                         segment(Specs, fun(Acc1) -> expr(Value, Acc1) end, Acc)
                                     end, Walk, Segments),
     {{bitstring, Forms}, Walk1};
-expr(#e_block{statements = Statements}, #walk{scope = Scope} = Walk) ->
+expr_form(#e_block{statements = Statements}, #walk{scope = Scope} = Walk) ->
     %% report §5.4: a block's local functions are named in all of it
     Walk1 = lists:foldl(fun(#fn_declaration{name = Name}, Acc) -> element(2, bind(Name, Acc));
                            (_, Acc) -> Acc
                         end, Walk, Statements),
     {Forms, Walk2} = lists:mapfoldl(fun statement/2, Walk1, Statements),
     {{block, Forms}, Walk2#walk{scope = Scope}};
-expr(#e_call{callee = Callee, args = Args, pipe = Pipe}, Walk) ->
+expr_form(#e_call{callee = #e_var{referent = #remote_declaration{namespace = ['Peer'],
+                                                                  member_of = undefined,
+                                                                  name = Name}} = Callee,
+                  args = [_, Spawned | _] = Args}, Walk)
+  when Name =:= spawn; Name =:= spawnMonitored ->
+    %% report §6.6, §8.7: a spawn on a peer holds the captures of its
+    %% function whose types carry a reply, whose calls a spawn that fails
+    %% ends, each with its type
+    {CalleeForm, Walk1} = peer_spawn(Callee, held(Spawned, Walk), Walk),
+    {ArgForms, Walk2} = lists:mapfoldl(fun expr/2, Walk1, Args),
+    {{call, CalleeForm, ArgForms}, Walk2};
+expr_form(#e_call{callee = Callee, args = Args, pipe = Pipe}, Walk) ->
     %% report §5.1: a pipe evaluates its first argument before a callee that
     %% is not a name, a constructor or a lambda
     IsNameOrLiteral = is_record(Callee, e_var) orelse is_record(Callee, e_constructor)
@@ -808,28 +930,28 @@ expr(#e_call{callee = Callee, args = Args, pipe = Pipe}, Walk) ->
     {CalleeForm, Walk1} = expr(Callee, Walk),
     {ArgForms, Walk2} = lists:mapfoldl(fun expr/2, Walk1, Args),
     {{Tag, CalleeForm, ArgForms}, Walk2};
-expr(#e_selection{expr = Expr, field = Field}, #walk{env = Env} = Walk) ->
+expr_form(#e_selection{expr = Expr, field = Field}, #walk{env = Env} = Walk) ->
     %% report §3.5: the type the field is selected from
     {Form, Walk1} = expr(Expr, Walk),
     {tcon, QualifiedName, _} = ern_typecheck:resolve_type(ern_typecheck:node_type(Expr), Env),
     {Reference, Walk2} = type_reference(QualifiedName, Walk1),
     {{select, Form, Reference, Field}, Walk2};
-expr(#e_not{expr = Expr}, Walk) ->
+expr_form(#e_not{expr = Expr}, Walk) ->
     {Form, Walk1} = expr(Expr, Walk),
     {{'not', Form}, Walk1};
-expr(#e_negation{expr = Expr, member = Member}, Walk) ->
+expr_form(#e_negation{expr = Expr, member = Member}, Walk) ->
     {Form, Walk1} = expr(Expr, Walk),
     {Operation, Walk2} = operation(negate, Expr, Member, Walk1),
     {{negate, Form, Operation}, Walk2};
-expr(#e_binop{operator = Operator, left = Left, right = Right, member = Member}, Walk) ->
+expr_form(#e_binop{operator = Operator, left = Left, right = Right, member = Member}, Walk) ->
     {LeftForm, Walk1} = expr(Left, Walk),
     {RightForm, Walk2} = expr(Right, Walk1),
     {Operation, Walk3} = operation(Operator, Left, Member, Walk2),
     {{operator, Operator, LeftForm, RightForm, Operation}, Walk3};
-expr(#e_member{supply = Supply}, Walk) ->
+expr_form(#e_member{supply = Supply}, Walk) ->
     {Form, Walk1} = supply(Supply, Walk),
     {{member, Form}, Walk1};
-expr(#e_lambda{span = Span, params = Params, result_type = Result, effect = Effect,
+expr_form(#e_lambda{span = Span, params = Params, result_type = Result, effect = Effect,
                body = Body, type = Type},
      #walk{scope = Scope, names = Names, functions = Functions} = Walk) ->
     %% report §8.7: its position, in the order the walk meets it
@@ -841,15 +963,15 @@ expr(#e_lambda{span = Span, params = Params, result_type = Result, effect = Effe
     {BodyForm, Walk5} = expr(Body, Walk4),
     {{lambda, ParamForms, ResultForm, EffectForm, BodyForm},
      Walk5#walk{scope = Scope, names = Names}};
-expr(#e_if{condition = Condition, then_branch = Then, else_branch = Else}, Walk) ->
+expr_form(#e_if{condition = Condition, then_branch = Then, else_branch = Else}, Walk) ->
     {[ConditionForm, ThenForm, ElseForm], Walk1} =
         lists:mapfoldl(fun expr/2, Walk, [Condition, Then, Else]),
     {{'if', ConditionForm, ThenForm, ElseForm}, Walk1};
-expr(#e_match{scrutinee = Scrutinee, clauses = Clauses}, Walk) ->
+expr_form(#e_match{scrutinee = Scrutinee, clauses = Clauses}, Walk) ->
     {ScrutineeForm, Walk1} = expr(Scrutinee, Walk),
     {ClauseForms, Walk2} = lists:mapfoldl(fun clause/2, Walk1, Clauses),
     {{match, ScrutineeForm, ClauseForms}, Walk2};
-expr(#e_receive{clauses = Clauses, 'after' = After}, Walk) ->
+expr_form(#e_receive{clauses = Clauses, 'after' = After}, Walk) ->
     {ClauseForms, Walk1} = lists:mapfoldl(fun clause/2, Walk, Clauses),
     {AfterForm, Walk2} = case After of
                              undefined ->
@@ -860,6 +982,43 @@ expr(#e_receive{clauses = Clauses, 'after' = After}, Walk) ->
                                  {{'after', TimeoutForm, BodyForm}, Acc}
                          end,
     {{'receive', ClauseForms, AfterForm}, Walk2}.
+
+%% Report §8.7, Appendix H: `Peer.spawn` or `Peer.spawnMonitored`, the
+%% captures Held of its function that carry a reply each with its type, in
+%% the order the function first names them.
+peer_spawn(#e_var{referent = Referent, name = Name, supplies = Supplies} = Callee, Held, Walk) ->
+    {Reference, Walk1} = value_reference(Referent, Name, Walk),
+    {SupplyForms, Walk2} = lists:mapfoldl(fun supply/2, Walk1, Supplies),
+    {HeldForms, Walk3} = lists:mapfoldl(fun({Number, Type}, Acc) ->
+                                            {TypeForm, Acc1} = type(Type, Acc),
+                                            {{Number, TypeForm}, Acc1}
+                                        end, Walk2, Held),
+    {at(Callee, {var, Reference, SupplyForms, HeldForms}, none), Walk3}.
+
+%% Report §6.6, §8.7: the locals a spawned function captures whose types
+%% carry a reply, each by its number with its type: a lambda's, written
+%% at the spawn or bound to the local the spawn names, read in the scope
+%% where it was written; `restarting`'s function's; and none of a local
+%% function's, which captures no reply (§6.6), nor a declaration's.
+held(#e_call{callee = #e_var{referent = {prelude, [restarting]}}, args = [_, Function]}, Walk) ->
+    held(Function, Walk);
+held(#e_lambda{} = Lambda, #walk{scope = Scope} = Walk) ->
+    captured_replies(Lambda, Scope, Walk);
+held(#e_var{referent = var, name = Name}, #walk{scope = Scope, lambdas = Lambdas} = Walk) ->
+    case maps:find(maps:get(Name, Scope), Lambdas) of
+        {ok, {Lambda, Before}} -> captured_replies(Lambda, Before, Walk);
+        error -> []
+    end;
+held(_, _) ->
+    [].
+
+captured_replies(Lambda, Scope, #walk{env = Env}) ->
+    Typed = lists:uniq(fun({Name, _}) -> Name end,
+                       [{Name, Type}
+                        || #e_var{referent = var, name = Name, type = Type}
+                               <- ern_ast:free_uses(Lambda, [])]),
+    [{maps:get(Name, Scope), Type}
+     || {Name, Type} <- Typed, ern_typecheck:is_reply_carrying(Type, Env)].
 
 %% Report Appendix H: a literal's value in its fixed encoding.
 literal(string, Value) when is_list(Value) -> unicode:characters_to_binary(Value);
@@ -882,17 +1041,22 @@ operation(_, _, Member, Walk) ->
 %% A block's statement: a local function, whose name the block bound, a
 %% binding, `=` or `<-`, its expression before its pattern, or an
 %% expression.
-statement(#fn_declaration{span = Span} = Declaration, #walk{functions = Functions} = Walk) ->
+statement(#fn_declaration{span = Span, name = Name} = Declaration,
+          #walk{functions = Functions} = Walk) ->
     %% report §8.7: its position, in the order the walk meets it
-    function(Declaration, Walk#walk{functions = [Span | Functions]});
-statement(#binding{pattern = Pattern, annotation = Annotation, operator = '=', expr = Expr},
-          #walk{names = Names} = Walk) ->
+    {Form, Walk1} = function(Declaration, Walk#walk{functions = [Span | Functions]}),
+    {at(Declaration, Form, Name), Walk1};
+statement(#binding{pattern = Pattern, annotation = Annotation, operator = '=',
+                   expr = Expr} = Binding,
+          #walk{names = Names, scope = Before} = Walk) ->
     {AnnotationForm, Walk1} =
         annotation(Annotation, matched(Annotation, ern_typecheck:node_type(Expr), Walk)),
     {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
-    {{bind, AnnotationForm, ExprForm, PatternForm}, Walk3};
-statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-', expr = Expr},
+    {at(Binding, {bind, AnnotationForm, ExprForm, PatternForm}, none),
+     let_lambda(Pattern, Expr, Before, Walk3)};
+statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-',
+                   expr = Expr} = Binding,
           #walk{env = Env, names = Names} = Walk) ->
     %% report §5.5: the sum a `<-` unwraps, the annotation the type of what
     %% it unwraps to, its last argument
@@ -900,18 +1064,28 @@ statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-', 
     {AnnotationForm, Walk1} = annotation(Annotation, matched(Annotation, lists:last(Args), Walk)),
     {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
-    {{unwrap, {named, [Sum]}, AnnotationForm, ExprForm, PatternForm}, Walk3};
+    {at(Binding, {unwrap, {named, [Sum]}, AnnotationForm, ExprForm, PatternForm}, none), Walk3};
 statement(Expr, Walk) ->
     expr(Expr, Walk).
 
-clause(#clause{pattern = Pattern, guard = Guard, body = Body}, #walk{scope = Scope} = Walk) ->
+%% Report §3.11: a `let` of a lambda, by the local it binds, with the scope
+%% where the lambda was written, whose captures a spawn on a peer that
+%% names the local holds (held/2).
+let_lambda(#p_var{name = Name}, #e_lambda{} = Lambda, Before,
+           #walk{scope = Scope, lambdas = Lambdas} = Walk) ->
+    Walk#walk{lambdas = Lambdas#{maps:get(Name, Scope) => {Lambda, Before}}};
+let_lambda(_, _, _, Walk) ->
+    Walk.
+
+clause(#clause{pattern = Pattern, guard = Guard, body = Body} = Clause,
+       #walk{scope = Scope} = Walk) ->
     {PatternForm, Walk1} = pattern(Pattern, Walk),
     {GuardForm, Walk2} = case Guard of
                              undefined -> {none, Walk1};
                              _ -> expr(Guard, Walk1)
                          end,
     {BodyForm, Walk3} = expr(Body, Walk2),
-    {{clause, PatternForm, GuardForm, BodyForm}, Walk3#walk{scope = Scope}}.
+    {at(Clause, {clause, PatternForm, GuardForm, BodyForm}, none), Walk3#walk{scope = Scope}}.
 
 %% Report §3.5, Appendix H: a constructor by its type and its position in
 %% the type's declared constructors.
@@ -1049,14 +1223,24 @@ pattern(Pattern, #walk{scope = Scope} = Walk) ->
     {Form, Walk1} = pattern_part(Pattern, Walk#walk{outer = Scope, bound = #{}, segments = #{}}),
     {Form, Walk1#walk{outer = undefined, bound = #{}, segments = #{}}}.
 
-pattern_part(#p_wildcard{}, Walk) ->
+%% A pattern's form, its source woven in, the name of a variable it binds
+%% among it.
+pattern_part(Pattern, Walk) ->
+    {Form, Walk1} = pattern_form(Pattern, Walk),
+    Name = case Pattern of
+               #p_var{name = VariableName} -> VariableName;
+               _ -> none
+           end,
+    {at(Pattern, Form, Name), Walk1}.
+
+pattern_form(#p_wildcard{}, Walk) ->
     {wildcard, Walk};
-pattern_part(#p_var{name = Name}, Walk) ->
+pattern_form(#p_var{name = Name}, Walk) ->
     {Number, Walk1} = bind(Name, Walk),
     {{local, Number}, Walk1};
-pattern_part(#p_literal{kind = Kind, value = Value}, Walk) ->
+pattern_form(#p_literal{kind = Kind, value = Value}, Walk) ->
     {{literal, Kind, literal(Kind, Value)}, Walk};
-pattern_part(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args},
+pattern_form(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args},
              #walk{env = Env} = Walk) ->
     {Constructor, Walk1} = constructor(Span, Namespace, Name, Walk),
     {ArgForms, Walk2} =
@@ -1084,23 +1268,23 @@ pattern_part(#p_constructor{span = Span, namespace = Namespace, name = Name, arg
                 {{fields, Forms}, Acc}
         end,
     {{construct, Constructor, ArgForms}, Walk2};
-pattern_part(#p_tuple{elements = Elements}, Walk) ->
+pattern_form(#p_tuple{elements = Elements}, Walk) ->
     {Forms, Walk1} = lists:mapfoldl(fun pattern_part/2, Walk, Elements),
     {{tuple, Forms}, Walk1};
-pattern_part(#p_list{elements = Elements}, Walk) ->
+pattern_form(#p_list{elements = Elements}, Walk) ->
     {Forms, Walk1} = lists:mapfoldl(fun pattern_part/2, Walk, Elements),
     {{list, Forms}, Walk1};
-pattern_part(#p_cons{head = Head, tail = Tail}, Walk) ->
+pattern_form(#p_cons{head = Head, tail = Tail}, Walk) ->
     {[HeadForm, TailForm], Walk1} = lists:mapfoldl(fun pattern_part/2, Walk, [Head, Tail]),
     {{cons, HeadForm, TailForm}, Walk1};
-pattern_part(#p_as{pattern = Pattern, name = Name}, Walk) ->
+pattern_form(#p_as{pattern = Pattern, name = Name} = As, Walk) ->
     {Form, Walk1} = pattern_part(Pattern, Walk),
     {Number, Walk2} = bind(Name, Walk1),
-    {{as, Form, {local, Number}}, Walk2};
-pattern_part(#p_or{alternatives = Alternatives}, Walk) ->
+    {{as, Form, at(As, {local, Number}, Name)}, Walk2};
+pattern_form(#p_or{alternatives = Alternatives}, Walk) ->
     {Forms, Walk1} = lists:mapfoldl(fun pattern_part/2, Walk, Alternatives),
     {{alternatives, Forms}, Walk1};
-pattern_part(#p_bitstring{segments = Segments}, #walk{segments = Outside} = Walk) ->
+pattern_form(#p_bitstring{segments = Segments}, #walk{segments = Outside} = Walk) ->
     {Forms, Walk1} =
         lists:mapfoldl(fun(#bit_segment{value = Value, specs = Specs},
                            #walk{bound = Before, segments = Earlier} = Acc) ->

@@ -66,17 +66,23 @@ roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
                      none -> {<<>>, undefined};
                      #{<<"en">> := DocText} -> split_since(DocText)
                  end,
-    Summary = case 'ern@markdown':firstSentence(markdown(Prose)) of
-                  [] -> 'ern@markdown':firstSentence(markdown(Title));
+    Summary = case markdown_call(firstSentence, [markdown(Prose)]) of
+                  [] -> markdown_call(firstSentence, [markdown(Title)]);
                   Sentence -> Sentence
               end,
     Manual = {'Manual', list_to_binary(Name), <<"3ern">>, Summary, <<"Ernest ", ?VERSION>>,
               <<"Ernest Manual">>},
-    Lines = 'ern@markdown':roff(markdown(Body), Manual),
+    Lines = markdown_call(roff, [markdown(Body), Manual]),
     [".\\\" ", generated(Meta), "\n", lists:join("\n", Lines), "\n"].
 
 markdown(Text) ->
-    'ern@markdown':parse(unicode:characters_to_binary(Text)).
+    markdown_call(parse, [unicode:characters_to_binary(Text)]).
+
+%% Report §11.1: a function of libs/markdown by its name, which its unit
+%% names by its position (ern_code:function/2).
+markdown_call(Name, Arguments) ->
+    {Function, _} = ern_code:function('ern@markdown', ['Markdown', Name]),
+    apply('ern@markdown', Function, Arguments).
 
 %% The source's name is the chunk's own word, which a module from anywhere
 %% may have written: its control characters are written as escapes, so

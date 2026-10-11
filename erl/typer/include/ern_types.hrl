@@ -91,7 +91,7 @@
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
 -record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
-                    identities = #{}, reaches = #{}}).
+                    identities = #{}, reaches = #{}, positions = #{}}).
 %% private_types: the module's private types an exported abstract type's
 %% fields name, and those theirs name, #{qualified_name() => #type_info{}}, by
 %% which a dependent describes the abstract type's values (report §8.4,
@@ -108,5 +108,9 @@
 %% reaches: #{qualified_name() => ern_canonical:reach()}, each function's
 %% reach that names a binding or a foreign declaration, which a dependent's
 %% reaches take in (report §8.7, §11.1); the compiler fills it in too
+%% positions: #{qualified_name() => pos_integer()}, the number of each
+%% function of the module's unit, a definition's or a foreign function's,
+%% by which its unit names it, '$3' (report §11.1), and a dependent calls
+%% it; the compiler fills it in too
 
 -endif.

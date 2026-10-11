@@ -34,8 +34,8 @@
 -module(ern_code).
 
 -export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, forms/1, called/1,
-         absent_binding/1, absent_binding/2, foreign/2, present/1, nearing/0, nearing/1, nearing/2,
-         line/3, counts/0]).
+         absent_binding/1, absent_binding/2, foreign/2, present/1, function/2, function_text/2,
+         nearing/0, nearing/1, nearing/2, line/3, counts/0]).
 
 -export_type([host_table/0, reach/0]).
 
@@ -280,6 +280,100 @@ present(HostModule) ->
 
 lookup(Key) ->
     try ets:lookup(?TABLE, Key) catch error:badarg -> [] end.
+
+%%
+%% A unit's functions by their names, report §11.1 and §11.2
+%%
+
+%% Report §11.1: the function of Unit, and its arity, that holds the
+%% definition or the foreign function its qualified name names, as the
+%% forms write it (Appendix H), which the unit's '$code'/0 lists, a
+%% binding's its getter; none where Unit holds none of that name. A unit's
+%% functions are named by their position in it (ern_emitter), so every caller
+%% from Erlang by a name finds its function here: the entry point, the
+%% shell's input and its program, and a library's function the toolchain
+%% calls, `Markdown`'s for `ern doc`.
+-spec function(module(), [atom()]) -> {atom(), arity()} | none.
+function(Unit, QualifiedName) ->
+    case code:ensure_loaded(Unit) =:= {module, Unit}
+         andalso erlang:function_exported(Unit, '$code', 0) of
+        true ->
+            case [{Function, Arity} || {Named, Held} <- Unit:'$code'(), Named =:= QualifiedName,
+                                       {Function, Arity} <- held_function(Held)] of
+                [Found | _] -> Found;
+                [] -> none
+            end;
+        false ->
+            none
+    end.
+
+held_function({function, _, Function, Arity, _}) -> [{Function, Arity}];
+held_function({binding, _, {_, Function}}) -> [{Function, 0}];
+held_function({foreign, _, _, Function, Arity}) -> [{Function, Arity}];
+held_function(_) -> [].
+
+%% Report §11.2: a function of a loaded Unit as a fault's trace and the
+%% shell show it, by the name the unit's build gives the definition that
+%% holds it, read back from its '$code'/0: a definition's or a foreign
+%% function's function, '$3', by its own name, `area` or `Vec.+`; a local
+%% function lifted to its own function, '$3.2', by its definition's and its
+%% position, `area$2`; the entry a spawn on a peer starts a lambda or a
+%% local function by, '$3.2.entry', `area$spawn$2`; and a fun the host
+%% names after the function it is written in, `-'$3'/1-fun-0-`, after that
+%% function's name, `-area/1-fun-0-`. None for any other function and for
+%% a module that is no unit, which keep the host's names.
+-spec function_text(module(), atom()) -> string() | none.
+function_text(Unit, Function) ->
+    case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
+        true -> named_function(atom_to_list(Function), Unit:'$code'());
+        false -> none
+    end.
+
+named_function("-" ++ Fun, Code) ->
+    %% the host's name of a fun: -Function/Arity-fun-Index-
+    case string:split(Fun, "/", trailing) of
+        [Enclosing, Rest] ->
+            case named_function(Enclosing, Code) of
+                none -> none;
+                Named -> "-" ++ Named ++ "/" ++ Rest
+            end;
+        _ ->
+            none
+    end;
+named_function("$" ++ Numbered, Code) ->
+    case string:split(Numbered, ".", all) of
+        [Number] ->
+            declared_name("$" ++ Number, Code);
+        [Number, Position] ->
+            suffixed(declared_name("$" ++ Number, Code), "$" ++ Position);
+        [Number, Position, "entry"] ->
+            suffixed(declared_name("$" ++ Number, Code), "$spawn$" ++ Position);
+        _ ->
+            none
+    end;
+named_function(_, _) ->
+    none.
+
+suffixed(none, _) -> none;
+suffixed(Name, Suffix) -> Name ++ Suffix.
+
+%% The name a definition or a foreign function is declared by, its own,
+%% after its module's namespace, `area` or `Vec.+`, where the unit holds it
+%% in the function Function.
+declared_name(Function, Code) ->
+    Namespaces = [Namespace || {Namespace, {calls, _}} <- Code],
+    case [QualifiedName || {QualifiedName, Held} <- Code, {Held1, _} <- held_function(Held),
+                           atom_to_list(Held1) =:= Function] of
+        [QualifiedName | _] ->
+            Declared = case [Namespace || Namespace <- Namespaces,
+                                          lists:prefix(Namespace, QualifiedName)] of
+                           [Namespace | _] -> lists:nthtail(length(Namespace), QualifiedName);
+                           [] -> tl(QualifiedName)
+                       end,
+            lists:append(lists:join(".", [atom_to_list(Name) || Name <- Declared]));
+        [] ->
+            none
+    end.
 
 %%
 %% The host's limits, report §11.2

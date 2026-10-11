@@ -20,7 +20,8 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, lookup_type/2, type_qualified_name/3, identity/2, reach/2, global_scheme/2,
+         prelude_env/0, lookup_type/2, type_qualified_name/3, identity/2, position/2, reach/2,
+         global_scheme/2,
          is_provided/2, described_type/2, is_reply_carrying/2,
          assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, declared_fields/3,
@@ -78,7 +79,7 @@
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
-              reaches = #{}}).
+              reaches = #{}, positions = #{}}).
 %% private_types: the private types of the modules given, which their
 %% abstract types' fields name; the descriptor builder reads them
 %% (described_type/2), and no name resolves to one (report §4.2, §11.1)
@@ -89,6 +90,10 @@
 %% binding or a foreign declaration, by qualified name, which their
 %% interfaces hold and a dependent's reaches take in (reach/2, report
 %% §8.7, §11.1); the checker reads none
+%% positions: the number of each function of the units of the modules
+%% given, by qualified name, with the namespace of the module that declares
+%% it, which their interfaces hold and a dependent's code calls it by
+%% (position/2, report §11.1); the checker reads none
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
@@ -543,9 +548,9 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
            end,
     Env#env{types = lists:foldl(Mark, Types, Declarations)}.
 
-add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
-                         private_types = PrivateTypes, identities = Identities,
-                         reaches = Reaches},
+add_interface(#interface{namespace = Namespace, types = InterfaceTypes, values = Values,
+                         lets = Lets, private_types = PrivateTypes, identities = Identities,
+                         reaches = Reaches, positions = Positions},
               #env{types = Types, globals = Globals} = Env) ->
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
@@ -555,6 +560,8 @@ add_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
             private_types = maps:merge(Env#env.private_types, PrivateTypes),
             identities = maps:merge(Env#env.identities, Identities),
             reaches = maps:merge(Env#env.reaches, Reaches),
+            positions = maps:merge(Env#env.positions,
+                                   maps:map(fun(_, Number) -> {Namespace, Number} end, Positions)),
             lets = maps:merge(Env#env.lets,
                               maps:from_list([{QualifiedName, true} || QualifiedName <- Lets]))}.
 
@@ -706,6 +713,14 @@ type_qualified_name(Namespace, Name, Env) ->
 -spec identity([atom()], env()) -> binary() | foreign | undefined.
 identity(QualifiedName, #env{identities = Identities}) ->
     maps:get(QualifiedName, Identities, undefined).
+
+%% Report §11.1: the namespace of the module that declares another module's
+%% function, a definition's or a foreign function's, and its position in that
+%% module's unit, which its interface holds; undefined where the modules
+%% given declare none of that name.
+-spec position([atom()], env()) -> {[atom()], pos_integer()} | undefined.
+position(QualifiedName, #env{positions = Positions}) ->
+    maps:get(QualifiedName, Positions, undefined).
 
 %% Report §8.7, §11.1: the reach of another module's function, the bindings
 %% and the foreign declarations it names transitively, which its interface

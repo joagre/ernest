@@ -229,7 +229,20 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    function, in the reach and in no code frame, so the reach's foreign entries gain the declared
    type; the peer makes an entry that calls the host's function through §8.4's check, and a
    received definition calls what the sender's declaration names; the refusal the peer answers
-   meanwhile, `NotLoaded` naming this item, leaves `docs/development.md`'s table here.
+   meanwhile, `NotLoaded` naming this item, leaves `docs/development.md`'s table here. The first
+   half, every unit from its forms and its functions named by their position, is built, 2026-10-12
+   (the log's *The Report for Code with a Spawn*), and decided what the code met: two definitions
+   of one module whose forms are one term are one definition, a reference to either to the first
+   declared (Appendix H); a fault's cause writes a type variable by its order, `a`, `b`, since a
+   form holds no annotation's name (§7.4); a `foreign fn` whose implementation names a unit,
+   `ern@...`, is refused at compile time (§11.1), the refusal the second half's to build; a code
+   frame carries the definition's name and the lines of its source beside its form, as the `.erc`
+   records them, so that a received definition's code shows, faults and reports as the sender's
+   does (§8.7, §11.1, §11.2), the name as text and the locals numbered, so that a frame makes no
+   atom of a name; and the build emits a module once every module its forms reference is checked,
+   so that a standard library module reached through a prelude name or an operator alone has its
+   position whatever the order, which today's order satisfies by chance. The second half measures
+   again `docs/memory.md`'s count of a kept input's atoms.
 5. **The bare node, and the shell.** `ern run --config-dir dir` with no `.erc`: the runtime and
    the system processes, the entry process evaluating the standard library's bindings and
    waiting, the node listening and taking spawns, ending by termination alone, refused without

@@ -447,7 +447,7 @@ beam_of(Options, Path) ->
                 {ok, Typed, Interface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
                               source => list_to_binary(filename:basename(Relative))},
-                    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+                    {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
                     Beam;
                 {error, Diagnostics} ->
                     throw({errors, File, Diagnostics})
@@ -834,9 +834,11 @@ shell(Options, Rest, ErrorDevice) ->
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
     %% report §11.2: Os.exit faults the process that calls it
+    %% report §11.1: the unit names its functions by their position
+    {Main, 0} = ern_code:function(ErlangModule, ['Shell', main]),
     Outcome = as_node(Options, LoadPath,
                       fun(Node) ->
-                          ern_rt:run_main(fun() -> ErlangModule:main() end, <<"Shell.main">>,
+                          ern_rt:run_main(fun() -> ErlangModule:Main() end, <<"Shell.main">>,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
                                                 exit => fault,
                                                 flush => fun ern_shell:flush_screen/0})
@@ -1225,7 +1227,8 @@ run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) ->
     EntryModule = ern_namespace:erlang_module(Namespace),
     Init = init_fun(Loaded),
     Site = entry_site(Namespace, EntryFunction),
-    Function = ern_emitter:function_atom(EntryFunction),
+    %% report §11.1: the unit names its functions by their position
+    {Function, 0} = ern_code:function(EntryModule, Namespace ++ [EntryFunction]),
     %% report §8.6: a deadlock is the entry process's fault
     RunOptions = reporting_options(maps:merge(#{init => Init, arguments => Arguments}, Node),
                                    ErrorDevice),
@@ -1244,7 +1247,9 @@ shell_entry(Options, Namespace) ->
             none;
         false ->
             EntryFunction = entry_point(Options, Namespace),
-            #entry_point{erlang_module = ErlangModule, function = EntryFunction,
+            %% report §11.1: the unit names its functions by their position
+            {Function, 0} = ern_code:function(ErlangModule, Namespace ++ [EntryFunction]),
+            #entry_point{erlang_module = ErlangModule, function = Function,
                          site = entry_site(Namespace, EntryFunction)}
     end.
 

@@ -17,7 +17,7 @@
 loaded(Namespace, Text) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
     Build = #{source_hash => <<>>, deps => []},
-    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
     ok = ern_code:loaded(Unit),
@@ -46,16 +46,19 @@ hash(QualifiedName, Definitions) ->
 %% type by its hash, which runs nothing; a binding by its qualified name
 %% with its hash, whose value a run finds absent before its unit's
 %% initializers have run; a foreign declaration's implementation by its
-%% qualified name; and the units its code calls, here none
+%% qualified name; and the units its code calls, here none. Report §11.1:
+%% each function is named by its number in the unit, the definitions in the
+%% order of their forms, the type Box taking 1, and the foreign function
+%% after them
 unit_load_fills_table_test() ->
     Beam = loaded(['Tablefill'], ?SOURCE),
     Definitions = definitions(Beam),
     Unit = 'ern@tablefill',
-    ?assertEqual({Unit, twice, 1, {[], []}},
+    ?assertEqual({Unit, '$3', 1, {[], []}},
                  ern_code:spawnable({hash, hash(['Tablefill', twice], Definitions)})),
-    ?assertEqual({Unit, 'Box.compare', 2, {[], []}},
+    ?assertEqual({Unit, '$2', 2, {[], []}},
                  ern_code:spawnable({hash, hash(['Tablefill', 'Box', compare], Definitions)})),
-    ?assertEqual({Unit, hidden, 1, {[], []}},
+    ?assertEqual({Unit, '$4', 1, {[], []}},
                  ern_code:spawnable({hash, hash(['Tablefill', hidden], Definitions)})),
     ?assertEqual(none, ern_code:spawnable({hash, hash(['Tablefill', 'Box'], Definitions)})),
     Answer = {['Tablefill', answer], hash(['Tablefill', answer], Definitions)},
@@ -70,7 +73,7 @@ unit_load_fills_table_test() ->
     Called = ern_code:called(Unit),
     ?assertEqual(#{Unit => true}, Called),
     ?assertEqual([{lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
-    ?assertEqual({Unit, backwards, 1, {[], [['Tablefill', backwards]]}},
+    ?assertEqual({Unit, '$6', 1, {[], [['Tablefill', backwards]]}},
                  ern_code:spawnable({foreign, ['Tablefill', backwards]})),
     ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
     %% every definition the chunk holds, and nothing else, and the calls
@@ -90,7 +93,9 @@ unit_load_fills_table_test() ->
 %% and the foreign declarations it names through the functions it calls;
 %% a lambda a spawn on a peer starts by its definition's hash and its
 %% position, its reach its own; and a foreign function by its qualified
-%% name. A regression test, written after the code (MVP 3.1's item 4)
+%% name. A regression test, written after the code (MVP 3.1's item 4); the
+%% names are the units' functions' by their numbers (report §11.1), the
+%% lambda's entry by its definition's and its position
 spawnable_test() ->
     Beam = loaded(['Tablespawn'],
                   "let note : Int = 1\n"
@@ -105,11 +110,11 @@ spawnable_test() ->
     Unit = 'ern@tablespawn',
     Note = {['Tablespawn', note], hash(['Tablespawn', note], Definitions)},
     Reach = {[Note], [['Tablespawn', now]]},
-    ?assertEqual({Unit, calls, 0, Reach},
+    ?assertEqual({Unit, '$3', 0, Reach},
                  ern_code:spawnable({hash, hash(['Tablespawn', calls], Definitions)})),
-    ?assertEqual({Unit, 'start$spawn$1', 1, {[], []}},
+    ?assertEqual({Unit, '$4.1.entry', 1, {[], []}},
                  ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 1})),
-    ?assertEqual({Unit, now, 0, {[], [['Tablespawn', now]]}},
+    ?assertEqual({Unit, '$5', 0, {[], [['Tablespawn', now]]}},
                  ern_code:spawnable({foreign, ['Tablespawn', now]})),
     ?assertEqual(none, ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 2})),
     ern_code:unloaded(Unit),
@@ -122,7 +127,7 @@ spawnable_test() ->
 unit_loaded_again_replaces_its_rows_test() ->
     Before = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 1\n")),
     F1 = hash(['Tablereload', f], Before),
-    Held = {'ern@tablereload', f, 1, {[], []}},
+    Held = {'ern@tablereload', '$1', 1, {[], []}},
     ?assertEqual(Held, ern_code:spawnable({hash, F1})),
     After = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n")),
     F2 = hash(['Tablereload', f], After),
@@ -143,7 +148,7 @@ one_hash_in_two_units_test() ->
     Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text))),
     Hash = hash(['Tableother', same], definitions(loaded(['Tableother'], Text))),
     ern_code:unloaded('ern@tablesame'),
-    ?assertEqual({'ern@tableother', same, 1, {[], []}}, ern_code:spawnable({hash, Hash})),
+    ?assertEqual({'ern@tableother', '$1', 1, {[], []}}, ern_code:spawnable({hash, Hash})),
     ern_code:unloaded('ern@tableother'),
     ?assertEqual(none, ern_code:spawnable({hash, Hash})),
     [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tableother']].
@@ -191,7 +196,7 @@ versions_answer_the_evaluated_unit_test() ->
         [begin
              {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
              Build = #{source_hash => <<>>, deps => [], units => Units},
-             {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+             {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
              {module, Unit} = code:load_binary(Unit, "test", Beam),
              ok = ern_code:loaded(Unit),
              definitions(Beam)
@@ -201,7 +206,7 @@ versions_answer_the_evaluated_unit_test() ->
     Answer = {['Tableversions', answer], hash(['Tableversions', answer], First)},
     Self = self(),
     Entry = fun() ->
-                {Unit, same, 1, _} = ern_code:spawnable({hash, Same}),
+                {Unit, '$2', 1, _} = ern_code:spawnable({hash, Same}),
                 Self ! {answered, Unit, ern_code:absent_binding(Unit, [Answer])}
             end,
     Answered = fun(Initialized) ->
@@ -231,7 +236,7 @@ compiled(Namespace, Text, Interfaces, Units) ->
     {ok, Declarations} = ern_parser:parse_string(Text),
     {ok, Typed, Interface, Env} = ern_typecheck:check(Namespace, Declarations, Interfaces),
     Build = #{source_hash => <<>>, deps => [], units => Units},
-    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
     ok = ern_code:loaded(Unit),
     {ok, #{interface := Compiled}} = ern_interface:read(Beam),

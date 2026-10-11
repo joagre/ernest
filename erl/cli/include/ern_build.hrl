@@ -2,8 +2,9 @@
 %% from the source root, its declarations and the namespaces it depends on.
 -record(build_module, {namespace, file, relative, declarations, dependencies = []}).
 
-%% The entry point a program is run from (report §8.1): the Erlang module,
-%% the Ernest function of it, and the site its process is spawned at.
+%% The entry point a program is run from (report §8.1): the unit, the
+%% function of it that holds the entry point, named by its number (report
+%% §11.1), and the site its process is spawned at.
 -record(entry_point, {erlang_module, function, site}).
 
 %% What the runner loaded before the shell started (report §11.2): the load

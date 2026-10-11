@@ -12,7 +12,7 @@
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 8).
+-define(FORMAT, 9).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], references => [{[atom()], binary()}],
@@ -39,13 +39,14 @@ read(Beam) ->
             try ern_chunk:term(Chunk) of
                 {ok, #{format := ?FORMAT,
                        interface := {interface, Namespace, Types, Values, Lets, PrivateTypes,
-                                     Identities, Reaches}}
+                                     Identities, Reaches, Positions}}
                        = Read} ->
                     Interface = #interface{namespace = Namespace, types = maps:from_list(Types),
                                            values = maps:from_list(Values), lets = Lets,
                                            private_types = maps:from_list(PrivateTypes),
                                            identities = maps:from_list(Identities),
-                                           reaches = maps:from_list(Reaches)},
+                                           reaches = maps:from_list(Reaches),
+                                           positions = maps:from_list(Positions)},
                     {ok, Read#{interface => Interface}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
@@ -61,9 +62,13 @@ read(Beam) ->
 %% and their reaches, which follow from them: a change to a dependency's
 %% bodies recompiles a dependent only where it changes a hash the
 %% dependent's forms reference, which the build compares (report §11.1).
+%% It holds the number of each value a dependent may name, since a
+%% dependent's code calls the function of that number, and the numbers of
+%% the module's private functions, which no dependent calls, it leaves out.
 -spec hash(#interface{}) -> binary().
-hash(Interface) ->
-    Bodiless = Interface#interface{identities = #{}, reaches = #{}},
+hash(#interface{values = Values, positions = Positions} = Interface) ->
+    Bodiless = Interface#interface{identities = #{}, reaches = #{},
+                                   positions = maps:with(maps:keys(Values), Positions)},
     crypto:hash(sha256, term_to_binary(canonical(Bodiless, strip))).
 
 %% Quantified variables renumbered and maps as sorted lists, so that equal
@@ -71,7 +76,8 @@ hash(Interface) ->
 %% strip: the hash leaves the variables' names out, since a renamed
 %% annotation changes no dependent.
 canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets,
-                     private_types = PrivateTypes, identities = Identities, reaches = Reaches},
+                     private_types = PrivateTypes, identities = Identities, reaches = Reaches,
+                     positions = Positions},
           VariableNames) ->
     {interface, Namespace,
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
@@ -84,7 +90,8 @@ canonical(#interface{namespace = Namespace, types = Types, values = Values, lets
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
                  || {QualifiedName, TypeInfo} <- maps:to_list(PrivateTypes)]),
      lists:sort(maps:to_list(Identities)),
-     lists:sort(maps:to_list(Reaches))}.
+     lists:sort(maps:to_list(Reaches)),
+     lists:sort(maps:to_list(Positions))}.
 
 %% A type's parameters numbered by place, and its constructors' schemes
 %% over the same numbers; the names its declaration writes are left out of

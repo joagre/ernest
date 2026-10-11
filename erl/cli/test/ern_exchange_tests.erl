@@ -382,7 +382,7 @@ run(Main, Options) ->
 compiled(Namespace, Text) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
     Build = #{source_hash => <<>>, deps => []},
-    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {ok, Definitions} = ern_canonical:read(Beam),
     {Unit, Beam, maps:from_list([{QualifiedName, Definition}
                                  || #definition{qualified_name = QualifiedName} = Definition

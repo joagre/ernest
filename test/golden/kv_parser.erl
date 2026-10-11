@@ -2,59 +2,63 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$spawned'/2]).
+-export(['$1'/0, '$spawned'/2]).
 
-main() ->
-    ern@list:forEach([<<"a=12">>,
-                      <<"=1">>,
-                      <<"a">>,
-                      <<"a=x">>],
-                     fun (Line_1) -> ern@io:println(show(parse(Line_1)))
-                     end).
+%% Kv_parser.main
+'$1'() ->
+    ern@list:'$11'([<<"a=12">>,
+                    <<"=1">>,
+                    <<"a">>,
+                    <<"a=x">>],
+                   fun (Line_1) -> ern@io:'$8'('$2'('$3'(Line_1))) end).
 
-show(Parsed_2) ->
+%% Kv_parser.show
+'$2'(Parsed_2) ->
     case Parsed_2 of
         {'Right', {Key_3, Value_4}} ->
-            <<Key_3/binary, " ",
-              (ern@int:toString(Value_4))/binary>>;
+            <<Key_3/binary, " ", (ern@int:'$24'(Value_4))/binary>>;
         {'Left', Error_5} -> Error_5
     end.
 
-parse(Line_6) ->
-    case keyOf(ern@string:toList(Line_6)) of
+%% Kv_parser.parse
+'$3'(Line_6) ->
+    case '$4'(ern@string:'$42'(Line_6)) of
         {'Left', Left_7} -> {'Left', Left_7};
         {'Right', {Key_8, Rest_9}} ->
-            case expectEquals(Rest_9, Line_6) of
+            case '$5'(Rest_9, Line_6) of
                 {'Left', Left_10} -> {'Left', Left_10};
                 {'Right', AfterEquals_11} ->
-                    case number(AfterEquals_11, Line_6) of
+                    case '$6'(AfterEquals_11, Line_6) of
                         {'Left', Left_12} -> {'Left', Left_12};
                         {'Right', Value_13} -> {'Right', {Key_8, Value_13}}
                     end
             end
     end.
 
-keyOf(Chars_14) ->
-    {Letters_15, Rest_16} = ern@list:span(Chars_14,
-                                          fun ern@char:isAlpha/1),
-    case not ern@list:isEmpty(Letters_15) of
+%% Kv_parser.keyOf
+'$4'(Chars_14) ->
+    {Letters_15, Rest_16} = ern@list:'$20'(Chars_14,
+                                           fun ern@char:'$7'/1),
+    case not ern@list:'$2'(Letters_15) of
         true ->
-            {'Right', {ern@string:fromList(Letters_15), Rest_16}};
+            {'Right', {ern@string:'$43'(Letters_15), Rest_16}};
         false ->
             {'Left',
-             <<"bad key: ", (ern@string:fromList(Chars_14))/binary>>}
+             <<"bad key: ", (ern@string:'$43'(Chars_14))/binary>>}
     end.
 
-expectEquals(Chars_17, Line_18) ->
+%% Kv_parser.expectEquals
+'$5'(Chars_17, Line_18) ->
     case Chars_17 of
         [$= | Rest_19] -> {'Right', Rest_19};
         _ -> {'Left', <<"expected =: ", Line_18/binary>>}
     end.
 
-number(Chars_20, Line_21) ->
-    case ern@string:toInt(ern@string:fromList(Chars_20)) of
+%% Kv_parser.number
+'$6'(Chars_20, Line_21) ->
+    case ern@string:'$24'(ern@string:'$43'(Chars_20)) of
         {'Some', Value_22} -> {'Right', Value_22};
         'None' -> {'Left', <<"bad number: ", Line_21/binary>>}
     end.
 
-'$spawned'(main, []) -> main().
+'$spawned'('$1', []) -> '$1'().

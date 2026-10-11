@@ -1606,7 +1606,9 @@ code_table_test() ->
     ?assertEqual(7, length(Definitions)),
     [Main] = [Hash
               || {#definition{qualified_name = ['Main', main], hash = Hash}, _} <- Definitions],
-    {'ern@main', main, 0, {MainBindings, []}} = ern_code:spawnable({hash, Main}),
+    %% report §11.1: the unit names its functions by their number
+    {MainFunction, 0} = ern_code:function('ern@main', ['Main', main]),
+    {'ern@main', MainFunction, 0, {MainBindings, []}} = ern_code:spawnable({hash, Main}),
     lists:foreach(
       fun({#definition{kind = function, hash = Hash}, Unit}) ->
               {Unit, Function, Arity, _} = ern_code:spawnable({hash, Hash}),
@@ -1625,7 +1627,8 @@ code_table_test() ->
     {ok, ListBeam} = file:read_file(code:which('ern@list')),
     {ok, ListDefinitions} = ern_canonical:read(ListBeam),
     [Map] = [Hash || #definition{qualified_name = ['List', map], hash = Hash} <- ListDefinitions],
-    ?assertMatch({'ern@list', map, 2, _}, ern_code:spawnable({hash, Map})).
+    {MapFunction, 2} = ern_code:function('ern@list', ['List', map]),
+    ?assertMatch({'ern@list', MapFunction, 2, _}, ern_code:spawnable({hash, Map})).
 
 %% report §8.7, §11.1, Appendix H: a library under its own root is hashed as
 %% a program's code is, and a program built against it with --load-path

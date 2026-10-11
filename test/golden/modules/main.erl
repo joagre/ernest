@@ -2,13 +2,14 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$spawned'/2]).
+-export(['$1'/0, '$spawned'/2]).
 
-main() ->
-    case ern@net@http:parse(<<"GET /">>) of
+%% Main.main
+'$1'() ->
+    case ern@net@http:'$2'(<<"GET /">>) of
         {'Some', {'Request', Method_1, Path_2}} ->
-            ern@io:println(<<Method_1/binary, " ", Path_2/binary>>);
-        'None' -> ern@io:println(<<"bad request">>)
+            ern@io:'$8'(<<Method_1/binary, " ", Path_2/binary>>);
+        'None' -> ern@io:'$8'(<<"bad request">>)
     end.
 
-'$spawned'(main, []) -> main().
+'$spawned'('$1', []) -> '$1'().

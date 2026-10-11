@@ -12,16 +12,20 @@
 
 %% A program whose keeper counts what it is sent and, told of the end,
 %% prints what it kept and answers, or does what Told says; Main follows,
-%% from its line 12, which a spawn's site counts from.
+%% from its line 12, which a spawn's site counts from. The keeper answers
+%% `Ready` once it has subscribed, and Main waits on that call before it
+%% acts: the subscription is the keeper's own act, and an end that began
+%% before it would find no subscriber (§8.6), as it did under the suite's
+%% load, so the program waits on what it means.
 kept(Told, Main) ->
     kept(Told, Main, #{}).
 
 kept(Told, Main, Options) ->
     ern_emitter_tests:run(
       ['M'],
-      ["type Msg = Add(Int) | Terminating(Reply(Unit))\n"
+      ["type Msg = Add(Int) | Ready(Reply(Unit)) | Terminating(Reply(Unit))\n"
        "fn count(n : Int) : Unit with Msg = receive {\n"
-       "    Add(k) -> count(n + k)\n"
+       "    Add(k) -> count(n + k) | Ready(ready) -> { answer(ready, Unit); count(n) }\n"
        "  | Terminating(reply) -> ", Told, "\n"
        "}\n"
        "fn keeper() : Unit with Msg = {\n"
@@ -42,7 +46,7 @@ kept(Told, Main, Options) ->
 told_at_the_entry_process_end_test() ->
     {Result, Output} = kept(?KEEP,
                             "export fn main() : Unit with Never = {\n"
-                            "    let k = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(2));\n"
                             "    send(k, Add(3))\n"
                             "}\n"),
@@ -63,7 +67,7 @@ subscriber_whose_spawn_failed_test() ->
                             " answer(reply, Unit), 1000); Io.println(\"spawn failed\");"
                             " count(n) }",
                             "export fn main() : Unit with Never = {\n"
-                            "    let k = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(1))\n"
                             "}\n"),
     ?assertEqual(ok, Result),
@@ -78,7 +82,7 @@ subscriber_whose_spawn_failed_test() ->
 told_at_exit_test() ->
     {Result, Output} = kept(?KEEP,
                             "export fn main() : Unit with Never = {\n"
-                            "    let k = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(4));\n"
                             "    Os.exit(3)\n"
                             "}\n"),
@@ -90,7 +94,7 @@ told_at_exit_test() ->
 told_at_termination_test() ->
     {Result, Output} = kept(?KEEP,
                             "export fn main() : Unit with Unit = {\n"
-                            "    let k = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(6));\n"
                             "    terminate();\n"
                             "    receive { _ -> Unit }\n"
@@ -104,10 +108,11 @@ second_termination_ends_at_once_test() ->
     {Result, Output} = kept("held(reply)",
                             "fn held(reply : Reply(Unit)) : Unit with Msg = receive {\n"
                             "    Terminating(other) -> { answer(other, Unit); held(reply) }\n"
-                            "  | Add(_) -> held(reply)\n"
+                            "  | Add(_) -> held(reply)"
+                            " | Ready(other) -> { answer(other, Unit); held(reply) }\n"
                             "}\n"
                             "export fn main() : Unit with Unit = {\n"
-                            "    let _ = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    terminate();\n"
                             "    terminate();\n"
                             "    receive { _ -> Unit }\n"
@@ -124,7 +129,7 @@ second_termination_ends_at_once_test() ->
 exit_while_the_end_waits_test() ->
     {Result, Output} = kept("Os.exit(7)",
                             "export fn main() : Unit with Never = {\n"
-                            "    let _ = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    Unit\n"
                             "}\n"),
     ?assertEqual({exit, 7}, Result),
@@ -140,7 +145,7 @@ faulting_subscriber_is_reported_test() ->
              end,
     {Result, Output} = kept("{ let _ = 1 / List.size([]); answer(reply, Unit) }",
                             "export fn main() : Unit with Never = {\n"
-                            "    let _ = spawn(keeper);\n"
+                            "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    Unit\n"
                             "}\n",
                             #{faults => Faults}),

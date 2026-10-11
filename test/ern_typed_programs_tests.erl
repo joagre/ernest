@@ -154,7 +154,7 @@ outcome(Text) ->
             {refused, [ern_diagnostic:short("", Diagnostic) || Diagnostic <- Diagnostics]};
         {ok, Typed, Interface, Env} ->
             Build = #{source_hash => <<>>, deps => []},
-            case catch_all(fun() -> ern_emitter:compile(?MODULE_NAMESPACE, Typed, Interface,
+            case catch_all(fun() -> ern_compile:compile(?MODULE_NAMESPACE, Typed, Interface,
                                                         Env, Build) end) of
                 {ok, {ok, ErlangModule, Beam}} -> run(ErlangModule, Beam);
                 {crashed, Crash} -> {not_compiled, Crash}
@@ -174,7 +174,7 @@ run(ErlangModule, Beam) ->
                        false -> ok
                    end
            end,
-    Ended = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    Ended = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                             #{init => Init, stdout => Collect, stderr => fun(_) -> ok end,
                               stdin => fun() -> eof end}),
     {Ended, collected(Tag, [])}.

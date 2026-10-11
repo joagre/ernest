@@ -176,8 +176,7 @@ spawn_program() ->
     case persistent_term:get({?MODULE, loaded}, #loaded{}) of
         #loaded{entry = #entry_point{erlang_module = ErlangModule, function = Function,
                                      site = Site}} ->
-            ErlangFunction = ern_emitter:function_atom(Function),
-            _ = ern_rt:spawn(fun() -> ErlangModule:ErlangFunction() end, Site),
+            _ = ern_rt:spawn(fun() -> ErlangModule:Function() end, Site),
             'Unit';
         _ ->
             'Unit'
@@ -685,7 +684,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Descriptor = ern_descriptor:describe(Type, Env, []),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
               form_namespace => ?SESSION_NAMESPACE, units => Session#session.units},
-    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     %% report §11.1: the interface as compiled, with the hash of each of its
     %% definitions, by which a later input's forms name them; and whether
     %% the input's code builds a function value, which the emitter says
@@ -811,7 +810,10 @@ unload(ErlangModule) ->
 value(_ErlangModule, declarations) ->
     'Unit';
 value(ErlangModule, _Binds) ->
-    ErlangModule:?ENTRY().
+    %% report §11.1: the unit names its functions by their position, and its
+    %% '$code'/0 names the input's entry under the session's namespace
+    {Entry, 0} = ern_code:function(ErlangModule, ?SESSION_NAMESPACE ++ [?ENTRY]),
+    ErlangModule:Entry().
 
 %% Report §7.3, §7.4: the cause of a fault the shell catches in a process
 %% of its own, as the runtime gives a process's.
@@ -2836,7 +2838,7 @@ new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Se
     {_, Offset} = Site = site(Origin),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
               form_namespace => ?SESSION_NAMESPACE, units => Units#{Namespace => Unit}},
-    {ok, Unit, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {ok, #{interface := #interface{identities = Identities} = Compiled}} =
         ern_interface:read(Beam),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam),
@@ -3392,15 +3394,20 @@ bound(#session{last_holder = LastHolder} = Session, Bindings, Env, Hash) ->
         end,
     ErlangModule = ern_namespace:erlang_module(HolderNamespace),
     TypeState = ern_typecheck:type_state(Env),
-    [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bindings],
+    %% report §11.1: the holder is a unit, its getters named by their
+    %% number, each binding's value kept under its unit and its getter
+    Numbered = lists:enumerate(Bindings),
+    [persistent_term:put({ErlangModule, ern_emitter:function_name(Number)}, Value)
+     || {Number, {_, Value, _}} <- Numbered],
     %% report §8.7, §11.2: its bindings have their values, so a peer's spawn
     %% of a function whose reach names one finds it
     ern_rt:initialized(ErlangModule),
     Names = [Name || {Name, _, _} <- Bindings],
     %% report Appendix H, §8.7: each by its identity as a form names it, its
     %% name under the session's one namespace, whatever holder holds it
-    Code = [{?SESSION_NAMESPACE ++ [Name], {binding, Hash, {ErlangModule, Name}}}
-            || Name <- Names],
+    Code = [{?SESSION_NAMESPACE ++ [Name],
+             {binding, Hash, {ErlangModule, ern_emitter:function_name(Number)}}}
+            || {Number, {Name, _, _}} <- Numbered],
     {module, ErlangModule} =
         code:load_binary(ErlangModule, atom_to_list(ErlangModule),
                          holder(ErlangModule, Names, Code)),
@@ -3410,9 +3417,11 @@ bound(#session{last_holder = LastHolder} = Session, Bindings, Env, Hash) ->
     Interface = #interface{namespace = HolderNamespace, values = Values,
                            lets = [HolderNamespace ++ [Name] || Name <- Names],
                            identities = maps:from_list([{HolderNamespace ++ [Name], Hash}
-                                                        || Name <- Names])},
+                                                        || Name <- Names]),
+                           positions = maps:from_list([{HolderNamespace ++ [Name], Number}
+                                                       || {Number, {Name, _, _}} <- Numbered])},
     Needs = mentions(Interface, HolderNamespace),
-    Keys = [{ErlangModule, Name} || Name <- Names],
+    Keys = [{ErlangModule, ern_emitter:function_name(Number)} || {Number, _} <- Numbered],
     set_uses(maps:put(ErlangModule, {HolderNamespace, Needs, Keys}, uses())),
     joined(Session1, Interface).
 
@@ -3638,28 +3647,29 @@ value_key(Namespace, QualifiedName) ->
 holder(ErlangModule, Names, Code) ->
     ern_rt:in_foreign(fun() -> holder_beam(ErlangModule, Names, Code) end).
 
-%% Report §8.7: each name's getter, and what the module holds, each binding
-%% by its identity with the key its value is kept under, which the code
-%% table reads as it loads, as it reads a compiled module's (ern_emitter).
+%% Report §8.7: each name's getter, named by its position as a unit's
+%% functions are (§11.1), and what the module holds, each binding by its
+%% identity with the key its value is kept under, which the code table
+%% reads as it loads, as it reads a compiled unit's (ern_emitter).
 holder_beam(ErlangModule, Names, Code) ->
-    Get = fun(Name) ->
+    Getters = [ern_emitter:function_name(Number) || {Number, _} <- lists:enumerate(Names)],
+    Get = fun(Getter) ->
               erl_syntax:application(
                 erl_syntax:module_qualifier(erl_syntax:atom(persistent_term),
                                             erl_syntax:atom(get)),
-                [erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)])])
+                [erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Getter)])])
           end,
-    Functions = [ern_emitter:function_atom(Name) || Name <- Names] ++ ['$code'],
     Forms = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)]),
              erl_syntax:attribute(erl_syntax:atom(export),
                                   [erl_syntax:list(
                                      [erl_syntax:arity_qualifier(erl_syntax:atom(Function),
                                                                  erl_syntax:integer(0))
-                                      || Function <- Functions])]),
+                                      || Function <- Getters ++ ['$code']])]),
              erl_syntax:function(erl_syntax:atom('$code'),
                                  [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])
-             | [erl_syntax:function(erl_syntax:atom(ern_emitter:function_atom(Name)),
-                                    [erl_syntax:clause([], none, [Get(Name)])])
-                || Name <- Names]],
+             | [erl_syntax:function(erl_syntax:atom(Getter),
+                                    [erl_syntax:clause([], none, [Get(Getter)])])
+                || Getter <- Getters]],
     %% report §11: the host's compiler takes nothing from the environment
     {ok, _, Beam} = compile:noenv_forms([erl_syntax:revert(Form) || Form <- Forms],
                                         [return_errors]),

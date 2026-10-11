@@ -2,28 +2,32 @@
 
 -dialyzer(no_return).
 
--export([main/0,
-         empty/0,
-         push/2,
-         pop/1,
+-export(['$2'/0,
+         '$3'/0,
+         '$4'/2,
+         '$5'/1,
          '$init'/0,
          '$spawned'/2]).
 
-main() ->
-    Stack_1 = push(push(empty(), 1), 2),
-    case pop(Stack_1) of
+%% Stack.main
+'$2'() ->
+    Stack_1 = '$4'('$4'('$3'(), 1), 2),
+    case '$5'(Stack_1) of
         {'Some', {Top_2, _}} ->
-            ern@io:println(<<"top is ",
-                             (ern@int:toString(Top_2))/binary>>);
-        'None' -> ern@io:println(<<"empty">>)
+            ern@io:'$8'(<<"top is ",
+                          (ern@int:'$24'(Top_2))/binary>>);
+        'None' -> ern@io:'$8'(<<"empty">>)
     end.
 
-empty() -> ern_rt:binding({ern@stack, empty}).
+%% Stack.empty
+'$3'() -> ern_rt:binding({ern@stack, '$3'}).
 
-push({'Stack', Items_3}, Item_4) ->
+%% Stack.push
+'$4'({'Stack', Items_3}, Item_4) ->
     {'Stack', [Item_4 | Items_3]}.
 
-pop({'Stack', Items_5}) ->
+%% Stack.pop
+'$5'({'Stack', Items_5}) ->
     case Items_5 of
         [] -> 'None';
         [Item_6 | Rest_7] ->
@@ -32,7 +36,7 @@ pop({'Stack', Items_5}) ->
 
 '$init'() ->
     ern_rt:initializing(<<"Stack.empty:23">>),
-    persistent_term:put({ern@stack, empty}, {'Stack', []}),
+    persistent_term:put({ern@stack, '$3'}, {'Stack', []}),
     ok.
 
-'$spawned'(main, []) -> main().
+'$spawned'('$2', []) -> '$2'().

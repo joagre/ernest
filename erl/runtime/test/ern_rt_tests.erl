@@ -326,15 +326,15 @@ failed_start_test() ->
     ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
 
 %% Compile a hand-written target module from forms, as the compiler will
-%% compile its own output, and run its main as the runner does, collecting
-%% what reaches stdout.
-run_target(File) ->
+%% compile its own output, and run its main, the function of its number
+%% Main (report §11.1), as the runner does, collecting what reaches stdout.
+run_target(File, Main) ->
     Path = "../../../test/target/" ++ File,
     {ok, Forms} = epp:parse_file(Path, []),
     {ok, ErlangModule, Beam} = compile:forms(Forms, [return_errors]),
     {module, ErlangModule} = code:load_binary(ErlangModule, Path, Beam),
     Self = self(),
-    Result = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+    Result = ern_rt:run_main(fun ErlangModule:Main/0, <<"main">>,
                              #{stdout => fun(Bytes) -> Self ! {out, Bytes} end}),
     {Result, collect([])}.
 
@@ -347,11 +347,11 @@ collect(Acc) ->
 
 %% report §8.1, §8.6, Appendix B
 hello_target_test() ->
-    ?assertEqual({ok, <<"hello, world\n">>}, run_target("hello.erl")).
+    ?assertEqual({ok, <<"hello, world\n">>}, run_target("hello.erl", '$1')).
 
 %% report §6.2, §6.3, §6.6, Appendix B
 counter_target_test() ->
-    ?assertEqual({ok, <<"count is 8\n">>}, run_target("counter.erl")).
+    ?assertEqual({ok, <<"count is 8\n">>}, run_target("counter.erl", '$2')).
 
 %% report §6.6: an unanswered call times out, a late answer is dropped
 call_timeout_test() ->
@@ -757,7 +757,7 @@ clock_now_reads_the_host() ->
            fun() ->
                Clock = ern_rt:system_process(clock),
                true = erlang:suspend_process(Clock),
-               Answer = 'ern@clock':now(),
+               Answer = (ern_named:function('ern@clock', now))(),
                true = erlang:resume_process(Clock),
                Self ! {now, Answer}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),

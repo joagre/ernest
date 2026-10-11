@@ -182,7 +182,8 @@ pure_row(#{module := Module, name := Name, scheme := Scheme, display := Display}
 
 sized(Module, Name, Scheme, Size, Mode, Types, Host, Counter) ->
     Arguments = arguments(Module, Name, Scheme, Size, Types),
-    Ernest = fun() -> erlang:apply(Module, Name, Arguments) end,
+    Function = ern_named:function(Module, Name),
+    Ernest = fun() -> erlang:apply(Function, Arguments) end,
     HostCall = case Host of
                    none -> none;
                    _ -> fun() -> erlang:apply(Host, Arguments) end
@@ -347,7 +348,7 @@ others(Params, Size, Types) ->
 small('ern@foreign', atom) -> true;
 small(_, _) -> false.
 
-member(compare) -> fun 'ern@int':compare/2;
+member(compare) -> ern_named:function('ern@int', compare);
 member(show) -> any.
 
 %% The functions whose cost is their integer's length, measured on one of
@@ -375,12 +376,14 @@ value({tcon, ['Either'], [_, Element]}, Size, Types) -> {'Right', value(Element,
 value({tcon, ['Map'], [Key, Element]}, Size, Types) ->
     maps:from_list(pairs(Key, Element, Size, Types));
 value({tcon, ['Set'], [Element]}, Size, Types) ->
-    'ern@set':fromList(elements(Element, Size, Types));
+    (ern_named:function('ern@set', fromList))(elements(Element, Size, Types));
 value({tcon, ['OrderedSet', 'Set'], [Element]}, Size, Types) ->
-    'ern@ordered_set':fromList(elements(Element, Size, Types), fun 'ern@int':compare/2);
+    FromList = ern_named:function('ern@ordered_set', fromList),
+    FromList(elements(Element, Size, Types), ern_named:function('ern@int', compare));
 value({tcon, ['OrderedMap', 'Map'], [Key, Element]}, Size, Types) ->
-    'ern@ordered_map':fromList(pairs(Key, Element, Size, Types), fun 'ern@int':compare/2);
-value({tcon, ['Random', 'Seed'], []}, _, _) -> 'ern@random':seed(1);
+    FromList = ern_named:function('ern@ordered_map', fromList),
+    FromList(pairs(Key, Element, Size, Types), ern_named:function('ern@int', compare));
+value({tcon, ['Random', 'Seed'], []}, _, _) -> (ern_named:function('ern@random', seed))(1);
 value({tcon, ['Foreign', 'Term'], []}, Size, _) -> lists:seq(1, Size);
 value({ttuple, Elements}, Size, Types) ->
     list_to_tuple([value(Element, Size, Types) || Element <- Elements]);
@@ -598,13 +601,16 @@ dev_null() ->
 
 clock_scenarios(_Self) ->
     Wrap = fun(Time) -> Time end,
-    [{<<"Clock.now">>, {fun 'ern@clock':now/0, fun() -> erlang:system_time(millisecond) end}},
+    Clock = ern_named:functions('ern@clock'),
+    ClockAlarm = Clock(alarm),
+    ClockAlarmAt = Clock(alarmAt),
+    [{<<"Clock.now">>, {Clock(now), fun() -> erlang:system_time(millisecond) end}},
      {<<"Clock.monotonic">>,
-      {fun 'ern@clock':monotonic/0, fun() -> erlang:monotonic_time(millisecond) end}},
-     {<<"Clock.alarm">>, {fun() -> 'ern@clock':alarm(3600000, Wrap) end,
+      {Clock(monotonic), fun() -> erlang:monotonic_time(millisecond) end}},
+     {<<"Clock.alarm">>, {fun() -> ClockAlarm(3600000, Wrap) end,
                           fun() -> erlang:send_after(3600000, erlang:self(), alarm) end}},
      {<<"Clock.alarmAt">>,
-      {fun() -> 'ern@clock':alarmAt(erlang:system_time(millisecond) + 3600000, Wrap) end,
+      {fun() -> ClockAlarmAt(erlang:system_time(millisecond) + 3600000, Wrap) end,
        fun() -> erlang:send_after(3600000, erlang:self(), alarm) end}}].
 
 fs_scenarios(Dir, Bytes) ->
@@ -615,54 +621,70 @@ fs_scenarios(Dir, Bytes) ->
     [ok = file:write_file(filename:join(In("dir"), integer_to_list(I)), <<>>)
      || I <- lists:seq(1, ?SIZE)],
     ok = file:make_symlink(In("file"), In("link")),
-    Fs = 'ern@fs',
-    [{<<"Fs.read">>, {fun() -> Fs:read(P("file"), 5000) end,
+    Fs = ern_named:functions('ern@fs'),
+    FsRead = Fs(read),
+    FsReadRange = Fs(readRange),
+    FsWrite = Fs(write),
+    FsAppend = Fs(append),
+    FsList = Fs(list),
+    FsStat = Fs(stat),
+    FsMakeDir = Fs(makeDir),
+    FsRemove = Fs(remove),
+    FsRename = Fs(rename),
+    FsCopy = Fs(copy),
+    FsMakeSymlink = Fs(makeSymlink),
+    FsMakeHardLink = Fs(makeHardLink),
+    FsReadLink = Fs(readLink),
+    FsMakeFile = Fs(makeFile),
+    FsSetModified = Fs(setModified),
+    FsSetMode = Fs(setMode),
+    [{<<"Fs.read">>, {fun() -> FsRead(P("file"), 5000) end,
                       fun() -> file:read_file(In("file"), [raw]) end}},
      {<<"Fs.readRange">>,
-      {fun() -> Fs:readRange(P("file"), 0, ?SIZE, 5000) end,
+      {fun() -> FsReadRange(P("file"), 0, ?SIZE, 5000) end,
        fun() ->
                {ok, Fd} = file:open(In("file"), [read, raw, binary]),
                {ok, _} = file:pread(Fd, 0, ?SIZE),
                file:close(Fd)
        end}},
-     {<<"Fs.write">>, {fun() -> Fs:write(P("written"), Bytes, 5000) end,
+     {<<"Fs.write">>, {fun() -> FsWrite(P("written"), Bytes, 5000) end,
                        fun() -> file:write_file(In("written"), Bytes, [raw]) end}},
-     {<<"Fs.append">>, {fun() -> Fs:append(P("appended"), Bytes, 5000) end,
+     {<<"Fs.append">>, {fun() -> FsAppend(P("appended"), Bytes, 5000) end,
                         fun() -> file:write_file(In("appended"), Bytes, [append, raw]) end}},
-     {<<"Fs.list">>, {fun() -> Fs:list(P("dir"), 5000) end,
+     {<<"Fs.list">>, {fun() -> FsList(P("dir"), 5000) end,
                       fun() ->
                               {ok, Names} = file:list_dir(In("dir")),
                               [file:read_link_info(filename:join(In("dir"), Name), [raw])
                                || Name <- Names]
                       end}},
-     {<<"Fs.stat">>, {fun() -> Fs:stat(P("file"), 5000) end,
+     {<<"Fs.stat">>, {fun() -> FsStat(P("file"), 5000) end,
                       fun() -> file:read_link_info(In("file"), [raw]) end}},
-     {<<"Fs.makeDir">>, {fun() -> Fs:makeDir(P("made"), 5000), file:del_dir(In("made")) end,
+     {<<"Fs.makeDir">>, {fun() -> FsMakeDir(P("made"), 5000), file:del_dir(In("made")) end,
                          fun() -> file:make_dir(In("made")), file:del_dir(In("made")) end}},
      {<<"Fs.remove">>,
-      {fun() -> file:write_file(In("removed"), <<>>), Fs:remove(P("removed"), 5000) end,
+      {fun() -> file:write_file(In("removed"), <<>>), FsRemove(P("removed"), 5000) end,
        fun() -> file:write_file(In("removed"), <<>>), file:delete(In("removed"), [raw]) end}},
      {<<"Fs.rename">>,
       {fun() ->
-               Fs:rename(P("file"), P("renamed"), 5000),
-               Fs:rename(P("renamed"), P("file"), 5000)
+               FsRename(P("file"), P("renamed"), 5000),
+               FsRename(P("renamed"), P("file"), 5000)
        end,
        fun() ->
                file:rename(In("file"), In("renamed")),
                file:rename(In("renamed"), In("file"))
        end}},
-     {<<"Fs.copy">>, {fun() -> Fs:copy(P("file"), P("copied"), 5000) end,
+     {<<"Fs.copy">>, {fun() -> FsCopy(P("file"), P("copied"), 5000) end,
                       fun() -> file:copy(In("file"), In("copied")) end}},
      {<<"Fs.makeSymlink">>,
-      {fun() -> Fs:makeSymlink(P("linked"), P("file"), 5000), file:delete(In("linked")) end,
+      {fun() -> FsMakeSymlink(P("linked"), P("file"), 5000), file:delete(In("linked")) end,
        fun() -> file:make_symlink(In("file"), In("linked")), file:delete(In("linked")) end}},
      {<<"Fs.makeHardLink">>,
-      {fun() -> Fs:makeHardLink(P("hard"), P("file"), 5000), file:delete(In("hard")) end,
+      {fun() -> FsMakeHardLink(P("hard"), P("file"), 5000), file:delete(In("hard")) end,
        fun() -> file:make_link(In("file"), In("hard")), file:delete(In("hard")) end}},
-     {<<"Fs.readLink">>, {fun() -> Fs:readLink(P("link"), 5000) end,
+     {<<"Fs.readLink">>, {fun() -> FsReadLink(P("link"), 5000) end,
                           fun() -> file:read_link_all(In("link")) end}},
      {<<"Fs.makeFile">>,
-      {fun() -> Fs:makeFile(P("new"), Bytes, 5000), file:delete(In("new")) end,
+      {fun() -> FsMakeFile(P("new"), Bytes, 5000), file:delete(In("new")) end,
        fun() ->
                {ok, Fd} = file:open(In("new"), [write, exclusive, raw, binary]),
                ok = file:write(Fd, Bytes),
@@ -670,35 +692,50 @@ fs_scenarios(Dir, Bytes) ->
                file:delete(In("new"))
        end}},
      {<<"Fs.setModified">>,
-      {fun() -> Fs:setModified(P("file"), 86400000, 5000) end,
+      {fun() -> FsSetModified(P("file"), 86400000, 5000) end,
        fun() -> file:write_file_info(In("file"), #file_info{mtime = 86400}, [{time, posix}, raw])
        end}},
-     {<<"Fs.setMode">>, {fun() -> Fs:setMode(P("file"), 8#644, 5000) end,
+     {<<"Fs.setMode">>, {fun() -> FsSetMode(P("file"), 8#644, 5000) end,
                          fun() -> file:change_mode(In("file"), 8#644) end}}].
 
 io_scenarios(Bytes, DevNull) ->
     Text = text(?SIZE),
-    Io = 'ern@io',
+    Io = ern_named:functions('ern@io'),
+    IoPrint = Io(print),
+    IoPrintln = Io(println),
+    IoPrintError = Io(printError),
+    IoPrintlnError = Io(printlnError),
+    IoWrite = Io(write),
+    IoWriteError = Io(writeError),
+    IoDebug = Io(debug),
     Written = fun(Data) -> fun() -> file:write(DevNull, Data) end end,
-    [{<<"Io.print">>, {fun() -> Io:print(Text) end, Written(Text)}},
-     {<<"Io.println">>, {fun() -> Io:println(Text) end, Written(Text)}},
-     {<<"Io.printError">>, {fun() -> Io:printError(Text) end, Written(Text)}},
-     {<<"Io.printlnError">>, {fun() -> Io:printlnError(Text) end, Written(Text)}},
-     {<<"Io.write">>, {fun() -> Io:write(Bytes) end, Written(Bytes)}},
-     {<<"Io.writeError">>, {fun() -> Io:writeError(Bytes) end, Written(Bytes)}},
+    [{<<"Io.print">>, {fun() -> IoPrint(Text) end, Written(Text)}},
+     {<<"Io.println">>, {fun() -> IoPrintln(Text) end, Written(Text)}},
+     {<<"Io.printError">>, {fun() -> IoPrintError(Text) end, Written(Text)}},
+     {<<"Io.printlnError">>, {fun() -> IoPrintlnError(Text) end, Written(Text)}},
+     {<<"Io.write">>, {fun() -> IoWrite(Bytes) end, Written(Bytes)}},
+     {<<"Io.writeError">>, {fun() -> IoWriteError(Bytes) end, Written(Bytes)}},
      %% the descriptor the compiler passes for the value's type (Appendix E.1)
-     {<<"Io.debug">>, {fun() -> Io:debug(lists:seq(1, ?SIZE), any) end,
+     {<<"Io.debug">>, {fun() -> IoDebug(lists:seq(1, ?SIZE), any) end,
                        fun() -> file:write(DevNull, io_lib:format("~p~n", [lists:seq(1, ?SIZE)]))
                        end}},
      {<<"Io.readLine">>, {not_measured, <<"reads standard input">>}},
      {<<"Io.read">>, {not_measured, <<"reads standard input">>}}].
 
 os_scenarios(Bytes) ->
-    Os = 'ern@os',
+    Os = ern_named:functions('ern@os'),
+    OsRead = Os(read),
+    OsStart = Os(start),
+    OsRun = Os(run),
+    OsWrite = Os(write),
+    OsCloseInput = Os(closeInput),
+    OsGive = Os(give),
+    FromAddress = ern_named:function('ern@process', fromAddress),
+    OsTermination = Os(termination),
     True = {'Command', <<"true">>, [], <<>>},
     Cat = {'Command', <<"cat">>, [], <<>>},
     Exited = fun Exited(Program) ->
-                     case Os:read(Program, 5000) of
+                     case OsRead(Program, 5000) of
                          {'Right', {'Exited', _}} -> ok;
                          {'Right', _} -> Exited(Program)
                      end
@@ -710,27 +747,27 @@ os_scenarios(Bytes) ->
                               receive {Port, {exit_status, _}} -> ok end
                       end
               end,
-    {'Right', Echo} = Os:start(Cat),
+    {'Right', Echo} = OsStart(Cat),
     HostEcho = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary, stream]),
     Size = byte_size(Bytes),
-    [{<<"Os.run">>, {fun() -> {'Right', _} = Os:run(True, 5000) end, HostRun("true")}},
-     {<<"Os.start">>, {fun() -> {'Right', Program} = Os:start(True), Exited(Program) end,
+    [{<<"Os.run">>, {fun() -> {'Right', _} = OsRun(True, 5000) end, HostRun("true")}},
+     {<<"Os.start">>, {fun() -> {'Right', Program} = OsStart(True), Exited(Program) end,
                        HostRun("true")}},
      {<<"Os.write">>,
-      {fun() -> Os:write(Echo, Bytes, 5000), echoed(fun() -> Os:read(Echo, 5000) end, Size) end,
+      {fun() -> OsWrite(Echo, Bytes, 5000), echoed(fun() -> OsRead(Echo, 5000) end, Size) end,
        fun() -> erlang:port_command(HostEcho, Bytes), port_echoed(HostEcho, Size) end}},
      {<<"Os.read">>, {within, <<"Os.write">>}},
      %% the host cannot close a program's input alone, so its side starts a
      %% program and waits for its end, as Ernest's does once the input ends
      {<<"Os.closeInput">>,
-      {fun() -> {'Right', Program} = Os:start(Cat), Os:closeInput(Program), Exited(Program) end,
+      {fun() -> {'Right', Program} = OsStart(Cat), OsCloseInput(Program), Exited(Program) end,
        HostRun("true")}},
-     {<<"Os.give">>, {fun() -> Os:give(Echo, 'ern@process':fromAddress(ern_rt:self())) end,
+     {<<"Os.give">>, {fun() -> OsGive(Echo, FromAddress(ern_rt:self())) end,
                       fun() -> erlang:port_connect(HostEcho, erlang:self()) end}},
      {<<"Os.exit">>, {not_measured, <<"ends the program, or faults the caller">>}},
      %% a row of the runtime's, as Process.faults's is, which the host has
      %% no counterpart of
-     {<<"Os.termination">>, {fun() -> Os:termination(fun(Reply) -> Reply end) end, none}}].
+     {<<"Os.termination">>, {fun() -> OsTermination(fun(Reply) -> Reply end) end, none}}].
 
 %% Reads what a program or a socket gives back until Size bytes are in.
 echoed(Read, Size) ->
@@ -752,40 +789,58 @@ port_echoed(Port, Size, Count) ->
     receive {Port, {data, Bytes}} -> port_echoed(Port, Size, Count + byte_size(Bytes)) end.
 
 process_scenarios() ->
-    Process = 'ern@process',
-    Me = Process:fromAddress(ern_rt:self()),
+    Process = ern_named:functions('ern@process'),
+    ProcessFromAddress = Process(fromAddress),
+    ProcessStatus = Process(status),
+    ProcessLive = Process(live),
+    ProcessFaults = Process(faults),
+    Me = ProcessFromAddress(ern_rt:self()),
     [{<<"Process.fromAddress">>,
-      {fun() -> Process:fromAddress(ern_rt:self()) end, fun() -> erlang:self() end}},
-     {<<"Process.status">>, {fun() -> Process:status(Me) end,
+      {fun() -> ProcessFromAddress(ern_rt:self()) end, fun() -> erlang:self() end}},
+     {<<"Process.status">>, {fun() -> ProcessStatus(Me) end,
                              fun() -> erlang:process_info(erlang:self(),
                                                           [message_queue_len, status])
                              end}},
-     {<<"Process.live">>, {fun() -> Process:live() end, fun() -> erlang:processes() end}},
-     {<<"Process.faults">>, {fun() -> Process:faults(fun(Report) -> Report end) end, none}}].
+     {<<"Process.live">>, {fun() -> ProcessLive() end, fun() -> erlang:processes() end}},
+     {<<"Process.faults">>, {fun() -> ProcessFaults(fun(Report) -> Report end) end, none}}].
 
 supervisor_scenarios() ->
-    Supervisor = 'ern@supervisor',
-    Group = ern_rt:spawn(Supervisor:group('OneForOne', 'Unlimited'), <<"ern_measure:group">>),
+    Supervisor = ern_named:functions('ern@supervisor'),
+    SupervisorGroup = Supervisor(group),
+    SupervisorChild = Supervisor(child),
+    Group = ern_rt:spawn(SupervisorGroup('OneForOne', 'Unlimited'), <<"ern_measure:group">>),
     Waits = fun() -> receive stop -> 'Unit' end end,
     HostSpawned = fun() -> exit(erlang:spawn(Waits), kill) end,
     [{<<"Supervisor.group">>,
       {fun() ->
-               ern_rt:kill(ern_rt:spawn(Supervisor:group('OneForOne', 'Unlimited'),
+               ern_rt:kill(ern_rt:spawn(SupervisorGroup('OneForOne', 'Unlimited'),
                                         <<"ern_measure:group">>))
        end,
        HostSpawned}},
      {<<"Supervisor.child">>,
-      {fun() -> ern_rt:kill(ern_rt:spawn(Supervisor:child(Group, Waits), <<"ern_measure:child">>))
+      {fun() -> ern_rt:kill(ern_rt:spawn(SupervisorChild(Group, Waits), <<"ern_measure:child">>))
        end,
        HostSpawned}}].
 
 tcp_scenarios(Bytes) ->
-    Tcp = 'ern@tcp',
+    Tcp = ern_named:functions('ern@tcp'),
+    TcpListen = Tcp(listen),
+    TcpPort = Tcp(port),
+    TcpConnect = Tcp(connect),
+    TcpAccept = Tcp(accept),
+    TcpCloseListener = Tcp(closeListener),
+    TcpClose = Tcp(close),
+    TcpWrite = Tcp(write),
+    TcpRead = Tcp(read),
+    TcpGive = Tcp(give),
+    FromAddress = ern_named:function('ern@process', fromAddress),
+    TcpRemote = Tcp(remote),
+    TcpLocal = Tcp(local),
     Loopback = <<"127.0.0.1">>,
-    {'Right', Listener} = Tcp:listen(Loopback, 0),
-    {'Right', Port} = Tcp:port(Listener),
-    {'Right', Client} = Tcp:connect(Loopback, Port, 1000),
-    {'Right', Server} = Tcp:accept(Listener, 1000),
+    {'Right', Listener} = TcpListen(Loopback, 0),
+    {'Right', Port} = TcpPort(Listener),
+    {'Right', Client} = TcpConnect(Loopback, Port, 1000),
+    {'Right', Server} = TcpAccept(Listener, 1000),
     Options = [binary, {active, false}, {ip, {127, 0, 0, 1}}],
     {ok, HostListener} = gen_tcp:listen(0, Options),
     {ok, HostPort} = inet:port(HostListener),
@@ -793,16 +848,16 @@ tcp_scenarios(Bytes) ->
     {ok, HostServer} = gen_tcp:accept(HostListener),
     Size = byte_size(Bytes),
     [{<<"Tcp.listen">>,
-      {fun() -> {'Right', Other} = Tcp:listen(Loopback, 0), Tcp:closeListener(Other) end,
+      {fun() -> {'Right', Other} = TcpListen(Loopback, 0), TcpCloseListener(Other) end,
        fun() -> {ok, Other} = gen_tcp:listen(0, Options), gen_tcp:close(Other) end}},
      {<<"Tcp.closeListener">>, {within, <<"Tcp.listen">>}},
-     {<<"Tcp.port">>, {fun() -> Tcp:port(Listener) end, fun() -> inet:port(HostListener) end}},
+     {<<"Tcp.port">>, {fun() -> TcpPort(Listener) end, fun() -> inet:port(HostListener) end}},
      {<<"Tcp.connect">>,
       {fun() ->
-               {'Right', Near} = Tcp:connect(Loopback, Port, 1000),
-               {'Right', Far} = Tcp:accept(Listener, 1000),
-               Tcp:close(Near),
-               Tcp:close(Far)
+               {'Right', Near} = TcpConnect(Loopback, Port, 1000),
+               {'Right', Far} = TcpAccept(Listener, 1000),
+               TcpClose(Near),
+               TcpClose(Far)
        end,
        fun() ->
                {ok, Near} = gen_tcp:connect({127, 0, 0, 1}, HostPort, [binary, {active, false}]),
@@ -813,7 +868,7 @@ tcp_scenarios(Bytes) ->
      {<<"Tcp.accept">>, {within, <<"Tcp.connect">>}},
      {<<"Tcp.close">>, {within, <<"Tcp.connect">>}},
      {<<"Tcp.write">>,
-      {fun() -> Tcp:write(Client, Bytes, 1000), echoed(fun() -> Tcp:read(Server, 1000) end, Size)
+      {fun() -> TcpWrite(Client, Bytes, 1000), echoed(fun() -> TcpRead(Server, 1000) end, Size)
        end,
        fun() ->
                ok = gen_tcp:send(HostClient, Bytes),
@@ -821,10 +876,10 @@ tcp_scenarios(Bytes) ->
        end}},
      {<<"Tcp.read">>, {within, <<"Tcp.write">>}},
      {<<"Tcp.give">>,
-      {fun() -> Tcp:give(Client, 'ern@process':fromAddress(ern_rt:self())) end,
+      {fun() -> TcpGive(Client, FromAddress(ern_rt:self())) end,
        fun() -> gen_tcp:controlling_process(HostClient, erlang:self()) end}},
-     {<<"Tcp.remote">>, {fun() -> Tcp:remote(Client) end, fun() -> inet:peername(HostClient) end}},
-     {<<"Tcp.local">>, {fun() -> Tcp:local(Client) end, fun() -> inet:sockname(HostClient) end}}].
+     {<<"Tcp.remote">>, {fun() -> TcpRemote(Client) end, fun() -> inet:peername(HostClient) end}},
+     {<<"Tcp.local">>, {fun() -> TcpLocal(Client) end, fun() -> inet:sockname(HostClient) end}}].
 
 terminal_scenarios() ->
     [{<<"Terminal.subscribe">>, {not_measured, <<"reads a terminal">>}},
@@ -836,7 +891,9 @@ terminal_scenarios() ->
 %% spawn, a compute and a utilisation act on a peer, which a run of one node
 %% cannot reach; `make bench`'s node part measures them on real nodes.
 peer_scenarios() ->
-    Peer = 'ern@peer',
+    Peer = ern_named:functions('ern@peer'),
+    PeerOffer = Peer(offer),
+    PeerPeers = Peer(peers),
     Me = ern_rt:self(),
     {Name, Hash} = {<<"measured">>, <<0:256>>},
     Withdrawn = fun() ->
@@ -849,7 +906,7 @@ peer_scenarios() ->
     [{<<"Peer.service">>, {fun() -> ern_peer:service(Name, Hash) end,
                            fun() -> {'Service', Name, Hash} end}},
      {<<"Peer.offer">>,
-      {fun() -> Peer:offer(ern_peer:service(Name, Hash), Me), Withdrawn() end,
+      {fun() -> PeerOffer(ern_peer:service(Name, Hash), Me), Withdrawn() end,
        fun() ->
            ets:insert_new(Offers, {{Name, Hash}, Me, Me}),
            ets:insert(Offered, {Me, {Name, Hash}}),
@@ -861,34 +918,40 @@ peer_scenarios() ->
      {<<"Peer.spawnMonitored">>, AcrossNodes},
      {<<"Peer.compute">>, AcrossNodes},
      {<<"Peer.utilisation">>, AcrossNodes},
-     {<<"Peer.peers">>, {fun() -> Peer:peers() end,
+     {<<"Peer.peers">>, {fun() -> PeerPeers() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}}].
 
 %% Appendix G.4: the runtime's two measures beside the host's statistics,
 %% and the host's services' three, which answer None where the service does
 %% not run, as in this launch, beside the host's look for the service.
 load_scenarios() ->
-    Load = 'ern@load',
+    Load = ern_named:functions('ern@load'),
+    LoadRunQueue = Load(runQueue),
+    LoadSchedulers = Load(schedulers),
+    LoadCpu = Load(cpu),
+    LoadMemory = Load(memory),
+    LoadDisk = Load(disk),
     WallTime = fun() ->
                    erlang:system_flag(scheduler_wall_time, true),
                    erlang:statistics(scheduler_wall_time),
                    erlang:statistics(scheduler_wall_time)
                end,
-    [{<<"Load.runQueue">>, {fun() -> Load:runQueue() end,
+    [{<<"Load.runQueue">>, {fun() -> LoadRunQueue() end,
                             fun() -> erlang:statistics(total_run_queue_lengths) end}},
-     {<<"Load.schedulers">>, {fun() -> Load:schedulers(0) end, WallTime}},
-     {<<"Load.cpu">>, {fun() -> Load:cpu() end, fun() -> erlang:whereis(cpu_sup) end}},
-     {<<"Load.memory">>, {fun() -> Load:memory() end, fun() -> erlang:whereis(memsup) end}},
-     {<<"Load.disk">>, {fun() -> Load:disk() end, fun() -> erlang:whereis(disksup) end}}].
+     {<<"Load.schedulers">>, {fun() -> LoadSchedulers(0) end, WallTime}},
+     {<<"Load.cpu">>, {fun() -> LoadCpu() end, fun() -> erlang:whereis(cpu_sup) end}},
+     {<<"Load.memory">>, {fun() -> LoadMemory() end, fun() -> erlang:whereis(memsup) end}},
+     {<<"Load.disk">>, {fun() -> LoadDisk() end, fun() -> erlang:whereis(disksup) end}}].
 
 %% Appendix G.5: a pick over no name, which spawns the process that
 %% gathers and calls it, beside a process spawned that answers and a
 %% receive; a pick over names asks peers, which a run of one node cannot
 %% reach, and `make bench`'s node part measures a utilisation on real nodes.
 placement_scenarios() ->
-    Placement = 'ern@placement',
+    Placement = ern_named:functions('ern@placement'),
+    PlacementLeastBusy = Placement(leastBusy),
     [{<<"Placement.leastBusy">>,
-      {fun() -> Placement:leastBusy([], 1000) end,
+      {fun() -> PlacementLeastBusy([], 1000) end,
        fun() ->
            Self = erlang:self(),
            Ref = make_ref(),
@@ -900,30 +963,40 @@ placement_scenarios() ->
 %% at once in a launch that is no node, beside a process spawned and
 %% ended; the service's hash is no type's, since nothing finds it.
 proxy_scenarios() ->
-    Proxy = 'ern@proxy',
+    Proxy = ern_named:functions('ern@proxy'),
+    ProxyStart = Proxy(start),
     Service = {'Service', <<"measured">>, <<0:256>>},
     [{<<"Proxy.start">>,
-      {fun() -> ern_rt:kill(Proxy:start(Service, 1000)) end,
+      {fun() -> ern_rt:kill(ProxyStart(Service, 1000)) end,
        fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].
 
 ets_scenarios() ->
-    Ets = 'ern@ets',
-    Table = Ets:new(),
-    [Ets:put(Table, Key, Key) || Key <- lists:seq(1, ?SIZE)],
+    Ets = ern_named:functions('ern@ets'),
+    EtsNew = Ets(new),
+    EtsPut = Ets(put),
+    EtsClose = Ets(close),
+    EtsGet = Ets(get),
+    EtsContains = Ets(contains),
+    EtsRemove = Ets(remove),
+    EtsSize = Ets(size),
+    EtsClear = Ets(clear),
+    EtsToList = Ets(toList),
+    Table = EtsNew(),
+    [EtsPut(Table, Key, Key) || Key <- lists:seq(1, ?SIZE)],
     Host = ets:new(ern_measure, [set, public]),
     [ets:insert(Host, {Key, Key}) || Key <- lists:seq(1, ?SIZE)],
-    [{<<"Ets.new">>, {fun() -> Ets:close(Ets:new()) end,
+    [{<<"Ets.new">>, {fun() -> EtsClose(EtsNew()) end,
                       fun() -> ets:delete(ets:new(ern_measure, [set, public])) end}},
      {<<"Ets.close">>, {within, <<"Ets.new">>}},
-     {<<"Ets.put">>, {fun() -> Ets:put(Table, 7, 7) end, fun() -> ets:insert(Host, {7, 7}) end}},
-     {<<"Ets.get">>, {fun() -> Ets:get(Table, 7) end, fun() -> ets:lookup(Host, 7) end}},
-     {<<"Ets.contains">>, {fun() -> Ets:contains(Table, 7) end, fun() -> ets:member(Host, 7) end}},
-     {<<"Ets.remove">>, {fun() -> Ets:remove(Table, 0) end, fun() -> ets:delete(Host, 0) end}},
-     {<<"Ets.size">>, {fun() -> Ets:size(Table) end, fun() -> ets:info(Host, size) end}},
+     {<<"Ets.put">>, {fun() -> EtsPut(Table, 7, 7) end, fun() -> ets:insert(Host, {7, 7}) end}},
+     {<<"Ets.get">>, {fun() -> EtsGet(Table, 7) end, fun() -> ets:lookup(Host, 7) end}},
+     {<<"Ets.contains">>, {fun() -> EtsContains(Table, 7) end, fun() -> ets:member(Host, 7) end}},
+     {<<"Ets.remove">>, {fun() -> EtsRemove(Table, 0) end, fun() -> ets:delete(Host, 0) end}},
+     {<<"Ets.size">>, {fun() -> EtsSize(Table) end, fun() -> ets:info(Host, size) end}},
      {<<"Ets.clear">>,
-      {fun() -> Ets:clear(Table), Ets:put(Table, 7, 7) end,
+      {fun() -> EtsClear(Table), EtsPut(Table, 7, 7) end,
        fun() -> ets:delete_all_objects(Host), ets:insert(Host, {7, 7}) end}},
-     {<<"Ets.toList">>, {fun() -> Ets:toList(Table) end, fun() -> ets:tab2list(Host) end}}].
+     {<<"Ets.toList">>, {fun() -> EtsToList(Table) end, fun() -> ets:tab2list(Host) end}}].
 
 %%
 %% The report

@@ -2,41 +2,46 @@
 
 -dialyzer(no_return).
 
--export([main/0, '$spawned'/2]).
+-export(['$3'/0, '$spawned'/2]).
 
-main() ->
-    ern@io:println(sign(-1)),
-    ern@io:println(sign(0)),
-    ern@io:println(sign(7)),
-    ern@io:println(describe({'Some',
-                             {'Snapshot', <<"a">>, 2}})),
-    ern@io:println(describe('None')),
-    ern@io:println(ern@int:toString(negate(3))),
-    ern@io:println(ern@int:toString(ern@list:size(whole([1,
-                                                         2,
-                                                         3])))),
-    ern@io:println(ern@int:toString(side({'Square', 4}))).
+%% Patterns.main
+'$3'() ->
+    ern@io:'$8'('$4'(-1)),
+    ern@io:'$8'('$4'(0)),
+    ern@io:'$8'('$4'(7)),
+    ern@io:'$8'('$5'({'Some', {'Snapshot', <<"a">>, 2}})),
+    ern@io:'$8'('$5'('None')),
+    ern@io:'$8'(ern@int:'$24'('$7'(3))),
+    ern@io:'$8'(ern@int:'$24'(ern@list:'$34'('$9'([1,
+                                                   2,
+                                                   3])))),
+    ern@io:'$8'(ern@int:'$24'('$8'({'Square', 4}))).
 
-sign(Number_1) ->
+%% Patterns.sign
+'$4'(Number_1) ->
     case Number_1 of
         -1 -> <<"minus one">>;
         0 -> <<"zero">>;
         _ -> <<"other">>
     end.
 
-describe(Found_2) ->
+%% Patterns.describe
+'$5'(Found_2) ->
     case Found_2 of
         {'Some', Snapshot_4 = {'Snapshot', Directory_3, _}} ->
             <<Directory_3/binary, " ",
-              (ern@int:toString(seen(Snapshot_4)))/binary>>;
+              (ern@int:'$24'('$6'(Snapshot_4)))/binary>>;
         'None' -> <<"nothing">>
     end.
 
-seen({'Snapshot', _, Count_5}) -> Count_5.
+%% Patterns.seen
+'$6'({'Snapshot', _, Count_5}) -> Count_5.
 
-negate(Number_6) -> -Number_6.
+%% Patterns.negate
+'$7'(Number_6) -> -Number_6.
 
-side(Shape_7) ->
+%% Patterns.side
+'$8'(Shape_7) ->
     begin
         Body_8 = fun (Size_9) -> Size_9 end,
         case Shape_7 of
@@ -46,10 +51,11 @@ side(Shape_7) ->
         end
     end.
 
-whole(List_12) ->
+%% Patterns.whole
+'$9'(List_12) ->
     case List_12 of
         All_15 = [First_13 | Rest_14] -> All_15;
         [] -> []
     end.
 
-'$spawned'(main, []) -> main().
+'$spawned'('$3', []) -> '$3'().

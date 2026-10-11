@@ -6,6 +6,7 @@
 -export([chunk_name/0, read/1, build/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 -spec chunk_name() -> binary().
 chunk_name() ->
@@ -57,15 +58,33 @@ doc_entry(Declaration, Prefix, Env) ->
          false -> (doc_meta(Declaration))#{private => true}
      end}.
 
-%% A type declaration is a type entry; everything else is a function of the
-%% module, under the name and arity the module exports it at.
+%% A type declaration is a type entry; everything else is a function entry,
+%% under its Ernest name, a member's its type's and its own joined by `.`,
+%% and the arity of its unit's function, a requirement's members after its
+%% parameters (report §4.9). The unit names its functions by their
+%% position (§11.1); the documentation names them as the program does. The names the
+%% host gives every module, `module_info` and `record_info`, get a `$`, as
+%% no Ernest name can spell, so that the host's own documentation tools,
+%% which read the chunk, do not take one for the host's function.
 doc_key(#type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
 doc_key(#abstract_declaration{declaration = #type_declaration{name = Name, params = Params}}) ->
     {type, Name, length(Params)};
 doc_key(#foreign_type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
-doc_key(Declaration) ->
-    {Function, Arity} = ern_emitter:export(Declaration),
-    {function, Function, Arity}.
+doc_key(#fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                        requirement = Requirement}) ->
+    {function, function_name(MemberOf, Name), length(Params) + length(Requirement)};
+doc_key(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                                scheme = #scheme{requirement = Requirement}}) ->
+    {function, function_name(MemberOf, Name), length(Params) + length(Requirement)};
+doc_key(#let_declaration{name = Name}) ->
+    {function, function_name(undefined, Name), 0}.
+
+function_name(undefined, Name) -> function_atom(Name);
+function_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
+
+function_atom(module_info) -> 'module_info$';
+function_atom(record_info) -> 'record_info$';
+function_atom(Name) -> Name.
 
 doc_signature(Declaration, Prefix, Env) ->
     [unicode:characters_to_binary(Line)

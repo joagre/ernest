@@ -17,12 +17,16 @@
 %%
 %% The module atom is the module's path with @ for / and the prefix ern@,
 %% as Gleam names gleam@list, so Ernest never claims a bare name on the BEAM.
-%% Functions keep their local names; only exported ones are exported. Every
+%% A unit's functions are named by their position in it (report §11.1):
+%% the type CounterMsg is the module's first definition, main the second,
+%% '$2', and count the third, '$3'; only exported ones are exported. Every
 %% Address is a pid, a Reply is an alias, and the process primitives go
 %% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
 %% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
 %% is binary concatenation; stdlib calls go to the namespace's module,
-%% 'ern@int' for Int. A call gives the runtime what an answer from foreign
+%% 'ern@int' for Int, to the function at its position there, so this
+%% target changes where the library's positions do. A call gives the runtime
+%% what an answer from foreign
 %% code is checked by, the reply's descriptor and the fault's text, and a
 %% message from a foreign process is checked by the proxy that delivered
 %% it, so a receive checks nothing (report §8.4).
@@ -34,7 +38,7 @@
 %% report §3.9: a function that never returns is meant, which Dialyzer is told
 -dialyzer(no_return).
 
--export([main/0, '$spawned'/2]).
+-export(['$2'/0, '$spawned'/2]).
 
 %% export fn main() : Unit with m = {
 %%     let counter = spawn(fn() = count(0));
@@ -45,16 +49,16 @@
 %%       | None -> Io.println("counter is not answering")
 %%     }
 %% }
-main() ->
-    Counter = ern_rt:spawn(fun() -> count(0) end, <<"Counter.main:17">>),
+'$2'() ->
+    Counter = ern_rt:spawn(fun() -> '$3'(0) end, <<"Counter.main:17">>),
     ern_rt:send(Counter, {'Inc', 5}),
     ern_rt:send(Counter, {'Inc', 3}),
     case ern_rt:call(Counter, fun(Reply) -> {'Get', Reply} end, 1000,
                      {int, <<"reply does not match Int">>}) of
         {'Some', Total} ->
-            'ern@io':println(<<"count is ", ('ern@int':toString(Total))/binary>>);
+            'ern@io':'$8'(<<"count is ", ('ern@int':'$24'(Total))/binary>>);
         'None' ->
-            'ern@io':println(<<"counter is not answering">>)
+            'ern@io':'$8'(<<"counter is not answering">>)
     end.
 
 %% fn count(total : Int) : Unit with CounterMsg = receive {
@@ -66,22 +70,22 @@ main() ->
 %% Every receive takes first the restart a supervisor asks for (report
 %% §6.9), which arrives before every other message, and then the fault a
 %% foreign message that did not match left in its place (§8.4).
-count(Total) ->
+'$3'(Total) ->
     receive
         '$ern_restart' ->
             ern_rt:restart_now();
         {'$ern_fault', Cause} ->
             ern_rt:fault(Cause);
         {'Inc', Amount} ->
-            count(Total + Amount);
+            '$3'(Total + Amount);
         {'Get', Reply} ->
             ern_rt:answer(Reply, Total),
-            count(Total);
+            '$3'(Total);
         {'Upgrade', Migrate, Next} ->
             Next(Migrate(Total))
     end.
 
-%% A function of this module a spawn on a peer may start, by its name, run
-%% in the calling process over what it captured, as the peer's code table
-%% finds it by its identity (report §8.7).
-'$spawned'(main, []) -> main().
+%% A function of this module a spawn on a peer may start, by its position,
+%% run in the calling process over what it captured, as the peer's code
+%% table finds it by its identity (report §8.7).
+'$spawned'('$2', []) -> '$2'().

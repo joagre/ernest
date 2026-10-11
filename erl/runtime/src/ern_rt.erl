@@ -1591,12 +1591,51 @@ fault(Cause, Trace) ->
     throw({ern, fault, Cause, Trace}).
 
 %% Report §11.2: the host's stack as lines to print beneath a fault, the
-%% innermost first, each a function and where in its source it was.
+%% innermost first, each a function and where in its source it was. A
+%% unit's function, which the unit names by its position (§11.1), is shown by
+%% the name the unit's build gives its definition (ern_code:function_text/2),
+%% written as the host writes a function's name.
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
     unicode:characters_to_binary(
-      [io_lib:format("    ~p:~p/~p~ts~n", [ErlangModule, Function, arity(Arguments), place(Info)])
+      [io_lib:format("    ~p:~ts/~p~ts~n", [ErlangModule, function_shown(ErlangModule, Function),
+                                             arity(Arguments), place(Info)])
        || {ErlangModule, Function, Arguments, Info} <- lists:sublist(Stack, 12)]).
+
+function_shown(ErlangModule, Function) ->
+    case ern_code:function_text(ErlangModule, Function) of
+        none -> io_lib:format("~p", [Function]);
+        Text -> atom_written(Text)
+    end.
+
+%% A name as the host writes an atom of it, quoted where it is no plain
+%% atom, without making the atom: a word of a lower-case letter followed by
+%% letters, digits, `_` and `@`, and no reserved word, is written as it is.
+atom_written([First | Rest] = Text) when First >= $a, First =< $z ->
+    Plain = lists:all(fun(Char) ->
+                              (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso Char =< $Z)
+                                  orelse (Char >= $0 andalso Char =< $9)
+                                  orelse Char =:= $_ orelse Char =:= $@
+                      end, Rest),
+    case Plain andalso not lists:member(Text, reserved_words()) of
+        true -> Text;
+        false -> quoted_atom(Text)
+    end;
+atom_written(Text) ->
+    quoted_atom(Text).
+
+quoted_atom(Text) ->
+    [$' | lists:append([case Char of
+                            $' -> "\\'";
+                            $\\ -> "\\\\";
+                            _ -> [Char]
+                        end || Char <- Text])] ++ "'".
+
+%% The host's reserved words, which it quotes as atoms.
+reserved_words() ->
+    ["after", "and", "andalso", "band", "begin", "bnot", "bor", "bsl", "bsr", "bxor", "case",
+     "catch", "cond", "div", "else", "end", "fun", "if", "let", "maybe", "not", "of", "or",
+     "orelse", "receive", "rem", "try", "when", "xor"].
 
 arity(Arguments) when is_list(Arguments) -> length(Arguments);
 arity(Arguments) -> Arguments.

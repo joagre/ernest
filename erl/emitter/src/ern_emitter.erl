@@ -1,9 +1,27 @@
-%% The compiler: typed AST to Erlang abstract format, then to a BEAM module
-%% with the interface as the chunk "ErnI" (report §11.1): the
-%% canonical interface, a hash of the source, and per dependency the hash
-%% of the interface compiled against; the documentation as EEP 48's
-%% chunk "Docs" (§11.4); and each definition's canonical form and hash as
-%% the chunk "ErnC" (§8.7, Appendix H). Values follow report §8.4.
+%% The emitter, the compiler's back end: a unit's Erlang abstract format
+%% made from its definitions' canonical forms (report §8.7, §11.1, Appendix
+%% H), with what its module's build adds that is no definition's and the
+%% link of what the forms reference outside the unit (ern_unit.hrl). It
+%% reads no typed tree and no checker's environment: what the code depends
+%% on is in the forms, and where they reference another unit, in the link
+%% (ern_compile makes both for a build and for the shell's loads). Values
+%% follow report §8.4.
+%%
+%% Report §11.1: a unit's functions are named by their position in it, so
+%% that a unit adds one atom to the host, its own name. Its definitions
+%% take the positions from 1 in the order of their forms, a type taking its
+%% position though it has no function, and its foreign functions those
+%% after them, in the order the module declares them: the function at
+%% position N is '$N'. The function a local function of the definition at
+%% N is lifted to, at its position P among the definition's lambdas and
+%% local functions (Appendix H), is '$N.P', and the entry a spawn on a peer
+%% starts a lambda or a local function by is '$N.P.entry' (§8.7). A
+%% descriptor's function is '$type_K', K counting the unit's descriptors.
+%% What the runtime calls on every unit
+%% keeps its name: '$init'/0, '$deps'/0, '$tests'/0, '$spawned'/2 and
+%% '$code'/0. Each function's Ernest name is in '$code'/0, by which a caller
+%% from Erlang and a fault's trace find it (ern_code), and in a comment
+%% above it in the code for reading, `--emit-erl` and the golden files.
 %%
 %% Report §5.1's left-to-right order of a call's arguments, a tuple's and a
 %% list's elements and an operator's operands rests on the host compiler's,
@@ -12,528 +30,402 @@
 %% host's order fails `make test`. A long literal's elements, and a
 %% bitstring's values and sizes where one is bound, are put in order here.
 %%
-%% One traversal does the three pre-passes on the way: every Ernest binding
-%% gets a fresh Erlang variable (Ernest shadows, Erlang does not), local fns
-%% are lifted to module functions taking the block's free variables first,
+%% One traversal does the three pre-passes on the way: every local gets a
+%% fresh Erlang variable (Ernest shadows, Erlang does not), local fns are
+%% lifted to module functions taking the block's free variables first,
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([compile/4, compile/5, forms/3, erl_source/3, erl_source/4, export/1, function_atom/1,
-         function_name/2]).
+-export([unit/1, source/1, function_name/1]).
 
--include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
 -include_lib("typer/include/ern_canonical.hrl").
+-include_lib("emitter/include/ern_unit.hrl").
 
 %% The elements past which a list or a tuple literal is built an element at
 %% a time, so that the host's limit of values live at a call is never met.
 -define(LONG_LITERAL, 256).
 
-
-%% Emission context, threaded through everything. namespace: the module's;
-%% erlang_module: the Erlang module it compiles to; env: the checker's
-%% environment; declaration: the Ernest name of the declaration being
-%% compiled, [Name] or [MemberOf, Name], which a spawn site names;
-%% variables: Ernest name => Erlang variable name; counter: the last number
-%% a made variable or name took; locals: local fn name => #local_fn{} (see
-%% Blocks); lifted: module functions produced by lifting, reversed;
-%% top_names: top-level {MemberOf, Name} => arity | value; descriptors:
-%% descriptor term => the name of the module function returning it;
-%% pattern_guards: Erlang guard forms a pattern needs on its clause, a
-%% float segment's zero (report §3.1), taken by the clause that uses them;
-%% session_offset: where the module is an input of the shell's session
-%% (report §11.2), the lines before its first in its file, since its spawn
-%% sites are written as the session writes names; else false. members:
-%% {TypeVariableId, Member} => the Erlang variable of a member the
-%% enclosing declarations' requirements name (report §4.9), each a
-%% parameter the program does not write. standard: whether the module is
-%% the standard library's own. outer: while a pattern is compiled, the
-%% variables in scope where it began, else undefined. canonical: the
-%% module's canonical forms as ern_canonical:module/5 gives them, by which
-%% a service and a spawn on a peer name a type and a function (report §8.7).
-%% let_lambdas: the Erlang variable a `let` binds to a lambda => the lambda
-%% and the variables in force at it, which its captures are, for a spawn on
-%% a peer that names it (§3.11). entries: each lambda's or local fn's
-%% identity a spawn on a peer starts => its entry, the function of the
-%% module that runs it over its captures (§8.7, §11.1). units: each
-%% namespace whose unit is not its module's Erlang name => its unit, which
-%% the shell gives where a reload brought a module's version as a unit of
-%% its own (report §11.2). site_namespace: the namespace a spawn site names
-%% a declaration under, the module's own, or a reload's version's, which
-%% the shell gives (report §11.2). builds_functions: whether the module
-%% builds a function value, a fun of its own code that may be held anywhere
-%% (function_value/2), which the shell reads to keep an input (§11.2).
--record(emit_context, {namespace, erlang_module, env, declaration, variables = #{},
-                       counter = 0, locals = #{}, lifted = [], top_names = #{},
-                       descriptors = #{}, pattern_guards = [], session_offset = false,
-                       standard = false, members = #{}, outer, canonical, let_lambdas = #{},
-                       entries = #{}, units = #{}, site_namespace,
-                       builds_functions = false}).
+%% Emission context, threaded through everything. unit: the #unit{} being
+%% made; namespace: the module's; erlang_module: the unit's name; own: the
+%% unit's definitions and foreign functions (#own{}); definition: the
+%% definition being compiled, {Position, Hash, QualifiedName}; declaration:
+%% its Ernest name, [Name] or [MemberOf, Name], which a spawn site names;
+%% restrictions: each type variable of the definition its schemes
+%% quantify, by its number, with its restrictions, by which a check's
+%% cause prints it (§11.5); variables: a local's number => its Erlang
+%% variable; counter: the last number a made variable took; locals: a
+%% local fn's number => its #local_fn{} (see Blocks); lifted: module
+%% functions produced by lifting, reversed; descriptors: descriptor term =>
+%% the name of the module function returning it; pattern_guards: Erlang
+%% guard forms a pattern needs on its clause, a float segment's zero
+%% (report §3.1), taken by the clause that uses them; members: {Number,
+%% Member} => the Erlang variable of a member the enclosing declarations'
+%% requirements name (report §4.9), each a parameter the program does not
+%% write; outer: while a pattern is compiled, the variables in scope where
+%% it began, else undefined; let_lambdas: the Erlang variable a `let` binds
+%% to a lambda => the lambda and the variables in force at it, which its
+%% captures are, for a spawn on a peer that names it (§3.11); entries: each
+%% lambda's or local fn's entry a spawn on a peer starts, by its
+%% definition's position and its own (§8.7, §11.1); builds_functions:
+%% whether the unit builds a function value, a fun of its own code that may
+%% be held anywhere (function_value/2), which the shell reads to keep an
+%% input (§11.2).
+-record(emit_context, {unit, namespace, erlang_module, own, definition, declaration,
+                       restrictions = #{}, variables = #{}, counter = 0, locals = #{},
+                       lifted = [], descriptors = #{}, pattern_guards = [], members = #{},
+                       outer, let_lambdas = #{}, entries = #{}, builds_functions = false}).
+%% The unit's own (report §11.1, Appendix H): forms, each definition's
+%% position => {its #definition{}, its form prepared (prepared/2)}; hashes,
+%% each definition's hash => the position of the first with it, two
+%% definitions with one hash being one (§8.7); names, each definition's
+%% qualified name, the module's and the form's, => its position; foreign,
+%% each foreign function's qualified name as a form writes it => {its
+%% position, its #foreign_function{}}.
+-record(own, {forms = #{}, hashes = #{}, names = #{}, foreign = #{}}).
 %% A spawn on a peer's entry (report §8.7, §11.1): the function's name and
-%% arity, the enclosing definition's qualified name, the identity's hash
-%% and position, and the reach, which the module's '$code'/0 lists.
--record(entry, {function, arity, qualified_name, hash, position, reach}).
+%% arity, the enclosing definition's qualified name, its hash and the
+%% position, which the unit's '$code'/0 lists with the reach.
+-record(entry, {function, arity, qualified_name, hash, position}).
 %% A local fn of a block (see Blocks): lifted_name, the module function's
-%% name; captured, the free Ernest names of its body that the enclosing
-%% scopes or its block's lets bind; enclosing, the Erlang variables of the
-%% enclosing blocks' local fns it references; references, the local fns of
-%% its block it references; members, the Erlang variables of the enclosing
-%% requirements' members its body uses; snapshot, the variables in force at
-%% its declaration, once passed. All but references are what it closes over.
-%% declaration: the fn itself, whose body a spawn on a peer reads (§8.7).
+%% name; captured, the free locals of its body that the enclosing scopes or
+%% its block's lets bind; enclosing, the Erlang variables of the enclosing
+%% blocks' local fns it references; references, the local fns of its block
+%% it references; members, the Erlang variables of the enclosing
+%% requirements' members its body uses; snapshot, the variables in force
+%% at its declaration, once passed. All but references are what it closes
+%% over. function: its form, which a spawn on a peer reads (§8.7);
+%% position: its position in its definition; source: where it is written.
 -record(local_fn, {lifted_name, captured, enclosing, references, members = [],
-                   snapshot = pending, declaration}).
+                   snapshot = pending, function, position, source}).
 
 %%
 %% Entry points
 %%
 
--spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
-compile(Namespace, Declarations, Interface, Env) ->
-    compile(Namespace, Declarations, Interface, Env, #{source_hash => <<>>, deps => []}).
+%% Report §11.1: the unit's abstract forms, and whether it builds a function
+%% value (§11.2). Every rule a program can break has been checked: what the
+%% emitter cannot emit, or emits and the host does not compile, is a defect
+%% of the toolchain, raised as one, which `ern` reports as its own failure
+%% (report §11).
+-spec unit(#unit{}) -> {[erl_parse:abstract_form()], boolean()}.
+unit(Unit) ->
+    {Forms, BuildsFunctions} = syntax(Unit),
+    {erl_syntax:revert_forms(Forms), BuildsFunctions}.
 
-%% Build: the source's hash and its path from the build root, and the
-%% dependencies' interface hashes, go into the chunk beside the interface
-%% (report §11.1); `source` goes to the documentation; `session_offset`
-%% marks an input of the shell, which is compiled and not written, and is
-%% not kept, with the line offset its spawn sites are written with;
-%% `form_namespace`, which the shell gives an input, is the namespace its
-%% forms and its '$code'/0 name what the session declares under, the
-%% session's one (Appendix H, §11.2), and is not kept; `standard` marks a
-%% module of the standard library's own source root.
-%% `units` names the unit of each namespace whose unit is not its module's
-%% Erlang name, the module's own among them, as the shell gives them where
-%% a reload brought a version as a unit of its own (report §11.2), and is
-%% not kept; `site_namespace`, which the shell gives such a version, is the
-%% namespace its spawn sites name its declarations under, `Counter$2`
-%% (§11.2), and is not kept. The chunk records beside the build's facts
-%% whether the module builds a function value, `builds_functions`, by which
-%% the shell keeps an input's code (§11.2). The declarations are the
-%% checker's, so every rule a program can break has
-%% been checked: what the emitter cannot emit, or emits and the host does not
-%% compile, is a defect of the toolchain, raised as one, which `ern` reports
-%% as its own failure (report §11).
--spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env(),
-              #{source_hash := binary(), source_path => binary(),
-                deps := [{[atom()], binary()}], compiler => binary(),
-                stdlib => binary() | none, source => binary(),
-                session_offset => non_neg_integer(), form_namespace => [atom()],
-                standard => boolean(), units => #{[atom()] => atom()},
-                site_namespace => [atom()]}) ->
-          {ok, atom(), binary()}.
-compile(Namespace, Declarations, Interface, Env, Build) ->
-    %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
-    %% the hashes in the interface, by which a dependent's forms name its
-    %% definitions, and the hashes of other modules' definitions its own
-    %% forms name, which the recompile rule compares
-    Canonical = ern_canonical:module(Namespace, Declarations, Env,
-                                     maps:get(standard, Build, false),
-                                     maps:get(form_namespace, Build, Namespace)),
-    #{references := References} = Canonical,
-    {Forms, BuildsFunctions} =
-        module_forms(Namespace, Declarations, Env, Build#{code => true, canonical => Canonical}),
-    Facts = (maps:without([source, session_offset, form_namespace, standard, units,
-                           site_namespace], Build))
-        #{references => References, builds_functions => BuildsFunctions},
-    Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
-    Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
-                                         maps:get(source, Build, <<>>))),
-    Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs},
-              {ern_canonical:chunk_name(), ern_canonical:encode(Canonical)}],
-    %% report §11: the host's compiler takes nothing from the environment
-    Options = [return_errors, debug_info, {extra_chunks, Chunks}],
-    case compile:noenv_forms(Forms, Options) of
-        {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
-        {error, Errors, _} -> compiled_without_type_pass(Forms, Options, Errors)
-    end.
+%% Report §11.1: the unit as Erlang source, for reading (`--emit-erl`), each
+%% function under a comment that names it as the program does.
+-spec source(#unit{}) -> unicode:chardata().
+source(Unit) ->
+    {Forms, _} = syntax(Unit),
+    [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
-%% A workaround of a defect of OTP's compiler, decided on 2026-10-05,
-%% docs/otp_bugs.md's report 3, the compiler's validator refusing what its
-%% type pass made through rem. OTP 29's compiler 10.0.5 narrows a recursive function's
-%% parameter to a range its call's argument breaks, a `rem` whose divisor's
-%% range holds 0 among them, and its own validator then refuses valid
-%% Erlang. A module the validator refuses so is compiled again with that
-%% type pass off, `no_type_opt`, its code then a little slower, and no other
-%% module is. The workaround goes when an OTP that Ernest requires has the
-%% fix; another refusal is the emitter's defect, as before.
-compiled_without_type_pass(Forms, Options, Errors) ->
-    Refused = case refused_by_validator(Errors) of
-                  true -> compile:noenv_forms(Forms, [no_type_opt | Options]);
-                  false -> {error, Errors, []}
-              end,
-    case Refused of
-        {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
-        {error, Errors1, _} -> erlang:error({emitted_erlang_does_not_compile, Errors1})
-    end.
+%% Report §11.1: the Erlang name of the function at Position in its unit.
+-spec function_name(pos_integer()) -> atom().
+function_name(Position) ->
+    list_to_atom([$$ | integer_to_list(Position)]).
 
-refused_by_validator(Errors) ->
-    lists:any(fun({_, Refusals}) -> lists:keymember(beam_validator, 2, Refusals) end, Errors).
+%% The function a local fn at Position in the definition at Definition is
+%% lifted to.
+lifted_name(Definition, Position) ->
+    list_to_atom([$$ | integer_to_list(Definition)] ++ [$. | integer_to_list(Position)]).
 
-%% The abstract forms, for the golden tests and erl_prettypr.
--spec forms([atom()], [tuple()], ern_typecheck:env()) -> [erl_parse:abstract_form()].
-forms(Namespace, Declarations, Env) ->
-    forms(Namespace, Declarations, Env, #{}).
+%% The entry a spawn on a peer starts the lambda or the local fn at
+%% Position in the definition at Definition by.
+entry_name(Definition, Position) ->
+    list_to_atom([$$ | integer_to_list(Definition)] ++ [$. | integer_to_list(Position)]
+                 ++ ".entry").
 
-%% Report §8.5: with the modules this one depends on, which it declares
-%% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
-%% dependency order without reading a compiled file. Report §8.7: a
-%% service's and a spawn's hashes are the canonical forms', which a build
-%% gives and the forms for reading compute.
--spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
-forms(Namespace, Declarations, Env, Build) ->
-    {Forms, _} = module_forms(Namespace, Declarations, Env, Build),
-    Forms.
-
-%% The forms, and whether the module builds a function value.
-module_forms(Namespace, Declarations, Env, Build) ->
-    Units = maps:get(units, Build, #{}),
-    ErlangModule = maps:get(Namespace, Units, ern_namespace:erlang_module(Namespace)),
-    Dependencies = [Dependency || {Dependency, _} <- maps:get(deps, Build, [])],
-    Standard = maps:get(standard, Build, false),
-    Canonical = case Build of
-                    #{canonical := Given} -> Given;
-                    _ -> ern_canonical:module(Namespace, Declarations, Env, Standard)
-                end,
-    Context = #emit_context{namespace = Namespace, erlang_module = ErlangModule, env = Env,
-                            top_names = top_names(Declarations),
-                            session_offset = maps:get(session_offset, Build, false),
-                            standard = Standard, canonical = Canonical, units = Units,
-                            site_namespace = maps:get(site_namespace, Build, Namespace)},
-    {DeclarationFunctions, Context1} = lists:mapfoldl(fun declaration/2, Context, Declarations),
-    Lets = [Declaration || #let_declaration{} = Declaration <- Declarations],
-    {InitFunction, Context2} = init_function(Lets, Context1),
-    TestsFunction = tests_function(Lets),
-    DependenciesFunction = dependencies_function(Dependencies, Context),
-    Entries = maps:values(Context2#emit_context.entries),
-    SpawnedFunction = spawned_function(Declarations, Entries),
-    Bodies = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
-        ++ SpawnedFunction ++ Context2#emit_context.lifted,
-    CodeFunction = case Build of
-                       #{code := true} ->
+syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitions,
+             foreign_functions = ForeignFunctions, standard = Standard, code = Code} = Unit) ->
+    Placed = lists:enumerate(Definitions),
+    ForeignPlaced = lists:enumerate(length(Definitions) + 1, ForeignFunctions),
+    Own = own(Placed, ForeignPlaced, Unit),
+    Context = #emit_context{unit = Unit, namespace = Namespace, erlang_module = ErlangModule,
+                            own = Own},
+    {DefinitionFunctions, Context1} = lists:mapfoldl(fun definition_functions/2, Context,
+                                                     Placed),
+    {ForeignForms, Context2} = lists:mapfoldl(fun foreign_function/2, Context1, ForeignPlaced),
+    {InitFunction, Context3} = init_function(Unit, Context2),
+    TestsFunction = tests_function(Placed, Context3),
+    DependenciesFunction = dependencies_function(Unit),
+    Entries = maps:values(Context3#emit_context.entries),
+    SpawnedFunction = spawned_function(Placed, ForeignPlaced, Entries, Context3),
+    Lifted = lists:reverse(Context3#emit_context.lifted),
+    Bodies = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
+        ++ SpawnedFunction ++ Lifted,
+    CodeFunction = case Code of
+                       true ->
                            Calls = calls(Bodies, ErlangModule, Standard),
-                           Named = {Namespace, maps:get(form_namespace, Build, Namespace)},
-                           code_function(code(Named, ErlangModule, Declarations, Canonical,
-                                              Entries)
+                           code_function(code(Placed, ForeignPlaced, Entries, Context3)
                                          ++ [{Namespace, {calls, Calls}}]);
-                       _ ->
+                       false ->
                            []
                    end,
-    Exports = [export(Declaration) || Declaration <- Declarations, exported(Declaration)]
-        ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
+    Exports = exports(Placed, ForeignPlaced, Context3)
+        ++ [{'$init', 0} || InitFunction =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
         ++ [{'$deps', 0} || DependenciesFunction =/= []]
         ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []],
-    %% an Ernest function named like an auto-imported BIF, `size`, `max`,
-    %% is called by its own name: the auto-import is switched off for it
-    Clashes = [{Function, Arity}
-               || {Function, Arity} <- top_functions(Context#emit_context.top_names),
-                  erl_internal:bif(Function, Arity)],
-    NoImport = case Clashes of
-                   [] -> [];
-                   _ -> [erl_syntax:attribute(erl_syntax:atom(compile),
-                                              [erl_syntax:abstract({no_auto_import, Clashes})])]
-               end,
     %% report §3.9: a function whose result is a type variable no parameter
     %% holds never returns, `fault` and `Os.exit` among them, so Dialyzer,
     %% which the release review runs over this code, is told it is meant
     NoReturn = erl_syntax:attribute(erl_syntax:atom(dialyzer), [erl_syntax:atom(no_return)]),
     Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)]),
-             NoReturn]
-        ++ NoImport
-        ++ [erl_syntax:attribute(erl_syntax:atom(export),
-                                 [erl_syntax:list([erl_syntax:arity_qualifier(
-                                                     erl_syntax:atom(Function),
-                                                     erl_syntax:integer(Arity))
-                                                   || {Function, Arity} <- Exports])])],
-    Functions = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
-        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction
-        ++ lists:reverse(Context2#emit_context.lifted),
-    {erl_syntax:revert_forms(Attrs ++ Functions), Context2#emit_context.builds_functions}.
+             NoReturn,
+             erl_syntax:attribute(erl_syntax:atom(export),
+                                  [erl_syntax:list([erl_syntax:arity_qualifier(
+                                                      erl_syntax:atom(Function),
+                                                      erl_syntax:integer(Arity))
+                                                    || {Function, Arity} <- Exports])])],
+    Functions = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
+        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted,
+    {Attrs ++ Functions, Context3#emit_context.builds_functions}.
 
-%% Each top-level name as the Erlang function it compiles to, a `let` as
-%% its getter of no argument.
-top_functions(TopNames) ->
-    [{function_name(MemberOf, Name), case Arity of value -> 0; _ -> Arity end}
-     || {MemberOf, Name} := Arity <- TopNames].
+%% The unit's own definitions and foreign functions, each definition's form
+%% prepared.
+own(Placed, ForeignPlaced, #unit{sourced = Sourced} = Unit) ->
+    Groups = maps:groups_from_list(fun({_, #definition{group = Group}}) -> group_of(Group) end,
+                                   Placed),
+    #own{forms = maps:from_list([{Position,
+                                  {Definition,
+                                   prepared(maps:get(QualifiedName, Sourced, Form),
+                                            group_references(Definition, Groups, Unit))}}
+                                 || {Position, #definition{qualified_name = QualifiedName,
+                                                         form = Form} = Definition}
+                                        <- Placed]),
+         hashes = lists:foldl(fun({Position, #definition{hash = Hash}}, Acc) ->
+                                  maps:merge(#{Hash => Position}, Acc)
+                              end, #{}, Placed),
+         names = maps:from_list(lists:append([[{QualifiedName, Position},
+                                               {form_name(QualifiedName, Unit), Position}]
+                                              || {Position, #definition{
+                                                             qualified_name = QualifiedName}}
+                                                     <- Placed])),
+         foreign = maps:from_list([{form_name(QualifiedName, Unit), {Position, ForeignFunction}}
+                                   || {Position, #foreign_function{qualified_name = QualifiedName}
+                                                   = ForeignFunction} <- ForeignPlaced])}.
 
-%% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
-%% top-level let of type Test.Case(m), exported or not, for `ern test`; the
-%% mailbox type is the test process's, and nothing here.
-tests_function(Lets) ->
-    Names = [function_name(undefined, Name)
-             || #let_declaration{name = Name, scheme = #scheme{type = Type}} <- Lets,
-                is_test_case(Type)],
-    case Names of
-        [] -> [];
-        _ ->
-            %% the list is built a test at a time, from the last, so that no
-            %% more than the list so far is live at a call: a list of every
-            %% call at once passes the host's limit of live values
-            {Matches, List} =
-                lists:foldl(fun(Function, {Acc, Tail}) ->
-                                Name = list_to_atom("Tests" ++ integer_to_list(length(Acc))),
-                                Variable = erl_syntax:variable(Name),
-                                Head = erl_syntax:application(erl_syntax:atom(Function), []),
-                                Extended = erl_syntax:cons(Head, Tail),
-                                Match = erl_syntax:match_expr(Variable, Extended),
-                                {[Match | Acc], Variable}
-                            end, {[], erl_syntax:nil()}, lists:reverse(Names)),
-            [erl_syntax:function(erl_syntax:atom('$tests'),
-                                 [erl_syntax:clause([], none, lists:reverse(Matches) ++ [List])])]
-    end.
+%% Report Appendix H: the references a definition's form makes to the
+%% members of its own group by position, {in_group, P} => the reference that
+%% names that member from outside the group, its hash or, for a binding,
+%% its identity; a definition alone is a group of one.
+group_references(#definition{group = none} = Definition, _, Unit) ->
+    #{{in_group, 1} => reference(Definition, Unit)};
+group_references(#definition{group = Group}, Groups, Unit) ->
+    maps:from_list([{{in_group, Position}, reference(Member, Unit)}
+                    || {_, #definition{group = {_, Position}} = Member}
+                           <- maps:get(group_of(Group), Groups)]).
 
-is_test_case({tcon, ['Test', 'Case'], [_]}) -> true;
-is_test_case(_) -> false.
+group_of(none) -> none;
+group_of({GroupHash, _}) -> GroupHash.
 
-%% Report §2.3: a function whose own name holds `$`, the entry of an input
-%% at the shell's prompt, is named by no program.
-nameable(#fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name));
-nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name)).
+reference(#definition{kind = binding, qualified_name = QualifiedName, hash = Hash}, Unit) ->
+    {binding, form_name(QualifiedName, Unit), Hash};
+reference(#definition{hash = Hash}, _) ->
+    {hash, Hash}.
 
-%% Report §8.7: what the module holds, which the code table reads as the
-%% module loads (ern_code): each definition by its qualified name, with its
-%% hash, from its canonical form, and the function that holds it, a
-%% function with its reach, or for a binding the key its value is kept
-%% under (§8.5); each foreign declaration's implementation and its
-%% function, which the canonical forms name by its qualified name alone;
-%% each lambda and local fn a spawn on a peer starts, by its identity,
-%% with its entry and its reach; and, last, under the module's namespace,
-%% the units its code calls (calls/3). Each qualified name is the forms'
-%% (Appendix H): an input of a shell's session names what it declares
-%% under the session's one namespace, FormNamespace, by which a reach finds
-%% it. A literal '$code'/0 answers, so that a load reads it without
-%% decoding the module's chunks, which costs more than the load. The forms
-%% for reading, `--emit-erl` and the golden files, have no such function.
-code(Named, ErlangModule, Declarations, #{identities := Hashes, reaches := Reaches},
-     Entries) ->
-    lists:append([declaration_code(Named, ErlangModule, Declaration, Hashes, Reaches)
-                  || Declaration <- Declarations])
-        ++ lists:sort([{form_name(QualifiedName, Named),
-                        {lambda, Hash, Position, Function, Arity, Reach}}
-                       || #entry{function = Function, arity = Arity, qualified_name = QualifiedName,
-                                 hash = Hash, position = Position, reach = Reach} <- Entries]).
-
-%% A qualified name of the module's own, under the namespace its forms
-%% write it in.
-form_name(QualifiedName, {Namespace, FormNamespace}) ->
+%% Report §11.2, Appendix H: a qualified name of the module's own, under the
+%% namespace its forms write it in.
+form_name(QualifiedName, #unit{namespace = Namespace, form_namespace = FormNamespace}) ->
     FormNamespace ++ lists:nthtail(length(Namespace), QualifiedName).
 
-declaration_code({Namespace, _} = Named, _,
-                 #fn_declaration{member_of = MemberOf, name = Name} = Declaration, Hashes,
-                 Reaches) ->
-    QualifiedName = Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name],
-    {Function, Arity} = export(Declaration),
-    [{form_name(QualifiedName, Named),
-      {function, maps:get(QualifiedName, Hashes), Function, Arity,
-       maps:get(QualifiedName, Reaches)}}];
-declaration_code({Namespace, _} = Named, ErlangModule, #let_declaration{name = Name}, Hashes, _) ->
-    QualifiedName = Namespace ++ [Name],
-    Key = {ErlangModule, function_name(undefined, Name)},
-    [{form_name(QualifiedName, Named), {binding, maps:get(QualifiedName, Hashes), Key}}];
-declaration_code({Namespace, _} = Named, _, #type_declaration{name = Name}, Hashes, _) ->
-    QualifiedName = Namespace ++ [Name],
-    [{form_name(QualifiedName, Named), {type, maps:get(QualifiedName, Hashes)}}];
-declaration_code(Named, ErlangModule, #abstract_declaration{declaration = Declaration},
-                 Hashes, Reaches) ->
-    declaration_code(Named, ErlangModule, Declaration, Hashes, Reaches);
-declaration_code({Namespace, _} = Named, _,
-                 #foreign_fn_declaration{member_of = MemberOf, name = Name,
-                                         implementation = Implementation} = Declaration, _, _) ->
-    {ok, {HostModule, HostFunction, _}} = ern_typecheck:foreign_implementation(Implementation),
-    {Function, Arity} = export(Declaration),
-    [{form_name(Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name], Named),
-      {foreign, HostModule, HostFunction, Function, Arity}}];
-declaration_code(_, _, _, _, _) ->
-    [].
-
-%% Report §8.7: '$spawned'/2 runs, in the calling process, a function of
-%% this module a spawn on a peer may start, over the values it captured:
-%% each function and foreign function of no parameter, by its name, and
-%% each lambda's or local fn's entry. The peer's runtime calls it with the
-%% function its code table holds under the frame's identity, so that a
-%% function no other module may name runs where its identity is held.
-spawned_function(Declarations, Entries) ->
-    Clauses = [spawned_clause(Function, 0)
-               || Declaration <- Declarations, {Function, 0} <- spawnable(Declaration)]
-        ++ [spawned_clause(Function, Arity)
-            || #entry{function = Function, arity = Arity} <- lists:keysort(#entry.function,
-                                                                           Entries)],
-    case Clauses of
-        [] -> [];
-        _ -> [erl_syntax:function(erl_syntax:atom('$spawned'), Clauses)]
-    end.
-
-%% '$spawned'(Function, [Capture1, ...]) -> Function(Capture1, ...).
-spawned_clause(Function, Arity) ->
-    Captures = [erl_syntax:variable(list_to_atom("Capture" ++ integer_to_list(Index)))
-                || Index <- lists:seq(1, Arity)],
-    erl_syntax:clause([erl_syntax:atom(Function), erl_syntax:list(Captures)], none,
-                      [erl_syntax:application(erl_syntax:atom(Function), Captures)]).
-
-%% A declaration a spawn may name, as the function it compiles to: a `fn`
-%% or a `foreign fn`, but the entry of an input at the shell's prompt,
-%% which no program names (§2.3).
-spawnable(#fn_declaration{} = Declaration) -> [export(Declaration) || nameable(Declaration)];
-spawnable(#foreign_fn_declaration{} = Declaration) ->
-    [export(Declaration) || nameable(Declaration)];
-spawnable(_) -> [].
-
-code_function(Code) ->
-    [erl_syntax:function(erl_syntax:atom('$code'),
-                         [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])].
-
-%% Report §8.7, §11.2: the other units the module's code calls, each the
-%% module of a remote call or of a function value that is an Ernest unit,
-%% whose name begins `ern@` (§11.1): the unit the shell's units name for a
-%% module, or the module's Erlang name. A peer's spawn reads a reach's
-%% bindings and foreign declarations in the units the code of the unit
-%% that runs it calls, directly or through one it calls (ern_code). A
-%% module of the standard library lists none, since no reach names what it
-%% holds (Appendix H), so that a walk from a program's unit ends there.
-calls(_Bodies, _ErlangModule, true) ->
-    [];
-calls(Bodies, ErlangModule, false) ->
-    lists:usort([Unit || Function <- Bodies,
-                         Unit <- erl_syntax_lib:fold(fun called_unit/2, [], Function),
-                         Unit =/= ErlangModule]).
-
-called_unit(Node, Units) ->
-    case erl_syntax:type(Node) of
-        module_qualifier ->
-            Module = erl_syntax:module_qualifier_argument(Node),
-            case erl_syntax:type(Module) =:= atom
-                 andalso lists:prefix("ern@", atom_to_list(erl_syntax:atom_value(Module))) of
-                true -> [erl_syntax:atom_value(Module) | Units];
-                false -> Units
-            end;
+%% A definition's form as the emitter reads it: each reference to a member
+%% of its own group by the reference that names that member (Appendix H),
+%% and each lambda and local function marked with its position among the
+%% definition's, in the order the walk meets them, a local function with
+%% the number its block binds it to (marked/2).
+prepared(Form, Linking) ->
+    Absolute = absolute(Form, Linking),
+    {Source, Node} = sourced(Absolute),
+    case Node of
+        {function, Scheme, Params, Result, Effect, Needs, Body} when is_list(Params) ->
+            {[Params1, Body1], _} = lists:mapfoldl(fun marked/2, {0, 0}, [Params, Body]),
+            rewrapped(Source, {function, Scheme, Params1, Result, Effect, Needs, Body1});
         _ ->
-            Units
+            element(1, marked(Absolute, {0, 0}))
     end.
 
-%% Report §8.5: the units of the modules this one depends on, whose
-%% top-level bindings are evaluated before its own.
-dependencies_function([], _Context) ->
-    [];
-dependencies_function(Dependencies, Context) ->
-    Modules = erl_syntax:list([erl_syntax:atom(unit(Dependency, Context))
-                               || Dependency <- Dependencies]),
-    [erl_syntax:function(erl_syntax:atom('$deps'),
-                         [erl_syntax:clause([], none, [Modules])])].
+absolute({in_group, Position} = Reference, Linking) when is_integer(Position) ->
+    maps:get(Reference, Linking);
+absolute(Term, Linking) when is_tuple(Term) ->
+    list_to_tuple(absolute(tuple_to_list(Term), Linking));
+absolute([Head | Tail], Linking) ->
+    [absolute(Head, Linking) | absolute(Tail, Linking)];
+absolute(Term, _) ->
+    Term.
 
-%% The module as Erlang source, for --emit-erl (report §11.1).
--spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> unicode:chardata().
-erl_source(Namespace, Declarations, Env) ->
-    erl_source(Namespace, Declarations, Env, #{}).
+%% Report Appendix H: the walk numbers locals in the order it binds them,
+%% a block's local functions as it enters the block, and counts lambdas and
+%% local functions in the order it meets them; State is {the highest local
+%% number met, the last position given}. A local function becomes
+%% {local_fn, Number, Position, Function}, a lambda {lambda, Position, ...}.
+marked({'$at', Source, Node}, State) ->
+    {Marked, State1} = marked(Node, State),
+    {{'$at', Source, Marked}, State1};
+marked({block, Statements}, {Locals, Positions}) when is_list(Statements) ->
+    Count = length([Statement || Statement <- Statements, is_local_fn(Statement)]),
+    {Marked, {_, State}} =
+        lists:mapfoldl(fun(Statement, {Next, {Bound, Given} = Acc}) ->
+                           case is_local_fn(Statement) of
+                               true ->
+                                   {Source, Function} = sourced(Statement),
+                                   {Inner, Acc1} = marked_parts(Function, {Bound, Given + 1}),
+                                   {rewrapped(Source, {local_fn, Next, Given + 1, Inner}),
+                                    {Next + 1, Acc1}};
+                               false ->
+                                   {Inner, Acc1} = marked(Statement, Acc),
+                                   {Inner, {Next, Acc1}}
+                           end
+                       end, {Locals + 1, {Locals + Count, Positions}}, Statements),
+    {{block, Marked}, State};
+marked({local, Number} = Local, {Locals, Positions}) when is_integer(Number) ->
+    {Local, {max(Locals, Number), Positions}};
+marked({lambda, Params, Result, Effect, Body}, {Locals, Positions}) when is_list(Params) ->
+    {[Params1, Body1], State} = lists:mapfoldl(fun marked/2, {Locals, Positions + 1},
+                                               [Params, Body]),
+    {{lambda, Positions + 1, Params1, Result, Effect, Body1}, State};
+marked(Term, State) when is_tuple(Term) ->
+    {Parts, State1} = marked(tuple_to_list(Term), State),
+    {list_to_tuple(Parts), State1};
+marked(Terms, State) when is_list(Terms) ->
+    lists:mapfoldl(fun marked/2, State, Terms);
+marked(Term, State) ->
+    {Term, State}.
 
--spec erl_source([atom()], [tuple()], ern_typecheck:env(), map()) -> unicode:chardata().
-erl_source(Namespace, Declarations, Env, Build) ->
-    Forms = forms(Namespace, Declarations, Env, Build),
-    [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
+%% A local function's parts walked, the function itself having been given
+%% its position.
+marked_parts({function, Scheme, Params, Result, Effect, Needs, Body}, State) ->
+    {[Params1, Body1], State1} = lists:mapfoldl(fun marked/2, State, [Params, Body]),
+    {{function, Scheme, Params1, Result, Effect, Needs, Body1}, State1}.
+
+is_local_fn(Statement) ->
+    case sourced(Statement) of
+        {_, {function, _, Params, _, _, _, _}} when is_list(Params) -> true;
+        _ -> false
+    end.
+
+%% A node of a form and where it was written, none where the form holds no
+%% source (ern_canonical:source()).
+sourced({'$at', Source, Node}) ->
+    {_, Unwrapped} = sourced(Node),
+    {Source, Unwrapped};
+sourced(Node) ->
+    {none, Node}.
+
+rewrapped(none, Node) -> Node;
+rewrapped(Source, Node) -> {'$at', Source, Node}.
+
+%% The name a node's source gives a local it binds, or none.
+local_name({_, _, Name}) -> Name;
+local_name(none) -> none.
+
+%% The definition being compiled set in Context.
+entering(Position, #definition{qualified_name = QualifiedName, hash = Hash}, Form,
+         #emit_context{namespace = Namespace} = Context) ->
+    Context#emit_context{definition = {Position, Hash, QualifiedName},
+                         declaration = lists:nthtail(length(Namespace), QualifiedName),
+                         restrictions = restrictions(Form), variables = #{}, locals = #{},
+                         members = #{}, let_lambdas = #{}}.
+
+%% Report §3.9, Appendix H: each type variable a scheme of the form
+%% quantifies, by its number, with its restrictions; a foreign function's
+%% scheme in a reference is numbered by itself, and is passed over.
+restrictions(Form) ->
+    maps:from_list(quantified(Form, [])).
+
+quantified({foreign, QualifiedName, _}, Acc) when is_list(QualifiedName) ->
+    Acc;
+quantified({scheme, Quantified, Type, Requirement}, Acc) when is_list(Quantified) ->
+    quantified([Type, Requirement], [{Number, Restrictions} || {Number, Restrictions} <- Quantified]
+                                    ++ Acc);
+quantified(Term, Acc) when is_tuple(Term) ->
+    quantified(tuple_to_list(Term), Acc);
+quantified(Terms, Acc) when is_list(Terms) ->
+    lists:foldl(fun quantified/2, Acc, Terms);
+quantified(_, Acc) ->
+    Acc.
 
 %%
-%% Declarations
+%% The unit's functions, report §11.1
 %%
 
-top_names(Declarations) ->
-    maps:from_list([{{MemberOf, Name}, length(Params) + length(Requirement)}
-                    || #fn_declaration{member_of = MemberOf, name = Name, params = Params,
-                                       requirement = Requirement} <- Declarations]
-                   ++ [{{MemberOf, Name}, length(Params) + length(Requirement)}
-                       || #foreign_fn_declaration{member_of = MemberOf, name = Name,
-                                                  params = Params,
-                                                  scheme = #scheme{requirement = Requirement}}
-                              <- Declarations]
-                   ++ [{{undefined, Name}, value}
-                       || #let_declaration{name = Name} <- Declarations]).
+%% A definition's function: a function's own, a binding's getter, which
+%% '$init'/0 gives its value (§8.5), and a type's none.
+definition_functions({_, #definition{kind = type}}, Context) ->
+    {[], Context};
+definition_functions({Position, #definition{kind = function} = Definition},
+                     #emit_context{own = #own{forms = Forms}} = Context) ->
+    {_, Form} = maps:get(Position, Forms),
+    {Source, {function, _, Params, _, _, Needs, Body}} = sourced(Form),
+    Context1 = entering(Position, Definition, Form, Context),
+    {Head, Context2} = head_patterns(Params, Needs, Context1),
+    {BodyForms, Context3} = body(Body, Context2),
+    Clause = at(Source, erl_syntax:clause(Head, none, BodyForms)),
+    Function = at(Source, erl_syntax:function(erl_syntax:atom(function_name(Position)), [Clause])),
+    {[commented(Function, Definition)],
+     Context3#emit_context{variables = #{}, members = #{}}};
+definition_functions({Position, #definition{kind = binding} = Definition},
+                     #emit_context{own = #own{forms = Forms}} = Context) ->
+    {Source, _} = sourced(element(2, maps:get(Position, Forms))),
+    Name = function_name(Position),
+    Get = call_remote(ern_rt, binding, [key(Context, Name)]),
+    Clause = at(Source, erl_syntax:clause([], none, [Get])),
+    {[commented(at(Source, erl_syntax:function(erl_syntax:atom(Name), [Clause])), Definition)],
+     Context}.
 
-exported(#fn_declaration{export = Export}) -> Export;
-exported(#let_declaration{export = Export}) -> Export;
-exported(#foreign_fn_declaration{export = Export}) -> Export;
-exported(_) -> false.
+%% A function under a comment that names its definition as the program
+%% does, for a reader of the code.
+commented(Function, #definition{qualified_name = QualifiedName}) ->
+    with_comment(Function, ern_namespace:text(QualifiedName)).
 
-%% The function a declaration compiles to, its name and the arity the
-%% module exports it at, a requirement's members after its parameters
-%% (report §4.9), which the documentation chunk keys it by too.
--spec export(tuple()) -> {atom(), non_neg_integer()}.
-export(#fn_declaration{member_of = MemberOf, name = Name, params = Params,
-                       requirement = Requirement}) ->
-    {function_name(MemberOf, Name), length(Params) + length(Requirement)};
-export(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
-                               scheme = #scheme{requirement = Requirement}}) ->
-    {function_name(MemberOf, Name), length(Params) + length(Requirement)};
-export(#let_declaration{name = Name}) -> {function_name(undefined, Name), 0}.
-
-%% The Erlang function a top-level Ernest name compiles to: its own name,
-%% but for the names the host gives every module, `module_info/0,1` and the
-%% pseudo-function `record_info/2`, which get a `$`, as no Ernest name can
-%% spell. A program may name a function anything; the collision is the
-%% host's, and nothing the program or the report sees.
--spec function_atom(atom()) -> atom().
-function_atom(module_info) -> 'module_info$';
-function_atom(record_info) -> 'record_info$';
-function_atom(Name) -> Name.
-
-%% A declaration's Ernest name, as a spawn site and a fault name it.
-declaration_parts(undefined, Name) -> [Name];
-declaration_parts(MemberOf, Name) -> [MemberOf, Name].
-
-%% The Erlang function a top-level declaration compiles to, the type it is
-%% a member of or undefined, which the documentation chunk's keys name too.
--spec function_name(atom() | undefined, atom()) -> atom().
-function_name(undefined, Name) -> function_atom(Name);
-function_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
-
-declaration(#fn_declaration{span = Span, member_of = MemberOf, name = Name, params = Params,
-                            requirement = Requirement, body = Body},
-            Context) ->
-    FunctionName = function_name(MemberOf, Name),
-    {Head, Context1} =
-        head_patterns(Params, Requirement,
-                      Context#emit_context{declaration = declaration_parts(MemberOf, Name),
-                                           variables = #{}, locals = #{}, members = #{}}),
-    {BodyForms, Context2} = body(Body, Context1),
-    Clause = at(Span, erl_syntax:clause(Head, none, BodyForms)),
-    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))],
-     Context2#emit_context{variables = #{}, members = #{}}};
-declaration(#let_declaration{span = Span, name = Name}, Context) ->
-    %% the getter; the value is computed by '$init'/0 (report §8.5)
-    FunctionName = function_name(undefined, Name),
-    Get = call_remote(ern_rt, binding, [key(Context, FunctionName)]),
-    Clause = at(Span, erl_syntax:clause([], none, [Get])),
-    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context};
-declaration(#foreign_fn_declaration{span = Span, member_of = MemberOf, name = Name, params = Params,
-                                    implementation = Implementation, scheme = Scheme}, Context) ->
-    %% report §4.7, §8.4: the implementation called in place, an exception
-    %% it raises turned into a fault, and its return checked
-    FunctionName = function_name(MemberOf, Name),
-    {ok, {HostModule, HostFunction, _}} = ern_typecheck:foreign_implementation(Implementation),
-    %% report §9.4: `Io.show` and `Io.debug` take their requirement's member,
-    %% the descriptor, after their argument, and pass it to the host
-    Prefixes = lists:duplicate(length(Params), "Argument")
-        ++ lists:duplicate(length(Scheme#scheme.requirement), "Member"),
-    {Variables, Context1} =
-        named_variables(Prefixes,
-                        Context#emit_context{declaration = declaration_parts(MemberOf, Name)}),
-    {Args, Members} = lists:split(length(Params),
-                                  [erl_syntax:variable(Variable) || Variable <- Variables]),
-    {Body, Context2} = foreign_body({HostModule, HostFunction}, Scheme#scheme.type, Args, Members,
-                                    Context1),
-    Clause = at(Span, erl_syntax:clause(Args ++ Members, none, [Body])),
-    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context2};
-declaration(_, Context) ->
-    {[], Context}.
+with_comment(Form, Text) ->
+    erl_syntax:add_precomments([erl_syntax:comment(["% " ++ Text])], Form).
 
 %% A function's parameters as patterns, then a parameter for each member
 %% its requirement names (report §4.9).
-head_patterns(Params, Requirement, Context) ->
-    {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
+head_patterns(Params, Needs, Context) ->
+    {Patterns, Context1} = lists:mapfoldl(fun({param, Pattern, _}, Acc) ->
                                               pattern(Pattern, Acc)
                                           end, Context, Params),
-    {Members, Context2} = members_taken(Requirement, Context1),
+    {Members, Context2} = members_taken(Needs, Context1),
     {Patterns ++ Members, Context2}.
+
+%% Report §4.9: the members a requirement names, each a parameter after the
+%% written ones, in the order the requirement writes them.
+members_taken(Needs, Context) ->
+    lists:mapfoldl(fun({needs, {variable, Number}, Member}, Acc) ->
+                       {[Erlang], Acc1} = fresh_variables(1, "Member", Acc),
+                       Members = Acc1#emit_context.members,
+                       {erl_syntax:variable(Erlang),
+                        Acc1#emit_context{members = Members#{{Number, Member} => Erlang}}}
+                   end, Context, Needs).
+
+%% Report §4.7, §8.4: a foreign function, its implementation called in
+%% place, an exception it raises turned into a fault, and its return
+%% checked; report §9.4: `Io.show` and `Io.debug` take their requirement's
+%% member, the descriptor, after their argument, and pass it to the host.
+foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
+                                            scheme = {scheme, Quantified,
+                                                      {arrow, ParamTypes, Effect, ResultType},
+                                                      Requirement},
+                                            host_module = HostModule,
+                                            host_function = HostFunction,
+                                            source = Source}},
+                 #emit_context{namespace = Namespace} = Context) ->
+    Context1 = Context#emit_context{declaration = lists:nthtail(length(Namespace), QualifiedName),
+                                    restrictions = maps:from_list(Quantified)},
+    Prefixes = ["Argument" || _ <- ParamTypes] ++ ["Member" || _ <- Requirement],
+    {Variables, Context2} = named_variables(Prefixes, Context1),
+    {Args, Members} = lists:split(length(ParamTypes),
+                                  [erl_syntax:variable(Variable) || Variable <- Variables]),
+    {Body, Context3} = foreign_body({HostModule, HostFunction}, {ParamTypes, Effect, ResultType},
+                                    Args, Members, Context2),
+    Clause = at(Source, erl_syntax:clause(Args ++ Members, none, [Body])),
+    Function = at(Source, erl_syntax:function(erl_syntax:atom(function_name(Position)), [Clause])),
+    {with_comment(Function, ern_namespace:text(QualifiedName)), Context3}.
 
 %% Report §8.4: a foreign function's body, its arguments exposed to the
 %% host, the call, and its return checked.
-foreign_body({HostModule, HostFunction}, {tfn, ParamTypes, Effect, ResultType}, Args, Members,
+foreign_body({HostModule, HostFunction}, {ParamTypes, Effect, ResultType}, Args, Members,
              Context) ->
     {Exposed, Context1} = lists:mapfoldl(fun exposed/2, Context, lists:zip(ParamTypes, Args)),
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
@@ -541,17 +433,6 @@ foreign_body({HostModule, HostFunction}, {tfn, ParamTypes, Effect, ResultType}, 
     {Try, Context2} = foreign_call(Call, HostModule, HostFunction, length(Exposed ++ Members),
                                    {Effect, ParamTypes}, Context1),
     foreign_return(Try, ParamTypes, ResultType, Context2).
-
-%% Report §4.9: the members a requirement names, each a parameter after the
-%% written ones, in the order the requirement writes them.
-members_taken(Requirement, Context) ->
-    lists:mapfoldl(fun(#member{type = Variable, name = Member}, Acc) ->
-                       {tvar, Id} = resolved(Variable, Acc),
-                       {[Erlang], Acc1} = fresh_variables(1, "Member", Acc),
-                       Members = Acc1#emit_context.members,
-                       {erl_syntax:variable(Erlang),
-                        Acc1#emit_context{members = Members#{{Id, Member} => Erlang}}}
-                   end, Context, Requirement).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: a foreign call in progress can still deliver, so
@@ -563,9 +444,10 @@ members_taken(Requirement, Context) ->
 %% module lists as waiting on no process, read function by function
 %% (`ern_rt`'s `-waits_on_nothing`), since the count would cost a multiple
 %% of the call.
-foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes}, Context) ->
-    Uncounted = Context#emit_context.standard
-        andalso (waits_on_nothing(Effect, ParamTypes, Context)
+foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes},
+             #emit_context{unit = #unit{standard = Standard}} = Context) ->
+    Uncounted = Standard
+        andalso (waits_on_nothing(Effect, ParamTypes)
                  orelse is_listed_waiting_on_nothing(HostModule, HostFunction, Arity)),
     Counted = case Uncounted of
                   true -> Call;
@@ -593,93 +475,258 @@ is_listed_waiting_on_nothing(HostModule, HostFunction, Arity) ->
             false
     end.
 
-waits_on_nothing(Effect, ParamTypes, Context) ->
-    case resolved(Effect, Context) of
-        pure -> true;
-        {tvar, _} = Variable ->
-            lists:member(Variable, type_variables([resolved(Type, Context) || Type <- ParamTypes]));
-        _ -> false
-    end.
+waits_on_nothing(pure, _ParamTypes) -> true;
+waits_on_nothing({variable, _} = Variable, ParamTypes) ->
+    lists:member(Variable, type_variables(ParamTypes));
+waits_on_nothing(_, _) -> false.
 
 %% Report §8.4: the foreign call's return checked. The standard library's
 %% is the runtime's own, and not checked; a type variable of the result
 %% that no parameter names stands for no value the function could have
 %% been given, so it matches none, and the return faults where it holds
 %% one.
-foreign_return(Try, _ParamTypes, _ResultType, #emit_context{standard = true} = Context) ->
+foreign_return(Try, _ParamTypes, _ResultType,
+               #emit_context{unit = #unit{standard = true}} = Context) ->
     {Try, Context};
 foreign_return(Try, ParamTypes, ResultType, Context) ->
-    ParamVariables = lists:append([type_variables(ParamType) || ParamType <- ParamTypes]),
+    ParamVariables = type_variables(ParamTypes),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
                            not lists:member(Variable, ParamVariables)],
     check_form(as_never(Unnamed, ResultType), ResultType, Try, "foreign return does not match ",
                Context).
 
+%% A binding's key, under which its value is kept (report §8.5).
 key(#emit_context{erlang_module = ErlangModule}, Name) ->
     erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)]).
 
 %% '$init'/0 evaluates the top-level lets once, in dependency order, each
 %% named as the process's site while it runs, so that its fault is reported
 %% under it (report §8.5, §11.2).
-init_function([], Context) ->
+init_function(#unit{binding_order = []}, Context) ->
     {[], Context};
-init_function(Lets, Context) ->
+init_function(#unit{binding_order = Order}, #emit_context{own = Own} = Context) ->
     {Stores, Context1} =
-        lists:mapfoldl(fun(#let_declaration{span = Span, name = Name, body = Body}, Acc) ->
-                           FunctionName = function_name(undefined, Name),
-                           Acc1 = Acc#emit_context{declaration = [Name], variables = #{},
-                                                   locals = #{}},
-                           Named = call_remote(ern_rt, initializing, [site(Span, Acc1)]),
+        lists:mapfoldl(fun(QualifiedName, Acc) ->
+                           Position = maps:get(QualifiedName, Own#own.names),
+                           {Definition, Form} = maps:get(Position, Own#own.forms),
+                           {Source, {binding, _, _, Body}} = sourced(Form),
+                           Acc1 = entering(Position, Definition, Form, Acc),
+                           Named = call_remote(ern_rt, initializing, [site(Source, Acc1)]),
                            {BodyForm, Acc2} = expr(Body, Acc1),
                            Store = call_remote(persistent_term, put,
-                                               [key(Acc, FunctionName), BodyForm]),
+                                               [key(Acc, function_name(Position)), BodyForm]),
                            {[Named, Store], Acc2}
-                       end, Context, let_order(Lets, Context)),
+                       end, Context, Order),
     Clause = erl_syntax:clause([], none, lists:append(Stores) ++ [erl_syntax:atom(ok)]),
     {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Context1}.
 
-%% Report §8.5: the lets in the order the checker found, a let after
-%% those its initializer reaches and otherwise as declared.
-let_order(Lets, #emit_context{env = Env}) ->
-    ByKey = maps:from_list([{{undefined, Name}, Declaration}
-                            || #let_declaration{name = Name} = Declaration <- Lets]),
-    [maps:get(Key, ByKey) || Key <- ern_typecheck:let_order(Env)].
+%% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
+%% top-level let of type Test.Case(m), exported or not, for `ern test`; the
+%% mailbox type is the test process's, and nothing here.
+tests_function(Placed, #emit_context{own = #own{forms = Forms}}) ->
+    Names = [function_name(Position)
+             || {Position, #definition{kind = binding}} <- Placed,
+                {_, {binding, {scheme, _, Type, _}, _, _}} <- [sourced(element(2, maps:get(Position,
+                                                                                         Forms)))],
+                is_test_case(Type)],
+    case Names of
+        [] -> [];
+        _ ->
+            %% the list is built a test at a time, from the last, so that no
+            %% more than the list so far is live at a call: a list of every
+            %% call at once passes the host's limit of live values
+            {Matches, List} =
+                lists:foldl(fun(Function, {Acc, Tail}) ->
+                                Name = list_to_atom("Tests" ++ integer_to_list(length(Acc))),
+                                Variable = erl_syntax:variable(Name),
+                                Head = erl_syntax:application(erl_syntax:atom(Function), []),
+                                Extended = erl_syntax:cons(Head, Tail),
+                                Match = erl_syntax:match_expr(Variable, Extended),
+                                {[Match | Acc], Variable}
+                            end, {[], erl_syntax:nil()}, lists:reverse(Names)),
+            [erl_syntax:function(erl_syntax:atom('$tests'),
+                                 [erl_syntax:clause([], none, lists:reverse(Matches) ++ [List])])]
+    end.
+
+is_test_case({applied, {named, ['Test', 'Case']}, [_]}) -> true;
+is_test_case(_) -> false.
+
+%% Report §2.3: a definition whose own name holds `$`, the entry of an input
+%% at the shell's prompt, is named by no program.
+nameable(QualifiedName) -> not lists:member($$, atom_to_list(lists:last(QualifiedName))).
+
+%% Report §11.1: what the unit exports: the functions of the definitions
+%% and the foreign functions the module exports.
+exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
+                                                 own = #own{forms = Forms}}) ->
+    [{function_name(Position), arity(element(2, maps:get(Position, Forms)))}
+     || {Position, #definition{kind = Kind, qualified_name = QualifiedName}} <- Placed,
+        Kind =/= type, lists:member(QualifiedName, Exported)]
+        ++ [{function_name(Position), foreign_arity(ForeignFunction)}
+            || {Position, #foreign_function{export = true} = ForeignFunction} <- ForeignPlaced].
+
+%% The arity of a definition's function: a function's parameters and its
+%% requirement's members (report §4.9), and a binding's getter none.
+arity(Form) ->
+    case sourced(Form) of
+        {_, {function, _, Params, _, _, Needs, _}} -> length(Params) + length(Needs);
+        {_, {binding, _, _, _}} -> 0
+    end.
+
+foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, Requirement}}) ->
+    length(ParamTypes) + length(Requirement).
+
+%% Report §8.7: what the unit holds, which the code table reads as the
+%% unit loads (ern_code): each definition by its qualified name, with its
+%% hash, from its canonical form, and the function that holds it, a
+%% function with its reach, or for a binding the key its value is kept
+%% under (§8.5); each foreign declaration's implementation and its
+%% function, which the canonical forms name by its qualified name alone;
+%% each lambda and local fn a spawn on a peer starts, by its identity,
+%% with its entry and its reach; and, last, under the module's namespace,
+%% the units its code calls (calls/3). Each qualified name is the forms'
+%% (Appendix H): an input of a shell's session names what it declares
+%% under the session's one namespace, by which a reach finds it. A literal
+%% '$code'/0 answers, so that a load reads it without decoding the
+%% module's chunks, which costs more than the load.
+code(Placed, ForeignPlaced, Entries,
+     #emit_context{unit = #unit{reaches = Reaches} = Unit, own = #own{forms = Forms}} = Context) ->
+    [definition_code(Position, Definition, element(2, maps:get(Position, Forms)), Context)
+     || {Position, Definition} <- Placed]
+        ++ [{form_name(QualifiedName, Unit),
+             {foreign, HostModule, HostFunction, function_name(Position),
+              foreign_arity(ForeignFunction)}}
+            || {Position, #foreign_function{qualified_name = QualifiedName,
+                                            host_module = HostModule,
+                                            host_function = HostFunction} = ForeignFunction}
+                   <- ForeignPlaced]
+        ++ lists:sort([{form_name(QualifiedName, Unit),
+                        {lambda, Hash, Position, Function, Arity,
+                         maps:get({QualifiedName, Position}, Reaches)}}
+                       || #entry{function = Function, arity = Arity,
+                                 qualified_name = QualifiedName, hash = Hash,
+                                 position = Position} <- Entries]).
+
+definition_code(Position, #definition{kind = function, qualified_name = QualifiedName, hash = Hash},
+                Form, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->
+    {form_name(QualifiedName, Unit),
+     {function, Hash, function_name(Position), arity(Form), maps:get(QualifiedName, Reaches)}};
+definition_code(Position, #definition{kind = binding, qualified_name = QualifiedName, hash = Hash},
+                _, #emit_context{erlang_module = ErlangModule, unit = Unit}) ->
+    {form_name(QualifiedName, Unit), {binding, Hash, {ErlangModule, function_name(Position)}}};
+definition_code(_, #definition{kind = type, qualified_name = QualifiedName, hash = Hash}, _,
+                #emit_context{unit = Unit}) ->
+    {form_name(QualifiedName, Unit), {type, Hash}}.
+
+%% Report §8.7: '$spawned'/2 runs, in the calling process, a function of
+%% this unit a spawn on a peer may start, over the values it captured:
+%% each function and foreign function of no parameter, by its position, and
+%% each lambda's or local fn's entry. The peer's runtime calls it with the
+%% function its code table holds under the frame's identity, so that a
+%% function no other unit may name runs where its identity is held.
+spawned_function(Placed, ForeignPlaced, Entries, #emit_context{own = #own{forms = Forms}}) ->
+    Clauses = [spawned_clause(function_name(Position), 0)
+               || {Position, #definition{kind = function, qualified_name = QualifiedName}}
+                      <- Placed,
+                  arity(element(2, maps:get(Position, Forms))) =:= 0, nameable(QualifiedName)]
+        ++ [spawned_clause(function_name(Position), 0)
+            || {Position, #foreign_function{qualified_name = QualifiedName} = ForeignFunction}
+                   <- ForeignPlaced,
+               foreign_arity(ForeignFunction) =:= 0, nameable(QualifiedName)]
+        ++ [spawned_clause(Function, Arity)
+            || #entry{function = Function, arity = Arity} <- lists:keysort(#entry.function,
+                                                                           Entries)],
+    case Clauses of
+        [] -> [];
+        _ -> [erl_syntax:function(erl_syntax:atom('$spawned'), Clauses)]
+    end.
+
+%% '$spawned'(Function, [Capture1, ...]) -> Function(Capture1, ...).
+spawned_clause(Function, Arity) ->
+    Captures = [erl_syntax:variable(list_to_atom("Capture" ++ integer_to_list(Index)))
+                || Index <- lists:seq(1, Arity)],
+    erl_syntax:clause([erl_syntax:atom(Function), erl_syntax:list(Captures)], none,
+                      [erl_syntax:application(erl_syntax:atom(Function), Captures)]).
+
+code_function(Code) ->
+    [erl_syntax:function(erl_syntax:atom('$code'),
+                         [erl_syntax:clause([], none, [erl_syntax:abstract(Code)])])].
+
+%% Report §8.7, §11.2: the other units the unit's code calls, each the
+%% module of a remote call or of a function value that is an Ernest unit,
+%% whose name begins `ern@` (§11.1). A peer's spawn reads a reach's
+%% bindings and foreign declarations in the units the code of the unit
+%% that runs it calls, directly or through one it calls (ern_code). A
+%% module of the standard library lists none, since no reach names what it
+%% holds (Appendix H), so that a walk from a program's unit ends there.
+calls(_Bodies, _ErlangModule, true) ->
+    [];
+calls(Bodies, ErlangModule, false) ->
+    lists:usort([Unit || Function <- Bodies,
+                         Unit <- erl_syntax_lib:fold(fun called_unit/2, [], Function),
+                         Unit =/= ErlangModule]).
+
+called_unit(Node, Units) ->
+    case erl_syntax:type(Node) of
+        module_qualifier ->
+            Module = erl_syntax:module_qualifier_argument(Node),
+            case erl_syntax:type(Module) =:= atom
+                 andalso lists:prefix("ern@", atom_to_list(erl_syntax:atom_value(Module))) of
+                true -> [erl_syntax:atom_value(Module) | Units];
+                false -> Units
+            end;
+        _ ->
+            Units
+    end.
+
+%% Report §8.5: the units of the modules this one depends on, whose
+%% top-level bindings are evaluated before its own.
+dependencies_function(#unit{dependencies = []}) ->
+    [];
+dependencies_function(#unit{dependencies = Dependencies}) ->
+    Modules = erl_syntax:list([erl_syntax:atom(Dependency) || Dependency <- Dependencies]),
+    [erl_syntax:function(erl_syntax:atom('$deps'),
+                         [erl_syntax:clause([], none, [Modules])])].
 
 %%
 %% Expressions: expr(Expr, Context) -> {Form, Context}
 %%
 
-expr(#e_literal{span = Span, kind = Kind, value = Value}, Context) ->
-    {at(Span, literal(Kind, Value)), Context};
-expr(#e_var{span = Span, namespace = Namespace, name = Name, type = Type, referent = Referent,
-            supplies = Supplies}, Context) ->
-    {Form, Context1} = name_form(Span, Namespace, Name, Referent, Type, Supplies, Context),
-    {at(Span, Form), function_value(Form, Context1)};
-expr(#e_constructor{span = Span, namespace = Namespace, name = Name, base = Base, args = Args},
-     Context) ->
-    constructor_expr(Span, Namespace, Name, Base, Args, Context);
-expr(#e_tuple{span = Span, elements = Elements}, Context)
-  when length(Elements) > ?LONG_LITERAL ->
+%% An expression's form, at the place its source gives.
+expr(Expr, Context) ->
+    {Source, Node} = sourced(Expr),
+    {Form, Context1} = expr_form(Node, Source, Context),
+    {at(Source, Form), Context1}.
+
+expr_form({literal, Kind, Value}, _, Context) ->
+    {literal(Kind, Value), Context};
+expr_form({var, Reference, Supplies}, Source, Context) ->
+    {Form, Context1} = name_form(Source, Reference, Supplies, none, Context),
+    {Form, function_value(Form, Context1)};
+expr_form({var, Reference, Supplies, Extra}, Source, Context) ->
+    {Form, Context1} = name_form(Source, Reference, Supplies, Extra, Context),
+    {Form, function_value(Form, Context1)};
+expr_form({construct, Constructor, Arguments}, _, Context) ->
+    constructor_expr(Constructor, Arguments, Context);
+expr_form({tuple, Elements}, _, Context) when length(Elements) > ?LONG_LITERAL ->
     {Built, Context1} = built_in_order(Elements, Context),
-    {at(Span, call_remote(erlang, list_to_tuple, [Built])), Context1};
-expr(#e_list{span = Span, elements = Elements}, Context)
-  when length(Elements) > ?LONG_LITERAL ->
-    {Built, Context1} = built_in_order(Elements, Context),
-    {at(Span, Built), Context1};
-expr(#e_tuple{span = Span, elements = Elements}, Context) ->
+    {call_remote(erlang, list_to_tuple, [Built]), Context1};
+expr_form({list, Elements}, _, Context) when length(Elements) > ?LONG_LITERAL ->
+    built_in_order(Elements, Context);
+expr_form({tuple, Elements}, _, Context) ->
     {Forms, Context1} = exprs(Elements, Context),
-    {at(Span, erl_syntax:tuple(Forms)), Context1};
-expr(#e_list{span = Span, elements = Elements}, Context) ->
+    {erl_syntax:tuple(Forms), Context1};
+expr_form({list, Elements}, _, Context) ->
     {Forms, Context1} = exprs(Elements, Context),
-    {at(Span, erl_syntax:list(Forms)), Context1};
-expr(#e_bitstring{span = Span, segments = Segments}, Context) ->
+    {erl_syntax:list(Forms), Context1};
+expr_form({bitstring, Segments}, _, Context) ->
     %% report §5.11, §7.4: the runtime's bit syntax, each segment's value
     %% checked for its width by ern_bits, a badarg the segment overflow
     %% fault, and the result checked for alignment when a dynamic size
     %% leaves the bit count open
     {Compiled, {Context1, Open}} =
-        lists:mapfoldl(fun(#bit_segment{value = Value, specs = Specs}, {Acc, OpenSoFar}) ->
-                           {ok, Spec} = ern_bitspec:spec(Specs),
+        lists:mapfoldl(fun(Segment, {Acc, OpenSoFar}) ->
+                           {Spec, Value} = segment_spec(Segment),
                            {ValueForm, Acc1} = expr(Value, Acc),
                            {SizeForm, Acc2} = size_form(Spec, Acc1),
                            {{Spec, ValueForm, SizeForm}, {Acc2, OpenSoFar orelse is_open(Spec)}}
@@ -696,90 +743,61 @@ expr(#e_bitstring{span = Span, segments = Segments}, Context) ->
                   true -> call_remote(ern_bits, aligned, [Built]);
                   false -> Built
               end,
-    Form = case Bindings of
-               [] -> Checked;
-               _ -> erl_syntax:block_expr(Bindings ++ [Checked])
-           end,
-    {at(Span, Form), Context2};
-expr(#e_block{span = Span, statements = Statements}, Context) ->
+    {with_bindings(Bindings, Checked), Context2};
+expr_form({block, Statements}, _, Context) ->
     {Forms, Context1} = block(Statements, Context),
-    {at(Span, erl_syntax:block_expr(Forms)),
+    {erl_syntax:block_expr(Forms),
      Context1#emit_context{variables = Context#emit_context.variables,
                            locals = Context#emit_context.locals}};
-expr(#e_call{span = Span, callee = Callee, args = [Expr | Rest], pipe = true}, Context)
-  when not is_record(Callee, e_var), not is_record(Callee, e_constructor),
-       not is_record(Callee, e_lambda) ->
+expr_form({piped_call, Callee, [Expr | Rest]}, _, Context) ->
     %% report §5.1: in `x |> e`, x is evaluated before a callee that is
     %% evaluated at all, and the other arguments after it
     {[ExprForm, CalleeForm | RestForms], Context1} = exprs([Expr, Callee | Rest], Context),
     {[PipedName], Context2} = fresh_variables(1, "Piped", Context1),
     Piped = erl_syntax:variable(PipedName),
     Application = erl_syntax:application(CalleeForm, [Piped | RestForms]),
-    {at(Span, erl_syntax:block_expr([erl_syntax:match_expr(Piped, ExprForm), Application])),
-     Context2};
-expr(#e_call{span = Span, callee = Callee, args = Args}, Context) ->
-    call(Span, Callee, Args, Context);
-expr(#e_not{span = Span, expr = Expr}, Context) ->
+    {erl_syntax:block_expr([erl_syntax:match_expr(Piped, ExprForm), Application]), Context2};
+expr_form({call, Callee, Args}, Source, Context) ->
+    call(Source, Callee, Args, Context);
+expr_form({'not', Expr}, _, Context) ->
     {Form, Context1} = expr(Expr, Context),
-    {at(Span, erl_syntax:prefix_expr(erl_syntax:operator('not'), Form)), Context1};
-expr(#e_selection{span = Span, expr = Expr, field = Field}, Context) ->
+    {erl_syntax:prefix_expr(erl_syntax:operator('not'), Form), Context1};
+expr_form({select, Expr, Reference, Field}, _, Context) ->
     {Form, Context1} = expr(Expr, Context),
-    select(Span, Field, ern_typecheck:node_type(Expr), Form, Context1);
-expr(#e_negation{span = Span, expr = Expr, member = undefined}, Context) ->
+    select(Field, Reference, Form, Context1);
+expr_form({negate, Expr, {runtime, Type}}, _, Context) ->
     {Form, Context1} = expr(Expr, Context),
-    {at(Span, negate(resolved(ern_typecheck:node_type(Expr), Context), Form, Context)), Context1};
-expr(#e_negation{span = Span, expr = Expr, member = Member}, Context) ->
+    {negate(checked_type(Type, Context), Form), Context1};
+expr_form({negate, Expr, Supply}, _, Context) ->
     %% report §5.1, §4.9: `negate` in the operand type's namespace, or the
     %% member a requirement names
     {Form, Context1} = expr(Expr, Context),
-    {Applied, Context2} = member_applied(Member, [Form], Context1),
-    {at(Span, Applied), Context2};
-expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right, member = Member},
-     Context)
-  when is_record(Member, required_member);
-       is_record(Member, known_member), Member#known_member.supplies =/= [];
-       is_record(Member, known_member), length(Member#known_member.qualified_name) > 1 ->
-    %% report §4.8, §4.9: an operator resolved to a member a requirement
-    %% names, a member whose own requirement is supplied, or a member of a
-    %% type a module declares; a prelude type's is the host's operation
-    {Operands, Context1} = exprs([Left, Right], Context),
-    {Applied, Context2} = member_applied(Member, Operands, Context1),
-    {at(Span, ordered(Operator, Applied)), Context2};
-expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right}, Context) ->
-    {[LeftForm, RightForm], Context1} = exprs([Left, Right], Context),
-    case resolved(ern_typecheck:node_type(Left), Context) of
-        {tcon, ['Float'], []}
-          when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/' ->
-            {[LeftName, RightName], Context2} = fresh_variables(2, "Operand", Context1),
-            {at(Span, float_operation(Operator, LeftForm, RightForm, LeftName, RightName)),
-             Context2};
-        Type ->
-            {at(Span, binop(Operator, Type, LeftForm, RightForm, Context)), Context1}
-    end;
-expr(#e_member{span = Span, supply = Supply}, Context) ->
+    member_applied(Supply, [Form], Context1);
+expr_form({operator, Operator, Left, Right, Operation}, _, Context) ->
+    operator(Operator, Left, Right, Operation, Context);
+expr_form({member, Supply}, _, Context) ->
     %% report §4.9: a member as a value
     {Form, Context1} = supply_form(Supply, Context),
-    {at(Span, Form), function_value(Form, Context1)};
-expr(#e_lambda{span = Span, params = Params, body = Body}, Context) ->
-    {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
+    {Form, function_value(Form, Context1)};
+expr_form({lambda, _Position, Params, _, _, Body}, _, Context) ->
+    {Patterns, Context1} = lists:mapfoldl(fun({param, Pattern, _}, Acc) ->
                                               pattern(Pattern, Acc)
                                           end, Context, Params),
     {BodyForms, Context2} = body(Body, Context1),
     Clause = erl_syntax:clause(Patterns, none, BodyForms),
-    {at(Span, erl_syntax:fun_expr([Clause])),
+    {erl_syntax:fun_expr([Clause]),
      Context2#emit_context{variables = Context#emit_context.variables,
                            builds_functions = true}};
-expr(#e_if{span = Span, condition = Condition, then_branch = Then, else_branch = Else}, Context) ->
+expr_form({'if', Condition, Then, Else}, _, Context) ->
     {ConditionForm, Context1} = expr(Condition, Context),
     {[ThenForms, ElseForms], Context2} = lists:mapfoldl(fun body/2, Context1, [Then, Else]),
     Clauses = [erl_syntax:clause([erl_syntax:atom(true)], none, ThenForms),
                erl_syntax:clause([erl_syntax:atom(false)], none, ElseForms)],
-    {at(Span, erl_syntax:case_expr(ConditionForm, Clauses)), Context2};
-expr(#e_match{span = Span, scrutinee = ScrutineeExpr, clauses = Written}, Context) ->
-    {ScrutineeForm, Context1} = expr(ScrutineeExpr, Context),
-    {Form, Context2} = matched(ScrutineeForm, Written, Context1),
-    {at(Span, Form), Context2};
-expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Context) ->
+    {erl_syntax:case_expr(ConditionForm, Clauses), Context2};
+expr_form({match, Scrutinee, Written}, _, Context) ->
+    {ScrutineeForm, Context1} = expr(Scrutinee, Context),
+    matched(ScrutineeForm, Written, Context1);
+expr_form({'receive', Written, After}, _, Context) ->
     %% report §6.3: a receive guard is a guard expression, which the
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`
     %% it names, or a pattern's size names (§5.11), read into a variable
@@ -787,7 +805,34 @@ expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Context) ->
     %% the checker that delivered it (§8.4)
     {Clauses, {Reads, Context1}} = lists:mapfoldl(fun read_before/2, {[], Context}, Written),
     {Bindings, Receive, Context2} = receive_form(Clauses, After, Context1),
-    {at(Span, with_bindings(Reads ++ Bindings, Receive)), Context2}.
+    {with_bindings(Reads ++ Bindings, Receive), Context2}.
+
+%% Report §4.8, §4.9, §5.1: an operator. One resolved to a member a
+%% requirement names, a member whose own requirement is supplied, or a
+%% member of a type a module declares, is that member applied; a prelude
+%% type's, and the runtime's own operation at its operand's type, is the
+%% host's operation.
+operator(Operator, Left, Right, {known, {named, [TypeName, _]}, []}, Context) ->
+    plain_operator(Operator, Left, Right, {tcon, [TypeName], []}, Context);
+operator(Operator, Left, Right, {runtime, Type}, Context) ->
+    plain_operator(Operator, Left, Right, checked_type(Type, Context), Context);
+operator(Operator, Left, Right, runtime, Context) ->
+    plain_operator(Operator, Left, Right, none, Context);
+operator(Operator, Left, Right, Supply, Context) ->
+    {Operands, Context1} = exprs([Left, Right], Context),
+    {Applied, Context2} = member_applied(Supply, Operands, Context1),
+    {ordered(Operator, Applied), Context2}.
+
+plain_operator(Operator, Left, Right, Type, Context) ->
+    {[LeftForm, RightForm], Context1} = exprs([Left, Right], Context),
+    case Type of
+        {tcon, ['Float'], []}
+          when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/' ->
+            {[LeftName, RightName], Context2} = fresh_variables(2, "Operand", Context1),
+            {float_operation(Operator, LeftForm, RightForm, LeftName, RightName), Context2};
+        _ ->
+            {binop(Operator, Type, LeftForm, RightForm, Context), Context1}
+    end.
 
 %% Report §5.11: a top-level `let` a pattern's size names is read into a
 %% variable when the match begins, after its scrutinee (§5.1: left to
@@ -811,10 +856,10 @@ read_first(ScrutineeForm, Reads, Clauses, Context) ->
 
 %% A receive of Clauses with its `after`, if any: the bindings before it,
 %% and the receive.
-receive_form(Clauses, undefined, Context) ->
+receive_form(Clauses, none, Context) ->
     {Bindings, ClauseForms, Context1} = receive_clauses(Clauses, Context),
     {Bindings, erl_syntax:receive_expr(ClauseForms), Context1};
-receive_form(Clauses, #after_clause{timeout = Timeout, body = AfterBody}, Context) ->
+receive_form(Clauses, {'after', Timeout, AfterBody}, Context) ->
     {Bindings, ClauseForms, Context1} = receive_clauses(Clauses, Context),
     {Enter, Wait, Context2} = timed_receive(ClauseForms, Timeout, AfterBody, Context1),
     {Bindings ++ Enter, Wait, Context2}.
@@ -880,64 +925,70 @@ read_before(Clause, Acc) ->
     {Clause1, Acc1} = read_sizes(Clause, Acc),
     read_guard(Clause1, Acc1).
 
-read_guard(#clause{guard = undefined} = Clause, Acc) ->
-    {Clause, Acc};
-read_guard(#clause{guard = Guard} = Clause, Acc) ->
-    {Guard1, Acc1} = read_top(Guard, Acc),
-    {Clause#clause{guard = Guard1}, Acc1}.
+read_guard(Clause, Acc) ->
+    {Source, {clause, Pattern, Guard, Body}} = sourced(Clause),
+    case Guard of
+        none ->
+            {Clause, Acc};
+        _ ->
+            {Guard1, Acc1} = read_top(Guard, Acc),
+            {rewrapped(Source, {clause, Pattern, Guard1, Body}), Acc1}
+    end.
 
 %% Report §5.11: each top-level `let` a clause's pattern names in a size.
-read_sizes(#clause{pattern = Pattern} = Clause, Acc) ->
+read_sizes(Clause, Acc) ->
+    {Source, {clause, Pattern, Guard, Body}} = sourced(Clause),
     {Pattern1, Acc1} = read_pattern_sizes(Pattern, Acc),
-    {Clause#clause{pattern = Pattern1}, Acc1}.
+    {rewrapped(Source, {clause, Pattern1, Guard, Body}), Acc1}.
 
-read_pattern_sizes(#bit_segment{specs = Specs} = Segment, Acc) ->
-    {Specs1, Acc1} = lists:mapfoldl(fun({size, SizeExpr}, SpecAcc) ->
-                                            {SizeExpr1, SpecAcc1} = read_top(SizeExpr, SpecAcc),
-                                            {{size, SizeExpr1}, SpecAcc1};
-                                       (Spec, SpecAcc) ->
-                                            {Spec, SpecAcc}
-                                    end, Acc, Specs),
-    {Segment#bit_segment{specs = Specs1}, Acc1};
-read_pattern_sizes(Node, Acc)
-  when is_tuple(Node), tuple_size(Node) > 0, is_atom(element(1, Node)) ->
-    [Tag | Fields] = tuple_to_list(Node),
-    {Fields1, Acc1} = lists:mapfoldl(fun read_pattern_sizes/2, Acc, Fields),
-    {list_to_tuple([Tag | Fields1]), Acc1};
+read_pattern_sizes({segment, Kind, {expr, Size}, Unit, Endian, Sign, Value}, Acc) ->
+    {Size1, Acc1} = read_top(Size, Acc),
+    {Value1, Acc2} = read_pattern_sizes(Value, Acc1),
+    {{segment, Kind, {expr, Size1}, Unit, Endian, Sign, Value1}, Acc2};
+read_pattern_sizes(Node, Acc) when is_tuple(Node), tuple_size(Node) > 0 ->
+    {Fields, Acc1} = lists:mapfoldl(fun read_pattern_sizes/2, Acc, tuple_to_list(Node)),
+    {list_to_tuple(Fields), Acc1};
 read_pattern_sizes(Nodes, Acc) when is_list(Nodes) ->
     lists:mapfoldl(fun read_pattern_sizes/2, Acc, Nodes);
 read_pattern_sizes(Other, Acc) ->
     {Other, Acc}.
 
-read_top(#e_binop{left = Left, right = Right} = Binop, Acc) ->
+read_top(Expr, Acc) ->
+    {Source, Node} = sourced(Expr),
+    {Node1, Acc1} = read_top_node(Node, Expr, Acc),
+    {rewrapped(Source, Node1), Acc1}.
+
+read_top_node({operator, Operator, Left, Right, Operation}, _, Acc) ->
     {Left1, Acc1} = read_top(Left, Acc),
     {Right1, Acc2} = read_top(Right, Acc1),
-    {Binop#e_binop{left = Left1, right = Right1}, Acc2};
-read_top(#e_not{expr = Expr} = Node, Acc) ->
-    {Expr1, Acc1} = read_top(Expr, Acc),
-    {Node#e_not{expr = Expr1}, Acc1};
-read_top(#e_negation{expr = Expr} = Node, Acc) ->
-    {Expr1, Acc1} = read_top(Expr, Acc),
-    {Node#e_negation{expr = Expr1}, Acc1};
-read_top(#e_var{referent = Referent} = Reference, {Reads, Context}) when Referent =/= var ->
-    {Form, Context1} = expr(Reference, Context),
+    {{operator, Operator, Left1, Right1, Operation}, Acc2};
+read_top_node({'not', Inner}, _, Acc) ->
+    {Inner1, Acc1} = read_top(Inner, Acc),
+    {{'not', Inner1}, Acc1};
+read_top_node({negate, Inner, Operation}, _, Acc) ->
+    {Inner1, Acc1} = read_top(Inner, Acc),
+    {{negate, Inner1, Operation}, Acc1};
+read_top_node({var, Reference, _}, Expr, {Reads, Context})
+  when element(1, Reference) =/= local, element(1, Reference) =/= read ->
+    {Form, Context1} = expr(Expr, Context),
     {[ReadName], Context2} = fresh_variables(1, "Read", Context1),
-    {Reference#e_var{namespace = [], name = ReadName, referent = var},
-     {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(ReadName), Form)],
-      Context2#emit_context{variables = maps:put(ReadName, ReadName,
-                                                 Context2#emit_context.variables)}}};
-read_top(Expr, Acc) ->
-    {Expr, Acc}.
+    {{var, {read, ReadName}, []},
+     {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(ReadName), Form)], Context2}};
+read_top_node(Node, _, Acc) ->
+    {Node, Acc}.
 
 %% A body: a block's statements spliced into the clause, else one expression.
-body(#e_block{statements = Statements}, Context) ->
-    {Forms, Context1} = block(Statements, Context),
-    {Forms,
-     Context1#emit_context{variables = Context#emit_context.variables,
-                           locals = Context#emit_context.locals}};
 body(Expr, Context) ->
-    {Form, Context1} = expr(Expr, Context),
-    {[Form], Context1}.
+    case sourced(Expr) of
+        {_, {block, Statements}} ->
+            {Forms, Context1} = block(Statements, Context),
+            {Forms,
+             Context1#emit_context{variables = Context#emit_context.variables,
+                                   locals = Context#emit_context.locals}};
+        _ ->
+            {Form, Context1} = expr(Expr, Context),
+            {[Form], Context1}
+    end.
 
 literal(int, Value) -> erl_syntax:integer(Value);
 literal(float, Value) -> erl_syntax:float(Value);
@@ -960,64 +1011,62 @@ string_binary(Text) ->
 %%
 
 %% A name used as a value: name_form(...) -> {Form, Context}. Report §4.2:
-%% what the name refers to is the checker's referent, read and not decided
-%% here.
-name_form(Span, _, Name, var, Type, [],
-          #emit_context{variables = Variables, locals = Locals} = Context) ->
-    case Variables of
-        #{Name := Variable} -> {variable_form(Variable), Context};
-        _ ->
-            #{Name := #local_fn{lifted_name = LiftedName}} = Locals,
-            closure(LiftedName, captured_variables(Name, Context), arity_of(Type, Span), Context)
-    end;
-%% Appendix E.1: the library's Io.show and Io.debug as values too, by
-%% what the checker supplied for the argument's type, named by the checker's
-%% referent from another module and from the library's own, and never by
-%% the namespace written
-name_form(Span, _, Name,
-          #remote_declaration{namespace = ['Io'], member_of = undefined, name = Name},
-          Type, [Shown], Context)
-  when Name =:= show; Name =:= debug ->
-    io_value(Span, Name, Type, Shown, Context);
-name_form(Span, _, Name, #own_declaration{member_of = undefined, name = Name}, Type, [Shown],
-          #emit_context{erlang_module = 'ern@io'} = Context)
-  when Name =:= show; Name =:= debug ->
-    io_value(Span, Name, Type, Shown, Context);
+%% what the name refers to is the form's reference, read and not decided
+%% here; Extra is what a form holds beside a use of `Address.call` or a
+%% spawn on a peer, or none.
+name_form(Source, {local, Number}, [], _, Context) ->
+    local_value(Source, Number, Context);
+name_form(_, {read, ReadName}, [], _, Context) ->
+    {erl_syntax:variable(ReadName), Context};
+%% Appendix E.1: the library's Io.show and Io.debug as values too, by what
+%% the checker supplied for the argument's type, named by the form's
+%% reference from another module and from the library's own alike
+name_form(_, {named, ['Io', Name]}, [Shown], _, Context) when Name =:= show; Name =:= debug ->
+    io_value(Name, Shown, Context);
 %% Report §8.4, Appendix E.12: Foreign.term as a value, which gives its
 %% argument as a foreign function's argument of the supplied type crosses
-name_form(_Span, _, term,
-          #remote_declaration{namespace = ['Foreign'], member_of = undefined, name = term},
-          _Type, [#shown_type{type = Crossing}], Context) ->
-    term_value(Crossing, Context);
-name_form(_Span, _, term, #own_declaration{member_of = undefined, name = term}, _Type,
-          [#shown_type{type = Crossing}], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
+name_form(_, {named, ['Foreign', term]}, [{shown, Crossing}], _, Context) ->
     term_value(Crossing, Context);
 %% Report §8.7: Peer.service as a value, its service's type's hash supplied
-name_form(_Span, _, service,
-          #remote_declaration{namespace = ['Peer'], member_of = undefined, name = service},
-          _Type, [ServiceType], Context) ->
+name_form(_, {named, ['Peer', service]}, [ServiceType], _, Context) ->
     {[Name], Context1} = fresh_variables(1, "Name", Context),
     {lambda([Name], call_remote(ern_peer, service, [erl_syntax:variable(Name),
-                                                    service_hash(ServiceType, Context)])),
+                                                    service_hash(ServiceType)])),
      Context1};
-name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
-    prelude_value(Span, QualifiedName, Type, Context);
-name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, [], Context) ->
-    {own_value(MemberOf, Name, Context), Context};
-name_form(_, _, _, #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name},
-          Type, [], Context) ->
-    {remote_value(Declaring, MemberOf, Name, Type, Context), Context};
+name_form(Source, {named, QualifiedName} = Reference, [], Extra, Context) ->
+    case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
+        true -> {declared_value(Reference, Context), Context};
+        false -> prelude_value(Source, QualifiedName, Extra, Context)
+    end;
+name_form(_, Reference, [], _, Context) ->
+    {declared_value(Reference, Context), Context};
 %% Report §4.9: a declaration with a requirement taken as a value is the
 %% function with its members supplied
-name_form(Span, Namespace, Name, Referent, Type, Supplies, Context) ->
-    Arity = arity_of(Type, Span),
-    {Function, Context1} = name_form(Span, Namespace, Name, Referent, widened(Type, Supplies), [],
-                                     Context),
+name_form(Source, Reference, Supplies, Extra, Context) ->
+    Arity = value_arity(Reference, Context) - length(Supplies),
+    {Function, Context1} = name_form(Source, Reference, [], Extra, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
     Call = fun([FunctionVariable | SupplyVariables], Args) ->
                    erl_syntax:application(FunctionVariable, Args ++ SupplyVariables)
            end,
     supplied_lambda(Arity, [{"Function", Function} | supplied(SupplyForms)], Call, Context2).
+
+%% A local as a value: the variable it is bound to, or a local fn's
+%% closure over what it closes over.
+local_value(_, Number, #emit_context{variables = Variables, locals = Locals} = Context) ->
+    case Variables of
+        #{Number := Variable} ->
+            {variable_form(Variable), Context};
+        _ ->
+            #{Number := #local_fn{lifted_name = LiftedName, function = Function}} = Locals,
+            closure(LiftedName, captured_variables(Number, Context), local_arity(Function),
+                    Context)
+    end.
+
+%% A local fn's arity, its parameters and its requirement's members, which
+%% are supplied where it is named (§4.9).
+local_arity({function, _, Params, _, _, Needs, _}) ->
+    length(Params) + length(Needs).
 
 %% Report §4.9: a function value with its members supplied, a lambda of
 %% Arity parameters whose body is Call of the bound variables and the
@@ -1037,51 +1086,103 @@ supplied_lambda(Arity, Bound, Call, Context) ->
 supplied(SupplyForms) ->
     [{"Supplied", SupplyForm} || SupplyForm <- SupplyForms].
 
-%% A function type with a parameter for each member supplied, which the
-%% declaration's Erlang function takes after its written ones.
-widened({tfn, Params, Effect, Result}, Supplies) ->
-    {tfn, Params ++ [{tcon, ['Unit'], []} || _ <- Supplies], Effect, Result}.
-
-%% Report §4.6: a `let` is a value, reached through its getter even where it
-%% holds a function; a `fn` is the function itself.
-own_value(MemberOf, Name, #emit_context{top_names = TopNames}) ->
-    Local = erl_syntax:atom(function_name(MemberOf, Name)),
-    case maps:get({MemberOf, Name}, TopNames) of
-        value -> erl_syntax:application(Local, []);
-        Arity -> erl_syntax:implicit_fun(Local, erl_syntax:integer(Arity))
+%% Report §4.6: a declaration as a value. A `let` is reached through its
+%% getter even where it holds a function; a `fn` is the function itself, a
+%% fun of its unit, which keeps the code it was taken from (§11.2).
+declared_value(Reference, Context) ->
+    case placed(Reference, Context) of
+        {own, Position, value, _} ->
+            erl_syntax:application(erl_syntax:atom(function_name(Position)), []);
+        {own, Position, function, Arity} ->
+            erl_syntax:implicit_fun(erl_syntax:atom(function_name(Position)),
+                                    erl_syntax:integer(Arity));
+        {Unit, Position, value, _} ->
+            call_remote(Unit, function_name(Position), []);
+        {Unit, Position, function, Arity} ->
+            remote_fun(Unit, function_name(Position), Arity)
     end.
 
-remote_value(Declaring, MemberOf, Name, Type, #emit_context{env = Env} = Context) ->
-    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name, Context),
-    case {is_value(Declaring, MemberOf, Name, Env), Type} of
-        {false, {tfn, Params, _, _}} ->
-            %% report §11.2: a unit never takes a second version, so the
-            %% function keeps the code it was taken from
-            remote_fun(HostModule, HostFunction, length(Params));
-        _ ->
-            call_remote(HostModule, HostFunction, [])
+%% Report §11.1: where a declaration a form references is: own, a function
+%% of this unit, or another unit's, with its position, its kind and its
+%% function's arity.
+placed(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign}} = Context) ->
+    case own_position(Reference, Context) of
+        {ok, Position} when is_map_key(Position, Forms) ->
+            {_, Form} = maps:get(Position, Forms),
+            Kind = case sourced(Form) of
+                       {_, {binding, _, _, _}} -> value;
+                       _ -> function
+                   end,
+            {own, Position, Kind, arity(Form)};
+        {ok, Position} ->
+            {_, ForeignFunction} = lists:keyfind(Position, 1, maps:values(Foreign)),
+            {own, Position, function, foreign_arity(ForeignFunction)};
+        error ->
+            case linked(Reference, Context) of
+                #linked{position = undefined} ->
+                    fail(none, unlinked(Reference));
+                #linked{unit = Unit, position = Position, kind = Kind, arity = Arity} ->
+                    {Unit, Position, Kind, Arity}
+            end
     end.
 
-arity_of({tfn, Params, _, _}, _) -> length(Params);
-arity_of(_, Span) -> fail(Span, "a function used as a value must have a function type").
+%% The position of the unit's own definition or foreign function a
+%% reference names, or error for another unit's.
+own_position({hash, Hash}, #emit_context{own = #own{hashes = Hashes}}) ->
+    maps:find(Hash, Hashes);
+own_position({binding, QualifiedName, _}, #emit_context{own = #own{names = Names}}) ->
+    maps:find(QualifiedName, Names);
+own_position({named, QualifiedName},
+           #emit_context{own = #own{names = Names, foreign = Foreign}}) ->
+    %% the standard library's own forms name its declarations by name
+    case maps:find(QualifiedName, Names) of
+        {ok, Position} ->
+            {ok, Position};
+        error ->
+            case Foreign of
+                #{QualifiedName := {Position, _}} -> {ok, Position};
+                _ -> error
+            end
+    end;
+own_position({foreign, QualifiedName, _}, #emit_context{own = #own{foreign = Foreign}}) ->
+    case Foreign of
+        #{QualifiedName := {Position, _}} -> {ok, Position};
+        _ -> error
+    end;
+own_position(_, _) ->
+    error.
 
-%% Report §4.6: whether another module's declaration is a `let`, which
-%% its interface says (§11.1).
-is_value(Declaring, MemberOf, Name, Env) ->
-    ern_typecheck:is_value(Declaring ++ [MemberOf || MemberOf =/= undefined] ++ [Name], Env).
+is_own(Reference, Context) ->
+    own_position(Reference, Context) =/= error.
 
-%% Another Ernest module's declaration as a function of its unit.
-remote_name(Declaring, MemberOf, Name, Context) ->
-    {unit(Declaring, Context), function_name(MemberOf, Name)}.
-
-%% Report §11.2: the unit a module's namespace calls, its Erlang name but
-%% where the shell gave it another, a reload's version being a unit of its
-%% own.
-unit(Namespace, #emit_context{units = Units}) ->
-    case Units of
-        #{Namespace := Unit} -> Unit;
-        _ -> ern_namespace:erlang_module(Namespace)
+%% The link's entry for a reference to another unit (report §8.7, §11.1).
+linked(Reference, #emit_context{unit = #unit{link = #link{functions = Functions}}}) ->
+    case Functions of
+        #{Reference := Linked} -> Linked;
+        _ -> erlang:error({emitter_defect, none, unlinked(Reference)})
     end.
+
+unlinked(Reference) ->
+    lists:flatten(io_lib:format("the link places no ~p in a unit", [Reference])).
+
+%% The arity of the function a name a form references compiles to, a
+%% requirement's members among its parameters (§4.9).
+value_arity({local, Number}, #emit_context{locals = Locals}) ->
+    #{Number := #local_fn{function = Function}} = Locals,
+    local_arity(Function);
+value_arity(Reference, Context) ->
+    {_, _, _, Arity} = placed(Reference, Context),
+    Arity.
+
+%% Report §11.2: whether a name is one of the prelude's primitives, which
+%% the runtime gives and no unit holds (§9).
+is_primitive([Name]) ->
+    lists:member(Name, [self, send, answer, adapted, monitor, kill, spawn, spawnMonitored,
+                        restarting, fault]);
+is_primitive(['Address', Name]) -> Name =:= call orelse Name =:= callForever;
+is_primitive(['Int', Name]) -> lists:member(Name, ['+', '-', '*', '/', '%', negate]);
+is_primitive([TypeName, '<>']) -> lists:member(TypeName, ['String', 'List', 'Bytes']);
+is_primitive(_) -> false.
 
 closure(LiftedName, Captures, Arity, Context) ->
     {Params, Context1} = fresh_variables(Arity, "Argument", Context),
@@ -1095,45 +1196,37 @@ closure(LiftedName, Captures, Arity, Context) ->
 %% Calls
 %%
 
-call(Span, #e_var{referent = var, name = Name, supplies = Supplies}, Args, Context) ->
+call(Source, Callee, Args, Context) ->
+    {_, CalleeNode} = sourced(Callee),
+    callee(Source, CalleeNode, Callee, Args, Context).
+
+callee(_, {var, {local, Number}, Supplies}, _, Args, Context) ->
     #emit_context{variables = Variables, locals = Locals} = Context,
     {ArgForms, Context1} = exprs(Args, Context),
     case Variables of
-        #{Name := Variable} ->
-            {at(Span, erl_syntax:application(variable_form(Variable), ArgForms)), Context1};
+        #{Number := Variable} ->
+            {erl_syntax:application(variable_form(Variable), ArgForms), Context1};
         _ ->
-            #{Name := #local_fn{lifted_name = LiftedName}} = Locals,
+            #{Number := #local_fn{lifted_name = LiftedName}} = Locals,
             Captures = [erl_syntax:variable(Variable)
-                        || Variable <- captured_variables(Name, Context)],
+                        || Variable <- captured_variables(Number, Context)],
             {SupplyForms, Context2} = supply_forms(Supplies, Context1),
             Application = erl_syntax:application(erl_syntax:atom(LiftedName),
                                                  Captures ++ ArgForms ++ SupplyForms),
-            {at(Span, Application), Context2}
+            {Application, Context2}
     end;
-%% Appendix E.1: the library's Io.show and Io.debug, as name_form/7 names
+%% Appendix E.1: the library's Io.show and Io.debug, as name_form/5 names
 %% them, written by what the checker supplied for the argument's type
-call(Span, #e_var{referent = #remote_declaration{namespace = ['Io'], member_of = undefined,
-                                                 name = Name},
-                  supplies = [Shown]},
-     [Argument], Context)
+callee(_, {var, {named, ['Io', Name]}, [Shown]}, _, [Argument], Context)
   when Name =:= show; Name =:= debug ->
-    io_call(Span, Name, Argument, Shown, Context);
-call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = Name},
-                  supplies = [Shown]}, [Argument],
-     #emit_context{erlang_module = 'ern@io'} = Context)
-  when Name =:= show; Name =:= debug ->
-    io_call(Span, Name, Argument, Shown, Context);
+    {[ArgumentForm], Context1} = exprs([Argument], Context),
+    {DescriptorForm, Context2} = supply_form(Shown, Context1),
+    {call_remote(ern_io, Name, [ArgumentForm, DescriptorForm]), Context2};
 %% Report §8.4, Appendix E.12: Foreign.term, the value as a foreign
 %% function's argument of its type crosses, by what the checker supplied
-call(Span, #e_var{referent = #remote_declaration{namespace = ['Foreign'], member_of = undefined,
-                                                 name = term},
-                  supplies = [#shown_type{type = Crossing}]},
-     [Argument], Context) ->
-    term_call(Span, Argument, Crossing, Context);
-call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = term},
-                  supplies = [#shown_type{type = Crossing}]},
-     [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
-    term_call(Span, Argument, Crossing, Context);
+callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument], Context) ->
+    {[ArgumentForm], Context1} = exprs([Argument], Context),
+    exposed({Crossing, ArgumentForm}, Context1);
 %% Report §8.7, Appendix E.27: Peer.service makes its service with its
 %% message type's hash, of the type the checker supplied; Peer.spawn,
 %% Peer.spawnMonitored and Peer.compute send the function's identity and
@@ -1142,90 +1235,66 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = term
 %% captures that carry a reply, whose calls it ends where it fails (§6.6),
 %% and a compute none, since the checker refuses a compute's function that
 %% captured one (§6.6's rule)
-call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
-                                                 name = service},
-                  supplies = [ServiceType]},
-     [Argument], Context) ->
+callee(_, {var, {named, ['Peer', service]}, [ServiceType]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
-    {at(Span, call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType, Context)])),
-     Context1};
-call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
-                                                 name = Name}},
-     [PeerName, Spawned | Rest], Context)
+    {call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType)]), Context1};
+callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest], Context)
   when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
-    {PeerForm, Context1} = expr(PeerName, Context),
-    {SpawnedForm, Replies, Context2} = spawned(Spawned, Context1),
-    {RestForms, Context3} = exprs(Rest, Context2),
-    {Function, Held} = case Name of
-                           spawn -> {spawn, [erl_syntax:list(Replies)]};
-                           spawnMonitored -> {spawn_monitored, [erl_syntax:list(Replies)]};
-                           compute -> {compute, []}
-                       end,
-    {at(Span, call_remote(ern_peer, Function,
-                          [PeerForm, SpawnedForm | RestForms] ++ [site(Span, Context) | Held])),
-     Context3};
-call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) ->
-    %% report §4.2: the prelude's, `Prelude.x` among them
+    %% a compute's function holds no reply (§6.6's rule), nor its form any
+    peer_spawn(Source, Name, [], PeerName, Spawned, Rest, Context);
+callee(Source, {var, {named, ['Peer', Name]}, _, Held}, _, [PeerName, Spawned | Rest], Context)
+  when Name =:= spawn; Name =:= spawnMonitored ->
+    peer_spawn(Source, Name, Held, PeerName, Spawned, Rest, Context);
+callee(Source, {var, {named, QualifiedName} = Reference, []} = Node, _, Args, Context) ->
+    case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
+        true ->
+            declared_call(Reference, [], Args, Context);
+        false ->
+            %% report §4.2: the prelude's, `Prelude.x` among them
+            {ArgForms, Context1} = exprs(Args, Context),
+            prelude_call(Source, QualifiedName, Args, ArgForms, Node, Context1)
+    end;
+callee(Source, {var, {named, ['Address', _] = QualifiedName}, [], _} = Node, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
-    prelude_call(Span, QualifiedName, Args, ArgForms, Callee, Context1);
-call(Span, #e_var{referent = #own_declaration{member_of = MemberOf, name = Name},
-                  supplies = Supplies}, Args, Context) ->
-    {ArgForms, Context1} = exprs(Args, Context),
-    {SupplyForms, Context2} = supply_forms(Supplies, Context1),
-    {at(Span, own_call(MemberOf, Name, ArgForms ++ SupplyForms, Context)), Context2};
+    prelude_call(Source, QualifiedName, Args, ArgForms, Node, Context1);
 %% report §4.9: a member called directly, `a.compare(x, y)` or a derived
 %% compare's field
-call(Span, #e_member{supply = #known_member{qualified_name = QualifiedName, member = Member,
-                                            supplies = Supplies}},
-     Args, Context) ->
+callee(_, {member, {known, Reference, Supplies}}, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
-    {at(Span, member_call(QualifiedName, Member, ArgForms ++ SupplyForms, Context)), Context2};
-call(Span,
-     #e_var{referent = #remote_declaration{namespace = Declaring, member_of = MemberOf,
-                                           name = Name},
-            supplies = Supplies},
-     Args, #emit_context{env = Env} = Context) ->
+    {member_call(Reference, ArgForms ++ SupplyForms, Context), Context2};
+callee(_, {var, Reference, Supplies}, _, Args, Context) when element(1, Reference) =/= read ->
+    declared_call(Reference, Supplies, Args, Context);
+callee(_, _, Callee, Args, Context) ->
+    {CalleeForm, Context1} = expr(Callee, Context),
+    {ArgForms, Context2} = exprs(Args, Context1),
+    {erl_syntax:application(CalleeForm, ArgForms), Context2}.
+
+%% Report §4.6: a call of a declaration, a `let` through what its getter
+%% answers and a `fn` the call itself, a requirement's members after the
+%% arguments written.
+declared_call(Reference, Supplies, Args, Context) ->
     {WrittenForms, Context1} = exprs(Args, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
     ArgForms = WrittenForms ++ SupplyForms,
-    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name, Context),
-    %% report §4.6: calling a `let` applies what its getter answers;
-    %% calling a `fn` is the call itself
-    case is_value(Declaring, MemberOf, Name, Env) of
-        true ->
-            Get = call_remote(HostModule, HostFunction, []),
-            {at(Span, erl_syntax:application(Get, ArgForms)), Context2};
-        false ->
-            {at(Span, call_remote(HostModule, HostFunction, ArgForms)), Context2}
-    end;
-call(Span, #e_constructor{} = Constructor, Args, Context) ->
-    %% a single-positional constructor called as a function
-    {ConstructorForm, Context1} = expr(Constructor, Context),
-    {ArgForms, Context2} = exprs(Args, Context1),
-    {at(Span, erl_syntax:application(ConstructorForm, ArgForms)), Context2};
-call(Span, Callee, Args, Context) ->
-    {CalleeForm, Context1} = expr(Callee, Context),
-    {ArgForms, Context2} = exprs(Args, Context1),
-    {at(Span, erl_syntax:application(CalleeForm, ArgForms)), Context2}.
+    Form = case placed(Reference, Context) of
+               {own, Position, value, _} ->
+                   Get = erl_syntax:application(erl_syntax:atom(function_name(Position)), []),
+                   erl_syntax:application(Get, ArgForms);
+               {own, Position, function, _} ->
+                   erl_syntax:application(erl_syntax:atom(function_name(Position)), ArgForms);
+               {Unit, Position, value, _} ->
+                   erl_syntax:application(call_remote(Unit, function_name(Position), []), ArgForms);
+               {Unit, Position, function, _} ->
+                   call_remote(Unit, function_name(Position), ArgForms)
+           end,
+    {Form, Context2}.
 
-io_call(Span, Name, Argument, Shown, Context) ->
-    {[ArgumentForm], Context1} = exprs([Argument], Context),
-    {DescriptorForm, Context2} = supply_form(Shown, Context1),
-    {at(Span, call_remote(ern_io, Name, [ArgumentForm, DescriptorForm])), Context2}.
-
-%% Appendix E.1: Io.show or Io.debug as a value, the descriptor it writes
-%% by supplied.
-io_value(_Span, Name, {tfn, [_], _, _}, Shown, Context) ->
+io_value(Name, Shown, Context) ->
     {[Value], Context1} = fresh_variables(1, "Argument", Context),
     {DescriptorForm, Context2} = supply_form(Shown, Context1),
     {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
      Context2}.
-
-term_call(Span, Argument, Crossing, Context) ->
-    {[ArgumentForm], Context1} = exprs([Argument], Context),
-    {Form, Context2} = exposed({Crossing, ArgumentForm}, Context1),
-    {at(Span, Form), Context2}.
 
 term_value(Crossing, Context) ->
     {[Value], Context1} = fresh_variables(1, "Argument", Context),
@@ -1246,40 +1315,39 @@ supply_forms(Supplies, Context) ->
 %% A member the enclosing requirement names is the parameter it came in;
 %% `show` at a known type is the type's descriptor; a known type's member
 %% is that member as a function, its own requirement supplied.
-supply_form(#required_member{variable = Variable, member = Member}, Context) ->
-    {erl_syntax:variable(member_variable(Variable, Member, Context)), Context};
-supply_form(#shown_type{type = Type}, #emit_context{env = Env, namespace = Namespace} = Context) ->
+supply_form({required, {variable, Number}, Member}, Context) ->
+    {erl_syntax:variable(member_variable(Number, Member, Context)), Context};
+supply_form({shown, Type, Abstract}, #emit_context{members = Members} = Context) ->
     %% report §4.9, Appendix E.1: a type built from type variables a
     %% requirement names `show` for is the descriptor composed of theirs,
-    %% which came in as the requirement's members
-    case ern_types:value_variables(Type, ern_typecheck:type_state(Env)) of
-        [] ->
-            {erl_syntax:abstract(descriptor(Type, Context)), Context};
-        Holes ->
-            Descriptor = ern_descriptor:describe(Type, Env, Namespace, Holes),
-            {holes_filled(Descriptor, Context), Context}
+    %% which came in as the requirement's members; the types the site
+    %% prints as `<abstract>` are the form's
+    Holes = [Number || {variable, Number} <- lists:usort(type_variables(Type)),
+                       is_map_key({Number, show}, Members)],
+    Descriptor = describe(Type, Holes, Abstract, Context),
+    case Holes of
+        [] -> {erl_syntax:abstract(Descriptor), Context};
+        _ -> {holes_filled(Descriptor, Context), Context}
     end;
-supply_form(#known_member{qualified_name = [_] = QualifiedName, member = Member,
-                          supplies = []}, Context) ->
-    member_value(QualifiedName, Member, Context);
-supply_form(#known_member{qualified_name = QualifiedName, member = Member, supplies = Supplies},
-            Context) ->
+supply_form({known, {named, [_, Member]} = Reference, []}, Context) ->
+    member_value(Reference, Member, Context);
+supply_form({known, Reference, Supplies}, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
-    Arity = member_arity(Member),
+    Arity = value_arity(Reference, Context) - length(Supplies),
     case SupplyForms of
         [] ->
-            {member_value(QualifiedName, Member, Arity, Context1), Context1};
+            {member_fun(Reference, Arity, Context1), Context1};
         _ ->
             Call = fun(SupplyVariables, Args) ->
-                           member_call(QualifiedName, Member, Args ++ SupplyVariables, Context1)
+                           member_call(Reference, Args ++ SupplyVariables, Context1)
                    end,
             supplied_lambda(Arity, supplied(SupplyForms), Call, Context1)
     end.
 
 %% A descriptor as a form, each hole the descriptor its variable's `show`
 %% came in as.
-holes_filled({hole, Id}, Context) ->
-    erl_syntax:variable(member_variable({tvar, Id}, show, Context));
+holes_filled({hole, Number}, Context) ->
+    erl_syntax:variable(member_variable(Number, show, Context));
 holes_filled(Part, Context) when is_tuple(Part) ->
     erl_syntax:tuple([holes_filled(Inner, Context) || Inner <- tuple_to_list(Part)]);
 holes_filled(Parts, Context) when is_list(Parts) ->
@@ -1289,32 +1357,31 @@ holes_filled(Leaf, _) ->
 
 %% The parameter a requirement's member came in, in the declaration being
 %% emitted or one that encloses it.
-member_variable(Variable, Member, #emit_context{members = Members} = Context) ->
-    {tvar, Id} = resolved(Variable, Context),
-    maps:get({Id, Member}, Members).
+member_variable(Number, Member, #emit_context{members = Members}) ->
+    maps:get({Number, Member}, Members).
 
 member_arity(negate) -> 1;
 member_arity(_) -> 2.
 
 %% A member of a declared type as a function value: a local function of
-%% this module's, or another module's unit's (report §11.2).
-member_value(QualifiedName, Member, Arity,
-             #emit_context{namespace = Namespace, env = Env} = Context) ->
-    MemberOf = lists:last(QualifiedName),
-    MemberQualifiedName = ern_typecheck:session_member(QualifiedName, Member, Env),
-    Function = function_name(MemberOf, Member),
-    case lists:droplast(lists:droplast(MemberQualifiedName)) of
-        Namespace -> erl_syntax:implicit_fun(erl_syntax:atom(Function), erl_syntax:integer(Arity));
-        Declaring -> remote_fun(unit(Declaring, Context), Function, Arity)
+%% this unit's, or another unit's (report §11.2).
+member_fun(Reference, Arity, Context) ->
+    case placed(Reference, Context) of
+        {own, Position, _, _} ->
+            erl_syntax:implicit_fun(erl_syntax:atom(function_name(Position)),
+                                    erl_syntax:integer(Arity));
+        {Unit, Position, _, _} ->
+            remote_fun(Unit, function_name(Position), Arity)
     end.
 
-%% Report §4.6: a call of the module's own declaration, a `let` through
-%% what its getter answers.
-own_call(MemberOf, Name, ArgForms, #emit_context{top_names = TopNames}) ->
-    Local = erl_syntax:atom(function_name(MemberOf, Name)),
-    case maps:get({MemberOf, Name}, TopNames) of
-        value -> erl_syntax:application(erl_syntax:application(Local, []), ArgForms);
-        _ -> erl_syntax:application(Local, ArgForms)
+%% Report §4.6: a call of a type's member, a local call when the type is
+%% this module's, otherwise a call into the unit that owns it (report §4.2).
+member_call(Reference, Args, Context) ->
+    case placed(Reference, Context) of
+        {own, Position, _, _} ->
+            erl_syntax:application(erl_syntax:atom(function_name(Position)), Args);
+        {Unit, Position, _, _} ->
+            call_remote(Unit, function_name(Position), Args)
     end.
 
 %% fun M:F/A
@@ -1331,59 +1398,52 @@ call_remote(HostModule, HostFunction, Args) ->
 %% The prelude, report §9
 %%
 
-prelude_call(Span, [self], [], [], _, Context) ->
-    {at(Span, call_remote(ern_rt, self, [])), Context};
-prelude_call(Span, [send], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, send, ArgForms)), Context};
-prelude_call(Span, [answer], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, answer, ArgForms)), Context};
-prelude_call(Span, [adapted], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, adapted, ArgForms)), Context};
-prelude_call(Span, [monitor], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, monitor, ArgForms)), Context};
-prelude_call(Span, [kill], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, kill, ArgForms)), Context};
-prelude_call(Span, [spawn], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, spawn, ArgForms ++ [site(Span, Context)])), Context};
-prelude_call(Span, [spawnMonitored], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, spawn_monitored, ArgForms ++ [site(Span, Context)])), Context};
-prelude_call(Span, ['Address', call], _, ArgForms, #e_var{type = Type}, Context) ->
-    {Form, Context1} = reply_call(call, ArgForms, Type, Context),
-    {at(Span, Form), Context1};
-prelude_call(Span, ['Address', callForever], _, ArgForms, #e_var{type = Type}, Context) ->
-    {Form, Context1} = reply_call(call_forever, ArgForms, Type, Context),
-    {at(Span, Form), Context1};
-prelude_call(Span, [restarting], _, ArgForms, _, Context) ->
-    {at(Span, call_remote(ern_rt, restarting, ArgForms)), Context};
-prelude_call(Span, [fault], _, [CauseForm], _, Context) ->
-    {at(Span, call_remote(ern_rt, fault, [CauseForm])), Context};
-prelude_call(Span, ['Int', Operator], [Left | _], [LeftForm, RightForm], _, Context)
+prelude_call(_, [self], [], [], _, Context) ->
+    {call_remote(ern_rt, self, []), Context};
+prelude_call(_, [send], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, send, ArgForms), Context};
+prelude_call(_, [answer], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, answer, ArgForms), Context};
+prelude_call(_, [adapted], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, adapted, ArgForms), Context};
+prelude_call(_, [monitor], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, monitor, ArgForms), Context};
+prelude_call(_, [kill], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, kill, ArgForms), Context};
+prelude_call(Source, [spawn], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, spawn, ArgForms ++ [site(Source, Context)]), Context};
+prelude_call(Source, [spawnMonitored], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, spawn_monitored, ArgForms ++ [site(Source, Context)]), Context};
+prelude_call(_, ['Address', call], _, ArgForms, Callee, Context) ->
+    reply_call(call, ArgForms, answer_of(Callee), Context);
+prelude_call(_, ['Address', callForever], _, ArgForms, Callee, Context) ->
+    reply_call(call_forever, ArgForms, answer_of(Callee), Context);
+prelude_call(_, [restarting], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, restarting, ArgForms), Context};
+prelude_call(_, [fault], _, [CauseForm], _, Context) ->
+    {call_remote(ern_rt, fault, [CauseForm]), Context};
+prelude_call(_, ['Int', Operator], _, [LeftForm, RightForm], _, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%' ->
-    OperandType = resolved(ern_typecheck:node_type(Left), Context),
-    {at(Span, binop(Operator, OperandType, LeftForm, RightForm, Context)), Context};
-prelude_call(Span, ['Int', negate], _, [OperandForm], _, Context) ->
-    {at(Span, erl_syntax:prefix_expr(erl_syntax:operator('-'), OperandForm)), Context};
-prelude_call(Span, [TypeName, '<>'], [Left | _], [LeftForm, RightForm], _, Context)
-  when TypeName =:= 'String'; TypeName =:= 'List'; TypeName =:= 'Bytes' ->
-    OperandType = resolved(ern_typecheck:node_type(Left), Context),
-    {at(Span, binop('<>', OperandType, LeftForm, RightForm, Context)), Context};
-prelude_call(Span, [Namespace | Rest], _, ArgForms, _, Context) when Rest =/= [] ->
-    %% a stdlib function: the namespace's module
-    Module = ern_namespace:erlang_module([Namespace]),
-    {at(Span, call_remote(Module, lists:last(Rest), ArgForms)), Context};
-prelude_call(Span, QualifiedName, _, _, _, _) ->
-    fail(Span, "no emission for " ++ ern_namespace:text(QualifiedName)).
+    {binop(Operator, {tcon, ['Int'], []}, LeftForm, RightForm, Context), Context};
+prelude_call(_, ['Int', negate], _, [OperandForm], _, Context) ->
+    {erl_syntax:prefix_expr(erl_syntax:operator('-'), OperandForm), Context};
+prelude_call(_, [TypeName, '<>'], _, [LeftForm, RightForm], _, Context) ->
+    {binop('<>', {tcon, [TypeName], []}, LeftForm, RightForm, Context), Context};
+prelude_call(Source, QualifiedName, _, _, _, _) ->
+    fail(Source, "no emission for " ++ ern_namespace:text(QualifiedName)).
 
-%% Report §6.6, §8.4: `Address.call` or `Address.callForever`, of type T,
-%% and in a program what an answer from foreign code is checked by, the
-%% Reply's type, as a foreign function's return is; a call the standard
+%% The answer's type a use of `Address.call` or `Address.callForever` holds
+%% (Appendix H).
+answer_of({var, _, _, Answer}) -> Answer.
+
+%% Report §6.6, §8.4: `Address.call` or `Address.callForever`, and in a
+%% program what an answer from foreign code is checked by, the Reply's
+%% answer type, as a foreign function's return is; a call the standard
 %% library makes is the runtime's own, and checks nothing.
-reply_call(Function, ArgForms, _, #emit_context{standard = true} = Context) ->
+reply_call(Function, ArgForms, _, #emit_context{unit = #unit{standard = true}} = Context) ->
     {call_remote(ern_rt, Function, ArgForms), Context};
-reply_call(Function, ArgForms, Type, Context) ->
-    {tfn, [_, {tfn, [ReplyType], _, _} | _], _, _} = resolved(Type, Context),
-    {tcon, ['Reply'], [AnswerType]} = resolved(ReplyType, Context),
+reply_call(Function, ArgForms, AnswerType, Context) ->
     {Check, Context1} = case descriptor(AnswerType, Context) of
                             Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
                                 {erl_syntax:atom(none), Context};
@@ -1395,57 +1455,47 @@ reply_call(Function, ArgForms, Type, Context) ->
     {call_remote(ern_rt, Function, ArgForms ++ [Check]), Context1}.
 
 %% A prelude name taken as a value: prelude_value(...) -> {Form, Context}.
-prelude_value(Span, [spawn], _, Context) ->
+prelude_value(Source, [spawn], _, Context) ->
     %% a closure, since spawn takes the site as a second argument
     {[Function], Context1} = fresh_variables(1, "Argument", Context),
-    ArgForms = [erl_syntax:variable(Function), site(Span, Context)],
+    ArgForms = [erl_syntax:variable(Function), site(Source, Context)],
     {lambda([Function], call_remote(ern_rt, spawn, ArgForms)), Context1};
-prelude_value(Span, [spawnMonitored], _, Context) ->
+prelude_value(Source, [spawnMonitored], _, Context) ->
     {[Function, Wrap], Context1} = fresh_variables(2, "Argument", Context),
     ArgForms = [erl_syntax:variable(Variable) || Variable <- [Function, Wrap]]
-        ++ [site(Span, Context)],
+        ++ [site(Source, Context)],
     {lambda([Function, Wrap], call_remote(ern_rt, spawn_monitored, ArgForms)), Context1};
-prelude_value(Span, ['Address', Name], Type, Context) when Name =:= call; Name =:= callForever ->
+prelude_value(_, ['Address', Name] = QualifiedName, Answer, Context)
+  when Name =:= call; Name =:= callForever ->
     Function = case Name of call -> call; callForever -> call_forever end,
-    {Variables, Context1} = fresh_variables(arity_of(Type, Span), "Argument", Context),
+    #linked{arity = Arity} = linked({named, QualifiedName}, Context),
+    {Variables, Context1} = fresh_variables(Arity, "Argument", Context),
     ArgForms = [erl_syntax:variable(Variable) || Variable <- Variables],
-    {Body, Context2} = reply_call(Function, ArgForms, Type, Context1),
+    {Body, Context2} = reply_call(Function, ArgForms, Answer, Context1),
     {lambda(Variables, Body), Context2};
-prelude_value(_, ['Int', Member], _, Context) when Member =/= compare ->
-    member_value(['Int'], Member, Context);
+prelude_value(_, ['Int', Member], _, Context) ->
+    member_value({named, ['Int', Member]}, Member, Context);
 prelude_value(_, [TypeName, '<>'], _, Context) ->
-    member_value([TypeName], '<>', Context);
-prelude_value(Span, [Name], Type, Context) ->
-    case lists:member(Name, [self, send, answer, adapted, monitor, kill, fault, restarting]) of
-        true -> {remote_fun(ern_rt, Name, arity_of(Type, Span)), Context};
-        false -> fail(Span, "no emission for " ++ atom_to_list(Name))
-    end;
-prelude_value(_, [Namespace | Rest], Type, Context) ->
-    Form = case Type of
-               {tfn, Params, _, _} ->
-                   remote_fun(ern_namespace:erlang_module([Namespace]), lists:last(Rest),
-                              length(Params));
-               _ ->
-                   %% a stdlib value: Map.empty, Set.empty
-                   call_remote(ern_namespace:erlang_module([Namespace]), lists:last(Rest), [])
-           end,
-    {Form, Context}.
+    member_value({named, [TypeName, '<>']}, '<>', Context);
+prelude_value(_, [Name] = QualifiedName, _, Context) ->
+    #linked{arity = Arity} = linked({named, QualifiedName}, Context),
+    {remote_fun(ern_rt, Name, Arity), Context}.
 
 %% Report §9.6, §4.8: a prelude type's member as a value: Int's arithmetic
 %% and negate, and `<>`, inline as the operators are, and any other its
 %% type's module's function, of the member's arity.
-member_value(['Int'], negate, Context) ->
+member_value({named, ['Int', negate]}, negate, Context) ->
     {[Operand], Context1} = fresh_variables(1, "Operand", Context),
     Negated = erl_syntax:prefix_expr(erl_syntax:operator('-'), erl_syntax:variable(Operand)),
     {lambda([Operand], Negated), Context1};
-member_value(['Int'] = QualifiedName, Operator, Context)
+member_value({named, ['Int', Operator]}, Operator, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%' ->
-    operator_value(Operator, QualifiedName, Context);
-member_value(QualifiedName, '<>', Context) ->
-    operator_value('<>', QualifiedName, Context);
-member_value([TypeName], Member, Context) ->
-    {remote_fun(ern_namespace:erlang_module([TypeName]), Member, member_arity(Member)), Context}.
+    operator_value(Operator, ['Int'], Context);
+member_value({named, [TypeName, '<>']}, '<>', Context) ->
+    operator_value('<>', [TypeName], Context);
+member_value(Reference, Member, Context) ->
+    {member_fun(Reference, member_arity(Member), Context), Context}.
 
 operator_value(Operator, QualifiedName, Context) ->
     {[Left, Right], Context1} = fresh_variables(2, "Operand", Context),
@@ -1458,14 +1508,13 @@ lambda(Variables, Body) ->
                                            none, [Body])]).
 
 %% Report §11.2: Context marked as building a function value where Form,
-%% what an expression or a supply emits, is one of this module's code, a
-%% lambda's fun, a function of the module taken as a value, or one bound
-%% beside the values it closes over; a function of another module's is
-%% that module's code. A fun the emitter makes for its own use, a timed
-%% receive's loop, a guard's way to the clauses after it, the body
-%% alternatives share or a foreign call counted, is called where it is made
-%% and held by nothing, and is no function value: it is never what an
-%% expression emits.
+%% what an expression or a supply emits, is one of this unit's code, a
+%% lambda's fun, a function of the unit taken as a value, or one bound
+%% beside the values it closes over; a function of another unit's is that
+%% unit's code. A fun the emitter makes for its own use, a timed receive's
+%% loop, a guard's way to the clauses after it, the body alternatives share
+%% or a foreign call counted, is called where it is made and held by
+%% nothing, and is no function value: it is never what an expression emits.
 function_value(Form, Context) ->
     case is_own_function(Form) of
         true -> Context#emit_context{builds_functions = true};
@@ -1493,21 +1542,23 @@ holds_function(_) -> false.
 %% session writes names: a function an input declares by its own name, and
 %% the input's expression as its diagnostics name it, `input 3`; the line
 %% as they count it. The input's name is asked of the shell when the spawn
-%% runs, and is not the module's code: an input typed again then compiles
+%% runs, and is not the unit's code: an input typed again then compiles
 %% to the code it did before, and the host keeps an entry for each lambda
-%% of each version it loads (docs/memory.md).
-site(Span,
-     #emit_context{site_namespace = SiteNamespace, erlang_module = ErlangModule,
-                   declaration = Declaration, session_offset = SessionOffset}) ->
-    {Line, _, _} = ern_diagnostic:span(Span),
-    case {SessionOffset, Declaration} of
-        {false, _} ->
+%% of each version it loads (docs/memory.md). A form without its source
+%% names the declaration alone.
+site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
+                                        session_offset = SessionOffset},
+                           erlang_module = ErlangModule, declaration = Declaration}) ->
+    case {SessionOffset, Declaration, Source} of
+        {_, _, none} ->
+            text_site([ern_namespace:text(SiteNamespace ++ Declaration)]);
+        {false, _, {Line, _, _}} ->
             text_site([ern_namespace:text(SiteNamespace ++ Declaration), ":",
                        integer_to_list(Line)]);
-        {Offset, ['$input']} ->
+        {Offset, ['$input'], {Line, _, _}} ->
             call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
                                                 erl_syntax:integer(Line + Offset)]);
-        {Offset, _} ->
+        {Offset, _, {Line, _, _}} ->
             text_site([ern_namespace:text(Declaration), ":", integer_to_list(Line + Offset)])
     end.
 
@@ -1516,8 +1567,10 @@ text_site(SiteParts) ->
 
 %% Report §8.7, Appendix H: a service's message type's hash, of its
 %% canonical form.
-service_hash(#service_type{type = Type}, #emit_context{canonical = #{services := Services}}) ->
-    erl_syntax:abstract(maps:get(Type, Services)).
+service_hash({service, Type}) ->
+    erl_syntax:abstract(crypto:hash(sha256,
+                                    ern_canonical:bytes({ernest_type,
+                                                         ern_canonical:form_version(), Type}))).
 
 %%
 %% Operators, report §4.8
@@ -1539,11 +1592,8 @@ binop('<>', {tcon, ['String'], []}, Left, Right, _) -> binary_append(Left, Right
 binop('<>', {tcon, ['Bytes'], []}, Left, Right, _) -> binary_append(Left, Right);
 %% Report §9.6: `<>` on a prelude type whose module provides it in Ernest,
 %% `List.<>` and `Path.<>`, a call of that module's, and a local call within it
-binop('<>', {tcon, [Name], _}, Left, Right, #emit_context{namespace = Namespace}) ->
-    case Namespace of
-        [Name] -> erl_syntax:application(erl_syntax:atom('<>'), [Left, Right]);
-        _ -> call_remote(ern_namespace:erlang_module([Name]), '<>', [Left, Right])
-    end;
+binop('<>', {tcon, [Name], _}, Left, Right, Context) ->
+    member_call({named, [Name, '<>']}, [Left, Right], Context);
 binop('==', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=:='), Right);
 binop('!=', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=/='), Right);
 binop('&&', _, Left, Right, _) ->
@@ -1578,21 +1628,20 @@ float_operation(Operator, Left, Right, LeftName, RightName) ->
                            erl_syntax:match_expr(erl_syntax:variable(RightName), Right),
                            erl_syntax:try_expr([Operation], [Handler])]).
 
-negate({tcon, ['Float'], []}, Form, _) ->
+negate({tcon, ['Float'], []}, Form) ->
     %% report §3.1: 0.0 - x, so that negating 0.0 gives 0.0
     erl_syntax:infix_expr(erl_syntax:float(0.0), erl_syntax:operator('-'), Form);
-negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
+negate(_, Form) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 
 %% Report §4.9: a member applied to its operands, the parameter a
 %% requirement's member came in, or a known type's member with its own
 %% requirement supplied.
-member_applied(#required_member{variable = Variable, member = Member}, Args, Context) ->
-    Function = erl_syntax:variable(member_variable(Variable, Member, Context)),
+member_applied({required, {variable, Number}, Member}, Args, Context) ->
+    Function = erl_syntax:variable(member_variable(Number, Member, Context)),
     {erl_syntax:application(Function, Args), Context};
-member_applied(#known_member{qualified_name = QualifiedName, member = Member,
-                             supplies = Supplies}, Args, Context) ->
+member_applied({known, Reference, Supplies}, Args, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
-    {member_call(QualifiedName, Member, Args ++ SupplyForms, Context1), Context1}.
+    {member_call(Reference, Args ++ SupplyForms, Context1), Context1}.
 
 %% Report §3.10: an ordering is its compare against Less or Greater; any
 %% other operator is the member's own result.
@@ -1608,25 +1657,6 @@ ordered(Operator, Compared) ->
         _ -> Compared
     end.
 
-%% A member of the type QualifiedName: a local function when the type is
-%% this module's, otherwise a call into the module that owns it (report
-%% §4.2).
-member_call([_] = QualifiedName, Name, Args, #emit_context{namespace = Namespace}) ->
-    %% report §9.6: a prelude type's member is its module's, which exports
-    %% the runtime's own operation as a function
-    case Namespace of
-        QualifiedName -> erl_syntax:application(erl_syntax:atom(function_atom(Name)), Args);
-        _ -> call_remote(ern_namespace:erlang_module(QualifiedName), function_atom(Name), Args)
-    end;
-member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env} = Context) ->
-    MemberOf = lists:last(QualifiedName),
-    %% report §11.2: at the prompt a later input may have declared it
-    MemberQualifiedName = ern_typecheck:session_member(QualifiedName, Name, Env),
-    case lists:droplast(lists:droplast(MemberQualifiedName)) of
-        Namespace -> erl_syntax:application(erl_syntax:atom(function_name(MemberOf, Name)), Args);
-        Declaring -> call_remote(unit(Declaring, Context), function_name(MemberOf, Name), Args)
-    end.
-
 %% <<A/binary, B/binary>>, with a string literal as a plain segment and an
 %% inner append flattened, so "a" <> f(x) <> "b" is one binary.
 binary_append(Left, Right) ->
@@ -1639,8 +1669,91 @@ segments(Form) ->
         _ -> [erl_syntax:binary_field(Form, [erl_syntax:atom(binary)])]
     end.
 
-resolved(Type, #emit_context{env = Env}) ->
-    ern_typecheck:resolve_type(Type, Env).
+%%
+%% Types, report Appendix H: a type a form writes, its references read
+%% through the unit's own forms and the link
+%%
+
+%% A type as the checker writes it, {tcon, QualifiedName, Args}, each
+%% type's name the one it prints with, and each variable its number, for
+%% the operations that dispatch on a prelude type and for printing.
+checked_type({variable, Number}, _) ->
+    {tvar, Number};
+checked_type({applied, Reference, Args}, Context) ->
+    {tcon, type_name(Reference, Context), [checked_type(Arg, Context) || Arg <- Args]};
+checked_type({tuple, Elements}, Context) ->
+    {ttuple, [checked_type(Element, Context) || Element <- Elements]};
+checked_type({arrow, Params, Effect, Result}, Context) ->
+    {tfn, [checked_type(Param, Context) || Param <- Params], checked_type(Effect, Context),
+     checked_type(Result, Context)};
+checked_type(pure, _) ->
+    pure.
+
+%% A type reference's qualified name, as the module prints it: the unit's
+%% own type's declaration's, the link's for another unit's, and a name's
+%% its own.
+type_name(Reference, Context) ->
+    {QualifiedName, _} = declared_type(Reference, Context),
+    QualifiedName.
+
+%% A type a reference names: its qualified name, and {Arity, Constructors}
+%% as its form writes them or foreign; builtin for a type the runtime gives,
+%% which has none (report §9.1).
+declared_type({named, [Name]} = Reference, Context) ->
+    case is_builtin(Name) of
+        true -> {[Name], builtin};
+        false -> linked_type(Reference, Context)
+    end;
+declared_type(Reference, #emit_context{own = #own{forms = Forms}} = Context) ->
+    case own_position(Reference, Context) of
+        {ok, Position} when is_map_key(Position, Forms) ->
+            {#definition{qualified_name = QualifiedName},
+             {type, _, Arity, _, _, Constructors}} = maps:get(Position, Forms),
+            {QualifiedName, {Arity, Constructors}};
+        _ ->
+            linked_type(Reference, Context)
+    end.
+
+linked_type(Reference, #emit_context{unit = #unit{link = #link{types = Types}}}) ->
+    case Types of
+        #{Reference := Type} -> Type;
+        _ -> erlang:error({emitter_defect, none, unlinked(Reference)})
+    end.
+
+is_builtin(Name) ->
+    lists:member(Name, ['Int', 'Float', 'Bool', 'Char', 'String', 'Bytes', 'Address', 'Reply',
+                        'Process', 'Never', 'List', 'Map', 'Set']).
+
+%% The type variables a form holds, each once where it is first met.
+type_variables({variable, Number} = Variable) when is_integer(Number) -> [Variable];
+type_variables(Term) when is_tuple(Term) -> type_variables(tuple_to_list(Term));
+type_variables(Terms) when is_list(Terms) ->
+    lists:uniq(lists:append([type_variables(Term) || Term <- Terms]));
+type_variables(_) -> [].
+
+%% The type with each of Variables as `Never`.
+as_never([], Type) -> Type;
+as_never(Variables, {variable, _} = Variable) ->
+    case lists:member(Variable, Variables) of
+        true -> {applied, {named, ['Never']}, []};
+        false -> Variable
+    end;
+as_never(Variables, Type) when is_tuple(Type) ->
+    list_to_tuple([as_never(Variables, Element) || Element <- tuple_to_list(Type)]);
+as_never(Variables, Types) when is_list(Types) ->
+    [as_never(Variables, Element) || Element <- Types];
+as_never(_, Type) -> Type.
+
+%% Report §11.5: a type as the module prints it, a check's cause naming it.
+%% Its variables are the definition's, named as §11.5 names a type's
+%% variables, each with the restrictions its definition's scheme gives it.
+printed(Type, #emit_context{unit = #unit{link = #link{printing = Printing}},
+                            restrictions = Restrictions} = Context) ->
+    Count = lists:max([0 | [Number || {variable, Number} <- type_variables(Type)]]),
+    State = lists:foldl(fun(Number, Acc) ->
+                            element(2, ern_types:fresh(Acc, maps:get(Number, Restrictions, [])))
+                        end, Printing, lists:seq(1, Count)),
+    ern_types:format(checked_type(Type, Context), State).
 
 %%
 %% The foreign boundary, report §8.4: a declared type as the term
@@ -1703,44 +1816,20 @@ is_plain(_) -> true.
 %% it, and a Reply foreign code gave back as it gave it; a function,
 %% wrapped to check the arguments foreign code calls it with; any other,
 %% and every argument of the standard library's own, as it is.
-exposed({_, Arg}, #emit_context{standard = true} = Context) ->
+exposed({_, Arg}, #emit_context{unit = #unit{standard = true}} = Context) ->
     {Arg, Context};
 exposed({Type, Arg}, Context) ->
-    case crosses(descriptor(Type, Context)) of
+    Descriptor = descriptor(Type, Context),
+    case crosses(Descriptor) of
         true ->
-            {DescriptorForm, Context1} = type_descriptor_form(Type, Context),
+            {DescriptorForm, Context1} = descriptor_form(Descriptor, Context),
             {call_remote(ern_boundary, expose, [DescriptorForm, Arg]), Context1};
         false ->
             {Arg, Context}
     end.
 
-%% The type variables a type holds.
-type_variables({tvar, _} = Variable) -> [Variable];
-type_variables(Type) when is_tuple(Type) ->
-    lists:append([type_variables(Element) || Element <- tuple_to_list(Type)]);
-type_variables(Types) when is_list(Types) ->
-    lists:append([type_variables(Element) || Element <- Types]);
-type_variables(_) -> [].
-
-%% The type with each of Variables as `Never`.
-as_never([], Type) -> Type;
-as_never(Variables, {tvar, _} = Variable) ->
-    case lists:member(Variable, Variables) of
-        true -> {tcon, ['Never'], []};
-        false -> Variable
-    end;
-as_never(Variables, Type) when is_tuple(Type) ->
-    list_to_tuple([as_never(Variables, Element) || Element <- tuple_to_list(Type)]);
-as_never(Variables, Types) when is_list(Types) ->
-    [as_never(Variables, Element) || Element <- Types];
-as_never(_, Type) -> Type.
-
-%% A type's descriptor as a form.
-type_descriptor_form(Type, Context) ->
-    descriptor_form(descriptor(Type, Context), Context).
-
 %% A descriptor as a form: a literal when it is a word, else a call of a
-%% module function that returns it, one per distinct descriptor.
+%% unit function that returns it, one per distinct descriptor.
 descriptor_form(Descriptor, Context) when is_atom(Descriptor) ->
     {erl_syntax:abstract(Descriptor), Context};
 descriptor_form(Descriptor, Context) ->
@@ -1752,8 +1841,8 @@ descriptor_form(Descriptor, Context) ->
             Clause = erl_syntax:clause([], none, [built_descriptor(Descriptor)]),
             Function = erl_syntax:function(erl_syntax:atom(Name), [Clause]),
             %% report §11.2: a function's descriptor builds the function
-            %% that checks the one crossing, of this module's code, which
-            %% the program holds in its place
+            %% that checks the one crossing, of this unit's code, which the
+            %% program holds in its place
             Builds = Context#emit_context.builds_functions orelse holds_function(Descriptor),
             {erl_syntax:application(erl_syntax:atom(Name), []),
              Context#emit_context{descriptors = Descriptors#{Descriptor => Name},
@@ -1806,12 +1895,12 @@ called(Function, Arguments) ->
     erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [Handler]).
 
 check_text(Prefix, Type, Context) ->
-    string_binary(ern_descriptor:cause(Prefix, Type, Context#emit_context.env)).
+    string_binary(cause(Prefix, Type, Context)).
 
-%% Appendix E.1, §8.4: the descriptor of a type, which ern_descriptor
-%% makes, an abstract type seen from this module.
-descriptor(Type, #emit_context{env = Env, namespace = Namespace}) ->
-    ern_descriptor:describe(Type, Env, Namespace).
+%% Report §7.4, §8.4: a check's cause, its Prefix and the type as §11.5
+%% prints it, which the boundary faults with.
+cause(Prefix, Type, Context) ->
+    unicode:characters_to_binary(Prefix ++ printed(Type, Context)).
 
 %% Whether a descriptor holds what crossing into foreign code changes: an
 %% address, a Reply, or a function.
@@ -1822,23 +1911,144 @@ crosses(Part) when is_tuple(Part) -> lists:any(fun crosses/1, tuple_to_list(Part
 crosses(Parts) when is_list(Parts) -> lists:any(fun crosses/1, Parts);
 crosses(_) -> false.
 
+%% Report §8.4, Appendix E.1: the descriptor of a type a form writes
+%% (ern_descriptor's descriptor()), as the runtime reads it for the
+%% boundary and for `show`.
+descriptor(Type, Context) ->
+    describe(Type, [], [], Context).
+
+%% The descriptor of Type, each variable of Holes `{hole, Number}`, whose
+%% descriptor the program passes in under a requirement that names `show`
+%% (report §4.9, Appendix E.1), and any other any; each type Abstract
+%% names, which `show` prints as `<abstract>` from the module (the form's
+%% view, Appendix H), wrapped. A recursive type refers back to its mu.
+describe(Type, Holes, Abstract, Context) ->
+    described(Type, #{}, {Holes, Abstract}, Context).
+
+%% Seen maps each type enclosing the one being described to the id its mu
+%% binds, so a recursive type refers back instead of unfolding; it is
+%% passed down alone, and a sibling is described in full, since a ref
+%% reaches only an enclosing mu.
+described({variable, Number}, _, {Holes, _}, _) ->
+    case lists:member(Number, Holes) of
+        true -> {hole, Number};
+        false -> any
+    end;
+described(pure, _, _, _) -> any;
+described({tuple, Elements}, Seen, Scope, Context) ->
+    {tuple, all_described(Elements, Seen, Scope, Context)};
+described({arrow, Params, _, Result}, Seen, Scope, Context) ->
+    %% report §7.4: a function value from foreign code has its result
+    %% checked at each call, against the result's descriptor; report §8.4:
+    %% one that crosses into foreign code has each argument checked, against
+    %% its parameter's
+    {function, length(Params), described(Result, Seen, Scope, Context),
+     cause("foreign return does not match ", Result, Context),
+     all_described(Params, Seen, Scope, Context),
+     [cause("foreign argument does not match ", Param, Context) || Param <- Params]};
+described({applied, {named, ['Int']}, []}, _, _, _) -> int;
+described({applied, {named, ['Float']}, []}, _, _, _) -> float;
+described({applied, {named, ['Bool']}, []}, _, _, _) -> bool;
+described({applied, {named, ['Char']}, []}, _, _, _) -> char;
+described({applied, {named, ['String']}, []}, _, _, _) -> string;
+described({applied, {named, ['Bytes']}, []}, _, _, _) -> bytes;
+described({applied, {named, ['Address']}, [MessageType]}, Seen, Scope, Context) ->
+    %% the address's messages, for the checker that exposes it (report §8.4)
+    {address, described(MessageType, Seen, Scope, Context),
+     cause("message does not match ", MessageType, Context)};
+described({applied, {named, ['Reply']}, [AnswerType]}, Seen, Scope, Context) ->
+    %% the answer's, which a reply that crosses into foreign code is
+    %% checked against (report §8.4)
+    {reply, described(AnswerType, Seen, Scope, Context),
+     cause("reply does not match ", AnswerType, Context)};
+described({applied, {named, ['Process']}, []}, _, _, _) -> process;
+described({applied, {named, ['Never']}, []}, _, _, _) -> never;
+described({applied, {named, ['List']}, [ElementType]}, Seen, Scope, Context) ->
+    {list, described(ElementType, Seen, Scope, Context)};
+described({applied, {named, ['Map']}, [KeyType, ValueType]}, Seen, Scope, Context) ->
+    {map, described(KeyType, Seen, Scope, Context), described(ValueType, Seen, Scope, Context)};
+described({applied, {named, ['Set']}, [ElementType]}, Seen, Scope, Context) ->
+    {set, described(ElementType, Seen, Scope, Context)};
+described({applied, Reference, Args} = Type, Seen, {_, Abstract} = Scope, Context) ->
+    case Seen of
+        #{Type := Id} ->
+            {ref, Id};
+        _ ->
+            case declared_type(Reference, Context) of
+                {_, foreign} ->
+                    %% report §8.4, Appendix E.1: unchecked, as a type
+                    %% variable is, and shown as `<foreign>`
+                    foreign;
+                {_, {_, Constructors}} ->
+                    Id = map_size(Seen) + 1,
+                    Sum = {con, [constructor_descriptor(Name, Fields,
+                                                        all_described(field_types(Fields, Args),
+                                                                      Seen#{Type => Id}, Scope,
+                                                                      Context))
+                                 || {Name, Fields} <- Constructors]},
+                    Descriptor = case refers(Sum, Id) of
+                                     true -> {mu, Id, Sum};
+                                     false -> Sum
+                                 end,
+                    %% report §4.4, Appendix E.1: seen from outside its
+                    %% module, an abstract type's representation is not the
+                    %% program's to print
+                    case lists:member(Reference, Abstract) of
+                        true -> {abstract, Descriptor};
+                        false -> Descriptor
+                    end
+            end
+    end.
+
+all_described(Types, Seen, Scope, Context) ->
+    [described(Type, Seen, Scope, Context) || Type <- Types].
+
+%% A named constructor's descriptor keeps its fields' names, in declared
+%% order (report §3.5), for printing.
+constructor_descriptor(Tag, {named, Fields}, FieldDescriptors) ->
+    {Tag, FieldDescriptors, [Field || {Field, _} <- Fields]};
+constructor_descriptor(Tag, _, FieldDescriptors) ->
+    {Tag, FieldDescriptors}.
+
+%% A constructor's field types at the type's arguments, its parameters the
+%% variables 1 to its arity (Appendix H).
+field_types(none, _) -> [];
+field_types({positional, Type}, Args) -> [instance(Type, Args)];
+field_types({named, Fields}, Args) -> [instance(Type, Args) || {_, Type} <- Fields].
+
+instance({variable, Number}, Args) -> lists:nth(Number, Args);
+instance(Type, Args) when is_tuple(Type) ->
+    list_to_tuple([instance(Part, Args) || Part <- tuple_to_list(Type)]);
+instance(Types, Args) when is_list(Types) -> [instance(Type, Args) || Type <- Types];
+instance(Type, _) -> Type.
+
+refers({ref, Id}, Id) -> true;
+refers(Part, Id) when is_tuple(Part) ->
+    lists:any(fun(Inner) -> refers(Inner, Id) end, tuple_to_list(Part));
+refers(Parts, Id) when is_list(Parts) -> lists:any(fun(Inner) -> refers(Inner, Id) end, Parts);
+refers(_, _) -> false.
+
 %%
 %% Constructors, report §8.4
 %%
+
+%% A constructor a form writes, its type's reference and its position among
+%% the type's constructors (Appendix H): its tag and its fields.
+constructor_at({constructor, Reference, Position}, Context) ->
+    {_, {_, Constructors}} = declared_type(Reference, Context),
+    lists:nth(Position, Constructors).
 
 %% Report §3.5, §8.4: a selected field. A named constructor is its tag and
 %% its fields in declared order, so the field is one element of the tuple
 %% where every constructor has it at one place, and a case on the tag where
 %% the places differ.
-select(Span, Field, OperandType, Form, #emit_context{env = Env} = Context) ->
-    {tcon, QualifiedName, _} = ern_typecheck:resolve_type(OperandType, Env),
-    #type_info{constructors = Constructors} = ern_typecheck:lookup_type(QualifiedName, Env),
-    Places = [{ConstructorName, place(Field, Names) + 1, length(Names)}
-              || #constructor_info{name = ConstructorName, fields = {named, Names}}
-                     <- Constructors],
+select(Field, Reference, Form, Context) ->
+    {_, {_, Constructors}} = declared_type(Reference, Context),
+    Places = [{ConstructorName, place(Field, [Name || {Name, _} <- Fields]) + 1, length(Fields)}
+              || {ConstructorName, {named, Fields}} <- Constructors],
     case lists:usort([Index || {_, Index, _} <- Places]) of
         [Index] ->
-            {at(Span, call_remote(erlang, element, [erl_syntax:integer(Index), Form])), Context};
+            {call_remote(erlang, element, [erl_syntax:integer(Index), Form]), Context};
         _ ->
             {[Variable], Context1} = fresh_variables(1, "Field", Context),
             VariableForm = erl_syntax:variable(Variable),
@@ -1846,7 +2056,7 @@ select(Span, Field, OperandType, Form, #emit_context{env = Env} = Context) ->
                                                             VariableForm)],
                                          none, [VariableForm])
                        || {ConstructorName, Index, Count} <- Places],
-            {at(Span, erl_syntax:case_expr(Form, Clauses)), Context1}
+            {erl_syntax:case_expr(Form, Clauses), Context1}
     end.
 
 %% A named constructor's tuple as a pattern, the field at Index bound to the
@@ -1861,37 +2071,37 @@ selecting_pattern(ConstructorName, Index, Count, VariableForm) ->
 place(Field, [Field | _]) -> 1;
 place(Field, [_ | Rest]) -> 1 + place(Field, Rest).
 
-constructor_expr(Span, Namespace, Name, Base, Args, #emit_context{env = Env} = Context) ->
-    #constructor_info{fields = Fields} =
-        ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
+constructor_expr(Constructor, Arguments, Context) ->
+    {Name, Fields} = constructor_at(Constructor, Context),
     Tag = erl_syntax:atom(Name),
-    case {Fields, Args} of
+    case {Fields, Arguments} of
         {none, none} ->
-            {at(Span, Tag), Context};
-        {positional, none} ->
+            {Tag, Context};
+        {{positional, _}, none} ->
             %% as a function value
             {[Variable], Context1} = fresh_variables(1, "Argument", Context),
             VariableForm = erl_syntax:variable(Variable),
             Wrap = erl_syntax:clause([VariableForm], none, [erl_syntax:tuple([Tag, VariableForm])]),
-            {at(Span, erl_syntax:fun_expr([Wrap])),
-             Context1#emit_context{builds_functions = true}};
-        {positional, {positional, Arg}} ->
+            {erl_syntax:fun_expr([Wrap]), Context1#emit_context{builds_functions = true}};
+        {{positional, _}, {positional, Arg}} ->
             {Form, Context1} = expr(Arg, Context),
-            {at(Span, erl_syntax:tuple([Tag, Form])), Context1};
-        {{named, Names}, {named, FieldSets}} when Base =:= undefined ->
+            {erl_syntax:tuple([Tag, Form]), Context1};
+        {{named, Declared}, {named, none, FieldSets}} ->
+            Names = [FieldName || {FieldName, _} <- Declared],
             {Bindings, ByName, Context1} = field_sets(Names, FieldSets, Context),
             Tuple = erl_syntax:tuple([Tag | [maps:get(FieldName, ByName) || FieldName <- Names]]),
-            {at(Span, with_bindings(Bindings, Tuple)), Context1};
-        {{named, Names}, {named, FieldSets}} ->
+            {with_bindings(Bindings, Tuple), Context1};
+        {{named, Declared}, {named, Base, FieldSets}} ->
             %% T(..base, f = e): bind the base to a tuple pattern, take the
             %% unlisted fields from it
+            Names = [FieldName || {FieldName, _} <- Declared],
             {Bind, BaseFields, Context1} = base_bound(Tag, Base, length(Names), Context),
             {Bindings, ByName, Context2} = field_sets(Names, FieldSets, Context1),
             Forms = [maps:get(FieldName, ByName, BaseField)
                      || {FieldName, BaseField} <- lists:zip(Names, BaseFields)],
-            {at(Span, with_bindings([Bind | Bindings], erl_syntax:tuple([Tag | Forms]))), Context2};
+            {with_bindings([Bind | Bindings], erl_syntax:tuple([Tag | Forms])), Context2};
         _ ->
-            fail(Span, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape,"
+            fail(none, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape,"
                        " which the checker refuses")
     end.
 
@@ -1908,10 +2118,9 @@ base_bound(Tag, Base, Count, Context) ->
 %% bound to a variable first, as written. The field forms by name, and
 %% the bindings that go before the tuple.
 field_sets(Names, FieldSets, Context) ->
-    {Forms, Context1} = lists:mapfoldl(fun(#field_set{expr = Expr}, Acc) ->
-                                           expr(Expr, Acc)
-                                       end, Context, FieldSets),
-    Written = [Name || #field_set{name = Name} <- FieldSets],
+    {Forms, Context1} = lists:mapfoldl(fun({field, _, Expr}, Acc) -> expr(Expr, Acc) end,
+                                       Context, FieldSets),
+    Written = [Name || {field, Name, _} <- FieldSets],
     case [Name || Name <- Names, lists:member(Name, Written)] of
         Written ->
             {[], maps:from_list(lists:zip(Written, Forms)), Context1};
@@ -1927,186 +2136,215 @@ field_sets(Names, FieldSets, Context) ->
 %% A spawn on a peer, and a compute, report §8.7 and §3.11
 %%
 
+peer_spawn(Source, Name, Held, PeerName, Spawned, Rest, Context) ->
+    {PeerForm, Context1} = expr(PeerName, Context),
+    {SpawnedForm, Replies, Context2} = spawned(Spawned, Held, Context1),
+    {RestForms, Context3} = exprs(Rest, Context2),
+    {Function, Kept} = case Name of
+                           spawn -> {spawn, [erl_syntax:list(Replies)]};
+                           spawnMonitored -> {spawn_monitored, [erl_syntax:list(Replies)]};
+                           compute -> {compute, []}
+                       end,
+    {call_remote(ern_peer, Function,
+                 [PeerForm, SpawnedForm | RestForms] ++ [site(Source, Context) | Kept]),
+     Context3}.
+
 %% The function a spawn on a peer starts, or a compute runs, as its frame
 %% names it in place of the function: a declaration by its identity,
 %% `{function, Hash}`, or a foreign one by its qualified name, `{foreign,
 %% Names}`, its names as text so that a peer that lacks it makes no atom of
 %% them; a lambda or a local fn by its identity and the values it captured,
 %% in the order its body first names them, `{lambda, Hash, Position,
-%% Captures}`, an entry of this module running it over them; and
+%% Captures}`, an entry of this unit running it over them; and
 %% `restarting` over one of these with its limit, `{restarting, Limit,
-%% Spawned}`. The checker admitted only these
-%% (ern_bound). Beside the form, the captures that carry a reply
-%% (held_replies/4).
-spawned(#e_call{callee = #e_var{referent = {prelude, [restarting]}}, args = [Limit, Function]},
-        Context) ->
-    {LimitForm, Context1} = expr(Limit, Context),
-    {Inner, Replies, Context2} = spawned(Function, Context1),
-    {erl_syntax:tuple([erl_syntax:atom(restarting), LimitForm, Inner]), Replies, Context2};
-spawned(#e_lambda{} = Lambda, #emit_context{variables = Variables} = Context) ->
-    spawned_lambda(Lambda, Variables, Context);
-spawned(#e_var{span = Span, referent = var, name = Name},
-        #emit_context{variables = Variables, locals = Locals,
-                      let_lambdas = LetLambdas} = Context) ->
+%% Spawned}`. The checker admitted only these (ern_bound). Beside the form,
+%% the captures that carry a reply, each the variable in force at it with
+%% its type's descriptor, which a spawn that fails reads the replies it
+%% holds by and ends their calls, looking through no other value (ern_peer):
+%% Held, which the form of the spawn holds (Appendix H).
+spawned(Spawned, Held, Context) ->
+    {_, Node} = sourced(Spawned),
+    spawned_node(Node, Spawned, Held, Context).
+
+spawned_node({call, Callee, [Limit, Function]}, _, Held, Context) ->
+    case sourced(Callee) of
+        {_, {var, {named, [restarting]}, []}} ->
+            {LimitForm, Context1} = expr(Limit, Context),
+            {Inner, Replies, Context2} = spawned(Function, Held, Context1),
+            {erl_syntax:tuple([erl_syntax:atom(restarting), LimitForm, Inner]), Replies,
+             Context2};
+        _ ->
+            fail(none, "a spawn on a peer starts a function the checker refuses")
+    end;
+spawned_node({lambda, _, _, _, _, _}, Lambda, Held,
+             #emit_context{variables = Variables} = Context) ->
+    spawned_lambda(Lambda, Variables, Held, Context);
+spawned_node({var, {local, Number}, _}, _, Held,
+             #emit_context{variables = Variables, locals = Locals,
+                           let_lambdas = LetLambdas} = Context) ->
     case {Variables, Locals} of
-        {#{Name := Variable}, _} ->
+        {#{Number := Variable}, _} ->
             case LetLambdas of
-                #{Variable := {Lambda, Before}} -> spawned_lambda(Lambda, Before, Context);
-                _ -> fail(Span, "a spawn on a peer starts a local that names no lambda")
+                #{Variable := {Lambda, Before}} -> spawned_lambda(Lambda, Before, Held, Context);
+                _ -> fail(none, "a spawn on a peer starts a local that names no lambda")
             end;
-        {_, #{Name := Local}} ->
-            spawned_local(Name, Local, Context)
+        {_, #{Number := Local}} ->
+            spawned_local(Number, Local, Context)
     end;
-spawned(#e_var{span = Span, referent = Referent}, #emit_context{env = Env} = Context) ->
-    QualifiedName = case Referent of
-                        #own_declaration{member_of = MemberOf, name = Name} ->
-                            Context#emit_context.namespace ++ [MemberOf || MemberOf =/= undefined]
-                                ++ [Name];
-                        #remote_declaration{namespace = Declaring, member_of = MemberOf,
-                                            name = Name} ->
-                            Declaring ++ [MemberOf || MemberOf =/= undefined] ++ [Name];
-                        _ ->
-                            fail(Span, "a spawn on a peer starts a name that is no declaration")
-                    end,
-    #emit_context{canonical = #{identities := Own}} = Context,
-    Identity = case Own of
-                   #{QualifiedName := OwnIdentity} -> OwnIdentity;
-                   _ -> ern_typecheck:identity(QualifiedName, Env)
-               end,
-    case Identity of
-        foreign ->
-            Names = [atom_to_binary(Part) || Part <- QualifiedName],
-            {erl_syntax:abstract({foreign, Names}), [], Context};
-        Hash when is_binary(Hash) ->
-            {erl_syntax:abstract({function, Hash}), [], Context}
+spawned_node({var, {foreign, QualifiedName, _}, _}, _, _, Context) ->
+    {foreign_identity(QualifiedName), [], Context};
+spawned_node({var, {hash, Hash}, _}, _, _, Context) ->
+    {erl_syntax:abstract({function, Hash}), [], Context};
+spawned_node({var, {named, QualifiedName} = Reference, _}, _, _, Context) ->
+    case linked(Reference, Context) of
+        #linked{identity = foreign} -> {foreign_identity(QualifiedName), [], Context};
+        #linked{identity = Hash} -> {erl_syntax:abstract({function, Hash}), [], Context}
     end;
-spawned(Function, _Context) ->
-    fail(ern_ast:span(Function), "a spawn on a peer starts a function the checker refuses").
+spawned_node(_, _, _, _Context) ->
+    fail(none, "a spawn on a peer starts a function the checker refuses").
+
+foreign_identity(QualifiedName) ->
+    erl_syntax:abstract({foreign, [atom_to_binary(Part) || Part <- QualifiedName]}).
 
 %% A lambda a spawn on a peer starts, its captures the variables in force
 %% at it, Scope.
-spawned_lambda(#e_lambda{span = Span, body = Body} = Lambda, Scope, Context) ->
-    Captures = capture_names(Lambda, []),
-    Context1 = entry(Span, Captures, fun(Function, Acc) -> lambda_entry(Function, Body, Span,
-                                                                         Captures, Acc)
-                                     end, Context),
-    {spawned_identity(Span, [variable_form(maps:get(Name, Scope)) || Name <- Captures], Context1),
-     held_replies(Lambda, [], Scope, Context1), Context1}.
+spawned_lambda(Lambda, Scope, Held, Context) ->
+    {Source, {lambda, Position, _, _, _, Body} = Node} = sourced(Lambda),
+    Captures = captures(Node),
+    Context1 = entry(Position, length(Captures),
+                     fun(Function, Acc) -> lambda_entry(Function, Body, Source, Captures, Acc) end,
+                     Context),
+    {spawned_identity(Position, [variable_form(maps:get(Number, Scope)) || Number <- Captures],
+                      Context1),
+     held_replies(Held, Scope, Context1), Context1}.
 
 %% A local fn a spawn on a peer starts, its captures the variables in force
 %% at its declaration, or at the spawn where it comes first (report §5.4).
-spawned_local(Name, #local_fn{snapshot = Snapshot,
-                              declaration = #fn_declaration{span = Span, params = Params,
-                                                            body = Body}} = Local,
+%% A local fn captures no reply (§6.6).
+spawned_local(Number, #local_fn{snapshot = Snapshot, function = Function,
+                                position = Position} = Local,
               #emit_context{variables = Variables} = Context) ->
-    Bound = [Name | lists:append([pattern_names(Pattern) || #param{pattern = Pattern} <- Params])],
-    Captures = capture_names(Body, Bound),
+    Captures = captures(Function) -- [Number],
     Scope = case Snapshot of
                 pending -> Variables;
                 _ -> Snapshot
             end,
-    Context1 = entry(Span, Captures, fun(Function, Acc) -> local_entry(Function, Name, Local,
-                                                                        Captures, Scope, Acc)
-                                     end, Context),
-    {spawned_identity(Span, [variable_form(maps:get(Captured, Scope)) || Captured <- Captures],
+    Context1 = entry(Position, length(Captures),
+                     fun(Entry, Acc) -> local_entry(Entry, Number, Local, Captures, Scope, Acc) end,
+                     Context),
+    {spawned_identity(Position, [variable_form(maps:get(Captured, Scope))
+                                 || Captured <- Captures],
                       Context1),
-     held_replies(Body, Bound, Scope, Context1), Context1}.
+     [], Context1}.
 
-%% Report §3.11: the locals a lambda's or a local fn's body names, Bound
-%% aside, each once, in the order it first names them, which is the order
-%% its spawn's frame carries them in and its entry takes them.
-capture_names(Node, Bound) ->
-    lists:uniq([Name || #e_var{referent = var, name = Name} <- ern_ast:free_uses(Node, Bound)]).
+%% Report §6.6, §8.7: each held capture, the variable in force at it with
+%% its type's descriptor.
+held_replies(Held, Scope, Context) ->
+    [erl_syntax:tuple([variable_form(maps:get(Number, Scope)),
+                       erl_syntax:abstract(descriptor(Type, Context))])
+     || {Number, Type} <- Held].
 
-%% Report §6.6, §8.7: each capture whose type carries a reply, the variable
-%% in force at it with its type's descriptor, which a spawn that fails
-%% reads the replies it holds by and ends their calls, looking through no
-%% other value (ern_peer). A local fn captures none (§6.6), so a lambda's
-%% alone are found.
-held_replies(Node, Bound, Scope, #emit_context{env = Env, namespace = Namespace}) ->
-    Uses = ern_ast:free_uses(Node, Bound),
-    Typed = lists:uniq(fun({Name, _}) -> Name end,
-                       [{Name, Type} || #e_var{referent = var, name = Name, type = Type} <- Uses]),
-    [erl_syntax:tuple([variable_form(maps:get(Name, Scope)),
-                       erl_syntax:abstract(ern_descriptor:describe(Type, Env, Namespace))])
-     || {Name, Type} <- Typed, ern_typecheck:is_reply_carrying(Type, Env)].
-
-%% The frame's identity of the lambda or local fn at Span, and its captures.
-spawned_identity(Span, CaptureForms, #emit_context{entries = Entries,
-                                                   canonical = #{functions := Functions}}) ->
-    #{Span := {_, Position, _}} = Functions,
-    #{{Span, Position} := #entry{hash = Hash}} = Entries,
+%% The frame's identity of the lambda or local fn at Position, and its
+%% captures.
+spawned_identity(Position, CaptureForms, #emit_context{definition = {_, Hash, _}}) ->
     erl_syntax:tuple([erl_syntax:atom(lambda), erl_syntax:abstract(Hash),
                       erl_syntax:integer(Position), erl_syntax:list(CaptureForms)]).
 
-%% Report §8.7, §11.1: the entry of the lambda or local fn at Span, made
-%% once however many spawns name it: a function of the module, named by its
-%% enclosing declaration and its position, that takes its captures and runs
+%% Report §8.7, §11.1: the entry of the lambda or local fn at Position, made
+%% once however many spawns name it: a function of the unit, named by its
+%% definition's position and its own, that takes its captures and runs
 %% it, which '$spawned'/2 and '$code'/0 list under its identity.
-entry(Span, Captures, Made, #emit_context{entries = Entries, canonical = Canonical} = Context) ->
-    #{functions := #{Span := {QualifiedName, Position, Reach}}, identities := Identities} =
-        Canonical,
+entry(Position, Arity, Made,
+      #emit_context{entries = Entries,
+                    definition = {Definition, Hash, QualifiedName}} = Context) ->
+    Key = {Definition, Position},
     case Entries of
-        #{{Span, Position} := _} ->
+        #{Key := _} ->
             Context;
         _ ->
-            Own = lists:nthtail(length(Context#emit_context.namespace), QualifiedName),
-            [Name | MemberOf] = lists:reverse(Own),
-            Declared = function_name(case MemberOf of [] -> undefined; [Of] -> Of end, Name),
-            Function = host_name(atom_to_list(Declared), "$spawn$" ++ integer_to_list(Position)),
-            Entry = #entry{function = Function, arity = length(Captures),
-                           qualified_name = QualifiedName,
-                           hash = maps:get(QualifiedName, Identities), position = Position,
-                           reach = Reach},
-            Made(Function, Context#emit_context{entries = Entries#{{Span, Position} => Entry}})
+            Function = entry_name(Definition, Position),
+            Entry = #entry{function = Function, arity = Arity, qualified_name = QualifiedName,
+                           hash = Hash, position = Position},
+            Made(Function, Context#emit_context{entries = Entries#{Key => Entry}})
     end.
 
 %% A lambda's entry: its body over its captures, each a fresh variable, in
 %% a scope of its own.
-lambda_entry(Function, Body, Span, Captures,
+lambda_entry(Function, Body, Source, Captures,
              #emit_context{variables = Variables, locals = Locals, members = Members,
                            let_lambdas = LetLambdas} = Context) ->
     {Parameters, Context1} = named_variables(["Capture" || _ <- Captures], Context),
     Inner = Context1#emit_context{variables = maps:from_list(lists:zip(Captures, Parameters)),
                                   locals = #{}, members = #{}, let_lambdas = #{}},
     {BodyForms, Context2} = body(Body, Inner),
-    Clause = at(Span, erl_syntax:clause([erl_syntax:variable(Parameter)
-                                         || Parameter <- Parameters], none, BodyForms)),
-    Entry = at(Span, erl_syntax:function(erl_syntax:atom(Function), [Clause])),
+    Clause = at(Source, erl_syntax:clause([erl_syntax:variable(Parameter)
+                                           || Parameter <- Parameters], none, BodyForms)),
+    Entry = at(Source, erl_syntax:function(erl_syntax:atom(Function), [Clause])),
     Context2#emit_context{variables = Variables, locals = Locals, members = Members,
                           let_lambdas = LetLambdas,
-                          lifted = [Entry | Context2#emit_context.lifted]}.
+                          lifted = [entry_comment(Entry, Context) | Context2#emit_context.lifted]}.
 
 %% A local fn's entry: its lifted function called with what it closes
 %% over, which are its captures, each the variable in force at its
 %% declaration, Scope; nothing else, since a spawn of one that closes over a
 %% local fn or a requirement's member is refused (report §3.11).
-local_entry(Function, Name, #local_fn{lifted_name = LiftedName}, Captures, Scope, Context) ->
+local_entry(Function, Number, #local_fn{lifted_name = LiftedName}, Captures, Scope, Context) ->
     Parameters = [erl_syntax:variable(variable_atom(maps:get(Captured, Scope)))
                   || Captured <- Captures],
     Call = erl_syntax:application(erl_syntax:atom(LiftedName),
                                   [erl_syntax:variable(Variable)
-                                   || Variable <- captured_variables(Name, Context)]),
+                                   || Variable <- captured_variables(Number, Context)]),
     Entry = erl_syntax:function(erl_syntax:atom(Function),
                                 [erl_syntax:clause(Parameters, none, [Call])]),
-    Context#emit_context{lifted = [Entry | Context#emit_context.lifted]}.
+    Context#emit_context{lifted = [entry_comment(Entry, Context) | Context#emit_context.lifted]}.
+
+entry_comment(Entry, #emit_context{definition = {_, _, QualifiedName}}) ->
+    with_comment(Entry, "the entry of a function of " ++ ern_namespace:text(QualifiedName)
+                        ++ " a spawn on a peer starts").
 
 %% Report §3.11: a `let` of a lambda, by the variable it binds, with the
 %% variables in force at the lambda, which a spawn on a peer that names it
 %% captures from.
-let_lambda(#p_var{name = Name}, #e_lambda{} = Lambda, #emit_context{variables = Before},
+let_lambda(Pattern, Expr, #emit_context{variables = Before},
            #emit_context{variables = Variables, let_lambdas = LetLambdas} = Context) ->
-    #{Name := Variable} = Variables,
-    Context#emit_context{let_lambdas = LetLambdas#{Variable => {Lambda, Before}}};
-let_lambda(_, _, _, Context) ->
-    Context.
+    case {sourced(Pattern), sourced(Expr)} of
+        {{_, {local, Number}}, {_, {lambda, _, _, _, _, _}}} ->
+            #{Number := Variable} = Variables,
+            Context#emit_context{let_lambdas = LetLambdas#{Variable => {Expr, Before}}};
+        _ ->
+            Context
+    end.
+
+%% Report §3.11, Appendix H: the locals a lambda's or a local fn's form
+%% names and does not bind, each once, in the order it first names them,
+%% which is the order its spawn's frame carries them in and its entry takes
+%% them.
+captures(Node) ->
+    {Uses, Bound} = locals_named(Node, {[], []}),
+    lists:uniq([Number || Number <- lists:reverse(Uses), not lists:member(Number, Bound)]).
+
+%% The locals a form names, reversed, and those it binds.
+locals_named({var, {local, Number}, _}, {Uses, Bound}) ->
+    {[Number | Uses], Bound};
+locals_named({var, {local, Number}, _, _}, {Uses, Bound}) ->
+    {[Number | Uses], Bound};
+locals_named({local, Number}, {Uses, Bound}) when is_integer(Number) ->
+    {Uses, [Number | Bound]};
+locals_named({local_fn, Number, _, Function}, {Uses, Bound}) ->
+    locals_named(Function, {Uses, [Number | Bound]});
+locals_named(Term, Acc) when is_tuple(Term) ->
+    locals_named(tuple_to_list(Term), Acc);
+locals_named(Terms, Acc) when is_list(Terms) ->
+    lists:foldl(fun locals_named/2, Acc, Terms);
+locals_named(_, Acc) ->
+    Acc.
 
 %%
 %% Blocks, report §5.4 and §5.5, with local fns lifted
 %%
 
-%% A local fn becomes a module function whose leading parameters are the
-%% Erlang variables it closes over: for each free name of its body, the
+%% A local fn becomes a unit function whose leading parameters are the
+%% Erlang variables it closes over: for each free local of its body, the
 %% variable in force at its declaration (report §5.4, §4.6), and, through
 %% the local fns it references, theirs. A use before the declaration
 %% resolves against the variables in force at the use, which §5.4 makes
@@ -2114,53 +2352,66 @@ let_lambda(_, _, _, Context) ->
 %% declaration passed.
 
 block(Statements, Context) ->
-    Fns = [Declaration || #fn_declaration{} = Declaration <- Statements],
+    Fns = [Statement || Statement <- Statements, is_marked_local_fn(Statement)],
     Context1 = declare_locals(Fns, Statements, Context),
     {Forms, Context2} = statements(Statements, Context1, []),
     {Forms, emit_locals(Fns, Context2)}.
 
+is_marked_local_fn(Statement) ->
+    case sourced(Statement) of
+        {_, {local_fn, _, _, _}} -> true;
+        _ -> false
+    end.
+
 %% A block that ends in a `let`, `=` or `<-`, the checker refuses (report
 %% §5.4); this guards the emitter alone.
-statements([#binding{span = Span}], _Context, _Acc) ->
-    fail(Span, "a block ends with a `let`");
 statements([Last], Context, Acc) ->
-    {Form, Context1} = expr(Last, Context),
-    {lists:reverse([Form | Acc]), Context1};
-statements([#fn_declaration{name = Name} | Rest],
-           #emit_context{locals = Locals, variables = Variables} = Context, Acc) ->
-    Local = (maps:get(Name, Locals))#local_fn{snapshot = Variables},
-    statements(Rest, Context#emit_context{locals = Locals#{Name => Local}}, Acc);
-statements([#binding{span = Span, pattern = Pattern, operator = '=', expr = Expr} | Rest],
-           Context, Acc) ->
-    {ExprForm, Context1} = expr(Expr, Context),
-    {PatternForm, Context2} = pattern(Pattern, Context1),
-    Context3 = let_lambda(Pattern, Expr, Context, Context2),
-    statements(Rest, Context3, [at(Span, erl_syntax:match_expr(PatternForm, ExprForm)) | Acc]);
-statements([#binding{span = Span, pattern = Pattern, operator = '<-', expr = Expr} | Rest],
-           Context, Acc) ->
-    %% report §5.5
-    {ExprForm, Context1} = expr(Expr, Context),
-    Type = resolved(ern_typecheck:node_type(Expr), Context),
-    {Clauses, Context2} = unwrapping_clauses(Span, Type, Pattern, Rest, Context1),
-    {lists:reverse([at(Span, erl_syntax:case_expr(ExprForm, Clauses)) | Acc]), Context2};
-statements([Expr | Rest], Context, Acc) ->
-    {Form, Context1} = expr(Expr, Context),
-    statements(Rest, Context1, [Form | Acc]).
+    case sourced(Last) of
+        {Source, {bind, _, _, _}} ->
+            fail(Source, "a block ends with a `let`");
+        {Source, {unwrap, _, _, _, _}} ->
+            fail(Source, "a block ends with a `let`");
+        _ ->
+            {Form, Context1} = expr(Last, Context),
+            {lists:reverse([Form | Acc]), Context1}
+    end;
+statements([Statement | Rest], Context, Acc) ->
+    case sourced(Statement) of
+        {_, {local_fn, Number, _, _}} ->
+            #emit_context{locals = Locals, variables = Variables} = Context,
+            Local = (maps:get(Number, Locals))#local_fn{snapshot = Variables},
+            statements(Rest, Context#emit_context{locals = Locals#{Number => Local}}, Acc);
+        {Source, {bind, _, Expr, Pattern}} ->
+            {ExprForm, Context1} = expr(Expr, Context),
+            {PatternForm, Context2} = pattern(Pattern, Context1),
+            Context3 = let_lambda(Pattern, Expr, Context, Context2),
+            statements(Rest, Context3,
+                       [at(Source, erl_syntax:match_expr(PatternForm, ExprForm)) | Acc]);
+        {Source, {unwrap, {named, [Sum]}, _, Expr, Pattern}} ->
+            %% report §5.5
+            {ExprForm, Context1} = expr(Expr, Context),
+            {Clauses, Context2} = unwrapping_clauses(Source, Sum, Pattern, Rest, Context1),
+            {lists:reverse([at(Source, erl_syntax:case_expr(ExprForm, Clauses)) | Acc]),
+             Context2};
+        _ ->
+            {Form, Context1} = expr(Statement, Context),
+            statements(Rest, Context1, [Form | Acc])
+    end.
 
 %% Report §5.5: the clauses of `let p <- e` on e's value: a Left or None
 %% is the block's value, and the rest of the block runs on the value p
 %% matches.
-unwrapping_clauses(_, {tcon, ['Either'], _}, Pattern, Rest, Context) ->
+unwrapping_clauses(_, 'Either', Pattern, Rest, Context) ->
     {[LeftName], Context1} = fresh_variables(1, "Left", Context),
     Left = erl_syntax:tuple([erl_syntax:atom('Left'), erl_syntax:variable(LeftName)]),
     {Right, Context2} = unwrapped('Right', Pattern, Rest, Context1),
     {[erl_syntax:clause([Left], none, [Left]), Right], Context2};
-unwrapping_clauses(_, {tcon, ['Optional'], _}, Pattern, Rest, Context) ->
+unwrapping_clauses(_, 'Optional', Pattern, Rest, Context) ->
     None = erl_syntax:atom('None'),
     {Some, Context1} = unwrapped('Some', Pattern, Rest, Context),
     {[erl_syntax:clause([None], none, [None]), Some], Context1};
-unwrapping_clauses(Span, _, _, _, _) ->
-    fail(Span, "`<-` on a value that is neither Either nor Optional").
+unwrapping_clauses(Source, _, _, _, _) ->
+    fail(Source, "`<-` on a value that is neither Either nor Optional").
 
 %% The clause on Tag(p) that runs the rest of the block.
 unwrapped(Tag, Pattern, Rest, Context) ->
@@ -2172,111 +2423,111 @@ unwrapped(Tag, Pattern, Rest, Context) ->
 declare_locals([], _Statements, Context) ->
     Context;
 declare_locals(Fns, Statements, #emit_context{locals = Locals} = Context) ->
-    Names = [Name || #fn_declaration{name = Name} <- Fns],
-    BlockLets = lists:append([pattern_names(Pattern) || #binding{pattern = Pattern} <- Statements]),
-    {Declared, Context1} =
-        lists:mapfoldl(fun(Fn, Acc) ->
-                           declared_local(Fn, Names, BlockLets, lets_before(Fn, Statements),
-                                          Context, Acc)
-                       end, Context, Fns),
-    Context1#emit_context{locals = maps:merge(Locals, maps:from_list(Declared))}.
+    Numbers = [Number || Fn <- Fns, {_, {local_fn, Number, _, _}} <- [sourced(Fn)]],
+    BlockLets = lists:append([pattern_numbers(Pattern)
+                              || Statement <- Statements,
+                                 Pattern <- statement_pattern(element(2, sourced(Statement)))]),
+    Declared = [declared_local(Fn, Numbers, BlockLets, Context) || Fn <- Fns],
+    Context#emit_context{locals = maps:merge(Locals, maps:from_list(Declared))}.
 
-%% The names the block's lets before Fn bind, which are in force at its
-%% declaration (report §5.4).
-lets_before(Fn, Statements) ->
-    Before = lists:takewhile(fun(Statement) -> Statement =/= Fn end, Statements),
-    lists:append([pattern_names(Pattern) || #binding{pattern = Pattern} <- Before]).
+statement_pattern({bind, _, _, Pattern}) -> [Pattern];
+statement_pattern({unwrap, _, _, _, Pattern}) -> [Pattern];
+statement_pattern(_) -> [].
 
-%% A local fn of the block named Names, as its #local_fn{} under a fresh
-%% name, from the scope the block opens in, Context. A free name is a
-%% top-level declaration's only where nothing in scope at the fn's
-%% declaration binds it: a parameter, a variable, a local fn or a let
-%% before it (report §4.2, §5.4).
-declared_local(#fn_declaration{name = Name, params = Params, requirement = Requirement,
-                               body = Body} = Declaration, Names, BlockLets, LetsBefore,
+%% A local fn of the block whose fns are Numbers, as its #local_fn{}, from
+%% the scope the block opens in, Context. Its free locals are those its
+%% form names and does not bind, its own number among them where it calls
+%% itself: the block's fns it references, the locals of the scope or the
+%% block's lets it captures, and the enclosing blocks' fns, whose captures
+%% it closes over in turn (report §4.2, §5.4).
+declared_local(Fn, Numbers, BlockLets,
                #emit_context{variables = Variables, locals = Locals,
-                             top_names = TopNames} = Context,
-               Acc) ->
-    Bound = lists:append([pattern_names(Pattern) || #param{pattern = Pattern} <- Params]),
-    InScope = fun(FreeName) ->
-                  is_map_key(FreeName, Variables) orelse is_map_key(FreeName, Locals)
-                      orelse lists:member(FreeName, Names) orelse lists:member(FreeName, LetsBefore)
-              end,
-    Free = [FreeName || FreeName <- lists:usort(ern_ast:free_names(Body, Bound)),
-                        InScope(FreeName) orelse not is_map_key({undefined, FreeName}, TopNames)],
-    References = [FreeName || FreeName <- Free, lists:member(FreeName, Names)],
-    Captured = [FreeName || FreeName <- Free, not lists:member(FreeName, Names),
-                            is_map_key(FreeName, Variables)
-                                orelse lists:member(FreeName, BlockLets)],
-    Enclosing = lists:append([captured_variables(FreeName, Context)
-                              || FreeName <- Free, not lists:member(FreeName, Names),
-                                 not lists:member(FreeName, Captured),
-                                 is_map_key(FreeName, Locals)]),
-    {LiftedName, Acc1} = fresh_name(Name, Acc),
-    Local = #local_fn{lifted_name = LiftedName, captured = Captured,
-                      enclosing = lists:usort(Enclosing), references = References,
-                      members = enclosing_members(Body, Requirement, Context),
-                      declaration = Declaration},
-    {{Name, Local}, Acc1}.
+                             definition = {Definition, _, _}} = Context) ->
+    {Source, {local_fn, Number, Position, {function, _, _, _, _, Needs, Body} = Function}} =
+        sourced(Fn),
+    Free = lists:usort(captures(Function)),
+    References = [Free1 || Free1 <- Free, lists:member(Free1, Numbers)],
+    Captured = [Free1 || Free1 <- Free, not lists:member(Free1, Numbers),
+                         is_map_key(Free1, Variables) orelse lists:member(Free1, BlockLets)],
+    Enclosing = lists:append([captured_variables(Free1, Context)
+                              || Free1 <- Free, not lists:member(Free1, Numbers),
+                                 not lists:member(Free1, Captured), is_map_key(Free1, Locals)]),
+    {Number, #local_fn{lifted_name = lifted_name(Definition, Position), captured = Captured,
+                       enclosing = lists:usort(Enclosing), references = References,
+                       members = enclosing_members(Body, Needs, Context), function = Function,
+                       position = Position, source = Source}}.
 
 %% Report §4.9: the parameters of the enclosing requirements' members a
 %% local fn's body uses, which it closes over, its own requirement's aside.
-enclosing_members(Body, Requirement, #emit_context{members = Members} = Context) ->
-    Own = [{Id, Member} || #member{type = Variable, name = Member} <- Requirement,
-                           {tvar, Id} <- [resolved(Variable, Context)]],
-    Used = ern_ast:walk(fun(#required_member{variable = Variable, member = Member}, Found) ->
-                                {tvar, Id} = resolved(Variable, Context),
-                                [{Id, Member} | Found];
-                           (_, Found) ->
-                                Found
-                        end, Body, []),
+enclosing_members(Body, Needs, #emit_context{members = Members}) ->
+    Own = [{Number, Member} || {needs, {variable, Number}, Member} <- Needs],
+    Used = required(Body, []),
     lists:usort([maps:get(Key, Members) || Key <- Used, not lists:member(Key, Own),
                                            is_map_key(Key, Members)]).
 
+%% The members of requirements a form names, each {Number, Member}.
+required({required, {variable, Number}, Member}, Acc) ->
+    [{Number, Member} | Acc];
+required(Term, Acc) when is_tuple(Term) ->
+    required(tuple_to_list(Term), Acc);
+required(Terms, Acc) when is_list(Terms) ->
+    lists:foldl(fun required/2, Acc, Terms);
+required(_, Acc) ->
+    Acc.
+
 %% The Erlang variables a local fn closes over, which its lifted function
 %% takes first, in order, each once.
-captured_variables(Name, #emit_context{locals = Locals, variables = Variables}) ->
-    lists:usort(captured_variables([Name], Locals, Variables, [], [])).
+captured_variables(Number, #emit_context{locals = Locals, variables = Variables}) ->
+    lists:usort(captured_variables([Number], Locals, Variables, [], [])).
 
 captured_variables([], _Locals, _Variables, _Seen, Acc) ->
     Acc;
-captured_variables([Name | Rest], Locals, Variables, Seen, Acc) ->
-    case lists:member(Name, Seen) of
+captured_variables([Number | Rest], Locals, Variables, Seen, Acc) ->
+    case lists:member(Number, Seen) of
         true ->
             captured_variables(Rest, Locals, Variables, Seen, Acc);
         false ->
             #local_fn{captured = Captured, enclosing = Enclosing, references = References,
-                      members = Members, snapshot = Snapshot} = maps:get(Name, Locals),
+                      members = Members, snapshot = Snapshot} = maps:get(Number, Locals),
             Scope = case Snapshot of pending -> Variables; _ -> Snapshot end,
-            Found = [variable_atom(maps:get(CapturedName, Scope)) || CapturedName <- Captured]
+            Found = [variable_atom(maps:get(CapturedNumber, Scope))
+                     || CapturedNumber <- Captured]
                 ++ Enclosing
                 ++ Members,
-            captured_variables(References ++ Rest, Locals, Variables, [Name | Seen], Found ++ Acc)
+            captured_variables(References ++ Rest, Locals, Variables, [Number | Seen],
+                               Found ++ Acc)
     end.
 
 %% The lifted functions of a block, once every declaration has passed.
 emit_locals(Fns, Context) ->
     lists:foldl(fun emit_local/2, Context, Fns).
 
-emit_local(#fn_declaration{span = Span, name = Name, params = Params, requirement = Requirement,
-                           body = Body},
-           #emit_context{variables = Variables, locals = Locals, members = Members} = Context) ->
+emit_local(Fn, #emit_context{variables = Variables, locals = Locals, members = Members,
+                             definition = {_, _, QualifiedName}} = Context) ->
+    {Source, {local_fn, Number, _, {function, _, Params, _, _, Needs, Body}}} = sourced(Fn),
     #local_fn{lifted_name = LiftedName, captured = Captured, snapshot = Snapshot} =
-        maps:get(Name, Locals),
-    Captures = captured_variables(Name, Context),
-    CapturedVariables = maps:from_list([{CapturedName, maps:get(CapturedName, Snapshot)}
-                                       || CapturedName <- Captured]),
-    {Head, Context1} = head_patterns(Params, Requirement,
+        maps:get(Number, Locals),
+    Captures = captured_variables(Number, Context),
+    CapturedVariables = maps:from_list([{CapturedNumber, maps:get(CapturedNumber, Snapshot)}
+                                       || CapturedNumber <- Captured]),
+    {Head, Context1} = head_patterns(Params, Needs,
                                      Context#emit_context{variables = CapturedVariables}),
     {BodyForms, Context2} = body(Body, Context1),
-    Clause = at(Span, erl_syntax:clause([erl_syntax:variable(Variable) || Variable <- Captures]
-                                        ++ Head, none, BodyForms)),
-    Function = at(Span, erl_syntax:function(erl_syntax:atom(LiftedName), [Clause])),
+    Clause = at(Source, erl_syntax:clause([erl_syntax:variable(Variable) || Variable <- Captures]
+                                          ++ Head, none, BodyForms)),
+    Function = at(Source, erl_syntax:function(erl_syntax:atom(LiftedName), [Clause])),
+    Text = "a local function of " ++ ern_namespace:text(QualifiedName)
+        ++ case local_name(Source) of
+               none -> "";
+               Name -> ", " ++ atom_to_list(Name)
+           end,
     Context2#emit_context{variables = Variables, members = Members,
-                          lifted = [Function | Context2#emit_context.lifted]}.
+                          lifted = [with_comment(Function, Text) | Context2#emit_context.lifted]}.
 
-%% The names a pattern binds.
-pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)].
+%% The locals a pattern binds, in the order it binds them.
+pattern_numbers(Pattern) ->
+    {_, Bound} = locals_named(Pattern, {[], []}),
+    lists:reverse(Bound).
 
 %%
 %% match and receive clauses
@@ -2286,9 +2537,10 @@ pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern
 %% a continuation over the remaining clauses (report §5.9).
 match_clauses(ScrutineeForm, Clauses, Context) ->
     InScope = maps:keys(Context#emit_context.variables),
-    HasErlangGuard = fun(#clause{guard = undefined}) -> true;
-                        (#clause{pattern = Pattern, guard = Guard}) ->
-                             is_erlang_guard(Guard, pattern_names(Pattern) ++ InScope, Context)
+    HasErlangGuard = fun(Clause) ->
+                             {_, {clause, Pattern, Guard, _}} = sourced(Clause),
+                             Guard =:= none
+                                 orelse is_erlang_guard(Guard, pattern_numbers(Pattern) ++ InScope)
                      end,
     case lists:all(HasErlangGuard, Clauses) of
         true ->
@@ -2303,45 +2555,52 @@ match_clauses(ScrutineeForm, Clauses, Context) ->
              Context2}
     end.
 
-general_clauses(Scrutinee, [#clause{pattern = #p_or{}} = Clause | Rest], Context) ->
-    {RestBind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
-    MakeClause = fun(Span, PatternForm, Guard, Call, Acc) ->
-                     PatternGuard = joined_guard(none, Acc),
-                     case Guard of
-                         undefined ->
-                             {at(Span, erl_syntax:clause([PatternForm], PatternGuard, Call)), Acc};
-                         _ ->
-                             {GuardForm, Acc1} = expr(Guard, Acc),
-                             Test = guard_test(GuardForm, Call, Fallthrough),
-                             {at(Span, erl_syntax:clause([PatternForm], PatternGuard, [Test])),
-                              Acc1}
-                     end
-                 end,
-    {{Bindings, Forms}, Context2} = alternatives(Clause, MakeClause, Context1),
-    Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
-    Case = erl_syntax:case_expr(Scrutinee, Forms ++ [Otherwise]),
-    {erl_syntax:block_expr([RestBind | Bindings] ++ [Case]),
-     Context2#emit_context{variables = Context#emit_context.variables}};
-general_clauses(Scrutinee, [#clause{pattern = Pattern, guard = undefined, body = ClauseBody}],
-                #emit_context{variables = Variables} = Context) ->
-    {PatternForm, PatternGuard, Context1} = clause_head(Pattern, undefined, Context),
-    {BodyForms, Context2} = body(ClauseBody, Context1),
-    Clause = erl_syntax:clause([PatternForm], PatternGuard, BodyForms),
-    {erl_syntax:case_expr(Scrutinee, [Clause]), Context2#emit_context{variables = Variables}};
 general_clauses(Scrutinee, [Clause | Rest], #emit_context{variables = Variables} = Context) ->
-    {Bind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
-    {ClauseForm, Context2} = general_clause(Clause, Fallthrough, Context1),
-    Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
-    Case = erl_syntax:case_expr(Scrutinee, [ClauseForm, Otherwise]),
-    {erl_syntax:block_expr([Bind, Case]), Context2#emit_context{variables = Variables}}.
+    {Source, {clause, Pattern, Guard, ClauseBody}} = sourced(Clause),
+    case {sourced(Pattern), Rest} of
+        {{_, {alternatives, _}}, _} ->
+            {RestBind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
+            MakeClause = fun(AlternativeSource, PatternForm, AlternativeGuard, Call, Acc) ->
+                             PatternGuard = joined_guard(none, Acc),
+                             case AlternativeGuard of
+                                 none ->
+                                     {at(AlternativeSource,
+                                         erl_syntax:clause([PatternForm], PatternGuard, Call)),
+                                      Acc};
+                                 _ ->
+                                     {GuardForm, Acc1} = expr(AlternativeGuard, Acc),
+                                     Test = guard_test(GuardForm, Call, Fallthrough),
+                                     {at(AlternativeSource,
+                                         erl_syntax:clause([PatternForm], PatternGuard, [Test])),
+                                      Acc1}
+                             end
+                         end,
+            {{Bindings, Forms}, Context2} = alternatives(Clause, MakeClause, Context1),
+            Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
+            Case = erl_syntax:case_expr(Scrutinee, Forms ++ [Otherwise]),
+            {erl_syntax:block_expr([RestBind | Bindings] ++ [Case]),
+             Context2#emit_context{variables = Variables}};
+        {_, []} when Guard =:= none ->
+            {PatternForm, PatternGuard, Context1} = clause_head(Pattern, none, Context),
+            {BodyForms, Context2} = body(ClauseBody, Context1),
+            ClauseForm = erl_syntax:clause([PatternForm], PatternGuard, BodyForms),
+            {erl_syntax:case_expr(Scrutinee, [ClauseForm]),
+             Context2#emit_context{variables = Variables}};
+        _ ->
+            {Bind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
+            {ClauseForm, Context2} = general_clause(Source, Pattern, Guard, ClauseBody,
+                                                    Fallthrough, Context1),
+            Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
+            Case = erl_syntax:case_expr(Scrutinee, [ClauseForm, Otherwise]),
+            {erl_syntax:block_expr([Bind, Case]), Context2#emit_context{variables = Variables}}
+    end.
 
 %% A clause that falls through: its pattern, with the guard the pattern
 %% asks for, and its body behind its own guard, if any.
-general_clause(#clause{pattern = Pattern, guard = Guard, body = ClauseBody}, Fallthrough,
-               Context) ->
-    {PatternForm, PatternGuard, Context1} = clause_head(Pattern, undefined, Context),
+general_clause(_Source, Pattern, Guard, ClauseBody, Fallthrough, Context) ->
+    {PatternForm, PatternGuard, Context1} = clause_head(Pattern, none, Context),
     {Body, Context2} = case Guard of
-                           undefined ->
+                           none ->
                                body(ClauseBody, Context1);
                            _ ->
                                guarded_body(Guard, ClauseBody, Fallthrough, Context1)
@@ -2354,11 +2613,11 @@ guarded_body(Guard, ClauseBody, Fallthrough, Context) ->
     {[guard_test(GuardForm, BodyForms, Fallthrough)], Context2}.
 
 %% A clause's pattern and its guard, the guards the pattern asks for joined
-%% to Guard, which is an Erlang guard here, or undefined.
+%% to Guard, which is an Erlang guard here, or none.
 clause_head(Pattern, Guard, #emit_context{pattern_guards = Guards} = Context) ->
     {PatternForm, Context1} = pattern(Pattern, Context#emit_context{pattern_guards = []}),
     {OwnGuard, Context2} = case Guard of
-                               undefined -> {none, Context1};
+                               none -> {none, Context1};
                                _ -> expr(Guard, Context1)
                            end,
     {PatternForm, joined_guard(OwnGuard, Context2),
@@ -2385,27 +2644,31 @@ rest_fun(Scrutinee, Rest, Context) ->
     {erl_syntax:match_expr(RestVariable, RestFun), erl_syntax:application(RestVariable, []),
      Context2}.
 
-simple_clause(#clause{span = Span, pattern = Pattern, guard = Guard, body = ClauseBody},
-              #emit_context{variables = Variables} = Context) ->
+simple_clause(Source, Pattern, Guard, ClauseBody, #emit_context{variables = Variables} = Context) ->
     {PatternForm, GuardForm, Context1} = clause_head(Pattern, Guard, Context),
     {BodyForms, Context2} = body(ClauseBody, Context1),
-    {at(Span, erl_syntax:clause([PatternForm], GuardForm, BodyForms)),
+    {at(Source, erl_syntax:clause([PatternForm], GuardForm, BodyForms)),
      Context2#emit_context{variables = Variables}}.
 
 %% The Erlang clauses of one Ernest clause and the bindings they need.
-simple_clauses(#clause{pattern = #p_or{}} = Clause, Context) ->
-    MakeClause = fun(Span, PatternForm, Guard, Call, Acc) ->
-                     {OwnGuard, Acc1} = case Guard of
-                                            undefined -> {none, Acc};
-                                            _ -> expr(Guard, Acc)
-                                        end,
-                     GuardForm = joined_guard(OwnGuard, Acc1),
-                     {at(Span, erl_syntax:clause([PatternForm], GuardForm, Call)), Acc1}
-                 end,
-    alternatives(Clause, MakeClause, Context);
 simple_clauses(Clause, Context) ->
-    {Form, Context1} = simple_clause(Clause, Context),
-    {{[], [Form]}, Context1}.
+    {Source, {clause, Pattern, Guard, ClauseBody}} = sourced(Clause),
+    case sourced(Pattern) of
+        {_, {alternatives, _}} ->
+            MakeClause = fun(AlternativeSource, PatternForm, AlternativeGuard, Call, Acc) ->
+                             {OwnGuard, Acc1} = case AlternativeGuard of
+                                                    none -> {none, Acc};
+                                                    _ -> expr(AlternativeGuard, Acc)
+                                                end,
+                             GuardForm = joined_guard(OwnGuard, Acc1),
+                             {at(AlternativeSource,
+                                 erl_syntax:clause([PatternForm], GuardForm, Call)), Acc1}
+                         end,
+            alternatives(Clause, MakeClause, Context);
+        _ ->
+            {Form, Context1} = simple_clause(Source, Pattern, Guard, ClauseBody, Context),
+            {{[], [Form]}, Context1}
+    end.
 
 join_parts(Parts) ->
     {lists:append([PartBindings || {PartBindings, _} <- Parts]),
@@ -2417,17 +2680,17 @@ with_bindings(Bindings, Form) -> erl_syntax:block_expr(Bindings ++ [Form]).
 %% Report §5.9: a clause with pattern alternatives is one Erlang clause per
 %% alternative. The body is compiled once, into a fun over the variables
 %% every alternative binds, and each clause calls it; MakeClause builds a
-%% clause from the clause's span, the pattern form, the Ernest guard, and
+%% clause from the clause's source, the pattern form, the Ernest guard, and
 %% that call.
-alternatives(#clause{span = Span, pattern = #p_or{alternatives = [First | _] = Alternatives},
-                     guard = Guard, body = ClauseBody},
-             MakeClause, Context) ->
-    Names = pattern_names(First),
+alternatives(Clause, MakeClause, Context) ->
+    {Source, {clause, Pattern, Guard, ClauseBody}} = sourced(Clause),
+    {_, {alternatives, [First | _] = Alternatives}} = sourced(Pattern),
+    Numbers = pattern_numbers(First),
     {[BodyName], Context1} = fresh_variables(1, "Body", Context),
     #emit_context{variables = Variables, pattern_guards = Guards} = Context1,
     BodyFunction = erl_syntax:variable(BodyName),
     {_, PatternContext} = pattern(First, Context1#emit_context{pattern_guards = []}),
-    Params = bound_variables(Names, PatternContext),
+    Params = bound_variables(Numbers, PatternContext),
     {BodyForms, BodyContext} = body(ClauseBody,
                                     PatternContext#emit_context{pattern_guards = Guards}),
     Bind = erl_syntax:match_expr(BodyFunction,
@@ -2436,47 +2699,61 @@ alternatives(#clause{span = Span, pattern = #p_or{alternatives = [First | _] = A
         lists:mapfoldl(fun(Alternative, Acc) ->
                            {PatternForm, Acc1} =
                                pattern(Alternative, Acc#emit_context{pattern_guards = []}),
-                           Args = bound_variables(Names, Acc1),
-                           Call = [at(Span, erl_syntax:application(BodyFunction, Args))],
-                           {Form, Acc2} = MakeClause(Span, PatternForm, Guard, Call, Acc1),
+                           Args = bound_variables(Numbers, Acc1),
+                           Call = [at(Source, erl_syntax:application(BodyFunction, Args))],
+                           {Form, Acc2} = MakeClause(Source, PatternForm, Guard, Call, Acc1),
                            #emit_context{variables = Before, pattern_guards = Kept} = Acc,
                            {Form, Acc2#emit_context{variables = Before, pattern_guards = Kept}}
                        end, BodyContext#emit_context{variables = Variables}, Alternatives),
     {{[Bind], Forms}, Context2}.
 
-%% The Erlang variables of the names a pattern bound.
-bound_variables(Names, #emit_context{variables = Variables}) ->
-    [erl_syntax:variable(variable_atom(maps:get(Name, Variables))) || Name <- Names].
+%% The Erlang variables of the locals a pattern bound.
+bound_variables(Numbers, #emit_context{variables = Variables}) ->
+    [erl_syntax:variable(variable_atom(maps:get(Number, Variables))) || Number <- Numbers].
 
-%% Report §6.3's guard expression over the variables in Bound, the
-%% clause's and the enclosing function's: it is an Erlang guard. A name
-%% bound at top level is read through its getter, a call, so it is not one.
-is_erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, Context)
+%% Report §6.3's guard expression over the locals in Bound, the clause's
+%% and the enclosing function's: it is an Erlang guard. A name bound at top
+%% level is read through its getter, a call, so it is not one.
+is_erlang_guard(Guard, Bound) ->
+    {_, Node} = sourced(Guard),
+    is_guard_node(Node, Bound).
+
+is_guard_node({operator, Operator, Left, Right, _}, Bound)
   when Operator =:= '&&'; Operator =:= '||' ->
-    is_erlang_guard(Left, Bound, Context) andalso is_erlang_guard(Right, Bound, Context);
-is_erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, _)
+    is_erlang_guard(Left, Bound) andalso is_erlang_guard(Right, Bound);
+is_guard_node({operator, Operator, Left, Right, _}, Bound)
   when Operator =:= '=='; Operator =:= '!=' ->
     is_guard_operand(Left, Bound) andalso is_guard_operand(Right, Bound);
-is_erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, Context)
+is_guard_node({operator, Operator, Left, Right, Operation}, Bound)
   when Operator =:= '<'; Operator =:= '<='; Operator =:= '>'; Operator =:= '>=' ->
     %% an ordering through T.compare is a call (report §3.10)
-    IsPreludeType = case resolved(ern_typecheck:node_type(Left), Context) of
-                        {tcon, [_], []} -> true;
-                        _ -> false
-                    end,
-    IsPreludeType andalso is_guard_operand(Left, Bound) andalso is_guard_operand(Right, Bound);
-is_erlang_guard(#e_not{expr = Expr}, Bound, Context) -> is_erlang_guard(Expr, Bound, Context);
-is_erlang_guard(#e_literal{kind = bool}, _, _) -> true;
-is_erlang_guard(#e_var{namespace = [], name = Name}, Bound, _) -> lists:member(Name, Bound);
-is_erlang_guard(_, _, _) -> false.
+    is_prelude_operation(Operation) andalso is_guard_operand(Left, Bound)
+        andalso is_guard_operand(Right, Bound);
+is_guard_node({'not', Expr}, Bound) -> is_erlang_guard(Expr, Bound);
+is_guard_node({literal, bool, _}, _) -> true;
+is_guard_node({var, {local, Number}, []}, Bound) -> lists:member(Number, Bound);
+is_guard_node({var, {read, _}, []}, _) -> true;
+is_guard_node(_, _) -> false.
 
-is_guard_operand(#e_literal{}, _) -> true;
-is_guard_operand(#e_negation{expr = #e_literal{kind = Kind}}, _)
-  when Kind =:= int; Kind =:= float ->
-    true;
-is_guard_operand(#e_var{namespace = [], name = Name}, Bound) -> lists:member(Name, Bound);
-is_guard_operand(#e_constructor{args = none}, _) -> true;
-is_guard_operand(_, _) -> false.
+%% Whether an ordering is the runtime's own at a prelude type of no
+%% argument, Int, Float, String or Char.
+is_prelude_operation({runtime, {applied, {named, [_]}, []}}) -> true;
+is_prelude_operation({known, {named, [_, _]}, []}) -> true;
+is_prelude_operation(_) -> false.
+
+is_guard_operand(Operand, Bound) ->
+    case sourced(Operand) of
+        {_, {literal, _, _}} -> true;
+        {_, {negate, Literal, _}} ->
+            case sourced(Literal) of
+                {_, {literal, Kind, _}} -> Kind =:= int orelse Kind =:= float;
+                _ -> false
+            end;
+        {_, {var, {local, Number}, []}} -> lists:member(Number, Bound);
+        {_, {var, {read, _}, []}} -> true;
+        {_, {construct, _, none}} -> true;
+        _ -> false
+    end.
 
 %%
 %% Patterns: pattern(Pattern, Context) -> {Form, Context} with the
@@ -2492,85 +2769,86 @@ pattern(Pattern, #emit_context{outer = undefined, variables = Variables} = Conte
 pattern(Pattern, Context) ->
     pattern_part(Pattern, Context).
 
-pattern_part(#p_wildcard{span = Span}, Context) ->
-    {at(Span, erl_syntax:underscore()), Context};
-pattern_part(#p_var{span = Span, name = Name}, Context) ->
-    {Variable, Context1} = bind(Name, Context),
-    {at(Span, erl_syntax:variable(Variable)), Context1};
-pattern_part(#p_literal{span = Span, kind = Kind, value = Value}, Context) ->
-    {at(Span, literal(Kind, Value)), Context};
-pattern_part(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args},
-        #emit_context{env = Env} = Context) ->
-    #constructor_info{fields = Fields} =
-        ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
+pattern_part(Pattern, Context) ->
+    {Source, Node} = sourced(Pattern),
+    {Form, Context1} = pattern_form(Node, Source, Context),
+    {at(Source, Form), Context1}.
+
+pattern_form(wildcard, _, Context) ->
+    {erl_syntax:underscore(), Context};
+pattern_form({local, Number}, Source, Context) ->
+    {Variable, Context1} = bind(Number, local_name(Source), Context),
+    {erl_syntax:variable(Variable), Context1};
+pattern_form({literal, Kind, Value}, _, Context) ->
+    {literal(Kind, Value), Context};
+pattern_form({construct, Constructor, Args}, _, Context) ->
+    {Name, Fields} = constructor_at(Constructor, Context),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
-        {none, _} -> {at(Span, Tag), Context};
-        {positional, {positional, SubPattern}} ->
+        {none, _} ->
+            {Tag, Context};
+        {{positional, _}, {positional, SubPattern}} ->
             {PatternForm, Context1} = pattern(SubPattern, Context),
-            {at(Span, erl_syntax:tuple([Tag, PatternForm])), Context1};
-        {{named, Names}, {named, FieldPatterns}} ->
-            {Forms, Context1} = lists:mapfoldl(fun(FieldName, Acc) ->
-                                                   named_field_pattern(FieldName, FieldPatterns,
-                                                                       Acc)
-                                               end, Context, Names),
-            {at(Span, erl_syntax:tuple([Tag | Forms])), Context1}
+            {erl_syntax:tuple([Tag, PatternForm]), Context1};
+        {{named, _}, {fields, FieldPatterns}} ->
+            %% report §5.10: a field the pattern omits, a wildcard in the
+            %% form, matches any value
+            {Forms, Context1} = lists:mapfoldl(fun pattern/2, Context, FieldPatterns),
+            {erl_syntax:tuple([Tag | Forms]), Context1}
     end;
-pattern_part(#p_tuple{span = Span, elements = Elements}, Context) ->
+pattern_form({tuple, Elements}, _, Context) ->
     {Forms, Context1} = lists:mapfoldl(fun pattern/2, Context, Elements),
-    {at(Span, erl_syntax:tuple(Forms)), Context1};
-pattern_part(#p_list{span = Span, elements = Elements}, Context) ->
+    {erl_syntax:tuple(Forms), Context1};
+pattern_form({list, Elements}, _, Context) ->
     {Forms, Context1} = lists:mapfoldl(fun pattern/2, Context, Elements),
-    {at(Span, erl_syntax:list(Forms)), Context1};
-pattern_part(#p_cons{span = Span, head = Head, tail = Tail}, Context) ->
+    {erl_syntax:list(Forms), Context1};
+pattern_form({cons, Head, Tail}, _, Context) ->
     {HeadForm, Context1} = pattern(Head, Context),
     {TailForm, Context2} = pattern(Tail, Context1),
-    {at(Span, erl_syntax:cons(HeadForm, TailForm)), Context2};
-pattern_part(#p_as{span = Span, pattern = SubPattern, name = Name}, Context) ->
+    {erl_syntax:cons(HeadForm, TailForm), Context2};
+pattern_form({as, SubPattern, Local}, _, Context) ->
     {PatternForm, Context1} = pattern(SubPattern, Context),
-    {Variable, Context2} = bind(Name, Context1),
-    {at(Span, erl_syntax:match_expr(erl_syntax:variable(Variable), PatternForm)), Context2};
-pattern_part(#p_bitstring{span = Span, segments = Segments},
-             #emit_context{outer = Outer} = Context) ->
+    {LocalSource, {local, Number}} = sourced(Local),
+    {Variable, Context2} = bind(Number, local_name(LocalSource), Context1),
+    {erl_syntax:match_expr(erl_syntax:variable(Variable), PatternForm), Context2};
+pattern_form({bitstring, Segments}, _, #emit_context{outer = Outer} = Context) ->
     %% report §5.11: a size expression must be an Erlang guard expression
     %% here, in the scope before the pattern and of the earlier segments;
     %% a `bytes` segment is Erlang's `binary`, so an unaligned rest fails
     %% the match
-    Segment = fun(#bit_segment{value = ValuePattern, specs = Specs}, {Acc, SizeScope}) ->
-                  {ok, Spec} = ern_bitspec:spec(Specs),
+    Segment = fun(SegmentForm, {Acc, SizeScope}) ->
+                  {Spec, ValuePattern} = segment_spec(SegmentForm),
                   {SizeForm, Acc1} = size_form(Spec, Acc#emit_context{variables = SizeScope}),
                   {ValueForm, Acc2} =
                       bits_pattern_value(Spec, ValuePattern,
                                          Acc1#emit_context{variables = Acc#emit_context.variables}),
-                  Bound = maps:with(pattern_names(ValuePattern), Acc2#emit_context.variables),
+                  Bound = maps:with(pattern_numbers(ValuePattern), Acc2#emit_context.variables),
                   {erl_syntax:binary_field(ValueForm, SizeForm, type_specs(Spec)),
                    {Acc2, maps:merge(SizeScope, Bound)}}
               end,
     {Fields, {Context1, _}} = lists:mapfoldl(Segment, {Context, Outer}, Segments),
-    {at(Span, erl_syntax:binary(Fields)), Context1}.
+    {erl_syntax:binary(Fields), Context1}.
 
-%% Report §5.10: a field the pattern omits matches any value.
-named_field_pattern(FieldName, FieldPatterns, Context) ->
-    case [SubPattern || #field_pattern{name = Name, pattern = SubPattern} <- FieldPatterns,
-                        Name =:= FieldName] of
-        [SubPattern] -> pattern(SubPattern, Context);
-        [] -> {erl_syntax:underscore(), Context}
-    end.
-
-bits_pattern_value(#{kind := float}, #p_var{span = Span, name = Name}, Context) ->
-    {Variable, Context1} = bind(Name, Context),
-    Variables = (Context1#emit_context.variables)#{Name => {zero, Variable}},
-    {at(Span, erl_syntax:variable(Variable)), Context1#emit_context{variables = Variables}};
-bits_pattern_value(#{kind := float}, #p_literal{span = Span, value = Zero}, Context)
-  when Zero == 0.0 ->
-    %% report §3.1: the literal 0.0 matches the bytes of either zero
-    {[ZeroName], Context1} = fresh_variables(1, "Zero", Context),
-    Guard = erl_syntax:infix_expr(erl_syntax:variable(ZeroName), erl_syntax:operator('=='),
-                                  erl_syntax:float(0.0)),
-    Guards = Context1#emit_context.pattern_guards ++ [Guard],
-    {at(Span, erl_syntax:variable(ZeroName)), Context1#emit_context{pattern_guards = Guards}};
-bits_pattern_value(_, Pattern, Context) ->
-    pattern(Pattern, Context).
+bits_pattern_value(#{kind := float}, ValuePattern, Context) ->
+    case sourced(ValuePattern) of
+        {Source, {local, Number}} ->
+            {Variable, Context1} = bind(Number, local_name(Source), Context),
+            Variables = (Context1#emit_context.variables)#{Number => {zero, Variable}},
+            {at(Source, erl_syntax:variable(Variable)),
+             Context1#emit_context{variables = Variables}};
+        {Source, {literal, float, Zero}} when Zero == 0.0 ->
+            %% report §3.1: the literal 0.0 matches the bytes of either zero
+            {[ZeroName], Context1} = fresh_variables(1, "Zero", Context),
+            Guard = erl_syntax:infix_expr(erl_syntax:variable(ZeroName), erl_syntax:operator('=='),
+                                          erl_syntax:float(0.0)),
+            Guards = Context1#emit_context.pattern_guards ++ [Guard],
+            {at(Source, erl_syntax:variable(ZeroName)),
+             Context1#emit_context{pattern_guards = Guards}};
+        _ ->
+            pattern(ValuePattern, Context)
+    end;
+bits_pattern_value(_, ValuePattern, Context) ->
+    pattern(ValuePattern, Context).
 
 %% A clause's guard: the guards its pattern asked for, joined to its own.
 joined_guard(GuardForm, #emit_context{pattern_guards = []}) -> GuardForm;
@@ -2584,6 +2862,11 @@ joined_guard(GuardForm, #emit_context{pattern_guards = Guards}) ->
 %%
 %% Bitstring segments, report §5.11
 %%
+
+%% A segment's specifiers as a form writes them, with their defaults
+%% (Appendix H), and its value.
+segment_spec({segment, Kind, Size, Unit, Endian, Sign, Value}) ->
+    {#{kind => Kind, size => Size, unit => Unit, endian => Endian, sign => Sign}, Value}.
 
 size_form(#{size := none}, Context) -> {none, Context};
 size_form(#{size := {const, Size}}, Context) -> {erl_syntax:integer(Size), Context};
@@ -2666,13 +2949,18 @@ type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size :=
             || not IsUtf, Size =/= none].
 
 %%
-%% Variables: every Ernest binding gets a fresh Erlang variable
+%% Variables: every local gets a fresh Erlang variable
 %%
 
-bind(Name, #emit_context{variables = Variables, counter = Counter} = Context) ->
-    Variable = erlang_variable(Name, Counter + 1),
+%% The local Number bound to a fresh Erlang variable, named after the name
+%% the source gives it, and by its count alone where the form holds no
+%% source, so that the variables of a unit made from forms that arrived
+%% make no atoms past those of the largest unit made before (report
+%% §11.2).
+bind(Number, Name, #emit_context{variables = Variables, counter = Counter} = Context) ->
+    Variable = erlang_variable(Name, Number, Counter + 1),
     {Variable,
-     Context#emit_context{variables = Variables#{Name => Variable}, counter = Counter + 1}}.
+     Context#emit_context{variables = Variables#{Number => Variable}, counter = Counter + 1}}.
 
 %% Report §3.1: a variable a float segment bound may hold the runtime's
 %% negative zero, so the map holds {zero, V} and each read is V + 0.0,
@@ -2687,7 +2975,9 @@ variable_form(Variable) ->
 variable_atom({zero, Variable}) -> Variable;
 variable_atom(Variable) -> Variable.
 
-erlang_variable(Name, Number) ->
+erlang_variable(none, _, Count) ->
+    list_to_atom("L_" ++ integer_to_list(Count));
+erlang_variable(Name, _, Count) ->
     Text = atom_to_list(Name),
     Base = case Text of
                [$_ | Rest] -> "V_" ++ Rest;
@@ -2695,7 +2985,7 @@ erlang_variable(Name, Number) ->
                [$$ | Rest] -> "V_" ++ Rest;
                [First | Rest] -> [string:to_upper(First) | Rest]
            end,
-    host_name(Base, "_" ++ integer_to_list(Number)).
+    host_name(Base, "_" ++ integer_to_list(Count)).
 
 fresh_variables(Count, Prefix, #emit_context{counter = Counter} = Context) ->
     Variables = [list_to_atom(Prefix ++ "_" ++ integer_to_list(Counter + Index))
@@ -2708,10 +2998,6 @@ named_variables(Prefixes, Context) ->
                            {Variable, Acc1}
                    end, Context, Prefixes).
 
-fresh_name(Name, #emit_context{counter = Counter} = Context) ->
-    {host_name(atom_to_list(Name), "$" ++ integer_to_list(Counter + 1)),
-     Context#emit_context{counter = Counter + 1}}.
-
 %% Report §11.1: a name the emitter makes, Base cut so that Base and its
 %% numbered Suffix fit the host's 255 characters; the suffix keeps it apart
 %% from every other.
@@ -2722,12 +3008,15 @@ host_name(Base, Suffix) ->
 %% Helpers
 %%
 
-at(Span, Form) ->
-    {Line, Column, _} = ern_diagnostic:span(Span),
+%% A form at the line and column its source gives, or as it is where the
+%% form holds no source.
+at(none, Form) ->
+    Form;
+at({Line, Column, _}, Form) ->
     erl_syntax:set_pos(Form, {Line, Column}).
 
-%% A declaration the checker would not have passed: a defect of the
-%% toolchain, not of the program.
+%% A form the checker would not have passed: a defect of the toolchain, not
+%% of the program.
 -spec fail(term(), iodata()) -> no_return().
-fail(Span, Message) ->
-    erlang:error({emitter_defect, Span, lists:flatten(Message)}).
+fail(Source, Message) ->
+    erlang:error({emitter_defect, Source, lists:flatten(Message)}).

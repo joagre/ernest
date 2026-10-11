@@ -26,7 +26,7 @@ since_line_test() ->
              "/// The minutes.\n///\n/// since 0.3.0\n"
              "export fn minutes() : Int = 0\n",
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Source),
-    {ok, _, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {ok, _, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
     {ok, Elapsed} = ern_page:declaration(Beam, <<"elapsed">>, entry),
     ElapsedText = unicode:characters_to_binary(Elapsed),
     ?assertMatch({_, _}, binary:match(ElapsedText, <<"The seconds elapsed since 1970">>)),
