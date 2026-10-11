@@ -20,8 +20,8 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). The road to 1.0 is MVP 3.1, 3.2,
-3.25, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
+of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). The road to 1.0 is MVP 3.1, 3.25,
+3.2, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ended with a read of what it built, its item
 9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
 *Ernest 0.4.0 Ends MVP 3.2*); any other release waits until the user calls it.
@@ -76,7 +76,7 @@ paragraph under "Done".
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
-| MVP 3.25 | placing work by load: the proposal `proposals/balancer/suggestion.md`, a computation run where there is room and its value back, discussed with the user before MVP 3.2's report is written and built here after it | the proposal stands on MVP 3.2; added 2026-10-10 |
+| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | decided 2026-10-11; built before MVP 3.2 |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
@@ -85,6 +85,41 @@ paragraph under "Done".
 | MVP 4.4 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
 
 ---
+
+## MVP 3.25 (placing work by name), a few days
+
+Decided with the user on 2026-10-11 from [`suggestion.md`](../proposals/balancer/suggestion.md),
+read through and rewritten that day to its shape B (the log's *Placing Work by Name*); the
+proposal is the specification and this list the order. Built before MVP 3.2's item 1, since
+nothing in it needs the exchange, `compute` answering `NotLoaded` where the peer lacks the
+function as a spawn does until 3.2 ships code, and everything of 3.2, the bare node, the
+deployment guide and the release, then stands on the simpler shape; 0.4.0 ships it and never
+ships `Balancer`. What the milestone gives: `Peer.compute(name, f, ms)`, a form that runs a
+function on a named peer and answers its value, a fault in `f` the caller's and reported once;
+`Peer.utilisation(name, ms)`, how busy a peer is on one scale, as the node's configuration says
+it measures itself, `"utilisation"` in `ernest.conf`; `libs/placement` with
+`Placement.leastBusy(names, ms)` in `Balancer`'s place; and the guide's peer chapter teaching the
+four lines and the later form as a process that sends.
+
+1. **The report and the soundness argument.** §3.11 for the form and its result type, known
+   whole and crossing as a service's is; §8.7 for `compute`'s frames, the fault carried to the
+   caller and reported once, and the late answer's process ended through the call's note; §10's
+   cost line; §11.3 for the `"utilisation"` entry, its two measures and its reload; E.27 for
+   `compute` and `utilisation`, the primitives counted; G.5 for `libs/placement`; Appendix F and
+   the glossary; `soundness.md`'s §7 extended by the value crossing back at the checked type.
+2. **The runtime, the checker and the configuration.** The compute frame and its answer over the
+   call's note, the fault carried, the late process killed; the utilisation frame and the node's
+   measure, the run queue over the schedulers by default and the schedulers' utilisation since
+   last asked, read from `ernest.conf` at the start and at the hangup reload; the checker's rule
+   for the form's result type and its captures; `NotLoaded` where the peer lacks `f`, which MVP
+   3.2's exchange lifts; tests on real nodes: the value back, a fault carried once, a late
+   answer's process gone, utilisation on the scale under both measures, the shell's `compute` of
+   a function typed there.
+3. **`Placement`, `Balancer` gone, the guide and the tests.** `libs/placement`'s one function
+   asking every name at once; `libs/balancer` removed with its tests and `make bench`'s pick,
+   `test/peers`' balance programs rewritten to the four lines and the nodes tests with them; the
+   guide's peer chapter teaching `compute`, the pick, here as `f()`, and the later form as a
+   process that sends; the proposal's status line.
 
 ## MVP 3.2 (code with a spawn), about four weeks
 
@@ -117,14 +152,9 @@ went to *Later*, 97 and 98 are MVP 4.3's, 99 and 100 are settled, and 91's rule,
 evaluation process living while the session runs, is §11.2's, built with MVP 3.1's read; item 1
 rewrites *Later*'s five entries this milestone touches.
 
-**Second, before item 1, MVP 3.25's discussion.** The proposal `proposals/balancer/suggestion.md`
-is discussed with the user before this milestone's report is written, since what it decides, the
-shape of a spawn that chooses its peer, whether a node is a place for its own work, and whether
-`Balancer` and `Load` stay as they are, may change what item 1 writes into §8.7 and Appendix G;
-deciding it after would write the spawn twice. The discussion stays in the proposal until the user
-says it is ready, as CLAUDE.md has it, and nothing of it enters the report before item 1; what it
-decides is built as MVP 3.25 after this milestone, or as this milestone's own items where it is the
-spawn's shape. Decided with the user on 2026-10-10 (the log's *A Milestone for Placing Work by Load*).
+**Second, before item 1, MVP 3.25's discussion.** Held on 2026-10-11: the proposal was read
+through, rewritten to its shape B and decided, and MVP 3.25 is built before this milestone's item
+1, on which nothing here depends (the log's *Placing Work by Name*).
 
 **Third, before item 1, an example of typed channels.** Written on 2026-10-10 (the log's *The
 Typed-Channels Example*): `examples/typed_channels.ern`, a counter whose mailbox has one type, met
@@ -252,18 +282,6 @@ newcomer now lists the names it could not predict.
    user on 2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*).
 
 ---
-
-## MVP 3.25 (placing work by load)
-
-The proposal [`suggestion.md`](../proposals/balancer/suggestion.md), written on 2026-10-10 from a
-program written against `Balancer` that day, asks how a program runs a computation where there is
-room and gets its value back, and what `Balancer`, `Load` and `Peer` give today. It stands on MVP
-3.2 as `mvp3.2.md` designs it, so it is built once MVP 3.2 is, and discussed before MVP 3.2's
-item 1 writes its report, in the proposal and nowhere else until the user says it is ready, as CLAUDE.md's rule for a proposal has it; nothing of
-it is in the report, this plan or the log meanwhile, and this milestone says only that the
-discussion happens here. What the discussion decides, a shape in the library, in `Peer`, or none,
-is built as this milestone's items, written then. Added at the user's word on 2026-10-10 (the
-log's *A Milestone for Placing Work by Load*).
 
 ## MVP 3.3 (the tour)
 
