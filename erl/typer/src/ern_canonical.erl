@@ -19,8 +19,8 @@
 %% or the hash of what it names.
 -module(ern_canonical).
 
--export([form_version/0, chunk_name/0, bytes/1, module/4, module/5, interface/2, lambdas/2,
-         encode/1, read/1]).
+-export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
+         interface/2, lambdas/2, references/1, verified/2, encode/1, read/1]).
 
 -export_type([canonical/0, reach/0]).
 
@@ -84,6 +84,20 @@ bytes(Term) ->
 
 hash(Term) ->
     crypto:hash(sha256, bytes(Term)).
+
+%% Report Appendix H: the term a definition alone is hashed as, and a group
+%% of two or more, its members' forms in source order.
+-spec hashed([term(), ...]) -> tuple().
+hashed([Form]) ->
+    {ernest_form, ?FORM_VERSION, Form};
+hashed(Forms) ->
+    {ernest_form, ?FORM_VERSION, {group, Forms}}.
+
+%% Report Appendix H: the hash of a group's member at Position, counted
+%% from 1, of the group's hash and its position.
+-spec member_hash(binary(), pos_integer()) -> binary().
+member_hash(GroupHash, Position) ->
+    hash({ernest_member, ?FORM_VERSION, GroupHash, Position}).
 
 %%
 %% A module
@@ -262,16 +276,16 @@ component([QualifiedName], ByName, Closed) ->
     {Kind, Opened} = maps:get(QualifiedName, ByName),
     Form = close(Opened, Closed#{QualifiedName => {in_group, 1}}),
     [#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
-                 hash = hash({ernest_form, ?FORM_VERSION, Form})}];
+                 hash = hash(hashed([Form]))}];
 component(Members, ByName, Closed) ->
     InGroup = maps:from_list([{QualifiedName, {in_group, Position}}
                               || {Position, QualifiedName} <- lists:enumerate(Members)]),
     Linking = maps:merge(Closed, InGroup),
     Forms = [{QualifiedName, Kind, close(Opened, Linking)}
              || QualifiedName <- Members, {Kind, Opened} <- [maps:get(QualifiedName, ByName)]],
-    GroupHash = hash({ernest_form, ?FORM_VERSION, {group, [Form || {_, _, Form} <- Forms]}}),
+    GroupHash = hash(hashed([Form || {_, _, Form} <- Forms])),
     [#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
-                 hash = hash({ernest_member, ?FORM_VERSION, GroupHash, Position}),
+                 hash = member_hash(GroupHash, Position),
                  group = {GroupHash, Position}}
      || {Position, {QualifiedName, Kind, Form}} <- lists:enumerate(Forms)].
 
@@ -413,6 +427,63 @@ functions(#definition{qualified_name = QualifiedName, hash = Hash, form = Form},
     Reach = maps:get(Hash, Reaches),
     [{Span, {QualifiedName, Position, element(1, named(Function, Reach, #{}, Reaches))}}
      || {Span, {{_, Position}, Function}} <- lists:zip(Spans, Found)].
+
+%%
+%% A code frame, report §8.7 and Appendix H
+%%
+
+%% Report §8.7, Appendix H: what forms reference by hash, a member of their
+%% own group aside, as the forms write it: a function or a type by its
+%% hash, `{hash, Hash}`, and a top-level binding by its identity,
+%% `{binding, QualifiedName, Hash}`; each once, in order.
+-spec references([term()]) -> [{hash, binary()} | {binding, [atom()], binary()}].
+references(Forms) ->
+    lists:usort(referenced(Forms)).
+
+referenced({hash, Hash} = Reference) when is_binary(Hash), byte_size(Hash) =:= 32 ->
+    [Reference];
+referenced({binding, QualifiedName, Hash} = Reference)
+  when is_list(QualifiedName), is_binary(Hash), byte_size(Hash) =:= 32 ->
+    [Reference];
+referenced(Term) when is_tuple(Term) ->
+    referenced(tuple_to_list(Term));
+referenced(Terms) when is_list(Terms) ->
+    lists:append([referenced(Part) || Part <- Terms]);
+referenced(_) ->
+    [].
+
+%% Report §8.7, Appendix H: the forms a code frame's bytes hold, where the
+%% bytes are those a definition alone that Hashes names is hashed as, or
+%% those of the group whose members Hashes names in order; error
+%% otherwise. The bytes are decoded only once their hash is the one named,
+%% so that a frame that fails makes nothing of what it holds, no atom
+%% among it.
+-spec verified([binary()], binary()) -> {ok, [term(), ...]} | error.
+verified([Hash], Bytes) when is_binary(Hash), is_binary(Bytes) ->
+    case crypto:hash(sha256, Bytes) of
+        Hash -> decoded(Bytes, alone);
+        _ -> error
+    end;
+verified([_, _ | _] = Hashes, Bytes) when is_binary(Bytes) ->
+    GroupHash = crypto:hash(sha256, Bytes),
+    case [member_hash(GroupHash, Position) || Position <- lists:seq(1, length(Hashes))] of
+        Hashes -> decoded(Bytes, length(Hashes));
+        _ -> error
+    end;
+verified(_, _) ->
+    error.
+
+%% The forms the verified bytes hold, of this version of the form: a
+%% definition's alone, or a group's of as many members as were named.
+decoded(Bytes, Count) ->
+    try binary_to_term(Bytes) of
+        {ernest_form, ?FORM_VERSION, {group, Forms}} when length(Forms) =:= Count -> {ok, Forms};
+        {ernest_form, ?FORM_VERSION, {group, _}} -> error;
+        {ernest_form, ?FORM_VERSION, Form} when Count =:= alone -> {ok, [Form]};
+        _ -> error
+    catch
+        error:badarg -> error
+    end.
 
 %%
 %% Functions and schemes

@@ -138,10 +138,13 @@ no_run_test() ->
 %% reach calls is here; a function that names no binding starts in a run
 %% that never initialized its module, where MVP 3.0's rule by module
 %% refused it. Otherwise it answers NotLoaded, and the frame's reading
-%% answers what this node lacked, which the gateway says: a function it
-%% does not hold, by its hash, a binding with no value, which a function it
-%% calls names, and a foreign declaration's module, or a foreign function
-%% it does not have, whose names make no atom here. Nothing is initialized
+%% answers what this node lacked, which the gateway says: a binding with no
+%% value, which a function it calls names, and a foreign declaration's
+%% module, or a foreign function it does not have, whose names make no atom
+%% here. A function it does not hold, by its hash, a lambda by its
+%% definition's hash and position, and `restarting` over one, the frame's
+%% reading hands to the exchange by the identity this node lacks, and
+%% answers nothing itself (MVP 3.2's item 3). Nothing is initialized
 %% because a peer asked
 spawn_by_identity_test() ->
     Unit = 'ern@peerreach',
@@ -160,7 +163,7 @@ spawn_by_identity_test() ->
                        end,
                {LambdaHash, Position, 1} = Lambda,
                Before = [Spawn(Identity(quiet)), Spawn(Identity(speak)), Spawn(Identity(twice)),
-                         Spawn(Identity(calls)), Spawn({function, <<7:256>>}),
+                         Spawn(Identity(calls)),
                          Spawn({lambda, LambdaHash, Position, [41]}),
                          Spawn({restarting, {'RestartLimit', 1, 1000}, Identity(quiet)}),
                          Spawn({foreign, [<<"Peerreach">>, <<"missing">>]}),
@@ -168,29 +171,86 @@ spawn_by_identity_test() ->
                Wrong = ern_peer:frame(self(), {spawn, make_ref(),
                                                {lambda, LambdaHash, Position, []},
                                                <<"M.f:1">>, false}),
+               Lacking = [ern_peer:frame(self(), {spawn, make_ref(), Lacked, <<"M.f:1">>, false})
+                          || Lacked <- [{function, <<7:256>>}, {lambda, <<8:256>>, 2, [1]},
+                                        {restarting, 'Unlimited', {function, <<9:256>>}}]],
                ern_rt:init_modules([Unit]),
                After = Spawn(Identity(twice)),
-               Self ! {spawned, Before, Wrong, After}
+               Self ! {spawned, Before, Wrong, Lacking, After}
            end,
     try
         ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
-        {spawned, Before, Wrong, After} = receive {spawned, _, _, _} = Got -> Got end,
-        Hex = binary_to_list(binary:encode_hex(<<7:256>>, lowercase)),
+        {spawned, Before, Wrong, Lacking, After} =
+            receive {spawned, _, _, _, _} = Got -> Got end,
         Absent = "the module ern_peer_tests_absent, which Peerreach.missing calls, is not here",
-        ?assertMatch([{{spawned, _}, ok}, _, _, _, _, {{spawned, _}, ok}, {{spawned, _}, ok}, _,
-                      _], Before),
+        ?assertMatch([{{spawned, _}, ok}, _, _, _, {{spawned, _}, ok}, {{spawned, _}, ok}, _, _],
+                     Before),
         ?assertEqual([{{failed, 'NotLoaded'}, {not_loaded, spawn, <<"M.f:1">>, Lacked}}
                       || Lacked <- ["the binding Peerreach.greeting has no value here",
                                     "the binding Peerreach.greeting has no value here",
-                                    Absent, "this node does not have its function, " ++ Hex,
-                                    Absent, "this node does not have Peernone.never"]],
+                                    Absent, Absent, "this node does not have Peernone.never"]],
                      [{Answer, {not_loaded, spawn, Site,
                                 lists:flatten(io_lib:format("~ts", [Lacked]))}}
                       || {Answer, {not_loaded, spawn, Site, Lacked}}
-                             <- [lists:nth(Index, Before) || Index <- [2, 3, 4, 5, 8, 9]]]),
+                             <- [lists:nth(Index, Before) || Index <- [2, 3, 4, 7, 8]]]),
         ?assertError(badarg, binary_to_existing_atom(<<"Peernone">>)),
         ?assertEqual(unreadable, Wrong),
+        ?assertEqual([{exchange, {function, <<7:256>>}}, {exchange, {lambda, <<8:256>>, 2}},
+                      {exchange, {function, <<9:256>>}}], Lacking),
         ?assertMatch({{spawned, _}, ok}, After)
+    after
+        unloaded(Unit)
+    end.
+
+-define(HELD,
+        "export type Ask = Ask(Reply(Int))\n"
+        "export fn alone(peer : String) : Unit with Ask = receive {\n"
+        "    Ask(reply) -> {\n"
+        "        let _ = Peer.spawn(peer, fn() : Unit with Never = answer(reply, 1), 1000);\n"
+        "        alone(peer)\n"
+        "    }\n"
+        "}\n"
+        "export type Watched = Request(Ask) | Ended(Down)\n"
+        "export fn whole(peer : String) : Unit with Watched = receive {\n"
+        "    Request(ask) -> {\n"
+        "        let _ = Peer.spawnMonitored(peer, fn() : Unit with Never =\n"
+        "                                        match ask { Ask(reply) -> answer(reply, 2) },\n"
+        "                                    fn(down) = Ended(down), 1000);\n"
+        "        whole(peer)\n"
+        "    }\n"
+        "  | Ended(_) -> whole(peer)\n"
+        "}\n").
+
+%% report §6.6, §7.4, §8.7: a spawn on a peer that fails ends every call
+%% whose reply its function held, as the callee's death ends it, though the
+%% callee lives: `Address.call` answers None, and `Address.callForever`
+%% faults with "callee did not start"; a reply captured alone and one inside
+%% a captured value alike, through Peer.spawn and Peer.spawnMonitored, the
+%% compiler passing the captures that carry a reply beside the function.
+%% Here the spawn names no peer, NotListed, in a program that is no node;
+%% the call's time is longer than the test's, so its None is the failed
+%% spawn's. A regression test, written after the code
+failed_spawn_ends_replies_test() ->
+    Unit = 'ern@peerheld',
+    _ = loaded(['Peerheld'], ?HELD),
+    Self = self(),
+    Main = fun() ->
+               Alone = ern_rt:spawn(fun() -> Unit:alone(<<"nobody">>) end, <<"M.f:1">>),
+               Whole = ern_rt:spawn(fun() -> Unit:whole(<<"nobody">>) end, <<"M.f:2">>),
+               Asks = [{Alone, fun(Reply) -> {'Ask', Reply} end},
+                       {Whole, fun(Reply) -> {'Request', {'Ask', Reply}} end}],
+               Called = [ern_rt:call(Server, Request, 600000) || {Server, Request} <- Asks],
+               Forever = [try ern_rt:call_forever(Server, Request)
+                          catch throw:{ern, fault, Cause} -> {faulted, Cause}
+                          end || {Server, Request} <- Asks],
+               Self ! {ended, Called, Forever, ets:tab2list(ern_calls)},
+               [ern_rt:kill(Server) || Server <- [Alone, Whole]]
+           end,
+    try
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        NotStarted = {faulted, <<"callee did not start">>},
+        ?assertEqual({ended, ['None', 'None'], [NotStarted, NotStarted], []},
+                     receive {ended, _, _, _} = Got -> Got end)
     after
         unloaded(Unit)
     end.

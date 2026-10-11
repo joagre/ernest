@@ -5,8 +5,13 @@
 %% once it has read every frame that came before the loss. Through it go
 %% what needs a process on the receiving node: a spawn and its answer, a
 %% compute, a find, and a message to an adapted address, each read by
-%% ern_peer:frame/2; a frame it cannot read is faulty, and the node ends
-%% that peer's connection. A call's two notes it records itself, in the
+%% ern_peer:frame/2, a spawn or a compute of a function the node lacks
+%% handed on to the node's exchange (ern_exchange), which the worker tells
+%% of the loss too; a frame it cannot read is faulty, and the node ends
+%% that peer's connection. The exchange's four frames, the request for a
+%% reach, the reach, the lacks and a code frame, it hands to the exchange
+%% as they come, and records nothing of them. A call's two notes it records
+%% itself, in the
 %% order they came, so that a restart, which asks it as it asks the reaper,
 %% reads every note that came before it (§6.9), and so it does a peer's
 %% word that it ends; a compute's frame is its call's first note, which it
@@ -20,14 +25,15 @@
 %% connection's end is said by the frames that came before it: a peer that
 %% told this node it ends ended, and one that did not was lost. A frame is
 %% {ern_frame, From, Body}, From the process on the peer that sent it, whose
-%% node is the frame's peer; nine bodies are the runtime's frames, an
+%% node is the frame's peer; thirteen bodies are the runtime's frames, an
 %% adapted address's message, a spawn and its answer, a compute, a find, a
-%% utilisation, the call's two notes and a node's end. A message to the
+%% utilisation, the call's two notes, a node's end, and the exchange's
+%% `reach_request`, `reach`, `lacks` and `code_frame`. A message to the
 %% gateway that names no process of another node names no connection to
 %% end, and is dropped, which the node says.
 -module(ern_gateway).
 
--export([start/0, measure/1]).
+-export([start/0, measure/1, outcome/2]).
 
 -include("ern_node.hrl").
 
@@ -35,9 +41,11 @@
 
 %% The gateway registered and running, watching the node's connections to
 %% every kind of node, before the node listens, and measuring the node as
-%% its configuration says at the start.
+%% its configuration says at the start; the exchange it hands frames to
+%% running before it.
 -spec start() -> ok.
 start() ->
+    ok = ern_exchange:start(),
     Self = self(),
     Gateway = spawn(fun() ->
                         true = register(?NAME, self()),
@@ -114,6 +122,13 @@ gateway(Workers, Ended, Measured) ->
             Measured1 = measured(Utilisation, Measured),
             From ! {MonitorRef, measured},
             gateway(Workers, Ended, Measured1);
+        %% report §8.7: the exchange's four, handed on as they come
+        {ern_frame, From, Body} = Frame
+          when is_pid(From), node(From) =/= node(), is_tuple(Body), tuple_size(Body) > 0,
+               element(1, Body) =:= reach_request orelse element(1, Body) =:= reach
+               orelse element(1, Body) =:= lacks orelse element(1, Body) =:= code_frame ->
+            ern_exchange:handed(Frame),
+            gateway(Workers, Ended, Measured);
         {ern_frame, From, _Body} = Frame when is_pid(From), node(From) =/= node() ->
             Node = node(From),
             {Worker, Workers1} = worker(Node, Workers),
@@ -207,11 +222,12 @@ worker(Node, Workers) ->
             {Worker, Workers#{Node => Worker}}
     end.
 
-%% Report §8.7: a peer's frames, read in the order they came; one it cannot
-%% read, a frame whose reading fails among them, ends the peer's connection,
-%% and the node says so, the worker going on to the loss; a spawn or a
-%% compute this node lacked something for, it says, naming what. At the
-%% loss, the spawns that wait on the peer are let go, and the worker ends.
+%% Report §8.7: a peer's frames, read in the order they came, a spawn or a
+%% compute of a function this node lacks handed to the exchange, which asks
+%% the peer for its reach while the worker goes on with the next frame. At
+%% the loss, the spawns that wait on the peer are let go, and then the
+%% exchanges asked of it, the frames the worker handed it having come
+%% before, and the worker ends.
 work(Node) ->
     receive
         {ern_frame, From, Body} ->
@@ -219,19 +235,29 @@ work(Node) ->
                    catch _:_ -> unreadable
                    end,
             case Read of
-                ok ->
-                    ok;
-                {not_loaded, Kind, Site, Lacked} ->
-                    %% report §8.7: what this node lacked for a peer's spawn
-                    %% or compute, the site in the caller's words
-                    ern_carrier:say([ern_carrier:named(Node), "'s ", atom_to_list(Kind), " at ",
-                                     Site, " was not loaded: ", Lacked]);
-                unreadable ->
-                    ern_carrier:say([ern_carrier:named(Node), " sent a frame this node cannot"
-                                     " read, and its connection was ended"]),
-                    _ = erlang:disconnect_node(Node)
+                {exchange, Identity} -> ern_exchange:lacking(From, Body, Identity);
+                _ -> outcome(Node, Read)
             end,
             work(Node);
         stop ->
-            ern_peer:lost(Node)
+            ern_peer:lost(Node),
+            ern_exchange:lost(Node)
     end.
+
+%% Report §8.7: what a frame's reading tells the node to say and do, here
+%% and in the exchange: a spawn or a compute this node did not start, which
+%% it says, naming what it lacked, the site in the caller's words; or a
+%% frame it cannot read, a frame whose reading fails among them, which ends
+%% the peer's connection, the node saying so.
+-spec outcome(node(), ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}) ->
+          ok.
+outcome(_Node, ok) ->
+    ok;
+outcome(Node, {not_loaded, Kind, Site, Lacked}) ->
+    ern_carrier:say([ern_carrier:named(Node), "'s ", atom_to_list(Kind), " at ", Site,
+                     " was not loaded: ", Lacked]);
+outcome(Node, unreadable) ->
+    ern_carrier:say([ern_carrier:named(Node), " sent a frame this node cannot read, and its"
+                     " connection was ended"]),
+    _ = erlang:disconnect_node(Node),
+    ok.

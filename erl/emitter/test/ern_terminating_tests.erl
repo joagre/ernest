@@ -51,6 +51,28 @@ told_at_the_entry_process_end_test() ->
     ?assertMatch({_, _}, binary:match(Output, <<"kept 5\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 answered\n">>)).
 
+%% report §8.6, §8.7, §6.6: a subscriber that handed its reply to a
+%% function spawned on a peer, whose spawn failed, cannot answer it, since
+%% the lambda consumed it, and no process will: the end goes on without the
+%% subscriber, which lives, and the runtime says so in place of its answer.
+%% Here the spawn fails with NotListed, in a program that is no node, and
+%% the subscriber goes on counting, to die with the program. A regression
+%% test, written after the code (MVP 3.2's item 3)
+subscriber_whose_spawn_failed_test() ->
+    {Result, Output} = kept("{ let _ = Peer.spawn(\"nobody\", fn() : Unit with Never ="
+                            " answer(reply, Unit), 1000); Io.println(\"spawn failed\");"
+                            " count(n) }",
+                            "export fn main() : Unit with Never = {\n"
+                            "    let k = spawn(keeper);\n"
+                            "    send(k, Add(1))\n"
+                            "}\n"),
+    ?assertEqual(ok, Result),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:13\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"spawn failed\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 handed its reply to a"
+                                                " spawn that failed\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"without answering">>)).
+
 %% report §8.6, Appendix E.23: Os.exit ends the program as §8.6 does, the
 %% subscriber told first, with its status
 told_at_exit_test() ->

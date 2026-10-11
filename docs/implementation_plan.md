@@ -20,7 +20,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). MVP 3.2's item 1, the report for code with a spawn, is done the same day (the log's *The Report for Code with a Spawn*). The road to 1.0 is MVP 3.1, 3.25,
+of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). MVP 3.2's items 1 to 3, the report for code with a spawn and the exchange, are done the same day (the log's *The Report for Code with a Spawn*). The road to 1.0 is MVP 3.1, 3.25,
 3.2, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ended with a read of what it built, its item
 9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
@@ -145,11 +145,15 @@ day, fifteen names a cold reader could not predict, `Standing` to `Proxy`, `via`
 a Newcomer Reads Them*; E.0's tenth shape rule), all before 0.4.0 freezes a name. The reviews'
 newcomer now lists the names it could not predict.
 
-**Fifth, with item 2, two shell tests under load.** `command_argument` in `test/ern_shell_tests.erl`
-failed once in the whole suite on 2026-10-11, its final bytes not holding the completed line before
-the listing, and passed alone three times; `reader_and_screen_ends` waits a fixed 300 ms, which
-MVP 3.25's item 2 saw fail once under load. Both are read with item 2's build: each wait derived
-from what the pty's bytes show it waits for, and no number chosen.
+**Fifth, with item 3, two shell tests under load.** Done 2026-10-11, with item 3. `command_argument`
+in `test/ern_shell_tests.erl` had failed once in the whole suite, its final bytes not holding the
+completed line before the listing: after `C-c` the session's new prompt reaches the screen only
+once the screen is flushed, so keys typed before it painted the line without the prompt, and a wait
+for the listing alone met that paint; every such wait now waits for the completed line with its
+prompt, which the screen paints only with the listing under it. `reader_and_screen_ends` waited a
+fixed 300 ms for nothing the input does not already show; the input itself now ends the reader or
+the screen while it runs, and the session's bound on a failure, 10 seconds, which a shell started
+under load outlasted before its first prompt, is the file's 30. No number chosen.
 
 1. **The report and the soundness argument.** Done 2026-10-11. §8.7's *The exchange*: a peer
    that lacks the function asks for its reach, the four frames beside the nine, each form
@@ -169,23 +173,28 @@ from what the pty's bytes show it waits for, and no number chosen.
    the build, as it reaches each: `architecture.md` for the exchange's process and the let-go;
    `memory.md` for what a node holds of received code and when it lets go; `docs/development.md`'s
    table, from which the refusal of a node without a program goes in item 5.
-2. **The limit a table sets.** A unit whose function an `Ets.Table` holds is never let go, since
-   the host's check sees a process's functions and not a table's, stated in §11.2 and G.1 and
-   counted against the limits of section 7; no refusal of the compiler's (the review of
-   2026-10-09, S7, §0's principle 5); a test that such a unit survives a sweep.
-3. **The exchange.** The spawn frame MVP 3.1's; a peer that has the hash starting at once; a
-   peer that lacks it asking for the reach's list, the sender listing the hashes the function
-   reaches transitively, code and types, with the foreign declarations it names, the peer
-   answering the hashes it lacks or `NotLoaded` for a foreign module or a binding, and the sender
-   shipping the lacking definitions dependencies first, each code frame one definition's canonical
-   form with its immediate references and never a compiled binary; the four frames beside MVP
-   3.0's six; each frame verified against its hash as it arrives and held apart until the reach
-   is complete, what the peer said it has pinned meanwhile; a faulty frame ending the connection;
-   a reach the peer cannot compile or load failing the spawn with `Refused` and the peer's
-   text; the exchange in a process of its own on each node, the gateways only passing its frames,
-   the spawn's time covering it, two spawns waiting on one hash sharing one exchange; a reply a
-   failed spawn's function held ending its call at once, `Fault("callee did not start")` (§6.6,
-   §8.7).
+2. **The limit a table sets.** Done 2026-10-11, by item 1's sentences: a unit whose function an
+   `Ets.Table` holds is never let go, since the host's check sees a process's functions and not a
+   table's, stated in §10, §11.2 and G.1 and counted against the limits of section 7; no refusal
+   of the compiler's (the review of 2026-10-09, S7, §0's principle 5). Its test, that such a unit
+   survives a sweep, needs the sweep, and is item 4's.
+3. **The exchange.** Done 2026-10-11. `ern_exchange`, one registered process on each node beside
+   the gateway, both parts: a peer that lacks a spawned or computed function's identity asks the
+   spawner's node for the reach, the node answers the identities the function reaches, code and
+   types, the reach's bindings and its foreign declarations with the host's module and function,
+   from the code table and the forms it holds, the build's read from the unit's `.erc` and a
+   session's kept in the code table beside the code, the peer answers `NotLoaded` for a module or
+   a binding's value it lacks before any code crosses, or the identities it lacks, and the node
+   sends a code frame for each, a group whole in one, dependencies first; the four frames beside
+   MVP 3.25's nine, thirteen; each frame verified against its hash as it arrives and held apart,
+   the units that hold what the peer said it holds pinned meanwhile; a faulty frame ending the
+   connection; two spawns on one identity sharing one exchange; a loss dropping the exchanges
+   asked of the lost node; a spawner's node that no longer holds the reach failing the spawn with
+   `Other`; a reply a failed spawn's function held ending its call at once, `None` and
+   `Fault("callee did not start")`, and the end's telling of a subscriber going on without it
+   (§6.6, §8.6, §8.7). A reach complete and verified answers `Other` naming item 4, which compiles
+   it, listed in `docs/development.md`'s table. The log's *The Report for Code with a Spawn*
+   records the decisions, and item 4 names what it plugs in.
 4. **A unit on arrival, and the let-go.** Every unit's functions named by their position in it,
    the build's as an arrival's, so that a unit adds one atom, its name, a trace and the shell
    showing a function by the name its build gives its hash, and every caller by name, the entry
@@ -206,7 +215,21 @@ from what the pty's bytes show it waits for, and no number chosen.
    function of it, which `erlang:check_process_code` tells, when the node nears a limit of
    section 7, oldest first, until it is under; an idle unit staying until then; the build's own
    units never; a unit let go leaving the table and returning its name to the pool, and crossing
-   again at the next spawn that needs it.
+   again at the next spawn that needs it; and item 2's test, that a unit whose function a table
+   holds survives a sweep. What item 3 left for it: `ern_exchange:received/2`, given the frames
+   that arrived, each its hashes, forms and references, dependencies first, and the reach with its
+   bindings and its foreign declarations, compiles the unit, loads it, enters it in the code table
+   with its forms and answers `ok`, on which the exchange reads each waiting spawn or compute again
+   as the gateway's worker reads a frame; a binding reference links to any unit that holds the
+   binding's identity with its value, as the exchange's `NotLoaded` check reads it; a foreign
+   declaration's call is emitted from the reach's module and function; the let-go reads
+   `ern_exchange:pinned/0`. **A decision with the user, for item 4:** a `foreign fn` spawned by
+   its name has no hash and crosses in no code frame, so a peer that lacks its declaration
+   answers `NotLoaded`, a bare node always; the recommendation is that its declaration cross with
+   the reach, its name, type and the host's module and function, which the reach carries for
+   every foreign declaration already, and that item 4 make its entry on the peer, so that a bare
+   node takes whatever a program spawns (§0's principle 1); the other way is to keep `NotLoaded`
+   and state it in §8.7.
 5. **The bare node, and the shell.** `ern run --config-dir dir` with no `.erc`: the runtime and
    the system processes, the entry process evaluating the standard library's bindings and
    waiting, the node listening and taking spawns, ending by termination alone, refused without

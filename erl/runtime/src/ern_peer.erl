@@ -5,8 +5,11 @@
 %% in order through their gateways, each comparing the hash; a spawn sends
 %% the function's identity and captures to the peer's gateway, which finds
 %% the function in the peer's code table and starts the process through the
-%% peer's runtime, or answers `NotLoaded`, and answers through the spawner's
-%% gateway, which ends a process no one waits for any more; a compute sends
+%% peer's runtime, or answers `NotLoaded`, or, where the peer lacks the
+%% function, hands the spawn to the peer's exchange (ern_exchange), and
+%% answers through the spawner's gateway, which ends a process no one waits
+%% for any more, a failed spawn ending the calls whose replies its function
+%% held (not_started/2); a compute sends
 %% them so too, its frame the call's first note, and its process answers
 %% the function's value, or its fault, through the caller's alias, its call
 %% the runtime's (ern_rt:compute/3); a utilisation asks the peer's gateway,
@@ -16,9 +19,11 @@
 %% in slices the host takes (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
-         spawn_monitored/4, spawn_monitored/5, compute/3, compute/4, utilisation/2, peers/0,
-         frame/2, lost/1]).
+-export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/5,
+         spawn_monitored/4, spawn_monitored/6, compute/3, compute/4, utilisation/2, peers/0,
+         frame/2, failed/4, reach_lacked/2, lost/1]).
+
+-export_type([identity/0]).
 
 %% Report §8.6: the shims that wait on no process, each a table or a
 %% persistent term read, which the emitter does not count as foreign code.
@@ -38,6 +43,18 @@
 -type spawned() :: {function, binary()} | {foreign, [binary()]}
                  | {lambda, binary(), pos_integer(), [term()]}
                  | {restarting, term(), spawned()}.
+
+%% Report §8.7: the identity of a function a spawn or a compute names, as
+%% the exchange asks for its reach: a declaration's hash, or a lambda's or a
+%% local fn's definition's hash and its position.
+-type identity() :: {function, binary()} | {lambda, binary(), pos_integer()}.
+
+%% Report §8.7, §6.6: each value a function captured whose type carries a
+%% reply, with the descriptor of its type (ern_descriptor), which the
+%% compiler passes beside the function, so that a spawn that fails ends
+%% each call whose reply the function held without looking through any
+%% other value.
+-type held_replies() :: [{term(), term()}].
 
 %%
 %% What the carrier gives
@@ -165,23 +182,25 @@ gateway_answer(Alias, MonitorRef, Deadline) ->
 %% the frame names, its address answered, or a failure, within the time;
 %% spawn/3 and spawn_monitored/4 are the declarations', which the compiler
 %% calls with the function's identity and captures in place of the
-%% function (ern_emitter's spawned/2) and the spawn's site after them.
+%% function (ern_emitter's spawned/2), the spawn's site after them, and
+%% last the captures that carry a reply.
 -spec spawn(binary(), fun(), integer()) -> no_return().
 spawn(_Name, _Function, _Ms) ->
     erlang:error(spawn_without_site).
 
--spec spawn(binary(), spawned(), integer(), binary()) -> {'Right', pid()} | {'Left', atom()}.
-spawn(Name, Spawned, Ms, Site) ->
-    spawned(Name, Spawned, none, Ms, Site).
+-spec spawn(binary(), spawned(), integer(), binary(), held_replies()) ->
+          {'Right', pid()} | {'Left', term()}.
+spawn(Name, Spawned, Ms, Site, Replies) ->
+    not_started(spawned(Name, Spawned, none, Ms, Site), Replies).
 
 -spec spawn_monitored(binary(), fun(), fun(), integer()) -> no_return().
 spawn_monitored(_Name, _Function, _Wrap, _Ms) ->
     erlang:error(spawn_without_site).
 
--spec spawn_monitored(binary(), spawned(), fun(), integer(), binary()) ->
-          {'Right', pid()} | {'Left', atom()}.
-spawn_monitored(Name, Spawned, Wrap, Ms, Site) ->
-    spawned(Name, Spawned, Wrap, Ms, Site).
+-spec spawn_monitored(binary(), spawned(), fun(), integer(), binary(), held_replies()) ->
+          {'Right', pid()} | {'Left', term()}.
+spawn_monitored(Name, Spawned, Wrap, Ms, Site, Replies) ->
+    not_started(spawned(Name, Spawned, Wrap, Ms, Site), Replies).
 
 %% The spawn: its frame to the peer's gateway, whose answer comes through
 %% this node's gateway to the waiting process while it waits; a monitored
@@ -205,6 +224,48 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
             erlang:demonitor(MonitorRef, [flush]),
             started(Answer, Ref, Wrap)
     end.
+
+%% Report §8.7, §6.6: a spawn that failed, whatever its failure, its time
+%% run out after the frame went among them, ends every call whose reply its
+%% function held, as the callee's death ends it, since no process will
+%% answer it here; each reply is found in the captures that carry one, by
+%% their types' descriptors. A reply foreign code gave is its caller's to
+%% wait on, which waits as foreign code waits.
+not_started({'Left', _} = Failed, Replies) ->
+    lists:foreach(fun ern_rt:not_started/1,
+                  lists:append([replies(Descriptor, Value, #{})
+                                || {Value, Descriptor} <- Replies])),
+    Failed;
+not_started(Started, _Replies) ->
+    Started.
+
+%% The replies a value of the type Descriptor describes holds, Bound
+%% binding each mu's refs inside it.
+replies({reply, _, _}, Reply, _) when is_reference(Reply) ->
+    [Reply];
+replies({list, Element}, Values, Bound) when is_list(Values) ->
+    lists:append([replies(Element, Value, Bound) || Value <- Values]);
+replies({tuple, Elements}, Value, Bound) when is_tuple(Value) ->
+    lists:append([replies(Element, Item, Bound)
+                  || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))]);
+replies({map, _, Element}, Value, Bound) when is_map(Value) ->
+    lists:append([replies(Element, Item, Bound) || Item <- maps:values(Value)]);
+replies({con, Constructors}, Value, Bound) when is_tuple(Value) ->
+    [Tag | Fields] = tuple_to_list(Value),
+    case [Elements || Constructor <- Constructors, element(1, Constructor) =:= Tag,
+                      Elements <- [element(2, Constructor)]] of
+        [Elements] -> lists:append([replies(Element, Item, Bound)
+                                    || {Element, Item} <- lists:zip(Elements, Fields)]);
+        _ -> []
+    end;
+replies({abstract, Descriptor}, Value, Bound) ->
+    replies(Descriptor, Value, Bound);
+replies({mu, Id, Descriptor}, Value, Bound) ->
+    replies(Descriptor, Value, Bound#{Id => Descriptor});
+replies({ref, Id}, Value, Bound) ->
+    replies(maps:get(Id, Bound), Value, Bound);
+replies(_, _, _) ->
+    [].
 
 spawn_answer({_, Ref} = Key, MonitorRef, Deadline) ->
     receive
@@ -298,15 +359,19 @@ peers() ->
 %% through this node's runtime, or `NotLoaded`, with what this node lacked,
 %% which the gateway says; a compute so too, its process answering its
 %% caller, the gateway having noted it as it came (ern_rt:note_compute/2);
-%% a spawn's answer handed to the process that waits for it, where it
-%% lives, or else its process ended; a message to an adapted address this
-%% node made, its function applied here. A find, a spawn or a compute is
-%% asked of the run in progress, and one that comes while none is answers
-%% `Unreachable`: between two runs of `ern test` over a directory, in one
-%% host, and as a run ends (ern_rt:asked_of_run/1). Any other frame is one
-%% the gateway cannot read; the gateway answers a utilisation itself.
+%% a spawn or a compute of a function this node lacks, the identity the
+%% exchange asks the peer for (ern_exchange), which answers it; a spawn's
+%% answer handed to the process that waits for it, where it lives, or else
+%% its process ended; a message to an adapted address this node made, its
+%% function applied here. A find, a spawn or a compute is asked of the run
+%% in progress, and one that comes while none is answers `Unreachable`:
+%% between two runs of `ern test` over a directory, in one host, and as a
+%% run ends (ern_rt:asked_of_run/1). Any other frame is one the gateway
+%% cannot read; the gateway answers a utilisation itself, and hands the
+%% exchange's four to the exchange.
 -spec frame(pid(), term()) ->
-          ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}.
+          ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}
+          | {exchange, identity()}.
 frame(_From, {find, Name, Hash, Alias})
   when is_binary(Name), is_binary(Hash), is_reference(Alias) ->
     Answer = case ern_rt:asked_of_run({offered, Name, Hash}) of
@@ -325,6 +390,8 @@ frame(From, {spawn, Ref, Spawned, Site, Monitored})
             unreadable;
         unreadable ->
             unreadable;
+        {lacks, Identity} ->
+            {exchange, Identity};
         Found ->
             {Answer, Read} = spawned_here(Found, Ref, From, Monitored, Site),
             erlang:send({ern_gateway, node(From)},
@@ -339,6 +406,8 @@ frame(From, {compute, Alias, Spawned, Site})
             unreadable;
         unreadable ->
             unreadable;
+        {lacks, Identity} ->
+            {exchange, Identity};
         Found ->
             case computed_here(Found, Alias, From, Site) of
                 {started, Read} ->
@@ -354,6 +423,13 @@ frame(From, {answer, Ref, {spawned, Pid} = Answer})
 frame(From, {answer, Ref, {failed, Error} = Answer})
   when is_reference(Ref), Error =:= 'NotLoaded' orelse Error =:= 'Unreachable' ->
     answered(From, Ref, Answer);
+%% report §8.7: a peer's reason, its words, read as UTF-8 as a site is
+frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
+  when is_reference(Ref), is_binary(Text) ->
+    case ern_fs:is_utf8(Text) of
+        true -> answered(From, Ref, Answer);
+        false -> unreadable
+    end;
 frame(_From, {adapted, {adapted, Function, _Target, Maker} = Address, Message})
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node() ->
     ern_rt:send(Address, Message),
@@ -413,12 +489,71 @@ computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) 
 not_loaded(Kind, Site, Lacked) ->
     {{failed, 'NotLoaded'}, {not_loaded, Kind, Site, Lacked}}.
 
+%% Report §8.7: a spawn or a compute frame, read by frame/2 and handed to
+%% the exchange, that this node starts no process for, answered with Error,
+%% `NotLoaded` or `Other(text)`, as frame/2 answers one; and what the node
+%% says of it, Lacked being what it lacked or why it did not start it.
+-spec failed(pid(), tuple(), 'NotLoaded' | {'Other', binary()}, iodata()) ->
+          {not_loaded, spawn | compute, binary(), iodata()}.
+failed(From, {spawn, Ref, _Spawned, Site, _Monitored}, Error, Lacked) ->
+    erlang:send({ern_gateway, node(From)},
+                {ern_frame, erlang:self(), {answer, Ref, {failed, Error}}}),
+    {not_loaded, spawn, Site, Lacked};
+failed(_From, {compute, Alias, _Spawned, Site}, Error, Lacked) ->
+    ern_rt:computed(Alias, Error),
+    {not_loaded, compute, Site, Lacked}.
+
+%% Report §8.7: what this node lacks of a reach a peer gave, before any of
+%% its code crosses, or none: the first foreign declaration whose module is
+%% not here, each `{QualifiedName, HostModule, HostFunction}`, then the
+%% first binding without its value here, each `{QualifiedName, Hash}`. The
+%% names are a peer's text, which makes no atom here where none is, and is
+%% written with its controls shown, as a foreign function's name a spawn
+%% gives is.
+-spec reach_lacked([{[binary()], binary()}], [{[binary()], binary(), binary()}]) ->
+          iodata() | none.
+reach_lacked(Bindings, Foreigns) ->
+    case [Foreign || {_, HostModule, _} = Foreign <- Foreigns, not is_present(HostModule)] of
+        [{QualifiedName, HostModule, _} | _] ->
+            ["the module ", ern_show:controls(HostModule, line), ", which ",
+             named_text(QualifiedName), " calls, is not here"];
+        [] ->
+            case [QualifiedName || {QualifiedName, Hash} <- Bindings,
+                                   not has_value(QualifiedName, Hash)] of
+                [] -> none;
+                [QualifiedName | _] -> ["the binding ", named_text(QualifiedName),
+                                        " has no value here"]
+            end
+    end.
+
+named_text(QualifiedName) ->
+    ern_show:controls(iolist_to_binary(lists:join(".", QualifiedName)), line).
+
+%% Whether a module a peer names by its text is on this node, loaded or
+%% where the host loads it from (ern_code:present/1); one whose name is no
+%% atom here is not loaded, and is looked for on the code path by its file.
+is_present(HostModule) ->
+    case existing_atoms([HostModule]) of
+        [Module] -> ern_code:present(Module);
+        none -> code:where_is_file(unicode:characters_to_list(HostModule) ++ ".beam")
+                    =/= non_existing
+    end.
+
+%% Whether a binding a peer names has its value here, in a unit that holds
+%% it; one whose names are no atoms here is held nowhere.
+has_value(QualifiedName, Hash) ->
+    case existing_atoms(QualifiedName) of
+        none -> false;
+        Names -> ern_code:absent_binding([{Names, Hash}]) =:= none
+    end.
+
 %% Report §8.7: the function a spawn or a compute frame names, as this node
 %% runs it: the unit the code table answers for its identity, one whose
 %% bindings have their values where one holds it (§11.2), runs it over the
 %% values it captured ('$spawned'/2), in the process, and `restarting` runs
-%% it so; with that unit and the reach it names, or what this node lacked,
-%% or unreadable where the frame names it in no way the compiler writes. A
+%% it so; with that unit and the reach it names, or the identity this node
+%% lacks, which the exchange asks for, or a foreign function it lacks, or
+%% unreadable where the frame names it in no way the compiler writes. A
 %% peer's names are taken as atoms only where this node has them already,
 %% so that what a peer sends makes none.
 process_function({restarting, 'Unlimited' = Limit, Inner})
@@ -427,12 +562,13 @@ process_function({restarting, 'Unlimited' = Limit, Inner})
 process_function({restarting, {'RestartLimit', Restarts, Within} = Limit, Inner})
   when is_integer(Restarts), is_integer(Within), element(1, Inner) =/= restarting ->
     restarting(Limit, process_function(Inner));
-process_function({function, Hash}) when is_binary(Hash), byte_size(Hash) =:= 32 ->
-    unit_function(ern_code:spawnable({hash, Hash}), [], Hash);
+process_function({function, Hash} = Identity) when is_binary(Hash), byte_size(Hash) =:= 32 ->
+    unit_function(ern_code:spawnable({hash, Hash}), [], Identity);
 process_function({lambda, Hash, Position, Captures})
   when is_binary(Hash), byte_size(Hash) =:= 32, is_integer(Position), Position > 0,
        is_list(Captures) ->
-    unit_function(ern_code:spawnable({lambda, Hash, Position}), Captures, {Hash, Position});
+    unit_function(ern_code:spawnable({lambda, Hash, Position}), Captures,
+                  {lambda, Hash, Position});
 process_function({foreign, Names}) when is_list(Names), Names =/= [] ->
     case lists:all(fun is_binary/1, Names) andalso existing_atoms(Names) of
         false ->
@@ -441,7 +577,8 @@ process_function({foreign, Names}) when is_list(Names), Names =/= [] ->
             Named = ern_show:controls(iolist_to_binary(lists:join(".", Names)), line),
             {lacked, ["this node does not have ", Named]};
         QualifiedName ->
-            unit_function(ern_code:spawnable({foreign, QualifiedName}), [], QualifiedName)
+            unit_function(ern_code:spawnable({foreign, QualifiedName}), [],
+                          {foreign, QualifiedName})
     end;
 process_function(_) ->
     unreadable.
@@ -458,13 +595,11 @@ unit_function({Unit, Function, Arity, Reach}, Captures, _) when length(Captures)
     {found, fun() -> Unit:'$spawned'(Function, Captures) end, Unit, Reach};
 unit_function({_, _, _, _}, _, _) ->
     unreadable;
+unit_function(none, _, {foreign, QualifiedName}) ->
+    {lacked, ["this node does not have its function, ", identity_text(QualifiedName)]};
 unit_function(none, _, Identity) ->
-    {lacked, ["this node does not have its function, ", identity_text(Identity)]}.
+    {lacks, Identity}.
 
-identity_text({Hash, Position}) ->
-    [binary:encode_hex(Hash, lowercase), " at ", integer_to_list(Position)];
-identity_text(Hash) when is_binary(Hash) ->
-    binary:encode_hex(Hash, lowercase);
 identity_text(QualifiedName) ->
     lists:join(".", [atom_to_binary(Name) || Name <- QualifiedName]).
 

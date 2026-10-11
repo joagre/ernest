@@ -791,10 +791,18 @@ fault_while_typing() ->
 %% report §11.2: the reader's end while an input runs kills the input and
 %% ends the session, since no key can interrupt it any more; the screen's
 %% end faults the session, a failure of the shell's own (§11.8). Each is
-%% ended by a host function a session declares. Regression tests: the
-%% session waited for the input, and wrote to a screen that had ended
+%% ended by a host function a session declares, called by the input
+%% itself, which runs while it calls it and then waits longer than the
+%% test, so that the end comes while it runs, whenever the session takes
+%% it. Regression tests: the session waited for the input, and wrote to a
+%% screen that had ended. The end came first from a process the input
+%% spawned after a fixed 300 ms, which waited for nothing the input does
+%% not already show, and the 300 ms went; and each session's bound on a
+%% failure was 10 seconds, which a shell started under load outlasted
+%% before its first prompt, and is the 30 seconds the other sessions here
+%% are given (MVP 3.2's item 3)
 reader_and_screen_ends_test_() ->
-    {timeout, 60, fun reader_and_screen_ends/0}.
+    {timeout, 90, fun reader_and_screen_ends/0}.
 
 reader_and_screen_ends() ->
     Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool with m ="
@@ -803,8 +811,7 @@ reader_and_screen_ends() ->
                  "{ let found = List.filter(Process.live(), fn(p) = match Process.status(p) {"
                  " Some(status) -> String.startsWith(status.site, \"" ++ Site ++ "\")"
                  " | None -> false });"
-                 " let _ = spawn(fn() = receive { after 300 -> List.forEach(found,"
-                 " fn(p) = { let _ = stop(p, Foreign.atom(\"kill\")); Unit }) });"
+                 " List.forEach(found, fn(p) = { let _ = stop(p, Foreign.atom(\"kill\")); Unit });"
                  " receive { after 20000 -> 1 } }\r"
              end,
     {0, ReaderEnded} = ern_pty:run(alone("../bin/ern shell"),
@@ -813,7 +820,7 @@ reader_and_screen_ends() ->
                                     {expect, "stop : "},
                                     {send, hex(Ending("Shell.readKeys"))},
                                     {expect, "stopped reading the keyboard"}],
-                                   10, " --size 30x120"),
+                                   30, " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.readKeys">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
@@ -821,7 +828,7 @@ reader_and_screen_ends() ->
                                      {expect, "stop : "},
                                      {send, hex(Ending("Shell.main:"))},
                                      {expect, "screen ended"}],
-                                    10, " --size 30x120"),
+                                    30, " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
@@ -1349,7 +1356,15 @@ load_completion_of_two_words() ->
 %% line whenever `Tab` reaches it. A regression test for findings of the session of
 %% real use: `:browse` and `Tab` did nothing, `:browse ` and `Tab`
 %% indented, `:browse B` listed `module Bool`, and `:bindings` and `Tab`
-%% showed nothing
+%% showed nothing. After `C-c` the session says a new prompt, which may
+%% reach the screen after the next keys typed, the line then painted
+%% without it and again with it when it comes, its listing with it; so a
+%% step whose bytes the test reads with the prompt waits for the completed
+%% line with the prompt, which the screen paints only with the listing
+%% under it, and not for the listing alone, which an earlier paint without
+%% the prompt holds. A regression test for a run under load, where the
+%% prompt came after the keys of the next line and its listing (MVP 3.2's
+%% item 3)
 command_argument_test_() ->
     {timeout, 60, fun command_argument/0}.
 
@@ -1366,6 +1381,7 @@ command_argument() ->
                  {send, "03"},
                  {send, hex(":bro") ++ "09"},
                  %% the listing, which is painted after the completed line
+                 {expect, "> :browse "},
                  {expect, ":browse Module"},
                  {send, hex("B") ++ "09"},
                  {expect, "Bytes"},
@@ -1376,13 +1392,17 @@ command_argument() ->
                  {send, hex(":set dep") ++ "09"},          % a lone setting, and its value
                  %% the listing before holds `depth n` too, and a repaint of it
                  %% could meet a wait for that alone: the completed line comes first
-                 {expect, ":set depth "},
+                 {expect, "> :set depth "},
                  {expect, "depth n"},
                  {send, "03"},
                  {send, hex(":set timing of") ++ "09"},    % timing's value is a word
-                 {expect, "timing off"},
+                 {expect, "> :set timing off"},
                  {send, "03"},
-                 {send, hex(":load Http.Parser\r")},
+                 %% entered once the prompt stands before it, which the line
+                 %% joins the transcript with
+                 {send, hex(":load Http.Parser")},
+                 {expect, "> :load Http.Parser"},
+                 {send, "0d"},
                  {expect, "compiled from"},
                  {send, hex(":browse Ht") ++ "09"},          % a nested module's namespace
                  {expect, "namespace Http"},
@@ -1396,7 +1416,7 @@ command_argument() ->
                  %% nothing marks that the Tab did nothing, so a key typed after
                  %% it shows the line as the Tab left it
                  {send, hex("x")},
-                 {expect, ":output x"},
+                 {expect, "> :output x"},
                  {send, "03"},
                  {send, "04"}],
                 30, " --size 30x80"),

@@ -1138,7 +1138,10 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = term
 %% message type's hash, of the type the checker supplied; Peer.spawn,
 %% Peer.spawnMonitored and Peer.compute send the function's identity and
 %% captures in place of the function, and the spawn's or the compute's
-%% site, as a spawn on this node keeps it (§6.9)
+%% site, as a spawn on this node keeps it (§6.9); a spawn passes last the
+%% captures that carry a reply, whose calls it ends where it fails (§6.6),
+%% and a compute none, since the checker refuses a compute's function that
+%% captured one (§6.6's rule)
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of = undefined,
                                                  name = service},
                   supplies = [ServiceType]},
@@ -1151,15 +1154,15 @@ call(Span, #e_var{referent = #remote_declaration{namespace = ['Peer'], member_of
      [PeerName, Spawned | Rest], Context)
   when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
     {PeerForm, Context1} = expr(PeerName, Context),
-    {SpawnedForm, Context2} = spawned(Spawned, Context1),
+    {SpawnedForm, Replies, Context2} = spawned(Spawned, Context1),
     {RestForms, Context3} = exprs(Rest, Context2),
-    Function = case Name of
-                   spawn -> spawn;
-                   spawnMonitored -> spawn_monitored;
-                   compute -> compute
-               end,
+    {Function, Held} = case Name of
+                           spawn -> {spawn, [erl_syntax:list(Replies)]};
+                           spawnMonitored -> {spawn_monitored, [erl_syntax:list(Replies)]};
+                           compute -> {compute, []}
+                       end,
     {at(Span, call_remote(ern_peer, Function,
-                          [PeerForm, SpawnedForm | RestForms] ++ [site(Span, Context)])),
+                          [PeerForm, SpawnedForm | RestForms] ++ [site(Span, Context) | Held])),
      Context3};
 call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
@@ -1933,12 +1936,13 @@ field_sets(Names, FieldSets, Context) ->
 %% Captures}`, an entry of this module running it over them; and
 %% `restarting` over one of these with its limit, `{restarting, Limit,
 %% Spawned}`. The checker admitted only these
-%% (ern_bound).
+%% (ern_bound). Beside the form, the captures that carry a reply
+%% (held_replies/4).
 spawned(#e_call{callee = #e_var{referent = {prelude, [restarting]}}, args = [Limit, Function]},
         Context) ->
     {LimitForm, Context1} = expr(Limit, Context),
-    {Inner, Context2} = spawned(Function, Context1),
-    {erl_syntax:tuple([erl_syntax:atom(restarting), LimitForm, Inner]), Context2};
+    {Inner, Replies, Context2} = spawned(Function, Context1),
+    {erl_syntax:tuple([erl_syntax:atom(restarting), LimitForm, Inner]), Replies, Context2};
 spawned(#e_lambda{} = Lambda, #emit_context{variables = Variables} = Context) ->
     spawned_lambda(Lambda, Variables, Context);
 spawned(#e_var{span = Span, referent = var, name = Name},
@@ -1972,9 +1976,9 @@ spawned(#e_var{span = Span, referent = Referent}, #emit_context{env = Env} = Con
     case Identity of
         foreign ->
             Names = [atom_to_binary(Part) || Part <- QualifiedName],
-            {erl_syntax:abstract({foreign, Names}), Context};
+            {erl_syntax:abstract({foreign, Names}), [], Context};
         Hash when is_binary(Hash) ->
-            {erl_syntax:abstract({function, Hash}), Context}
+            {erl_syntax:abstract({function, Hash}), [], Context}
     end;
 spawned(Function, _Context) ->
     fail(ern_ast:span(Function), "a spawn on a peer starts a function the checker refuses").
@@ -1987,7 +1991,7 @@ spawned_lambda(#e_lambda{span = Span, body = Body} = Lambda, Scope, Context) ->
                                                                          Captures, Acc)
                                      end, Context),
     {spawned_identity(Span, [variable_form(maps:get(Name, Scope)) || Name <- Captures], Context1),
-     Context1}.
+     held_replies(Lambda, [], Scope, Context1), Context1}.
 
 %% A local fn a spawn on a peer starts, its captures the variables in force
 %% at its declaration, or at the spawn where it comes first (report §5.4).
@@ -1995,8 +1999,8 @@ spawned_local(Name, #local_fn{snapshot = Snapshot,
                               declaration = #fn_declaration{span = Span, params = Params,
                                                             body = Body}} = Local,
               #emit_context{variables = Variables} = Context) ->
-    Captures = capture_names(Body, [Name | lists:append([pattern_names(Pattern)
-                                                         || #param{pattern = Pattern} <- Params])]),
+    Bound = [Name | lists:append([pattern_names(Pattern) || #param{pattern = Pattern} <- Params])],
+    Captures = capture_names(Body, Bound),
     Scope = case Snapshot of
                 pending -> Variables;
                 _ -> Snapshot
@@ -2006,13 +2010,26 @@ spawned_local(Name, #local_fn{snapshot = Snapshot,
                                      end, Context),
     {spawned_identity(Span, [variable_form(maps:get(Captured, Scope)) || Captured <- Captures],
                       Context1),
-     Context1}.
+     held_replies(Body, Bound, Scope, Context1), Context1}.
 
 %% Report §3.11: the locals a lambda's or a local fn's body names, Bound
 %% aside, each once, in the order it first names them, which is the order
 %% its spawn's frame carries them in and its entry takes them.
 capture_names(Node, Bound) ->
     lists:uniq([Name || #e_var{referent = var, name = Name} <- ern_ast:free_uses(Node, Bound)]).
+
+%% Report §6.6, §8.7: each capture whose type carries a reply, the variable
+%% in force at it with its type's descriptor, which a spawn that fails
+%% reads the replies it holds by and ends their calls, looking through no
+%% other value (ern_peer). A local fn captures none (§6.6), so a lambda's
+%% alone are found.
+held_replies(Node, Bound, Scope, #emit_context{env = Env, namespace = Namespace}) ->
+    Uses = ern_ast:free_uses(Node, Bound),
+    Typed = lists:uniq(fun({Name, _}) -> Name end,
+                       [{Name, Type} || #e_var{referent = var, name = Name, type = Type} <- Uses]),
+    [erl_syntax:tuple([variable_form(maps:get(Name, Scope)),
+                       erl_syntax:abstract(ern_descriptor:describe(Type, Env, Namespace))])
+     || {Name, Type} <- Typed, ern_typecheck:is_reply_carrying(Type, Env)].
 
 %% The frame's identity of the lambda or local fn at Span, and its captures.
 spawned_identity(Span, CaptureForms, #emit_context{entries = Entries,

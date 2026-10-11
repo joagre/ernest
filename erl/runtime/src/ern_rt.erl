@@ -18,7 +18,11 @@
 %% the note is gone (§8.7); foreign code
 %% {Reply, Value}, so that a call checks the second only, as §8.4 says; a
 %% Reply foreign code gave back is {foreign_reply, Reply, Descriptor,
-%% Bound}, answered in the second form with the answer exposed.
+%% Bound}, answered in the second form with the answer exposed. Beside an
+%% answer, a call's wait takes {Reply, restarted, Cause} from a callee that
+%% restarts, {Reply, fault, Cause} from a system process that refuses, and
+%% {Reply, not_started, Cause} where the function that held the reply was
+%% to start on a peer and did not (§6.6, §8.7).
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
@@ -52,8 +56,8 @@
 
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
          spawn_root/3, self/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/3,
-         answer/2, refuse/2, monitor/2, kill/1, reason/1, started_by/1, processes/0, status/1,
-         faults/1,
+         answer/2, not_started/1, refuse/2, monitor/2, kill/1, reason/1, started_by/1,
+         processes/0, status/1, faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
          source_end/0, opened/3, forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
@@ -378,6 +382,9 @@ waited_answer(Reply, Deadline, Check) ->
         {Reply, unnoted, Value} -> closed(erlang:self()), {'Some', Value};
         {Reply, Value} -> {'Some', foreign_answer(Check, Value)};
         {Reply, restarted, _} -> closed(erlang:self()), 'None';
+        %% report §8.7: the callee lives and holds the note, so the call's
+        %% second note follows as it settles
+        {Reply, not_started, _} -> 'None';
         {Reply, fault, Cause} -> fault(Cause);
         {'DOWN', Reply, process, _, _} -> closed(erlang:self()), 'None';
         '$ern_restart' -> '$ern_restart';
@@ -411,6 +418,9 @@ call_forever(Address, Request, Check) ->
                      {Reply, restarted, CalleeCause} ->
                          closed(erlang:self()),
                          {fault, CalleeCause};
+                     %% report §8.7: the callee lives and holds the note, so
+                     %% the call's second note follows as it settles
+                     {Reply, not_started, NotStartedCause} -> {fault, NotStartedCause};
                      %% report §8.2: a system process faults the caller it
                      %% answers
                      {Reply, fault, SystemCause} -> {fault, SystemCause};
@@ -624,6 +634,17 @@ answer(Reply, Value) ->
         false -> Reply ! {Reply, answered, Value}
     end,
     ?UNIT.
+
+%% Report §6.6, §7.4, §8.7: a call whose reply a function held that was to
+%% start on a peer and did not ends as at its callee's death, since no
+%% process will answer it: `Address.call` answers None and
+%% `Address.callForever` faults with the cause. The callee, which handed
+%% the reply on, lives, so the caller sends the call's second note to a
+%% callee of another node as any call that ends unanswered does.
+-spec not_started(reference()) -> ok.
+not_started(Reply) ->
+    Reply ! {Reply, not_started, <<"callee did not start">>},
+    ok.
 
 %% Report §8.2, §7.4: a system process faults the caller it answers.
 -spec refuse(reply(), binary()) -> 'Unit'.
@@ -2226,7 +2247,9 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% (restarts/4). Once it has its word, its monitor goes, as a caller's
 %% goes with its call (settled/1): the reaper does not see a teller end,
 %% and a subscriber that restarts at each telling is told by a teller
-%% each time.
+%% each time. A reply the subscriber handed to a function whose spawn on a
+%% peer failed no process will answer (not_started/1), and the end goes on
+%% without the subscriber, which lives, saying so (§8.6).
 tell(Runner, Launch, Subscriber, Address) ->
     Reply = pending(Address),
     Ended = make_ref(),
@@ -2236,6 +2259,7 @@ tell(Runner, Launch, Subscriber, Address) ->
               {Reply, answered, _} -> <<"answered">>;
               {Reply, _} -> <<"answered">>;
               {Reply, restarted, _} -> <<"restarted without answering">>;
+              {Reply, not_started, _} -> <<"handed its reply to a spawn that failed">>;
               Ended -> <<"ended without answering">>
           end,
     settled(Reply),
@@ -2989,10 +3013,12 @@ note_compute(Caller, Alias) ->
     ok.
 
 %% Report §8.7: a compute this node starts no process for answered, its
-%% note let go as an answer given here lets it go: `NotLoaded`, or
-%% `Unreachable` where no launch is in progress to start it. Between two
-%% launches there is no table, and no note.
--spec computed(reference(), 'NotLoaded' | 'Unreachable') -> ok.
+%% note let go as an answer given here lets it go: `NotLoaded`,
+%% `Other(text)` with this node's reason where the exchange brought its
+%% function and it did not run it, or `Unreachable` where no launch is in
+%% progress to start it. Between two launches there is no table, and no
+%% note.
+-spec computed(reference(), 'NotLoaded' | 'Unreachable' | {'Other', binary()}) -> ok.
 computed(Alias, Error) ->
     try dropped_note(Alias) catch error:badarg -> false end,
     Alias ! {Alias, failed, Error},

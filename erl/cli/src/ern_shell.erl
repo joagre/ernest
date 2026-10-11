@@ -692,7 +692,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     {ok, #{interface := Compiled, builds_functions := BuildsFunctions}} =
         ern_interface:read(Beam),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
-    unit_loaded(ErlangModule),
+    unit_loaded(ErlangModule, Beam),
     keep(free, kept(free, []) -- [Namespace]),
     record_uses(ErlangModule, Beam, Checked),
     %% report §11.2: an input that declares keeps its module for `:doc`, and
@@ -781,9 +781,20 @@ kind_of_namespace([Segment]) ->
     end.
 
 %% Report §8.7, §11.2: a module the session loaded, in the code table as it
-%% loads, and each of the host's limits the load has brought near said.
+%% loads, and each of the host's limits the load has brought near said. A
+%% holder of values holds no definition. A unit the session compiled or
+%% read, which it loads from no file, has the canonical forms of its
+%% definitions kept beside its code in the table, from its compiled form,
+%% so that a spawn on a peer that lacks one of them ships it, as the
+%% build's ship theirs from its `.erc` (§8.7, §11.2); they go with the
+%% unit's rows when it is deleted (unload/1).
 unit_loaded(ErlangModule) ->
     ern_code:loaded(ErlangModule),
+    ern_cli:say_limits().
+
+unit_loaded(Unit, Beam) ->
+    {ok, Forms} = ern_canonical:read(Beam),
+    ern_code:loaded(Unit, Forms),
     ern_cli:say_limits().
 
 %% A module of the session's that no process runs and nothing reaches,
@@ -2709,7 +2720,7 @@ install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_ha
         true -> ok;
         false -> {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam)
     end,
-    unit_loaded(Unit),
+    unit_loaded(Unit, Beam),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
     Session#session{interfaces = Others ++ [Interface],
@@ -2829,7 +2840,7 @@ new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Se
     {ok, #{interface := #interface{identities = Identities} = Compiled}} =
         ern_interface:read(Beam),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam),
-    unit_loaded(Unit),
+    unit_loaded(Unit, Beam),
     record_uses(Unit, Beam, #checked{namespace = Namespace, interface = Compiled,
                                      binds = declarations, site = Site,
                                      printed_name = PrintedName}),

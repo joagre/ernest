@@ -14,6 +14,14 @@
 %% replaces its rows, and one unloaded takes them with it, so that the
 %% table holds what the host holds and no more (docs/memory.md).
 %%
+%% Report §11.2: the canonical forms of a unit's definitions are kept
+%% beside its code, which the exchange ships onward (§8.7, forms/1): a
+%% unit the build compiled has them in the `.erc` it was loaded from,
+%% which is read when they are asked for; any other, a load's or an
+%% input's of the shell, which no file holds, has them in a row of its
+%% own here, written as it loads (loaded/2) and taken with its other rows,
+%% so that the forms live as long as the code they describe.
+%%
 %% The table is an ETS table, not a persistent term: it is written at each
 %% load, which would make a persistent term collect every process each
 %% time, and read where a definition is found by its identity, a spawn by
@@ -25,8 +33,9 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, unloaded/1, spawnable/1, called/1, absent_binding/2, foreign/2, present/1,
-         nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+-export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, forms/1, called/1,
+         absent_binding/1, absent_binding/2, foreign/2, present/1, nearing/0, nearing/1, nearing/2,
+         line/3, counts/0]).
 
 -export_type([host_table/0, reach/0]).
 
@@ -52,15 +61,22 @@
 %% or a foreign function's, holds nothing here. The unit's own row holds
 %% its code's digest, the keys of its rows, and the units its code calls,
 %% none for a unit whose '$code'/0 lists none, as a shell's holder of
-%% values.
+%% values. A unit the build compiled, whose forms its file holds.
 -spec loaded(module()) -> ok.
 loaded(Unit) ->
+    loaded(Unit, none).
+
+%% Report §11.2: the same, for a unit no file holds, with the canonical
+%% forms of its definitions as its compiled form records them, which are
+%% kept in a row of its own.
+-spec loaded(module(), [tuple()] | none) -> ok.
+loaded(Unit, Forms) ->
     case erlang:function_exported(Unit, '$code', 0) of
-        true -> fill(Unit, Unit:module_info(md5));
+        true -> fill(Unit, Unit:module_info(md5), Forms);
         false -> ok
     end.
 
-fill(Unit, Md5) ->
+fill(Unit, Md5, Forms) ->
     ensure(),
     case ets:lookup(?TABLE, {unit, Unit}) of
         [{_, _, {Md5, _, _}}] ->
@@ -69,7 +85,8 @@ fill(Unit, Md5) ->
             forget(Unit, Previous),
             Code = Unit:'$code'(),
             Rows = lists:append([rows(Unit, QualifiedName, Held)
-                                 || {QualifiedName, Held} <- Code]),
+                                 || {QualifiedName, Held} <- Code])
+                ++ [{{forms, Unit}, Unit, Forms} || Forms =/= none],
             Keys = lists:usort([Key || {Key, _, _} <- Rows]),
             Calls = lists:append([Units || {_, {calls, Units}} <- Code]),
             true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Md5, Keys, Calls}} | Rows]),
@@ -133,6 +150,37 @@ spawnable(Key) ->
         none -> none
     end.
 
+%% Report §8.7: the units that hold an identity, a function's or a type's
+%% by `{hash, Hash}` or a binding's by `{binding, QualifiedName, Hash}`, in
+%% the order they were loaded; none where this node holds it nowhere.
+-spec holders({hash, binary()} | {binding, [atom()], binary()}) -> [module()].
+holders(Key) ->
+    lists:uniq([Unit || {_, Unit, _} <- lookup(Key)]).
+
+%% Report §11.2, §8.7: the canonical forms of the definitions Unit holds,
+%% `#definition{}`s (ern_canonical): those kept beside its code, or those
+%% of the `.erc` the host loaded it from, read as they are asked for; none
+%% where neither is there, a file changed or gone among the ways, which
+%% the build's rule against writing a build under a running node excludes
+%% (§11.1).
+-spec forms(module()) -> {ok, [tuple()]} | none.
+forms(Unit) ->
+    case lookup({forms, Unit}) of
+        [{_, _, Forms}] ->
+            {ok, Forms};
+        [] ->
+            File = code:which(Unit),
+            case is_list(File) andalso file:read_file(File) of
+                {ok, Bytes} ->
+                    case ern_canonical:read(Bytes) of
+                        {ok, Forms} -> {ok, Forms};
+                        {error, _} -> none
+                    end;
+                _ ->
+                    none
+            end
+    end.
+
 %% Report §8.7, §11.2: the units the code of Unit calls, Unit among them:
 %% those its row names (loaded/1), and those theirs name, each once. A
 %% binding or a foreign declaration a function's reach names is read in
@@ -153,6 +201,21 @@ called([Unit | Units], Called) ->
                 [] -> []
             end,
     called(Calls ++ Units, Called#{Unit => true}).
+
+%% Report §8.7: the first of a reach's bindings, each by its identity,
+%% without its value in the run in progress in every unit that holds it,
+%% or none: what a peer that lacks a function asks of the bindings its
+%% reach names before any of its code crosses (§8.7, The exchange), where
+%% no unit of this node runs the function yet.
+-spec absent_binding([{[atom()], binary()}]) -> {[atom()], binary()} | none.
+absent_binding(Bindings) ->
+    case [Binding || {QualifiedName, Hash} = Binding <- Bindings,
+                     not lists:any(fun({_, Holder, {binding, Key}}) ->
+                                           ern_rt:binding_value(Holder, Key) =/= absent
+                                   end, lookup({binding, QualifiedName, Hash}))] of
+        [] -> none;
+        [Absent | _] -> Absent
+    end.
 
 %% Report §8.7, §11.2: the first of a reach's bindings, each by its
 %% identity, without its value in the run in progress as the code of Unit
