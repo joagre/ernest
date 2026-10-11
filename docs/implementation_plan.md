@@ -101,12 +101,20 @@ it measures itself, `"utilisation"` in `ernest.conf`; `libs/placement` with
 `Placement.leastBusy(names, ms)` in `Balancer`'s place; and the guide's peer chapter teaching the
 four lines and the later form as a process that sends.
 
-1. **The report and the soundness argument.** §3.11 for the form and its result type, known
-   whole and crossing as a service's is; §8.7 for `compute`'s frames, the fault carried to the
-   caller and reported once, and the late answer's process ended through the call's note; §10's
-   cost line; §11.3 for the `"utilisation"` entry, its two measures and its reload; E.27 for
-   `compute` and `utilisation`, the primitives counted; G.5 for `libs/placement`; Appendix F and
-   the glossary; `soundness.md`'s §7 extended by the value crossing back at the checked type.
+1. **The report and the soundness argument.** Done 2026-10-11. §3.11 checks `compute`'s
+   function as a spawn's and its result type as a service's message type, known whole and
+   unbound; §6.7 names the two forms of remote computation; §8.7 gives `compute` its paragraph,
+   its frame the call's first note, its answer through the host's alias, a fault in `f` carried
+   whole, cause and trace, and reported once on the caller's node, a process that ends
+   unanswering `Left(Other(text))`, the late process killed by the call's second note, and
+   `utilisation` its paragraph with the `"utilisation"` entry, `"run-queue"` by default or
+   `"schedulers"`, refused otherwise and held from the next ask at a reload, nine frames in
+   place of seven; §10's cost line; §11.2's line for the carried stack; §11.3 and Appendix C
+   name the entry; E.1 and E.27 in prose; Appendix F's `compute` and `utilisation` and the
+   glossary's; `soundness.md`'s §7 argues the value back at the checked type. E.27's listing
+   lines and its primitives sentence land with item 2, and G.5 with item 3, since the tests hold
+   a listing to the compiled module and Appendix G's sections to `libs/` (the log's *Placing
+   Work by Name*, its last paragraph).
 2. **The runtime, the checker and the configuration.** The compute frame and its answer over the
    call's note, the fault carried, the late process killed; the utilisation frame and the node's
    measure, the run queue over the schedulers by default and the schedulers' utilisation since
@@ -114,12 +122,14 @@ four lines and the later form as a process that sends.
    for the form's result type and its captures; `NotLoaded` where the peer lacks `f`, which MVP
    3.2's exchange lifts; tests on real nodes: the value back, a fault carried once, a late
    answer's process gone, utilisation on the scale under both measures, the shell's `compute` of
-   a function typed there.
+   a function typed there; E.27's two listing lines and its primitives sentence, eight of the
+   nine, in the same commit.
 3. **`Placement`, `Balancer` gone, the guide and the tests.** `libs/placement`'s one function
    asking every name at once; `libs/balancer` removed with its tests and `make bench`'s pick,
    `test/peers`' balance programs rewritten to the four lines and the nodes tests with them; the
    guide's peer chapter teaching `compute`, the pick, here as `f()`, and the later form as a
-   process that sends; the proposal's status line.
+   process that sends; G.5 rewritten for `libs/placement` in the same commit; the proposal's
+   status line.
 
 ## MVP 3.2 (code with a spawn), about four weeks
 
