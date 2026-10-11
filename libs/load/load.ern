@@ -2,6 +2,10 @@
 /// run, the schedulers' time, and the processor, the memory and the disks
 /// the host's services watch.
 ///
+/// A program reads its own node's numbers here; how busy a peer is, it asks
+/// with `Peer.utilisation`, which each node answers as its own `ernest.conf`
+/// measures it (report §8.7, Appendix E.27).
+///
 /// A program puts the library on its load path when it is compiled and
 /// when it is run; report Appendix G says where an installation keeps it.
 ///
@@ -11,11 +15,6 @@
 /// §8.7). Where the service does not run, as in a program that is no node,
 /// each answers `None`. `runQueue` and `schedulers` read the runtime itself,
 /// and answer in any program.
-///
-/// **A measure.** The library `Balancer` places work by a measure, a
-/// function answering a load from 0.0 to 1.0, which a program declares over
-/// these: `fn busy() : Float with m = Load.schedulers(100)`, the schedulers'
-/// load over a window of 100 milliseconds.
 ///
 /// ## Examples
 ///

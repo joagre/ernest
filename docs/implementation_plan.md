@@ -20,7 +20,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), were read through with the user on
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
-of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). The road to 1.0 is MVP 3.1, 3.25,
+of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). The road to 1.0 is MVP 3.1, 3.25,
 3.2, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
 1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ended with a read of what it built, its item
 9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
@@ -76,7 +76,7 @@ paragraph under "Done".
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
-| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | decided 2026-10-11; built before MVP 3.2 |
+| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
@@ -85,59 +85,6 @@ paragraph under "Done".
 | MVP 4.4 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
 
 ---
-
-## MVP 3.25 (placing work by name), a few days
-
-Decided with the user on 2026-10-11 from [`suggestion.md`](../proposals/balancer/suggestion.md),
-read through and rewritten that day to its shape B (the log's *Placing Work by Name*); the
-proposal is the specification and this list the order. Built before MVP 3.2's item 1, since
-nothing in it needs the exchange, `compute` answering `NotLoaded` where the peer lacks the
-function as a spawn does until 3.2 ships code, and everything of 3.2, the bare node, the
-deployment guide and the release, then stands on the simpler shape; 0.4.0 ships it and never
-ships `Balancer`. What the milestone gives: `Peer.compute(name, f, ms)`, a form that runs a
-function on a named peer and answers its value, a fault in `f` the caller's and reported once;
-`Peer.utilisation(name, ms)`, how busy a peer is on one scale, as the node's configuration says
-it measures itself, `"utilisation"` in `ernest.conf`; `libs/placement` with
-`Placement.leastBusy(names, ms)` in `Balancer`'s place; and the guide's peer chapter teaching the
-four lines and the later form as a process that sends.
-
-1. **The report and the soundness argument.** Done 2026-10-11. §3.11 checks `compute`'s
-   function as a spawn's and its result type as a service's message type, known whole and
-   unbound; §6.7 names the two forms of remote computation; §8.7 gives `compute` its paragraph,
-   its frame the call's first note, its answer through the host's alias, a fault in `f` carried
-   whole, cause and trace, and reported once on the caller's node, a process that ends
-   unanswering `Left(Other(text))`, the late process killed by the call's second note, and
-   `utilisation` its paragraph with the `"utilisation"` entry, `"run-queue"` by default or
-   `"schedulers"`, refused otherwise and held from the next ask at a reload, nine frames in
-   place of seven; §10's cost line; §11.2's line for the carried stack; §11.3 and Appendix C
-   name the entry; E.1 and E.27 in prose; Appendix F's `compute` and `utilisation` and the
-   glossary's; `soundness.md`'s §7 argues the value back at the checked type. E.27's listing
-   lines and its primitives sentence land with item 2, and G.5 with item 3, since the tests hold
-   a listing to the compiled module and Appendix G's sections to `libs/` (the log's *Placing
-   Work by Name*, its last paragraph).
-2. **The runtime, the checker and the configuration.** Done 2026-10-11. `Peer.compute` and
-   `Peer.utilisation` in `stdlib/peer.ern`; the checker's rule for the form's function and its
-   result type, three diagnostics; the compute frame as the call's first note, its answer through
-   the caller's alias, a fault carried whole and reported once on the caller's node, the late
-   process killed by the second note, a process that ends unanswering `Other`; the utilisation
-   frame answered by the gateway from the node's measure, `"utilisation"` in `ernest.conf` read
-   at the start and held from the next ask at a reload, any other value refused; `NotLoaded`
-   where the peer lacks `f`, which MVP 3.2's exchange lifts; tests on real nodes for each, and
-   the shell's compute of a function declared there; E.27's two listing lines and its primitives
-   sentence. Six decisions the code forced went to the report first: the gateway answers a
-   utilisation itself (§8.7 *What passes*); the run-queue measure counts the running with the
-   ready (§8.7 *Its configuration*); a restart does not end a compute, a caller's restart sends
-   the second note, and a fault once the note has gone is the peer's (§8.7 *A compute*); and a
-   lone effect variable within a parameter's type is kept at generalization and printed (§3.9,
-   §11.5), a defect of the checker's that `compute` found (the log's *Placing Work by Name*, its
-   last paragraph). `make bench` measures a compute at 1.1 of the host's ping and a utilisation
-   at 1.0.
-3. **`Placement`, `Balancer` gone, the guide and the tests.** `libs/placement`'s one function
-   asking every name at once; `libs/balancer` removed with its tests and `make bench`'s pick,
-   `test/peers`' balance programs rewritten to the four lines and the nodes tests with them; the
-   guide's peer chapter teaching `compute`, the pick, here as `f()`, and the later form as a
-   process that sends; G.5 rewritten for `libs/placement` in the same commit; the proposal's
-   status line.
 
 ## MVP 3.2 (code with a spawn), about four weeks
 
@@ -171,7 +118,7 @@ evaluation process living while the session runs, is §11.2's, built with MVP 3.
 rewrites *Later*'s five entries this milestone touches.
 
 **Second, before item 1, MVP 3.25's discussion.** Held on 2026-10-11: the proposal was read
-through, rewritten to its shape B and decided, and MVP 3.25 is built before this milestone's item
+through, rewritten to its shape B and decided, and MVP 3.25 was built before this milestone's item
 1, on which nothing here depends (the log's *Placing Work by Name*).
 
 **Third, before item 1, an example of typed channels.** Written on 2026-10-10 (the log's *The
@@ -252,9 +199,9 @@ newcomer now lists the names it could not predict.
 5. **The bare node, and the shell.** `ern run --config-dir dir` with no `.erc`: the runtime and
    the system processes, the entry process evaluating the standard library's bindings and
    waiting, the node listening and taking spawns, ending by termination alone, refused without
-   `listen`, offering what the processes spawned on it offer; a balancer placing work on it and
-   installing its measure there; a shell whose load path holds no program a bare node with a
-   prompt. A function typed at the shell spawning on a peer with its code, where MVP 3.1 answered
+   `listen`, offering what the processes spawned on it offer; work placed on it by name,
+   `Peer.compute` and `Placement.leastBusy`, and its utilisation answered as its `ernest.conf`
+   says; a shell whose load path holds no program a bare node with a prompt. A function typed at the shell spawning on a peer with its code, where MVP 3.1 answered
    `NotLoaded`; the refusal of a node without a program lifted from `docs/development.md`'s
    table.
 6. **`Code`.** §11.1's outcome for a build written under a running node, which MVP 3.1 states as reaching the node at its next start alone, is restated here for a node that reads a unit after its start. `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
@@ -896,3 +843,23 @@ subscriber (`language_feedback.md`'s entry 100, *The Feedback Pass Before MVP 3.
 ran before MVP 3.2, MVP 3.25 was added and the back end made last (*A Milestone for Placing
 Work by Load*, *The Back End Last*). What waits: `language_feedback.md`'s 97 and 98 and
 `:processes`' columns, MVP 4.3's; a unit let go and the bare node, MVP 3.2's.
+
+### MVP 3.25 — placing work by name (done 2026-10-11)
+
+Placing work by name, by [`suggestion.md`](../proposals/balancer/suggestion.md), kept as the
+record of its design; the report's §3.11, §6.7, §8.7, §10, §11.2, §11.3, §11.5, Appendix C,
+E.27 and G.5 own the rules. `Peer.compute(name, f, ms)` runs a function on a named peer and
+answers its value, its frame the call's first note and its answer through the host's alias, a
+fault in `f` the caller's, carried whole and reported once on the caller's node, a process that
+ends unanswering `Other`, the late process killed by the call's second note; `Peer.utilisation(name,
+ms)` answers how busy a peer is on one scale, as the peer's `ernest.conf` says under
+`"utilisation"`, the running with the ready over the schedulers by default or the schedulers'
+time since last asked, answered by the gateway itself; `libs/placement`'s
+`Placement.leastBusy(names, ms)` asks every name at once and answers the least busy, in
+`Balancer`'s place, which is gone with its measures and its places; the guide's §8.1 teaches
+compute, the pick, here as `f()`, and the later form as a process that sends. On the way the
+checker's generalization was found making a lone effect variable in a parameter's type pure, so
+that `fn ignore(f : () -> Unit with e)` refused an impure argument; it is kept and printed now
+(§3.9, §11.5). Built in three items on one day, each by the report first, with the eleven
+decisions the code forced (the log's *Placing Work by Name*, its last three paragraphs);
+nothing of the verdict of 2026-09-27 reversed, and 0.4.0 never ships `Balancer`.

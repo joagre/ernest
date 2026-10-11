@@ -17,7 +17,7 @@
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["balancer", "json", "load", "proxy"]]).
+                    || Library <- ["json", "load", "placement", "proxy"]]).
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -358,23 +358,25 @@ watching(Streams, Waiting) ->
         {Stream, Bytes} when is_binary(Bytes) ->
             {Text, State} = maps:get(Stream, Streams),
             told(Streams#{Stream := {<<Text/binary, Bytes/binary>>, State}}, Waiting);
-        {waiting, _, _, _} = Wait ->
+        {waiting, _, _, _, _} = Wait ->
             told(Streams, [Wait | Waiting]);
         {said, _} = Wait ->
             told(Streams, [Wait | Waiting])
     end.
 
-%% The waits answered, the rest kept: a part once its stream holds it or
-%% has ended without it, and the whole once both streams have ended.
+%% The waits answered, the rest kept: a part once its stream holds it as
+%% many times as asked, or has ended without, and the whole once both
+%% streams have ended.
 told(Streams, Waiting) ->
     watching(Streams, [Wait || Wait <- Waiting, not answered(Streams, Wait)]).
 
-answered(Streams, {waiting, Stream, Part, From}) ->
+answered(Streams, {waiting, Stream, Part, Count, From}) ->
     case maps:get(Stream, Streams) of
         {Text, State} ->
-            case {binary:match(Text, Part), State} of
-                {nomatch, open} -> false;
-                {Found, _} -> From ! {seen, Stream, Part, Found =/= nomatch}, true
+            Held = length(binary:matches(Text, Part)) >= Count,
+            case {Held, State} of
+                {false, open} -> false;
+                {_, _} -> From ! {seen, Stream, Part, Held}, true
             end
     end;
 answered(#{out := {Out, ended}, err := {Err, ended}}, {said, From}) ->
@@ -389,18 +391,21 @@ says(Dir, Part) ->
     says(Dir, Part, 30000).
 
 says(Dir, Part, Ms) ->
-    seen(Dir, err, Part, Ms).
+    seen(Dir, err, Part, 1, Ms).
 
-%% Until the node's standard output holds Part.
+%% Until the node's standard output holds Part, or holds it Count times.
 prints(Dir, Part) ->
     prints(Dir, Part, 30000).
 
 prints(Dir, Part, Ms) ->
-    seen(Dir, out, Part, Ms).
+    prints(Dir, Part, 1, Ms).
 
-seen(Dir, Stream, Part, Ms) ->
+prints(Dir, Part, Count, Ms) ->
+    seen(Dir, out, Part, Count, Ms).
+
+seen(Dir, Stream, Part, Count, Ms) ->
     Bytes = unicode:characters_to_binary(Part),
-    watcher_name(Dir) ! {waiting, Stream, Bytes, self()},
+    watcher_name(Dir) ! {waiting, Stream, Bytes, Count, self()},
     receive
         {seen, Stream, Bytes, Seen} -> ?assert(Seen)
     after Ms ->
@@ -1335,7 +1340,7 @@ compute_on_peer(Base) ->
                     - 1),
     has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:534 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:525 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
@@ -2428,14 +2433,17 @@ refused_build_load(Base) ->
     prints(Desk, "no process of the session's is running"),
     true = port_command(StoreInput, "after\n"),
     prints(Store, "after: NotLoaded"),
+    %% the shell writes the node's lines on its screen, this one after the
+    %% desk's worker has answered the store, so it is waited for before the
+    %% session is ended
+    NotLoaded = "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
+                " Greet.greeter has no value here",
+    prints(Desk, NotLoaded, 2, 30000),
     true = port_command(DeskInput, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     stop(Store, WaitStore),
     {DeskOut, DeskErr} = said(Desk),
-    %% the shell writes the node's lines on its screen
-    ?assertEqual(2, length(string:split(DeskOut, "the peer store's spawn at Store.spawning:11 was"
-                                                 " not loaded: the binding Greet.greeter has no"
-                                                 " value here", all)) - 1),
+    ?assertEqual(2, length(string:split(DeskOut, NotLoaded, all)) - 1),
     ?assertEqual(nomatch, string:find(DeskErr, "fault")).
 
 %% report §6.5, §8.4, §6.9, §8.7: a fault in an adapted address's function,
@@ -2673,17 +2681,21 @@ typed_channels(Base) ->
     {OutA, _} = said(ConfigDirA),
     has(OutA, "total on b: Some(5)").
 
-%% Appendix G.4, G.5, report §8.7: a balancer over this node and the store
-%% picks in turn until a place has a measure, and then the lower of the
-%% measures installed on each, the store's spawned there with Peer.spawn;
-%% the work goes where it picks; Load answers the host's services' loads
-%% on the store, whose measures run them, and none on the desk, whose do
-%% not. A regression test, written after the code; it does not cover a
-%% place out of reach, nor a pick of two among more than two places
-balance_test_() ->
-    nodes_test(90, fun balance/1).
+%% Appendix G.5, G.4, report §8.7, Appendix E.27: the least busy of the
+%% names given is the store, which answers its utilisation, alone and
+%% beside a name no peer has, passed over; a pick of a name no peer has, of
+%% the peer gone, whose dial is refused, and of no name answers None; the
+%% four lines over the desk's peers, the store and the peer gone, compute on
+%% the store, the one that answered, the value the store's peers; Load
+%% answers the host's services' loads on the store, whose measures run them,
+%% and none on the desk, whose do not. A regression test, written after the
+%% code; it does not cover two peers that answer, whose utilisations no test
+%% can order, which the library's own test of its rule covers, nor a peer
+%% whose time runs out
+placement_test_() ->
+    nodes_test(90, fun placement/1).
 
-balance(Base) ->
+placement(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     edit(Store, fun(Conf) ->
@@ -2692,7 +2704,7 @@ balance(Base) ->
                 end),
     WaitStore = start(Store, StoreProgram, []),
     prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["balance"]))()),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["place"]))()),
     prints(Store, "loads there"),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
@@ -2702,10 +2714,9 @@ balance(Base) ->
     %% ended, that the host had closed
     ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
     [has(Out, Line)
-     || Line <- ["in turn: #(Some(Here), Some(On(\"store\")))", "measured: Right",
-                 "picked: the store three times in a row", "work: Right",
+     || Line <- ["store: Some(\"store\")", "beside no peer: Some(\"store\")", "no peer: None",
+                 "gone: None", "no name: None", "computed: Right([\"desk\", \"third\"])",
                  "loads here: #(false, false, false)", "loads: Right"]],
-    has(StoreOut, "the store squares 36"),
     has(StoreOut, "loads there: #(true, true, true)").
 
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test

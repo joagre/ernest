@@ -2238,28 +2238,22 @@ A program reaches outside its node's Ernest code in three ways: to peers over th
 
 A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no service yet, and the private key and a certificate beside it. A peer is added by editing the file: its name, which the program uses, its public key, which `ern config` printed on the peer's machine, and its network address. Under `services`, each service's name lists the peers that may offer it, in the order a find asks them (report §8.7, Appendix C). Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one release of `ern` on one major release of OTP; their builds may differ (§8.2). What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
 
-Every example here runs on a program that is no node too: without a configuration a program has no peers, and `Peer.find` and `Peer.spawn` answer `Left(NotListed)`.
+Every example here runs on a program that is no node too: without a configuration a program has no peers, and `Peer.find`, `Peer.spawn` and `Peer.compute` answer `Left(NotListed)`.
 
 ### 8.1 Work on a peer
 
-Work runs on a peer in a process spawned there, and its result comes back as a message. `Peer.spawn(name, f, ms)` spawns `f` on the peer named `name` as `spawn(f)` spawns it on this node, and answers the new process's address within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
+Work runs on a peer by the peer's name. `Peer.compute(name, f, ms)` runs `f` in a process started on the peer named `name`, and answers its value within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
 
 ```ernest
 // square.ern
-type Result = Result(Int)
-
 fn heavy(a : Int, b : Int) : Int =
     a * a + b * b
 
-export fn main() : Unit with Result = {
-    let me = self();
-    match Peer.spawn("foo", fn() = send(me, Result(heavy(3, 4))), 5000) {
-        Right(_) -> receive {
-            Result(n) -> Io.println("foo computed " <> Int.toString(n))
-        }
+export fn main() : Unit with Never =
+    match Peer.compute("foo", fn() = heavy(3, 4), 5000) {
+        Right(value) -> Io.println("foo computed " <> Int.toString(value))
       | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
     }
-}
 ```
 
 ```console
@@ -2305,11 +2299,81 @@ $ ern run --config-dir a square.erc
 the peer foo connected
 foo computed 25
 $ ern stop --config-dir foo
-``` The spawn takes with it the values the lambda captured, `me` here, and nothing more: the peer holds `heavy` by its hash, since it runs the same build, and no code crosses (report §8.7). On the peer the process has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service; `me` still names this process.
+```
 
-The compiler must see what the function captures, so the function a spawn on a peer starts is written where the spawn can see it: a declaration's name, or, in the same definition, a lambda written at the spawn or bound by a `let`, or a local `fn`. A function that came as a value, a parameter or a message, is refused (report §3.11). A process spawned so that never receives needs no annotation: where nothing else names the mailbox type of the address the spawn answers, it is `Never`. And the function runs on the peer only where the peer holds it, by its hash, its program has run every top-level binding the function reaches, and every module a foreign declaration it reaches calls is there; otherwise the spawn answers `Left(NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7).
+The compute takes with it the values the lambda captured, and nothing more: the peer holds `heavy` by its hash, since it runs the same build, and no code crosses (report §8.7). On the peer the function has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service. Its value crosses back at the type the compiler found where `compute` is written, which is known whole there and is bound to no node (§8.4).
 
-A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Its `site` is empty for a process of another node; that node's standard error reports the fault with the site (report §6.9). Several computations run at once as several such processes, each sending its result back. Which peer to spawn on is the program's to say; the library `Balancer` picks one for it, in turn or by how busy each is (report Appendix G.5).
+A fault in `heavy` is the caller's, as if `heavy(3, 4)` had faulted here: the caller faults with its cause, and this node reports the fault once, with the stack that crossed with it; the peer writes nothing of it (report §8.7, report §11.2). Where the process ends on the peer before it answers, killed or with the peer's program, the compute answers `Left(Other(text))`, `text` the process's reason; where the caller stops waiting, its time run out or its process ended, the process is killed there.
+
+The compiler must see what the function captures, so the function a compute or a spawn on a peer runs is written where it can see it: a declaration's name, or, in the same definition, a lambda written at the compute or bound by a `let`, or a local `fn`. A function that came as a value, a parameter or a message, is refused (report §3.11). And the function runs on the peer only where the peer holds it, by its hash, its program has run every top-level binding the function reaches, and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7).
+
+**Which peer.** The program names it, and may pick it by how busy each peer is. `Peer.utilisation(name, ms)` answers how busy the peer named is, a `Float` on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the peer's own `ernest.conf` says under `"utilisation"`, by its run queue where it says nothing (report §8.7, Appendix C). The library `Placement` asks every name it is given at once, and answers the least busy, the first given at a tie, or `None` where none answered (report Appendix G.5):
+
+```ernest
+// placed.ern
+export fn computed(n : Int) : Either(Io.Error, Int) with m =
+    match Placement.leastBusy(Peer.peers(), 1000) {
+        Some(name) -> Peer.compute(name, fn() = heavy(n), 5000)
+      | None -> Right(heavy(n))
+    }
+
+fn heavy(n : Int) : Int =
+    n * n
+```
+
+Where no peer answered, the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none (report §8.7). In a program that is no node `Peer.peers()` is empty, and the pick answers `None`. A pick waits for its slowest answer, each within the `ms` given, and chooses no time of its own; a program with many peers passes a sample it drew itself. Another rule is a function of the program's over `Peer.utilisation`, as `leastBusy` is.
+
+**A result that comes later.** A program that is not to wait for the value spawns a process that computes it and sends it back, one message later:
+
+```ernest
+// later.ern
+type Msg = Computed(Int)
+
+fn heavy(n : Int) : Int =
+    n * n
+
+export fn main() : Unit with Msg = {
+    let me = self();
+    let _ = spawn(fn() = send(me, Computed(heavy(5))));
+    Io.println("asked");
+    receive {
+        Computed(value) -> Io.println("computed " <> Int.toString(value))
+    }
+}
+```
+
+```console
+$ ern run later.erc
+asked
+computed 25
+```
+
+On a peer the process is spawned there by `Peer.spawn(name, f, ms)`, which answers the new process's address within `ms` milliseconds, or the failure, and the result comes back as the same message:
+
+```ernest
+// sent.ern
+type Msg = Computed(Int)
+
+fn heavy(n : Int) : Int =
+    n * n
+
+export fn main() : Unit with Msg = {
+    let me = self();
+    match Peer.spawn("foo", fn() = send(me, Computed(heavy(5))), 5000) {
+        Right(_) -> receive {
+            Computed(value) -> Io.println("foo computed " <> Int.toString(value))
+        }
+      | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
+    }
+}
+```
+
+```console
+$ ern run sent.erc
+no foo: NotListed
+```
+
+What the function captures, and where it runs, is as for a compute: `me` crosses, and still names this process. A process spawned so that never receives needs no annotation: where nothing else names the mailbox type of the address the spawn answers, it is `Never`. A fault in it is the process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Its `site` is empty for a process of another node; that node's standard error reports the fault with the site (report §6.9). Several computations run at once as several such processes, each sending its result back.
 
 ### 8.2 Services across nodes
 
@@ -2459,7 +2523,7 @@ A value foreign code made and Ernest does not inspect has the foreign type `Fore
 
 ### 8.4 Values bound to their node
 
-A value crosses to another node as a value, and some cannot: a function, a foreign value, a `Foreign.Term` or an `Ets.Table` of §8.3, a resource, a socket, a listener or a program `Os.start` started, and an address or a reply whose message type holds one of these. Their types are *bound* to the node, and nothing of a bound type leaves it. Every address a program holds of another node's process came from a find or a spawn, and there the compiler refuses what would let a bound value cross: a service at a bound type, a spawn whose function captures a bound value, or one whose type is not known whole, and a spawn whose mailbox type is bound (report §3.11). So a message to another node is of a type that crosses, by construction, and nothing is checked at a `send`.
+A value crosses to another node as a value, and some cannot: a function, a foreign value, a `Foreign.Term` or an `Ets.Table` of §8.3, a resource, a socket, a listener or a program `Os.start` started, and an address or a reply whose message type holds one of these. Their types are *bound* to the node, and nothing of a bound type leaves it. Every address a program holds of another node's process came from a find or a spawn, and there the compiler refuses what would let a bound value cross: a service at a bound type, a spawn or a compute whose function captures a bound value, or one whose type is not known whole, a spawn whose mailbox type is bound, and a compute whose result type is bound or not known whole (report §3.11). So a message to another node is of a type that crosses, by construction, and nothing is checked at a `send`.
 
 The listener below is a resource, so the lambda that captures it cannot be spawned on `alice`:
 

@@ -959,7 +959,9 @@ adapted_fault_test() ->
 %% run takes the next message; the sender goes on. A regression test,
 %% written after the fix (finding W3): the fault killed the target by an
 %% exit signal, which the restart never saw, so the target ended without a
-%% restart and the next message was lost
+%% restart and the next message was lost. The sender waits for what the
+%% worker took before it ends the program, since the program's end would
+%% kill the worker with the message still in its mailbox
 adapted_fault_restarts_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -970,7 +972,7 @@ adapted_fault_restarts_test() ->
                          ern_rt:send(Sender, run),
                          receive
                              {'$ern_fault', Cause} -> ern_rt:fault(Cause);
-                             {took, Taken} -> Self ! {took, Taken}
+                             {took, Taken} -> ern_rt:send(Sender, {took, Taken})
                          end
                      end,
                Worker = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
@@ -981,6 +983,7 @@ adapted_fault_restarts_test() ->
                %% the new run has begun, its mailbox emptied of the old
                receive run -> ok end,
                ern_rt:send(Adapted, 5),
+               receive {took, Taken} -> Self ! {took, Taken} end,
                Self ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
     ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _, _},

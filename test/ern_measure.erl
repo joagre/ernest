@@ -589,7 +589,7 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), load_scenarios(), balancer_scenarios(),
+                  peer_scenarios(), load_scenarios(), placement_scenarios(),
                   proxy_scenarios()]).
 
 dev_null() ->
@@ -881,33 +881,20 @@ load_scenarios() ->
      {<<"Load.memory">>, {fun() -> Load:memory() end, fun() -> erlang:whereis(memsup) end}},
      {<<"Load.disk">>, {fun() -> Load:disk() end, fun() -> erlang:whereis(disksup) end}}].
 
-%% Appendix G.5: a balancer started and ended beside a process spawned and
-%% ended; a pick over a place with a measure, which asks the measure's
-%% process, beside a call that makes a call; serve is the measure's process,
-%% which the pick asks. The measure registers as its process starts, so the
-%% first of a timing's many picks may come before it and go in turn.
-balancer_scenarios() ->
-    Balancer = 'ern@balancer',
-    Measured = Balancer:start(['Here']),
-    _ = ern_rt:spawn(fun() -> Balancer:serve(Measured, 'Here', fun() -> 0.5 end) end,
-                     <<"ern_measure">>),
-    Measure = spawn(fun Answer() -> receive {From, Ref} -> From ! {Ref, 0.5}, Answer() end end),
-    Asker = spawn(fun Ask() ->
-                      receive
-                          {From, Ref} ->
-                              Inner = make_ref(),
-                              Measure ! {self(), Inner},
-                              receive {Inner, Load} -> From ! {Ref, Load} end,
-                              Ask()
-                      end
-                  end),
-    [{<<"Balancer.start">>,
-      {fun() -> ern_rt:kill(Balancer:start(['Here'])) end,
-       fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}},
-     {<<"Balancer.pick">>,
-      {fun() -> Balancer:pick(Measured, 1000) end,
-       fun() -> Ref = make_ref(), Asker ! {self(), Ref}, receive {Ref, _} -> ok end end}},
-     {<<"Balancer.serve">>, {within, <<"Balancer.pick">>}}].
+%% Appendix G.5: a pick over no name, which spawns the process that
+%% gathers and calls it, beside a process spawned that answers and a
+%% receive; a pick over names asks peers, which a run of one node cannot
+%% reach, and `make bench`'s node part measures a utilisation on real nodes.
+placement_scenarios() ->
+    Placement = 'ern@placement',
+    [{<<"Placement.leastBusy">>,
+      {fun() -> Placement:leastBusy([], 1000) end,
+       fun() ->
+           Self = erlang:self(),
+           Ref = make_ref(),
+           _ = spawn(fun() -> Self ! Ref end),
+           receive Ref -> ok end
+       end}}].
 
 %% Appendix G.7: a proxy started and ended, its find answering
 %% at once in a launch that is no node, beside a process spawned and

@@ -663,13 +663,12 @@ debug_information(Dir) ->
 %% report §9.3, §11.2, Appendix G.2, G.4, G.5, G.6, G.7, plan MVP 3.2: every
 %% library's own tests, run by `ern test` over the directory their compiled
 %% modules are under, as the shell's are: the Markdown library's read and
-%% lay out what G.2 says, the Load and Balancer libraries' measure as G.4
-%% and G.5 say, the balancer's measuring process faulting as its test
-%% expects, which the run reports, the JSON library's read and write
-%% what G.6 says, and the proxy's wait for its service as G.7 says. A
-%% regression test too: the modules were run by one command joined with
-%% `&&`, which the host runs by `exec`, so only the first module's tests
-%% ran, and it has none
+%% lay out what G.2 says, the Load library's measure as G.4 says, the
+%% placement's pick over names no peer has and its rule as G.5 says, the
+%% JSON library's read and write what G.6 says, and the proxy's wait for its
+%% service as G.7 says; no test's process faults. A regression test too:
+%% the modules were run by one command joined with `&&`, which the host runs
+%% by `exec`, so only the first module's tests ran, and it has none
 libs_test_() ->
     {timeout, 60, fun libs/0}.
 
@@ -677,14 +676,11 @@ libs() ->
     {Status, Output} = sh("../bin/ern test --load-path ../build/libs/ansi ../build/libs"),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
-    Faulted = [Line || Line <- Lines, binary:match(Line, <<" faulted: ">>) =/= nomatch],
-    ?assertMatch([_], [Line || Line <- Faulted,
-                               binary:match(Line, <<"Balancer.elsewhere:">>) =/= nomatch,
-                               binary:match(Line, <<"is no place of this balancer">>) =/= nomatch]),
+    ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<" faulted: ">>) =/= nomatch]),
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Balancer">>, <<"Json">>, <<"Load">>, <<"Markdown">>, <<"Proxy">>],
-                 Lines -- (Passed ++ Faulted)),
+    ?assertEqual([<<"Json">>, <<"Load">>, <<"Markdown">>, <<"Placement">>, <<"Proxy">>],
+                 Lines -- Passed),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).
 

@@ -748,17 +748,12 @@ Load.memory : () -> Optional(Float) with m+
 Load.disk : () -> Optional(Float) with m+
 ```
 
-### Appendix G.5. `libs/balancer` (namespace `Balancer`)
+### Appendix G.5. `libs/placement` (namespace `Placement`)
 
-Where a program spawns its work, this node or a peer, picked in turn or by each place's measure (§8.7). `start(places)` spawns a balancer over the places, faulting with `Fault("a balancer picks among places, and none was given")` where there is none, and `pick(balancer, ms)` asks it for a place within `ms` milliseconds, `None` where it does not answer in time. The program spawns its work at the place, with `spawn` for `Here` and with `Peer.spawn` for `On(name)` (§3.11). A program installs a measure on a place by spawning there a process that runs `serve(balancer, place, measure)`, `measure` a function the program declares answering a load from 0.0 to 1.0, which registers with the balancer and answers its load when asked; the spawn's lambda captures the balancer's address and the place, and names the measure by its declaration. A pick compares the loads measures answer as they are given. `serve` for a place the balancer was not started over faults its process with `Fault("On(\"elsewhere\") is no place of this balancer")`, the place as `Io.show` writes it. Without a measure the balancer picks its places in turn. With one, a pick draws two of the places that have one at random, asks each for its load within half the pick's time, and takes the lower; a place that does not answer is passed over, and where none answers, the pick takes the next place in turn. A measure ends with its process, but for one whose node is out of reach; a place's later measure replaces its earlier one.
+The least busy of a program's peers, by what each answers of how busy it is (§8.7, Appendix E.27). `leastBusy(names, ms)` asks every name at once, `Peer.utilisation(name, ms)` for each, and answers `Some(name)` for the name whose peer answered the least, the first given where two answered the same, and `None` where none answered, an empty list among them. A name whose ask fails is passed over. Each ask ends within `ms` milliseconds, with the runtime's step of making the attempt beside them (§8.7), and the pick ends when every ask has; it chooses no time of its own. Every name is asked: a program with many peers passes a sample it drew itself. A pick runs in processes of its own, one for each name and one that gathers the answers, which end once the asks have. Another rule is a function beside it, written over `Peer.utilisation`.
 
 ```
-type Place = Here | On(String)
-abstract type Msg // what a balancer takes
-abstract type Measuring // what a measuring process takes
-Balancer.start : (List(Place)) -> Address(Msg) with m+
-Balancer.pick : (Address(Msg), Int) -> Optional(Place) with m+
-Balancer.serve : (Address(Msg), Place, () -> Float with Measuring) -> Unit with Measuring
+Placement.leastBusy : (List(String), Int) -> Optional(String) with n+ // the least busy of the peers named, each asked within the milliseconds
 ```
 
 ### Appendix G.6. `libs/json` (namespace `Json`)

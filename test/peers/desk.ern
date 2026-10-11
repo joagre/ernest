@@ -1,6 +1,6 @@
 // Report §8.7: the desk, which finds the store's services, spawns and
-// computes on it and asks how busy it is, printing what each answers; the
-// test ends the store where it says so.
+// computes on it, asks how busy it is and picks it, printing what each
+// answers; the test ends the store where it says so.
 
 type Msg = Died(Down) | Reported(Process.FaultReport) | Started(String)
 
@@ -14,7 +14,7 @@ export fn main() : Unit with Msg =
       | ["calls"] -> calls()
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
-      | ["balance"] -> balanced()
+      | ["place"] -> placed()
       | ["silence"] -> silenced()
       | ["dial"] -> dialled()
       | ["costs"] -> costs()
@@ -322,35 +322,26 @@ fn reloaded() : Unit with Msg = {
                    <> Io.show(Address.call(again, fn(reply) = Counter.Get(reply = reply), 2000)))
 }
 
-// Appendix G: a balancer over this node and the store, in turn, then by
-// the measures installed on each, the work spawned where it picks; and the
-// loads of the host's services, which the store runs and the desk does not.
-fn balanced() : Unit with Msg = {
-    let balancer = Balancer.start([Balancer.Here, Balancer.On("store")]);
-    Io.println("in turn: "
-                   <> Io.show(#(Balancer.pick(balancer, 1000), Balancer.pick(balancer, 1000))));
-    let _ = Placing.highHere(balancer);
-    Io.println("measured: " <> started(Placing.lowOn(balancer, "store")));
-    registered(balancer, 0);
-    Io.println("picked: the store three times in a row");
-    match Balancer.pick(balancer, 1000) {
-        Some(Balancer.On(name)) -> Io.println("work: " <> started(Work.squareOn(name, 6, 5000)))
-      | _ -> Io.println("work: not on the store")
+// Appendix G.5, G.4: the least busy of the names given: the store, which
+// answers, alone and beside a name no peer has; none of a name no peer has,
+// of the peer gone, whose dial is refused, and of no name; the work computed
+// on the least busy of the desk's peers, or here where none answered, its
+// value the peers of the node it ran on; and the loads of the host's
+// services, which the store runs and the desk does not.
+fn placed() : Unit with Msg = {
+    Io.println("store: " <> Io.show(Placement.leastBusy(["store"], 5000)));
+    Io.println("beside no peer: " <> Io.show(Placement.leastBusy(["nobody", "store"], 5000)));
+    Io.println("no peer: " <> Io.show(Placement.leastBusy(["nobody"], 5000)));
+    Io.println("gone: " <> Io.show(Placement.leastBusy(["gone"], 5000)));
+    Io.println("no name: " <> Io.show(Placement.leastBusy([], 5000)));
+    let computed = match Placement.leastBusy(Peer.peers(), 5000) {
+        Some(name) -> Peer.compute(name, fn() = Peer.peers(), 5000)
+      | None -> Right(Peer.peers())
     };
+    Io.println("computed: " <> Io.show(computed));
     Io.println("loads here: " <> Placing.loads());
     Io.println("loads: " <> started(Placing.loadsOn("store")))
 }
-
-// Until three picks in a row take the store, which they do once its
-// measure, the lower, has registered beside this node's: in turn, two
-// places alternate.
-fn registered(balancer : Address(Balancer.Msg), inARow : Int) : Unit with n =
-    if inARow == 3 then
-        Unit
-    else match Balancer.pick(balancer, 1000) {
-        Some(Balancer.On(_)) -> registered(balancer, inARow + 1)
-      | _ -> registered(balancer, 0)
-    }
 
 // Report §8.7, the proposal's section 4: what a silence ends and what it
 // leaves. Before it, ten thousand messages arrive, none lost and none twice.

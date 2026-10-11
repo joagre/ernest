@@ -49,13 +49,15 @@ stdlib:
 # The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
 # own, compiled into build/libs/<name>, which a program adds with
 # --load-path. libs/ansi is compiled first, since libs/markdown writes
-# its styles with it (report Appendix G.3).
+# its styles with it (report Appendix G.3). A library whose directory is
+# gone has its build removed with it, as the standard library's copies are.
 LIB_PATH = --load-path build/libs/ansi --load-path build/libs/markdown
 libs: stdlib
 	@bin/ern build --source-root libs/ansi --build-root build/libs/ansi libs/ansi
 	@for d in libs/*/; do n=$$(basename $$d); [ $$n = ansi ] && continue; \
 	  bin/ern build --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n $$d \
 	  || exit 1; done
+	@for d in build/libs/*/; do [ -d "libs/$$(basename $$d)" ] || rm -rf "$$d"; done
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ern build into build/shell, where `ern shell` finds it on the code path.
