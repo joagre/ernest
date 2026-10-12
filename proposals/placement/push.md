@@ -70,7 +70,7 @@ fn placed(f : () -> a with m, ms : Int) : Either(Io.Error, a) with n+ =
 
 Three nodes on one machine, `a`, `b` and `c`, each listing the others; from `a`, a burst of a hundred computes of a hundred milliseconds' work, sent as fast as `a` can; then a steady stream, one every fifty milliseconds for a minute. Measured: how the hundred fall over `b` and `c`, and the stream's, under three rules: today's pull, `Placement.leastBusy` before each compute; push by the least loaded; push by two choices over `Peer.loads()`. Beside them, the cost: frames per second and the nodes' idle CPU at an interval of five seconds, for three nodes and, by configuration alone, for ten. The nodes harness of `test/ern_nodes_tests.erl` runs such programs today, and `Peer.utilisation` gives the number the push would carry, so the push can be measured before it is built, by a program that tells and reads its own table in Ernest.
 
-The experiment decides the pick's rule, section 7's first question, and gives item 7 of MVP 3.2 its numbers for the utilisation path.
+The experiment decides the pick's rule, section 7's first question. Item 7 of MVP 3.2 measured the pull on one machine, 2026-10-13: `Peer.utilisation` 144 µs a round trip, `Placement.leastBusy` 233 µs over one peer, 453 over two and 600 over three, a pick over two and the compute after it 814 µs against 166 for the compute alone; the asks of different peers did not overlap, and plain Erlang over the host's distribution showed the same on one machine, so the experiment runs across machines too before the pull's cost is taken as measured. Three idle nodes exchanged the host's ticks alone, about 0.3 packets a second across the three and no frame of Ernest's.
 
 ## 6. What changes in the report
 
