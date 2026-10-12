@@ -1,14 +1,15 @@
 %% Plan, MVP 2.99b's item 10: the program of test/service run under the
-%% host's service manager, as the guide's §9.5 says a program is run, by a
-%% systemd unit on Linux and a launchd agent on macOS. The manager starts
-%% it, stops it, and starts it again after it ends with a status that is
-%% not 0; a stop asked for ends it by its signal (report §8.6, §11.8); and
-%% a fault's line carries one time, the journal's under systemd and its own
-%% in launchd's file (§11.2). `make service` runs the checks, before a
-%% release (docs/release_review.md). They are no part of `make test`, which
-%% a host without a service manager runs too. A stop is asked for only
-%% once the program has said that it started: one that comes in the host's
-%% first fraction of a second is the host's limit (§8.6).
+%% host's service manager, as the deployment guide's section 1.5 says a
+%% node is run, by a systemd unit on Linux and a launchd agent on macOS.
+%% The manager starts it, stops it, and starts it again after it ends with
+%% a status that is not 0; a stop asked for ends it by its signal (report
+%% §8.6, §11.8); and a fault's line carries one time, the journal's under
+%% systemd and its own in launchd's file (§11.2). `make service` runs the
+%% checks, before a release (docs/release_review.md). They are no part of
+%% `make test`, which a host without a service manager runs too. A stop is
+%% asked for only once the program has said that it started: one that
+%% comes in the host's first fraction of a second is the host's limit
+%% (§8.6).
 -module(ern_service_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -103,9 +104,10 @@ with_unit(Arguments, Check) ->
         {0, _} = systemctl("daemon-reload")
     end.
 
-%% The unit the guide's §9.5 writes, for the checks' program, and one line
-%% more, which notes how each run ended: the manager's result, how the
-%% process ended, and its status or its signal.
+%% The unit the deployment guide's section 1.5 writes, for the checks'
+%% program, which is no node and so has no configuration directory to
+%% name nor reload, and one line more, which notes how each run ended: the
+%% manager's result, how the process ended, and its status or its signal.
 unit(Arguments, Ended) ->
     ["[Unit]\n"
      "Description=Ernest's service check\n"

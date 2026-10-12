@@ -1,13 +1,14 @@
 # The tests that span the applications, by area: the programs (the example
 # programs, the signals, the streams, the installation and the release,
-# ern_integration_tests, and the measuring machine's reach over every
-# function, ern_measure_tests), the documents and the style, the guide's
-# examples, the grammar with the programs generated from it, the
-# well-typed programs generated and run, and the shell and the terminal,
-# driven through the pseudo-terminal, which python3 opens since Erlang
-# cannot (ern_pty.py). Beside them, the loads, the service manager's
-# checks and the bench, which a release runs, and the targets that write
-# the catalogue, the contents lists and the layout anew.
+# ern_integration_tests; nodes on one machine, ern_nodes_tests, and the
+# deployment guide run on them, ern_deployment_tests; and the measuring
+# machine's reach over every function, ern_measure_tests), the documents
+# and the style, the guide's examples, the grammar with the programs
+# generated from it, the well-typed programs generated and run, and the
+# shell and the terminal, driven through the pseudo-terminal, which python3
+# opens since Erlang cannot (ern_pty.py). Beside them, the loads, the
+# service manager's checks and the bench, which a release runs, and the
+# targets that write the catalogue, the contents lists and the layout anew.
 
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror
@@ -15,7 +16,7 @@ ERLC_FLAGS = +debug_info -Werror
 # The suites by area (plan, MVP 2.6): `test` runs them all, side by side
 # under `make -j`, and each area has a target of its own for a change that
 # touches it alone.
-PROGRAMS = ern_integration_tests ern_nodes_tests
+PROGRAMS = ern_integration_tests ern_nodes_tests ern_deployment_tests
 # a launch of its own, which shares no host with the programs' runs
 MEASURE = ern_measure_tests
 DOCS = ern_docs_tests ern_style_tests

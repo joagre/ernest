@@ -7,12 +7,19 @@
 %% is a bare `erl` with the host's TLS distribution and the key's files.
 %% `Peer`'s tests run the programs of `test/peers/`, one build whose store
 %% and desk are two nodes; the tests of two builds (MVP 3.1) write a
-%% program and build it twice, one function and one type changed.
+%% program and build it twice, one function and one type changed. A test
+%% that provokes a line the deployment guide quotes holds it to the guide's
+%% (ern_deployment_tests:catalogued/4), and the harness is exported for
+%% ern_deployment_tests, which runs the guide's commands on nodes.
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("typer/include/ern_canonical.hrl").
+
+-export([nodes_test/2, free_port/0, made/3, edit/2, lists/2, name/1, program/1, client/0,
+         client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2,
+         says/3, prints/2, stop/2, written/2, said/1, has/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
@@ -524,7 +531,9 @@ unlisted(Base) ->
     has(OutA, "connect: false"),
     ?assertEqual("", ErrA),
     has(ErrB, "a node with the key " ++ digest(A) ++ " was refused: no peer has its key"),
-    ?assertEqual(nomatch, string:find(ErrB, "TLS")).
+    ?assertEqual(nomatch, string:find(ErrB, "TLS")),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrB, "7", "no peer has its key", [{"b", digest(A)}]).
 
 %% report §8.7: a node accepts a connection from a peer whose key it lists
 %% only under the name that key gives it: a host that holds the key of the
@@ -569,7 +578,11 @@ bound(Base) ->
     has(OwnOut, "connect: true"),
     has(OwnOut, "call: ran"),
     ?assertEqual(nomatch, string:find(OwnOut, "after: ran")),
-    has(OwnOut, "after: ").
+    has(OwnOut, "after: "),
+    {_, ErrA} = said(A),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrA, "7", "gives another name", []),
+    ern_deployment_tests:catalogued(ErrA, "7", "certificate names another host", [{"b", "b"}]).
 
 %% report §8.7: a node it dials must answer under the name it dialled: the
 %% address a lists for the peer b is the port of c, another peer it lists,
@@ -649,7 +662,9 @@ other_floor(Base) ->
             " ern or another major release of OTP"),
     stop(A, WaitA),
     {_, ErrA} = said(A),
-    ?assertEqual(nomatch, string:find(ErrA, "**")).
+    ?assertEqual(nomatch, string:find(ErrA, "**")),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrA, "7", "another floor", [{"b", "b"}]).
 
 %% report §8.7, limit 14 of the proposal: two nodes started from copies of
 %% one directory are one node to their peers; the second's dial ends the
@@ -679,7 +694,9 @@ replaced(Base) ->
     says(B, "the peer a's connection was replaced by another from the same node"),
     [stop(Dir, Wait) || {Dir, Wait} <- [{A, WaitA}, {Copy, WaitCopy}, {B, WaitB}]],
     {_, ErrB} = said(B),
-    has(ErrB, "the peer a's connection was replaced by another from the same node").
+    has(ErrB, "the peer a's connection was replaced by another from the same node"),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrB, "7", "was replaced by another", [{"b", "a"}]).
 
 %% report §8.7: a node whose `listen` names port 0 takes the port the host
 %% picks and says which it bound; a node without `listen` does not listen,
@@ -739,7 +756,9 @@ faulty_frame(Base) ->
     {_, ErrB} = said(B),
     has(ErrB, "a frame that names no peer's process came to the gateway, and was dropped"),
     has(ErrB, "the peer a sent a frame this node cannot read, and its connection was ended"),
-    has(ErrA, "the peer b was lost: it closed").
+    has(ErrA, "the peer b was lost: it closed"),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrA, "7", "it closed", [{"b", "b"}]).
 
 %% report §8.7: a spawn frame whose site is not UTF-8 is a frame the node
 %% cannot read, though the node holds the function it names: the node ends
@@ -936,7 +955,9 @@ carrier_not_started(Base) ->
     has(Said, "Prog.main faulted: the node's carrier did not start: "),
     has(Said, "status 1"),
     ?assertEqual({ok, <<>>}, file:read_file(Out)),
-    ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
+    ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(Said, "7", "carrier did not start", [{"Site", "Prog.main"}]).
 
 %% report §8.6: a node detects no deadlock, since it can be reached from
 %% outside: a node that waits for a message that never comes waits, where
@@ -1219,7 +1240,10 @@ peer_fault(Base) ->
     stop(B, WaitB),
     {_, ErrB} = said(B),
     has(ErrB, "Squares.main:20 faulted, restarted: division by zero, spawned by the peer a\n"),
-    ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")).
+    ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrB, "7", "spawned by the peer",
+                                    [{"Counter.serve:14", "Squares.main:20"}, {"a", "a"}]).
 
 %% The program of two nodes, a and b, each listing the other, a dialling b:
 %% a service on a whose answer is given on b, by a lambda it spawns there
@@ -1713,7 +1737,10 @@ reload(Base) ->
     has(Err, "peer \"broken\"'s public-key is not one public key in PEM"),
     has(Err, "listen cannot change while the node runs"),
     ?assertEqual(nomatch, string:find(Err, "the peer front was lost")),
-    ?assertEqual(nomatch, string:find(StoreOut, "WARNING REPORT")).
+    ?assertEqual(nomatch, string:find(StoreOut, "WARNING REPORT")),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(Err, "7", "was removed", []),
+    ern_deployment_tests:catalogued(Err, "7", "is now named", [{"c", "window"}]).
 
 %% A public key in PEM whose body the host's decoder cannot read: its first
 %% bytes, the key's algorithm, made another DER's.
@@ -2126,7 +2153,24 @@ exchange(Base) ->
     ?assertEqual(2, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.Count")),
-    ?assertEqual(nomatch, string:find(Out, "never run on the receiver")).
+    ?assertEqual(nomatch, string:find(Out, "never run on the receiver")),
+    %% the lines as the deployment guide quotes them, in its catalogue and
+    %% beside a spawn's
+    Peer = {"a", "sender"},
+    ern_deployment_tests:catalogued(ReceiverErr, "7", "has no value here",
+                                    [Peer, {"Site", "Sender.main:13"}, {"Q", "Lacked.note"}]),
+    ern_deployment_tests:catalogued(ReceiverErr, "7", "is not here",
+                                    [Peer, {"Site", "Sender.main:15"}, {"M", "ern_sender_host"},
+                                     {"Q", "Lacked.only"}]),
+    ern_deployment_tests:catalogued(ReceiverErr, "4.3", "has no value here",
+                                    [Peer, {"Counter.main:13", "Sender.main:13"},
+                                     {"Counter.config", "Lacked.note"}]),
+    ern_deployment_tests:catalogued(ReceiverErr, "4.3", "is not here",
+                                    [Peer, {"Counter.main:15", "Sender.main:15"},
+                                     {"counter_host", "ern_sender_host"},
+                                     {"Counter.tick", "Lacked.only"}]),
+    ern_deployment_tests:catalogued(ReceiverErr, "4.3", "has no function",
+                                    [{"tick/0", "ern_absent_function/0"}]).
 
 %% A library whose binding prints as it is evaluated, and a program that
 %% places work on a bare node and ends it, built in Base: the library's
@@ -2820,7 +2864,10 @@ broken_exchange(Base) ->
                  " holds the function's reach",
                  "the peer z sent a frame this node cannot read, and its connection was ended",
                  "'ern$1':'Lost.waits'/0"]],
-    [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["'ern$2'", "could not take"]].
+    [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["'ern$2'", "could not take"]],
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(ErrB, "4.3", "no longer holds the function's reach",
+                                    [{"a", "z"}, {"Counter.main:19", "Lost.z:1"}]).
 
 %% report §11.2, §8.7, Appendix H: a service at a type the session declares
 %% names that type by its hash, as any service does, and the hash is the
@@ -3555,7 +3602,9 @@ end_told_on_a_node(Base) ->
     {DeskOut, _} = said(Desk),
     {_, StoreErr} = said(Store),
     has(DeskOut, "asked: Some(3)"),
-    has(StoreErr, "the subscriber Keeper.main answered").
+    has(StoreErr, "the subscriber Keeper.main answered"),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:catalogued(StoreErr, "7", "the end waits for", []).
 
 %% report §8.6, §11.2: a second termination ends the node at once, past a
 %% subscriber that does not answer, which the node says. Written after the

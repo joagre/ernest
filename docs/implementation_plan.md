@@ -342,32 +342,27 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    `Peer.setUtilisation` and `Peer.loads` to `Peer.utilisations`, since the number told is the
    utilisation and "load" named it a second time beside `Code.load`'s verb and G.4's library (the
    log's *Placing Work by Name*).
-9. **The deployment guide.** `guide/deployment.md`, *Running Ernest*, written whole as a teaching
-   document of its own for the operator, who runs nodes and may write no Ernest, after item 8, so
-   that it teaches the placement that ships; a number it quotes is one machine's until MVP 3.27
-   measures across machines, and says so, since a guide teaches shapes and moves and the log owns
-   the measurements (decided 2026-10-13). Its outline, agreed 2026-10-13 and tightened the same day
-   to the operator's half of each subject, the programmer's half the language guide's chapter 8 with
-   one line pointing there: one node, `ern config`, the directory and `ernest.conf` line by line,
-   `ern run`, `ern stop`, `ern reload`, the pid file, what the node says and its statuses, the
-   service manager, which §9.5 of the language guide holds today and moves here with a pointer; two
-   nodes, keys, certificates, the floor, the handshake, a lost peer on each side and in the program;
-   services and placement as the configuration sees them, the `services`, `utilisation` and
-   `utilisation-interval` entries and the measures, a bare node given its work; code across nodes as
-   the operator meets it, what a node keeps for its life, the counts and the four-fifths line, the
-   restart and what it holds, the `NotLoaded` and `Other` lines and the move for each; builds,
-   several on one floor, two versions of a type, a fix from a shell, and `examples/upgrade_tool.ern`
-   run against a running service, how a service is written to be upgradable being chapter 8's;
-   looking in, a shell beside a running node, `Process.status`, `Peer.utilisation` and `Peer.loads`,
-   the measures, a trace; what a node says and what to do, the catalogue of standard-error lines,
-   each with its cause and the operator's move; and a deployment end to end as a runbook, three
-   nodes on one machine to a rolling upgrade, each command in order, each node's configuration, what
-   each says after each step, the check and what to do where a step fails, run by the tests, while
-   the tour (MVP 3.3) tells the same deployment as a story and points here to operate it; containers
-   and orchestration left out, and the design to the log. Decided 2026-10-13 (the log's *The Report
-   for Code with a Spawn*, and *Later*): no `Code.upgrade`, since the message it would send is the
-   program's own type, which no library function can build at a type, and the two lines show the
-   mechanism whole.
+9. **The deployment guide.** Done 2026-10-13. `guide/deployment.md`, *Running Ernest*, for the
+   operator, written whole and read back by the user: one node, its directory, `ernest.conf` entry
+   by entry, start, reload and stop, statuses and streams, and the service manager, moved here from
+   the language guide's §9.5, which points at it; two nodes, listing each other, the connection and
+   the floor, a lost peer; services and placement as the configuration sees them, the measures and
+   the bare node; code across nodes as the operator meets it, what a node keeps and when to restart,
+   the lines a spawn can leave; builds on one floor, a fix from a shell, a service moved by the
+   upgrade tool; looking in from a shell beside a node, with what an attached shell will add (MVP
+   4.0); the catalogue of what a node says, each line with its cause and the operator's move; and a
+   deployment end to end as a runbook over `examples/upgrade_tool.ern`. The tests run the guide:
+   `test/ern_deployment_tests.erl` reads the guide's consoles and runs sections 1, 5.3 and 8 on real
+   nodes, the runbook step by step with every quoted line checked, the refusals of a held
+   `ernest.pid`, an existing directory and a node's own key, the statuses 0, `Os.exit`'s and 143, a
+   peer frozen until it fell silent, a faulty code frame refused and the four-fifths line over given
+   counts; and a catalogue test holds every line sections 7 and 4.3 quote to a line the nodes tests
+   see, so a changed text in the code fails the guide. Six lines of the draft were corrected to the
+   code's words by it, and the runbook to what the nodes found: `ops` without `listen`, three ports
+   on one machine, a shell started with no file. The guide says which of its commands the tests run
+   and which are shown alone, the service manager's unit and the `kill` lines among the latter, and
+   its numbers are one machine's, said so, until MVP 3.27 (the log's *The Report for Code with a
+   Spawn*).
 10. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
    MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
@@ -447,6 +442,12 @@ another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is t
 follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
 log's *The First Release Is for Others*:
 
+- **`make test` split in two**, taken early, the first commit after MVP 3.2's item 9 (decided
+  2026-10-13): a light run for every commit, the unit, style and documents tests in a few minutes,
+  and the full run as it is, the programs on real nodes, the deployment guide's runbook and the
+  measurements with their slow waits among them, before the commit that closes an item and before a
+  push; the Makefile's targets and CLAUDE.md's rule saying which run guards which commit. The full
+  suite took about twenty minutes by the end of MVP 3.2 and ran ten times on one day.
 - **The full review**, when the user says so: every reader over the whole of its area
   ([`full_review.md`](full_review.md)), the principles reader among them, so that no principles
   review runs beside it (decided 2026-10-13), and its findings worked.

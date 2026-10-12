@@ -35,7 +35,8 @@ LICENSE, THIRD_PARTY_LICENSES  the licence, and the third-party code's
 report/            the report (normative), in three files: language.md, §0 to §10 and
                    Appendices A, B and F; toolchain.md, §11 and Appendices C and H;
                    library.md, Appendices D, E and G
-guide/             the guides: language.md, the language guide
+guide/             the guides: language.md, the language guide, and deployment.md,
+                   Running Ernest, the operator's
 assets/            the logo the README, the guide and a release show, light and dark, the
                    stoat mark alone as a vector and as a
                    512-pixel avatar, and the social preview GitHub's settings take,
@@ -51,10 +52,11 @@ erl/               the toolchain, as Erlang applications: lexer, parser, format,
                    getopt, and json, the primitives of libs/json; each has src/, include/, ebin/ and test/, and the runtime
                    also c_src/, the helper ern_exec's C source, and priv/, where make
                    builds it
-test/              what spans applications: the integration, document, style, guide,
-                   grammar, generated-program, shell and terminal tests, the harnesses
-                   of the loads, the benchmark, the service manager's checks and the
-                   pseudo-terminal, ern_grammar.erl, which reads Appendix A,
+test/              what spans applications: the integration, nodes, deployment guide,
+                   document, style, guide, grammar, generated-program, shell and
+                   terminal tests, the harnesses of the loads, the benchmark, the
+                   service manager's checks and the pseudo-terminal, ern_grammar.erl,
+                   which reads Appendix A,
                    ern_repository.erl, which the document and style tests read the
                    repository through, and the catalogue of diagnostics; target/, the
                    hand-written target modules; programs/, the programs the tests keep:
@@ -101,8 +103,10 @@ make test         build, then every area below, side by side
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the integration tests and nodes on one machine: the programs compiled and run as a user
-                  runs them, the manual pages and the installation, and that the
-                  measuring machine reaches every function of the library
+                  runs them, the deployment guide's commands and its deployment end to
+                  end run on nodes, the lines it quotes held to a node's, the manual
+                  pages and the installation, and that the measuring machine reaches
+                  every function of the library
 make test-docs    the document tests and the style tests
 make test-guide   the guide's examples, the report's, the README's, and the catalogue of
                   diagnostics
