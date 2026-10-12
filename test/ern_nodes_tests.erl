@@ -18,6 +18,8 @@
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
                     || Library <- ["json", "load", "placement", "proxy"]]).
+%% Appendix G.6's library, on the load path of a program that picks a peer.
+-define(PLACEMENT, filename:absname("../build/libs/placement")).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
@@ -305,6 +307,22 @@ shell_started(Dir, SourceRoot, LoadPath) ->
     launched(Dir, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Dir, " --source-root ",
                    SourceRoot, [[" --load-path ", Root] || Root <- LoadPath]]).
 
+%% A bare node, `ern run --config-dir` with no `.erc` (report §8.7, §11.2),
+%% its load path LoadPath's directories; answers what waits for its end.
+bare_started(Dir, LoadPath) ->
+    {_Port, Wait} = launched(Dir, [?ERN, " run --config-dir ", Dir,
+                                   [[" --load-path ", Root] || Root <- LoadPath]]),
+    Wait.
+
+%% The port a node whose `listen` names port 0 bound, once it says so
+%% (report §8.7): the one line a bare node, which runs nothing of its own,
+%% writes as it starts to listen.
+bound_port(Dir) ->
+    says(Dir, "listening on port"),
+    {match, [Port]} = re:run(written(Dir, err), "listening on port ([0-9]+)",
+                             [{capture, all_but_first, list}]),
+    list_to_integer(Port).
+
 %% A node started by the command Words, its standard input the port's
 %% writes.
 launched(Dir, Words) ->
@@ -364,7 +382,11 @@ watching(Streams, Waiting) ->
         {waiting, _, _, _, _} = Wait ->
             told(Streams, [Wait | Waiting]);
         {said, _} = Wait ->
-            told(Streams, [Wait | Waiting])
+            told(Streams, [Wait | Waiting]);
+        {written, Stream, From} ->
+            {Text, _} = maps:get(Stream, Streams),
+            From ! {written, Stream, Text},
+            watching(Streams, Waiting)
     end.
 
 %% The waits answered, the rest kept: a part once its stream holds it as
@@ -426,6 +448,11 @@ terminated(Dir) ->
     {ok, Pid} = file:read_file(filename:join(Dir, "ernest.pid")),
     _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
     ok.
+
+%% What a running node's stream has written so far.
+written(Dir, Stream) ->
+    watcher_name(Dir) ! {written, Stream, self()},
+    receive {written, Stream, Text} -> binary_to_list(Text) end.
 
 %% What a node that has ended wrote, once both its streams have ended.
 said(Dir) ->
@@ -2097,6 +2124,416 @@ exchange(Base) ->
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.Count")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")).
+
+%% A library whose binding prints as it is evaluated, and a program that
+%% places work on a bare node and ends it, built in Base: the library's
+%% root, and the program's `.erc` and source.
+bare_build(Base) ->
+    SharedDir = filename:join(Base, "shared"),
+    ProgramDir = filename:join(Base, "program"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [SharedDir, ProgramDir]],
+    Shared = "// Report §8.5: a library's binding, which a bare node that holds its\n"
+             "// module does not evaluate.\n"
+             "\n"
+             "let greeting : String = {\n"
+             "    Io.println(\"Shared.greeting evaluated\");\n"
+             "    \"hello\"\n"
+             "}\n"
+             "\n"
+             "export fn greet() : Unit with Never = Io.println(greeting)\n",
+    Source = "// Report §8.7: work placed on a bare node, which holds no definition of\n"
+             "// this program's until a spawn or a compute brings it there.\n"
+             "\n"
+             "type Note = Offered\n"
+             "\n"
+             "export fn main() : Unit with Note =\n"
+             "    match Os.arguments {\n"
+             "        [bare] -> placed(bare)\n"
+             "      | [bare, \"exit\"] -> exits(bare)\n"
+             "      | _ -> Unit\n"
+             "    }\n"
+             "\n"
+             "// Spawns, computes, a find, a utilisation and a pick, each answer a line.\n"
+             "fn placed(bare : String) : Unit with Note = {\n"
+             "    let counter = Peer.spawn(bare, fn() : Unit with Int = counts(0), 5000);\n"
+             "    Io.println(\"spawn: \" <> outcome(counter));\n"
+             "    match counter {\n"
+             "        Right(address) -> send(address, 1)\n"
+             "      | Left(_) -> Unit\n"
+             "    };\n"
+             "    Io.println(\"compute: \" <> Io.show(Peer.compute(bare, answer, 5000)));\n"
+             "    Io.println(\"entry shown: \" <> Io.show(Peer.compute(bare, entryShown, 5000)));\n"
+             "    let told = self();\n"
+             "    let offering = Peer.spawn(bare, fn() : Unit with Int = offers(told), 5000);\n"
+             "    Io.println(\"offering: \" <> outcome(offering));\n"
+             "    match offering {\n"
+             "        Right(_) -> receive {\n"
+             "            Offered -> Unit\n"
+             "        }\n"
+             "      | Left(_) -> Unit\n"
+             "    };\n"
+             "    let service : Peer.Service(Int) = Peer.service(\"counter\");\n"
+             "    match Peer.find(service, 5000) {\n"
+             "        Right(address) -> {\n"
+             "            send(address, 7);\n"
+             "            Io.println(\"found: Right\")\n"
+             "        }\n"
+             "      | Left(failure) -> Io.println(\"found: \" <> Io.show(failure))\n"
+             "    };\n"
+             "    let utilisation = match Peer.utilisation(bare, 5000) {\n"
+             "        Right(_) -> \"Right\"\n"
+             "      | Left(failure) -> Io.show(failure)\n"
+             "    };\n"
+             "    Io.println(\"utilisation: \" <> utilisation);\n"
+             "    Io.println(\"least busy: \" <> Io.show(Placement.leastBusy([bare], 5000)));\n"
+             "    Io.println(\"binding: \" <> outcome(Peer.spawn(bare, Shared.greet, 5000)));\n"
+             "    Io.println(\"divides: \" <> outcome(Peer.spawn(bare, divides, 5000)));\n"
+             "    Io.println(\"raises: \" <> outcome(Peer.spawn(bare, raises, 5000)));\n"
+             "    Io.println(\"raises again: \" <> outcome(Peer.spawn(bare, raises, 5000)))\n"
+             "}\n"
+             "\n"
+             "// Report §8.6: the bare node ended by a process spawned on it, once it\n"
+             "// is sent the status.\n"
+             "fn exits(bare : String) : Unit with Note =\n"
+             "    match Peer.spawn(bare, exiting, 5000) {\n"
+             "        Right(address) -> {\n"
+             "            send(address, 3);\n"
+             "            Io.println(\"exit: Right\")\n"
+             "        }\n"
+             "      | Left(failure) -> Io.println(\"exit: \" <> Io.show(failure))\n"
+             "    }\n"
+             "\n"
+             "fn exiting() : Unit with Int = receive {\n"
+             "    status -> Os.exit(status)\n"
+             "}\n"
+             "\n"
+             "fn counts(total : Int) : Unit with Int = receive {\n"
+             "    n -> {\n"
+             "        Io.println(\"counted \" <> Int.toString(total + n));\n"
+             "        counts(total + n)\n"
+             "    }\n"
+             "}\n"
+             "\n"
+             "fn answer() : Int = 6 * 7\n"
+             "\n"
+             "// Whether the bare node's entry process is among its live processes, by\n"
+             "// its site.\n"
+             "fn entryShown() : Bool with m = {\n"
+             "    let sites = List.filterMap(Process.live(), fn(process) =\n"
+             "        Optional.map(Process.status(process), fn(status) = status.site));\n"
+             "    List.contains(sites, \"bare node\")\n"
+             "}\n"
+             "\n"
+             "fn offers(told : Address(Note)) : Unit with Int = {\n"
+             "    let service : Peer.Service(Int) = Peer.service(\"counter\");\n"
+             "    match Peer.offer(service, self()) {\n"
+             "        Right(_) -> send(told, Offered)\n"
+             "      | Left(_) -> Io.println(\"held already\")\n"
+             "    };\n"
+             "    counts(0)\n"
+             "}\n"
+             "\n"
+             "fn divides() : Unit with Never = {\n"
+             "    let _ = 1 / List.size([]);\n"
+             "    Unit\n"
+             "}\n"
+             "\n"
+             "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+             "\n"
+             "fn raises() : Unit with Never = Io.println(Int.toString(parsed(\"x\")))\n"
+             "\n"
+             "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
+             "    match spawned {\n"
+             "        Right(_) -> \"Right\"\n"
+             "      | Left(failure) -> Io.show(failure)\n"
+             "    }\n",
+    [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
+     || {Dir, File, Text} <- [{SharedDir, "shared.ern", Shared}, {ProgramDir, "bare.ern", Source}]],
+    0 = ern_cli:ern(["build", SharedDir], group_leader()),
+    0 = ern_cli:ern(["build", "--load-path", SharedDir, "--load-path", ?PLACEMENT, ProgramDir],
+                    group_leader()),
+    {SharedDir, filename:join(ProgramDir, "bare.erc"), Source}.
+
+%% The number of the first line of Text that holds Part.
+line_of(Text, Part) ->
+    Lines = string:split(Text, "\n", all),
+    length(lists:takewhile(fun(Line) -> string:find(Line, Part) =:= nomatch end, Lines)) + 1.
+
+%% report §8.7, §8.1, §8.5, §8.6, §11.2, §11.8, Appendix E.21, E.27, G.6: a
+%% bare node, `ern run --config-dir` with no `.erc`, listening on the port
+%% the host picks, holds none of the program's definitions: a peer's spawn
+%% of the program's function runs there with its code crossed, and takes
+%% the peer's messages; a compute answers its value; a process spawned
+%% there offers a service, which the peer finds and sends to; its
+%% utilisation answers, and `Placement.leastBusy` picks it; a library on its
+%% load path is loaded and its binding not evaluated, so a spawn whose reach
+%% names the binding is NotLoaded, the node saying so; a fault in received
+%% code is reported there at the spawn's site, the sender's, with the peer
+%% that spawned it; a function that crossed with the first lambda's
+%% enclosing definition ships nothing at its own spawns, the traces of both
+%% its faults naming the unit that definition was loaded in; the entry
+%% process is among its live processes, under the site `bare node`; `ern
+%% stop` ends it by termination, with nothing said of its entry process and
+%% its ernest.pid gone; and started again, a process spawned there that
+%% calls `Os.exit(3)` ends it with status 3. The lambdas are written in the
+%% definition that spawns everything else, whose references cross with
+%% them, a function that calls a foreign function among them. Written after
+%% the code
+bare_node_test_() ->
+    nodes_test(120, fun bare_node/1).
+
+bare_node(Base) ->
+    {SharedDir, Program, Source} = bare_build(Base),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
+    WaitB = bare_started(B, [SharedDir]),
+    lists(A, [{"b", B, bound_port(B)}]),
+    Placing = [?ERN, " run --config-dir ", A, " --load-path ", SharedDir, " --load-path ",
+               ?PLACEMENT, " ", Program, " b"],
+    {_, WaitA} = launched(A, Placing),
+    ?assertEqual(0, WaitA()),
+    Site = fun(Part) -> "Bare.placed:" ++ integer_to_list(line_of(Source, Part)) end,
+    Raised = " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg, spawned"
+             " by the peer a\n",
+    [says(B, Line)
+     || Line <- ["the peer a's spawn at " ++ Site("Shared.greet") ++ " was not loaded: the"
+                 " binding Shared.greeting has no value here",
+                 Site("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
+                 Site("\"raises: \"") ++ Raised, Site("\"raises again: \"") ++ Raised]],
+    [prints(B, Line) || Line <- ["counted 1", "counted 7"]],
+    ?assertMatch({0, _}, signalled("stop", B)),
+    ?assertEqual(143, WaitB()),
+    {Out, _} = said(A),
+    {OutB, ErrB} = said(B),
+    [has(Out, Line)
+     || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
+                 "offering: Right", "found: Right", "utilisation: Right",
+                 "least busy: Some(\"b\")", "binding: NotLoaded", "divides: Right",
+                 "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
+    ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
+    {match, [[First], [Second]]} = re:run(ErrB, "'(ern\\$[0-9]+)':'Bare\\.raises'/0",
+                                          [global, {capture, all_but_first, list}]),
+    ?assertEqual(First, Second),
+    [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["killed", "bare node"]],
+    ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))),
+    %% started again, ended by a process spawned there
+    WaitExit = bare_started(B, [SharedDir]),
+    lists(A, [{"b", B, bound_port(B)}]),
+    {_, WaitExiting} = launched(A, [Placing, " exit"]),
+    ?assertEqual(0, WaitExiting()),
+    ?assertEqual(3, WaitExit()),
+    {OutExiting, _} = said(A),
+    {_, ErrExit} = said(B),
+    has(OutExiting, "exit: Right"),
+    ?assertEqual(nomatch, string:find(ErrExit, "faulted")),
+    ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))).
+
+%% report §8.7, §11.2, §7.4, §11.8: a bare node whose `ernest.conf` has no
+%% `listen` is refused at its start, as the launcher's second start says
+%% it, and writes no ernest.pid; and one whose carrier cannot start, its
+%% port taken, ends with its entry process's fault under the site `bare
+%% node`, with status 1. Written after the code
+bare_node_refused_test_() ->
+    nodes_test(60, fun bare_node_refused/1).
+
+bare_node_refused(Base) ->
+    C = made(Base, "c", none),
+    Refused = os:cmd(?ERN ++ " run --config-dir " ++ C ++ " 2>&1; echo status $?"),
+    has(Refused, "ern run: a bare node listens: " ++ filename:join(C, "ernest.conf")
+                 ++ " has no listen\nstatus 1"),
+    ?assertNot(filelib:is_file(filename:join(C, "ernest.pid"))),
+    {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Held),
+    D = made(Base, "d", Port),
+    Taken = os:cmd(?ERN ++ " run --config-dir " ++ D ++ " 2>&1; echo status $?"),
+    ok = gen_tcp:close(Held),
+    has(Taken, "bare node faulted: the node's carrier did not start: "),
+    has(Taken, "status 1"),
+    ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
+
+%% report §8.7, §8.4, Appendix E.27: a lambda crosses as the definition
+%% that encloses it, and what that definition names beyond the lambda's
+%% reach and the bare node lacks is linked there to a fault that names it:
+%% a lambda written beside a program binding and a foreign function over a
+%% module the bare node has, and one beside a foreign function over a
+%% module it lacks, each spawns there and runs; and a spawn of either
+%% enclosing definition, which the node then holds, is NotLoaded, the node
+%% naming the binding and the module, the second by the declaration the
+%% unit recorded as the code arrived. A regression test, written with the
+%% fix: MVP 3.2's item 5 found each such lambda's spawn answered `Other`,
+%% the binding refused and the foreign function undeclared, and then the
+%% held definition's line naming the foreign function and not its module.
+%% It does not cover a module that is here without the function, which
+%% ern_exchange_tests' not_loaded_from_reach_test covers before code
+%% crosses
+beyond_reach_test_() ->
+    nodes_test(90, fun beyond_reach/1).
+
+beyond_reach(Base) ->
+    Root = filename:join(Base, "probe"),
+    ok = filelib:ensure_path(Root),
+    Source = "// Report §8.7: lambdas spawned on a bare node from definitions that name\n"
+             "// what the bare node lacks and the lambdas do not.\n"
+             "\n"
+             "let config : Int = 5\n"
+             "\n"
+             "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+             "\n"
+             "foreign fn only() : Unit with m = \"ern_probe_host:only/0\"\n"
+             "\n"
+             "export fn main() : Unit with Never = {\n"
+             "    valued();\n"
+             "    Io.println(\"valued itself: \" <> outcome(Peer.spawn(\"b\", valued, 5000)));\n"
+             "    beside();\n"
+             "    Io.println(\"beside itself: \" <> outcome(Peer.spawn(\"b\", beside, 5000)))\n"
+             "}\n"
+             "\n"
+             "// A lambda that uses neither the binding nor the foreign function\n"
+             "// its definition names.\n"
+             "fn valued() : Unit with Never = {\n"
+             "    Io.println(\"config: \" <> Int.toString(config + parsed(\"1\")));\n"
+             "    let lambda = fn() : Unit with Never = Io.println(\"the lambda ran\");\n"
+             "    Io.println(\"valued: \" <> outcome(Peer.spawn(\"b\", lambda, 5000)))\n"
+             "}\n"
+             "\n"
+             "// A lambda beside a foreign function whose module the bare node lacks.\n"
+             "fn beside() : Unit with Never = {\n"
+             "    only();\n"
+             "    let lambda = fn() : Unit with Never = Io.println(\"the other lambda ran\");\n"
+             "    Io.println(\"beside: \" <> outcome(Peer.spawn(\"b\", lambda, 5000)))\n"
+             "}\n"
+             "\n"
+             "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
+             "    match spawned {\n"
+             "        Right(_) -> \"Right\"\n"
+             "      | Left(failure) -> Io.show(failure)\n"
+             "    }\n",
+    ok = file:write_file(filename:join(Root, "probe.ern"), unicode:characters_to_binary(Source)),
+    Host = filename:join(Root, "ern_probe_host.erl"),
+    ok = file:write_file(Host, <<"-module(ern_probe_host).\n-export([only/0]).\n"
+                                 "only() -> 'Unit'.\n">>),
+    {ok, _} = compile:file(Host, [{outdir, Root}]),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    WaitB = bare_started(B, []),
+    lists(A, [{"b", B, bound_port(B)}]),
+    ?assertEqual(0, (start(A, filename:join(Root, "probe.erc"), []))()),
+    [prints(B, Line) || Line <- ["the lambda ran", "the other lambda ran"]],
+    Site = fun(Part) -> "Probe.main:" ++ integer_to_list(line_of(Source, Part)) end,
+    [says(B, Line)
+     || Line <- ["the peer a's spawn at " ++ Site("\"valued itself: \"") ++ " was not loaded:"
+                 " the binding Probe.config has no value here",
+                 "the peer a's spawn at " ++ Site("\"beside itself: \"") ++ " was not loaded:"
+                 " the module ern_probe_host, which Probe.only calls, is not here"]],
+    stop(B, WaitB),
+    {Out, _} = said(A),
+    {_, ErrB} = said(B),
+    [has(Out, Line)
+     || Line <- ["config: 6", "valued: Right", "valued itself: NotLoaded", "beside: Right",
+                 "beside itself: NotLoaded"]],
+    [?assertEqual(nomatch, string:find(ErrB, Part))
+     || Part <- ["could not take", "this node does not have"]].
+
+%% report §8.7, §11.2, §8.4: a node ships onward as its own what it
+%% received, a definition linked to a fault for a foreign function it
+%% lacks among it: a lambda spawned on the bare node b, which lacks the
+%% module of a foreign function its enclosing definition reaches, spawns
+%% two lambdas of that definition on the bare nodes c1, which has the
+%% module, and c2, which lacks it, and each runs there, the definition and
+%% its references crossing from b in code frames b makes of what it holds,
+%% the declaration from what b recorded as the code arrived; then a spawn
+%% from a of the function that calls the foreign function, which each node
+%% holds by then, runs on c1, through the function c1 made of b's
+%% declaration, and is NotLoaded on b and on c2, each naming the module. A
+%% regression test, written with the fix (MVP 3.2's item 5); it does not
+%% cover a group relayed whole, nor a node asked for the reach of a lacked
+%% foreign function spawned by its name, which it answers none as it holds
+%% nothing it could run
+relay_test_() ->
+    nodes_test(120, fun relay/1).
+
+relay(Base) ->
+    Root = filename:join(Base, "relay"),
+    HostDir = filename:join(Base, "relayhost"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, HostDir]],
+    Source = "// Report §8.7: code relayed from a bare node to two more.\n"
+             "\n"
+             "type Note = Relayed\n"
+             "\n"
+             "foreign fn only() : Unit with m = \"ern_relay_host:only/0\"\n"
+             "\n"
+             "export fn main() : Unit with Note = {\n"
+             "    let told = self();\n"
+             "    let relay = fn() : Unit with Never = {\n"
+             "        let first = fn() : Unit with Never = Io.println(\"relayed to c1\");\n"
+             "        Io.println(\"c1: \" <> outcome(Peer.spawn(\"c1\", first, 5000)));\n"
+             "        let second = fn() : Unit with Never = Io.println(\"relayed to c2\");\n"
+             "        Io.println(\"c2: \" <> outcome(Peer.spawn(\"c2\", second, 5000)));\n"
+             "        send(told, Relayed)\n"
+             "    };\n"
+             "    match Peer.spawn(\"b\", relay, 5000) {\n"
+             "        Right(_) -> receive {\n"
+             "            Relayed -> Io.println(\"b: Right\")\n"
+             "        }\n"
+             "      | Left(failure) -> Io.println(\"b: \" <> Io.show(failure))\n"
+             "    };\n"
+             "    Io.println(\"held on b: \" <> outcome(Peer.spawn(\"b\", usesOnly, 5000)));\n"
+             "    Io.println(\"held on c1: \" <> outcome(Peer.spawn(\"c1\", usesOnly, 5000)));\n"
+             "    Io.println(\"held on c2: \" <> outcome(Peer.spawn(\"c2\", usesOnly, 5000)))\n"
+             "}\n"
+             "\n"
+             "// A function that calls a foreign function whose module a and c1 hold.\n"
+             "fn usesOnly() : Unit with Never = {\n"
+             "    only();\n"
+             "    Io.println(\"only ran\")\n"
+             "}\n"
+             "\n"
+             "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
+             "    match spawned {\n"
+             "        Right(_) -> \"Right\"\n"
+             "      | Left(failure) -> Io.show(failure)\n"
+             "    }\n",
+    ok = file:write_file(filename:join(Root, "relay.ern"), unicode:characters_to_binary(Source)),
+    Host = filename:join(HostDir, "ern_relay_host.erl"),
+    ok = file:write_file(Host, <<"-module(ern_relay_host).\n-export([only/0]).\n"
+                                 "only() -> 'Unit'.\n">>),
+    {ok, _} = compile:file(Host, [{outdir, HostDir}]),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    A = made(Base, "a", none),
+    [B, C1, C2] = [made(Base, Name, 0) || Name <- ["b", "c1", "c2"]],
+    [lists(C, [{"a", A, none}, {"b", B, none}]) || C <- [C1, C2]],
+    {WaitC1, WaitC2} = {bare_started(C1, [HostDir]), bare_started(C2, [])},
+    {PortC1, PortC2} = {bound_port(C1), bound_port(C2)},
+    lists(B, [{"a", A, none}, {"c1", C1, PortC1}, {"c2", C2, PortC2}]),
+    WaitB = bare_started(B, []),
+    lists(A, [{"b", B, bound_port(B)}, {"c1", C1, PortC1}, {"c2", C2, PortC2}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --load-path ", HostDir, " ",
+                              filename:join(Root, "relay.erc")]),
+    ?assertEqual(0, WaitA()),
+    [prints(C, Line) || {C, Line} <- [{C1, "relayed to c1"}, {C2, "relayed to c2"},
+                                      {C1, "only ran"}]],
+    Lacked = fun(Part) ->
+                 "the peer a's spawn at Relay.main:" ++ integer_to_list(line_of(Source, Part))
+                     ++ " was not loaded: the module ern_relay_host, which Relay.only calls, is"
+                        " not here"
+             end,
+    says(B, Lacked("\"held on b: \"")),
+    says(C2, Lacked("\"held on c2: \"")),
+    [stop(Dir, Wait) || {Dir, Wait} <- [{B, WaitB}, {C1, WaitC1}, {C2, WaitC2}]],
+    {Out, _} = said(A),
+    {OutB, ErrB} = said(B),
+    [{_, ErrC1}, {_, ErrC2}] = [said(C) || C <- [C1, C2]],
+    [has(Out, Line)
+     || Line <- ["b: Right", "held on b: NotLoaded", "held on c1: Right",
+                 "held on c2: NotLoaded"]],
+    [has(OutB, Line) || Line <- ["c1: Right", "c2: Right"]],
+    [?assertEqual(nomatch, string:find(Err, Part))
+     || Err <- [ErrB, ErrC1, ErrC2], Part <- ["could not take", "this node does not have",
+                                               "no longer holds"]].
 
 %% report §11.2, §8.7, Appendix H: a service at a type the session declares
 %% names that type by its hash, as any service does, and the hash is the

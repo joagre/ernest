@@ -12,6 +12,7 @@
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
+-include("ern_node.hrl").
 
 %%
 %% Entry
@@ -138,7 +139,7 @@ jobs() ->
     [{"build", build_options(), "file.ern | src-dir", fun build/3},
      {"doc", doc_options(), "file.ern | file.erc | src-dir", fun doc/3},
      {"format", format_options(), "path...", fun format/3},
-     {"run", run_options(), "file.erc [argument]...", fun run/3},
+     {"run", run_options(), "[file.erc [argument]...]", fun run/3},
      {"test", test_options(), "file.erc | dir", fun test/3},
      {"shell", shell_options(), "[file.erc]", fun shell/3},
      {"config", config_options(), "", fun config/3},
@@ -694,12 +695,17 @@ run(Options, [File | Words], ErrorDevice) ->
     {Namespace, LoadPath, Loaded} = program(File, Options),
     as_node(Options, LoadPath,
             fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
-run(Options, [], _ErrorDevice) ->
-    %% report §11.2: a node without a program is MVP 3.2's
-    is_node(Options)
-        andalso ern_build:fail("a node runs a program: ern run --config-dir dir prog.erc; a node"
-                               " without one arrives in MVP 3.2"),
-    usage_fail("one .erc file argument is required").
+run(Options, [], ErrorDevice) ->
+    %% report §11.2: `--config-dir` makes a run a node, and a node with no
+    %% `.erc` is a bare node; a run that is no node runs a program
+    is_node(Options) orelse usage_fail("one .erc file argument is required"),
+    %% report §8.1, §11.2: --main names a function of the file, and a bare
+    %% node has no entry point
+    not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(run)),
+    quiet_signals(),
+    LoadPath = ern_build:load_path(Options),
+    host_path(LoadPath),
+    as_node(Options, LoadPath, bare, fun(Node) -> run_bare(ErrorDevice, Node) end).
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
 %% UTF-8 text, one that is not UTF-8 refused by its position before
@@ -709,6 +715,24 @@ program_arguments([], _Position) ->
 program_arguments([Word | Words], Position) ->
     is_utf8(Word) orelse ern_build:fail(io_lib:format("argument ~B is not UTF-8", [Position])),
     [word_bytes(Word) | program_arguments(Words, Position + 1)].
+
+%% Report §8.1, §8.5, §8.6, §8.7, §11.8: a bare node's run. Its entry
+%% process evaluates the standard library's bindings, which the runtime
+%% evaluates in every run, and no other, its `init` saying the host's limits
+%% alone, then listens and waits; the node ends by termination, by an
+%% `Os.exit` a process spawned on it calls, or by a stream that can no
+%% longer be written, each ending it as it ends a program. Report §8.1,
+%% §6.9: its entry process's site is `bare node`.
+run_bare(ErrorDevice, Node) ->
+    RunOptions = reporting_options(maps:merge(#{init => fun say_limits/0}, Node), ErrorDevice),
+    report_outcome(ErrorDevice, ern_rt:run_main(fun waits/0, <<"bare node">>, RunOptions)).
+
+%% Report §8.1, §8.6: a bare node's entry process does not return: it waits
+%% for the node's end, which ends it with every other process, and no
+%% process has its address to send it anything.
+-spec waits() -> no_return().
+waits() ->
+    receive after infinity -> ok end.
 
 %% Report §11.2: the tests of a module, or of every module under a
 %% directory.
@@ -812,7 +836,7 @@ shell(Options, Rest, ErrorDevice) ->
         case Rest of
             [] ->
                 %% report §11.2: --main names a function of the file
-                not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file()),
+                not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(shell)),
                 host_path(ern_build:load_path(Options)),
                 ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
                                          source_root = ern_build:source_root(Options, ".", "."),
@@ -857,38 +881,65 @@ is_node(Options) ->
 %% ways; a run without it is no node. Where the launcher asks for the
 %% host's flags (node_flags/0), they are answered and nothing runs.
 as_node(Options, LoadPath, Run) ->
-    case {proplists:get_value(config_dir, Options), persistent_term:get({?MODULE, flags}, false)} of
-        {undefined, _} ->
+    as_node(Options, LoadPath, program, Run).
+
+%% The same, Holds bare for `ern run`'s bare node, which is refused where
+%% it does not listen (§8.7, §11.2) before the host's flags are answered,
+%% so that the launcher's second start says the refusal, and program for
+%% every other node. Report §8.7, §11.2: a shell's with no `.erc` is a bare
+%% node with a prompt, which dials from its prompt and is not refused
+%% without `listen`.
+as_node(Options, LoadPath, Holds, Run) ->
+    case proplists:get_value(config_dir, Options) of
+        undefined ->
             Run(#{});
-        {ConfigDir, true} ->
-            throw({node_flags, ern_carrier:boot_flags(ern_node:read(ConfigDir))});
-        {ConfigDir, false} ->
+        ConfigDir ->
             %% the configuration is read first: one the first start could not
             %% read gave it no flags, and its refusal is what is said
             Read = ern_node:read(ConfigDir),
-            ern_carrier:booted()
-                orelse ern_build:fail("the host was not started as a node, which ern does where"
-                                      " the command line holds --config-dir"),
-            Configuration = ern_node:start(ConfigDir, Read),
-            try
-                %% report §8.7: a node carries the whole build, so that a
-                %% function a peer spawns finds its code; nothing of it is
-                %% initialized because a peer asked
-                whole_build(LoadPath),
-                %% report §8.7: its peers listed from its start, so that a
-                %% find or a spawn in an initializer is a peer's, which no
-                %% connection reaches yet
-                ok = ern_carrier:list(Configuration),
-                Run(#{node => fun() -> ern_carrier:start(Configuration) end})
-            after
-                %% report §8.7: a node stops in order, then its ernest.pid goes
-                ern_carrier:depart(),
-                ern_node:stop(ConfigDir)
+            listens(Holds, ConfigDir, Read),
+            case persistent_term:get({?MODULE, flags}, false) of
+                true -> throw({node_flags, ern_carrier:boot_flags(Read)});
+                false -> run_node(ConfigDir, Read, LoadPath, Run)
             end
     end.
 
-no_main_file() ->
-    "--main names the function to spawn from the file the shell loads, and no file is given".
+%% Report §8.7, §11.2: a bare node listens, since it never dials, and one
+%% whose `ernest.conf` has no `listen` is refused at its start.
+listens(bare, ConfigDir, #configuration{listen = none}) ->
+    ern_build:fail("a bare node listens: " ++ ern_build:shown(ern_node:file(ConfigDir, conf))
+                   ++ " has no listen");
+listens(_Holds, _ConfigDir, _Configuration) ->
+    ok.
+
+%% A node's run, from its configuration read.
+run_node(ConfigDir, Read, LoadPath, Run) ->
+    ern_carrier:booted()
+        orelse ern_build:fail("the host was not started as a node, which ern does where"
+                              " the command line holds --config-dir"),
+    Configuration = ern_node:start(ConfigDir, Read),
+    try
+        %% report §8.7: a node carries the whole build, so that a function a
+        %% peer spawns finds its code; nothing of it is initialized because
+        %% a peer asked
+        whole_build(LoadPath),
+        %% report §8.7: its peers listed from its start, so that a find or a
+        %% spawn in an initializer is a peer's, which no connection reaches
+        %% yet
+        ok = ern_carrier:list(Configuration),
+        Run(#{node => fun() -> ern_carrier:start(Configuration) end})
+    after
+        %% report §8.7: a node stops in order, then its ernest.pid goes
+        ern_carrier:depart(),
+        ern_node:stop(ConfigDir)
+    end.
+
+%% Report §11.2: `--main` names a function of the file the job is given, and
+%% none is.
+no_main_file(shell) ->
+    "--main names the function to spawn from the file the shell loads, and no file is given";
+no_main_file(run) ->
+    "--main names the entry point of the file run, and no file is given; a bare node has none".
 
 %% Report §11.2: every fault on standard error as it happens, a line each:
 %% the spawn site and the cause; after the cause, for a process a peer

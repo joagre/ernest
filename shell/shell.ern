@@ -371,7 +371,7 @@ fn trouble(error : Io.Error) : String =
       | Io.Unreachable -> "the peer could not be reached"
       | Io.NotOffered -> "the peer offers nothing under the name"
       | Io.OtherType -> "the peer offers it at another type"
-      | Io.NotLoaded -> "the peer does not have the module"
+      | Io.NotLoaded -> "the peer lacks a binding's value or a module the function calls"
       | Io.Other(text) -> text
     }
 

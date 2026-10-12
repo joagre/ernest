@@ -32,7 +32,10 @@
 %% each with its source's lines, its name and its printing; its foreign
 %% declarations, in the order declared, each {QualifiedName, Scheme,
 %% HostModule, HostFunction, Printing}, the scheme as a form writes it
-%% (Appendix H), which no form holds; and its top-level bindings' qualified
-%% names in the order §8.5 evaluates them
+%% (Appendix H), which no form holds, the module and the function atoms,
+%% but in a unit an exchange made, which records every declaration its
+%% reach and its code frames carried, text for one the node holds no atom
+%% of, the call linked to a fault (§8.7); and its top-level bindings'
+%% qualified names in the order §8.5 evaluates them
 
 -endif.

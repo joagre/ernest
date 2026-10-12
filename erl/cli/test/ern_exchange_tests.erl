@@ -33,8 +33,9 @@
 %% lacks with a code frame for each, a group in one, dependencies first,
 %% each the bytes its hashes are taken of, with the hashes its forms
 %% reference and each member's name and form with the lines of its source,
-%% the locals' names left out. A function or a definition it holds nowhere
-%% is a reach of none
+%% the locals' names left out, and the foreign declarations its form calls
+%% with the host's module and function. A function or a definition it
+%% holds nowhere is a reach of none
 reach_test() ->
     {Unit, Beam, Defined} = compiled(['Exreach'], ?REACHED),
     File = filename:join(scratch_dir(), "exreach.erc"),
@@ -61,7 +62,7 @@ reach_test() ->
                Lacks = [Asked({lacks, ref, Hashes})
                         || Hashes <- [[Hash(work), Hash(area), Hash(isEven), Hash(isOdd),
                                        Hash('Shape')],
-                                      [Hash(isOdd)], [<<2:256>>]]],
+                                      [Hash(isOdd)], [<<2:256>>], [Hash(timed)]]],
                Self ! {asked, Reaches, Lacks}
            end,
     try
@@ -81,7 +82,7 @@ reach_test() ->
         [[{reach, _, Work, [{_, SideHash}], []}], [{reach, _, [Timed], _, _}] | _] = Reaches,
         ?assertEqual(Hash(side), SideHash),
         ?assertEqual(Hash(timed), Timed),
-        [Frames, [Group], [None]] = Lacks,
+        [Frames, [Group], [None], [TimedFrame]] = Lacks,
         ?assertEqual({reach, none}, {element(1, None), element(3, None)}),
         %% the group crosses whole, its members in source order, wherever it
         %% is lacked
@@ -102,21 +103,31 @@ reach_test() ->
              {ok, Forms} = ern_canonical:verified(Hashes, Bytes),
              ?assertEqual(referenced(Forms), References),
              Sourced = binary_to_term(Sources),
-             ?assertEqual(Forms, [ern_canonical:stripped(Source) || {_, Source, _} <- Sourced]),
-             ?assertEqual([], [Name || {_, Source, _} <- Sourced, Name <- local_names(Source)]),
+             ?assertEqual(Forms, [ern_canonical:stripped(Source)
+                                  || {_, Source, _, _} <- Sourced]),
+             ?assertEqual([], [Name || {_, Source, _, _} <- Sourced,
+                                       Name <- local_names(Source)]),
              %% report §8.7, §11.5: what prints a type as the module writes it
-             ?assertEqual([{[<<"Exreach">>], []}], lists:usort([P || {_, _, P} <- Sourced]))
+             ?assertEqual([{[<<"Exreach">>], []}], lists:usort([P || {_, _, P, _} <- Sourced])),
+             %% report §8.7: none of them calls a foreign function
+             ?assertEqual([[]], lists:usort([Calls || {_, _, _, Calls} <- Sourced]))
          end || {code_frame, _, Hashes, Bytes, References, Sources} <- [Group | Frames]],
         [{code_frame, _, _, _, WorkReferences, WorkSources}] =
             [Frame || {code_frame, _, [Of], _, _, _} = Frame <- Frames, Of =:= Hash(work)],
         ?assert(lists:member(Hash(side), WorkReferences)),
         %% report §8.7: the definition's name as text and its source's lines
-        [{WorkName, {'$at', {WorkLine, _, none}, _}, _}] = binary_to_term(WorkSources),
+        [{WorkName, {'$at', {WorkLine, _, none}, _}, _, _}] = binary_to_term(WorkSources),
         ?assertEqual({[<<"Exreach">>, <<"work">>], 8}, {WorkName, WorkLine}),
         [{'$at', {OddLine, _, none}, _}] =
-            [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _}
+            [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _, _}
                            <- binary_to_term(element(6, Group))],
-        ?assertEqual(6, OddLine)
+        ?assertEqual(6, OddLine),
+        %% report §8.7: a definition that calls a foreign function carries
+        %% its declaration's host module and function beside its form
+        ?assertMatch([{[<<"Exreach">>, <<"timed">>], _, {[<<"Exreach">>], []},
+                       [{[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
+                         {[<<"Exreach">>], []}}]}],
+                     binary_to_term(element(6, TimedFrame)))
     after
         unloaded(Unit)
     end.
@@ -245,7 +256,7 @@ received_linked_test() ->
     {ok, Typed, Interface, Env} = ern_typecheck:check(['Exlinked'], Parsed, Interfaces),
     {ok, _, LinkedBeam} = ern_compile:compile(['Exlinked'], Typed, Interface, Env,
                                               #{source_hash => <<>>, deps => []}),
-    {ok, #recorded{definitions = [Linked], foreign = [{_, Scheme, _, _, Printing}]}} =
+    {ok, #recorded{definitions = [Linked], foreign = [{_, Scheme, _, _, Printing}] = Foreign}} =
         ern_canonical:read(LinkedBeam),
     Work = {function, Linked#definition.hash},
     Self = self(),
@@ -267,7 +278,7 @@ received_linked_test() ->
                                 [{[<<"Exlinked">>, <<"now">>], <<"erlang">>,
                                   <<"monotonic_time">>, Scheme, Printing}]}},
                    Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
-                   Exchange ! {ern_frame, self(), code_frame(Ref, [Linked])},
+                   Exchange ! {ern_frame, self(), code_frame(Ref, [Linked], Foreign)},
                    Computed = receive {Alias, computed, Value} -> Value end,
                    {Unit, _, 0, Reach} = ern_code:spawnable({hash, Linked#definition.hash}),
                    Asked = make_ref(),
@@ -292,6 +303,111 @@ received_linked_test() ->
     after
         unloaded(HeldUnit),
         unloaded(BoundUnit)
+    end.
+
+-define(BEYOND,
+        "foreign fn absent() : Unit with m = \"ern_exchange_tests_nowhere:f/0\"\n"
+        "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
+        "let note : Int = 1\n"
+        "export fn outer() : Either(Io.Error, Int) with m = {\n"
+        "    absent();\n"
+        "    let _ = now() + note;\n"
+        "    Peer.compute(\"p\", fn() = 6 * 7, 100)\n"
+        "}\n").
+
+%% report §8.7, §8.4, §11.2: a lambda crosses as the definition that
+%% encloses it, and what that definition names beyond the lambda's reach
+%% the node links so that the unit loads: a foreign function its code frame
+%% declares whose module is here, to a function of the unit's own through
+%% the check, which the code table holds as a declaration of the unit's; a
+%% foreign function whose module is not here, and a binding without its
+%% value here, each to a function of the unit's own that faults naming
+%% what the node lacks. The compute of the lambda answers its value. The
+%% unit records every declaration the frame carried, the lacked one with
+%% its module and function as text, the node holding no atom of the module,
+%% and a code frame the node makes of the definition to ship it onward
+%% carries both; asked for the reach of the lacked foreign function by its
+%% name, which it cannot run, the node answers its declaration, the module
+%% and the function as text, as a foreign function spawned by its name
+%% crosses. A regression test, written with the fix (MVP 3.2's item 5
+%% found the reach's foreign declarations alone declared, the binding
+%% refused, then the lacked declaration recorded nowhere, and then the
+%% reach by its name answered none); it does not cover a lacked function's
+%% module that is here and lacks the function, which
+%% ern_peer:foreign_lacked/1 answers as not_loaded_from_reach_test's third
+%% case shows, nor the nodes, a third node's check of what it is sent
+%% among them, which test/ern_nodes_tests.erl's relay_test_ covers in part
+received_beyond_reach_test() ->
+    {_, Beam, Defined} = compiled(['Exbeyond'], ?BEYOND),
+    {ok, #recorded{foreign = Compiled}} = ern_canonical:read(Beam),
+    %% the frame names for `absent` a module whose name this host, where
+    %% the sender's build made its own, holds no atom of
+    Foreign = [case QualifiedName of
+                   ['Exbeyond', absent] ->
+                       {QualifiedName, Scheme, <<"ern_exchange_tests_elsewhere">>, <<"f">>,
+                        Printing};
+                   _ -> Declaration
+               end || {QualifiedName, Scheme, _, _, Printing} = Declaration <- Compiled],
+    #definition{hash = Outer} = Definition = maps:get(['Exbeyond', outer], Defined),
+    Lambda = {lambda, Outer, 1},
+    Self = self(),
+    Main = fun() ->
+                   true = register(ern_gateway, self()),
+                   ok = ern_exchange:start(),
+                   Alias = erlang:alias([reply]),
+                   ok = ern_rt:note_compute(self(), Alias),
+                   ok = ern_exchange:lacking(self(), {compute, Alias, {lambda, Outer, 1, []},
+                                                      <<"M.f:3">>}, Lambda),
+                   {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, Lambda}} ->
+                                             {From, R}
+                                     end,
+                   Exchange ! {ern_frame, self(), {reach, Ref, [Outer], [], []}},
+                   [Outer] = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
+                   Exchange ! {ern_frame, self(), code_frame(Ref, [Definition], Foreign)},
+                   Computed = receive {Alias, computed, Value} -> Value end,
+                   {Unit, _, _, _} = ern_code:spawnable({hash, Outer}),
+                   Faults = [try Unit:Lacked() catch throw:Fault -> Fault end
+                             || Lacked <- ['$lacked_1', '$lacked_2']],
+                   Declared = [ern_code:spawnable({foreign, [<<"Exbeyond">>, Name]})
+                               || Name <- [<<"now">>, <<"absent">>]],
+                   {ok, #recorded{foreign = Recorded}} = ern_code:forms(Unit),
+                   Onward = make_ref(),
+                   Exchange ! {ern_frame, self(), {lacks, Onward, [Outer]}},
+                   [{code_frame, Onward, [Outer], _, _, Sources}] = frames(Onward),
+                   ByName = make_ref(),
+                   Exchange ! {ern_frame, self(),
+                               {reach_request, ByName, {foreign, [<<"Exbeyond">>, <<"absent">>]}}},
+                   [Reach] = frames(ByName),
+                   Self ! {received, Computed, Unit, Faults, Declared, Recorded,
+                           binary_to_term(Sources), Reach}
+           end,
+    {Said, Options} = said(),
+    ?assertEqual(ok, run(Main, Options)),
+    {received, Computed, Unit, Faults, Declared, Recorded, Sources, Reach} =
+        receive {received, _, _, _, _, _, _, _} = Got -> Got end,
+    try
+        ?assertMatch({reach, _, [], [], [{[<<"Exbeyond">>, <<"absent">>],
+                                          <<"ern_exchange_tests_elsewhere">>, <<"f">>,
+                                          {scheme, _, _, _}, {[<<"Exbeyond">>], []}}]},
+                     Reach),
+        ?assertEqual(42, Computed),
+        ?assertMatch([{['Exbeyond', absent], _, <<"ern_exchange_tests_elsewhere">>, f, _},
+                      {['Exbeyond', now], _, erlang, monotonic_time, _}],
+                     lists:sort(Recorded)),
+        ?assertMatch([{_, _, _, [{[<<"Exbeyond">>, <<"absent">>],
+                                  <<"ern_exchange_tests_elsewhere">>, <<"f">>, _},
+                                 {[<<"Exbeyond">>, <<"now">>], <<"erlang">>,
+                                  <<"monotonic_time">>, _}]}],
+                     Sources),
+        ?assertError(badarg, binary_to_existing_atom(<<"ern_exchange_tests_elsewhere">>)),
+        ?assertEqual([{ern, fault, <<"the binding Exbeyond.note has no value here">>},
+                      {ern, fault, <<"the module ern_exchange_tests_elsewhere, which"
+                                     " Exbeyond.absent calls, is not here">>}],
+                     Faults),
+        ?assertMatch([{Unit, _, 0, _}, none], Declared),
+        ?assertEqual([], Said())
+    after
+        unloaded(Unit)
     end.
 
 held_identities(Beam) ->
@@ -326,7 +442,7 @@ unlinked_reach_test() ->
                                {code_frame, Ref, [Hash], ern_canonical:bytes(
                                                            ern_canonical:hashed([Form])),
                                 [<<77:256>>], term_to_binary([{[<<"Crafted">>, <<"bad">>],
-                                                               Form, {[], []}}])}},
+                                                               Form, {[], []}, []}])}},
                    Answer = receive {ern_frame, _, {answer, SpawnRef, A}} -> A end,
                    %% the node says the line once it has answered
                    ok = catch_up(),
@@ -410,10 +526,12 @@ not_loaded_from_reach_test() ->
 %% lacked, one whose references are not those its forms name, one whose
 %% form with its source's lines is not its form once they are taken out,
 %% one whose sources name an atom its form does not, one with a source too
-%% few, a reach of another shape, and a request for a reach of no
-%% identity. The exchange asked of the peer goes with its forms, a later
-%% frame of it passed over, and the spawn the peer asked for with it, none
-%% waiting on it now
+%% few, one that declares a foreign function its form does not call, one
+%% whose declaration's host module is not text, a reach of another shape,
+%% and a request for a reach of no identity. The exchange asked of the
+%% peer goes with its forms, a later frame of it passed over, and the spawn
+%% the peer asked for with it, none waiting on it now. The two cases of the
+%% declarations are regression tests, written with them (MVP 3.2's item 5)
 faulty_frame_test() ->
     {_, _, Defined} = compiled(['Exfaulty'], ?FAULTY),
     #definition{hash = Hash, form = Form} = maps:get(['Exfaulty', held], Defined),
@@ -434,7 +552,12 @@ faulty_frame_test() ->
                          end,
                Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
                Name = [<<"Exfaulty">>, <<"held">>],
-               Sources = term_to_binary([{Name, Form, {[<<"Exfaulty">>], []}}]),
+               Sources = term_to_binary([{Name, Form, {[<<"Exfaulty">>], []}, []}]),
+               Declared = fun(HostModule) ->
+                              term_to_binary([{Name, Form, {[<<"Exfaulty">>], []},
+                                               [{[<<"Exfaulty">>, <<"now">>], HostModule,
+                                                 <<"monotonic_time">>, {[], []}}]}])
+                          end,
                Other = setelement(2, Form, {scheme, [], {arrow, [], pure, int}, []}),
                Faults = [fun(Ref) ->
                                  {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, [], Sources}
@@ -443,14 +566,19 @@ faulty_frame_test() ->
                          fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [<<7:256>>], Sources} end,
                          fun(Ref) ->
                              {code_frame, Ref, [Hash], Bytes, [],
-                              term_to_binary([{Name, {'$at', {1, 1, none}, Other}, {[], []}}])}
+                              term_to_binary([{Name, {'$at', {1, 1, none}, Other}, {[], []},
+                                               []}])}
                          end,
                          fun(Ref) ->
                              {code_frame, Ref, [Hash], Bytes, [],
-                              <<131, 108, 1:32, 104, 3, 108, 1:32, 109, 3:32, "abc", 106,
-                                119, 12, "ern_unknown1", 104, 2, 106, 106, 106>>}
+                              <<131, 108, 1:32, 104, 4, 108, 1:32, 109, 3:32, "abc", 106,
+                                119, 12, "ern_unknown1", 104, 2, 106, 106, 106, 106>>}
                          end,
-                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [], term_to_binary([])} end],
+                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [], term_to_binary([])} end,
+                         fun(Ref) ->
+                             {code_frame, Ref, [Hash], Bytes, [], Declared(<<"erlang">>)}
+                         end,
+                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [], Declared(erlang)} end],
                Late = [begin
                            {Exchange, Ref} = Lacking(),
                            Exchange ! {ern_frame, self(), Fault(Ref)},
@@ -467,9 +595,9 @@ faulty_frame_test() ->
            end,
     {Said, Options} = said(),
     ?assertEqual(ok, run(Main, Options)),
-    ?assertEqual({faulty, [[], [], [], [], [], []], []},
+    ?assertEqual({faulty, [[], [], [], [], [], [], [], []], []},
                  receive {faulty, _, _} = Got -> Got end),
-    ?assertEqual(lists:duplicate(8, <<"the node nohost sent a frame this node cannot read, and its"
+    ?assertEqual(lists:duplicate(10, <<"the node nohost sent a frame this node cannot read, and its"
                                       " connection was ended\n">>),
                  Said()),
     ?assertError(badarg, binary_to_existing_atom(<<"ern_unknown1">>)).
@@ -600,14 +728,34 @@ spawned(Ref, {function, Hash}) ->
     {spawn, Ref, {function, Hash}, <<"M.f:1">>, false}.
 
 %% A code frame for a definition alone or a group's members in order, each
-%% with its name and its form with the lines of its source.
+%% with its name, its form with the lines of its source, and the foreign
+%% declarations its form calls, from the declarations Foreign, as a unit
+%% records them.
 code_frame(Ref, Members) ->
+    code_frame(Ref, Members, []).
+
+code_frame(Ref, Members, Foreign) ->
     Forms = [Form || #definition{form = Form} <- Members],
     {code_frame, Ref, [Hash || #definition{hash = Hash} <- Members],
      ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
-     term_to_binary([{[atom_to_binary(Segment) || Segment <- QualifiedName], Sourced, Printing}
-                     || #definition{qualified_name = QualifiedName, sourced = Sourced,
-                                    printing = Printing} <- Members])}.
+     term_to_binary([{texts(QualifiedName), Sourced, Printing, calls(Form, Foreign)}
+                     || #definition{qualified_name = QualifiedName, form = Form,
+                                    sourced = Sourced, printing = Printing} <- Members])}.
+
+%% The foreign declarations a form calls, in the order of their names, as a
+%% code frame carries them.
+calls(Form, Foreign) ->
+    Called = lists:usort([texts(QualifiedName)
+                          || {foreign, QualifiedName, _} <- ern_compile:references([Form])]),
+    [{Name, text(HostModule), text(HostFunction), Printing}
+     || Name <- Called, {QualifiedName, _, HostModule, HostFunction, Printing} <- Foreign,
+        texts(QualifiedName) =:= Name].
+
+texts(QualifiedName) ->
+    [text(Segment) || Segment <- QualifiedName].
+
+text(Segment) when is_atom(Segment) -> atom_to_binary(Segment);
+text(Segment) -> Segment.
 
 %% The names of the locals a form with its source's lines holds.
 local_names({'$at', {_, _, Name}, Node}) ->

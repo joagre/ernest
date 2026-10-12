@@ -11,7 +11,8 @@
 
 -record(unit, {namespace, name, definitions = [], foreign_functions = [], exported = [],
                binding_order = [], dependencies = [], reaches = #{}, link, standard = false,
-               code = false, form_namespace, site_namespace, session_offset = false}).
+               code = false, form_namespace, site_namespace, session_offset = false,
+               lacked = []}).
 %% namespace: the module's (report §4.2), [] for a unit of an exchange,
 %% whose definitions are of any module's; name: the unit's, its Erlang
 %% module (§11.1, §11.2);
@@ -41,7 +42,12 @@
 %% site_namespace: the namespace its spawn sites name its declarations
 %% under, a reload's version's, `Counter$2` (§11.2);
 %% session_offset: false, or, for an input of the shell's, the lines before
-%% its first in its file, with which its spawn sites are written (§11.2).
+%% its first in its file, with which its spawn sites are written (§11.2);
+%% lacked: for a unit of an exchange, each function that faults naming
+%% what the node lacks, {Function, Arity, Text}, to which the link takes a
+%% reference beyond the spawned function's reach, a binding without its
+%% value here or a foreign function whose module or function is not here,
+%% which no process reaches (§8.7).
 
 -record(foreign_function, {qualified_name, scheme, host_module, host_function, export = false,
                            source = none, printing = none}).

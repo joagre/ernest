@@ -240,14 +240,31 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    so that a frame makes no atom of a name; and the build emits a module once every module its forms
    reference is checked, so that a standard library module reached through a prelude name or an
    operator alone has its position whatever the order, which today's order satisfies by chance.
-5. **The bare node, and the shell.** `ern run --config-dir dir` with no `.erc`: the runtime and
-   the system processes, the entry process evaluating the standard library's bindings and
-   waiting, the node listening and taking spawns, ending by termination alone, refused without
-   `listen`, offering what the processes spawned on it offer; work placed on it by name,
-   `Peer.compute` and `Placement.leastBusy`, and its utilisation answered as its `ernest.conf`
-   says; a shell whose load path holds no program a bare node with a prompt. A function typed at the shell spawning on a peer with its code, where MVP 3.1 answered
-   `NotLoaded`; the refusal of a node without a program lifted from `docs/development.md`'s
-   table.
+5. **The bare node, and the shell.** Done 2026-10-13. `ern run --config-dir dir` with no `.erc`
+   starts a bare node: the standard library's bindings evaluated and no other, the entry process
+   waiting under the site `bare node`, the node listening and taking what its peers spawn and
+   compute on it, their code crossing, offering what the processes spawned on it offer, answering
+   its utilisation and placed on by name, ending by termination with §11.8's status, by a spawned
+   process's `Os.exit` or by a stream that can no longer be written; refused without `listen`, since
+   it never dials, while a shell with no `.erc`, which dials from its prompt, is not; `--main` with
+   no file refused, and no `--config-dir` with no file the usage error it was, since `--config-dir`
+   is what makes a run a node (§8.1, §8.5, §8.6, §8.7, §11.2, §11.8). A defect of item 4's exchange,
+   found by the test and fixed with it: a lambda crosses as the definition that encloses it, whose
+   form may name a binding or a foreign function the lambda does not, which the peer could not link,
+   so a lambda in a `main` that names a program binding could not run on a bare node; now the code
+   frame carries the host's module and function of each foreign declaration its definition calls,
+   what the definition names beyond the spawned function's reach that the peer lacks is linked to a
+   fault that names it, which no process reaches, and the arrival records every declaration it was
+   sent, a lacked one's module and function as text, so that a held definition's `NotLoaded` names
+   the module and the node ships the definition, and a lacked foreign function's declaration, onward
+   to a third node, which links it itself (§8.7, §11.2; `soundness.md`'s section 7).
+   `docs/development.md`'s last row is lifted. Tests on real nodes: a lambda spawned onto a bare
+   node with its code, a compute, a service offered from a spawned process and found, utilisation
+   and `Placement.leastBusy`, `NotLoaded` for a library binding the bare node does not evaluate, the
+   sender's sites in the bare node's faults, the second spawn crossing nothing, `ern stop` with
+   status 143 and `Os.exit(3)` with status 3, a lambda beside a binding and a foreign function it
+   does not use, a relay over four nodes, and the refusals (the log's *The Report for Code with a
+   Spawn*).
 6. **`Code`.** §11.1's outcome for a build written under a running node, which MVP 3.1 states as reaching the node at its next start alone, is restated here for a node that reads a unit after its start. `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
    forms and its reach's read from the load path, verified against their hashes and made a unit
    as a load of the shell's is, counted against the limits, a load that would pass one failing

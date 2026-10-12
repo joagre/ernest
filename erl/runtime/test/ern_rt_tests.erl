@@ -57,7 +57,10 @@ stdin_failure_test() ->
 %% report §8.2, §7.4: lines and bytes are one stream, each request taking
 %% up where the one before it stopped; a line loses its line feed and one
 %% carriage return before it, and a last line needs none; a line that is
-%% not UTF-8 faults the process that asked, and the next line is read
+%% not UTF-8 faults the process that asked, and the next line is read. The
+%% asker is monitored from its spawn: a regression, the monitor made after
+%% it, which under `make test`'s load came once the asker had faulted and
+%% ended, and so gave `Unknown`
 stdin_stream_test() ->
     Next = queued_input([<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>],
                         fun() -> eof end),
@@ -73,8 +76,9 @@ stdin_stream_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Self ! {got, [Line(), Bytes(), Line(), Line(), Line()]},
-                           Asker = ern_rt:spawn(fun() -> Line() end, <<"asker">>),
-                           ern_rt:monitor(Asker, fun(Down) -> {down, Down} end),
+                           _ = ern_rt:spawn_monitored(fun() -> Line() end,
+                                                      fun(Down) -> {down, Down} end,
+                                                      <<"asker">>),
                            receive {down, Down} -> Self ! {down, Down} end,
                            Self ! {after_fault, [Line(), Line(), Bytes()]}
                        end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next})),

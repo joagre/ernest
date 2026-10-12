@@ -2767,15 +2767,32 @@ create_config_dir_test() ->
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
     ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).
 
-%% report §11.2: a node runs a program until MVP 3.2, so `ern run` given
-%% a configuration directory and no file is refused naming it
-node_without_program_test() ->
+%% report §11.2, §8.7, §8.1: `ern run --config-dir dir` with no `.erc` is a
+%% bare node, refused before it starts where its `ernest.conf` has no
+%% `listen`, and given `--main`, which names a function of the file, while
+%% a run with no `--config-dir` requires the file, `--main` or not. A
+%% regression test, written after the code; a bare node that starts, and
+%% one the launcher refuses, are test/ern_nodes_tests.erl's bare_node_test_
+%% and bare_node_refused_test_
+bare_node_refusals_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
+    Conf = filename:join(Dir, "ernest.conf"),
+    {ok, Text} = file:read_file(Conf),
+    ok = file:write_file(Conf, json:encode(maps:remove(<<"listen">>, json:decode(Text)))),
     ?assertEqual(1, ern_err(["run", "--config-dir", Dir])),
-    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
-                                      <<"a node runs a program: ern run --config-dir dir prog.erc;"
-                                        " a node without one arrives in MVP 3.2">>)).
+    ?assertEqual(1, ern_err(["run", "--config-dir", Dir, "--main", "Foo.bar"])),
+    ?assertEqual(1, ern_err(["run", "--main", "Foo.bar"])),
+    ?assertEqual(1, ern_err(["run"])),
+    Output = unicode:characters_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Output, Part))
+     || Part <- [<<"ern run: a bare node listens: ", (list_to_binary(Conf))/binary,
+                   " has no listen\n">>,
+                 <<"ern run: --main names the entry point of the file run, and no file is"
+                   " given; a bare node has none\n">>]],
+    ?assertEqual(2, length(binary:matches(Output,
+                                          <<"ern run: one .erc file argument is required\n">>))),
+    ?assertNot(filelib:is_file(filename:join(Dir, "ernest.pid"))).
 
 %% report §11.2, §8.7: `ern reload` and `ern stop` require --config-dir,
 %% and fail where its ernest.pid is not there or no node holds it, a file

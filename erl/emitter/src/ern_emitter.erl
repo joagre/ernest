@@ -153,6 +153,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
     Entries = maps:values(Context3#emit_context.entries),
     SpawnedFunction = spawned_function(Placed, ForeignPlaced, Entries, Context3),
     Lifted = lists:reverse(Context3#emit_context.lifted),
+    LackedFunctions = lacked_functions(Unit),
     Bodies = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
         ++ SpawnedFunction ++ Lifted,
     CodeFunction = case Code of
@@ -166,7 +167,8 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
     Exports = exports(Placed, ForeignPlaced, Context3)
         ++ [{'$init', 0} || InitFunction =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
         ++ [{'$deps', 0} || DependenciesFunction =/= []]
-        ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []],
+        ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []]
+        ++ [{Function, Arity} || {Function, Arity, _} <- Unit#unit.lacked],
     %% report §3.9: a function whose result is a type variable no parameter
     %% holds never returns, `fault` and `Os.exit` among them, so Dialyzer,
     %% which the release review runs over this code, is told it is meant
@@ -179,8 +181,22 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
                                                       erl_syntax:integer(Arity))
                                                     || {Function, Arity} <- Exports])])],
     Functions = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
-        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted,
+        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted ++ LackedFunctions,
     {Attrs ++ Functions, Context3#emit_context.builds_functions}.
+
+%% Report §8.7: the functions of an exchange's unit that a reference its
+%% forms make beyond the spawned function's reach is linked to, where this
+%% node lacks what it names, a binding's value or a foreign function's
+%% module or function: each faults naming it, whatever it is given, and no
+%% process reaches one, since a spawn whose reach names it is answered
+%% `NotLoaded` before it starts.
+lacked_functions(#unit{lacked = Lacked}) ->
+    [erl_syntax:function(erl_syntax:atom(Function),
+                         [erl_syntax:clause([erl_syntax:underscore() || _ <- lists:seq(1, Arity)],
+                                            none,
+                                            [call_remote(ern_rt, fault,
+                                                         [erl_syntax:abstract(Text)])])])
+     || {Function, Arity, Text} <- Lacked].
 
 %% The unit's own definitions and foreign functions, each definition's form
 %% prepared.

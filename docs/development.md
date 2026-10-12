@@ -196,10 +196,9 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 ## What the toolchain accepts
 
-The toolchain is the report on one node. Everything the report describes type-checks, and all that the table leaves out compiles and runs. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](implementation_plan.md) that lifts it.
+The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, and all that the table leaves out compiles and runs. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](implementation_plan.md) that lifts it; today the table has no row.
 
 | Construct | Until | What you see today |
 |---|---|---|
-| A node without a program, `ern run --config-dir dir` with no `.erc` (§11.2) | MVP 3.2 | refused, `a node runs a program: ern run --config-dir dir prog.erc; a node without one arrives in MVP 3.2` |
 
 Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

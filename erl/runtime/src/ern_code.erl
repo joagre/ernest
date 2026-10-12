@@ -37,8 +37,9 @@
 -module(ern_code).
 
 -export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
-         forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, present/1, function/2,
-         function_text/2, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+         forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
+         present/1, function/2, function_text/2, nearing/0, nearing/1, nearing/2, line/3,
+         counts/0]).
 
 -include_lib("typer/include/ern_canonical.hrl").
 
@@ -91,12 +92,23 @@ fill(Unit, Md5, Recorded) ->
             Code = Unit:'$code'(),
             Rows = lists:append([rows(Unit, QualifiedName, Held)
                                  || {QualifiedName, Held} <- Code])
-                ++ [{{forms, Unit}, Unit, Recorded} || Recorded =/= none],
+                ++ [{{forms, Unit}, Unit, Recorded} || Recorded =/= none]
+                ++ declared_rows(Unit, Recorded),
             Keys = lists:usort([Key || {Key, _, _} <- Rows]),
             Calls = lists:append([Units || {_, {calls, Units}} <- Code]),
             true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Md5, Keys, Calls}} | Rows]),
             ok
     end.
+
+%% Report §8.7, §11.2: each foreign declaration a unit no file holds
+%% records, by its qualified name as text, which declared/1,2 read: an
+%% arrival's every one, those it linked to a fault among them, which no
+%% other row names (ern_arrival).
+declared_rows(_Unit, none) ->
+    [];
+declared_rows(Unit, #recorded{foreign = Foreign}) ->
+    [{{declared, texts(QualifiedName)}, Unit, Declaration}
+     || {QualifiedName, _, _, _, _} = Declaration <- Foreign].
 
 %% A unit's rows for one of its declarations: a definition by its identity,
 %% a lambda or a local function a spawn on a peer starts by its identity,
@@ -300,6 +312,27 @@ foreign(Called, QualifiedName) ->
      || {_, Holder, {foreign, HostModule, HostFunction, _, _}}
             <- lookup({foreign, texts(QualifiedName)}),
         is_map_key(Holder, Called)].
+
+%% Report §8.7, §11.2: the declarations of a foreign function by its
+%% qualified name, its segments atoms or text, that the units this node
+%% keeps a record of record, each with the unit, {QualifiedName, Scheme,
+%% HostModule, HostFunction, Printing}, the module and the function atoms,
+%% or text where the node had no atom of them as the unit's code arrived
+%% and linked the call to a fault (ern_arrival), in the order the units
+%% were loaded. A unit a file holds has none here: its code holds every
+%% declaration it records, which foreign/2 finds.
+-spec declared([atom() | binary()]) ->
+          [{module(), {[atom() | binary()], term(), atom() | binary(), atom() | binary(),
+                       term()}}].
+declared(QualifiedName) ->
+    [{Holder, Declaration} || {_, Holder, Declaration} <- lookup({declared, texts(QualifiedName)})].
+
+%% The same, of the units of Called (called/1).
+-spec declared(#{module() => true}, [atom() | binary()]) ->
+          [{module(), {[atom() | binary()], term(), atom() | binary(), atom() | binary(),
+                       term()}}].
+declared(Called, QualifiedName) ->
+    [Declared || {Holder, _} = Declared <- declared(QualifiedName), is_map_key(Holder, Called)].
 
 %% A qualified name as text, which a peer gives and atoms the node has
 %% name alike.

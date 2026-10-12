@@ -14,7 +14,14 @@
 %% a function of the unit's own, which calls the host's function the
 %% sender's declaration names through §8.4's check at its declared type,
 %% as the declaring module does; a foreign function spawned or computed by
-%% its name crosses so too, with no definition.
+%% its name crosses so too, with no definition; and so is each foreign
+%% function the definitions call beyond the spawned function's reach, from
+%% the declaration its code frame carries. What they name beyond that reach
+%% and the node lacks, a binding without its value here or a foreign
+%% function whose module or function is not here, is linked to a function
+%% of the unit's own that faults naming it, `'$lacked_K'`, which no process
+%% reaches, since a spawn whose reach names it is answered `NotLoaded`
+%% before it starts.
 %%
 %% The unit is named from the node's pool (name/1), `ern$1`, `ern$2` and
 %% on, the first the host holds no unit of from the exchange's count, which
@@ -31,27 +38,35 @@
 %% node's, read where the node holds it, and the group's other members
 %% name it by its identity in place of its position. What the unit records
 %% of its definitions is kept in the code table beside its code, so that
-%% the node ships them onward as its own (§11.2).
+%% the node ships them onward as its own (§11.2): every foreign declaration
+%% the reach and the code frames carried among it, one it lacked with the
+%% host's module and function as text where the node has no atom of them,
+%% by which a later spawn whose reach names it is told the module and a
+%% code frame shipped onward carries it.
 -module(ern_arrival).
 
--export([received/4, name/1]).
+-export([received/5, name/1]).
 
 -include_lib("typer/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
 %% Report §8.7: the definitions Arrived, each of one code frame, verified,
-%% dependencies first, and the foreign declarations of the reach, each
-%% {Name, HostModule, HostFunction, Scheme, Printing} as the peer gave
-%% them, whose modules and functions the node has (ern_peer:reach_lacked/2),
-%% made the
-%% unit Unit, compiled, loaded and in the code table; or the reason this
-%% node could not, in a line, which the spawns that wait are answered with
-%% as `Other(text)`. Env is the prelude's environment.
--spec received(atom(), [#definition{}], [{[binary()], binary(), binary(), term(), term()}],
+%% dependencies first, with Declared, the foreign declarations their code
+%% frames say they call, each {Name, HostModule, HostFunction, Printing};
+%% and the spawned function's reach, the bindings it names, each {Name,
+%% Hash}, and its foreign declarations, each {Name, HostModule,
+%% HostFunction, Scheme, Printing} as the peer gave them, whose modules and
+%% functions the node has and whose bindings their values
+%% (ern_peer:reach_lacked/2): made the unit Unit, compiled, loaded and in
+%% the code table; or the reason this node could not, in a line, which the
+%% spawns that wait are answered with as `Other(text)`. Env is the
+%% prelude's environment.
+-spec received(atom(), [#definition{}], [{[binary()], binary(), binary(), term()}],
+               {[{[binary()], binary()}], [{[binary()], binary(), binary(), term(), term()}]},
                ern_typecheck:env()) -> ok | {error, binary()}.
-received(Unit, Arrived, Foreigns, Env) ->
+received(Unit, Arrived, Declared, Reach, Env) ->
     try
-        case made(Unit, Arrived, Foreigns, Env) of
+        case made(Unit, Arrived, Declared, Reach, Env) of
             {ok, Made, Recorded} -> compiled(Made, Recorded);
             {error, _} = Error -> Error
         end
@@ -107,18 +122,20 @@ compiled(#unit{name = Unit} = Made, Recorded) ->
 %% The unit, report §8.7 and §11.1
 %%
 
-made(Unit, Arrived, Foreigns, Env) ->
-    {Bindings, Definitions} = lists:partition(fun(#definition{kind = Kind}) ->
-                                                  Kind =:= binding
-                                              end, Arrived),
-    case binding_references(Bindings) of
+made(Unit, Arrived, Declared, {Bindings, Foreigns}, Env) ->
+    {Grouped, Definitions} = lists:partition(fun(#definition{kind = Kind}) ->
+                                                 Kind =:= binding
+                                             end, Arrived),
+    case binding_references(Grouped) of
         {error, _} = Error ->
             Error;
         {ok, ByPosition} ->
             Compiled = [compiled_definition(Definition, ByPosition) || Definition <- Definitions],
-            ForeignFunctions = [foreign_function(Foreign) || Foreign <- Foreigns],
-            case linked(Compiled, ForeignFunctions, Env) of
-                {ok, Link, Others} ->
+            {Called, Lacking, LackedDeclarations} =
+                called_foreign(Compiled, Declared, Foreigns),
+            ForeignFunctions = [foreign_function(Foreign) || Foreign <- Foreigns] ++ Called,
+            case linked(Unit, Compiled, ForeignFunctions, {Bindings, Lacking}, Env) of
+                {ok, Link, Others, Lacked} ->
                     {ok, #unit{namespace = [], name = Unit, definitions = Compiled,
                                foreign_functions = ForeignFunctions,
                                exported = [QualifiedName || #definition{kind = function,
@@ -127,7 +144,7 @@ made(Unit, Arrived, Foreigns, Env) ->
                                                                 <- Compiled],
                                reaches = ern_canonical:unit_reaches(Compiled, Others),
                                link = Link, code = true, form_namespace = [],
-                               site_namespace = []},
+                               site_namespace = [], lacked = Lacked},
                      #recorded{definitions = Arrived,
                                foreign = [{QualifiedName, Scheme, HostModule, HostFunction,
                                            Printing}
@@ -136,7 +153,8 @@ made(Unit, Arrived, Foreigns, Env) ->
                                                                host_module = HostModule,
                                                                host_function = HostFunction,
                                                                printing = Printing}
-                                                 <- ForeignFunctions]}};
+                                                 <- ForeignFunctions]
+                                   ++ LackedDeclarations}};
                 {error, _} = Error ->
                     Error
             end
@@ -182,6 +200,61 @@ in_group([Head | Tail], Group, ByPosition) ->
 in_group(Term, _, _) ->
     Term.
 
+%% Report §8.7, §8.4, §11.2: each foreign function the definitions that
+%% arrived call that the reach does not declare, from the declaration its
+%% code frame carries, its scheme the one the forms write: a function of
+%% the unit's own, as a declaration of the reach is, where the host's
+%% module and function are here; and, where they are not, what this node
+%% lacks, as a spawn whose reach named it would be answered (ern_peer), by
+%% the reference the forms make, which the link takes to a function that
+%% faults naming it, and the declaration as the unit records it, so that
+%% the node names its module where a later spawn's reach names it and ships
+%% it onward as its own (ern_code:declared/2), the module and the function
+%% each an atom of the node's where one is, and text where none is, the
+%% node never making an atom of a peer's name.
+called_foreign(Compiled, Declared, Foreigns) ->
+    Reached = [Name || {Name, _, _, _, _} <- Foreigns],
+    Calls = lists:ukeysort(1, [{texts(QualifiedName), Reference}
+                               || {foreign, QualifiedName, _} = Reference
+                                      <- ern_compile:references(definition_forms(Compiled))]),
+    lists:foldr(fun({Name, {foreign, QualifiedName, Scheme} = Reference},
+                    {Called, Lacking, Recorded}) ->
+                        {Name, HostModule, HostFunction, Printing} =
+                            lists:keyfind(Name, 1, Declared),
+                        case ern_peer:foreign_lacked({Name, HostModule, HostFunction, Scheme,
+                                                      Printing}) of
+                            none ->
+                                {[#foreign_function{
+                                     qualified_name = QualifiedName, scheme = Scheme,
+                                     host_module = binary_to_existing_atom(HostModule),
+                                     host_function = binary_to_existing_atom(HostFunction),
+                                     export = true, printing = Printing} | Called],
+                                 Lacking, Recorded};
+                            Lacked ->
+                                {Called, Lacking#{Reference => Lacked},
+                                 [{QualifiedName, Scheme, held(HostModule), held(HostFunction),
+                                   Printing} | Recorded]}
+                        end
+                end, {[], #{}, []},
+                [Call || {Name, _} = Call <- Calls, not lists:member(Name, Reached)]).
+
+%% A peer's name as this node holds it: its atom where the node has one,
+%% and its text where it has none.
+held(Name) ->
+    try binary_to_existing_atom(Name)
+    catch error:badarg -> Name
+    end.
+
+definition_forms(Compiled) ->
+    [Form || #definition{form = Form} <- Compiled].
+
+%% A qualified name as text, its segments atoms or a peer's text already.
+texts(QualifiedName) ->
+    [case Segment of
+         _ when is_atom(Segment) -> atom_to_binary(Segment);
+         _ -> Segment
+     end || Segment <- QualifiedName].
+
 %% Report §8.7, §8.4: a foreign declaration of the reach as a function of
 %% the unit's, by its qualified name as the forms that call it write it,
 %% where its atoms are here, and else as text, its scheme the declared
@@ -204,69 +277,105 @@ foreign_function({Name, HostModule, HostFunction, Scheme, Printing}) ->
 %% Report §8.7, §11.1: where each reference the unit's forms make outside
 %% it is, as the code table and the prelude's environment know it; and the
 %% reach of each definition of another unit its forms reference by hash,
-%% which its own reaches take in. A reference that links to nothing is the
-%% reason the reach cannot be taken.
-linked(Compiled, ForeignFunctions, Env) ->
+%% which its own reaches take in. What the forms name beyond the spawned
+%% function's reach that this node lacks, a binding without its value here
+%% or a foreign function Lacking holds, is taken to a function of the
+%% unit's own that faults naming it, each of the unit's lacked functions
+%% {Function, Arity, Text}, which no process reaches, since a spawn whose
+%% reach names it is answered `NotLoaded` first. Any other reference that
+%% links to nothing is the reason the reach cannot be taken, a binding of
+%% the reach without its value among them, which reach_lacked/2 answered
+%% before any code crossed.
+linked(Unit, Compiled, ForeignFunctions, Reach, Env) ->
     Hashes = maps:from_keys([Hash || #definition{hash = Hash} <- Compiled], true),
     Foreign = [QualifiedName || #foreign_function{qualified_name = QualifiedName}
                                     <- ForeignFunctions],
-    Forms = [Form || #definition{form = Form} <- Compiled]
+    Forms = definition_forms(Compiled)
         ++ [Scheme || #foreign_function{scheme = Scheme} <- ForeignFunctions],
     External = [Reference || Reference <- ern_compile:references(Forms),
                              not own(Reference, Hashes, Foreign)],
     try
-        {Functions, Others, TypeReferences} =
-            lists:foldl(fun(Reference, Acc) -> external(Reference, Acc, Env) end,
-                        {#{}, #{}, []}, External),
+        {Functions, Others, TypeReferences, Lacking} =
+            lists:foldl(fun(Reference, Acc) -> external(Reference, Acc, Reach, Env) end,
+                        {#{}, #{}, [], []}, External),
+        {Faulting, Lacked} = lacked(Unit, lists:reverse(Lacking)),
         Types = types(TypeReferences, #{}, {Hashes, #{}}, Env),
-        {ok, #link{functions = Functions, types = Types,
+        {ok, #link{functions = maps:merge(Functions, Faulting), types = Types,
                    printing = ern_types:printing(ern_typecheck:type_state(Env))},
-         Others}
+         Others, Lacked}
     catch
         throw:{unlinked, Text} -> reason(Text)
     end.
+
+%% Report §8.7: each reference the unit lacks, {Reference, Arity, Kind,
+%% Identity, Text}, linked to a function of the unit's own, `'$lacked_K'`,
+%% that faults with the text; and those functions.
+lacked(Unit, Lacking) ->
+    Named = [{list_to_atom("$lacked_" ++ integer_to_list(Number)), Lack}
+             || {Number, Lack} <- lists:enumerate(Lacking)],
+    {maps:from_list([{Reference, #linked{unit = Unit, function = Function, arity = Arity,
+                                         kind = Kind, identity = Identity}}
+                     || {Function, {Reference, Arity, Kind, Identity, _}} <- Named]),
+     [{Function, Arity, unicode:characters_to_binary(Text)}
+      || {Function, {_, Arity, _, _, Text}} <- Named]}.
 
 own({hash, Hash}, Hashes, _) -> is_map_key(Hash, Hashes);
 own({foreign, QualifiedName, _}, _, Foreign) -> lists:member(QualifiedName, Foreign);
 own(_, _, _) -> false.
 
 %% One reference outside the unit linked: a function or a binding into
-%% Functions, a type among the type references, and a function's reach
-%% among Others.
-external({hash, Hash} = Reference, {Functions, Others, Types}, _Env) ->
+%% Functions, a type among the type references, a function's reach among
+%% Others, and what the node lacks beyond the reach among Lacking.
+external({hash, Hash} = Reference, {Functions, Others, Types, Lacking}, _Reach, _Env) ->
     case ern_code:linkable(Hash) of
         {type, _} ->
-            {Functions, Others#{Hash => {[], []}}, [Reference | Types]};
+            {Functions, Others#{Hash => {[], []}}, [Reference | Types], Lacking};
         {function, Unit, Function, Arity, Reach} ->
             {Functions#{Reference => #linked{unit = Unit, function = Function, arity = Arity,
                                              identity = Hash}},
-             Others#{Hash => Reach}, Types};
+             Others#{Hash => Reach}, Types, Lacking};
         none ->
             throw({unlinked, ["it references a definition this node does not hold, ",
                               binary:encode_hex(Hash, lowercase)]})
     end;
-external({binding, QualifiedName, Hash} = Reference, {Functions, Others, Types}, _Env) ->
-    case ern_code:valued(Reference) of
-        {Unit, Getter} ->
+external({binding, QualifiedName, Hash} = Reference, {Functions, Others, Types, Lacking},
+         {Bindings, _}, _Env) ->
+    Absent = ["the binding ", ern_namespace:text(QualifiedName), " has no value here"],
+    case {ern_code:valued(Reference), lists:keymember(Hash, 2, Bindings)} of
+        {{Unit, Getter}, _} ->
             {Functions#{Reference => #linked{unit = Unit, function = Getter, arity = 0,
                                              kind = value, identity = Hash}},
-             Others, Types};
-        none ->
-            throw({unlinked, ["the binding ", ern_namespace:text(QualifiedName),
-                              " has no value here"]})
+             Others, Types, Lacking};
+        {none, false} ->
+            {Functions, Others, Types, [{Reference, 0, value, Hash, Absent} | Lacking]};
+        {none, true} ->
+            throw({unlinked, Absent})
     end;
-external({named, QualifiedName} = Reference, {Functions, Others, Types}, Env) ->
+external({named, QualifiedName} = Reference, {Functions, Others, Types, Lacking}, _Reach,
+         Env) ->
     case ern_typecheck:described_type(QualifiedName, Env) of
         undefined ->
             Linked = maps:from_list([{Reference, Named}
                                      || Named <- ern_compile:named(Reference, Env)]),
-            {maps:merge(Functions, Linked), Others, Types};
+            {maps:merge(Functions, Linked), Others, Types, Lacking};
         _ ->
-            {Functions, Others, [Reference | Types]}
+            {Functions, Others, [Reference | Types], Lacking}
     end;
-external({foreign, QualifiedName, _}, _, _) ->
-    throw({unlinked, ["it calls a foreign function its reach did not declare, ",
-                      ern_namespace:text(QualifiedName)]}).
+external({foreign, QualifiedName, Scheme} = Reference, {Functions, Others, Types, Lacking},
+         {_, Lacked}, _Env) ->
+    case Lacked of
+        #{Reference := Text} ->
+            {Functions, Others, Types,
+             [{Reference, scheme_arity(Scheme), function, foreign, Text} | Lacking]};
+        #{} ->
+            throw({unlinked, ["it calls a foreign function its reach did not declare, ",
+                              ern_namespace:text(QualifiedName)]})
+    end.
+
+%% The arity a foreign declaration's function is called with: its
+%% parameters and its requirement's members (report §4.9).
+scheme_arity({scheme, _, {arrow, Params, _, _}, Requirement}) ->
+    length(Params) + length(Requirement).
 
 %% Report §8.4, §11.5: each type of References with its name and its
 %% constructors as its form writes them, a program's from the forms the

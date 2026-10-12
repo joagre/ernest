@@ -16,8 +16,11 @@
 %% alone in its reach. It answers the peer's lacks with a code frame for
 %% each definition it lacks, a group's members in one, since a member is
 %% hashed with its group, dependencies first, each with its name, the lines
-%% of its source and what prints a type in a cause as its module writes it
-%% (§11.5). It keeps nothing of a peer's asking between two frames. Where
+%% of its source, what prints a type in a cause as its module writes it
+%% (§11.5), and the foreign declarations its form calls, each with the
+%% host's module and function, so that the peer calls those beyond the
+%% spawned function's reach as it calls the reach's (§8.4). It keeps
+%% nothing of a peer's asking between two frames. Where
 %% it no longer holds a function it is asked the reach of, or a definition
 %% a peer lacks, the shell having let go of the input that held it once its
 %% spawn had given up, it answers a reach of none.
@@ -30,9 +33,10 @@
 %% it lacks, a definition it holds in no unit that exports its function
 %% among them (§8.7, §11.1), since no other unit's code can call it
 %% (ern_code:linkable/1); verifies each code frame against the hashes it
-%% names as it arrives, and its forms with their source's lines against
-%% the forms, and holds them apart until every lacked identity has
-%% arrived; and then makes the whole reach one unit, compiled and loaded
+%% names as it arrives, its forms with their source's lines against the
+%% forms, and its foreign declarations against those the forms call, and
+%% holds them apart until every lacked identity has arrived; and then
+%% makes the whole reach one unit, compiled and loaded
 %% (ern_arrival), which the node holds for its life (§11.2), and reads
 %% each spawn and compute that waits again as the gateway's worker reads
 %% it, which starts it, or answers it `Other` with the reason it could
@@ -64,14 +68,17 @@
 %% group's members in order, Bytes what that definition or group is hashed
 %% as (Appendix H), References the hashes its forms name, a binding's among
 %% them, and Sources the bytes of the host's external term format of a
-%% list of {Name, Sourced, Printing}, one for each of Hashes in order: the
-%% definition's name, its form with the lines of its source, the locals'
-%% names left out (§11.1), which, stripped of its source, is the form the
-%% bytes hold, and holds no atom the form does not, so that it is read once
-%% the form is, making none; Printing is {Namespace, Shadows}, the
-%% namespace its module's forms write its types under and the prelude names
-%% its types shadow, as text, by which a type prints in a cause as the
-%% module writes it (§11.5).
+%% list of {Name, Sourced, Printing, Calls}, one for each of Hashes in
+%% order: the definition's name, its form with the lines of its source, the
+%% locals' names left out (§11.1), which, stripped of its source, is the
+%% form the bytes hold, and holds no atom the form does not, so that it is
+%% read once the form is, making none; Printing is {Namespace, Shadows},
+%% the namespace its module's forms write its types under and the prelude
+%% names its types shadow, as text, by which a type prints in a cause as
+%% the module writes it (§11.5); and Calls the foreign declarations its
+%% form calls, in the order of their names, each {QualifiedName,
+%% HostModule, HostFunction, Printing}, as text, the scheme being the one
+%% the form writes (§8.7).
 -module(ern_exchange).
 
 -export([start/0, handed/1, lacking/3, lost/1]).
@@ -91,8 +98,9 @@
 %% Body} as the gateway's worker read it, in the order they came; the reach
 %% once read, {Identities, Bindings, Foreigns}; the hashes still lacked, a
 %% map, none before the reach; the code frames verified, the last first,
-%% each its members' #definition{}s, named by the names the frame gave
-%% them, held apart from the code table.
+%% each its members, {#definition{}, Calls}, named by the names the frame
+%% gave them, with the foreign declarations each calls, held apart from the
+%% code table.
 -record(exchange, {identity, node, waiting, reach = none, lacked = none, arrived = []}).
 
 %% The exchanges by their references, and the reference of each by the
@@ -252,7 +260,9 @@ exchange(From, Ref, #state{exchanges = Exchanges}) ->
 %% Report §8.7: a code frame's members, each a #definition{} named by the
 %% name the frame gave it, with its form and its form with the lines of
 %% its source, which must be the form the bytes hold once its source is
-%% taken out; a group's by its hash and its member's position.
+%% taken out, a group's by its hash and its member's position; and beside
+%% it the foreign declarations it calls, which must be those its form calls,
+%% by their names, each with the host's module and function as text.
 framed(Hashes, Bytes, Forms, Sources) ->
     Group = case Hashes of
                 [_] -> fun(_) -> none end;
@@ -262,11 +272,20 @@ framed(Hashes, Bytes, Forms, Sources) ->
      || {Position, {Hash, Form, Source}}
             <- lists:enumerate(lists:zip3(Hashes, Forms, binary_to_term(Sources, [safe])))].
 
-member(Hash, Form, {Name, Sourced, Printing}, Group) ->
-    true = is_name(Name) andalso is_printing(Printing),
+member(Hash, Form, {Name, Sourced, Printing, Calls}, Group) ->
+    true = is_name(Name) andalso is_printing(Printing) andalso is_list(Calls)
+        andalso lists:all(fun is_call/1, Calls),
     Form = ern_canonical:stripped(Sourced),
-    #definition{qualified_name = Name, kind = kind(Form), hash = Hash, form = Form,
-                group = Group, sourced = Sourced, printing = Printing}.
+    true = [Called || {Called, _, _, _} <- Calls] =:= called_names(Form),
+    {#definition{qualified_name = Name, kind = kind(Form), hash = Hash, form = Form,
+                 group = Group, sourced = Sourced, printing = Printing},
+     Calls}.
+
+is_call({Name, HostModule, HostFunction, Printing}) ->
+    is_name(Name) andalso is_text(HostModule) andalso is_text(HostFunction)
+        andalso is_printing(Printing);
+is_call(_) ->
+    false.
 
 kind({function, _, _, _, _, _, _}) -> function;
 kind({binding, _, _, _}) -> binding;
@@ -299,7 +318,7 @@ reached(Ref, #exchange{reach = {Identities, Bindings, Foreigns}, node = Node} = 
 %% Report §8.7: a code frame verified, held apart with the others; the reach
 %% received once every lacked identity has arrived.
 arrived(Ref, #exchange{lacked = Lacked, arrived = Arrived} = Exchange, Members, State) ->
-    Exchange1 = Exchange#exchange{lacked = maps:without([Hash || #definition{hash = Hash}
+    Exchange1 = Exchange#exchange{lacked = maps:without([Hash || {#definition{hash = Hash}, _}
                                                                      <- Members], Lacked),
                                   arrived = [Members | Arrived]},
     case map_size(Exchange1#exchange.lacked) of
@@ -313,9 +332,11 @@ arrived(Ref, #exchange{lacked = Lacked, arrived = Arrived} = Exchange, Members, 
 %% could not take the reach, each answered `Other` with its reason, which
 %% the node says.
 completed(Ref, #exchange{identity = Identity, waiting = Waiting, arrived = Arrived,
-                         reach = {_, _, Foreigns}}, State) ->
-    {Received, State1} = received(Identity, lists:append(lists:reverse(Arrived)), Foreigns,
-                                  State),
+                         reach = {_, Bindings, Foreigns}}, State) ->
+    Members = lists:append(lists:reverse(Arrived)),
+    {Received, State1} = received(Identity, [Definition || {Definition, _} <- Members],
+                                  lists:append([Calls || {_, Calls} <- Members]),
+                                  {Bindings, Foreigns}, State),
     case Received of
         ok -> lists:foreach(fun started/1, Waiting);
         {error, Text} -> answered(Waiting, {'Other', Text}, Text)
@@ -323,23 +344,24 @@ completed(Ref, #exchange{identity = Identity, waiting = Waiting, arrived = Arriv
     ended(Ref, State1).
 
 %% Report §8.7, §11.2: the definitions that arrived, dependencies first,
-%% and the foreign declarations of the reach, made one unit under the
-%% pool's next name and loaded (ern_arrival); nothing where none arrived
-%% and the node now holds the identity, another exchange having brought
-%% it, a foreign function's declaration among them.
-received(Identity, Arrived, Foreigns, State) ->
+%% with the foreign declarations their code frames say they call, and the
+%% spawned function's reach, its bindings and its foreign declarations,
+%% made one unit under the pool's next name and loaded (ern_arrival);
+%% nothing where none arrived and the node now holds the identity, another
+%% exchange having brought it, a foreign function's declaration among them.
+received(Identity, Arrived, Declared, Reach, State) ->
     case Arrived =:= [] andalso ern_code:spawnable(key(Identity)) =/= none of
         true -> {ok, State};
-        false -> unit_received(Arrived, Foreigns, State)
+        false -> unit_received(Arrived, Declared, Reach, State)
     end.
 
-unit_received(Arrived, Foreigns, #state{next = Next, env = Env} = State) ->
+unit_received(Arrived, Declared, Reach, #state{next = Next, env = Env} = State) ->
     Prelude = case Env of
                   none -> ern_typecheck:prelude_env();
                   _ -> Env
               end,
     {Unit, Taken} = ern_arrival:name(Next),
-    case ern_arrival:received(Unit, Arrived, Foreigns, Prelude) of
+    case ern_arrival:received(Unit, Arrived, Declared, Reach, Prelude) of
         ok -> {ok, State#state{next = Taken, env = Prelude}};
         {error, _} = Error -> {Error, State#state{env = Prelude}}
     end.
@@ -427,15 +449,24 @@ reach({function, Hash}) ->
     reach({hash, Hash}, Hash);
 reach({lambda, Hash, Position}) ->
     reach({lambda, Hash, Position}, Hash);
-reach({foreign, _} = Key) ->
+reach({foreign, Names} = Key) ->
     case ern_code:spawnable(Key) of
         none ->
-            none;
+            %% report §8.7: one this node holds only as a declaration whose
+            %% call a unit an exchange made linked to a fault crosses as
+            %% that declaration, the peer finding what it lacks itself
+            case ern_code:declared(Names) of
+                [{Holder, _} | _] -> foreign_reach(Holder, [Names]);
+                [] -> none
+            end;
         {Unit, _Function, _Arity, {[], Foreigns}} ->
-            case implementations(Unit, Foreigns) of
-                {ok, Implemented} -> {[], [], Implemented};
-                none -> none
-            end
+            foreign_reach(Unit, Foreigns)
+    end.
+
+foreign_reach(Unit, Foreigns) ->
+    case implementations(Unit, Foreigns) of
+        {ok, Implemented} -> {[], [], Implemented};
+        none -> none
     end.
 
 reach(Key, Hash) ->
@@ -467,7 +498,7 @@ reached_definitions([Hash | Hashes], Found, Read) ->
     case members(Hash, Read) of
         none ->
             none;
-        {Members, Read1} ->
+        {Members, _Unit, Read1} ->
             Found1 = maps:merge(Found, maps:from_list([{Member, Definition}
                                                        || #definition{hash = Member} = Definition
                                                               <- Members])),
@@ -477,27 +508,40 @@ reached_definitions([Hash | Hashes], Found, Read) ->
     end.
 
 %% The foreign declarations of a function's reach, each with the module and
-%% the function of the host its declaration calls and its declared type,
-%% as the units the code of the unit that runs it calls hold it, the type
-%% from what the unit that holds it records; none where one of them holds
-%% none.
+%% the function of the host its declaration calls, as text, and its
+%% declared type, as the units the code of the unit that runs it calls
+%% hold it, the type from what the unit that holds it records; or, for one
+%% whose call a unit an exchange made linked to a fault, as that unit
+%% records it (ern_code:declared/2), so that the node ships it onward as
+%% its own; none where one of them is held nowhere.
 implementations(Unit, Foreigns) ->
     Called = ern_code:called(Unit),
-    Found = [{texts(QualifiedName), ern_code:foreign(Called, QualifiedName)}
+    Found = [{texts(QualifiedName), implementation(Called, QualifiedName)}
              || QualifiedName <- Foreigns],
-    case [Name || {Name, []} <- Found] of
-        [] ->
-            Declared = [{Name, atom_to_binary(HostModule), atom_to_binary(HostFunction),
-                         declared(Holder, Name)}
-                        || {Name, [{Holder, HostModule, HostFunction} | _]} <- Found],
-            case lists:keymember(none, 4, Declared) of
-                false -> {ok, [{Name, HostModule, HostFunction, Scheme, Printing}
-                               || {Name, HostModule, HostFunction, {Scheme, Printing}}
-                                      <- Declared]};
-                true -> none
-            end;
-        _ ->
+    case lists:keymember(none, 2, Found) of
+        false ->
+            {ok, [{Name, HostModule, HostFunction, Scheme, Printing}
+                  || {Name, {HostModule, HostFunction, Scheme, Printing}} <- Found]};
+        true ->
             none
+    end.
+
+implementation(Called, QualifiedName) ->
+    case ern_code:foreign(Called, QualifiedName) of
+        [{Holder, HostModule, HostFunction} | _] ->
+            case declared(Holder, texts(QualifiedName)) of
+                {Scheme, Printing} ->
+                    {atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing};
+                none ->
+                    none
+            end;
+        [] ->
+            case ern_code:declared(Called, QualifiedName) of
+                [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
+                    {text(HostModule), text(HostFunction), Scheme, Printing};
+                [] ->
+                    none
+            end
     end.
 
 %% The scheme of the foreign declaration Name, and what prints a type in
@@ -522,29 +566,33 @@ code_frames(Hashes) ->
         none ->
             none;
         {Keys, Groups} ->
-            ByHash = maps:from_list([{Member, Key} || Key := Members <- Groups,
+            ByHash = maps:from_list([{Member, Key} || Key := {Members, _} <- Groups,
                                                       #definition{hash = Member} <- Members]),
             {Order, _} = lists:foldl(fun(Key, Acc) -> first_needed(Key, Groups, ByHash, Acc) end,
                                      {[], #{}}, Keys),
-            [code_frame(maps:get(Key, Groups)) || Key <- lists:reverse(Order)]
+            Frames = [code_frame(maps:get(Key, Groups)) || Key <- lists:reverse(Order)],
+            case lists:member(none, Frames) of
+                true -> none;
+                false -> Frames
+            end
     end.
 
 %% Each definition's group, by its group's hash or its own, in the order of
-%% Hashes.
+%% Hashes, with the unit whose forms hold it.
 grouped([], Keys, Groups, _Read) ->
     {lists:reverse(Keys), Groups};
 grouped([Hash | Hashes], Keys, Groups, Read) ->
     case members(Hash, Read) of
         none ->
             none;
-        {[#definition{group = Group} | _] = Members, Read1} ->
+        {[#definition{group = Group} | _] = Members, Unit, Read1} ->
             Key = case Group of
                       none -> Hash;
                       {GroupHash, _} -> GroupHash
                   end,
             case Groups of
                 #{Key := _} -> grouped(Hashes, Keys, Groups, Read1);
-                _ -> grouped(Hashes, [Key | Keys], Groups#{Key => Members}, Read1)
+                _ -> grouped(Hashes, [Key | Keys], Groups#{Key => {Members, Unit}}, Read1)
             end
     end.
 
@@ -553,7 +601,7 @@ grouped([Hash | Hashes], Keys, Groups, Read) ->
 first_needed(Key, _Groups, _ByHash, {_, Seen} = Acc) when is_map_key(Key, Seen) ->
     Acc;
 first_needed(Key, Groups, ByHash, {Order, Seen}) ->
-    Members = maps:get(Key, Groups),
+    {Members, _} = maps:get(Key, Groups),
     Needed = lists:usort([maps:get(Referenced, ByHash)
                           || {hash, Referenced} <- ern_canonical:references(forms(Members)),
                              is_map_key(Referenced, ByHash)]) -- [Key],
@@ -565,33 +613,61 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
 %% Report Appendix H, §8.7: a definition alone, or a group's members in
 %% order, as a code frame carries it: the hashes, the bytes they are taken
 %% of, the hashes its forms reference, and each member's name, its form
-%% with the lines of its source and what prints a type in a cause as its
-%% module writes it, as the node holds them (§11.2), a form without its
-%% source where it holds none, and no module's printing where it holds
-%% none.
-code_frame(Members) ->
+%% with the lines of its source, what prints a type in a cause as its
+%% module writes it, and the foreign declarations it calls, as the node
+%% holds them (§11.2), a form without its source where it holds none, and
+%% no module's printing where it holds none; none where a foreign
+%% declaration a member calls is held by no unit the code of Unit, which
+%% holds the members, calls.
+code_frame({Members, Unit}) ->
     Forms = forms(Members),
-    Sources = [{case Name of
-                    none -> texts(QualifiedName);
-                    _ -> Name
-                end,
-                case Sourced of
-                    none -> Form;
-                    _ -> Sourced
-                end,
-                case Printing of
-                    none -> {[], []};
-                    _ -> Printing
-                end}
-               || #definition{qualified_name = QualifiedName, name = Name, form = Form,
-                              sourced = Sourced, printing = Printing} <- Members],
-    {[Hash || #definition{hash = Hash} <- Members],
-     ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
-     term_to_binary(Sources)}.
+    Calls = [calls(Unit, Form) || Form <- Forms],
+    case lists:member(none, Calls) of
+        true ->
+            none;
+        false ->
+            Sources = [{case Name of
+                            none -> texts(QualifiedName);
+                            _ -> Name
+                        end,
+                        case Sourced of
+                            none -> Form;
+                            _ -> Sourced
+                        end,
+                        case Printing of
+                            none -> {[], []};
+                            _ -> Printing
+                        end,
+                        Called}
+                       || {#definition{qualified_name = QualifiedName, name = Name, form = Form,
+                                       sourced = Sourced, printing = Printing}, Called}
+                              <- lists:zip(Members, Calls)],
+            {[Hash || #definition{hash = Hash} <- Members],
+             ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
+             term_to_binary(Sources)}
+    end.
+
+%% Report §8.7: the foreign declarations a definition's form calls, in the
+%% order of their names, each {QualifiedName, HostModule, HostFunction,
+%% Printing} as a reach's are found (implementations/2); none where one of
+%% them is found nowhere.
+calls(Unit, Form) ->
+    case called_names(Form) of
+        [] ->
+            [];
+        Names ->
+            case implementations(Unit, Names) of
+                {ok, Implemented} ->
+                    [{Name, HostModule, HostFunction, Printing}
+                     || {Name, HostModule, HostFunction, _, Printing} <- Implemented];
+                none ->
+                    none
+            end
+    end.
 
 %% The definition of Hash this node holds, alone or with the other members
 %% of its group in their order, read from the forms of the latest unit that
-%% holds it; none where no unit's forms hold it.
+%% holds it, with that unit; none where no unit's forms hold it.
 members(Hash, Read) ->
     member_of(lists:reverse(ern_code:holders({hash, Hash})), Hash, Read).
 
@@ -611,13 +687,13 @@ member_of([Unit | Units], Hash, Read) ->
     case [Definition || #definition{hash = Defined} = Definition <- Definitions,
                         Defined =:= Hash] of
         [#definition{group = none} = Definition | _] ->
-            {[Definition], Read1};
+            {[Definition], Unit, Read1};
         [#definition{group = {GroupHash, _}} | _] ->
             Members = [Member || #definition{group = {Of, _}} = Member <- Definitions,
                                  Of =:= GroupHash],
             {lists:sort(fun(#definition{group = {_, A}}, #definition{group = {_, B}}) -> A =< B end,
                         Members),
-             Read1};
+             Unit, Read1};
         [] ->
             member_of(Units, Hash, Read1)
     end.
@@ -629,6 +705,12 @@ member_of([Unit | Units], Hash, Read) ->
 forms(Members) ->
     [Form || #definition{form = Form} <- Members].
 
+%% Report §8.7: the qualified names of the foreign declarations a form
+%% calls, as text, each once, in order, as a code frame names them.
+called_names(Form) ->
+    lists:usort([texts(QualifiedName)
+                 || {foreign, QualifiedName, _} <- ern_compile:references([Form])]).
+
 %% Report §8.7: the hashes forms reference, a binding's among them, as a
 %% code frame names them.
 referenced(Forms) ->
@@ -639,10 +721,11 @@ referenced(Forms) ->
 
 %% A qualified name as text, its segments atoms or a peer's text already.
 texts(QualifiedName) ->
-    [case Segment of
-         _ when is_atom(Segment) -> atom_to_binary(Segment);
-         _ -> Segment
-     end || Segment <- QualifiedName].
+    [text(Segment) || Segment <- QualifiedName].
+
+%% A name as text, an atom of this node's or a peer's text already.
+text(Name) when is_atom(Name) -> atom_to_binary(Name);
+text(Name) -> Name.
 
 is_identity({function, Hash}) -> is_hash(Hash);
 is_identity({lambda, Hash, Position}) -> is_hash(Hash) andalso is_integer(Position)

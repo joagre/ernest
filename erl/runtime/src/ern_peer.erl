@@ -21,7 +21,7 @@
 
 -export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/5,
          spawn_monitored/4, spawn_monitored/6, compute/3, compute/4, utilisation/2, peers/0,
-         frame/2, failed/4, reach_lacked/2, lost/1]).
+         frame/2, failed/4, reach_lacked/2, foreign_lacked/1, lost/1]).
 
 -export_type([identity/0]).
 
@@ -528,7 +528,10 @@ reach_lacked(Bindings, Foreigns) ->
 %% implementation, its module or the function in it at the declaration's
 %% arity, or none; the module is loaded first where it is on the code
 %% path, as the declaring module's call would load it, so that its name
-%% and its functions' are atoms here once it answers none.
+%% and its functions' are atoms here once it answers none. A unit an
+%% exchange makes asks it of each foreign function its definitions call
+%% beyond the reach (ern_arrival).
+-spec foreign_lacked({[binary()], binary(), binary(), term(), term()}) -> iodata() | none.
 foreign_lacked({QualifiedName, HostModule, HostFunction, Scheme, _}) ->
     Module = ["the module ", ern_show:controls(HostModule, line), ", which ",
               named_text(QualifiedName), " calls, "],
@@ -633,7 +636,10 @@ existing_atoms(Names) ->
 
 %% Report §8.7: the first foreign declaration of a reach whose module is not
 %% on this node, as what this node lacked, or none: each found in the units
-%% the code of Unit, which runs the function, calls (ern_code:called/1).
+%% the code of Unit, which runs the function, calls (ern_code:called/1),
+%% one whose call a unit an exchange made linked to a fault, the node
+%% lacking its module or its function as its code arrived, by the
+%% declaration that unit records (ern_code:declared/2), which names them.
 absent_module(_Unit, []) ->
     none;
 absent_module(Unit, QualifiedNames) ->
@@ -648,7 +654,14 @@ lacked_module(Called, QualifiedName) ->
     Named = identity_text(QualifiedName),
     case ern_code:foreign(Called, QualifiedName) of
         [] ->
-            ["this node does not have ", Named];
+            case ern_code:declared(Called, QualifiedName) of
+                [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
+                    linked_to_fault({[text(Segment) || Segment <- QualifiedName],
+                                     text(HostModule), text(HostFunction), Scheme, Printing},
+                                    Named);
+                [] ->
+                    ["this node does not have ", Named]
+            end;
         Implementations ->
             case [HostModule || {_, HostModule, _} <- Implementations,
                                 not ern_code:present(HostModule)] of
@@ -657,6 +670,22 @@ lacked_module(Called, QualifiedName) ->
                                      " calls, is not here"]
             end
     end.
+
+%% Report §8.7: what this node lacks of a declaration whose call a unit an
+%% exchange made linked to a fault, as a spawn whose reach named it before
+%% the code arrived is told; and where the module and the function have
+%% come since, that they were not here when the code arrived, which the
+%% unit's code still calls the fault for.
+linked_to_fault({_, HostModule, _, _, _} = Declaration, Named) ->
+    case foreign_lacked(Declaration) of
+        none -> ["the module ", ern_show:controls(HostModule, line), ", which ", Named,
+                 " calls, was not here when its code arrived"];
+        Lacked -> Lacked
+    end.
+
+%% A name a unit records, an atom of this node's or a peer's text.
+text(Name) when is_atom(Name) -> atom_to_binary(Name);
+text(Name) -> Name.
 
 %% A binding of the reach without its value here, as what this node lacked.
 absent({QualifiedName, _}) ->
