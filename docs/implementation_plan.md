@@ -376,7 +376,9 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    pressure and reversed two, the whole principles review being MVP 3.9's full review's to hold;
    every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
    exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say what a
-   program written for 0.3.1 changes, the README rewritten from
+   program written for 0.3.1 changes and what the shell does not yet do beside a node, attach to it
+   with its inputs run there, which MVP 4.3's item 4 brings and the deployment guide's section 6
+   says (decided 2026-10-13: nothing more goes into 0.4.0), the README rewritten from
    `proposals/scratch/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
    changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).

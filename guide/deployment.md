@@ -193,16 +193,20 @@ The tool moves a counter of its own first, then spawns on each peer a process th
 
 ## 6. Looking in
 
-A shell beside the nodes is the operator's window. Start one from a directory of its own that lists the nodes as peers, `ern shell --config-dir ops`, and ask:
+A shell started beside the nodes is the operator's window, and every look through it is a compute on the node. Start it from a directory of its own that lists the nodes and that they list, with the program loaded, so that the shell can type what it sends: `ern shell --config-dir ops counter.erc`. Then:
 
 ```
 > Peer.utilisations()
 [#("b", 0.12, 1830), #("c", 0.41, 2210)]
 > Peer.computeAt("b", fn() = Process.live(), 1000)
 Right([...])
+> Peer.computeAt("b", fn() = Counter.config, 1000)
+Right(Config(limit = 500))
 ```
 
-`Peer.utilisation(name, ms)` asks a node now rather than reading the last telling; `Peer.utilisations()` reads what the shell's node holds of its peers, each with how many milliseconds ago it was told. A compute of `Process.live()` or `Process.status(p)` on a peer lists its processes and the site each was spawned at, a snapshot (report Appendix E.21); the shell's `:processes` lists the shell's own. A fault's trace, printed beneath the fault on the node's standard error, names the function by the name its program gives it, and names a received unit `ern$3`, which tells you the code arrived from a peer (report §11.2). Nothing of this changes the node: looking is a compute like any other, and costs one.
+The lambda is written at the shell and runs on `b` with `b`'s own values, as any compute does (report §8.7): a binding of the program read this way is the node's, the processes listed are those on the node, and a function of the program called this way runs there. `Peer.utilisation(name, ms)` asks a node now rather than reading the last telling; `Peer.utilisations()` reads what the shell's node holds of its peers, each with how many milliseconds ago it was told. `Process.status(p)` on a process the list gave names the site it was spawned at, a snapshot (report Appendix E.21). A fault's trace, printed beneath the fault on the node's standard error, names the function by the name its program gives it, and names a received unit `ern$3`, which tells you the code arrived from a peer (report §11.2). Looking costs what one compute costs and changes nothing on the node.
+
+What a shell cannot do yet is attach to a running node: run its inputs there without the wrapping compute, list the node's processes with `:processes`, and load or reload code on the node with `:load` and `:reload`, as `erl -remsh` attaches to an Erlang node. That is MVP 4.3's in the plan, after this release, and until then the wrapped compute is the way in; the shell's `:processes` lists the shell's own.
 
 ## 7. What a node says, and what to do
 
