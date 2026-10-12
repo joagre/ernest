@@ -357,17 +357,17 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    send is the program's own type, which no library function can build at a type, and the two lines
    show the mechanism whole. Written after item 7.5, placement by push, decided 2026-10-13 from
    `proposals/placement/push.md`, so that the guide's placement is the one that ships.
-9. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`:
-   the review before a release as [`release_review.md`](release_review.md) says, its readers
-   over what MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over
-   chapter 8 and the deployment guide, and the argument's over `soundness.md`'s section 7;
-   every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module
-   and exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say
-   what a program written for 0.3.1 changes, the tag `v0.4.0` and the archive (decided with the
-   user on 2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*).
-
----
-
+9. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
+   review before a release as [`release_review.md`](release_review.md) says, its readers over what
+   MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
+   the deployment guide, and the argument's over `soundness.md`'s section 7; and, decided
+   2026-10-13, one principles reader beside them, on Fable, reading §8.7, §11.2, Appendix E.27 and
+   E.28 and the guide's chapter 8 against §0, since this milestone wrote its rules under build
+   pressure and reversed two, the whole principles review being MVP 3.9's full review's to hold;
+   every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
+   exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say what a
+   program written for 0.3.1 changes, the tag `v0.4.0` and the archive (decided with the user on
+   2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*). ---
 ## MVP 3.27 (measured across machines), about a week
 
 A milestone made on 2026-10-13, when MVP 3.2's item 7 measured the exchange, the picks and the
@@ -428,7 +428,8 @@ follows enough use to know what holds still. What the review needs was argued in
 log's *The First Release Is for Others*:
 
 - **The full review**, when the user says so: every reader over the whole of its area
-  ([`full_review.md`](full_review.md)), and its findings worked.
+  ([`full_review.md`](full_review.md)), the principles reader among them, so that no principles
+  review runs beside it (decided 2026-10-13), and its findings worked.
 - **The numbering decided once.** Whether the report's section numbers have drifted enough since
   0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
   citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
