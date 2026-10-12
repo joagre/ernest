@@ -225,7 +225,13 @@ called(Node) ->
 %% where Wait says so; answers the port whose writes are its standard
 %% input and whose messages are its standard output, and the function that
 %% waits for its end and answers what it printed.
-client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Wait) ->
+client(Root, Name, Keys, Cookie, Port, Target, Wait) ->
+    client(Root, Name, Keys, Cookie, Port, Target, [Flag || Flag <- ["-ern_nodes_wait"], Wait],
+           "ern_nodes_client").
+
+%% The same, running Module's main/0 with the flags Flags, the epmd module
+%% ern_nodes_client's.
+client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Flags, Module) ->
     Tls = lists:append([[Side ++ "_" ++ Option, Value]
                         || Side <- ["client", "server"],
                            {Option, Value} <- [{"certfile", Certificate}, {"keyfile", Key},
@@ -236,8 +242,7 @@ client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Wait) ->
         ++ ["-epmd_module", "ern_nodes_client", "-start_epmd", "false", "-dist_listen", "false",
             "-connect_all", "false", "-setcookie", Cookie,
             "-ern_nodes_port", integer_to_list(Port), "-ern_nodes_target", Target]
-        ++ [Flag || Flag <- ["-ern_nodes_wait"], Wait]
-        ++ ["-s", "ern_nodes_client", "main"],
+        ++ Flags ++ ["-s", Module, "main"],
     Client = open_port({spawn_executable, os:find_executable("erl")},
                        [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
     {Client, fun() -> collected(Client, <<>>) end}.
@@ -2535,6 +2540,275 @@ relay(Base) ->
      || Err <- [ErrB, ErrC1, ErrC2], Part <- ["could not take", "this node does not have",
                                                "no longer holds"]].
 
+%% report §8.7, §11.2, §6.10, §10: a fix from a shell that is a node over
+%% the old build. The shell loads the module with its leaf changed, and
+%% spawns on a node of the old build the last of the leaf's callers: the
+%% spawn crosses the leaf and the callers whose hashes changed with it,
+%% which the node compiles into one unit of its own, and nothing the node
+%% holds. The fixed leaf raises there, and its fault's trace shows each
+%% changed definition's frame in that unit, `ern$1`, and the frame of the
+%% function no fix changed, which the node held, in its build's unit. A
+%% regression test, written after the code; which definitions cross
+%% exactly is ern_exchange_tests' received_whole_test's, and the costs of a
+%% fix's callers ern_code_costs' (make bench)
+fix_from_shell_test_() ->
+    nodes_test(90, fun fix_from_shell/1).
+
+fix_from_shell(Base) ->
+    Root = filename:join(Base, "build"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    Fix = fun(Leaf) ->
+              ["// Report §8.7, §6.10: a leaf, its callers, and what no fix changes.\n"
+               "\n"
+               "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+               "\n",
+               Leaf,
+               "\n"
+               "fn middle(x : Int) : Int = aside(fn() = leaf(x)) + 1\n"
+               "\n"
+               "export fn top() : Unit with Never = Io.println(Int.toString(middle(1)))\n"
+               "\n"
+               "// What no fix changes, beneath whose frame the fix runs.\n"
+               "export fn aside(f : () -> Int) : Int = f() + 0\n"
+               "\n"
+               "// The old build's node, which waits for what is spawned on it.\n"
+               "export fn main() : Unit with Unit = {\n"
+               "    Io.println(\"serving\");\n"
+               "    held()\n"
+               "}\n"
+               "\n"
+               "fn held() : Unit with Unit = receive { _ -> held() }\n"]
+          end,
+    ok = file:write_file(filename:join(Root, "fix.ern"),
+                         unicode:characters_to_binary(Fix("fn leaf(x : Int) : Int = x * 2\n"))),
+    ok = file:write_file(filename:join(Source, "fix.ern"),
+                         unicode:characters_to_binary(
+                           Fix("// The fix, which raises, so that its trace shows each frame.\n"
+                               "fn leaf(x : Int) : Int = parsed(\"fixed\") + x\n"))),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    PortB = free_port(),
+    B = made(Base, "b", PortB),
+    Desk = made(Base, "desk", none),
+    lists(B, [{"desk", Desk, none}]),
+    lists(Desk, [{"b", B, PortB}]),
+    WaitB = start(B, filename:join(Root, "fix.erc"), []),
+    prints(B, "serving"),
+    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
+    true = port_command(DeskInput, ":load Fix\n"),
+    prints(Desk, "Fix, compiled from fix.ern"),
+    true = port_command(DeskInput, "Peer.spawn(\"b\", Fix.top, 5000)\n"),
+    prints(Desk, ?SPAWNED),
+    says(B, " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg, spawned"
+            " by the peer desk"),
+    true = port_command(DeskInput, ":quit\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(B, WaitB),
+    {_, ErrB} = said(B),
+    [has(ErrB, Frame) || Frame <- ["'ern$1':'Fix.leaf'/1", "'ern$1':'Fix.middle'/1",
+                                   "ern@fix:aside/1"]],
+    [?assertEqual(nomatch, string:find(ErrB, Part))
+     || Part <- ["'ern$1':'Fix.aside'", "'ern$2'", "was not loaded", "could not take"]].
+
+%% Two builds of a program, the second of which the test's own spawner
+%% plays through a bare `erl`: a function that waits for a number and then
+%% raises, and a definition beside it whose code frame the spawner sends;
+%% answers the program's `.erc` and source.
+lost_build(Root) ->
+    ok = filelib:ensure_path(Root),
+    Source = "// Report §8.7: a function spawned onto a bare node, the first time with a\n"
+             "// time its exchange outlasts.\n"
+             "\n"
+             "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+             "\n"
+             "export fn main() : Unit with Never =\n"
+             "    match Os.arguments {\n"
+             "        [bare] -> late(bare)\n"
+             "      | _ -> Unit\n"
+             "    }\n"
+             "\n"
+             "fn late(bare : String) : Unit with Never = {\n"
+             "    Io.println(\"dialled: \" <> outcome(Peer.utilisation(bare, 5000)));\n"
+             "    Io.println(\"late: \" <> outcome(Peer.spawn(bare, waits, 1)));\n"
+             "    let again = Peer.spawn(bare, waits, 5000);\n"
+             "    Io.println(\"again: \" <> outcome(again));\n"
+             "    match again {\n"
+             "        Right(address) -> send(address, 1)\n"
+             "      | Left(_) -> Unit\n"
+             "    }\n"
+             "}\n"
+             "\n"
+             "// A process that raises once it is sent a number.\n"
+             "fn waits() : Unit with Int = receive {\n"
+             "    n -> Io.println(Int.toString(parsed(\"x\") + n))\n"
+             "}\n"
+             "\n"
+             "// The definition whose code frame the test's spawner sends.\n"
+             "fn other(x : Int) : Int = x + 1\n"
+             "\n"
+             "fn outcome(answer : Either(Io.Error, a)) : String =\n"
+             "    match answer {\n"
+             "        Right(_) -> \"Right\"\n"
+             "      | Left(failure) -> Io.show(failure)\n"
+             "    }\n",
+    ok = file:write_file(filename:join(Root, "lost.ern"), unicode:characters_to_binary(Source)),
+    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), client()),
+    ok = file:write_file(filename:join(Root, "ern_nodes_spawner.erl"), spawner()),
+    [{ok, _} = compile:file(filename:join(Root, File), [{outdir, Root}])
+     || File <- ["ern_nodes_client.erl", "ern_nodes_spawner.erl"]],
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    {filename:join(Root, "lost.erc"), Source}.
+
+%% A spawner of the test's own, run in a bare `erl` that holds a peer's key,
+%% which plays the spawner's node's part of the exchange as a script: it
+%% spawns on the node its command line names the function whose hash it
+%% is given, answers the request for its reach with that hash and the
+%% other's, and sends the other's code frame, read from the file it is
+%% given, or a frame its bytes do not match; its gateway is its own
+%% process, which the node sends its frames to (report §8.7). Each step it
+%% sees, a line.
+spawner() ->
+    <<"
+-module(ern_nodes_spawner).
+-export([main/0]).
+main() ->
+    Node = list_to_atom(argument(ern_nodes_target)),
+    Hash = binary:decode_hex(list_to_binary(argument(ern_nodes_hash))),
+    {Other, Bytes, References, Sources} = binary_to_term(read(argument(ern_nodes_frame))),
+    Frame = fun(Exchange, Of) -> {code_frame, Exchange, [Other], Of, References, Sources} end,
+    true = register(ern_gateway, self()),
+    connected(Node),
+    %% the reach answered as one this node no longer holds: the spawn is
+    %% answered Other, and a code frame of the exchange that ended is
+    %% dropped, the connection kept
+    First = spawned(Node, Hash),
+    Ended = requested(),
+    sent(Node, {reach, Ended, none}),
+    io:format(\"no longer held: ~s~n\", [answered(First)]),
+    sent(Node, Frame(Ended, Bytes)),
+    %% a code frame whose bytes are not its hash's ends the connection
+    _ = spawned(Node, Hash),
+    Faulty = requested(),
+    io:format(\"late frame: the connection lives~n\"),
+    sent(Node, {reach, Faulty, [Hash, Other], [], []}),
+    Lacks = lacks(Faulty),
+    io:format(\"lacks: ~B~n\", [length(Lacks)]),
+    sent(Node, Frame(Faulty, <<Bytes/binary, 0>>)),
+    receive {nodedown, Node} -> io:format(\"faulty: ended~n\") end,
+    %% a code frame verified and held apart, read by the node before this
+    %% node asks it a reach of its own, and the connection then closed
+    connected(Node),
+    _ = spawned(Node, Hash),
+    Broken = requested(),
+    sent(Node, {reach, Broken, [Hash, Other], [], []}),
+    Lacks = lacks(Broken),
+    sent(Node, Frame(Broken, Bytes)),
+    caught_up(Node),
+    true = erlang:disconnect_node(Node),
+    receive {nodedown, Node} -> io:format(\"broken: closed~n\") end,
+    %% a new exchange lacks both again
+    connected(Node),
+    _ = spawned(Node, Hash),
+    Again = requested(),
+    sent(Node, {reach, Again, [Hash, Other], [], []}),
+    io:format(\"lacked again: ~p~n\", [lacks(Again) =:= Lacks]),
+    halt().
+argument(Name) ->
+    {ok, [[Value]]} = init:get_argument(Name),
+    Value.
+read(File) ->
+    {ok, Bytes} = file:read_file(File),
+    Bytes.
+connected(Node) ->
+    true = net_kernel:connect_node(Node),
+    true = erlang:monitor_node(Node, true).
+sent(Node, Body) ->
+    erlang:send({ern_gateway, Node}, {ern_frame, self(), Body}).
+spawned(Node, Hash) ->
+    Ref = make_ref(),
+    sent(Node, {spawn, Ref, {function, Hash}, <<\"Lost.z:1\">>, false}),
+    Ref.
+requested() ->
+    receive {ern_frame, _, {reach_request, Exchange, _}} -> Exchange end.
+lacks(Exchange) ->
+    receive {ern_frame, _, {lacks, Exchange, Hashes}} -> Hashes end.
+answered(Ref) ->
+    receive {ern_frame, _, {answer, Ref, {failed, {'Other', _}}}} -> \"Other\" end.
+caught_up(Node) ->
+    Ref = make_ref(),
+    sent(Node, {reach_request, Ref, {function, <<0:256>>}}),
+    receive {ern_frame, _, {reach, Ref, none}} -> ok end.
+">>.
+
+%% report §8.7: the exchange on a bare node, with a spawner of the test's
+%% own that plays the spawner's node's part: a reach answered as one the
+%% spawner's node no longer holds answers the spawn `Other`, which the
+%% node says, and a code frame of that exchange, which has ended, is
+%% dropped, the connection kept; a code frame whose bytes are not the
+%% hash it names is faulty, and the node ends the connection, saying so; a
+%% code frame verified and held apart enters nothing, so that, its
+%% connection closed before the reach was whole, a new exchange lacks it
+%% again, as it lacked it before; and then a peer of the program's, whose
+%% first spawn gives up before its exchange ends, its time a millisecond,
+%% spawns the function again and it runs, from the one unit the node made,
+%% `ern$1`, whose name its fault's trace shows: the exchanges that broke
+%% made none, and the late one made it whole. A regression test, written
+%% after the code; the exchange's state after a loss is ern_exchange_tests'
+%% loss_test's, and the late spawn's process, killed as its answer
+%% arrives, is not observed
+broken_exchange_test_() ->
+    nodes_test(90, fun broken_exchange/1).
+
+broken_exchange(Base) ->
+    Root = filename:join(Base, "build"),
+    {Program, Source} = lost_build(Root),
+    {ok, Beam} = file:read_file(Program),
+    {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
+    Defined = fun(Name) -> hd([Definition || #definition{qualified_name = ['Lost', Named]}
+                                                 = Definition <- Definitions, Named =:= Name])
+              end,
+    #definition{hash = Waits} = Defined(waits),
+    #definition{qualified_name = OtherName, hash = Other, form = Form, sourced = Sourced,
+                printing = Printing} = Defined(other),
+    Frame = filename:join(Base, "frame"),
+    References = lists:usort([Hash || {hash, Hash} <- ern_canonical:references([Form])]),
+    ok = file:write_file(Frame, term_to_binary(
+                                  {Other, ern_canonical:bytes(ern_canonical:hashed([Form])),
+                                   References,
+                                   term_to_binary([{[atom_to_binary(Segment)
+                                                     || Segment <- OtherName],
+                                                    Sourced, Printing, []}])})),
+    A = made(Base, "a", none),
+    Z = made(Base, "z", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}, {"z", Z, none}]),
+    WaitB = bare_started(B, []),
+    PortB = bound_port(B),
+    {_, Spawner} = client(Root, name(Z), key_files(Z), ern_carrier:cookie(), PortB, name(B),
+                          ["-ern_nodes_hash", binary_to_list(binary:encode_hex(Waits)),
+                           "-ern_nodes_frame", Frame],
+                          "ern_nodes_spawner"),
+    {0, SpawnerOut} = Spawner(),
+    [has(SpawnerOut, Line) || Line <- ["no longer held: Other", "late frame: the connection lives",
+                                       "lacks: 2", "faulty: ended", "broken: closed",
+                                       "lacked again: true"]],
+    seen(B, err, "the peer z was lost", 2, 30000),
+    lists(A, [{"b", B, PortB}]),
+    ?assertEqual(0, (start(A, Program, ["b"]))()),
+    Site = "Lost.late:" ++ integer_to_list(line_of(Source, "let again")),
+    says(B, Site ++ " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg,"
+                    " spawned by the peer a"),
+    stop(B, WaitB),
+    {Out, _} = said(A),
+    {_, ErrB} = said(B),
+    [has(Out, Line) || Line <- ["dialled: Right", "late: Timeout", "again: Right"]],
+    [has(ErrB, Line)
+     || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
+                 " holds the function's reach",
+                 "the peer z sent a frame this node cannot read, and its connection was ended",
+                 "'ern$1':'Lost.waits'/0"]],
+    [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["'ern$2'", "could not take"]].
+
 %% report §11.2, §8.7, Appendix H: a service at a type the session declares
 %% names that type by its hash, as any service does, and the hash is the
 %% session's whatever input declares the type: two shells that are nodes
@@ -3702,10 +3976,21 @@ upgraded_builds(Base) ->
             "      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))\n"
             "    }\n"
             "\n"
-            "// Two counters spawned, and the entry process a third.\n"
+            "// Report §6.10: what the counter's clients send, a type without\n"
+            "// Upgrade, by which it is offered to other nodes.\n"
+            "export type Public = Add(Int) | Total(reply : Reply(Int))\n"
+            "\n"
+            "export let public : Peer.Service(Public) = Peer.service(\"counter\")\n"
+            "\n"
+            "// Two counters spawned, and the entry process a third, offered through\n"
+            "// an adapted address of its own.\n"
             "export fn serve() : Unit with CounterMsg = {\n"
             "    let _ = spawn(fn() = count(10));\n"
             "    let _ = spawn(fn() = count(20));\n"
+            "    let _ = Peer.offer(public, adapted(self(), fn(message) = match message {\n"
+            "        Add(amount) -> Inc(amount)\n"
+            "      | Total(reply = reply) -> Get(reply = reply)\n"
+            "    }));\n"
             "    Io.println(\"serving\");\n"
             "    count(0)\n"
             "}\n",
@@ -3737,10 +4022,26 @@ upgraded_builds(Base) ->
            "export fn main() : Unit with Report =\n"
            "    match Os.arguments {\n"
            "        [node, bare, path] -> {\n"
+           "            served(\"before\");\n"
            "            moved(node);\n"
+           "            served(\"after\");\n"
            "            loaded(bare, path)\n"
            "        }\n"
            "      | _ -> Unit\n"
+           "    }\n"
+           "\n"
+           "// Report §6.10, §6.5: the counter found as the service it offers, at a\n"
+           "// type without Upgrade, added to through its adapted address and asked\n"
+           "// its total, before its upgrade and after it.\n"
+           "fn served(moment : String) : Unit with m =\n"
+           "    match Peer.find(Counter.public, 5000) {\n"
+           "        Right(counter) -> {\n"
+           "            send(counter, Counter.Add(4));\n"
+           "            let asked = fn(reply) = Counter.Total(reply = reply);\n"
+           "            let total = Address.call(counter, asked, 5000);\n"
+           "            Io.println(moment <> \": \" <> Io.show(total))\n"
+           "        }\n"
+           "      | Left(failure) -> Io.println(moment <> \": \" <> Io.show(failure))\n"
            "    }\n"
            "\n"
            "// Report §6.10: every process on the peer that runs count moved to\n"
@@ -3792,16 +4093,20 @@ upgraded_builds(Base) ->
     {filename:join(One, "counter.erc"), filename:join(Two, "counter.erc"),
      filename:join(Two, "tool.erc")}.
 
-%% report §6.10, §8.7, §3.11, Appendix E.28: the upgrade tool of the
-%% proposal's section 3. A node runs the first build's counters on `count`;
-%% the tool, of the second build, spawns on it a process that lists them by
-%% Code.running, the code the node lacks, `count2` among it, crossing with
-%% the spawn, and moves each to `count2` by its own Upgrade, its total
-%% kept, so that `count` then lists none. On a bare node, which holds no
-%% program, a spawn whose reach names a binding is NotLoaded until a
-%% compute there runs Code.load of the module with its reach from the load
-%% path, which evaluates the binding, and the same spawn then runs.
-%% Written after the code
+%% report §6.10, §8.7, §3.11, §6.5, Appendix E.28: the upgrade tool of the
+%% proposal's section 3. A node runs the first build's counters on `count`,
+%% the entry process's offered through an adapted address of a type without
+%% Upgrade; the tool, of the second build, finds it, adds to it and asks its
+%% total, and spawns on the node a process that lists them by Code.running,
+%% the code the node lacks, `count2` among it, crossing with the spawn, and
+%% moves each to `count2` by its own Upgrade, its total kept, so that
+%% `count` then lists none; the service, its address unchanged, then adds
+%% and answers from `count2`. On a bare node, which holds no program, a
+%% spawn whose reach names a binding is NotLoaded until a compute there
+%% runs Code.load of the module with its reach from the load path, which
+%% evaluates the binding, and the same spawn then runs. Written after the
+%% code; the service through the adapted address a regression test of MVP
+%% 3.2's item 7, written after the code
 code_upgrade_test_() ->
     nodes_test(90, fun code_upgrade/1).
 
@@ -3817,11 +4122,13 @@ code_upgrade(Base) ->
     PortB = bound_port(B),
     WaitC = bare_started(C, []),
     lists(A, [{"b", B, PortB}, {"c", C, bound_port(C)}]),
+    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
     {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ", Tool, " b c ", CounterTwo]),
     ?assertEqual(0, WaitA()),
-    [prints(B, Line) || Line <- ["count2 1", "count2 11", "count2 21"]],
+    [prints(B, Line) || Line <- ["count2 5", "count2 11", "count2 21", "count2 9"]],
     stop(B, WaitB),
     stop(C, WaitC),
     {Out, _} = said(A),
-    [has(Out, Line) || Line <- ["moved 3, left 0", "before load: NotLoaded",
-                                "load: Right(Right(Unit))", "after load: Right"]].
+    [has(Out, Line) || Line <- ["before: Some(4)", "moved 3, left 0", "after: Some(9)",
+                                "before load: NotLoaded", "load: Right(Right(Unit))",
+                                "after load: Right"]].

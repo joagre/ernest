@@ -229,8 +229,9 @@ loaded(Placed) ->
         _ ->
             case code:atomic_load([{Unit, Name, Beam} || {Unit, Name, Beam, _} <- Made]) of
                 ok ->
-                    lists:foreach(fun({Unit, _, _, file}) -> ern_code:loaded(Unit);
-                                     ({Unit, _, _, Recorded}) -> ern_code:loaded(Unit, Recorded)
+                    lists:foreach(fun({Unit, _, Beam, file}) -> ern_code:loaded(Unit, Beam);
+                                     ({Unit, _, Beam, Recorded}) ->
+                                          ern_code:loaded(Unit, Beam, Recorded)
                                   end, Made),
                     ern_cli:say_limits();
                 {error, [{Unit, What} | _]} ->

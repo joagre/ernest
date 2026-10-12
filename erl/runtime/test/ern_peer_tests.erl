@@ -571,7 +571,7 @@ loaded(Namespace, Text) ->
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
-    ok = ern_code:loaded(Unit),
+    ok = ern_code:loaded(Unit, Beam),
     {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     maps:from_list([{QualifiedName, Hash}
                     || #definition{qualified_name = QualifiedName, hash = Hash} <- Definitions]).

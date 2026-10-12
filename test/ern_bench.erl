@@ -2,8 +2,9 @@
 %% each written as Erlang writes it, run as the Ernest program runs them,
 %% the fastest of three runs of a loop, and printed beside what the Ernest
 %% program took, in nanoseconds an iteration, the loop's own cost included
-%% on both sides. It measures and asserts nothing, so it is not part of
-%% `make test`.
+%% on both sides; a raise at each backtrace depth (Appendix E.21, report
+%% §10), the median of seven runs, with their range. It measures and
+%% asserts nothing, so it is not part of `make test`.
 -module(ern_bench).
 
 -export([main/1]).
@@ -23,9 +24,73 @@ main([File]) ->
                       Ernest = list_to_integer(Ms) * 1.0e6 / Count,
                       Erlang = fastest(Count, Operation),
                       io:format("~-40s ~9.1f ~9.1f ~7.1f~n",
-                                [Name, Ernest, Erlang, Ernest / Erlang])
+                                [Name, Ernest, Erlang, Ernest / Erlang]);
+                     ([Key, Iterations | Micros]) ->
+                      raised(Key, list_to_integer(Iterations),
+                             [list_to_integer(Value) || Value <- Micros])
                   end, Lines),
     halt(0).
+
+%% Appendix E.21, E.28, report §10: a raise in the host, as bench.ern's
+%% raises/1 measures it at a backtrace depth, its median and range printed
+%% beside Erlang's, each in nanoseconds an iteration; the depth then set
+%% back to the host's.
+raised(Key, Count, [Median, Low, High]) ->
+    {Name, Depth, Beneath, Operation} = raise(Key),
+    Previous = erlang:system_flag(backtrace_depth, Depth),
+    Erlang = lists:sort([deepened(Beneath, fun() -> duration(Count, Operation) end) / Count
+                         || _ <- lists:seq(1, 7)]),
+    erlang:system_flag(backtrace_depth, Previous),
+    PerIteration = fun(Micros) -> Micros * 1000 / Count end,
+    io:format("~-40s ~9.1f ~9.1f ~7.1f  ~.1f to ~.1f, ~.1f to ~.1f~n",
+              [Name, PerIteration(Median), lists:nth(4, Erlang),
+               PerIteration(Median) / lists:nth(4, Erlang), PerIteration(Low),
+               PerIteration(High), hd(Erlang), lists:last(Erlang)]).
+
+%% A raise's key, `raise_` or `fault_`, then `deep_` where it is made
+%% beneath forty frames, then the depth: its row's name, the depth, the
+%% frames the loop runs beneath, and the same raise as Erlang writes it, a
+%% badarg taken by a try, the loop beneath forty frames where it is deep,
+%% or a process that ends by it, beneath forty frames of its own where it
+%% is deep, its exit not logged, and its 'DOWN' received.
+raise(Key) ->
+    [Kind | Rest] = string:lexemes(Key, "_"),
+    {Deep, Depth} = case Rest of
+                        ["deep", Number] -> {40, list_to_integer(Number)};
+                        [Number] -> {0, list_to_integer(Number)}
+                    end,
+    Text = binary:copy(<<"x">>),
+    Where = case Deep of
+                0 -> "";
+                _ -> " beneath 40 frames"
+            end,
+    case Kind of
+        "raise" ->
+            {io_lib:format("String.toInt failing, depth ~B~s", [Depth, Where]), Depth, Deep,
+             fun(Iteration) ->
+                 try binary_to_integer(Text, 10)
+                 catch error:badarg -> Iteration
+                 end
+             end};
+        "fault" ->
+            {io_lib:format("a fault by a raise, depth ~B~s", [Depth, Where]), Depth, 0,
+             fun(Iteration) ->
+                 {_, MonitorRef} =
+                     spawn_monitor(fun() ->
+                                       deepened(Deep, fun() ->
+                                                          try binary_to_integer(Text)
+                                                          catch error:badarg:Stack ->
+                                                              exit({badarg, Stack})
+                                                          end
+                                                      end)
+                                   end),
+                 receive {'DOWN', MonitorRef, _, _, _} -> Iteration end
+             end}
+    end.
+
+%% Run beneath Count frames, none a tail call, as bench.ern's deepened/2.
+deepened(0, Run) -> Run();
+deepened(Count, Run) -> deepened(Count - 1, Run) + 0.
 
 %% Each key of bench.ern, what it measures, and the operation in Erlang.
 operations(Server) ->

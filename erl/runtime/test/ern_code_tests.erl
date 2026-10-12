@@ -20,7 +20,7 @@ loaded(Namespace, Text) ->
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
-    ok = ern_code:loaded(Unit),
+    ok = ern_code:loaded(Unit, Beam),
     Beam.
 
 definitions(Beam) ->
@@ -151,12 +151,13 @@ unit_loaded_again_replaces_its_rows_test() ->
     F1 = hash(['Tablereload', f], Before),
     Held = {'ern@tablereload', '$1', 1, {[], []}},
     ?assertEqual(Held, ern_code:spawnable({hash, F1})),
-    After = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n")),
+    Again = loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n"),
+    After = definitions(Again),
     F2 = hash(['Tablereload', f], After),
     ?assertNotEqual(F1, F2),
     ?assertEqual(none, ern_code:spawnable({hash, F1})),
     ?assertEqual(Held, ern_code:spawnable({hash, F2})),
-    ok = ern_code:loaded('ern@tablereload'),
+    ok = ern_code:loaded('ern@tablereload', Again),
     ?assertEqual(Held, ern_code:spawnable({hash, F2})),
     ern_code:unloaded('ern@tablereload'),
     ?assertEqual(none, ern_code:spawnable({hash, F2})),
@@ -220,7 +221,7 @@ versions_answer_the_evaluated_unit_test() ->
              Build = #{source_hash => <<>>, deps => [], units => Units},
              {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
              {module, Unit} = code:load_binary(Unit, "test", Beam),
-             ok = ern_code:loaded(Unit),
+             ok = ern_code:loaded(Unit, Beam),
              definitions(Beam)
          end || {_, Units} <- Versions],
     Same = hash(['Tableversions', same], First),
@@ -260,7 +261,7 @@ compiled(Namespace, Text, Interfaces, Units) ->
     Build = #{source_hash => <<>>, deps => [], units => Units},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
-    ok = ern_code:loaded(Unit),
+    ok = ern_code:loaded(Unit, Beam),
     {ok, #{interface := Compiled}} = ern_interface:read(Beam),
     {Unit, Compiled, definitions(Beam)}.
 
@@ -338,6 +339,36 @@ four_fifths_test() ->
     ?assertEqual([atoms], ern_code:nearing([{lambdas, 524288, 524288},
                                             {atoms, 900000, 1048576}],
                                            [lambdas])).
+
+%% report §11.2: the host's counts are kept as sums, the host's own from
+%% the first load on: a unit loaded adds a module name, an export entry for
+%% each function its export and import tables name, and a function entry
+%% for each lambda its table of lambdas names; and a sum that reaches four
+%% fifths reads the host's counts before any line is said, so that, the
+%% host's own count below it, no line is said and the sums are the host's
+%% counts from then on. A regression test, written with the code
+sums_test() ->
+    _ = loaded(['Tablesums'], "export fn f(n : Int) : Int = n + 1\n"),
+    Sums = fun() ->
+               maps:from_list([{Table, Sum} || {Table, Sum, _} <- ets:tab2list(ern_code_sums)])
+           end,
+    Before = Sums(),
+    Beam = loaded(['Tablesumstwo'],
+                  "export fn g(n : Int) : Int = List.foldLeft([n], 0, fn(acc, x) = acc + x)\n"),
+    {ok, {_, Chunks}} = beam_lib:chunks(Beam, ["ExpT", "ImpT", "FunT"]),
+    [Exports, Imports, Lambdas] = [Count || {_, <<Count:32, _/binary>>} <- Chunks],
+    ?assert(Lambdas > 0),
+    ?assertEqual(#{module_names => maps:get(module_names, Before) + 1,
+                   exports => maps:get(exports, Before) + Exports + Imports,
+                   lambdas => maps:get(lambdas, Before) + Lambdas},
+                 Sums()),
+    true = ets:insert(ern_code_sums, {module_names, 52429, 65536}),
+    ?assertEqual([], ern_code:nearing()),
+    [{module_names, Host, 65536} | _] = ern_code:counts(),
+    ?assertEqual(Host, maps:get(module_names, Sums())),
+    ?assert(Host < 52429),
+    [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
+     || Unit <- ['ern@tablesums', 'ern@tablesumstwo']].
 
 %% report §11.2: the line, as the report writes it, said once in the
 %% runtime's life for each bound, given the counts a load would read

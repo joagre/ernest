@@ -1433,7 +1433,7 @@ load(Namespace, Needer, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
             case code:load_binary(ErlangModule, File, Beam) of
                 {module, ErlangModule} ->
                     %% report §8.7: in the code table as it loads
-                    ern_code:loaded(ErlangModule),
+                    ern_code:loaded(ErlangModule, Beam),
                     [ErlangModule | Loaded1];
                 {error, Error} ->
                     ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))

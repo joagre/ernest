@@ -443,6 +443,7 @@ Over the clock's system reference (§8.2). The primitives are `alarm` and `alarm
 ```
 Clock.now : () -> Int with m+
 Clock.monotonic : () -> Int with m+
+Clock.monotonicMicros : () -> Int with m+
 Clock.alarm : (Int, (Int) -> m) -> Unit with m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
 Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(time) in the caller's mailbox, time the time it fired
 ```

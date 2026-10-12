@@ -42,7 +42,7 @@ reach_test() ->
     ok = file:write_file(File, Beam),
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, File, Beam),
-    ok = ern_code:loaded(Unit),
+    ok = ern_code:loaded(Unit, Beam),
     Hash = fun(Name) -> (maps:get(['Exreach', Name], Defined))#definition.hash end,
     [{LambdaHash, Position}] = [{Of, At} || {_, {lambda, Of, At, _, _, _}} <- Unit:'$code'()],
     Self = self(),
@@ -710,7 +710,7 @@ loaded(Unit, Beam) ->
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam),
     {ok, Recorded} = ern_canonical:read(Beam),
-    ok = ern_code:loaded(Unit, Recorded).
+    ok = ern_code:loaded(Unit, Beam, Recorded).
 
 unloaded(Unit) ->
     ern_code:unloaded(Unit),

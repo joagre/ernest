@@ -2,8 +2,9 @@
 ///
 /// `now` is the time of day, in milliseconds since the epoch, 1970-01-01 UTC.
 /// `monotonic` is the clock to measure a duration by, since `now` moves when
-/// the host's clock is set. `alarm` and `alarmAt` put a message in the caller's
-/// mailbox later.
+/// the host's clock is set, and `monotonicMicros` is the same clock in
+/// microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
+/// later.
 ///
 /// **Alarms.** An alarm fires once, and cannot be cancelled: a process that no
 /// longer wants it ignores its message. A periodic tick is set again each time
@@ -64,6 +65,23 @@ export foreign fn now() : Int with m =
 /// ```
 export foreign fn monotonic() : Int with m =
     "ern_rt:monotonic/0"
+
+/// Microseconds by the clock `monotonic` reads, which never go back, for a
+/// program that measures what takes less than a millisecond.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let start = Clock.monotonicMicros();
+///     Clock.monotonicMicros() - start >= 0
+/// }
+/// // => true
+/// ```
+///
+/// since 0.4.0
+export foreign fn monotonicMicros() : Int with m =
+    "ern_rt:monotonic_micros/0"
 
 /// Puts `wrap(time)` in the caller's mailbox after `ms` milliseconds, `time`
 /// the time it fired. A constructor of one argument passes as `wrap` as it is:

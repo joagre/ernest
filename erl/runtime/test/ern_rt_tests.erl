@@ -823,8 +823,8 @@ host_exit_reason_test() ->
     end.
 
 %% Appendix E.21, report §10: a fault's trace is the innermost twelve
-%% frames of the host's stack, which the runtime keeps from its start, the
-%% host keeping eight unless told. A regression test of a defect MVP 3.2's
+%% frames of the host's stack, which keeps 64 from the runtime's start
+%% (E.28), eight unless told. A regression test of a defect MVP 3.2's
 %% item 6 found, a trace of eight lines under a deeper stack
 trace_twelve_frames_test() ->
     Self = self(),

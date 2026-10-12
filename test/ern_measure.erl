@@ -608,6 +608,8 @@ clock_scenarios(_Self) ->
     [{<<"Clock.now">>, {Clock(now), fun() -> erlang:system_time(millisecond) end}},
      {<<"Clock.monotonic">>,
       {Clock(monotonic), fun() -> erlang:monotonic_time(millisecond) end}},
+     {<<"Clock.monotonicMicros">>,
+      {Clock(monotonicMicros), fun() -> erlang:monotonic_time(microsecond) end}},
      {<<"Clock.alarm">>, {fun() -> ClockAlarm(3600000, Wrap) end,
                           fun() -> erlang:send_after(3600000, erlang:self(), alarm) end}},
      {<<"Clock.alarmAt">>,

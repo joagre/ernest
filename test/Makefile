@@ -68,10 +68,12 @@ programs: $(BEAMS) prepare measured named
 
 # The load programs, the benchmark and the service checks' program, which
 # `load`, `bench` and `service` run and no test does, are built with the
-# programs, and their harnesses compiled, so that a change that breaks one
-# is seen by `make test`.
-measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam
-	@mkdir -p build/load build/bench build/service
+# programs, and their harnesses compiled, the probe the code costs' nodes
+# load among them, so that a change that breaks one is seen by `make test`.
+measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
+	  $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam
+	@mkdir -p build/load build/bench/probe build/service
+	@erlc $(ERLC_FLAGS) -o build/bench/probe bench/ern_code_probe.erl
 	@for p in $(LOADS); do \
 	  ../bin/ern build --source-root load --build-root build/load load/$$p.ern || exit 1; done
 	@../bin/ern build --source-root bench --build-root build/bench bench/bench.ern
@@ -146,19 +148,24 @@ service: measured
 	$(call EUNIT,ern_service_tests)
 
 # The benchmark: bench/bench.ern built and run as a user runs a program,
-# and its times printed beside the same operations in Erlang by ern_bench;
+# and its times printed beside the same operations in Erlang by ern_bench,
+# the faults its raises measure reported into build/bench/faults.txt;
 # then every function of the library measured against the host's by
 # ern_measure (plan MVP 2.99d item 1), its whole table in
-# build/bench/library.txt. Not part of `test`, since it measures and
-# asserts nothing.
-bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam measured \
-	  named
-	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt
+# build/bench/library.txt; then the costs between two nodes, ern_node_costs,
+# and MVP 3.2's of code that crosses, ern_code_costs, on nodes it starts.
+# Not part of `test`, since it measures and asserts nothing.
+bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam \
+	  $(EBIN)/ern_code_costs.beam measured named
+	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt 2> build/bench/faults.txt \
+	  || { tail -20 build/bench/faults.txt >&2; exit 1; }
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
 	  -eval 'ern_measure:main(["build/bench/library.txt"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
 	  -eval 'ern_node_costs:main(["build/bench/nodes"])'
+	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	  -eval 'ern_code_costs:main(["build/bench/code"])'
 
 clean:
 	rm -rf $(EBIN) build

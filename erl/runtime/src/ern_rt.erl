@@ -60,7 +60,8 @@
          kill_started/1, kill_all/1, rooting/0, rooted/2, processes/0, status/1, faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
          source_end/0, opened/3, forget_opened/1,
-         timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
+         timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, monotonic_micros/0,
+         in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
@@ -80,7 +81,8 @@
 %% process stands, which it gives though that process waits. The emitter
 %% counts no call of them as foreign code, since the count would cost a
 %% multiple of the call (CLAUDE.md's cost rule).
--waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, processes/0,
+-waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, monotonic_micros/0,
+                   processes/0,
                    spawn_order/1, start_cause/0, faults/1, status/1, ask_restart/1,
                    is_restarting/0, on_this_node/1, termination/1]).
 
@@ -1593,6 +1595,11 @@ now() ->
 monotonic() ->
     erlang:monotonic_time(millisecond).
 
+%% Appendix E.15: Clock.monotonicMicros, the same clock in microseconds.
+-spec monotonic_micros() -> integer().
+monotonic_micros() ->
+    erlang:monotonic_time(microsecond).
+
 %% Report §8.4, §8.6: a process inside foreign code is not waiting.
 -spec in_foreign(fun(() -> term())) -> term().
 in_foreign(Function) ->
@@ -1614,10 +1621,14 @@ undefined_lambda(ErlangModule, Function, Args) ->
     load(ErlangModule),
     error_handler:undefined_lambda(ErlangModule, Function, Args).
 
+%% Report §8.7: a unit loaded on demand is in the code table as it loads,
+%% its compiled form read from the path for what it adds to the host's
+%% counts (ern_code:loaded/1), the host's work as the load is.
 load(ErlangModule) ->
-    in_foreign(fun() -> code:ensure_loaded(ErlangModule) end),
-    %% report §8.7: a unit loaded on demand is in the code table as it loads
-    ern_code:loaded(ErlangModule).
+    in_foreign(fun() ->
+                   code:ensure_loaded(ErlangModule),
+                   ern_code:loaded(ErlangModule)
+               end).
 
 count(Field, Increment) ->
     try ets:update_counter(?PROCESSES, erlang:self(), {Field, Increment}) of
@@ -2198,11 +2209,12 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
-    %% Appendix E.21, report §10: a fault's trace is the innermost twelve
-    %% frames of the host's stack, which the host keeps only where its
-    %% backtrace depth, eight by default, names as many; each raise saves
-    %% that many frames, and Code.running deepens it (ern_code:running/1)
-    _ = erlang:system_flag(backtrace_depth, 12),
+    %% Appendix E.28, E.21, report §10: the host keeps at most the innermost
+    %% 64 frames of a stack, which Code.running reads (ern_code:running/1),
+    %% where its backtrace depth names as many, eight by default; each raise
+    %% saves that many, a fraction of its cost, and a fault's trace shows
+    %% the innermost twelve (trace/1)
+    _ = erlang:system_flag(backtrace_depth, 64),
     %% report §8.6: a node can be reached from outside, and detects no deadlock
     persistent_term:put({?MODULE, node}, is_map_key(node, Options)),
     Launch = launched(Options),

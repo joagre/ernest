@@ -121,14 +121,18 @@ make service      a program run by the host's service manager, a user's systemd 
                   launchd: started, stopped, started again after Os.exit(1); not
                   part of make test
 make bench        what each of a few operations costs in Ernest beside the same
-                  operation in Erlang, in nanoseconds; then every function of the
-                  library beside the host's, at 10, 100 and 10,000, its time and what it
-                  allocates, with what costs more than three times the host's and whether
-                  the machine was idle, the whole table in test/build/bench/library.txt;
-                  then, between two nodes on this machine, the host's ping over TLS and
-                  over TCP, a call to the other node's process, and a round trip to it
-                  straight and through an adapted address made there; not part of make
-                  test
+                  operation in Erlang, in nanoseconds, a raise at each backtrace depth
+                  among them; then every function of the library beside the host's, at
+                  10, 100 and 10,000, its time and what it allocates, with what costs
+                  more than three times the host's and whether the machine was idle, the
+                  whole table in test/build/bench/library.txt; then, between two nodes on
+                  this machine, the host's ping over TLS and over TCP, a call to the other
+                  node's process, and a round trip to it straight and through an adapted
+                  address made there; then, on nodes it starts, what a spawn and a compute
+                  cost whose code crosses, each step of the exchange, a fix's callers,
+                  what an arrival, a Code.load and a day's spawns add to the host's
+                  counts, a utilisation and a pick, what connected nodes exchange idle,
+                  and the sizes of an .erc and a code frame; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make pages        write man/, the release's pages: the standard library's, the prelude's

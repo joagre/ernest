@@ -464,34 +464,41 @@ reach({foreign, Names} = Key) ->
     end.
 
 foreign_reach(Unit, Foreigns) ->
-    case implementations(Unit, Foreigns) of
-        {ok, Implemented} -> {[], [], Implemented};
-        none -> none
+    case implementations(Unit, Foreigns, #{}) of
+        {{ok, Implemented}, _} -> {[], [], Implemented};
+        {none, _} -> none
     end.
 
+%% A request reads each unit's forms once, the reach's definitions and its
+%% foreign declarations from the same reading (recorded/2).
 reach(Key, Hash) ->
     case ern_code:spawnable(Key) of
         none ->
             none;
         {Unit, _Function, _Arity, {Bindings, Foreigns}} ->
-            case {reached_definitions([Hash], #{}, #{}), implementations(Unit, Foreigns)} of
-                {{ok, Definitions}, {ok, Implemented}} ->
-                    {lists:usort([Defined || #definition{hash = Defined, kind = Kind}
-                                                 <- Definitions, Kind =/= binding]),
-                     [{texts(QualifiedName), BindingHash}
-                      || {QualifiedName, BindingHash} <- Bindings],
-                     Implemented};
-                _ ->
+            case reached_definitions([Hash], #{}, #{}) of
+                {ok, Definitions, Read} ->
+                    case implementations(Unit, Foreigns, Read) of
+                        {{ok, Implemented}, _} ->
+                            {lists:usort([Defined || #definition{hash = Defined, kind = Kind}
+                                                         <- Definitions, Kind =/= binding]),
+                             [{texts(QualifiedName), BindingHash}
+                              || {QualifiedName, BindingHash} <- Bindings],
+                             Implemented};
+                        {none, _} ->
+                            none
+                    end;
+                none ->
                     none
             end
     end.
 
 %% The definitions Hashes reach, transitively, through the functions and
-%% the types their forms reference by hash, each with its group; none
-%% where this node holds one of them nowhere. Read keeps the forms of each
-%% unit read.
-reached_definitions([], Found, _Read) ->
-    {ok, maps:values(Found)};
+%% the types their forms reference by hash, each with its group, and Read,
+%% the forms of each unit read; none where this node holds one of them
+%% nowhere.
+reached_definitions([], Found, Read) ->
+    {ok, maps:values(Found), Read};
 reached_definitions([Hash | Hashes], Found, Read) when is_map_key(Hash, Found) ->
     reached_definitions(Hashes, Found, Read);
 reached_definitions([Hash | Hashes], Found, Read) ->
@@ -513,49 +520,55 @@ reached_definitions([Hash | Hashes], Found, Read) ->
 %% hold it, the type from what the unit that holds it records; or, for one
 %% whose call a unit an exchange made linked to a fault, as that unit
 %% records it (ern_code:declared/2), so that the node ships it onward as
-%% its own; none where one of them is held nowhere.
-implementations(Unit, Foreigns) ->
+%% its own; none where one of them is held nowhere. Read is the forms of
+%% the units the request has read, and grows by any read here.
+implementations(Unit, Foreigns, Read) ->
     Called = ern_code:called(Unit),
-    Found = [{texts(QualifiedName), implementation(Called, QualifiedName)}
-             || QualifiedName <- Foreigns],
+    {Found, Read1} = lists:mapfoldl(fun(QualifiedName, Acc) ->
+                                        {Implemented, Acc1} =
+                                            implementation(Called, QualifiedName, Acc),
+                                        {{texts(QualifiedName), Implemented}, Acc1}
+                                    end, Read, Foreigns),
     case lists:keymember(none, 2, Found) of
         false ->
-            {ok, [{Name, HostModule, HostFunction, Scheme, Printing}
-                  || {Name, {HostModule, HostFunction, Scheme, Printing}} <- Found]};
+            {{ok, [{Name, HostModule, HostFunction, Scheme, Printing}
+                   || {Name, {HostModule, HostFunction, Scheme, Printing}} <- Found]},
+             Read1};
         true ->
-            none
+            {none, Read1}
     end.
 
-implementation(Called, QualifiedName) ->
+implementation(Called, QualifiedName, Read) ->
     case ern_code:foreign(Called, QualifiedName) of
         [{Holder, HostModule, HostFunction} | _] ->
-            case declared(Holder, texts(QualifiedName)) of
-                {Scheme, Printing} ->
-                    {atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing};
-                none ->
-                    none
+            case declared(Holder, texts(QualifiedName), Read) of
+                {{Scheme, Printing}, Read1} ->
+                    {{atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing},
+                     Read1};
+                {none, Read1} ->
+                    {none, Read1}
             end;
         [] ->
             case ern_code:declared(Called, QualifiedName) of
                 [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
-                    {text(HostModule), text(HostFunction), Scheme, Printing};
+                    {{text(HostModule), text(HostFunction), Scheme, Printing}, Read};
                 [] ->
-                    none
+                    {none, Read}
             end
     end.
 
 %% The scheme of the foreign declaration Name, and what prints a type in
 %% its check's cause, as the unit Holder records them, or none.
-declared(Holder, Name) ->
-    case ern_code:forms(Holder) of
-        {ok, #recorded{foreign = Recorded}} ->
+declared(Holder, Name, Read) ->
+    case recorded(Holder, Read) of
+        {#recorded{foreign = Recorded}, Read1} ->
             case [{Scheme, Printing} || {QualifiedName, Scheme, _, _, Printing} <- Recorded,
                                         texts(QualifiedName) =:= Name] of
-                [Declared | _] -> Declared;
-                [] -> none
+                [Declared | _] -> {Declared, Read1};
+                [] -> {none, Read1}
             end;
-        none ->
-            none
+        {none, Read1} ->
+            {none, Read1}
     end.
 
 %% Report §8.7, Appendix H: a code frame for each definition Hashes names,
@@ -565,12 +578,14 @@ code_frames(Hashes) ->
     case grouped(Hashes, [], #{}, #{}) of
         none ->
             none;
-        {Keys, Groups} ->
+        {Keys, Groups, Read} ->
             ByHash = maps:from_list([{Member, Key} || Key := {Members, _} <- Groups,
                                                       #definition{hash = Member} <- Members]),
             {Order, _} = lists:foldl(fun(Key, Acc) -> first_needed(Key, Groups, ByHash, Acc) end,
                                      {[], #{}}, Keys),
-            Frames = [code_frame(maps:get(Key, Groups)) || Key <- lists:reverse(Order)],
+            {Frames, _} = lists:mapfoldl(fun(Key, Acc) ->
+                                                 code_frame(maps:get(Key, Groups), Acc)
+                                         end, Read, lists:reverse(Order)),
             case lists:member(none, Frames) of
                 true -> none;
                 false -> Frames
@@ -578,9 +593,10 @@ code_frames(Hashes) ->
     end.
 
 %% Each definition's group, by its group's hash or its own, in the order of
-%% Hashes, with the unit whose forms hold it.
-grouped([], Keys, Groups, _Read) ->
-    {lists:reverse(Keys), Groups};
+%% Hashes, with the unit whose forms hold it; and Read, the forms of each
+%% unit read.
+grouped([], Keys, Groups, Read) ->
+    {lists:reverse(Keys), Groups, Read};
 grouped([Hash | Hashes], Keys, Groups, Read) ->
     case members(Hash, Read) of
         none ->
@@ -619,9 +635,12 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
 %% no module's printing where it holds none; none where a foreign
 %% declaration a member calls is held by no unit the code of Unit, which
 %% holds the members, calls.
-code_frame({Members, Unit}) ->
+code_frame({Members, Unit}, Read) ->
     Forms = forms(Members),
-    Calls = [calls(Unit, Form) || Form <- Forms],
+    {Calls, Read1} = lists:mapfoldl(fun(Form, Acc) -> calls(Unit, Form, Acc) end, Read, Forms),
+    {code_frame(Members, Forms, Calls), Read1}.
+
+code_frame(Members, Forms, Calls) ->
     case lists:member(none, Calls) of
         true ->
             none;
@@ -651,17 +670,18 @@ code_frame({Members, Unit}) ->
 %% order of their names, each {QualifiedName, HostModule, HostFunction,
 %% Printing} as a reach's are found (implementations/2); none where one of
 %% them is found nowhere.
-calls(Unit, Form) ->
+calls(Unit, Form, Read) ->
     case called_names(Form) of
         [] ->
-            [];
+            {[], Read};
         Names ->
-            case implementations(Unit, Names) of
-                {ok, Implemented} ->
-                    [{Name, HostModule, HostFunction, Printing}
-                     || {Name, HostModule, HostFunction, _, Printing} <- Implemented];
-                none ->
-                    none
+            case implementations(Unit, Names, Read) of
+                {{ok, Implemented}, Read1} ->
+                    {[{Name, HostModule, HostFunction, Printing}
+                      || {Name, HostModule, HostFunction, _, Printing} <- Implemented],
+                     Read1};
+                {none, Read1} ->
+                    {none, Read1}
             end
     end.
 
@@ -674,15 +694,9 @@ members(Hash, Read) ->
 member_of([], _Hash, _Read) ->
     none;
 member_of([Unit | Units], Hash, Read) ->
-    {Definitions, Read1} = case Read of
-                               #{Unit := Kept} ->
-                                   {Kept, Read};
-                               _ ->
-                                   Forms = case ern_code:forms(Unit) of
-                                               {ok, #recorded{definitions = Held}} -> Held;
-                                               none -> []
-                                           end,
-                                   {Forms, Read#{Unit => Forms}}
+    {Definitions, Read1} = case recorded(Unit, Read) of
+                               {#recorded{definitions = Held}, Read2} -> {Held, Read2};
+                               {none, Read2} -> {[], Read2}
                            end,
     case [Definition || #definition{hash = Defined} = Definition <- Definitions,
                         Defined =:= Hash] of
@@ -696,6 +710,21 @@ member_of([Unit | Units], Hash, Read) ->
              Unit, Read1};
         [] ->
             member_of(Units, Hash, Read1)
+    end.
+
+%% What a unit's compiled form records, as the code table holds it, read
+%% once in a request: from Read, the units read so far, or from the table,
+%% Read growing by it; none where the table holds none.
+recorded(Unit, Read) ->
+    case Read of
+        #{Unit := Recorded} ->
+            {Recorded, Read};
+        #{} ->
+            Recorded = case ern_code:forms(Unit) of
+                           {ok, Held} -> Held;
+                           none -> none
+                       end,
+            {Recorded, Read#{Unit => Recorded}}
     end.
 
 %%

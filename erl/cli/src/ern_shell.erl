@@ -791,13 +791,14 @@ kind_of_namespace([Segment]) ->
 %% peer that lacks one of them ships it, as the build's ship theirs from
 %% its `.erc` (§8.7, §11.2); they go with the unit's rows when it is
 %% deleted (unload/1).
-unit_loaded(ErlangModule) ->
-    ern_code:loaded(ErlangModule),
-    ern_cli:say_limits().
-
 unit_loaded(Unit, Beam) ->
     {ok, Recorded} = ern_canonical:read(Beam),
-    ern_code:loaded(Unit, Recorded),
+    ern_code:loaded(Unit, Beam, Recorded),
+    ern_cli:say_limits().
+
+%% A holder of values, which holds no definition and records none.
+holder_loaded(ErlangModule, Beam) ->
+    ern_code:loaded(ErlangModule, Beam),
     ern_cli:say_limits().
 
 %% A module of the session's that no process runs and nothing reaches,
@@ -3373,10 +3374,9 @@ bound(#session{last_holder = LastHolder} = Session, Bindings, Env, Hash) ->
     Code = [{?SESSION_NAMESPACE ++ [Name],
              {binding, Hash, {ErlangModule, ern_emitter:function_name(Number)}}}
             || {Number, {Name, _, _}} <- Numbered],
-    {module, ErlangModule} =
-        code:load_binary(ErlangModule, atom_to_list(ErlangModule),
-                         holder(ErlangModule, Names, Code)),
-    unit_loaded(ErlangModule),
+    Beam = holder(ErlangModule, Names, Code),
+    {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
+    holder_loaded(ErlangModule, Beam),
     Values = maps:from_list([{HolderNamespace ++ [Name], binding_scheme(Type, TypeState)}
                              || {Name, _, Type} <- Bindings]),
     Interface = #interface{namespace = HolderNamespace, values = Values,

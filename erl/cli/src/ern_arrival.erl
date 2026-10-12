@@ -107,7 +107,7 @@ compiled(#unit{name = Unit} = Made, Recorded) ->
         {ok, Unit, Beam} ->
             case code:atomic_load([{Unit, atom_to_list(Unit), Beam}]) of
                 ok ->
-                    ok = ern_code:loaded(Unit, Recorded),
+                    ok = ern_code:loaded(Unit, Beam, Recorded),
                     ern_cli:say_limits();
                 {error, [{_, What} | _]} ->
                     reason(["the host did not load it, ", atom_to_list(What)])

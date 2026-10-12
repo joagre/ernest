@@ -1,9 +1,10 @@
 //
 // The benchmark of `make bench` (test/ern_bench.erl): each operation run in
 // a loop of its own three times, and the fastest run printed as the
-// operation's key, the loop's count and the milliseconds it took.
-// ern_bench runs the same operations as Erlang writes them and prints the
-// two side by side.
+// operation's key, the loop's count and the milliseconds it took; a raise,
+// at each backtrace depth, in seven loops, and their median and range
+// printed in microseconds. ern_bench runs the same operations as Erlang
+// writes them and prints the two side by side.
 //
 
 type Msg = Ping(Int)
@@ -11,6 +12,14 @@ type Msg = Ping(Int)
 type ServerMsg = Get(reply : Reply(Int))
 
 type Point = Point(x : Int, y : Int)
+
+foreign fn systemFlag(flag : Foreign.Term, value : Int) : Int with m =
+    "erlang:system_flag/2"
+
+foreign fn parsed(text : String) : Int =
+    "erlang:binary_to_integer/1"
+
+let backtraceDepth : Foreign.Term = Foreign.atom("backtrace_depth")
 
 fn Point.+(left : Point, right : Point) : Point =
     Point(x = left.x + right.x, y = left.y + right.y)
@@ -104,7 +113,65 @@ export fn main() : Unit with Msg = {
     measure("restarting", 1000000, fn(index) = {
         restarting(Unlimited, fn() : Unit with Msg = Unit)();
         index
+    });
+    raises([8, 12, 64]);
+    let _ = systemFlag(backtraceDepth, 64);
+    Unit
+}
+
+// Appendix E.21, E.28, report §10: a raise in the host saves as many frames
+// of the stack as the host's backtrace depth names, which the runtime sets
+// to 64 at its start; at each depth, a failing String.toInt, whose shim
+// takes the host's raise, and a foreign function that raises, which faults
+// its process, each on a shallow stack and beneath forty frames. The depth
+// is set here, by the measuring program, and set back to the runtime's
+// after; a fault is reported on standard error, which make bench writes to
+// a file.
+fn raises(depths : List(Int)) : Unit with Msg =
+    List.forEach(depths, fn(depth) = {
+        let _ = systemFlag(backtraceDepth, depth);
+        let suffix = Int.toString(depth);
+        measureRuns("raise_" <> suffix, 1000000, failedToInt);
+        let _ = deepened(40, fn() = {
+            measureRuns("raise_deep_" <> suffix, 1000000, failedToInt);
+            0
+        });
+        measureRuns("fault_" <> suffix, 300, fn(index) = faulted(index, 0));
+        measureRuns("fault_deep_" <> suffix, 300, fn(index) = faulted(index, 40))
     })
+
+fn failedToInt(index : Int) : Int =
+    Optional.withDefault(String.toInt("x"), index)
+
+// A process that faults beneath `depth` frames, its Down received.
+fn faulted(index : Int, depth : Int) : Int with Msg = {
+    let raising = fn() : Unit with Never = {
+        let _ = deepened(depth, fn() = parsed("x"));
+        Unit
+    };
+    let _ = spawnMonitored(raising, fn(_) = Ping(index));
+    receive {
+        Ping(value) -> value
+    }
+}
+
+// f run beneath `count` frames of this function's own, none a tail call.
+fn deepened(count : Int, f : () -> Int with m) : Int with m =
+    if count == 0 then f() else deepened(count - 1, f) + 0
+
+// The median of seven timings of `count` iterations, and their range,
+// printed as `key count median lowest highest`, in microseconds.
+fn measureRuns(key : String, count : Int, operation : (Int) -> Int with m) : Unit with m = {
+    let timings = List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)),
+                            Int.compare);
+    let at = fn(index) = Int.toString(Optional.withDefault(List.get(timings, index), 0));
+    Io.println(String.join([key, Int.toString(count), at(3), at(0), at(6)], " "))
+}
+
+fn timedMicros(count : Int, operation : (Int) -> Int with m) : Int with m = {
+    let started = Clock.monotonicMicros();
+    let _ = loop(count, operation, 0);
+    Clock.monotonicMicros() - started
 }
 
 // A process that has ended, which `monitor` reports at once and `kill`

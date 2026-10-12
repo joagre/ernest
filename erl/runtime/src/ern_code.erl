@@ -18,12 +18,17 @@
 %% Report §11.2: the canonical forms of a unit's definitions are kept
 %% beside its code, with their names, the lines of their source and the
 %% unit's foreign declarations (#recorded{}), which the exchange ships
-%% onward (§8.7, forms/1): a unit the build compiled has them in the `.erc`
-%% it was loaded from, which is read when they are asked for; any other, a
-%% load's or an input's of the shell, or an exchange's, which no file
-%% holds, has them in a row of its own here, written as it loads
-%% (loaded/2) and taken with its other rows, so that the forms live as
-%% long as the code they describe.
+%% onward (§8.7, forms/1), in a row of the unit's own here, taken with its
+%% other rows, so that the forms live as long as the code they describe:
+%% a unit no file holds, a load's or an input's of the shell, or an
+%% exchange's, has them written as it loads (loaded/3); a unit the build
+%% compiled has them in the `.erc` it was loaded from, which is read once,
+%% at the first request that needs them, and kept from then on.
+%%
+%% Report §11.2: the host's counts of what a runtime loads, which the
+%% runtime says it nears, are kept as sums of what each unit it loads
+%% adds, from the host's own read at the first load, in a second table
+%% (nearing/0).
 %%
 %% The table is an ETS table, not a persistent term: it is written at each
 %% load, which would make a persistent term collect every process each
@@ -36,8 +41,8 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1, forms/1,
-         called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
+-export([loaded/1, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
+         forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2, function_text/2, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
          running/1, hashes/1, binding_keys/1, withdrawn/2, nearing/0, nearing/1, nearing/2, line/3,
          counts/0]).
@@ -47,6 +52,8 @@
 -export_type([host_table/0, reach/0]).
 
 -define(TABLE, ern_code).
+%% Report §11.2: the sums of the host's counts, one row a count.
+-define(SUMS, ern_code_sums).
 
 %% Report §11.2: the host's tables whose limits a load nears.
 -type host_table() :: module_names | exports | lambdas | atoms.
@@ -68,22 +75,34 @@
 %% or a foreign function's, holds nothing here. The unit's own row holds
 %% its code's digest, the keys of its rows, and the units its code calls,
 %% none for a unit whose '$code'/0 lists none, as a shell's holder of
-%% values. A unit the build compiled, whose forms its file holds.
+%% values. What the unit adds to the host's counts is added to their sums
+%% (summed/1), read from its compiled form. A unit the host loaded from the
+%% code path, as the runtime loads one on demand, its compiled form read
+%% from the path.
 -spec loaded(module()) -> ok.
 loaded(Unit) ->
-    loaded(Unit, none).
+    case erlang:function_exported(Unit, '$code', 0) andalso code:get_object_code(Unit) of
+        {Unit, Beam, _} -> loaded(Unit, Beam);
+        _ -> ok
+    end.
+
+%% The same, for a unit the host loaded from its compiled form Beam, which
+%% a file holds: the build's, whose forms the file holds.
+-spec loaded(module(), binary()) -> ok.
+loaded(Unit, Beam) ->
+    loaded(Unit, Beam, none).
 
 %% Report §11.2: the same, for a unit no file holds, with what its
 %% compiled form records of its definitions, their canonical forms among
 %% it, which is kept in a row of its own.
--spec loaded(module(), #recorded{} | none) -> ok.
-loaded(Unit, Recorded) ->
+-spec loaded(module(), binary(), #recorded{} | none) -> ok.
+loaded(Unit, Beam, Recorded) ->
     case erlang:function_exported(Unit, '$code', 0) of
-        true -> fill(Unit, Unit:module_info(md5), Recorded);
+        true -> fill(Unit, Unit:module_info(md5), Beam, Recorded);
         false -> ok
     end.
 
-fill(Unit, Md5, Recorded) ->
+fill(Unit, Md5, Beam, Recorded) ->
     ensure(),
     case ets:lookup(?TABLE, {unit, Unit}) of
         [{_, _, {Md5, _, _}}] ->
@@ -98,7 +117,7 @@ fill(Unit, Md5, Recorded) ->
             Keys = lists:usort([Key || {Key, _, _} <- Rows]),
             Calls = lists:append([Units || {_, {calls, Units}} <- Code]),
             true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Md5, Keys, Calls}} | Rows]),
-            ok
+            summed(Beam)
     end.
 
 %% Report §8.7, §11.2: each foreign declaration a unit no file holds
@@ -234,13 +253,32 @@ forms(Unit) ->
             case is_list(File) andalso file:read_file(File) of
                 {ok, Bytes} ->
                     case ern_canonical:read(Bytes) of
-                        {ok, Recorded} -> {ok, Recorded};
+                        {ok, Recorded} -> {ok, kept(Unit, Recorded)};
                         {error, _} -> none
                     end;
                 _ ->
                     none
             end
     end.
+
+%% Report §11.2: a build's unit's forms, read from its `.erc` at the first
+%% request that needs them, kept in a row of the unit's own from then on,
+%% as every other unit's are, the row among the keys its other rows go
+%% with (forget/2), so that a request never reads the file again; the
+%% forms of all the units a build's requests reach are held so for the
+%% node's life, as their units are (docs/memory.md). A module the table
+%% holds no unit of keeps nothing.
+kept(Unit, Recorded) ->
+    case lookup({unit, Unit}) of
+        [{_, _, {Md5, Keys, Calls}} = UnitRow] ->
+            true = ets:insert(?TABLE, {{forms, Unit}, Unit, Recorded}),
+            true = ets:delete_object(?TABLE, UnitRow),
+            true = ets:insert(?TABLE, {{unit, Unit}, Unit,
+                                       {Md5, lists:usort([{forms, Unit} | Keys]), Calls}});
+        _ ->
+            ok
+    end,
+    Recorded.
 
 %% Report §8.7, §11.2: the units the code of Unit calls, Unit among them:
 %% those its row names (loaded/1), and those theirs name, each once. A
@@ -544,15 +582,11 @@ unit_beside(Namespace, Wanted, Number) ->
 %% own functions', '$N.P' or a fun, and no definition's. The scan reads each
 %% process's stack once, its input being the node's processes.
 %%
-%% Appendix E.28, E.21, report §10: the host keeps at most the innermost
-%% frames of a stack its backtrace depth names, and stores no more than 64
-%% however many it is given (OTP 29); the runtime keeps twelve from its start
-%% (ern_rt:run_main/3) and 64 from the first call of running, for the
-%% runtime's life, so that a program that never calls it pays the deeper
-%% stack in no raise. A frame beneath the 64 is not seen, as E.28 states.
+%% Appendix E.28: the host keeps at most the innermost 64 frames of a
+%% stack, which the runtime sets at its start (ern_rt:run_main/3), so a
+%% frame beneath them is not seen.
 -spec running(binary()) -> [pid()].
 running(Hash) ->
-    _ = erlang:system_flag(backtrace_depth, 64),
     Functions = #{{Unit, Function, Arity} => true
                   || {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Hash})},
     [Pid || map_size(Functions) > 0, Pid <- ern_rt:processes(), runs(Pid, Functions)].
@@ -636,20 +670,46 @@ withdrawn(Units, Keys) ->
 %% The host's limits, report §11.2
 %%
 
-%% The lines a load gives of the host's limits: one for each limit the
-%% host's use has reached four fifths of, said once in the runtime's life.
+%% Report §11.2: the lines a load gives of the host's limits, one for each
+%% limit the host's use has reached four fifths of, said once in the
+%% runtime's life. The host gives its counts of module names, export
+%% entries and lambdas only in its system information, a text of its whole
+%% state that costs more than a small unit's compile (counts/0), so the
+%% runtime does not read it at each load: it keeps a sum of each, from the
+%% host's own read at the first load, adding what each unit it loads adds
+%% (summed/1), and reads the atoms, which the host counts cheaply, at each
+%% load. Where a sum, or the atoms, reach four fifths of a limit, it reads
+%% the host's counts, says the line of each the host's own count has
+%% brought there, so that no line is said on a sum, and takes the host's
+%% counts as its sums from then on; a count said is compared no more. A
+%% sum leaves out what the runtime did not load, a host module loaded on
+%% its own among it, so a line can come a little late, never early.
 -spec nearing() -> [binary()].
 nearing() ->
-    nearing(counts()).
+    ensure(),
+    confirmed(estimated(), fun counts/0).
 
+%% The same, the host's counts being Counts.
 -spec nearing([count()]) -> [binary()].
 nearing(Counts) ->
     ensure(),
-    Said = [HostTable || {HostTable, _, _} <- Counts, ets:member(?TABLE, {said, HostTable})],
-    Near = nearing(Counts, Said),
-    true = ets:insert(?TABLE, [{{said, HostTable}} || HostTable <- Near]),
-    [line(HostTable, Entries, Limit) || {HostTable, Entries, Limit} <- Counts,
-                                         lists:member(HostTable, Near)].
+    confirmed(Counts, fun() -> Counts end).
+
+%% The lines of the counts the host's own, read by Read, has brought to
+%% four fifths, where Estimated brings one there not said before.
+confirmed(Estimated, Read) ->
+    Said = [HostTable || {HostTable, _, _} <- Estimated, ets:member(?TABLE, {said, HostTable})],
+    case nearing(Estimated, Said) of
+        [] ->
+            [];
+        _ ->
+            Counts = Read(),
+            rebased(Counts),
+            Near = nearing(Counts, Said),
+            true = ets:insert(?TABLE, [{{said, HostTable}} || HostTable <- Near]),
+            [line(HostTable, Entries, Limit) || {HostTable, Entries, Limit} <- Counts,
+                                                 lists:member(HostTable, Near)]
+    end.
 
 %% The limits of Counts the host's use has reached four fifths of, but
 %% those Said already.
@@ -657,6 +717,40 @@ nearing(Counts) ->
 nearing(Counts, Said) ->
     [HostTable || {HostTable, Entries, Limit} <- Counts, 5 * Entries >= 4 * Limit,
                   not lists:member(HostTable, Said)].
+
+%% The sums of the host's counts the runtime keeps, none before the first
+%% load, and the host's count of its atoms.
+estimated() ->
+    [Sum || HostTable <- [module_names, exports, lambdas], Sum <- ets:lookup(?SUMS, HostTable)]
+        ++ [{atoms, erlang:system_info(atom_count), erlang:system_info(atom_limit)}].
+
+%% Report §11.2: what a unit adds to the host's counts, at most, added to
+%% their sums: a module name; an export entry for each function its export
+%% table names and each its import table names, which the host makes where
+%% none is yet; and a function entry for each lambda its table of lambdas
+%% names, each table's count the first word of its chunk. The sums are the
+%% host's own counts at the first load, which counts that unit.
+summed(Beam) ->
+    case ets:member(?SUMS, module_names) of
+        false ->
+            rebased(counts());
+        true ->
+            {ok, {_, Chunks}} = beam_lib:chunks(Beam, ["ExpT", "ImpT", "FunT"],
+                                                [allow_missing_chunks]),
+            [Exports, Imports, Lambdas] = [case Chunk of
+                                               <<Count:32, _/binary>> -> Count;
+                                               missing_chunk -> 0
+                                           end || {_, Chunk} <- Chunks],
+            _ = [ets:update_counter(?SUMS, HostTable, {2, Added})
+                 || {HostTable, Added} <- [{module_names, 1}, {exports, Exports + Imports},
+                                           {lambdas, Lambdas}]],
+            ok
+    end.
+
+%% The host's counts taken as the sums.
+rebased(Counts) ->
+    true = ets:insert(?SUMS, [Count || {HostTable, _, _} = Count <- Counts, HostTable =/= atoms]),
+    ok.
 
 -spec line(host_table(), non_neg_integer(), pos_integer()) -> binary().
 line(HostTable, Entries, Limit) ->
@@ -712,10 +806,14 @@ made() ->
         {'DOWN', MonitorRef, process, Holder, _} -> ok
     end.
 
-%% The holder waits for nothing: the table is its owner's, and lives as
-%% long as it does, which is the host's life.
+%% The holder waits for nothing: the tables are its owner's, and live as
+%% long as it does, which is the host's life; the sums' first, so that the
+%% code table's being there says both are.
 hold(Caller) ->
-    try ets:new(?TABLE, [named_table, public, bag, {read_concurrency, true}]) of
+    try
+        ?SUMS = ets:new(?SUMS, [named_table, public, set, {write_concurrency, true}]),
+        ets:new(?TABLE, [named_table, public, bag, {read_concurrency, true}])
+    of
         ?TABLE ->
             Caller ! {erlang:self(), made},
             receive after infinity -> ok end

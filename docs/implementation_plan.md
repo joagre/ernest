@@ -289,22 +289,32 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    of twelve frames, the upgrade over nodes with build 2's tool spawned onto build 1's node and
    `Code.load` on a bare node; `Code.load` past a host count untested, since no test may near a
    limit.
-7. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes on one
-   machine: a spawn of a function typed at a shell that is a node ships exactly the lacking
-   definitions, verified and loaded at once, and the process runs; a spawn onto a bare node ships
-   the program's reach once and nothing the second time, and the process offers a service the
-   program finds; `NotLoaded` for a binding and for a foreign declaration; a faulty frame ends the
-   connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its callers,
-   which compile on the peer; a unit whose processes have ended is held, as every unit is; a node
-   told to load many units says so at four fifths of a limit, once, measured; what a build upgraded
-   through `Code.load` and a development day's spawns of edited code add to the host's four counts,
-   measured against their limits, so that the deployment guide's word on a restart stands on
-   numbers; a process spawned on a peer moves a service's processes by `Upgrade` over
-   `Code.running`, the service offered through an adapted address of a type without `Upgrade`
-   (§6.10); `Code.load`, `Code.hashes` and `Code.running` as section 8 states them. The measurements
-   of section 7, and of what a spawn that ships code costs, a bare node's first spawn and the
-   callers of a fix above all, against the spawn's time. `mvp3.2.md`'s status line, and
-   `mvp3.1.md`'s for what this milestone changed in it.
+7. **The tests, the measurements and the guide.** Done 2026-10-13. The proposal's section 8 is held
+   sentence by sentence, each by a named test, on real nodes where nodes can observe it: a fix
+   spawned from a shell crossing with the callers whose hash changed and no unchanged definition,
+   `fix_from_shell_test_`; a code frame whose bytes are not its hash's ending the connection, a
+   frame of an ended exchange dropped, a frame held apart never entering the code table once the
+   connection closes, and a spawn timed out then answered from one unit, `broken_exchange_test_`;
+   the service with `Upgrade` in its type offered through an adapted address and moved by the tool,
+   `code_upgrade_test_`; the rest by the tests of items 3 to 6; two sentences superseded, a unit let
+   go and a shell fixing a service through `Upgrade`, and the four-fifths line held by unit tests
+   over given counts, since no test may near a limit. The measurements are in `make bench`,
+   `test/ern_code_costs.erl` tracing two nodes through a probe: a spawn crossing one, five and
+   twenty definitions, a fix's callers, what an arrival and a `Code.load` add to the host's four
+   counts and how many development days a node lives before four fifths of one, a raise at depths of
+   8, 12 and 64, the pull's cost for item 7.5, and the sizes of the `.erc`s and of a code frame,
+   medians over seven runs with their ranges in the log. Three defects the measurements found, fixed
+   here: the spawner's node read its unit's whole `.erc` at each answer, growing with the module and
+   not the reach, and a build unit's forms are now read once and kept in the code table as every
+   other unit's are, a spawn crossing five definitions falling from 16 to 9 ms; every load read the
+   host's counts through a text of 289 KB, 2.4 ms, and the runtime now sums what each unit adds and
+   reads the host at its start, atoms at each load, and once more to confirm before it says the
+   line, 13 µs; the depth switch went, 64 at the runtime's start, since a raise at 64 costs a
+   fraction (§10, E.28). `Clock.monotonicMicros` (E.15), decided from `docs/language_feedback.md`
+   105, so that no program of ours declares the host's clock. Found for the guide: a bare node's
+   first spawn costs about 254 ms after a dial of 115, the host compiler's first run and the
+   prelude's environment, which item 8 says. The two proposals' status lines say what this milestone
+   built and changed.
 7.5. **Placement by push.** Decided 2026-10-13 from `proposals/placement/push.md`, read back with
      the user, every question of its section 7: each node tells its peers its utilisation on
      `ernest.conf`'s `utilisation-interval`, 5000 ms where left out, the operator's time; a node
