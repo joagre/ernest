@@ -2291,7 +2291,7 @@ Both directories listen on `0.0.0.0:8654` as made, so on one machine each `ernes
 }
 ```
 
-`foo/ernest.conf` listens on `127.0.0.1:8655` and lists `a` by its key; it needs no address for `a`, which dials it. One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`. Then:
+`foo/ernest.conf` listens on `127.0.0.1:8655` and lists `a` by its key; it needs no address for `a`, which dials it, opens the connection to it, as the report's word is (Appendix F). One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`. Then:
 
 ```console
 $ ern run --config-dir foo idle.erc &

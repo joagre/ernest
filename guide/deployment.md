@@ -33,7 +33,7 @@ The directory belongs to the user who runs the node. A node refuses to start fro
 
 `ernest.conf` is JSON, and Appendix C of the report shows it whole. Its entries, in the order you will meet them:
 
-- `listen`: the address the node's listener binds to, `0.0.0.0:8654` as created, an address of one interface or `0.0.0.0` or `::` for all of them, and a port. Port `0` lets the host pick one, and the node then says `listening on port 51204` on standard error. A node without `listen` does not listen and only dials; a bare node (§3.4) must listen.
+- `listen`: the address the node's listener binds to, `0.0.0.0:8654` as created, an address of one interface or `0.0.0.0` or `::` for all of them, and a port. Port `0` lets the host pick one, and the node then says `listening on port 51204` on standard error. Two words recur from here: a node *listens* for connections from its peers, and it *dials* a peer when it opens the connection itself, at the address its configuration lists for that peer (report Appendix F). A node without `listen` does not listen and only dials; a bare node (§3.4) must listen.
 - `public-key`: this node's, as `ern config` printed it. It cannot change while the node runs.
 - `peers`: a list, each peer with a `name` you choose, which the program uses, its `public-key`, and a `network-address`, `host:port`, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read.
 - `services`: under each service's name, the peers that may offer it, in the order a program's find asks them. A service not listed here is found nowhere from this node.
