@@ -474,10 +474,15 @@ assume it runs on the node whose code it evaluates (`proposals/shell/shell_desig
 it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
 it.
 
-1. **The design**, discussed with the user first: what attaches, a `--attach name` to a listed peer
-   or a command at the prompt; what an input's process is on the node and who its root is; what
-   `:processes`, `:load` and `:reload` do there and what stays the shell's own; what the attached
-   shell shows when the node is lost; and the deployment guide's section 6 rewritten over it.
+1. **The design**, discussed with the user first in `proposals/shell/attached.md` (begun
+   2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell
+   --config-dir ops --attach name` to a listed peer over the carrier, never a process number or an
+   address, since a node is reached by its key; a session's namespace of its own, `$Session3.T`, and
+   the code table keeping each session's units apart, since many sessions share one node; `:detach`
+   in `:quit`'s place; what an input's process is on the node and who its root is; what
+   `:processes`, `:load` and `:reload` do there; what the session shows when the node is lost; and
+   the deployment guide's section 6 rewritten over it. The website's sandboxed session, MVP 4.2's,
+   stands on this.
 2. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
    program's node, the guide's section 6 run by them, and the release that follows.
 
@@ -542,23 +547,31 @@ and `json` in MVP 3.0). Named so far:
 
 ## MVP 4.2 (the website)
 
-Ernest's website, served by ehttpd (MVP 4.1), decided with the user on 2026-10-10: what Ernest
-is, its characteristics, and the three doors of MVP 3.3, the tour, the guide and the report,
-each with the reader it is for; and a live shell, a terminal in the visitor's browser, a
-JavaScript terminal such as xterm.js, connected by WebSocket to `ern shell` behind a
-pseudo-terminal on the server. The shell runs on the server, since no full BEAM runs in a
-browser, and the shell drives a terminal through `Terminal` and so runs behind one unchanged.
-Its sandbox is the first decision of the milestone, and the operating system's and not the
-language's, since Ernest's system modules are ambient by design: one isolated container per
-visitor, with limits on time, memory, processes and network, and nothing kept when the
-visitor leaves. The site's pages are written in Markdown and rendered by `libs/markdown`.
-The site's generator is a program of its own beside `tools/manual.ern`, written in Ernest
-against the library's tree, `Block` and `Inline`, with an `html` function of one clause per
-constructor and the site's template and per-function layout around it, built from the doc
-chunk's parts as the manual is; the library renders to its tree and to the terminal alone, and
-nothing of the site enters it (decided with the user on 2026-10-10). When something next touches
-the library, `roff` moves to `tools/manual.ern`, its one user, with its `Manual` record. The
-generator may come before the rest of the milestone whenever it is wanted.
+Ernest's website, served by ehttpd (MVP 4.1), decided with the user on 2026-10-10: what Ernest is,
+its characteristics, and the three doors of MVP 3.3, the tour, the guide and the report, each with
+the reader it is for; and a live shell, a terminal in the visitor's browser, a JavaScript terminal
+such as xterm.js, connected by WebSocket to `ern shell` behind a pseudo-terminal on the server. The
+shell runs on the server, since no full BEAM runs in a browser, and the shell drives a terminal
+through `Terminal` and so runs behind one unchanged. Its sandbox is the first decision of the
+milestone. Decided on 2026-10-10 as the operating system's and not the language's, one isolated
+container per visitor with limits on time, memory, processes and network and nothing kept when the
+visitor leaves, since Ernest's system modules are ambient by design; reopened on 2026-10-13 by the
+user, who would run one node on the web server for every visitor, each attached through the
+browser's terminal to a sandboxed session of MVP 4.0's attached shell: `Tcp`, `Fs`, `Os`, `Code`,
+`Peer`, foreign declarations and `Erl.atom` refused at the prompt by the checker on the node's side,
+a session seeing and reaching its own processes alone, a deadline per input, a heap bound per
+process, counts of processes, inputs and output, an idle time, `:detach` and a `:clear` that is a
+new session, the node restarted on a schedule for the atoms its inputs make, and the mode the node's
+configuration and never the shell's flag; `proposals/shell/attached.md` weighs the shared node
+against the container and the two together, and the decision is the milestone's first. The site's
+pages are written in Markdown and rendered by `libs/markdown`. The site's generator is a program of
+its own beside `tools/manual.ern`, written in Ernest against the library's tree, `Block` and
+`Inline`, with an `html` function of one clause per constructor and the site's template and
+per-function layout around it, built from the doc chunk's parts as the manual is; the library
+renders to its tree and to the terminal alone, and nothing of the site enters it (decided with the
+user on 2026-10-10). When something next touches the library, `roff` moves to `tools/manual.ern`,
+its one user, with its `Manual` record. The generator may come before the rest of the milestone
+whenever it is wanted.
 
 ## MVP 4.3 (the shell's second round), about three weeks
 
