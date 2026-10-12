@@ -80,7 +80,7 @@ paragraph under "Done".
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13 |
-| MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 |
+| MVP 4.0 | `--verbose` on `ern build`, `ern run` and `ern test`, then a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
 | MVP 4.3 | the shell's second round | |
@@ -480,7 +480,15 @@ assume it runs on the node whose code it evaluates (`proposals/shell/shell_desig
 it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
 it.
 
-1. **The design**, discussed with the user first in `proposals/shell/attached.md` (begun
+1. **`--verbose`**, decided with the user on 2026-10-13 (the log's *A Build Says What It Decided*):
+   `ern build`, `ern run` and `ern test` take `--verbose` and write on standard error one line for
+   each decision they make without saying: the source root and build root taken, each module
+   compiled, as its namespace, its file and the `.erc` written, each module read from the load path
+   with the directory that supplied it, and each stale `.erc` the cleanup removed; the default
+   stays silent, and standard output stays `--emit-erl`'s and the program's. §11.1 and §11.2 state
+   the lines, `ern --help` lists the flag, and a test reads the lines of a build, a run and a test.
+   About a day, first in the milestone since it touches `ern_build`, the runner and §11 alone.
+2. **The design**, discussed with the user first in `proposals/shell/attached.md` (begun
    2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell
    --config-dir ops --attach name` to a listed peer over the carrier, never a process number or an
    address, since a node is reached by its key (decided 2026-10-13); a session's namespace of its
@@ -490,7 +498,7 @@ it.
    node is lost; and the deployment guide's section 6 rewritten over it. The attached shell is the
    operator's alone, trusted as a peer is, with no sandbox: the website runs the plain shell in a
    container per visitor (MVP 4.2).
-2. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
+3. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
    program's node, the guide's section 6 run by them, and the release that follows.
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
