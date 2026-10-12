@@ -9,15 +9,17 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/4, report_errors/4, shown/1, sources/1, compiled_under/1,
-         bytes_text/1, module_of/2, module_of/3, shape/2, segment/1, module_path/1, compile_order/2,
-         compile_order/3, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
+-export([compile/4, compile_in_memory/4, compiled_in_order/3, report_errors/4, shown/1,
+         sources/1, compiled_under/1, bytes_text/1, module_of/2, module_of/3, shape/2, segment/1,
+         module_path/1, compile_order/2, compile_order/3, source_root/3, build_root/2,
+         is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, compiler_modules/0,
          sweep_pages/5, compile_source/5, compile_source/6, absolute/1, relative/2, write_whole/2,
          write_output/2, write_output/3, read/1, make_dirs/1, refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
 
@@ -71,10 +73,8 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                          true -> none;
                          false -> stdlib_hash()
                      end,
-        BuildModule = fun(Module, Interfaces) ->
-                          build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, StdlibHash)
-                      end,
-        {Failed, Compiled} = failures(order(Parsed), Unparsed, BuildModule),
+        {Failed, Compiled} = built(order(Parsed), Unparsed, {SourceRoot, DependencyRoots, Emit,
+                                                             StdlibHash}),
         case [{Failure, Diagnostics} || {_, Failure, Diagnostics} <- Failed] of
             [] ->
                 IsDirectory andalso Emit =:= erc
@@ -113,38 +113,99 @@ report_failure(Job, _Options, {skipped, Namespace, Dependency}, [], ErrorDevice)
 report_failure(_Job, Options, File, Diagnostics, ErrorDevice) ->
     report_errors(Options, File, Diagnostics, ErrorDevice).
 
+%% Report §11.1: the parsed modules Order compiled in memory in that order,
+%% each after the modules it depends on, against the `.erc`s under
+%% BuildRoot for any other: the modules that failed, as built/3 answers
+%% them, and the compiled modules by namespace. A module's code is the
+%% same whatever order its build checks the modules in, which a test of the
+%% standard library's own build holds.
+-spec compiled_in_order([#build_module{}], file:filename(), file:filename()) ->
+          {[term()], #{[atom()] => binary()}}.
+compiled_in_order(Order, SourceRoot, BuildRoot) ->
+    StdlibHash = case is_stdlib_root(SourceRoot) of
+                     true -> none;
+                     false -> stdlib_hash()
+                 end,
+    SetAside = set_aside_installed_stdlib(SourceRoot, absolute(BuildRoot)),
+    try
+        built(Order, [], {SourceRoot, [BuildRoot], memory, StdlibHash})
+    after
+        code:add_pathsa(SetAside)
+    end.
+
 %% Report §11.1, §11.5: every module built, in order, but one that uses a
-%% module that failed, whose errors would follow from that one's. The
+%% module that failed, whose errors would follow from that one's. A module
+%% is checked in order, and emitted once every module of the build its
+%% forms reference is checked, by the positions their interfaces give: a
+%% module of the standard library's own build that names another by a
+%% prelude name or an operator alone, `<>` on lists naming `List.<>`, does
+%% not depend on it (§11.1), and its code calls it all the same. The
 %% modules that failed, each with its file and its errors, with
 %% `{refused, Refusal}` where something it needs was refused, or with
-%% `{skipped, Namespace, Dependency}` where a module it uses failed;
-%% Unparsed begins them. Beside them, the modules compiled in memory, by
-%% namespace.
-failures(Order, Unparsed, BuildModule) ->
-    {_, Failed, Compiled} =
+%% `{skipped, Namespace, Dependency}` where a module it uses failed, or a
+%% module its forms reference; Unparsed begins them. Beside them, the
+%% modules compiled in memory, by namespace.
+built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}) ->
+    Namespaces = [Namespace || #build_module{namespace = Namespace} <- Order],
+    BuildModule = fun(Module, Interfaces) ->
+                      build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, StdlibHash,
+                            Namespaces)
+                  end,
+    {_, Failed, Compiled, Waiting} =
         lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule) end,
-                    {#{}, Unparsed, #{}}, Order),
-    {Failed, Compiled}.
+                    {#{}, Unparsed, #{}, []}, Order),
+    Skipped = [{Namespace, {skipped, Namespace, Waited}, []}
+               || {Namespace, Waits, _} <- Waiting,
+                  Waited <- [hd([Wait || Wait <- Waits, lists:keymember(Wait, 1, Failed)]
+                                ++ Waits)]],
+    {Failed ++ Skipped, Compiled}.
 
 build_step(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
-           {Interfaces, Failed, Compiled}, BuildModule) ->
+           {Interfaces, Failed, Compiled, Waiting}, BuildModule) ->
     case [Dependency || Dependency <- Dependencies, lists:keymember(Dependency, 1, Failed)] of
         [] ->
             try BuildModule(Module, Interfaces) of
-                {Interfaces1, none} -> {Interfaces1, Failed, Compiled};
-                {Interfaces1, Beam} -> {Interfaces1, Failed, Compiled#{Namespace => Beam}}
+                {Interfaces1, none} ->
+                    emitted_ready({Interfaces1, Failed, Compiled, Waiting});
+                {Interfaces1, Emitting} ->
+                    emitted_ready({Interfaces1, Failed, Compiled, Waiting ++ [Emitting]})
             catch
-                throw:{errors, File, Diagnostics} ->
-                    {Interfaces, Failed ++ [{Namespace, File, Diagnostics}], Compiled};
-                %% report §11.1: a dependency that is stale or not built, or
-                %% a compiled file that holds another module, fails this
-                %% module alone
-                throw:{cli_error, Refusal} ->
-                    {Interfaces, Failed ++ [{Namespace, {refused, Refusal}, []}], Compiled}
+                throw:{errors, _, _} = Thrown ->
+                    {Interfaces, Failed ++ [failure(Namespace, Thrown)], Compiled, Waiting};
+                throw:{cli_error, _} = Thrown ->
+                    {Interfaces, Failed ++ [failure(Namespace, Thrown)], Compiled, Waiting}
             end;
         [Dependency | _] ->
-            {Interfaces, Failed ++ [{Namespace, {skipped, Namespace, Dependency}, []}], Compiled}
+            {Interfaces, Failed ++ [{Namespace, {skipped, Namespace, Dependency}, []}], Compiled,
+             Waiting}
     end.
+
+%% Each module checked that waits to be emitted, emitted where every module
+%% of the build its forms reference is checked, with their interfaces.
+emitted_ready({Interfaces, Failed, Compiled, Waiting}) ->
+    {Ready, Waits} = lists:partition(fun({_, Referenced, _}) ->
+                                         lists:all(fun(Wait) -> is_map_key(Wait, Interfaces) end,
+                                                   Referenced)
+                                     end, Waiting),
+    lists:foldl(fun({Namespace, _, Emitting}, {InterfacesAcc, FailedAcc, CompiledAcc, WaitsAcc}) ->
+                    try Emitting(InterfacesAcc) of
+                        none -> {InterfacesAcc, FailedAcc, CompiledAcc, WaitsAcc};
+                        Beam -> {InterfacesAcc, FailedAcc, CompiledAcc#{Namespace => Beam},
+                                 WaitsAcc}
+                    catch
+                        throw:{cli_error, _} = Thrown ->
+                            {InterfacesAcc, FailedAcc ++ [failure(Namespace, Thrown)],
+                             CompiledAcc, WaitsAcc}
+                    end
+                end, {Interfaces, Failed, Compiled, Waits}, Ready).
+
+%% A module's failure as built/3 answers it: its errors; and, report
+%% §11.1, a dependency that is stale or not built, or a compiled file that
+%% holds another module, which fails this module alone.
+failure(Namespace, {errors, File, Diagnostics}) ->
+    {Namespace, File, Diagnostics};
+failure(Namespace, {cli_error, Refusal}) ->
+    {Namespace, {refused, Refusal}, []}.
 
 %% Report §11.5: each error as ern_diagnostic renders it, the first line alone
 %% under --short-errors; status 1. The file is named from the working
@@ -586,12 +647,17 @@ stdlib_namespaces() ->
     lists:usort([hd(Interface#interface.namespace)
                  || Interface <- ern_prelude:stdlib_interfaces()]).
 
-%% Type-check and compile one module against its dependencies'
-%% interfaces, unless its .erc is current (§11.1). Returns the interfaces
-%% with this module's added.
+%% Type-check one module against its dependencies' interfaces, unless its
+%% .erc is current (§11.1). Returns the interfaces with this module's added,
+%% as its compiled form will hold it, its definitions' hashes and its
+%% functions' positions among it; and none, or the module to emit, its
+%% namespace, the modules of the build, of Namespaces, its forms reference,
+%% and the emit, given the interfaces once those are checked, which answers
+%% the compiled module where it is kept in memory and none where it is
+%% written.
 build(#build_module{namespace = Namespace, file = File, relative = Relative,
                     declarations = Declarations, dependencies = Dependencies},
-      Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, StdlibHash) ->
+      Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, StdlibHash, Namespaces) ->
     DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                  DependencyRoots, SourceRoot),
     DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
@@ -608,49 +674,69 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
         false ->
             case ern_typecheck:check(Namespace, Declarations, Given) of
                 {ok, Typed, Interface, Env} ->
+                    Standard = is_stdlib_root(SourceRoot),
+                    Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
                     Build = #{source_hash => SourceHash, source_path => SourcePath,
                               deps => DependencyHashes, compiler => compiler_build(),
-                              stdlib => StdlibHash, standard => is_stdlib_root(SourceRoot),
-                              source => list_to_binary(filename:basename(Relative))},
-                    {Compiled, Kept} = emitted(Emit, Namespace, {Typed, Interface, Env}, Build,
-                                               OutputBase, Relative),
-                    {Interfaces#{Namespace => Compiled}, Kept};
+                              stdlib => StdlibHash, standard => Standard,
+                              source => list_to_binary(filename:basename(Relative)),
+                              canonical => Canonical},
+                    Referenced = referenced(Canonical, Namespace, Namespaces),
+                    Emitting = fun(Checked) ->
+                                   Fresh = [maps:get(Module, Checked) || Module <- Referenced],
+                                   Env1 = ern_typecheck:with_interfaces(Fresh, Env),
+                                   emitted(Emit, Namespace, {Typed, Interface, Env1}, Build,
+                                           OutputBase, Relative)
+                               end,
+                    Written = ern_interface:written(ern_canonical:interface(Interface, Canonical)),
+                    {Interfaces#{Namespace => Written}, {Namespace, Referenced, Emitting}};
                 {error, Diagnostics} ->
                     throw({errors, File, Diagnostics})
             end
     end.
 
+%% Report §11.1: the modules of the build, of Namespaces, that a module's
+%% forms name by name, a prelude name or an operator's resolution among
+%% them, each the longest namespace of the build a name begins with; a
+%% module named by hash is one it depends on, and is checked before it.
+referenced(#{definitions := Definitions, foreign_schemes := ForeignSchemes}, Namespace,
+           Namespaces) ->
+    Forms = [Form || #definition{form = Form} <- Definitions] ++ maps:values(ForeignSchemes),
+    lists:usort([Module || {named, QualifiedName} <- ern_compile:references(Forms),
+                           Module <- longest_module(QualifiedName, Namespaces),
+                           Module =/= Namespace]).
+
+longest_module(QualifiedName, Namespaces) ->
+    case [Prefix || Length <- lists:seq(length(QualifiedName) - 1, 1, -1),
+                    Prefix <- [lists:sublist(QualifiedName, Length)],
+                    lists:member(Prefix, Namespaces)] of
+        [Module | _] -> [Module];
+        [] -> []
+    end.
+
 %% A checked module written as Erlang source, written as a .erc, or kept in
-%% memory for `ern doc`, which writes no .erc (report §11.4): the interface
-%% its dependents are compiled against, as compiled, with its definitions'
-%% hashes (§11.1), and the compiled module where it is kept, none where it
-%% is written. Erlang source holds no interface, but a service's and a
-%% spawn's hashes as the compiled module does (§8.7), so its dependents are
-%% compiled against its hashes too.
-emitted(erl, Namespace, {Typed, Interface, Env}, Build, OutputBase, Relative) ->
+%% memory for `ern doc`, which writes no .erc (report §11.4): the compiled
+%% module where it is kept, none where it is written. Erlang source holds
+%% no interface, but a service's and a spawn's hashes as the compiled
+%% module does (§8.7), so its dependents are compiled against its hashes
+%% too, which its check gave them (build/7).
+emitted(erl, Namespace, {Typed, _Interface, Env}, Build, OutputBase, Relative) ->
     Erl = OutputBase ++ ".erl",
     ok = make_dirs(Erl),
-    Standard = maps:get(standard, Build, false),
-    Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
-    Source = ern_compile:erl_source(Namespace, Typed, Env,
-                                    #{standard => Standard, canonical => Canonical}),
+    Source = ern_compile:erl_source(Namespace, Typed, Env, maps:with([standard, canonical], Build)),
     ok = write_output(Erl, unicode:characters_to_binary(["%% Generated by ern build from ",
                                                          Relative, "\n", Source])),
-    {ern_canonical:interface(Interface, Canonical), none};
+    none;
 emitted(erc, Namespace, {Typed, Interface, Env}, Build, OutputBase, _) ->
     Erc = OutputBase ++ ".erc",
     ok = make_dirs(Erc),
     held_by_another(Erc, Namespace),
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     ok = write_output(Erc, Beam),
-    {compiled_interface(Beam), none};
+    none;
 emitted(memory, Namespace, {Typed, Interface, Env}, Build, _, _) ->
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-    {compiled_interface(Beam), Beam}.
-
-compiled_interface(Beam) ->
-    {ok, #{interface := Interface}} = ern_interface:read(Beam),
-    Interface.
+    Beam.
 
 %% Report §11.1: a .erc that holds another namespace is not written over, as
 %% a single-file build from another source root would: the file is another

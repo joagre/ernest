@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 11 October 2026.
+Revision of 12 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -690,7 +690,7 @@ Informative. The libraries this project writes, each a directory under `libs/` a
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
-Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows with a shorter documentation. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults: `size` with `Fault("the table has ended")`, and every other as a foreign function that raises does (§7.4). Any process on the node that holds a table reads and writes it, so every operation on one, a read too, carries `with m` (§4.7). `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order. A table that holds a function holds the function's unit on the node for the node's life: the host's check of a unit's holders sees a process and not a table, so such a unit is never let go (§10, §11.2), and the compiler refuses no table for it (§0).
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows with a shorter documentation. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults: `size` with `Fault("the table has ended")`, and every other as a foreign function that raises does (§7.4). Any process on the node that holds a table reads and writes it, so every operation on one, a read too, carries `with m` (§4.7). `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order.
 
 ```
 foreign type Table(k=, v)

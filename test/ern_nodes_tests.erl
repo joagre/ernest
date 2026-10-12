@@ -18,10 +18,9 @@
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
                     || Library <- ["json", "load", "placement", "proxy"]]).
-%% Report §8.7: what a node answers a spawn whose reach it received whole,
-%% until MVP 3.2's item 4 compiles it, and says of it.
--define(NOT_COMPILED, "this node compiles no received code yet: it arrives in MVP 3.2's item 4").
--define(LEFT_NOT_COMPILED, "Left(Other(\"" ?NOT_COMPILED "\"))").
+%% Report §11.2: what a shell prints of a spawn on a peer that started, the
+%% process's address the screen writes before it.
+-define(SPAWNED, ") : Either(Io.Error, Address(Never))").
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -729,7 +728,7 @@ unreadable_site(Base) ->
     lists(B, [{"a", A, PortA}]),
     Program = program(filename:join(Base, "build")),
     {ok, Beam} = file:read_file(Program),
-    {ok, Definitions} = ern_canonical:read(Beam),
+    {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     [Held] = [binary_to_list(binary:encode_hex(Hash))
               || #definition{qualified_name = ['Node', held], hash = Hash} <- Definitions],
     WaitB = start(B, Program, []),
@@ -1830,8 +1829,8 @@ twins(Dir, Changed) ->
 %% type is one in both builds, and a call through it is answered, and `OtherType`
 %% where the type's constructors differ, its hash another; a spawn of a
 %% function both builds hold runs on the server, and one of a function
-%% whose body differs crosses with its spawn, the server answering Other
-%% until MVP 3.2's item 4 compiles it, and saying so; a function that names
+%% whose body differs crosses with its spawn, the server compiling it and
+%% running the asker's body (MVP 3.2's item 4); a function that names
 %% a binding the server's program
 %% never ran answers NotLoaded, and so does one whose reach calls a host
 %% module the server lacks, the server saying which; a function that names
@@ -1863,16 +1862,17 @@ two_builds(Base) ->
     {ServerOut, ServerErr} = said(Server),
     [has(Out, Line)
      || Line <- ["stable: Some(42)", "shape: OtherType", "same: Right",
-                 "changed: Other(\"" ?NOT_COMPILED "\")",
+                 "changed: Right",
                  "binding: NotLoaded", "module: NotLoaded", "names no binding: Right",
                  "lambda: Right", "local: Right", "restarting: Right"]],
     [has(ServerOut, Line)
-     || Line <- ["same ran", "quiet ran", "lambda ran 42", "local ran 43", "restarting ran"]],
-    ?assertEqual(nomatch, string:find(ServerOut, "the first build")),
+     || Line <- ["same ran", "quiet ran", "lambda ran 42", "local ran 43", "restarting ran",
+                 "the first build"]],
+    ?assertEqual(nomatch, string:find(ServerOut, "the second build")),
     ?assertEqual(nomatch, string:find(ServerOut, "never run on the server")),
+    ?assertEqual(nomatch, string:find(ServerErr, "Asker.spawned:25")),
     [has(ServerErr, Line)
      || Line <- ["the peer asker connected",
-                 "the peer asker's spawn at Asker.spawned:25 was not loaded: " ?NOT_COMPILED,
                  "the peer asker's spawn at Asker.spawned:26 was not loaded: the binding"
                  " Aside.note has no value here",
                  "the peer asker's spawn at Asker.spawned:27 was not loaded: the module"
@@ -1880,10 +1880,14 @@ two_builds(Base) ->
 
 %% Two builds of which the receiver's lacks the sender's every module: the
 %% receiver, which waits, and the sender, whose `Lacked` holds a type, a
-%% binding, and a foreign declaration over a host module the receiver lacks
-%% too, and whose program spawns and computes them on the receiver and calls
-%% servers whose spawns hold the calls' replies, each answer a line. Answers
-%% the sender's and the receiver's programs.
+%% binding, a foreign declaration over a host module the receiver lacks
+%% too, a function that calls a foreign function the host raises from, one
+%% that spawns a process of its own there and reads its site, and two
+%% foreign functions spawned and computed by their names, one whose host
+%% function answers a value of another type than declared; and whose
+%% program spawns and computes them on the receiver and calls servers whose
+%% spawns hold the calls' replies, each answer a line. Answers the sender's
+%% and the receiver's programs.
 exchanged(Base) ->
     [SenderDir, ReceiverDir] = [filename:join([Base, "builds", Dir])
                                 || Dir <- ["sender", "receiver"]],
@@ -1896,13 +1900,38 @@ exchanged(Base) ->
              "\n"
              "export fn told() : Unit with Never = Io.println(note)\n"
              "\n"
-             "foreign fn only() : Unit with m = \"ern_sender_host:only/0\"\n"
+             "export foreign fn only() : Unit with m = \"ern_sender_host:only/0\"\n"
              "\n"
              "export fn callsOnly() : Unit with Never = only()\n"
              "\n"
              "export fn plain() : Unit with Never = Io.println(Io.show(Count(1)))\n"
              "\n"
-             "export fn counted() : Count = Count(2)\n",
+             "export fn counted() : Count = Count(2)\n"
+             "\n"
+             "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+             "\n"
+             "export fn raises() : Unit with Never = Io.println(Int.toString(parsed(\"x\")))\n"
+             "\n"
+             "export fn spawner() : Unit with Never = {\n"
+             "    let child = spawn(fn() : Unit with Int =\n"
+             "        receive { _ -> fault(\"the child\") });\n"
+             "    let site = match Process.status(Process.fromAddress(child)) {\n"
+             "        Some(status) -> status.site\n"
+             "      | None -> \"none\"\n"
+             "    };\n"
+             "    Io.println(\"child at \" <> site);\n"
+             "    send(child, 1)\n"
+             "}\n"
+             "\n"
+             "export foreign fn yielded() : Unit with m = \"erlang:yield/0\"\n"
+             "\n"
+             "export foreign fn collected() : Bool with m = \"erlang:garbage_collect/0\"\n"
+             "\n"
+             "foreign fn miscounted() : Count with m = \"erlang:yield/0\"\n"
+             "\n"
+             "export fn counts() : Unit with Never = { let _ = miscounted(); Unit }\n"
+             "\n"
+             "export foreign fn absent() : Unit with m = \"lists:ern_absent_function/0\"\n",
     Sender = "// Report §8.7, §6.6: spawns and a compute of functions the receiver\n"
              "// lacks, and calls whose replies a failed spawn held, each answer a line.\n"
              "\n"
@@ -1920,10 +1949,27 @@ exchanged(Base) ->
              "            let only = Peer.spawn(receiver, Lacked.callsOnly, 5000);\n"
              "            Io.println(\"calls only: \" <> outcome(only));\n"
              "            ended(receiver);\n"
-             "            ended(\"nobody\")\n"
+             "            ended(\"nobody\");\n"
+             "            received(receiver)\n"
              "        }\n"
              "      | _ -> Unit\n"
              "    }\n"
+             "\n"
+             "// Spawns and computes of what the receiver lacks that run there.\n"
+             "fn received(receiver : String) : Unit with Down = {\n"
+             "    Io.println(\"raises: \" <> outcome(Peer.spawn(receiver, Lacked.raises, 5000)));\n"
+             "    let spawner = Peer.spawn(receiver, Lacked.spawner, 5000);\n"
+             "    Io.println(\"spawner: \" <> outcome(spawner));\n"
+             "    let yielded = Peer.spawn(receiver, Lacked.yielded, 5000);\n"
+             "    Io.println(\"yielded: \" <> outcome(yielded));\n"
+             "    let collected = Peer.compute(receiver, Lacked.collected, 5000);\n"
+             "    Io.println(\"collected: \" <> Io.show(collected));\n"
+             "    let named = Peer.spawn(receiver, Lacked.only, 5000);\n"
+             "    Io.println(\"only by name: \" <> outcome(named));\n"
+             "    Io.println(\"counts: \" <> outcome(Peer.spawn(receiver, Lacked.counts, 5000)));\n"
+             "    let absent = Peer.spawn(receiver, Lacked.absent, 5000);\n"
+             "    Io.println(\"absent function: \" <> outcome(absent))\n"
+             "}\n"
              "\n"
              "// A call whose reply a failed spawn on peer held ends at once: Address.call\n"
              "// answers None, and callForever faults.\n"
@@ -1976,16 +2022,27 @@ exchanged(Base) ->
     {ok, _} = compile:file(Host, [{outdir, SenderDir}]),
     {filename:join(SenderDir, "sender.erc"), filename:join(ReceiverDir, "receiver.erc")}.
 
-%% report §8.7, §6.6, §7.4, Appendix E.27: a spawn or a compute of a
-%% function the receiver lacks runs the exchange: the receiver asks the
-%% sender for the reach, the sender answers it from its build's forms and
-%% sends what the receiver lacks as code frames, and the receiver, having
-%% verified each, answers Other until MVP 3.2's item 4 compiles them, which
-%% it says; a function whose reach names a binding the receiver never ran,
-%% or a foreign declaration whose module it lacks, answers NotLoaded from
-%% the reach, before any code crosses, the receiver saying what it lacked;
-%% and a call whose reply a function held whose spawn failed ends at once,
-%% NotLoaded or NotListed alike, `Address.call` answering None and
+%% report §8.7, §6.6, §7.4, §6.9, §11.2, Appendix E.27: a spawn or a
+%% compute of a function the receiver lacks runs the exchange: the receiver
+%% asks the sender for the reach, the sender answers it from its build's
+%% forms and sends what the receiver lacks as code frames, and the
+%% receiver, having verified each, compiles them into one unit, loads it,
+%% and runs the spawn and the compute, the compute's value at the sender's
+%% type; a fault in a received function is reported on the receiver at the
+%% spawn's site, the sender's, with the peer that spawned it, and its trace
+%% names the sender's definitions; a process a received function spawns
+%% there has the sender's site, its definition's name and line, which
+%% `Process.status` reads and its fault's line writes; a foreign function
+%% spawned or computed by its name crosses as its declaration and runs
+%% through the check at its declared type, which a host function that
+%% answers another type fails, its cause naming the type as the sender's
+%% module writes it, `Count` and not `Lacked.Count`, while one whose module
+%% the receiver lacks, or whose function its module lacks, is NotLoaded; a
+%% function whose reach names a binding the receiver never
+%% ran, or a foreign declaration whose module it lacks, answers NotLoaded
+%% from the reach, before any code crosses, the receiver saying what it
+%% lacked; and a call whose reply a function held whose spawn failed ends at
+%% once, NotLoaded or NotListed alike, `Address.call` answering None and
 %% `Address.callForever` faulting with "callee did not start". A regression
 %% test, written after the code; that no code frame moves before NotLoaded
 %% is ern_exchange_tests', since no line marks it here
@@ -2002,27 +2059,43 @@ exchange(Base) ->
     WaitReceiver = start(Receiver, ReceiverProgram, []),
     prints(Receiver, "ready"),
     ?assertEqual(0, (start(Sender, SenderProgram, ["receiver"]))()),
-    Lines = ["the peer sender's spawn at Sender.main:9 was not loaded: " ?NOT_COMPILED,
-             "the peer sender's compute at Sender.main:11 was not loaded: " ?NOT_COMPILED,
-             "the peer sender's spawn at Sender.main:13 was not loaded: the binding Lacked.note"
+    Served = "the peer sender's spawn at Sender.serve:58 was not loaded: the binding Lacked.note"
+             " has no value here",
+    Lines = ["the peer sender's spawn at Sender.main:13 was not loaded: the binding Lacked.note"
              " has no value here",
              "the peer sender's spawn at Sender.main:15 was not loaded: the module"
              " ern_sender_host, which Lacked.only calls, is not here",
-             "the peer sender's spawn at Sender.serve:41 was not loaded: the binding Lacked.note"
-             " has no value here"],
+             Served,
+             "Sender.received:26 faulted: foreign function erlang:binary_to_integer/1 raised"
+             " error:badarg, spawned by the peer sender",
+             "'Lacked.raises'/0",
+             "Lacked.spawner:22 faulted: the child",
+             "Sender.received:29 faulted: foreign return does not match Unit, spawned by the peer"
+             " sender",
+             "the peer sender's spawn at Sender.received:33 was not loaded: the module"
+             " ern_sender_host, which Lacked.only calls, is not here",
+             "Sender.received:35 faulted: foreign return does not match Count, spawned by the peer"
+             " sender",
+             "the peer sender's spawn at Sender.received:36 was not loaded: the module lists,"
+             " which Lacked.absent calls, has no function ern_absent_function/0 here"],
     [says(Receiver, Line) || Line <- Lines],
+    prints(Receiver, "child at Lacked.spawner:22"),
     stop(Receiver, WaitReceiver),
     {Out, _} = said(Sender),
-    {_, ReceiverErr} = said(Receiver),
+    {ReceiverOut, ReceiverErr} = said(Receiver),
     [has(Out, Line)
-     || Line <- ["plain: Other(\"" ?NOT_COMPILED "\")",
-                 "counted: Left(Other(\"" ?NOT_COMPILED "\"))",
+     || Line <- ["plain: Right", "counted: Right(Count(2))",
                  "told: NotLoaded", "calls only: NotLoaded",
                  "server receiver: NotLoaded", "server nobody: NotListed",
                  "call receiver: None", "call nobody: None",
                  "call forever receiver: Fault(\"callee did not start\")",
-                 "call forever nobody: Fault(\"callee did not start\")"]],
-    ?assertEqual(2, length(string:split(ReceiverErr, lists:last(Lines), all)) - 1),
+                 "call forever nobody: Fault(\"callee did not start\")",
+                 "raises: Right", "spawner: Right", "yielded: Right", "collected: Right(true)",
+                 "only by name: NotLoaded", "counts: Right", "absent function: NotLoaded"]],
+    has(ReceiverOut, "Count(1)"),
+    ?assertEqual(2, length(string:split(ReceiverErr, Served, all)) - 1),
+    ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
+    ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.Count")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")).
 
 %% report §11.2, §8.7, Appendix H: a service at a type the session declares
@@ -2131,8 +2204,10 @@ shell_binding_spawned(Base) ->
 %% and a function declared at the desk's prompt alone, held by no peer,
 %% cross with the compute, the desk answering the reach from the forms it
 %% keeps beside the input's code and sending them, and the peer, having
-%% verified them, answers Other until MVP 3.2's item 4 compiles them, which
-%% it says (MVP 3.2's item 3). A regression test, written after the code
+%% verified them, compiles and runs them, answering their values (MVP 3.2's
+%% items 3 and 4); a type the desk declares crosses with a function spawned
+%% on the worker, whose check's cause names it as the session writes it,
+%% bare (§11.5). A regression test, written after the code
 shell_compute_test_() ->
     nodes_test(90, fun shell_compute/1).
 
@@ -2152,16 +2227,31 @@ shell_compute(Base) ->
     true = port_command(InputDesk, [Declared, "Peer.compute(\"worker\", answer, 5000)\n",
                                     "Peer.compute(\"worker\", fn() = 6 * 7, 5000)\n",
                                     "fn alone() : Int = 6 * 9\n",
-                                    "Peer.compute(\"worker\", alone, 5000)\n"]),
-    prints(Desk, "Right(42) : Either(Io.Error, Int)"),
-    prints(Desk, ?LEFT_NOT_COMPILED " : Either(Io.Error, Int)", 2, 30000),
+                                    "Peer.compute(\"worker\", alone, 5000)\n",
+                                    "type Count = Count(Int)\n",
+                                    "foreign fn wrong() : Count with m = \"erlang:yield/0\"\n",
+                                    "fn counts() : Unit with Never = {\n"
+                                    "    Io.println(\"counting\");\n"
+                                    "    let _ = wrong();\n"
+                                    "    Unit\n"
+                                    "}\n",
+                                    "Peer.spawn(\"worker\", counts, 5000)\n"]),
+    prints(Desk, "Right(42) : Either(Io.Error, Int)", 2, 30000),
+    prints(Desk, "Right(54) : Either(Io.Error, Int)"),
+    prints(Desk, ?SPAWNED),
+    prints(Worker, "counting"),
+    %% the shell writes a fault's line as it next writes its screen
+    true = port_command(InputWorker, "Io.println(\"last\")\n"),
+    prints(Worker, "last"),
+    prints(Worker, "input 9:1 faulted: foreign return does not match Count, spawned by the peer"
+                   " desk"),
     true = port_command(InputDesk, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(InputWorker, ":quit\n"),
     ?assertEqual(0, WaitWorker()),
     {OutWorker, _} = said(Worker),
-    has(OutWorker, "the peer desk's compute at input 3:1 was not loaded: " ?NOT_COMPILED),
-    has(OutWorker, "the peer desk's compute at input 5:1 was not loaded: " ?NOT_COMPILED).
+    ?assertEqual(nomatch, string:find(OutWorker, "was not loaded")),
+    ?assertEqual(nomatch, string:find(OutWorker, "$Session")).
 
 %% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
 %% code while the session runs, since the function may be held anywhere: a
@@ -2257,10 +2347,10 @@ shell_peer_fault(Base) ->
 %% of the build that holds the module spawns a function of it there by its
 %% hash, the value of the binding its reach names found, as on a node that
 %% runs a program; a function typed at the shell has a hash and no peer
-%% holds it, so a spawn of it carries its form to the peer, which answers
-%% Other until MVP 3.2's item 4 compiles it, and says so (MVP 3.2's item
-%% 3). Written after the code (MVP 3.1's item 5): a peer found no value of
-%% a binding the shell's load had evaluated
+%% holds it, so a spawn of it carries its form to the peer, which compiles
+%% it and starts it (MVP 3.2's items 3 and 4). Written after the code (MVP
+%% 3.1's item 5): a peer found no value of a binding the shell's load had
+%% evaluated
 shell_node_test_() ->
     nodes_test(90, fun shell_node/1).
 
@@ -2296,7 +2386,7 @@ shell_node(Base) ->
     {DeskInput, WaitDesk} = shell_started(Desk, Root),
     true = port_command(DeskInput, ":load Greet\n"
                                    "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
-    prints(Desk, ?LEFT_NOT_COMPILED " : Either(Io.Error, Address(Never))"),
+    prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "go\n"),
     prints(Store, "spawned: Right"),
     prints(Desk, "hello from the shell's load"),
@@ -2306,7 +2396,7 @@ shell_node(Base) ->
     {DeskOut, _} = said(Desk),
     {_, StoreErr} = said(Store),
     has(DeskOut, "Greet, compiled from greet.ern"),
-    has(StoreErr, "the peer desk's spawn at input 2:1 was not loaded: " ?NOT_COMPILED).
+    ?assertEqual(nomatch, string:find(StoreErr, "was not loaded")).
 
 %% report §8.7, §11.2: a shell that is a node over a build answers a peer
 %% from the latest unit whose bindings have their values, as the session
@@ -2394,10 +2484,10 @@ shell_node_versions(Base) ->
     prints(Store, "ready"),
     {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
     %% the desk dials the store, which does not hold the lambda, and is sent
-    %% its form, which it compiles from MVP 3.2's item 4
+    %% its form, which it compiles and starts
     true = port_command(DeskInput,
                         "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
-    prints(Desk, ?LEFT_NOT_COMPILED " : Either(Io.Error, Address(Never))"),
+    prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
     prints(Store, "first: NotLoaded"),
     true = port_command(DeskInput, ":load Greet\n"),
@@ -2486,10 +2576,10 @@ shell_node_reach(Base) ->
     true = port_command(DeskInput, ":load Greet\n"),
     prints(Desk, "Greet, compiled from greet.ern"),
     %% the desk dials the store, which does not hold the lambda, and is sent
-    %% its form, which it compiles from MVP 3.2's item 4
+    %% its form, which it compiles and starts
     true = port_command(DeskInput,
                         "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
-    prints(Desk, ?LEFT_NOT_COMPILED " : Either(Io.Error, Address(Never))"),
+    prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
     prints(Store, "first: NotLoaded"),
     true = port_command(DeskInput, ":load Caller\n"),
@@ -2572,10 +2662,10 @@ refused_build_load(Base) ->
     prints(Store, "ready"),
     {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
     %% the desk dials the store, which does not hold the lambda, and is sent
-    %% its form, which it compiles from MVP 3.2's item 4
+    %% its form, which it compiles and starts
     true = port_command(DeskInput,
                         "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
-    prints(Desk, ?LEFT_NOT_COMPILED " : Either(Io.Error, Address(Never))"),
+    prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "before\n"),
     prints(Store, "before: NotLoaded"),
     true = port_command(DeskInput, ":load Bad\n"),

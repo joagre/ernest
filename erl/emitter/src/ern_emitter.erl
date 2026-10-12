@@ -36,7 +36,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, function_name/1]).
+-export([unit/1, source/1, function_name/1, site_name/2]).
 
 -include_lib("typer/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -50,9 +50,11 @@
 %% unit's definitions and foreign functions (#own{}); definition: the
 %% definition being compiled, {Position, Hash, QualifiedName}; declaration:
 %% its Ernest name, [Name] or [MemberOf, Name], which a spawn site names;
-%% restrictions: each type variable of the definition its schemes
-%% quantify, by its number, with its restrictions, by which a check's
-%% cause prints it (§11.5); variables: a local's number => its Erlang
+%% printing: the type state a check's cause prints its types under, as
+%% the definition's module writes them (§11.5, printing/2); restrictions:
+%% each type variable of the definition its schemes quantify, by its
+%% number, with its restrictions, by which a check's cause prints it
+%% (§11.5); variables: a local's number => its Erlang
 %% variable; counter: the last number a made variable took; locals: a
 %% local fn's number => its #local_fn{} (see Blocks); lifted: module
 %% functions produced by lifting, reversed; descriptors: descriptor term =>
@@ -71,7 +73,7 @@
 %% be held anywhere (function_value/2), which the shell reads to keep an
 %% input (§11.2).
 -record(emit_context, {unit, namespace, erlang_module, own, definition, declaration,
-                       restrictions = #{}, variables = #{}, counter = 0, locals = #{},
+                       printing, restrictions = #{}, variables = #{}, counter = 0, locals = #{},
                        lifted = [], descriptors = #{}, pattern_guards = [], members = #{},
                        outer, let_lambdas = #{}, entries = #{}, builds_functions = false}).
 %% The unit's own (report §11.1, Appendix H): forms, each definition's
@@ -141,7 +143,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
     ForeignPlaced = lists:enumerate(length(Definitions) + 1, ForeignFunctions),
     Own = own(Placed, ForeignPlaced, Unit),
     Context = #emit_context{unit = Unit, namespace = Namespace, erlang_module = ErlangModule,
-                            own = Own},
+                            own = Own, printing = printing(none, Unit)},
     {DefinitionFunctions, Context1} = lists:mapfoldl(fun definition_functions/2, Context,
                                                      Placed),
     {ForeignForms, Context2} = lists:mapfoldl(fun foreign_function/2, Context1, ForeignPlaced),
@@ -182,16 +184,18 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
 
 %% The unit's own definitions and foreign functions, each definition's form
 %% prepared.
-own(Placed, ForeignPlaced, #unit{sourced = Sourced} = Unit) ->
+own(Placed, ForeignPlaced, Unit) ->
     Groups = maps:groups_from_list(fun({_, #definition{group = Group}}) -> group_of(Group) end,
                                    Placed),
     #own{forms = maps:from_list([{Position,
                                   {Definition,
-                                   prepared(maps:get(QualifiedName, Sourced, Form),
+                                   prepared(case Sourced of
+                                                none -> Form;
+                                                _ -> Sourced
+                                            end,
                                             group_references(Definition, Groups, Unit))}}
-                                 || {Position, #definition{qualified_name = QualifiedName,
-                                                         form = Form} = Definition}
-                                        <- Placed]),
+                                 || {Position, #definition{form = Form, sourced = Sourced}
+                                                   = Definition} <- Placed]),
          hashes = lists:foldl(fun({Position, #definition{hash = Hash}}, Acc) ->
                                   maps:merge(#{Hash => Position}, Acc)
                               end, #{}, Placed),
@@ -319,10 +323,12 @@ local_name({_, _, Name}) -> Name;
 local_name(none) -> none.
 
 %% The definition being compiled set in Context.
-entering(Position, #definition{qualified_name = QualifiedName, hash = Hash}, Form,
-         #emit_context{namespace = Namespace} = Context) ->
+entering(Position, #definition{qualified_name = QualifiedName, hash = Hash,
+                                printing = Printing}, Form,
+         #emit_context{namespace = Namespace, unit = Unit} = Context) ->
     Context#emit_context{definition = {Position, Hash, QualifiedName},
                          declaration = lists:nthtail(length(Namespace), QualifiedName),
+                         printing = printing(Printing, Unit),
                          restrictions = restrictions(Form), variables = #{}, locals = #{},
                          members = #{}, let_lambdas = #{}}.
 
@@ -409,9 +415,10 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
                                                       Requirement},
                                             host_module = HostModule,
                                             host_function = HostFunction,
-                                            source = Source}},
-                 #emit_context{namespace = Namespace} = Context) ->
+                                            source = Source, printing = Printing}},
+                 #emit_context{namespace = Namespace, unit = Unit} = Context) ->
     Context1 = Context#emit_context{declaration = lists:nthtail(length(Namespace), QualifiedName),
+                                    printing = printing(Printing, Unit),
                                     restrictions = maps:from_list(Quantified)},
     Prefixes = ["Argument" || _ <- ParamTypes] ++ ["Member" || _ <- Requirement],
     {Variables, Context2} = named_variables(Prefixes, Context1),
@@ -553,15 +560,18 @@ is_test_case(_) -> false.
 
 %% Report §2.3: a definition whose own name holds `$`, the entry of an input
 %% at the shell's prompt, is named by no program.
-nameable(QualifiedName) -> not lists:member($$, atom_to_list(lists:last(QualifiedName))).
+nameable(QualifiedName) ->
+    not lists:member($$, ern_namespace:segment_text(lists:last(QualifiedName))).
 
-%% Report §11.1: what the unit exports: the functions of the definitions
-%% and the foreign functions the module exports.
+%% Report §11.1: what the unit exports: the functions its module exports,
+%% every function an exchange's unit holds, and every binding's getter, so
+%% that a received definition (§8.7) reads a binding of its module where
+%% the node holds it with its value; a binding never crosses.
 exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
                                                  own = #own{forms = Forms}}) ->
     [{function_name(Position), arity(element(2, maps:get(Position, Forms)))}
      || {Position, #definition{kind = Kind, qualified_name = QualifiedName}} <- Placed,
-        Kind =/= type, lists:member(QualifiedName, Exported)]
+        Kind =:= binding orelse (Kind =:= function andalso lists:member(QualifiedName, Exported))]
         ++ [{function_name(Position), foreign_arity(ForeignFunction)}
             || {Position, #foreign_function{export = true} = ForeignFunction} <- ForeignPlaced].
 
@@ -654,7 +664,8 @@ code_function(Code) ->
 
 %% Report §8.7, §11.2: the other units the unit's code calls, each the
 %% module of a remote call or of a function value that is an Ernest unit,
-%% whose name begins `ern@` (§11.1). A peer's spawn reads a reach's
+%% whose name begins `ern@` (§11.1), or a unit an exchange made, `ern$`
+%% (ern_arrival). A peer's spawn reads a reach's
 %% bindings and foreign declarations in the units the code of the unit
 %% that runs it calls, directly or through one it calls (ern_code). A
 %% module of the standard library lists none, since no reach names what it
@@ -671,13 +682,17 @@ called_unit(Node, Units) ->
         module_qualifier ->
             Module = erl_syntax:module_qualifier_argument(Node),
             case erl_syntax:type(Module) =:= atom
-                 andalso lists:prefix("ern@", atom_to_list(erl_syntax:atom_value(Module))) of
+                 andalso is_unit(atom_to_list(erl_syntax:atom_value(Module))) of
                 true -> [erl_syntax:atom_value(Module) | Units];
                 false -> Units
             end;
         _ ->
             Units
     end.
+
+is_unit("ern@" ++ _) -> true;
+is_unit("ern$" ++ _) -> true;
+is_unit(_) -> false.
 
 %% Report §8.5: the units of the modules this one depends on, whose
 %% top-level bindings are evaluated before its own.
@@ -1096,15 +1111,15 @@ declared_value(Reference, Context) ->
         {own, Position, function, Arity} ->
             erl_syntax:implicit_fun(erl_syntax:atom(function_name(Position)),
                                     erl_syntax:integer(Arity));
-        {Unit, Position, value, _} ->
-            call_remote(Unit, function_name(Position), []);
-        {Unit, Position, function, Arity} ->
-            remote_fun(Unit, function_name(Position), Arity)
+        {Unit, Function, value, _} ->
+            call_remote(Unit, Function, []);
+        {Unit, Function, function, Arity} ->
+            remote_fun(Unit, Function, Arity)
     end.
 
 %% Report §11.1: where a declaration a form references is: own, a function
-%% of this unit, or another unit's, with its position, its kind and its
-%% function's arity.
+%% of this unit, with its position, or another unit's, with its function,
+%% named by its position there; and its kind and its function's arity.
 placed(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign}} = Context) ->
     case own_position(Reference, Context) of
         {ok, Position} when is_map_key(Position, Forms) ->
@@ -1119,10 +1134,10 @@ placed(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign}} = 
             {own, Position, function, foreign_arity(ForeignFunction)};
         error ->
             case linked(Reference, Context) of
-                #linked{position = undefined} ->
+                #linked{function = undefined} ->
                     fail(none, unlinked(Reference));
-                #linked{unit = Unit, position = Position, kind = Kind, arity = Arity} ->
-                    {Unit, Position, Kind, Arity}
+                #linked{unit = Unit, function = Function, kind = Kind, arity = Arity} ->
+                    {Unit, Function, Kind, Arity}
             end
     end.
 
@@ -1283,10 +1298,10 @@ declared_call(Reference, Supplies, Args, Context) ->
                    erl_syntax:application(Get, ArgForms);
                {own, Position, function, _} ->
                    erl_syntax:application(erl_syntax:atom(function_name(Position)), ArgForms);
-               {Unit, Position, value, _} ->
-                   erl_syntax:application(call_remote(Unit, function_name(Position), []), ArgForms);
-               {Unit, Position, function, _} ->
-                   call_remote(Unit, function_name(Position), ArgForms)
+               {Unit, Function, value, _} ->
+                   erl_syntax:application(call_remote(Unit, Function, []), ArgForms);
+               {Unit, Function, function, _} ->
+                   call_remote(Unit, Function, ArgForms)
            end,
     {Form, Context2}.
 
@@ -1370,8 +1385,8 @@ member_fun(Reference, Arity, Context) ->
         {own, Position, _, _} ->
             erl_syntax:implicit_fun(erl_syntax:atom(function_name(Position)),
                                     erl_syntax:integer(Arity));
-        {Unit, Position, _, _} ->
-            remote_fun(Unit, function_name(Position), Arity)
+        {Unit, Function, _, _} ->
+            remote_fun(Unit, Function, Arity)
     end.
 
 %% Report §4.6: a call of a type's member, a local call when the type is
@@ -1380,8 +1395,8 @@ member_call(Reference, Args, Context) ->
     case placed(Reference, Context) of
         {own, Position, _, _} ->
             erl_syntax:application(erl_syntax:atom(function_name(Position)), Args);
-        {Unit, Position, _, _} ->
-            call_remote(Unit, function_name(Position), Args)
+        {Unit, Function, _, _} ->
+            call_remote(Unit, Function, Args)
     end.
 
 %% fun M:F/A
@@ -1545,22 +1560,39 @@ holds_function(_) -> false.
 %% runs, and is not the unit's code: an input typed again then compiles
 %% to the code it did before, and the host keeps an entry for each lambda
 %% of each version it loads (docs/memory.md). A form without its source
-%% names the declaration alone.
+%% names the declaration alone. Report §8.7: a definition of an exchange's
+%% unit by the name the code frame gave it, its lines the sender's.
 site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
-                                        session_offset = SessionOffset},
+                                        session_offset = SessionOffset} = Unit,
                            erlang_module = ErlangModule, declaration = Declaration}) ->
-    case {SessionOffset, Declaration, Source} of
-        {_, _, none} ->
+    case {site_name(Declaration, Unit), Source} of
+        {_, none} ->
             text_site([ern_namespace:text(SiteNamespace ++ Declaration)]);
-        {false, _, {Line, _, _}} ->
-            text_site([ern_namespace:text(SiteNamespace ++ Declaration), ":",
-                       integer_to_list(Line)]);
-        {Offset, ['$input'], {Line, _, _}} ->
+        {input, {Line, _, _}} ->
             call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
-                                                erl_syntax:integer(Line + Offset)]);
-        {Offset, _, {Line, _, _}} ->
-            text_site([ern_namespace:text(Declaration), ":", integer_to_list(Line + Offset)])
+                                                erl_syntax:integer(Line + SessionOffset)]);
+        {Name, {Line, _, _}} ->
+            text_site([ern_namespace:text(Name), ":",
+                       integer_to_list(Line + lines_before(SessionOffset))])
     end.
+
+%% Report §6.9, §11.2: the name a unit's spawn sites write its declaration
+%% Declaration by, which its `.erc` records beside the declaration's form
+%% so that a peer it is shipped to writes them alike (§8.7): the
+%% qualified name under the unit's site namespace, a reload's version's
+%% `Counter$2.worker`; in the session, a declaration by its own name, and
+%% an input's expression, whose name the shell gives as the spawn runs,
+%% `input`.
+-spec site_name([atom() | binary()], #unit{}) -> [atom() | binary()] | input.
+site_name(Declaration, #unit{site_namespace = SiteNamespace, session_offset = false}) ->
+    SiteNamespace ++ Declaration;
+site_name(['$input'], #unit{}) ->
+    input;
+site_name(Declaration, #unit{}) ->
+    Declaration.
+
+lines_before(false) -> 0;
+lines_before(Offset) -> Offset.
 
 text_site(SiteParts) ->
     string_binary(unicode:characters_to_binary(SiteParts)).
@@ -1744,11 +1776,31 @@ as_never(Variables, Types) when is_list(Types) ->
     [as_never(Variables, Element) || Element <- Types];
 as_never(_, Type) -> Type.
 
+%% Report §11.5, §8.7: the type state a definition's types print under in
+%% a check's cause, as its module writes them: the unit's link's, or, for
+%% a definition that gives its module's own, one that arrived or was read
+%% from a compiled form, its module's namespace and the prelude names its
+%% types shadow, given as text. A name no atom of this host names names no
+%% type here either, so a namespace with one is none's and such a shadow
+%% none, and no atom is made.
+printing(none, #unit{link = #link{printing = Printing}}) ->
+    Printing;
+printing({Namespace, Shadows}, #unit{link = #link{printing = Printing}}) ->
+    Module = case existing(Namespace) of
+                 Atoms when length(Atoms) =:= length(Namespace) -> Atoms;
+                 _ -> []
+             end,
+    ern_types:set_scope(Module, [], existing(Shadows), #{}, Printing).
+
+existing(Names) ->
+    [Atom || Name <- Names, Atom <- try [binary_to_existing_atom(Name)]
+                                    catch error:badarg -> []
+                                    end].
+
 %% Report §11.5: a type as the module prints it, a check's cause naming it.
 %% Its variables are the definition's, named as §11.5 names a type's
 %% variables, each with the restrictions its definition's scheme gives it.
-printed(Type, #emit_context{unit = #unit{link = #link{printing = Printing}},
-                            restrictions = Restrictions} = Context) ->
+printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = Context) ->
     Count = lists:max([0 | [Number || {variable, Number} <- type_variables(Type)]]),
     State = lists:foldl(fun(Number, Acc) ->
                             element(2, ern_types:fresh(Acc, maps:get(Number, Restrictions, [])))

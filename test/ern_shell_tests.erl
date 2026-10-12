@@ -3607,14 +3607,14 @@ reload_refused_by_a_new_module() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Helper.x:1 faulted: division by zero; nothing was"
                                                 " reloaded\n> 1 : Int">>)).
 
-%% docs/development.md, What the toolchain accepts: on a node, a module
-%% loaded from its compiled form whose unit the node holds with other code,
-%% here since the build directory was changed under the running node, waits
-%% for MVP 3.2 and is refused naming it, and a later use of its name is not
-%% answered with the `:load` that was refused; one that holds the same code
-%% is the node's own unit. Written after the code (MVP 3.1's item 5), the
-%% help a regression test written after the fix: it proposed the refused
-%% `:load`
+%% report §11.2, §11.1, §6.9: on a node, a module loaded from its compiled
+%% form whose unit the node holds with other code, here since the build
+%% directory was changed under the running node, is made a unit of its own
+%% from its compiled form's forms, `ern@greet$2`, and runs the code it
+%% compiled to, the lines of its source the compiled form records giving a
+%% process it spawns its site, the module's own; one that holds the same
+%% code is the node's own unit. Written after the code (MVP 3.2's item 4),
+%% which lifted the refusal MVP 3.1's item 5 made of the first
 compiled_beside_another_test_() ->
     {timeout, 60, fun compiled_beside_another/0}.
 
@@ -3625,7 +3625,12 @@ compiled_beside_another() ->
          Build = filename:join(Dir, Name),
          ok = filelib:ensure_path(Build),
          ok = file:write_file(filename:join(Build, "greet.ern"),
-                              ["export fn hello() : String = \"", Name, "\"\n"]),
+                              ["export fn hello() : String = \"", Name, "\"\n"
+                               "\n"
+                               "export fn crash() : Unit with Never = {\n"
+                               "    let _ = spawn(fn() : Unit with Never = fault(\"crashed\"));\n"
+                               "    Unit\n"
+                               "}\n"]),
          ok = file:write_file(filename:join(Build, "other.ern"), "export let x : Int = 1\n"),
          {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Build ++ " " ++ Build)
      end || Name <- ["one", "two"]],
@@ -3633,27 +3638,28 @@ compiled_beside_another() ->
     InputFile = filename:join(Dir, "session.in"),
     %% the source root, Dir, holds no source of either module
     ok = file:write_file(InputFile,
-                         ["match Fs.read(Path(\"", filename:join([Dir, "two", "greet.erc"]),
+                         ["foreign fn held(name : Foreign.Term) : Bool =\n"
+                          "    \"erlang:module_loaded/1\"\n",
+                          "match Fs.read(Path(\"", filename:join([Dir, "two", "greet.erc"]),
                           "\"), 2000) {\n",
                           "    Right(bytes) -> Fs.write(Path(\"", One, "\"), bytes, 2000)\n",
                           "  | Left(error) -> Left(error)\n}\n",
-                          ":load Greet\nGreet.hello()\n:load Other\nOther.x\n"]),
+                          ":load Greet\nGreet.hello()\nGreet.crash()\n",
+                          "held(Foreign.term(Foreign.atom(\"ern@greet$2\")))\n",
+                          ":load Other\nOther.x\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Dir ++ " --load-path "
                                    ++ filename:join(Dir, "one")) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greet's compiled form, one/greet.erc, is not the"
-                                                " Greet this node holds; a compiled module loaded"
-                                                " beside another of its name arrives in"
-                                                " MVP 3.2\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Greet.hello">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<":load Greet puts it in scope">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from one/greet.erc\n"
+                                                "> \"two\" : String">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet.crash:4 faulted: crashed">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> true : Bool">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Other, from one/other.erc\n> 1 : Int\n">>)).
 
 %% report §11.2: in a shell that is no node, a module loaded from its
 %% compiled form whose unit the session holds with other code, a module of
-%% the shell's own, is refused as on a node, naming the session in place of
-%% the node. A regression test, written after the fix: the refusal named a
-%% node where there was none
+%% the shell's own, is made a unit of its own from its forms, as on a node.
+%% Written after the code (MVP 3.2's item 4), which lifted the refusal
 compiled_beside_the_shells_own_test_() ->
     {timeout, 60, fun compiled_beside_the_shells_own/0}.
 
@@ -3666,13 +3672,11 @@ compiled_beside_the_shells_own() ->
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " " ++ Library),
     ok = file:delete(filename:join(Library, "markdown.ern")),
     InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":doc List.map\n:load Markdown\n"),
+    ok = file:write_file(InputFile, ":doc List.map\n:load Markdown\nMarkdown.hello()\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path "
                                    ++ Library) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Markdown's compiled form, lib/markdown.erc, is"
-                                                " not the Markdown this session holds; a compiled"
-                                                " module loaded beside another of its name arrives"
-                                                " in MVP 3.2\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"Markdown, from lib/markdown.erc\n"
+                                                "> \"hello\" : String">>)).
 
 %% report §11.2, §8.7: on a node, `:load` of a module whose source compiles
 %% to the code the node holds of it from its build takes that unit as it

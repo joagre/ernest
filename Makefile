@@ -192,13 +192,16 @@ test: all
 	@$(MAKE) -s -j$(JOBS) -O test-shell test-programs
 
 # The unit tests of the applications under erl/, side by side, or of one
-# with APP=typer.
+# with APP=typer. The runtime's tests are compiled first, since the
+# emitter's call one of their modules, ern_named.
 APP_TESTS = $(APPS:%=test-app-%)
 ifdef APP
 test-erl: all
+	@$(MAKE) -s -C erl/runtime/src beams
 	@$(MAKE) -C erl/$(APP)/src test
 else
 test-erl: all
+	@$(MAKE) -s -C erl/runtime/src beams
 	@$(MAKE) -s -j $(APP_TESTS)
 endif
 

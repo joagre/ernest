@@ -1321,6 +1321,22 @@ example.ern:2:5: the implementation of size is not written `module:function/arit
   | = help: write the host's module and function and the arity 1, as `module:function/1`
 ```
 
+### A foreign implementation that names a unit (§11.1)
+
+```ernest-rejected
+foreign fn twice(n : Int) : Int =
+    "ern@util:twice/1"
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: the implementation names ern@util, a unit of Ernest's, whose functions are named by their position
+1 | foreign fn twice(n : Int) : Int =
+2 |     "ern@util:twice/1"
+  |     ^^^^^^^^^^^^^^^^^^
+  | = help: call an Ernest function by its name, and name the host's own module here
+```
+
 ### A refutable parameter pattern (§4.5)
 
 ```ernest-rejected

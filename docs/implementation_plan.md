@@ -177,7 +177,9 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    `Ets.Table` holds is never let go, since the host's check sees a process's functions and not a
    table's, stated in §10, §11.2 and G.1 and counted against the limits of section 7; no refusal
    of the compiler's (the review of 2026-10-09, S7, §0's principle 5). Its test, that such a unit
-   survives a sweep, needs the sweep, and is item 4's.
+   survives a sweep, needs the sweep, and is item 4's. Subsumed 2026-10-12 by item 4's decision: no
+   unit is let go, so a table's unit is held as every unit is, G.1's sentence went, and the test
+   with it.
 3. **The exchange.** Done 2026-10-11. `ern_exchange`, one registered process on each node beside
    the gateway, both parts: a peer that lacks a spawned or computed function's identity asks the
    spawner's node for the reach, the node answers the identities the function reaches, code and
@@ -195,54 +197,49 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    (§6.6, §8.6, §8.7). A reach complete and verified answers `Other` naming item 4, which compiles
    it, listed in `docs/development.md`'s table. The log's *The Report for Code with a Spawn*
    records the decisions, and item 4 names what it plugs in.
-4. **A unit on arrival, and the let-go.** Every unit's functions named by their position in it,
-   the build's as an arrival's, so that a unit adds one atom, its name, a trace and the shell
-   showing a function by the name its build gives its hash, and every caller by name, the entry
-   point, a test, the shell, a binding's initialization, `ern doc`'s calls into `Markdown`,
-   finding its function through the code table; every unit made by the back end from the
-   canonical forms alone, the build's path typed tree, form, unit, so that a form lacking what
-   the back end needs fails a test; the golden files of emitted Erlang regenerated. The
-   definitions that arrive in one exchange one unit, under a name from the node's pool, each
-   reference linked through the table before the unit is compiled by the build's back end from
-   the same forms;
-   the canonical form of a received definition, and of one typed at the shell, kept beside its
-   compiled code and shipped onward as the node's own; a compiled module the shell loads beside
-   another unit of its name made a unit of its own from its forms, which MVP 3.1 refuses, the
-   refusal lifted from `docs/development.md`'s table; loading by the host's `prepare_loading`
-   and `atomic_load`, one batch per reach, no `-on_load`; the node's units off the code path;
-   nothing on disk but the build directory, a node restarted sent the rest again. The let-go: a
-   unit that arrived by an exchange or a load unloaded when no process executes it or holds a
-   function of it, which `erlang:check_process_code` tells, when the node nears a limit of
-   section 7, oldest first, until it is under; an idle unit staying until then; the build's own
-   units never; a unit let go leaving the table and returning its name to the pool, and crossing
-   again at the next spawn that needs it; and item 2's test, that a unit whose function a table
-   holds survives a sweep. What item 3 left for it: `ern_exchange:received/2`, given the frames
-   that arrived, each its hashes, forms and references, dependencies first, and the reach with its
-   bindings and its foreign declarations, compiles the unit, loads it, enters it in the code table
-   with its forms and answers `ok`, on which the exchange reads each waiting spawn or compute again
-   as the gateway's worker reads a frame; a binding reference links to any unit that holds the
-   binding's identity with its value, as the exchange's `NotLoaded` check reads it; a foreign
-   declaration's call is emitted from the reach's module and function; the let-go reads
-   `ern_exchange:pinned/0`. Decided 2026-10-11 (§8.7, *The exchange*; the log's *The Report for
-   Code with a Spawn*): a `foreign fn` spawned or computed by its name, which has no hash,
-   crosses as its declaration where the peer lacks it, its name, type and the host's module and
-   function, in the reach and in no code frame, so the reach's foreign entries gain the declared
-   type; the peer makes an entry that calls the host's function through §8.4's check, and a
-   received definition calls what the sender's declaration names; the refusal the peer answers
-   meanwhile, `NotLoaded` naming this item, leaves `docs/development.md`'s table here. The first
-   half, every unit from its forms and its functions named by their position, is built, 2026-10-12
-   (the log's *The Report for Code with a Spawn*), and decided what the code met: two definitions
-   of one module whose forms are one term are one definition, a reference to either to the first
-   declared (Appendix H); a fault's cause writes a type variable by its order, `a`, `b`, since a
-   form holds no annotation's name (§7.4); a `foreign fn` whose implementation names a unit,
-   `ern@...`, is refused at compile time (§11.1), the refusal the second half's to build; a code
-   frame carries the definition's name and the lines of its source beside its form, as the `.erc`
-   records them, so that a received definition's code shows, faults and reports as the sender's
-   does (§8.7, §11.1, §11.2), the name as text and the locals numbered, so that a frame makes no
-   atom of a name; and the build emits a module once every module its forms reference is checked,
-   so that a standard library module reached through a prelude name or an operator alone has its
-   position whatever the order, which today's order satisfies by chance. The second half measures
-   again `docs/memory.md`'s count of a kept input's atoms.
+4. **A unit on arrival, and the let-go.** Done 2026-10-12. Every unit is made by the back end from
+   the canonical forms alone, the build's path typed tree, form, unit, and its functions are named
+   by their position in it, `'$N'`, a lifted local `fn` `'$N.P'`, the entry a spawn on a peer starts
+   `'$N.P.entry'`, so that a unit adds one atom, its name, and every caller by name finds its
+   function through the code table (§11.1; the first half, below). The definitions of one exchange
+   are one unit under a name from the node's pool, `ern$1`, `ern$2`, each reference linked through
+   the code table and the prelude's environment, compiled by the build's back end from the same
+   forms and loaded whole by the host's atomic load, nothing of it running before; the code frame
+   and the `.erc` carry beside the form the definition's name, the lines of its source and what
+   prints its types as its module does, the name as text and the locals numbered, so that a received
+   definition's sites, faults and traces read as the sender's, its unit named as the node names it
+   (§8.7, §11.1, §11.2); a `foreign fn` spawned or computed by its name crosses as its declaration
+   with its type, the peer calling the host's function through §8.4's check from a function of the
+   arrival's own, `NotLoaded` where the module or its function is not there; a unit exports the
+   functions its module exports and every binding's getter, and a definition the peer holds in no
+   unit that exports its function is lacked and crosses again (§8.7, §11.1), since exporting every
+   function cost the host compiler's narrowing of a private function's arguments, 19.5% on the
+   bench's operator scenario; a compiled module the shell loads beside another unit of its name is
+   made a unit of its own from its `.erc`'s forms; a `foreign fn` whose implementation names a unit
+   is refused; the build emits a module once every module its forms reference is checked;
+   `docs/development.md`'s three rows are lifted and `docs/memory.md` measured again. **The let-go,
+   decided 2026-10-12 with the user:** a unit once loaded is held for the node's life (§11.2, §10,
+   Appendix F; `soundness.md`'s section 7), since the host tells, since OTP 20, of the code on a
+   process's stack alone and of no function a process holds, and its counts of module names,
+   exports, function entries and atoms never fall, so a let-go would give names back and free the
+   code's memory and nothing else, and the shell's rule, keeping a unit whose code builds a function
+   value, would fire for almost no unit; the node says once at four fifths of a count, a load or an
+   arrival that would pass one fails as one the node cannot load, and a node restarted holds its
+   build and is sent the rest again; G.1's table sentence went with it, and item 2's test; item 3's
+   pinning went, nothing being let go; item 7 measures what an upgrade and a development day add to
+   the counts, and item 8's guide says when to restart (the log's *The Report for Code with a
+   Spawn*, and *Later*). The first half, every unit from its forms and its functions named by their
+   position, is built, 2026-10-12 (the log's *The Report for Code with a Spawn*), and decided what
+   the code met: two definitions of one module whose forms are one term are one definition, a
+   reference to either to the first declared (Appendix H); a fault's cause writes a type variable by
+   its order, `a`, `b`, since a form holds no annotation's name (§7.4); a `foreign fn` whose
+   implementation names a unit, `ern@...`, is refused at compile time (§11.1), the refusal the
+   second half's to build; a code frame carries the definition's name and the lines of its source
+   beside its form, as the `.erc` records them, so that a received definition's code shows, faults
+   and reports as the sender's does (§8.7, §11.1, §11.2), the name as text and the locals numbered,
+   so that a frame makes no atom of a name; and the build emits a module once every module its forms
+   reference is checked, so that a standard library module reached through a prelude name or an
+   operator alone has its position whatever the order, which today's order satisfies by chance.
 5. **The bare node, and the shell.** `ern run --config-dir dir` with no `.erc`: the runtime and
    the system processes, the entry process evaluating the standard library's bindings and
    waiting, the node listening and taking spawns, ending by termination alone, refused without
@@ -253,7 +250,8 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    table.
 6. **`Code`.** §11.1's outcome for a build written under a running node, which MVP 3.1 states as reaching the node at its next start alone, is restated here for a node that reads a unit after its start. `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
    forms and its reach's read from the load path, verified against their hashes and made a unit
-   as a load of the shell's is, counted against the limits, `Left` for a file that is no `.erc`
+   as a load of the shell's is, counted against the limits, a load that would pass one failing
+   as one the node cannot load (§11.2), its `Left` E.28's to state, `Left` for a file that is no `.erc`
    of this `ern` or whose reach the load path lacks; `Code.hashes(path)`, the `.erc`'s table of
    names and hashes; `Code.running(f)`, a form checked as `Peer.spawn`'s function is, `f` a top-level
    declaration of any arity whose result is `Unit with m` known whole where it is written, the
@@ -267,10 +265,11 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    the program's reach once and nothing the second time, and the process offers a service the
    program finds; `NotLoaded` for a binding and for a foreign declaration; a faulty frame ends the
    connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its
-   callers, which compile on the peer; a unit whose processes have ended stays until the node
-   nears a limit, is then let go and crosses again at the next spawn that needs it, and one a
-   process holds a function of stays, and so does one whose function a table holds; a node told to load
-   many units says so at four fifths of a limit, once, measured; the shell fixes a service on a
+   callers, which compile on the peer; a unit whose processes have ended is held, as every unit is;
+   a node told to load many units says so at four fifths of a limit, once, measured; what a build
+   upgraded through `Code.load` and a development day's spawns of edited code add to the host's
+   four counts, measured against their limits, so that the deployment guide's word on a restart
+   stands on numbers; the shell fixes a service on a
    peer through `Upgrade`; `Code.load`, `Code.hashes` and `Code.running` as section 8 states them.
    The measurements of section 7, and of what a spawn that ships code costs, a bare node's first
    spawn and the callers of a fix above all, against the spawn's time. `mvp3.2.md`'s status line,
@@ -280,7 +279,10 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    stop`, the service manager, and what code by its hash gives a system of nodes, several builds
    running at once and connecting on one floor, two versions of a type as two types, a fix
    shipped with a spawn, the bare node given its work, and a running service moved to new code
-   by the program's own upgrade over `Code.running`. Its outline is discussed with the user
+   by the program's own upgrade over `Code.running`; what a node keeps for its life and the counts
+   that never fall, that it says once at four fifths of one, and that a restart at a time of the
+   operator's choosing holds the build and is sent the rest again (§11.2; decided 2026-10-12, the
+   log's *The Report for Code with a Spawn*). Its outline is discussed with the user
    before a line is written, as a design is (requested on 2026-10-10). Decided with it, a named
    decision of this milestone: whether `Code.upgrade` returns, a function that sends a process
    its `Upgrade`, which `mvp3.2.md` set aside as a second way to write one `send` (principle 2)

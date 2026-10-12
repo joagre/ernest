@@ -9,18 +9,21 @@
 %% function and arity and its reach, each type by its hash, each top-level
 %% binding by its identity, its qualified name with its hash, with the key
 %% its value is kept under (§8.5), each foreign declaration's
-%% implementation and function by its qualified name, and, in the unit's
-%% own row, the units its code calls. A unit loaded again with other code
-%% replaces its rows, and one unloaded takes them with it, so that the
-%% table holds what the host holds and no more (docs/memory.md).
+%% implementation and function by its qualified name as text, as a spawn
+%% frame names it, and, in the unit's own row, the units its code calls. A
+%% unit loaded again with other code replaces its rows, and one unloaded
+%% takes them with it, so that the table holds what the host holds and no
+%% more (docs/memory.md).
 %%
 %% Report §11.2: the canonical forms of a unit's definitions are kept
-%% beside its code, which the exchange ships onward (§8.7, forms/1): a
-%% unit the build compiled has them in the `.erc` it was loaded from,
-%% which is read when they are asked for; any other, a load's or an
-%% input's of the shell, which no file holds, has them in a row of its
-%% own here, written as it loads (loaded/2) and taken with its other rows,
-%% so that the forms live as long as the code they describe.
+%% beside its code, with their names, the lines of their source and the
+%% unit's foreign declarations (#recorded{}), which the exchange ships
+%% onward (§8.7, forms/1): a unit the build compiled has them in the `.erc`
+%% it was loaded from, which is read when they are asked for; any other, a
+%% load's or an input's of the shell, or an exchange's, which no file
+%% holds, has them in a row of its own here, written as it loads
+%% (loaded/2) and taken with its other rows, so that the forms live as
+%% long as the code they describe.
 %%
 %% The table is an ETS table, not a persistent term: it is written at each
 %% load, which would make a persistent term collect every process each
@@ -33,9 +36,11 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, forms/1, called/1,
-         absent_binding/1, absent_binding/2, foreign/2, present/1, function/2, function_text/2,
-         nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+-export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
+         forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, present/1, function/2,
+         function_text/2, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+
+-include_lib("typer/include/ern_canonical.hrl").
 
 -export_type([host_table/0, reach/0]).
 
@@ -66,17 +71,17 @@
 loaded(Unit) ->
     loaded(Unit, none).
 
-%% Report §11.2: the same, for a unit no file holds, with the canonical
-%% forms of its definitions as its compiled form records them, which are
-%% kept in a row of its own.
--spec loaded(module(), [tuple()] | none) -> ok.
-loaded(Unit, Forms) ->
+%% Report §11.2: the same, for a unit no file holds, with what its
+%% compiled form records of its definitions, their canonical forms among
+%% it, which is kept in a row of its own.
+-spec loaded(module(), #recorded{} | none) -> ok.
+loaded(Unit, Recorded) ->
     case erlang:function_exported(Unit, '$code', 0) of
-        true -> fill(Unit, Unit:module_info(md5), Forms);
+        true -> fill(Unit, Unit:module_info(md5), Recorded);
         false -> ok
     end.
 
-fill(Unit, Md5, Forms) ->
+fill(Unit, Md5, Recorded) ->
     ensure(),
     case ets:lookup(?TABLE, {unit, Unit}) of
         [{_, _, {Md5, _, _}}] ->
@@ -86,7 +91,7 @@ fill(Unit, Md5, Forms) ->
             Code = Unit:'$code'(),
             Rows = lists:append([rows(Unit, QualifiedName, Held)
                                  || {QualifiedName, Held} <- Code])
-                ++ [{{forms, Unit}, Unit, Forms} || Forms =/= none],
+                ++ [{{forms, Unit}, Unit, Recorded} || Recorded =/= none],
             Keys = lists:usort([Key || {Key, _, _} <- Rows]),
             Calls = lists:append([Units || {_, {calls, Units}} <- Code]),
             true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Md5, Keys, Calls}} | Rows]),
@@ -96,7 +101,8 @@ fill(Unit, Md5, Forms) ->
 %% A unit's rows for one of its declarations: a definition by its identity,
 %% a lambda or a local function a spawn on a peer starts by its identity,
 %% and a foreign declaration, which has no identity, by its qualified name
-%% (Appendix H).
+%% (Appendix H) as text, as a peer's frame and an exchange's unit name it,
+%% whatever atoms the node has (§8.7).
 rows(Unit, _, {function, Hash, Function, Arity, Reach}) ->
     [{{hash, Hash}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
@@ -106,7 +112,8 @@ rows(Unit, QualifiedName, {binding, Hash, Key}) ->
 rows(Unit, _, {type, Hash}) ->
     [{{hash, Hash}, Unit, type}];
 rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
-    [{{foreign, QualifiedName}, Unit, {foreign, HostModule, HostFunction, Function, Arity}}];
+    [{{foreign, texts(QualifiedName)}, Unit,
+      {foreign, HostModule, HostFunction, Function, Arity}}];
 rows(_, _, {calls, _}) ->
     [].
 
@@ -130,15 +137,16 @@ forget(Unit, UnitRows) ->
 
 %% Report §8.7: what a spawn on a peer names, by its identity: a function by
 %% its hash, a lambda or a local function by its definition's hash and its
-%% position, or a foreign function by its qualified name; the unit and the
-%% function that run it, its arity, which is how many values it captured,
-%% and its reach, the bindings and the foreign declarations it names, or
-%% none where no unit of this node holds it. Where units hold it, the one
-%% that runs it is answering/1's.
--spec spawnable({hash, binary()} | {lambda, binary(), pos_integer()} | {foreign, [atom()]}) ->
+%% position, or a foreign function by its qualified name, its segments
+%% atoms or text; the unit and the function that run it, its arity, which
+%% is how many values it captured, and its reach, the bindings and the
+%% foreign declarations it names, or none where no unit of this node holds
+%% it. Where units hold it, the one that runs it is answering/1's.
+-spec spawnable({hash, binary()} | {lambda, binary(), pos_integer()}
+                | {foreign, [atom() | binary()]}) ->
           {module(), atom(), arity(), reach()} | none.
-spawnable({foreign, QualifiedName} = Key) ->
-    case answering(lookup(Key)) of
+spawnable({foreign, QualifiedName}) ->
+    case answering(lookup({foreign, texts(QualifiedName)})) of
         {_, Unit, {foreign, _, _, Function, Arity}} ->
             {Unit, Function, Arity, {[], [QualifiedName]}};
         none ->
@@ -157,23 +165,63 @@ spawnable(Key) ->
 holders(Key) ->
     lists:uniq([Unit || {_, Unit, _} <- lookup(Key)]).
 
-%% Report §11.2, §8.7: the canonical forms of the definitions Unit holds,
-%% `#definition{}`s (ern_canonical): those kept beside its code, or those
-%% of the `.erc` the host loaded it from, read as they are asked for; none
+%% Report §8.7, §11.1: a definition of this node that another unit's code
+%% can reach by its hash: a type, which has no function, in the first unit
+%% loaded that holds it, or a function in a unit that exports it, the one
+%% whose initializers have run, the latest loaded, as a peer's spawn is
+%% answered (answering/1), with its reach; none where no unit holds it so.
+%% A build's unit exports the functions its module exports, and an
+%% exchange's every function it holds (§11.1), so a definition a unit
+%% holds unexported is no definition another unit's code can call: a
+%% peer's exchange counts it lacked and receives it (§8.7).
+-spec linkable(binary()) -> {type, module()} | {function, module(), atom(), arity(), reach()}
+                                | none.
+linkable(Hash) ->
+    Rows = lookup({hash, Hash}),
+    case [Unit || {_, Unit, type} <- Rows] of
+        [Unit | _] ->
+            {type, Unit};
+        [] ->
+            Exported = [Row || {_, Unit, {function, Function, Arity, _}} = Row <- Rows,
+                               erlang:function_exported(Unit, Function, Arity)],
+            case answering(Exported) of
+                {_, Unit, {function, Function, Arity, Reach}} ->
+                    {function, Unit, Function, Arity, Reach};
+                none ->
+                    none
+            end
+    end.
+
+%% Report §8.7, §11.1: a top-level binding by its identity, as a unit an
+%% exchange makes reads it: the unit that holds it with its value in the
+%% run in progress, the latest loaded of those, and its getter, which
+%% every unit exports (ern_emitter); none where no unit holds it with its
+%% value, which the exchange's `NotLoaded` answers first.
+-spec valued({binding, [atom()], binary()}) -> {module(), atom()} | none.
+valued(Key) ->
+    case [{Unit, Getter} || {_, Unit, {binding, {_, Getter} = Kept}} <- lookup(Key),
+                            ern_rt:binding_value(Unit, Kept) =/= absent] of
+        [] -> none;
+        Valued -> lists:last(Valued)
+    end.
+
+%% Report §11.2, §8.7: what the unit Unit's compiled form records of its
+%% definitions (#recorded{}): what is kept beside its code, or what the
+%% `.erc` the host loaded it from holds, read as it is asked for; none
 %% where neither is there, a file changed or gone among the ways, which
 %% the build's rule against writing a build under a running node excludes
 %% (§11.1).
--spec forms(module()) -> {ok, [tuple()]} | none.
+-spec forms(module()) -> {ok, #recorded{}} | none.
 forms(Unit) ->
     case lookup({forms, Unit}) of
-        [{_, _, Forms}] ->
-            {ok, Forms};
+        [{_, _, Recorded}] ->
+            {ok, Recorded};
         [] ->
             File = code:which(Unit),
             case is_list(File) andalso file:read_file(File) of
                 {ok, Bytes} ->
                     case ern_canonical:read(Bytes) of
-                        {ok, Forms} -> {ok, Forms};
+                        {ok, Recorded} -> {ok, Recorded};
                         {error, _} -> none
                     end;
                 _ ->
@@ -242,14 +290,24 @@ has_value({QualifiedName, Hash}, Called) ->
                           end, Read)
     end.
 
-%% A foreign declaration's implementations by its qualified name, the
-%% host's module and function it names (§8.4), in each of the units Called
-%% that holds it (called/1); none where none of them does.
--spec foreign(#{module() => true}, [atom()]) -> [{module(), atom()}].
+%% A foreign declaration's implementations by its qualified name, its
+%% segments atoms or text, each the unit of Called that holds it
+%% (called/1) with the host's module and function it names (§8.4); none
+%% where none of them does.
+-spec foreign(#{module() => true}, [atom() | binary()]) -> [{module(), module(), atom()}].
 foreign(Called, QualifiedName) ->
-    [{HostModule, HostFunction}
-     || {_, Holder, {foreign, HostModule, HostFunction, _, _}} <- lookup({foreign, QualifiedName}),
+    [{Holder, HostModule, HostFunction}
+     || {_, Holder, {foreign, HostModule, HostFunction, _, _}}
+            <- lookup({foreign, texts(QualifiedName)}),
         is_map_key(Holder, Called)].
+
+%% A qualified name as text, which a peer gives and atoms the node has
+%% name alike.
+texts(QualifiedName) ->
+    [case Segment of
+         _ when is_atom(Segment) -> atom_to_binary(Segment);
+         _ -> Segment
+     end || Segment <- QualifiedName].
 
 %% Report §8.7, §11.2: the row, among one identity's, of the unit that
 %% answers a peer for it. A node holds one identity in several units where
@@ -292,7 +350,9 @@ lookup(Key) ->
 %% functions are named by their position in it (ern_emitter), so every caller
 %% from Erlang by a name finds its function here: the entry point, the
 %% shell's input and its program, and a library's function the toolchain
-%% calls, `Markdown`'s for `ern doc`.
+%% calls, `Markdown`'s for `ern doc`. A unit an exchange made names its
+%% definitions by their names as text (§8.7), which no caller names: a
+%% peer's spawn finds its function by its identity (spawnable/1).
 -spec function(module(), [atom()]) -> {atom(), arity()} | none.
 function(Unit, QualifiedName) ->
     case code:ensure_loaded(Unit) =:= {module, Unit}
@@ -320,8 +380,10 @@ held_function(_) -> [].
 %% position, `area$2`; the entry a spawn on a peer starts a lambda or a
 %% local function by, '$3.2.entry', `area$spawn$2`; and a fun the host
 %% names after the function it is written in, `-'$3'/1-fun-0-`, after that
-%% function's name, `-area/1-fun-0-`. None for any other function and for
-%% a module that is no unit, which keep the host's names.
+%% function's name, `-area/1-fun-0-`. A unit an exchange made shows each
+%% by the name its code frame gave it, as text, the sender's, after no
+%% module's namespace, `Counter.worker` (§8.7). None for any other function
+%% and for a module that is no unit, which keep the host's names.
 -spec function_text(module(), atom()) -> string() | none.
 function_text(Unit, Function) ->
     case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
@@ -370,7 +432,8 @@ declared_name(Function, Code) ->
                            [Namespace | _] -> lists:nthtail(length(Namespace), QualifiedName);
                            [] -> tl(QualifiedName)
                        end,
-            lists:append(lists:join(".", [atom_to_list(Name) || Name <- Declared]));
+            lists:append(lists:join(".", [ern_namespace:segment_text(Name)
+                                          || Name <- Declared]));
         [] ->
             none
     end.

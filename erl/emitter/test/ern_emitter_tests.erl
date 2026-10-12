@@ -382,7 +382,9 @@ units_from_forms(Root, Files, LoadPath) ->
                   Build = #{standard => Standard, code => true,
                             deps => [{Dependency, <<>>} || {Dependency, _} <- Given]},
                   Sourced = ern_compile:unit(Namespace, Typed, Env, Canonical, Build),
-                  same_but_the_source(Sourced, Sourced#unit{sourced = #{}}),
+                  Alone = [Definition#definition{sourced = none}
+                           || Definition <- Sourced#unit.definitions],
+                  same_but_the_source(Sourced, Sourced#unit{definitions = Alone}),
                   {Interfaces#{Namespace => ern_canonical:interface(Interface, Canonical)},
                    [Namespace | Acc]}
           end, {#{}, []}, ern_build:compile_order(Modules, SourceRoot, Roots)),
@@ -496,6 +498,84 @@ trace_names_functions_test() ->
                  Named),
     %% the standard library's unit too, List.map's function by its name
     ?assert(lists:any(fun(Line) -> lists:prefix("ern@list:map/2", Line) end, Lines)).
+
+%% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
+%% form the lines of its source, the locals' names left out, its name where
+%% its sites write another, and what prints a type in a cause as its module
+%% writes it, and the module's bindings' order: read back,
+%% each form with its lines is its form once they are taken out; a module of
+%% a shell's session records its lines as the session counts them and its
+%% declaration's name as its sites write it, its own. Written with the code
+%% (MVP 3.2's item 4)
+recorded_source_test() ->
+    Text = "export fn twice(n : Int) : Int = {\n"
+           "    let doubled = n * 2;\n"
+           "    doubled\n"
+           "}\n"
+           "export let base : Int = 1\n",
+    Recorded = fun(Namespace, Build) ->
+                       {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
+                       {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env,
+                                                           Build#{source_hash => <<>>,
+                                                                  deps => []}),
+                       {ok, Read} = ern_canonical:read(Beam),
+                       Read
+               end,
+    #recorded{definitions = Definitions, binding_order = Order} = Recorded(['Lined'], #{}),
+    ?assertEqual([['Lined', base]], Order),
+    [begin
+         ?assertEqual(Form, ern_canonical:stripped(Sourced)),
+         ?assertEqual([], local_names(Sourced))
+     end || #definition{form = Form, sourced = Sourced} <- Definitions],
+    ?assertMatch([#definition{qualified_name = ['Lined', twice], name = none,
+                              sourced = {'$at', {1, _, none}, _},
+                              printing = {[<<"Lined">>], []}},
+                  #definition{qualified_name = ['Lined', base], name = none,
+                              sourced = {'$at', {5, _, none}, _}}],
+                 Definitions),
+    #recorded{definitions = [Twice, Base]} =
+        Recorded(['$Input7'], #{session_offset => 10, form_namespace => ['$Session'],
+                                input_name => <<"input 7">>}),
+    ?assertMatch(#definition{name = [<<"twice">>], sourced = {'$at', {11, _, none}, _},
+                             printing = {[<<"$Session">>], []}},
+                 Twice),
+    ?assertMatch(#definition{name = [<<"base">>], sourced = {'$at', {15, _, none}, _}}, Base).
+
+%% The names of the locals a form with its source's lines holds.
+local_names({'$at', {_, _, Name}, Node}) ->
+    [Name || Name =/= none] ++ local_names(Node);
+local_names(Term) when is_tuple(Term) ->
+    local_names(tuple_to_list(Term));
+local_names(Terms) when is_list(Terms) ->
+    lists:append([local_names(Term) || Term <- Terms]);
+local_names(_) ->
+    [].
+
+%% report Appendix H, §6.9, §11.2: two definitions whose forms are one
+%% term are one definition: a reference to either within their module is
+%% to the first declared, so a call of the second runs the first's
+%% function, which a fault's trace names and whose spawn site the process
+%% it spawns carries. Written after the code (MVP 3.2's item 4, whose first
+%% half decided it)
+one_form_two_definitions_test() ->
+    Watched = "    let _ = spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d);\n"
+              "    receive { d -> d.site }\n"
+              "}\n",
+    Text = ["foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
+            "fn first(n : Int) : Int = boom(n) + 1\n"
+            "fn second(n : Int) : Int = boom(n) + 1\n"
+            "fn watched() : String with Down = {\n", Watched,
+            "fn watchedAgain() : String with Down = {\n", Watched,
+            "export fn main() : Unit with Down = {\n"
+            "    Io.println(watchedAgain());\n"
+            "    Io.println(Int.toString(second(3)))\n"
+            "}\n"],
+    {{fault, _, Trace}, Out} = run(['Twice'], lists:flatten(Text), #{}),
+    Named = [string:trim(Line) || Line <- string:split(binary_to_list(Trace), "\n", all),
+                                  lists:prefix("ern@twice:", string:trim(Line))],
+    ?assertMatch(["ern@twice:boom/1" ++ _, "ern@twice:first/1" ++ _, "ern@twice:main/0" ++ _],
+                 Named),
+    ?assertEqual(<<"Twice.watched:5\n">>, iolist_to_binary(Out)).
 
 %%
 %% The test programs, hello and services run and print what their headers

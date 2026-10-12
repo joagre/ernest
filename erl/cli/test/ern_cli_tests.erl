@@ -15,6 +15,7 @@
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("typer/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
+-include_lib("cli/include/ern_build.hrl").
 
 %%
 %% Helpers: a fresh directory per test, sources written into it
@@ -54,6 +55,49 @@ stdlib_build_sets_its_copy_aside() ->
     after
         code:del_path(Installed)
     end.
+
+%% report §11.1: the standard library's own build checks each module after
+%% those it depends on and emits it once every module of the library its
+%% forms name is checked, its code calling each by the position that
+%% module's interface gives, so that a module named by a prelude name or an
+%% operator alone, `Int.compare` through a requirement, which is no
+%% dependency of §11.1's, is called rightly whatever order the build
+%% checks the library in: the library compiled in the order a build takes
+%% and in the latest its dependencies allow, each module as late as the
+%% modules that use it let it come, gives the same units. A regression test
+%% for a defect MVP 3.2's item 4 found, which the order a build took met by
+%% chance; the library names, today, no module it does not depend on, so
+%% the test holds the order's not mattering, not a module reached by name
+%% alone
+stdlib_order_test_() ->
+    {timeout, 120, fun stdlib_order/0}.
+
+stdlib_order() ->
+    SourceRoot = ern_build:absolute("../../../stdlib"),
+    BuildRoot = ern_build:absolute("../../../build/stdlib"),
+    Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot)
+               || File <- ern_build:sources(SourceRoot)],
+    Taken = ern_build:compile_order(Modules, SourceRoot, []),
+    Latest = latest(Taken, []),
+    ?assertNotEqual(Taken, Latest),
+    Units = fun(Order) ->
+                    {[], Compiled} = ern_build:compiled_in_order(Order, SourceRoot, BuildRoot),
+                    maps:map(fun(_, Beam) -> {ok, {_, Md5}} = beam_lib:md5(Beam), Md5 end,
+                             Compiled)
+            end,
+    ?assertEqual(Units(Taken), Units(Latest)).
+
+%% Modules in an order in which each comes after those it depends on and as
+%% late as those that depend on it let it, chosen from the end, the first
+%% of Taken that may come last taking each place.
+latest([], Placed) ->
+    Placed;
+latest(Remaining, Placed) ->
+    [Last | _] = [Module || #build_module{namespace = Namespace} = Module <- Remaining,
+                            not lists:any(fun(#build_module{dependencies = Dependencies}) ->
+                                              lists:member(Namespace, Dependencies)
+                                          end, Remaining)],
+    latest(lists:delete(Last, Remaining), [Last | Placed]).
 
 %% report §11.6: ern format lays out a module in place, every module under
 %% a directory, and with --check names each one not laid out, changing
@@ -1531,14 +1575,14 @@ recompile_rule_test() ->
     {ok, Main2} = file:read_file(Dir ++ "/build/main.erc"),
     ?assertNotEqual(Main1, Main2),
     {ok, Http3} = file:read_file(Dir ++ "/build/net/http.erc"),
-    {ok, HttpDefinitions} = ern_canonical:read(Http3),
+    {ok, #recorded{definitions = HttpDefinitions}} = ern_canonical:read(Http3),
     {ok, #{references := References}} = ern_interface:read(Main2),
     ?assertEqual(lists:sort([{QualifiedName, Hash}
                              || #definition{qualified_name = QualifiedName, hash = Hash}
                                     <- HttpDefinitions,
                                 lists:member(lists:last(QualifiedName), [parse, 'Request'])]),
                  References),
-    {ok, MainDefinitions} = ern_canonical:read(Main2),
+    {ok, #recorded{definitions = MainDefinitions}} = ern_canonical:read(Main2),
     ?assertMatch([#definition{qualified_name = ['Main', main]}], MainDefinitions),
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main2}, file:read_file(Dir ++ "/build/main.erc")),
@@ -1599,7 +1643,7 @@ code_table_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     Held = fun(Unit, File) ->
                    {ok, Beam} = file:read_file(Dir ++ "/build/" ++ File),
-                   {ok, Definitions} = ern_canonical:read(Beam),
+                   {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
                    [{Definition, Unit} || Definition <- Definitions]
            end,
     Definitions = Held('ern@geo@shape', "geo/shape.erc") ++ Held('ern@main', "main.erc"),
@@ -1621,11 +1665,11 @@ code_table_test() ->
       end, Definitions),
     Called = ern_code:called('ern@main'),
     ?assertMatch(#{'ern@main' := true, 'ern@geo@shape' := true}, Called),
-    ?assertEqual([{lists, sum}], ern_code:foreign(Called, ['Geo', 'Shape', sum])),
+    ?assertMatch([{_, lists, sum}], ern_code:foreign(Called, ['Geo', 'Shape', sum])),
     %% the standard library's definitions, which its units hold as a
     %% program's do
     {ok, ListBeam} = file:read_file(code:which('ern@list')),
-    {ok, ListDefinitions} = ern_canonical:read(ListBeam),
+    {ok, #recorded{definitions = ListDefinitions}} = ern_canonical:read(ListBeam),
     [Map] = [Hash || #definition{qualified_name = ['List', map], hash = Hash} <- ListDefinitions],
     {MapFunction, 2} = ern_code:function('ern@list', ['List', map]),
     ?assertMatch({'ern@list', MapFunction, 2, _}, ern_code:spawnable({hash, Map})).
@@ -1644,8 +1688,9 @@ library_hashed_test() ->
                                  Dir ++ "/app-build", Dir ++ "/app"])),
     {ok, Util} = file:read_file(Dir ++ "/lib-build/util.erc"),
     {ok, Main} = file:read_file(Dir ++ "/app-build/main.erc"),
-    {ok, [#definition{qualified_name = ['Util', twice], hash = Twice}]} = ern_canonical:read(Util),
-    {ok, [#definition{form = Form}]} = ern_canonical:read(Main),
+    {ok, #recorded{definitions = [#definition{qualified_name = ['Util', twice], hash = Twice}]}} =
+        ern_canonical:read(Util),
+    {ok, #recorded{definitions = [#definition{form = Form}]}} = ern_canonical:read(Main),
     <<131, Named/binary>> = term_to_binary({hash, Twice}),
     ?assertMatch({_, _}, binary:match(term_to_binary(Form), Named)),
     {ok, #{references := [{['Util', twice], Twice}]}} = ern_interface:read(Main),
@@ -1653,7 +1698,7 @@ library_hashed_test() ->
                    {ok, Bytes} = file:read_file(code:which(ErlangModule)),
                    Bytes
            end,
-    {ok, AnsiDefinitions} = ern_canonical:read(Read('ern@ansi')),
+    {ok, #recorded{definitions = AnsiDefinitions}} = ern_canonical:read(Read('ern@ansi')),
     {ok, #{references := References}} = ern_interface:read(Read('ern@markdown')),
     Ansi = [Reference || {['Ansi' | _], _} = Reference <- References],
     ?assertNotEqual([], Ansi),
@@ -1672,10 +1717,11 @@ shell_load_hashed_test() ->
     {ok, #{interface := GeoInterface}} = ern_interface:read(Geo),
     {ok, ['Room'], Room, _} = ern_build:compile_source(Dir ++ "/room.ern", Dir, [Dir],
                                                          #{['Geo'] => GeoInterface}, #{}),
-    {ok, [#definition{hash = Area}]} = ern_canonical:read(Geo),
+    {ok, #recorded{definitions = [#definition{hash = Area}]}} = ern_canonical:read(Geo),
     ?assertEqual(Area, maps:get(['Geo', area], GeoInterface#interface.identities)),
     {ok, #{references := [{['Geo', area], Area}]}} = ern_interface:read(Room),
-    {ok, [#definition{qualified_name = ['Room', floor]}]} = ern_canonical:read(Room).
+    {ok, #recorded{definitions = [#definition{qualified_name = ['Room', floor]}]}} =
+        ern_canonical:read(Room).
 
 %% report §11.1: a module is recompiled when the code of the compiler that
 %% built it changed, so the modules hashed are every module of the toolchain

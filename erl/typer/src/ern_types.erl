@@ -9,7 +9,8 @@
          monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          replace_variables/2,
          mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
-         args_in_value/3, effect_variables/1, set_scope/5, printing/1, set_effect_params/2,
+         args_in_value/3, effect_variables/1, set_scope/5, printing/1, printed_scope/1,
+         set_effect_params/2,
          format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
@@ -514,6 +515,13 @@ printing(#type_state{namespace = Namespace, session_types = SessionTypes, shadow
                      input_names = InputNames, effect_params = EffectParams}) ->
     #type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows,
                 input_names = InputNames, effect_params = EffectParams}.
+
+%% Report §11.5, §8.7: the module a type prints from, its namespace, and the
+%% prelude names its types shadow, which print qualified, by which a code
+%% frame carries how a definition's module writes a type (set_scope/5).
+-spec printed_scope(type_state()) -> {qualified_name(), [atom()]}.
+printed_scope(#type_state{namespace = Namespace, shadows = Shadows}) ->
+    {Namespace, Shadows}.
 
 %% Report §3.9: the types with a parameter that occurs in no value position
 %% of their fields, each with whether each of its arguments is a value

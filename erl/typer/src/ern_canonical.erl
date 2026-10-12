@@ -8,16 +8,20 @@
 %% reaches take it in (§11.1). Beside them module/4 gives the emitter the
 %% hash of each type a service is made at, and the identity and the reach of
 %% each lambda and local function, by its span, which a spawn on a peer
-%% names (§8.7). It gives the back end too, beside each definition's form,
-%% its sourced form, the form with the source woven in, each node's line
-%% and column and the name of each local the source binds, which the hash
-%% leaves out (stripped/1); the position of each function in the unit, its
+%% names (§8.7). It gives the back end too, in each definition beside its
+%% form, its sourced form, the form with the source woven in, each node's
+%% line and column and the name of each local the source binds, which the
+%% hash leaves out (stripped/1); the position of each function in the unit, its
 %% definitions in the order of their forms and then its foreign functions
 %% (§11.1), by which its unit and a dependent name it; the foreign
 %% functions' schemes as forms write them; the qualified name each
 %% reference to another module's declaration names (links); and a type's
 %% shape as a form writes it, by which the build links a type of another
-%% module (declared_type/4).
+%% module (declared_type/4). The chunk records beside each form the lines
+%% of its source and its name, the locals' names left out, so that a
+%% definition shipped onward or loaded from its compiled form is compiled
+%% with them (recorded_source/2, §8.7, §11.1); and each reach a unit's
+%% `'$code'/0` lists, computed from its forms (unit_reaches/2).
 %%
 %% A form is made in two steps. The walk writes each definition with a
 %% reference to another definition of its own module left open, `{'$own',
@@ -29,8 +33,8 @@
 -module(ern_canonical).
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
-         interface/2, declared_type/4, stripped/1, lambdas/2, references/1, verified/2, encode/1,
-         read/1]).
+         interface/2, declared_type/4, stripped/1, recorded_source/2, lambdas/2, unit_reaches/2,
+         references/1, verified/2, encode/1, read/1]).
 
 -export_type([canonical/0, reach/0, source/0]).
 
@@ -46,7 +50,6 @@
 -define(AT_TYPE, ['+', '-', '*', '/', '%', '<>', '<', '<=', '>', '>=']).
 
 -type canonical() :: #{definitions := [#definition{}],
-                       sourced := #{[atom()] => term()},
                        positions := #{[atom()] => pos_integer()},
                        foreign_schemes := #{[atom()] => term()},
                        links := [{term(), [atom()]}],
@@ -157,8 +160,8 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
     Opened = [{QualifiedName, Kind, opened(Declaration, Walk)}
               || Declaration <- Typed,
                  {QualifiedName, Kind} <- declared(Namespace, Declaration), Kind =/= foreign],
-    {Definitions, Sourced} = closed([{QualifiedName, Kind, Form}
-                                        || {QualifiedName, Kind, {Form, _}} <- Opened]),
+    Definitions = closed([{QualifiedName, Kind, Form}
+                          || {QualifiedName, Kind, {Form, _}} <- Opened]),
     References = lists:usort(lists:append([Walked#walk.references
                                            || {_, _, {_, Walked}} <- Opened])),
     Reaches = reaches(Definitions, maps:from_list([{Hash, ern_typecheck:reach(QualifiedName, Env)}
@@ -171,7 +174,6 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
                       || #foreign_fn_declaration{scheme = Scheme} = Declaration <- Typed,
                          {QualifiedName, foreign} <- declared(Namespace, Declaration)],
     #{definitions => Definitions,
-      sourced => Sourced,
       positions => positions(Namespace, Typed, Definitions),
       foreign_schemes => maps:from_list([{QualifiedName, close(Form, Closing)}
                                          || {QualifiedName, {Form, _}} <- ForeignSchemes]),
@@ -311,10 +313,10 @@ constructor_declared(#constructor_info{name = Name, fields = {named, Fields},
 %%
 
 %% Opened, each definition's sourced form with its own module's
-%% references open, in source order, as definitions with their hashes, in
-%% source order, and each sourced form closed, by its qualified name:
-%% each strongly connected component of the references, in dependency
-%% order, its open references closed and its forms hashed.
+%% references open, in source order, as definitions with their hashes and
+%% their sourced forms closed, in source order: each strongly connected
+%% component of the references, in dependency order, its open references
+%% closed and its forms hashed.
 closed(Opened) ->
     Graph = digraph:new(),
     Sources = maps:from_list([{QualifiedName, Index}
@@ -338,13 +340,9 @@ closed(Opened) ->
                          lists:foldl(fun closing/2, Closed,
                                      [Definition || {Definition, _} <- Pairs])}
                     end, {[], #{}}, Components),
-    Definitions = lists:sort(fun(#definition{qualified_name = A},
-                                 #definition{qualified_name = B}) ->
-                                 maps:get(A, Sources) =< maps:get(B, Sources)
-                             end, [Definition || {Definition, _} <- Hashed]),
-    {Definitions, maps:from_list([{QualifiedName, Sourced}
-                                  || {#definition{qualified_name = QualifiedName}, Sourced}
-                                         <- Hashed])}.
+    lists:sort(fun(#definition{qualified_name = A}, #definition{qualified_name = B}) ->
+                       maps:get(A, Sources) =< maps:get(B, Sources)
+               end, [Definition || {Definition, _} <- Hashed]).
 
 %% Report Appendix H: a definition alone is hashed as its form; a group of
 %% two or more as its forms in source order, and each member as the
@@ -355,7 +353,7 @@ component([QualifiedName], ByName, Closed) ->
     Sourced = close(Opened, Closed#{QualifiedName => {in_group, 1}}),
     Form = stripped(Sourced),
     [{#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
-                  hash = hash(hashed([Form]))},
+                  hash = hash(hashed([Form])), sourced = Sourced},
       Sourced}];
 component(Members, ByName, Closed) ->
     InGroup = maps:from_list([{QualifiedName, {in_group, Position}}
@@ -367,7 +365,7 @@ component(Members, ByName, Closed) ->
     GroupHash = hash(hashed([Form || {_, _, Form, _} <- Forms])),
     [{#definition{qualified_name = QualifiedName, kind = Kind, form = Form,
                   hash = member_hash(GroupHash, Position),
-                  group = {GroupHash, Position}},
+                  group = {GroupHash, Position}, sourced = Sourced},
       Sourced}
      || {Position, {QualifiedName, Kind, Form, Sourced}} <- lists:enumerate(Forms)].
 
@@ -388,6 +386,21 @@ stripped(Term) when is_tuple(Term) ->
 stripped([Head | Tail]) ->
     [stripped(Head) | stripped(Tail)];
 stripped(Term) ->
+    Term.
+
+%% Report §11.1, §8.7: a sourced form as the `.erc` records it and a code
+%% frame carries it: the lines of its source, Offset lines after those the
+%% build counted, for an input of a shell's session, whose lines its
+%% session counts (§11.2), and the locals' names left out, so that a node
+%% that reads it makes no atom of a name.
+-spec recorded_source(term(), non_neg_integer()) -> term().
+recorded_source({'$at', {Line, Column, _}, Node}, Offset) ->
+    {'$at', {Line + Offset, Column, none}, recorded_source(Node, Offset)};
+recorded_source(Term, Offset) when is_tuple(Term) ->
+    list_to_tuple(recorded_source(tuple_to_list(Term), Offset));
+recorded_source([Head | Tail], Offset) ->
+    [recorded_source(Head, Offset) | recorded_source(Tail, Offset)];
+recorded_source(Term, _) ->
     Term.
 
 close({'$own', QualifiedName}, Linking) ->
@@ -509,6 +522,24 @@ named(_, _, _, Known) ->
 
 union({Bindings, Foreigns}, {MoreBindings, MoreForeigns}) ->
     {lists:umerge(Bindings, MoreBindings), lists:umerge(Foreigns, MoreForeigns)}.
+
+%% Report §8.7, §11.1: the reaches a unit's '$code'/0 lists, computed from
+%% its definitions' forms as a build computes them: each function's by its
+%% qualified name, and each lambda's and local function's by its
+%% definition's qualified name and its position; Others, the reach of each
+%% definition of another unit its forms reference by hash. A unit made from
+%% forms that arrived, or from a compiled form, has no checker to give them.
+-spec unit_reaches([#definition{}], #{binary() => reach()}) -> #{term() => reach()}.
+unit_reaches(Definitions, Others) ->
+    Reaches = reaches(Definitions, Others),
+    maps:from_list(
+      lists:append([[{QualifiedName, Reach}
+                     | [{{QualifiedName, Position},
+                         element(1, named(Function, Reach, #{}, Reaches))}
+                        || {{_, Position}, Function} <- lambdas(Hash, Form)]]
+                    || #definition{qualified_name = QualifiedName, kind = function, hash = Hash,
+                                   form = Form} <- Definitions,
+                       Reach <- [maps:get(Hash, Reaches)]])).
 
 %% Report §8.7: each lambda and local function of a definition by its span,
 %% with the definition's qualified name, its position and its reach; the
@@ -1313,26 +1344,30 @@ bind(Name, #walk{scope = Scope, bound = Bound, locals = Locals} = Walk) ->
 %% The chunk, report §11.1
 %%
 
-%% The chunk's bytes: the form's version and the module's definitions,
-%% compressed by the host, since a form names each hash it references in
-%% full wherever it stands (report §11.1); a hash is taken of a form's own
-%% bytes, uncompressed (Appendix H).
--spec encode(canonical()) -> binary().
-encode(#{definitions := Definitions}) ->
-    term_to_binary({?FORM_VERSION, Definitions}, [compressed]).
+%% The chunk's bytes: the form's version and what the unit records of its
+%% definitions, each with the lines of its source and its name, its
+%% foreign declarations and its bindings' order, compressed by the host,
+%% since a form names each hash it references in full wherever it stands
+%% (report §11.1); a hash is taken of a form's own bytes, uncompressed
+%% (Appendix H).
+-spec encode(#recorded{}) -> binary().
+encode(#recorded{} = Recorded) ->
+    term_to_binary({?FORM_VERSION, Recorded}, [compressed]).
 
-%% A compiled module's definitions as its chunk holds them, read as data
-%% alone, since a `.erc` may come from anywhere (ern_chunk); a chunk of
-%% another version of the form reads as an error that says so.
--spec read(binary()) -> {ok, [#definition{}]} | {error, string()}.
+%% What a compiled module records of its definitions, as its chunk holds
+%% it, read as data alone, since a `.erc` may come from anywhere
+%% (ern_chunk); a chunk of another version of the form, or of another
+%% build of `ern` that recorded less, reads as an error that says so.
+-spec read(binary()) -> {ok, #recorded{}} | {error, string()}.
 read(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)], [allow_missing_chunks]) of
         {ok, {_, [{_, missing_chunk}]}} ->
             {error, "the module holds no canonical forms"};
         {ok, {_, [{_, Chunk}]}} ->
             case ern_chunk:term(Chunk) of
-                {ok, {?FORM_VERSION, Definitions}} when is_list(Definitions) ->
-                    {ok, Definitions};
+                {ok, {?FORM_VERSION, #recorded{definitions = Definitions} = Recorded}}
+                  when is_list(Definitions) ->
+                    {ok, Recorded};
                 _ ->
                     {error, "the canonical forms are of another version of the form"}
             end;

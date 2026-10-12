@@ -20,7 +20,8 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, lookup_type/2, type_qualified_name/3, identity/2, position/2, reach/2,
+         prelude_env/0, with_interfaces/2, lookup_type/2, type_qualified_name/3, identity/2,
+         position/2, reach/2,
          global_scheme/2,
          is_provided/2, described_type/2, is_reply_carrying/2,
          assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
@@ -547,6 +548,16 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
               (_, Acc) -> Acc
            end,
     Env#env{types = lists:foldl(Mark, Types, Declarations)}.
+
+%% Report §11.1, §11.2: an environment with the interfaces given added,
+%% each one's names, types and positions taking the place of what it held of
+%% that module: what a module's code is linked through once the modules it
+%% names are compiled, the build's emit of a module after those its forms
+%% reference (ern_build), and the shell's load of a compiled module beside
+%% another unit of its name (ern_compile:from_compiled/4).
+-spec with_interfaces([#interface{}], env()) -> env().
+with_interfaces(Interfaces, Env) ->
+    lists:foldl(fun add_interface/2, Env, Interfaces).
 
 add_interface(#interface{namespace = Namespace, types = InterfaceTypes, values = Values,
                          lets = Lets, private_types = PrivateTypes, identities = Identities,
@@ -2201,6 +2212,11 @@ check_value(#foreign_fn_declaration{span = Span, params = Params, implementation
         {too_long, Part, Name} ->
             fail(ErrorSpan, ern_namespace:host_name_text("the implementation's " ++ Part
                                                          ++ " name", Name));
+        %% report §11.1: a unit's functions are named by their position
+        {unit, Module} ->
+            fail(ErrorSpan, "the implementation names " ++ Module ++ ", a unit of Ernest's,"
+                            " whose functions are named by their position", [],
+                 "call an Ernest function by its name, and name the host's own module here");
         error ->
             Count = length(Params),
             fail(ErrorSpan, "the implementation of " ++ declaration_name(Declaration)
@@ -2235,14 +2251,20 @@ parameter_effect(_, _) -> false.
 %% Report §8.4: the implementation name of a foreign fn, module:function/arity,
 %% the function named as the host names it, a name or one of its operators.
 %% Report §11.1: a module or function name the host does not hold is
-%% answered `{too_long, Part, Name}` before any atom is made of it.
+%% answered `{too_long, Part, Name}` before any atom is made of it, and a
+%% module that is a unit, `ern@` and a path, `{unit, Module}`, since a
+%% unit's functions are named by their position and an Ernest function is
+%% called by its name.
 -spec foreign_implementation(binary()) ->
-          {ok, {atom(), atom(), non_neg_integer()}} | {too_long, string(), string()} | error.
+          {ok, {atom(), atom(), non_neg_integer()}} | {too_long, string(), string()}
+          | {unit, string()} | error.
 foreign_implementation(Implementation) ->
     case re:run(Implementation,
                 "^([a-z][A-Za-z0-9_@]*):([a-z][A-Za-z0-9_]*|[-+*/=<>!:]{1,3})/([0-9]+)$",
                 %% `$` at the very end, not before a final line feed
                 [dollar_endonly, {capture, all_but_first, list}]) of
+        {match, ["ern@" ++ _ = Module, _, _]} ->
+            {unit, Module};
         {match, [Module, Function, Arity]} ->
             case [{Part, Name} || {Part, Name} <- [{"module", Module}, {"function", Function}],
                                   length(Name) > ern_namespace:host_name_limit()] of

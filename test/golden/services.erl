@@ -2,7 +2,13 @@
 
 -dialyzer(no_return).
 
--export(['$11'/0, '$init'/0, '$spawned'/2]).
+-export(['$4'/0,
+         '$5'/0,
+         '$7'/0,
+         '$9'/0,
+         '$11'/0,
+         '$init'/0,
+         '$spawned'/2]).
 
 %% Services.services
 '$4'() -> ern_rt:binding({ern@services, '$4'}).

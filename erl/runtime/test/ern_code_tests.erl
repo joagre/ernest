@@ -24,7 +24,7 @@ loaded(Namespace, Text) ->
     Beam.
 
 definitions(Beam) ->
-    {ok, Definitions} = ern_canonical:read(Beam),
+    {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     maps:from_list([{QualifiedName, Definition}
                     || #definition{qualified_name = QualifiedName} = Definition <- Definitions]).
 
@@ -72,7 +72,9 @@ unit_load_fills_table_test() ->
     ?assertEqual({absent, [Answer, Missing]}, receive {absent, _} = Absent -> Absent end),
     Called = ern_code:called(Unit),
     ?assertEqual(#{Unit => true}, Called),
-    ?assertEqual([{lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
+    ?assertEqual([{Unit, lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
+    ?assertEqual([{Unit, lists, reverse}],
+                 ern_code:foreign(Called, [<<"Tablefill">>, <<"backwards">>])),
     ?assertEqual({Unit, '$6', 1, {[], [['Tablefill', backwards]]}},
                  ern_code:spawnable({foreign, ['Tablefill', backwards]})),
     ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
@@ -83,6 +85,26 @@ unit_load_fills_table_test() ->
                                                                [foreign, calls])])),
     ?assertEqual([{['Tablefill'], {calls, []}}],
                  [Calls || {_, {calls, _}} = Calls <- Unit:'$code'()]),
+    ern_code:unloaded(Unit),
+    code:purge(Unit),
+    code:delete(Unit).
+
+%% report §8.7, §11.1: what another unit's code reaches of this node's by
+%% hash: a function its unit exports, with its unit, its function and its
+%% reach, and a type, which has no function, by the unit that holds it; a
+%% function its unit holds without exporting it is not reached, since a
+%% build's unit exports the functions its module exports, so a peer's
+%% exchange counts it lacked. A regression test, written after the code
+%% (MVP 3.2's item 4); it does not cover two units holding one hash
+linkable_test() ->
+    Beam = loaded(['Tablelink'], ?SOURCE),
+    Definitions = definitions(Beam),
+    Unit = 'ern@tablelink',
+    ?assertEqual({function, Unit, '$3', 1, {[], []}},
+                 ern_code:linkable(hash(['Tablelink', twice], Definitions))),
+    ?assertEqual({type, Unit}, ern_code:linkable(hash(['Tablelink', 'Box'], Definitions))),
+    ?assertEqual(none, ern_code:linkable(hash(['Tablelink', hidden], Definitions))),
+    ?assertEqual(none, ern_code:linkable(<<0:256>>)),
     ern_code:unloaded(Unit),
     code:purge(Unit),
     code:delete(Unit).

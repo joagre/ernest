@@ -9,7 +9,8 @@
 -module(ern_namespace).
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
-         erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2, text/1]).
+         erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2, text/1,
+         segment_text/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -101,9 +102,6 @@ erlang_module_text(Namespace) ->
     lists:flatten(["ern" | ["@" ++ component_or_lowered(segment_text(Segment))
                             || Segment <- Namespace]]).
 
-segment_text(Segment) when is_atom(Segment) -> atom_to_list(Segment);
-segment_text(Segment) -> Segment.
-
 %% Report §11.1: the most characters the host holds in a name.
 -spec host_name_limit() -> pos_integer().
 host_name_limit() -> 255.
@@ -122,7 +120,16 @@ component_or_lowered(Segment) ->
     end.
 
 %% Report §4.2: a namespace or a qualified name as the source writes it,
-%% its segments joined by `.`, `Net.Http.get`.
--spec text([atom()]) -> string().
+%% its segments joined by `.`, `Net.Http.get`. Report §8.7: a definition
+%% that arrived from a peer is named by its segments as text, which make
+%% no atom on the node, and is written the same way.
+-spec text([atom() | binary()]) -> string().
 text(QualifiedName) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
+    lists:flatten(lists:join(".", [segment_text(Part) || Part <- QualifiedName])).
+
+%% A segment of a qualified name as the source writes it: an atom's, a
+%% peer's text, or the text a caller gives.
+-spec segment_text(atom() | binary() | string()) -> string().
+segment_text(Segment) when is_atom(Segment) -> atom_to_list(Segment);
+segment_text(Segment) when is_binary(Segment) -> unicode:characters_to_list(Segment);
+segment_text(Segment) -> Segment.

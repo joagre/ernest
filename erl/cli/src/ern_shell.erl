@@ -93,9 +93,11 @@
 %% `declarations`; a name is tagged, so that no name stands for a tag.
 %% printed_name: the name the input's module prints with (input_names/0).
 %% A module a load or a reload brings: its namespace, the unit it is, its
-%% compiled form, the hash of the source it was compiled from (§11.2), and
-%% whether the session compiled it from that source, or loaded its form.
--record(compiled, {namespace, unit, beam, source_hash, from_source = false}).
+%% compiled form, the hash of the source it was compiled from (§11.2),
+%% whether the session compiled it from that source, or loaded its form,
+%% and whether its unit is made from that form's forms as it is installed,
+%% a compiled module loaded beside another unit of its name.
+-record(compiled, {namespace, unit, beam, source_hash, from_source = false, from_forms = false}).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -683,7 +685,8 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Serial, Address) ->
     Descriptor = ern_descriptor:describe(Type, Env, []),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
-              form_namespace => ?SESSION_NAMESPACE, units => Session#session.units},
+              form_namespace => ?SESSION_NAMESPACE, units => Session#session.units,
+              input_name => InputName},
     {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     %% report §11.1: the interface as compiled, with the hash of each of its
     %% definitions, by which a later input's forms name them; and whether
@@ -782,18 +785,19 @@ kind_of_namespace([Segment]) ->
 %% Report §8.7, §11.2: a module the session loaded, in the code table as it
 %% loads, and each of the host's limits the load has brought near said. A
 %% holder of values holds no definition. A unit the session compiled or
-%% read, which it loads from no file, has the canonical forms of its
-%% definitions kept beside its code in the table, from its compiled form,
-%% so that a spawn on a peer that lacks one of them ships it, as the
-%% build's ship theirs from its `.erc` (§8.7, §11.2); they go with the
-%% unit's rows when it is deleted (unload/1).
+%% read, which it loads from no file, has what its compiled form records of
+%% its definitions kept beside its code in the table, their canonical
+%% forms with their names and their source's lines, so that a spawn on a
+%% peer that lacks one of them ships it, as the build's ship theirs from
+%% its `.erc` (§8.7, §11.2); they go with the unit's rows when it is
+%% deleted (unload/1).
 unit_loaded(ErlangModule) ->
     ern_code:loaded(ErlangModule),
     ern_cli:say_limits().
 
 unit_loaded(Unit, Beam) ->
-    {ok, Forms} = ern_canonical:read(Beam),
-    ern_code:loaded(Unit, Forms),
+    {ok, Recorded} = ern_canonical:read(Beam),
+    ern_code:loaded(Unit, Recorded),
     ern_cli:say_limits().
 
 %% A module of the session's that no process runs and nothing reaches,
@@ -1351,9 +1355,8 @@ load_help(Session, Segments) ->
 
 %% Whether a module of these segments is not loaded and could be: its
 %% source under the source root, or its compiled form on the load path,
-%% the first there, where the host holds no other unit of its name, which
-%% would refuse it (compiled_unit/5), so that the help never proposes a
-%% `:load` that is refused.
+%% the first there, which a load makes a unit of its own where the host
+%% holds another unit of its name (compiled_unit/3).
 is_loadable(#session{source_root = SourceRoot, interfaces = Interfaces} = Session, Segments) ->
     Name = lists:flatten(lists:join(".", Segments)),
     Loaded = [ern_namespace:text(Namespace)
@@ -1375,7 +1378,7 @@ is_form_loadable(Session, Relative) ->
             case file:read_file(File) of
                 {ok, Beam} ->
                     case beam_lib:md5(Beam) of
-                        {ok, {Unit, _}} -> is_free(Unit) orelse is_held(Unit, Beam);
+                        {ok, {_, _}} -> true;
                         {error, beam_lib, _} -> false
                     end;
                 {error, _} ->
@@ -2006,7 +2009,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
         none ->
             case compiled_of(Session, Namespace) of
                 {ok, File, Beam, Hash} ->
-                    case compiled_unit(Namespace, File, Beam, Hash, Session) of
+                    case compiled_unit(Namespace, Beam, Hash) of
                         {ok, Compiled} ->
                             with_needed(Session, [Compiled],
                                         <<Name/binary, ", from ",
@@ -2316,8 +2319,8 @@ needed(#session{source_hashes = Loaded} = Session, Beam, {ok, _} = Found, Compil
 needed_one(Session, Namespace, Acc, Compiled) ->
     Refused = fun(Refusal) -> {error, <<Refusal/binary, "\n">>} end,
     case compiled_of(Session, Namespace) of
-        {ok, File, Beam, Hash} ->
-            case compiled_unit(Namespace, File, Beam, Hash, Session) of
+        {ok, _, Beam, Hash} ->
+            case compiled_unit(Namespace, Beam, Hash) of
                 {ok, Unit} ->
                     case needed(Session, Beam, {ok, Acc}, Compiled) of
                         {ok, Acc1} -> {ok, Acc1 ++ [Unit]};
@@ -2339,25 +2342,24 @@ needed_one(Session, Namespace, Acc, Compiled) ->
 
 %% Report §8.7, §11.2: a module loaded from its compiled form is the unit
 %% of its Erlang name, one the host holds no code of, or holds with this
-%% very code, as a node holds its build's. A unit of that name the host
-%% holds with other code, a node's build's or the shell's own, would need
-%% a unit of another name, which only a module's source makes until MVP
-%% 3.2; the refusal names what holds it, the node or the session.
-compiled_unit(Namespace, File, Beam, Hash, Session) ->
+%% very code, as a node holds its build's. Where the host holds other code
+%% under that name, a node's build's or the shell's own, the module is a
+%% unit of a name of its own, as a reload's version is (fresh_unit/1), made
+%% from its compiled form's forms by the back end as it is installed, once
+%% the modules it uses are (install_one/2).
+compiled_unit(Namespace, Beam, Hash) ->
     Unit = ern_namespace:erlang_module(Namespace),
     case is_free(Unit) orelse is_held(Unit, Beam) of
         true ->
             {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
         false ->
-            Name = ern_namespace:text(Namespace),
-            Holder = case ern_carrier:is_node() of
-                         true -> "node";
-                         false -> "session"
-                     end,
-            {error, unicode:characters_to_binary(
-                      [Name, "'s compiled form, ", relative(File, Session), ", is not the ", Name,
-                       " this ", Holder, " holds; a compiled module loaded beside another of its"
-                       " name arrives in MVP 3.2"])}
+            case fresh_unit(Namespace) of
+                {ok, Fresh} ->
+                    {ok, #compiled{namespace = Namespace, unit = Fresh, beam = Beam,
+                                   source_hash = Hash, from_forms = true}};
+                {error, _} = Error ->
+                    Error
+            end
     end.
 
 %% Report §8.7, §11.2: a module compiled from its source as a unit no other
@@ -2714,10 +2716,21 @@ loaded_interfaces(#session{interfaces = Interfaces, source_hashes = SourceHashes
 install(Session, CompiledModules) ->
     lists:foldl(fun install_one/2, Session, CompiledModules).
 
-install_one(#compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash,
-                      from_source = FromSource},
+install_one(#compiled{namespace = Namespace, unit = Unit, beam = Compiled, source_hash = Hash,
+                      from_source = FromSource, from_forms = FromForms},
             #session{interfaces = Interfaces, source_hashes = SourceHashes, beams = Beams,
-                     units = Units, source_expected = Expected} = Session) ->
+                     units = Units, source_expected = Expected, prelude = Prelude} = Session) ->
+    %% report §11.2: a compiled module loaded beside another unit of its
+    %% name made a unit of its own from its forms, linked to the units the
+    %% session holds of the modules it uses, which are installed before it
+    Beam = case FromForms of
+               true ->
+                   {ok, Made} = ern_compile:from_compiled(Compiled, Unit, Interfaces, Prelude,
+                                                         with_unit(Namespace, Unit, Units)),
+                   Made;
+               false ->
+                   Compiled
+           end,
     case is_held(Unit, Beam) of
         true -> ok;
         false -> {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam)
@@ -2835,9 +2848,10 @@ gone(Namespace, Origin, Why, {Session, Changed, Lines, Previous}) ->
 new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Session, Namespace,
             Unit, #input_text{origin = Origin, printed_name = PrintedName},
             {Typed, Interface, Env}) ->
-    {_, Offset} = Site = site(Origin),
+    {InputName, Offset} = Site = site(Origin),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
-              form_namespace => ?SESSION_NAMESPACE, units => Units#{Namespace => Unit}},
+              form_namespace => ?SESSION_NAMESPACE, units => Units#{Namespace => Unit},
+              input_name => InputName},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {ok, #{interface := #interface{identities = Identities} = Compiled}} =
         ern_interface:read(Beam),

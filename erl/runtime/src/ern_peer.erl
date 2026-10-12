@@ -45,9 +45,12 @@
                  | {restarting, term(), spawned()}.
 
 %% Report §8.7: the identity of a function a spawn or a compute names, as
-%% the exchange asks for its reach: a declaration's hash, or a lambda's or a
-%% local fn's definition's hash and its position.
--type identity() :: {function, binary()} | {lambda, binary(), pos_integer()}.
+%% the exchange asks for its reach: a declaration's hash, a lambda's or a
+%% local fn's definition's hash and its position, or a foreign function's
+%% qualified name as text, which has no hash and crosses as its
+%% declaration.
+-type identity() :: {function, binary()} | {lambda, binary(), pos_integer()}
+                  | {foreign, [binary()]}.
 
 %% Report §8.7, §6.6: each value a function captured whose type carries a
 %% reply, with the descriptor of its type (ern_descriptor), which the
@@ -444,8 +447,6 @@ frame(_From, _Body) ->
 %% keeping the peer's node, which its fault's line names (§11.2); else
 %% `NotLoaded` and what this node lacked, the first met, or `Unreachable`
 %% where no run is in progress to start it.
-spawned_here({lacked, Lacked}, _Ref, _From, _Monitored, Site) ->
-    not_loaded(spawn, Site, Lacked);
 spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -466,8 +467,6 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
 %% or where the compute's note has gone before its process could start,
 %% its caller no longer waiting, or never was written, the compute having
 %% come between two runs (ern_rt:asked_of_run/1).
-computed_here({lacked, Lacked}, _Alias, _From, Site) ->
-    not_loaded(compute, Site, Lacked);
 computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -505,18 +504,17 @@ failed(_From, {compute, Alias, _Spawned, Site}, Error, Lacked) ->
 
 %% Report §8.7: what this node lacks of a reach a peer gave, before any of
 %% its code crosses, or none: the first foreign declaration whose module is
-%% not here, each `{QualifiedName, HostModule, HostFunction}`, then the
-%% first binding without its value here, each `{QualifiedName, Hash}`. The
-%% names are a peer's text, which makes no atom here where none is, and is
-%% written with its controls shown, as a foreign function's name a spawn
-%% gives is.
--spec reach_lacked([{[binary()], binary()}], [{[binary()], binary(), binary()}]) ->
-          iodata() | none.
+%% not here, or whose function is not in it, each `{QualifiedName,
+%% HostModule, HostFunction, Scheme, Printing}`, then the first binding
+%% without its value here, each `{QualifiedName, Hash}`. The names are a
+%% peer's text, which makes no atom here where none is, and is written with
+%% its controls shown, as a foreign function's name a spawn gives is.
+-spec reach_lacked([{[binary()], binary()}],
+                   [{[binary()], binary(), binary(), term(), term()}]) -> iodata() | none.
 reach_lacked(Bindings, Foreigns) ->
-    case [Foreign || {_, HostModule, _} = Foreign <- Foreigns, not is_present(HostModule)] of
-        [{QualifiedName, HostModule, _} | _] ->
-            ["the module ", ern_show:controls(HostModule, line), ", which ",
-             named_text(QualifiedName), " calls, is not here"];
+    case [Lacked || Foreign <- Foreigns, Lacked <- [foreign_lacked(Foreign)], Lacked =/= none] of
+        [Lacked | _] ->
+            Lacked;
         [] ->
             case [QualifiedName || {QualifiedName, Hash} <- Bindings,
                                    not has_value(QualifiedName, Hash)] of
@@ -525,6 +523,38 @@ reach_lacked(Bindings, Foreigns) ->
                                         " has no value here"]
             end
     end.
+
+%% Report §8.7: what this node lacks of a foreign declaration's
+%% implementation, its module or the function in it at the declaration's
+%% arity, or none; the module is loaded first where it is on the code
+%% path, as the declaring module's call would load it, so that its name
+%% and its functions' are atoms here once it answers none.
+foreign_lacked({QualifiedName, HostModule, HostFunction, Scheme, _}) ->
+    Module = ["the module ", ern_show:controls(HostModule, line), ", which ",
+              named_text(QualifiedName), " calls, "],
+    case is_present(HostModule) andalso code:ensure_loaded(binary_to_atom(HostModule)) of
+        {module, Loaded} ->
+            Arity = scheme_arity(Scheme),
+            Exported = case existing_atoms([HostFunction]) of
+                           [Function] -> erlang:function_exported(Loaded, Function, Arity);
+                           none -> false
+                       end,
+            case Exported of
+                true -> none;
+                false -> [Module | no_function(HostFunction, Arity)]
+            end;
+        _ ->
+            [Module, "is not here"]
+    end.
+
+no_function(HostFunction, Arity) ->
+    ["has no function ", ern_show:controls(HostFunction, line), "/", integer_to_list(Arity),
+     " here"].
+
+%% The arity a foreign declaration's function is called with: its
+%% parameters and its requirement's members (report §4.9).
+scheme_arity({scheme, _, {arrow, Params, _, _}, Requirement}) ->
+    length(Params) + length(Requirement).
 
 named_text(QualifiedName) ->
     ern_show:controls(iolist_to_binary(lists:join(".", QualifiedName)), line).
@@ -552,10 +582,10 @@ has_value(QualifiedName, Hash) ->
 %% bindings have their values where one holds it (§11.2), runs it over the
 %% values it captured ('$spawned'/2), in the process, and `restarting` runs
 %% it so; with that unit and the reach it names, or the identity this node
-%% lacks, which the exchange asks for, or a foreign function it lacks, or
-%% unreadable where the frame names it in no way the compiler writes. A
-%% peer's names are taken as atoms only where this node has them already,
-%% so that what a peer sends makes none.
+%% lacks, which the exchange asks for, a foreign function's its qualified
+%% name as text, whose declaration crosses, or unreadable where the frame
+%% names it in no way the compiler writes. A peer's names make no atom
+%% here: the code table holds a foreign function by its name as text.
 process_function({restarting, 'Unlimited' = Limit, Inner})
   when element(1, Inner) =/= restarting ->
     restarting(Limit, process_function(Inner));
@@ -570,15 +600,9 @@ process_function({lambda, Hash, Position, Captures})
     unit_function(ern_code:spawnable({lambda, Hash, Position}), Captures,
                   {lambda, Hash, Position});
 process_function({foreign, Names}) when is_list(Names), Names =/= [] ->
-    case lists:all(fun is_binary/1, Names) andalso existing_atoms(Names) of
-        false ->
-            unreadable;
-        none ->
-            Named = ern_show:controls(iolist_to_binary(lists:join(".", Names)), line),
-            {lacked, ["this node does not have ", Named, declaration_crosses()]};
-        QualifiedName ->
-            unit_function(ern_code:spawnable({foreign, QualifiedName}), [],
-                          {foreign, QualifiedName})
+    case lists:all(fun(Name) -> is_binary(Name) andalso ern_fs:is_utf8(Name) end, Names) of
+        false -> unreadable;
+        true -> unit_function(ern_code:spawnable({foreign, Names}), [], {foreign, Names})
     end;
 process_function(_) ->
     unreadable.
@@ -595,21 +619,12 @@ unit_function({Unit, Function, Arity, Reach}, Captures, _) when length(Captures)
     {found, fun() -> Unit:'$spawned'(Function, Captures) end, Unit, Reach};
 unit_function({_, _, _, _}, _, _) ->
     unreadable;
-unit_function(none, _, {foreign, QualifiedName}) ->
-    {lacked, ["this node does not have its function, ", identity_text(QualifiedName),
-              declaration_crosses()]};
 unit_function(none, _, Identity) ->
     {lacks, Identity}.
 
-%% Report §8.7, The exchange: a foreign function spawned by its name, which
-%% has no hash, crosses as its declaration where the peer lacks it, which
-%% MVP 3.2's item 4 builds; until then the peer runs its own declaration of
-%% the name alone, and says so (docs/development.md).
-declaration_crosses() ->
-    "; a foreign function's declaration crosses in MVP 3.2's item 4".
-
+%% A qualified name as a line writes it, its segments atoms or a peer's text.
 identity_text(QualifiedName) ->
-    lists:join(".", [atom_to_binary(Name) || Name <- QualifiedName]).
+    ern_show:controls(unicode:characters_to_binary(ern_namespace:text(QualifiedName)), line).
 
 existing_atoms(Names) ->
     try [binary_to_existing_atom(Name) || Name <- Names]
@@ -635,7 +650,7 @@ lacked_module(Called, QualifiedName) ->
         [] ->
             ["this node does not have ", Named];
         Implementations ->
-            case [HostModule || {HostModule, _} <- Implementations,
+            case [HostModule || {_, HostModule, _} <- Implementations,
                                 not ern_code:present(HostModule)] of
                 [] -> none;
                 [HostModule | _] -> ["the module ", atom_to_binary(HostModule), ", which ", Named,

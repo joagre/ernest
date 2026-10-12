@@ -140,12 +140,12 @@ no_run_test() ->
 %% refused it. Otherwise it answers NotLoaded, and the frame's reading
 %% answers what this node lacked, which the gateway says: a binding with no
 %% value, which a function it calls names, and a foreign declaration's
-%% module, or a foreign function it does not have, whose names make no atom
-%% here. A function it does not hold, by its hash, a lambda by its
-%% definition's hash and position, and `restarting` over one, the frame's
-%% reading hands to the exchange by the identity this node lacks, and
-%% answers nothing itself (MVP 3.2's item 3). Nothing is initialized
-%% because a peer asked
+%% module. A function it does not hold, by its hash, a lambda by its
+%% definition's hash and position, `restarting` over one, and a foreign
+%% function it does not have, by its name as text, whose names make no
+%% atom here, the frame's reading hands to the exchange by the identity
+%% this node lacks, and answers nothing itself (MVP 3.2's items 3 and 4).
+%% Nothing is initialized because a peer asked
 spawn_by_identity_test() ->
     Unit = 'ern@peerreach',
     Hashes = loaded(['Peerreach'], ?REACHING),
@@ -166,14 +166,14 @@ spawn_by_identity_test() ->
                          Spawn(Identity(calls)),
                          Spawn({lambda, LambdaHash, Position, [41]}),
                          Spawn({restarting, {'RestartLimit', 1, 1000}, Identity(quiet)}),
-                         Spawn({foreign, [<<"Peerreach">>, <<"missing">>]}),
-                         Spawn({foreign, [<<"Peernone">>, <<"never">>]})],
+                         Spawn({foreign, [<<"Peerreach">>, <<"missing">>]})],
                Wrong = ern_peer:frame(self(), {spawn, make_ref(),
                                                {lambda, LambdaHash, Position, []},
                                                <<"M.f:1">>, false}),
                Lacking = [ern_peer:frame(self(), {spawn, make_ref(), Lacked, <<"M.f:1">>, false})
                           || Lacked <- [{function, <<7:256>>}, {lambda, <<8:256>>, 2, [1]},
-                                        {restarting, 'Unlimited', {function, <<9:256>>}}]],
+                                        {restarting, 'Unlimited', {function, <<9:256>>}},
+                                        {foreign, [<<"Peernone">>, <<"never">>]}]],
                ern_rt:init_modules([Unit]),
                After = Spawn(Identity(twice)),
                Self ! {spawned, Before, Wrong, Lacking, After}
@@ -183,22 +183,21 @@ spawn_by_identity_test() ->
         {spawned, Before, Wrong, Lacking, After} =
             receive {spawned, _, _, _, _} = Got -> Got end,
         Absent = "the module ern_peer_tests_absent, which Peerreach.missing calls, is not here",
-        ?assertMatch([{{spawned, _}, ok}, _, _, _, {{spawned, _}, ok}, {{spawned, _}, ok}, _, _],
+        ?assertMatch([{{spawned, _}, ok}, _, _, _, {{spawned, _}, ok}, {{spawned, _}, ok}, _],
                      Before),
         ?assertEqual([{{failed, 'NotLoaded'}, {not_loaded, spawn, <<"M.f:1">>, Lacked}}
                       || Lacked <- ["the binding Peerreach.greeting has no value here",
                                     "the binding Peerreach.greeting has no value here",
-                                    Absent, Absent,
-                                    "this node does not have Peernone.never; a foreign function's"
-                                    " declaration crosses in MVP 3.2's item 4"]],
+                                    Absent, Absent]],
                      [{Answer, {not_loaded, spawn, Site,
                                 lists:flatten(io_lib:format("~ts", [Lacked]))}}
                       || {Answer, {not_loaded, spawn, Site, Lacked}}
-                             <- [lists:nth(Index, Before) || Index <- [2, 3, 4, 7, 8]]]),
+                             <- [lists:nth(Index, Before) || Index <- [2, 3, 4, 7]]]),
         ?assertError(badarg, binary_to_existing_atom(<<"Peernone">>)),
         ?assertEqual(unreadable, Wrong),
         ?assertEqual([{exchange, {function, <<7:256>>}}, {exchange, {lambda, <<8:256>>, 2}},
-                      {exchange, {function, <<9:256>>}}], Lacking),
+                      {exchange, {function, <<9:256>>}},
+                      {exchange, {foreign, [<<"Peernone">>, <<"never">>]}}], Lacking),
         ?assertMatch({{spawned, _}, ok}, After)
     after
         unloaded(Unit)
@@ -573,7 +572,7 @@ loaded(Namespace, Text) ->
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
     ok = ern_code:loaded(Unit),
-    {ok, Definitions} = ern_canonical:read(Beam),
+    {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     maps:from_list([{QualifiedName, Hash}
                     || #definition{qualified_name = QualifiedName, hash = Hash} <- Definitions]).
 

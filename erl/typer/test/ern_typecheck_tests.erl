@@ -1074,6 +1074,20 @@ operator_implementation_test() ->
     ?assertEqual("the implementation names arity 3, and plus has 2 parameters",
                  refusal("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+/3\"")).
 
+%% report §11.1: a `foreign fn` whose implementation names a unit, a module
+%% `ern@` and a path, is refused at the string, since a unit's functions are
+%% named by their position and an Ernest function is called by its name;
+%% a module whose name merely holds `ern` is the host's. Written with the
+%% code (MVP 3.2's item 4)
+unit_implementation_test() ->
+    ?assertEqual("the implementation names ern@util, a unit of Ernest's, whose functions are"
+                 " named by their position",
+                 refusal("foreign fn twice(n : Int) : Int = \"ern@util:twice/1\"")),
+    ?assertEqual("the implementation names ern@net@http, a unit of Ernest's, whose functions"
+                 " are named by their position",
+                 refusal("foreign fn get(n : Int) : Int = \"ern@net@http:get/1\"")),
+    ?assertEqual(ok, ok("foreign fn time() : Int with m = \"ern_rt:now/0\"")).
+
 %% report §8.4, Appendix E.12: `Foreign.term` gives its value by the type at
 %% which the name is used, which is known whole there: on a type variable,
 %% and on a type that holds one, it is refused, as a callee and as a value,

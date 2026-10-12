@@ -633,8 +633,8 @@ compressed_chunk_test() ->
     {ok, Bytes} = file:read_file(code:which('ern@list')),
     {ok, {_, [{_, Chunk}]}} = beam_lib:chunks(Bytes, [binary_to_list(ern_canonical:chunk_name())]),
     ?assertMatch(<<131, 80, _/binary>>, Chunk),
-    {1, Written} = binary_to_term(Chunk),
-    ?assertEqual({ok, Written}, ern_canonical:read(Bytes)),
+    {1, #recorded{definitions = Written} = Recorded} = binary_to_term(Chunk),
+    ?assertEqual({ok, Recorded}, ern_canonical:read(Bytes)),
     ?assert(length(Written) > 10).
 
 %% report §11.1, Appendix H: a chunk of another version of the form reads as

@@ -5,7 +5,7 @@
 %% through here, so that the format has one owner.
 -module(ern_interface).
 
--export([chunk_name/0, encode/2, read/1, hash/1]).
+-export([chunk_name/0, encode/2, read/1, written/1, hash/1]).
 
 -export_type([chunk/0]).
 
@@ -38,16 +38,8 @@ read(Beam) ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk)
             try ern_chunk:term(Chunk) of
                 {ok, #{format := ?FORMAT,
-                       interface := {interface, Namespace, Types, Values, Lets, PrivateTypes,
-                                     Identities, Reaches, Positions}}
-                       = Read} ->
-                    Interface = #interface{namespace = Namespace, types = maps:from_list(Types),
-                                           values = maps:from_list(Values), lets = Lets,
-                                           private_types = maps:from_list(PrivateTypes),
-                                           identities = maps:from_list(Identities),
-                                           reaches = maps:from_list(Reaches),
-                                           positions = maps:from_list(Positions)},
-                    {ok, Read#{interface => Interface}};
+                       interface := {interface, _, _, _, _, _, _, _, _} = Written} = Read} ->
+                    {ok, Read#{interface => interface(Written)}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
             catch _:_ ->
@@ -57,6 +49,22 @@ read(Beam) ->
         {error, beam_lib, _} ->
             {error, "not a compiled module"}
     end.
+
+%% Report §11.1: an interface as its chunk holds it and a read gives it
+%% back, its variables numbered as the chunk numbers them, which is what
+%% a dependent is checked against whether the build reads it from the
+%% `.erc` or has it from the module's check (ern_build).
+-spec written(#interface{}) -> #interface{}.
+written(Interface) ->
+    interface(canonical(Interface, keep)).
+
+interface({interface, Namespace, Types, Values, Lets, PrivateTypes, Identities, Reaches,
+           Positions}) ->
+    #interface{namespace = Namespace, types = maps:from_list(Types),
+               values = maps:from_list(Values), lets = Lets,
+               private_types = maps:from_list(PrivateTypes),
+               identities = maps:from_list(Identities), reaches = maps:from_list(Reaches),
+               positions = maps:from_list(Positions)}.
 
 %% The hash a dependent records, which leaves the definitions' hashes out,
 %% and their reaches, which follow from them: a change to a dependency's

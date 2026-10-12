@@ -3,14 +3,11 @@
 %% every frame to, and for the peer, whose frames it sends the exchange as
 %% a gateway hands them on. Each runs in a program, whose standard error
 %% takes the node's lines. Real nodes are test/ern_nodes_tests.erl's.
-%% Regression tests, written after the code (MVP 3.2's item 3).
+%% Regression tests, written after the code (MVP 3.2's items 3 and 4).
 -module(ern_exchange_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("typer/include/ern_canonical.hrl").
-
--define(NOT_COMPILED,
-        <<"this node compiles no received code yet: it arrives in MVP 3.2's item 4">>).
 
 -define(REACHED,
         "export type Shape = Square(Int) | Circle(Int)\n"
@@ -31,10 +28,13 @@
 %% the forms the unit's `.erc` holds: the hashes of the definitions it
 %% reaches from the definition it is or is in, code and types, a group's
 %% members among them, the bindings its reach names and its foreign
-%% declarations with the host's module and function; and the lacks with a
-%% code frame for each, a group in one, dependencies first, each the bytes
-%% its hashes are taken of, with the hashes its forms reference. A function
-%% or a definition it holds nowhere is a reach of none
+%% declarations with the host's module and function and the declared
+%% type; a foreign function's by its name, its declaration alone; and the
+%% lacks with a code frame for each, a group in one, dependencies first,
+%% each the bytes its hashes are taken of, with the hashes its forms
+%% reference and each member's name and form with the lines of its source,
+%% the locals' names left out. A function or a definition it holds nowhere
+%% is a reach of none
 reach_test() ->
     {Unit, Beam, Defined} = compiled(['Exreach'], ?REACHED),
     File = filename:join(scratch_dir(), "exreach.erc"),
@@ -56,7 +56,8 @@ reach_test() ->
                Reaches = [Asked({reach_request, ref, Identity})
                           || Identity <- [{function, Hash(work)}, {function, Hash(timed)},
                                           {lambda, LambdaHash, Position},
-                                          {function, <<1:256>>}]],
+                                          {function, <<1:256>>},
+                                          {foreign, [<<"Exreach">>, <<"now">>]}]],
                Lacks = [Asked({lacks, ref, Hashes})
                         || Hashes <- [[Hash(work), Hash(area), Hash(isEven), Hash(isOdd),
                                        Hash('Shape')],
@@ -68,11 +69,15 @@ reach_test() ->
         {asked, Reaches, Lacks} = receive {asked, _, _} = Got -> Got end,
         Work = lists:usort([Hash(Name) || Name <- [work, area, isEven, isOdd, 'Shape']]),
         Later = lists:usort([Hash(Name) || Name <- [later, isEven, isOdd]]),
+        Now = {[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
+               {scheme, [{1, [process_only]}], {arrow, [], {variable, 1},
+                                                {applied, {named, ['Int']}, []}}, []},
+               {[<<"Exreach">>], []}},
         ?assertMatch([[{reach, _, Work, [{[<<"Exreach">>, <<"side">>], _}], []}],
-                      [{reach, _, [_], [], [{[<<"Exreach">>, <<"now">>], <<"erlang">>,
-                                             <<"monotonic_time">>}]}],
+                      [{reach, _, [_], [], [Now]}],
                       [{reach, _, Later, [], []}],
-                      [{reach, _, none}]], Reaches),
+                      [{reach, _, none}],
+                      [{reach, _, [], [], [Now]}]], Reaches),
         [[{reach, _, Work, [{_, SideHash}], []}], [{reach, _, [Timed], _, _}] | _] = Reaches,
         ?assertEqual(Hash(side), SideHash),
         ?assertEqual(Hash(timed), Timed),
@@ -80,9 +85,9 @@ reach_test() ->
         ?assertEqual({reach, none}, {element(1, None), element(3, None)}),
         %% the group crosses whole, its members in source order, wherever it
         %% is lacked
-        ?assertMatch({code_frame, _, [_, _], _, _}, Group),
+        ?assertMatch({code_frame, _, [_, _], _, _, _}, Group),
         ?assertEqual([Hash(isEven), Hash(isOdd)], element(3, Group)),
-        Named = [Hashes || {code_frame, _, Hashes, _, _} <- Frames],
+        Named = [Hashes || {code_frame, _, Hashes, _, _, _} <- Frames],
         ?assertEqual(4, length(Named)),
         ?assertEqual(lists:sort([[Hash('Shape')], [Hash(area)], [Hash(isEven), Hash(isOdd)],
                                  [Hash(work)]]),
@@ -95,11 +100,23 @@ reach_test() ->
         ?assert(Place([Hash(isEven), Hash(isOdd)]) < Place([Hash(work)])),
         [begin
              {ok, Forms} = ern_canonical:verified(Hashes, Bytes),
-             ?assertEqual(referenced(Forms), References)
-         end || {code_frame, _, Hashes, Bytes, References} <- [Group | Frames]],
-        [{code_frame, _, _, _, WorkReferences}] = [Frame || {code_frame, _, [Of], _, _} = Frame
-                                                                <- Frames, Of =:= Hash(work)],
-        ?assert(lists:member(Hash(side), WorkReferences))
+             ?assertEqual(referenced(Forms), References),
+             Sourced = binary_to_term(Sources),
+             ?assertEqual(Forms, [ern_canonical:stripped(Source) || {_, Source, _} <- Sourced]),
+             ?assertEqual([], [Name || {_, Source, _} <- Sourced, Name <- local_names(Source)]),
+             %% report §8.7, §11.5: what prints a type as the module writes it
+             ?assertEqual([{[<<"Exreach">>], []}], lists:usort([P || {_, _, P} <- Sourced]))
+         end || {code_frame, _, Hashes, Bytes, References, Sources} <- [Group | Frames]],
+        [{code_frame, _, _, _, WorkReferences, WorkSources}] =
+            [Frame || {code_frame, _, [Of], _, _, _} = Frame <- Frames, Of =:= Hash(work)],
+        ?assert(lists:member(Hash(side), WorkReferences)),
+        %% report §8.7: the definition's name as text and its source's lines
+        [{WorkName, {'$at', {WorkLine, _, none}, _}, _}] = binary_to_term(WorkSources),
+        ?assertEqual({[<<"Exreach">>, <<"work">>], 8}, {WorkName, WorkLine}),
+        [{'$at', {OddLine, _, none}, _}] =
+            [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _}
+                           <- binary_to_term(element(6, Group))],
+        ?assertEqual(6, OddLine)
     after
         unloaded(Unit)
     end.
@@ -110,7 +127,7 @@ reach_test() ->
         "fn isEven(n : Int) : Bool = if n == 0 then true else isOdd(n - 2)\n"
         "fn isOdd(n : Int) : Bool = if n == 0 then false else isEven(n - 2)\n"
         "export fn work() : Unit with Never =\n"
-        "    { let _ = area(Circle(5)); let _ = isOdd(5); Unit }\n").
+        "    { let _ = area(Circle(5)); let _ = isOdd(4); Unit }\n").
 
 -define(HELD, "export fn held() : Int = 41 + 1\n").
 
@@ -121,13 +138,13 @@ reach_test() ->
 %% report §8.7, §11.2: the node a spawn was asked of, lacking its function,
 %% asks the spawner's node for the reach once, though two spawns and a
 %% compute wait on it, which share the exchange; answers the identities it
-%% lacks, pinning meanwhile the unit that holds the one it holds and the
-%% unit whose binding of the reach has its value here; verifies
-%% each code frame and holds it apart, nothing of the reach in the code
-%% table, until every lacked identity has arrived; and then answers each
-%% that waits, the spawns through the spawner's gateway and the compute
-%% through its alias, with Other naming the item that compiles what a node
-%% receives, which it says of each
+%% lacks, not the one it holds; verifies each code frame and holds it
+%% apart, nothing of the reach in the code table, until every lacked
+%% identity has arrived; and then makes the reach,
+%% a type, a group and the function that calls them, one unit of the pool's,
+%% loaded whole, which the code table holds by the frames' hashes, and
+%% starts each that waits, the spawns answered through the spawner's
+%% gateway and the compute's value through its alias, saying nothing
 received_whole_test() ->
     {_, _, Defined} = compiled(['Exwhole'], ?WHOLE),
     {HeldUnit, HeldBeam, HeldDefined} = compiled(['Exheld'], ?HELD),
@@ -153,57 +170,199 @@ received_whole_test() ->
                Alias = erlang:alias([reply]),
                ok = ern_rt:note_compute(self(), Alias),
                ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>}, Work),
-               [] = ern_exchange:pinned(),
+               ok = catch_up(),
                AskedAgain = waiting(),
                Identities = [Hash(Name) || Name <- [work, area, 'Shape', isEven, isOdd]] ++ [Held],
                Bindings = [{[<<"Exbound">>, <<"base">>], Base}],
                Exchange ! {ern_frame, self(), {reach, Ref, Identities, Bindings, []}},
                Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
-               Pinned = ern_exchange:pinned(),
                Frames = [code_frame(Ref, [Definition(Name)]) || Name <- ['Shape', area, work]]
                    ++ [code_frame(Ref, [Definition(isEven), Definition(isOdd)])],
                {Early, [Last]} = lists:split(length(Frames) - 1, Frames),
                [Exchange ! {ern_frame, self(), Frame} || Frame <- Early],
-               _ = ern_exchange:pinned(),
-               Apart = {waiting(), [Unit || {code_frame, _, Hashes, _, _} <- Early,
+               ok = catch_up(),
+               Apart = {waiting(), [Unit || {code_frame, _, Hashes, _, _, _} <- Early,
                                             Of <- Hashes, Unit <- ern_code:holders({hash, Of})]},
                Exchange ! {ern_frame, self(), Last},
-               After = ern_exchange:pinned(),
                Answers = [receive {ern_frame, _, {answer, AnswerRef, Answer}} -> Answer end
                           || AnswerRef <- [SpawnRef, JoinedRef]],
-               Computed = receive {Alias, failed, Failure} -> Failure end,
-               Self ! {received, Asked, AskedAgain, Lacks, Pinned, Apart, After, Answers, Computed}
+               Computed = receive {Alias, computed, Value} -> Value end,
+               Spawnable = [ern_code:spawnable({hash, Hash(Name)}) || Name <- [work, area, isOdd]],
+               Self ! {received, Asked, AskedAgain, Lacks, Apart, Answers, Computed, Spawnable}
            end,
     try
         {Said, Options} = said(),
         ?assertEqual(ok, run(Main, Options)),
-        {received, Asked, AskedAgain, Lacks, Pinned, Apart, After, Answers, Computed} =
-            receive {received, _, _, _, _, _, _, _, _} = Got -> Got end,
+        {received, Asked, AskedAgain, Lacks, Apart, Answers, Computed, Spawnable} =
+            receive {received, _, _, _, _, _, _, _} = Got -> Got end,
         ?assertEqual(Work, Asked),
         ?assertEqual([], AskedAgain),
         ?assertEqual([Hash(Name) || Name <- [work, area, 'Shape', isEven, isOdd]], Lacks),
-        ?assertEqual(lists:sort([HeldUnit, BoundUnit]), Pinned),
         ?assertEqual({[], []}, Apart),
-        ?assertEqual([], After),
-        ?assertEqual([{failed, {'Other', ?NOT_COMPILED}}, {failed, {'Other', ?NOT_COMPILED}}],
-                     Answers),
-        ?assertEqual({'Other', ?NOT_COMPILED}, Computed),
-        Lines = Said(),
-        [?assert(lists:member(<<"the node nohost's ", Kind/binary, " at ", Site/binary,
-                                " was not loaded: ", ?NOT_COMPILED/binary, "\n">>, Lines))
-         || {Kind, Site} <- [{<<"spawn">>, <<"M.f:1">>}, {<<"compute">>, <<"M.f:3">>}]],
-        ?assertEqual(3, length(Lines))
+        ?assertMatch([{spawned, _}, {spawned, _}], Answers),
+        ?assertEqual('Unit', Computed),
+        [{Unit, _, _, _} | _] = Spawnable,
+        ?assertMatch([{Unit, _, 0, _}, {Unit, _, 1, _}, {Unit, _, 1, _}], Spawnable),
+        ?assertMatch("ern$" ++ _, atom_to_list(Unit)),
+        {ok, #recorded{definitions = Kept}} = ern_code:forms(Unit),
+        ?assertEqual(lists:sort([[<<"Exwhole">>, Name]
+                                 || Name <- [<<"Shape">>, <<"area">>, <<"work">>,
+                                             <<"isEven">>, <<"isOdd">>]]),
+                     lists:sort([Name || #definition{qualified_name = Name} <- Kept])),
+        ?assertEqual([], Said()),
+        unloaded(Unit)
     after
         unloaded(HeldUnit),
         unloaded(BoundUnit)
     end.
 
+-define(LINKED,
+        "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
+        "export fn linked() : Int with m = {\n"
+        "    let _ = now();\n"
+        "    Exheld.held() + Exbound.base\n"
+        "}\n").
+
+%% report §8.7, §11.1, §8.4: the unit a reach makes links what its forms
+%% reference outside it through the code table: a function of a unit the
+%% node holds, by its hash, to that unit's function; a binding, by its
+%% identity, to the unit that holds it with its value, through its getter;
+%% and a foreign declaration of the reach to a function of the unit's own,
+%% which calls the host's function the sender's declaration names through
+%% the check at its declared type. A compute of the function the reach
+%% brought answers its value, and the code table holds it, the node's
+%% pool's unit, which the node ships onward as its own: asked for the reach
+%% of the function now, it answers it from that unit's forms, the foreign
+%% declaration with its type
+received_linked_test() ->
+    {HeldUnit, HeldBeam, _} = compiled(['Exheld'], ?HELD),
+    loaded(HeldUnit, HeldBeam),
+    {BoundUnit, BoundBeam, _} = compiled(['Exbound'], ?BOUND),
+    loaded(BoundUnit, BoundBeam),
+    Interfaces = [Interface || Beam <- [HeldBeam, BoundBeam],
+                               {ok, #{interface := Interface}} <- [ern_interface:read(Beam)]],
+    {ok, Parsed} = ern_parser:parse_string(?LINKED),
+    {ok, Typed, Interface, Env} = ern_typecheck:check(['Exlinked'], Parsed, Interfaces),
+    {ok, _, LinkedBeam} = ern_compile:compile(['Exlinked'], Typed, Interface, Env,
+                                              #{source_hash => <<>>, deps => []}),
+    {ok, #recorded{definitions = [Linked], foreign = [{_, Scheme, _, _, Printing}]}} =
+        ern_canonical:read(LinkedBeam),
+    Work = {function, Linked#definition.hash},
+    Self = self(),
+    Main = fun() ->
+                   true = register(ern_gateway, self()),
+                   ok = ern_exchange:start(),
+                   ok = ern_rt:init_modules([BoundUnit]),
+                   Alias = erlang:alias([reply]),
+                   ok = ern_rt:note_compute(self(), Alias),
+                   ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>}, Work),
+                   {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, _}} ->
+                                             {From, R}
+                                     end,
+                   [_, HeldHash] = Identities =
+                       [Linked#definition.hash | held_identities(HeldBeam)],
+                   Exchange ! {ern_frame, self(),
+                               {reach, Ref, Identities,
+                                [{[<<"Exbound">>, <<"base">>], bound_hash(BoundBeam)}],
+                                [{[<<"Exlinked">>, <<"now">>], <<"erlang">>,
+                                  <<"monotonic_time">>, Scheme, Printing}]}},
+                   Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
+                   Exchange ! {ern_frame, self(), code_frame(Ref, [Linked])},
+                   Computed = receive {Alias, computed, Value} -> Value end,
+                   {Unit, _, 0, Reach} = ern_code:spawnable({hash, Linked#definition.hash}),
+                   Asked = make_ref(),
+                   Exchange ! {ern_frame, self(), {reach_request, Asked, Work}},
+                   Onward = receive {ern_frame, _, {reach, Asked, _, _, _} = Got} -> Got end,
+                   Self ! {received, Lacks, HeldHash, Computed, Unit, Reach, Onward}
+           end,
+    try
+        ?assertEqual(ok, run(Main, quiet())),
+        {received, Lacks, HeldHash, Computed, Unit, Reach, Onward} =
+            receive {received, _, _, _, _, _, _} = Received -> Received end,
+        ?assertEqual([Linked#definition.hash], Lacks),
+        ?assertEqual(82, Computed),
+        ?assertEqual({[{['Exbound', base], bound_hash(BoundBeam)}], [['Exlinked', now]]}, Reach),
+        ?assertMatch({reach, _, _, [{[<<"Exbound">>, <<"base">>], _}],
+                      [{[<<"Exlinked">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>, Scheme,
+                        {[<<"Exlinked">>], []}}]},
+                     Onward),
+        ?assertEqual(lists:sort([Linked#definition.hash, HeldHash]),
+                     lists:sort(element(3, Onward))),
+        unloaded(Unit)
+    after
+        unloaded(HeldUnit),
+        unloaded(BoundUnit)
+    end.
+
+held_identities(Beam) ->
+    {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
+    [Hash || #definition{hash = Hash} <- Definitions].
+
+bound_hash(Beam) ->
+    [Hash] = held_identities(Beam),
+    Hash.
+
+%% report §8.7: a reach the node cannot take, a form that references a
+%% definition the node holds nowhere and that did not arrive, is answered
+%% Other with the node's reason in a line, which the node says, and nothing
+%% of it is in the code table
+unlinked_reach_test() ->
+    Form = {function, {scheme, [], {arrow, [], pure, {applied, {named, ['Int']}, []}}, []}, [],
+            none, none, [], {var, {hash, <<77:256>>}, []}},
+    Hash = crypto:hash(sha256, ern_canonical:bytes(ern_canonical:hashed([Form]))),
+    Work = {function, Hash},
+    Self = self(),
+    Main = fun() ->
+                   true = register(ern_gateway, self()),
+                   ok = ern_exchange:start(),
+                   SpawnRef = make_ref(),
+                   ok = ern_exchange:lacking(self(), spawned(SpawnRef, Work), Work),
+                   {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, _}} ->
+                                             {From, R}
+                                     end,
+                   Exchange ! {ern_frame, self(), {reach, Ref, [Hash], [], []}},
+                   [Hash] = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
+                   Exchange ! {ern_frame, self(),
+                               {code_frame, Ref, [Hash], ern_canonical:bytes(
+                                                           ern_canonical:hashed([Form])),
+                                [<<77:256>>], term_to_binary([{[<<"Crafted">>, <<"bad">>],
+                                                               Form, {[], []}}])}},
+                   Answer = receive {ern_frame, _, {answer, SpawnRef, A}} -> A end,
+                   %% the node says the line once it has answered
+                   ok = catch_up(),
+                   Self ! {answered, Answer, ern_code:spawnable({hash, Hash})}
+           end,
+    {Said, Options} = said(),
+    ?assertEqual(ok, run(Main, Options)),
+    Text = <<"this node could not take the code it received: it references a definition this"
+             " node does not hold, ", (binary:copy(<<"00">>, 31))/binary, "4d">>,
+    ?assertEqual({answered, {failed, {'Other', Text}}, none},
+                 receive {answered, _, _} = Got -> Got end),
+    ?assertEqual([<<"the node nohost's spawn at M.f:1 was not loaded: ", Text/binary, "\n">>],
+                 Said()).
+
+%% report §8.7, §11.2: the pool names a unit an exchange makes `ern$` and a
+%% count, the first the host holds no unit of from the count given, and the
+%% count after it, a name the host holds a unit of passed over
+pool_test() ->
+    Base = 900000 + erlang:unique_integer([positive]) rem 1000 * 10,
+    Name = fun(Count) -> list_to_atom("ern$" ++ integer_to_list(Count)) end,
+    First = Name(Base),
+    ?assertEqual({First, Base + 1}, ern_arrival:name(Base)),
+    {ok, First, Beam} = compile:forms([{attribute, 1, module, First}], [binary]),
+    {module, First} = code:load_binary(First, "pool", Beam),
+    ?assertEqual({Name(Base + 1), Base + 2}, ern_arrival:name(Base)),
+    true = code:delete(First),
+    true = code:soft_purge(First).
+
 %% report §8.7: where the node lacks the module a foreign declaration of the
-%% reach calls, or the value of a binding it names, the spawn is answered
-%% NotLoaded before any code crosses, no lacks asked, and the node says
-%% what it lacked, the names the peer's text
+%% reach calls, or the function in it, or the value of a binding it names,
+%% the spawn is answered NotLoaded before any code crosses, no lacks
+%% asked, and the node says what it lacked, the names the peer's text,
+%% which make no atom here
 not_loaded_from_reach_test() ->
     Work = {function, <<3:256>>},
+    Scheme = {scheme, [], {arrow, [], pure, {applied, {named, ['Unit']}, []}}, []},
     Self = self(),
     Main = fun() ->
                true = register(ern_gateway, self()),
@@ -217,33 +376,44 @@ not_loaded_from_reach_test() ->
                               Exchange ! {ern_frame, self(), {reach, Ref, [<<4:256>>], Bindings,
                                                               Foreigns}},
                               Answer = receive {ern_frame, _, {answer, SpawnRef, A}} -> A end,
-                              _ = ern_exchange:pinned(),
+                              ok = catch_up(),
                               {Answer, waiting()}
                           end
                           || {Bindings, Foreigns}
                                  <- [{[{[<<"Exabsent">>, <<"note">>], <<5:256>>}], []},
                                      {[], [{[<<"Exabsent">>, <<"only">>],
-                                            <<"ern_exchange_tests_absent">>, <<"f">>}]}]],
+                                            <<"ern_exchange_tests_absent">>, <<"f">>,
+                                            Scheme, {[], []}}]},
+                                     {[], [{[<<"Exabsent">>, <<"sorted">>], <<"lists">>,
+                                            <<"ern_exchange_tests_unsorted">>, Scheme,
+                                            {[], []}}]}]],
                Self ! {answered, Answers}
            end,
     {Said, Options} = said(),
     ?assertEqual(ok, run(Main, Options)),
-    ?assertEqual({answered, [{{failed, 'NotLoaded'}, []}, {{failed, 'NotLoaded'}, []}]},
+    ?assertEqual({answered, lists:duplicate(3, {{failed, 'NotLoaded'}, []})},
                  receive {answered, _} = Got -> Got end),
     ?assertEqual([<<"the node nohost's spawn at M.f:1 was not loaded: the binding Exabsent.note"
                     " has no value here\n">>,
                   <<"the node nohost's spawn at M.f:1 was not loaded: the module"
-                    " ern_exchange_tests_absent, which Exabsent.only calls, is not here\n">>],
+                    " ern_exchange_tests_absent, which Exabsent.only calls, is not here\n">>,
+                  <<"the node nohost's spawn at M.f:1 was not loaded: the module lists, which"
+                    " Exabsent.sorted calls, has no function ern_exchange_tests_unsorted/0"
+                    " here\n">>],
                  Said()),
-    ?assertError(badarg, binary_to_existing_atom(<<"Exabsent">>)).
+    [?assertError(badarg, binary_to_existing_atom(Name))
+     || Name <- [<<"Exabsent">>, <<"ern_exchange_tests_unsorted">>]].
 
 %% report §8.7: a frame the exchange cannot read is faulty, and the node
 %% ends the peer's connection and says so: a code frame whose bytes are not
 %% those the hash it names is taken of, one that names a hash that was not
-%% lacked, one whose references are not those its forms name, a reach of
-%% another shape, and a request for a reach of no identity. The exchange
-%% asked of the peer goes with its forms, a later frame of it passed over,
-%% and the spawn the peer asked for with it, none waiting on it now
+%% lacked, one whose references are not those its forms name, one whose
+%% form with its source's lines is not its form once they are taken out,
+%% one whose sources name an atom its form does not, one with a source too
+%% few, a reach of another shape, and a request for a reach of no
+%% identity. The exchange asked of the peer goes with its forms, a later
+%% frame of it passed over, and the spawn the peer asked for with it, none
+%% waiting on it now
 faulty_frame_test() ->
     {_, _, Defined} = compiled(['Exfaulty'], ?FAULTY),
     #definition{hash = Hash, form = Form} = maps:get(['Exfaulty', held], Defined),
@@ -263,28 +433,46 @@ faulty_frame_test() ->
                              receive {ern_frame, _, {lacks, Ref, _}} -> {Exchange, Ref} end
                          end,
                Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
-               Faults = [fun(Ref) -> {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, []} end,
-                         fun(Ref) -> {code_frame, Ref, [<<6:256>>], Bytes, []} end,
-                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [<<7:256>>]} end],
+               Name = [<<"Exfaulty">>, <<"held">>],
+               Sources = term_to_binary([{Name, Form, {[<<"Exfaulty">>], []}}]),
+               Other = setelement(2, Form, {scheme, [], {arrow, [], pure, int}, []}),
+               Faults = [fun(Ref) ->
+                                 {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, [], Sources}
+                         end,
+                         fun(Ref) -> {code_frame, Ref, [<<6:256>>], Bytes, [], Sources} end,
+                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [<<7:256>>], Sources} end,
+                         fun(Ref) ->
+                             {code_frame, Ref, [Hash], Bytes, [],
+                              term_to_binary([{Name, {'$at', {1, 1, none}, Other}, {[], []}}])}
+                         end,
+                         fun(Ref) ->
+                             {code_frame, Ref, [Hash], Bytes, [],
+                              <<131, 108, 1:32, 104, 3, 108, 1:32, 109, 3:32, "abc", 106,
+                                119, 12, "ern_unknown1", 104, 2, 106, 106, 106>>}
+                         end,
+                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [], term_to_binary([])} end],
                Late = [begin
                            {Exchange, Ref} = Lacking(),
                            Exchange ! {ern_frame, self(), Fault(Ref)},
-                           Exchange ! {ern_frame, self(), {code_frame, Ref, [Hash], Bytes, []}},
-                           _ = ern_exchange:pinned(),
+                           Exchange ! {ern_frame, self(), {code_frame, Ref, [Hash], Bytes, [],
+                                                           Sources}},
+                           ok = catch_up(),
                            waiting()
                        end || Fault <- Faults],
                {Exchange, Ref} = Asking(),
                Exchange ! {ern_frame, self(), {reach, Ref, [short], [], []}},
                Exchange ! {ern_frame, self(), {reach_request, make_ref(), {function, <<"s">>}}},
-               _ = ern_exchange:pinned(),
+               ok = catch_up(),
                Self ! {faulty, Late, waiting()}
            end,
     {Said, Options} = said(),
     ?assertEqual(ok, run(Main, Options)),
-    ?assertEqual({faulty, [[], [], []], []}, receive {faulty, _, _} = Got -> Got end),
-    ?assertEqual(lists:duplicate(5, <<"the node nohost sent a frame this node cannot read, and its"
+    ?assertEqual({faulty, [[], [], [], [], [], []], []},
+                 receive {faulty, _, _} = Got -> Got end),
+    ?assertEqual(lists:duplicate(8, <<"the node nohost sent a frame this node cannot read, and its"
                                       " connection was ended\n">>),
-                 Said()).
+                 Said()),
+    ?assertError(badarg, binary_to_existing_atom(<<"ern_unknown1">>)).
 
 %% report §8.7: a loss drops the exchanges asked of the lost peer, with
 %% their forms: a spawn of another node's that waited on one asks its own
@@ -301,7 +489,7 @@ loss_test() ->
                ok = ern_exchange:start(),
                ok = ern_exchange:lacking(Elsewhere, spawned(make_ref(), Work), Work),
                ok = ern_exchange:lacking(self(), spawned(make_ref(), Work), Work),
-               _ = ern_exchange:pinned(),
+               ok = catch_up(),
                First = waiting(),
                ok = ern_exchange:lost(node(Elsewhere)),
                {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, Work}} ->
@@ -309,7 +497,7 @@ loss_test() ->
                                  end,
                ok = ern_exchange:lost(node()),
                Exchange ! {ern_frame, self(), {reach, Ref, [<<9:256>>], [], []}},
-               _ = ern_exchange:pinned(),
+               ok = catch_up(),
                Self ! {lost, First, waiting()}
            end,
     {Said, Options} = said(),
@@ -383,7 +571,7 @@ compiled(Namespace, Text) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
     Build = #{source_hash => <<>>, deps => []},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-    {ok, Definitions} = ern_canonical:read(Beam),
+    {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     {Unit, Beam, maps:from_list([{QualifiedName, Definition}
                                  || #definition{qualified_name = QualifiedName} = Definition
                                         <- Definitions])}.
@@ -393,8 +581,8 @@ compiled(Namespace, Text) ->
 loaded(Unit, Beam) ->
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam),
-    {ok, Forms} = ern_canonical:read(Beam),
-    ok = ern_code:loaded(Unit, Forms).
+    {ok, Recorded} = ern_canonical:read(Beam),
+    ok = ern_code:loaded(Unit, Recorded).
 
 unloaded(Unit) ->
     ern_code:unloaded(Unit),
@@ -411,11 +599,25 @@ scratch_dir() ->
 spawned(Ref, {function, Hash}) ->
     {spawn, Ref, {function, Hash}, <<"M.f:1">>, false}.
 
-%% A code frame for a definition alone or a group's members in order.
+%% A code frame for a definition alone or a group's members in order, each
+%% with its name and its form with the lines of its source.
 code_frame(Ref, Members) ->
     Forms = [Form || #definition{form = Form} <- Members],
     {code_frame, Ref, [Hash || #definition{hash = Hash} <- Members],
-     ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms)}.
+     ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
+     term_to_binary([{[atom_to_binary(Segment) || Segment <- QualifiedName], Sourced, Printing}
+                     || #definition{qualified_name = QualifiedName, sourced = Sourced,
+                                    printing = Printing} <- Members])}.
+
+%% The names of the locals a form with its source's lines holds.
+local_names({'$at', {_, _, Name}, Node}) ->
+    [Name || Name =/= none] ++ local_names(Node);
+local_names(Term) when is_tuple(Term) ->
+    local_names(tuple_to_list(Term));
+local_names(Terms) when is_list(Terms) ->
+    lists:append([local_names(Term) || Term <- Terms]);
+local_names(_) ->
+    [].
 
 referenced(Forms) ->
     lists:usort([case Reference of
@@ -424,10 +626,18 @@ referenced(Forms) ->
                  end || Reference <- ern_canonical:references(Forms)]).
 
 %% The frames the exchange has sent the stand-in gateway for Ref, once it
-%% has read every frame sent it before: pinned/0's answer comes after them.
+%% has read every frame sent it before.
 frames(Ref) ->
-    _ = ern_exchange:pinned(),
+    ok = catch_up(),
     collected(Ref, []).
+
+%% Waits until the exchange has read every message the stand-in gateway,
+%% the caller, sent it before: its answer to a request for a reach of an
+%% identity no unit holds comes after them, as a peer's would.
+catch_up() ->
+    Ref = make_ref(),
+    ern_exchange ! {ern_frame, self(), {reach_request, Ref, {function, <<0:256>>}}},
+    receive {ern_frame, _, {reach, Ref, none}} -> ok end.
 
 collected(Ref, Acc) ->
     receive
@@ -437,7 +647,7 @@ collected(Ref, Acc) ->
     end.
 
 %% The frames the stand-in gateway holds now, every one the exchange sent
-%% having come before pinned/0's answer.
+%% having come before catch_up/0's answer.
 waiting() ->
     receive
         {ern_frame, _, Body} -> [Body | waiting()]

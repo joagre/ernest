@@ -47,11 +47,17 @@ test: programs docs guide grammar typed shell
 # it runs the areas side by side.
 beams: $(BEAMS) prepare
 
+# ern_named, by which a test calls a unit's function by its Ernest name, is
+# a module of the runtime's tests (erl/runtime/test); the measure and the
+# typed programs call it too, so their targets build the runtime's tests.
+named:
+	@$(MAKE) -s -C ../erl/runtime/src beams
+
 # The nodes the programs' tests start live in one directory of the run's
 # own, and each whose ernest.pid is still there when the tests end is
 # stopped before the directory goes (report §11.2), so that a test that
 # failed or ran out of time before it stopped its nodes leaves none running.
-programs: $(BEAMS) prepare measured
+programs: $(BEAMS) prepare measured named
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_programs_XXXXXX") && \
 	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS)); \
 	  status=$$?; \
@@ -86,7 +92,7 @@ grammar: $(BEAMS)
 
 # Well-typed programs generated, checked, compiled and run in one host
 # (MVP 2.99c item 3), whose seed ERN_SEED gives again.
-typed: $(BEAMS)
+typed: $(BEAMS) named
 	$(call EUNIT,$(TYPED))
 
 # The shell's and the terminal's tests make their homes, sources, inputs
@@ -145,7 +151,8 @@ service: measured
 # ern_measure (plan MVP 2.99d item 1), its whole table in
 # build/bench/library.txt. Not part of `test`, since it measures and
 # asserts nothing.
-bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam measured
+bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam measured \
+	  named
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
@@ -170,4 +177,5 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide grammar typed shell prepare measured xref load service bench clean
+.PHONY: test programs docs guide grammar typed shell prepare named measured xref load service \
+	bench clean
