@@ -1,6 +1,6 @@
 # A shell attached to a running node, and a sandboxed session
 
-Under discussion, begun 2026-10-13, for MVP 4.0 and MVP 4.2. Nothing here is decided. `shell_design.md` is the shell as built; this page is what attaching adds to it and what a session open to strangers must refuse and bound.
+Begun 2026-10-13 for MVP 4.0 and MVP 4.2. Decided the same day with the user in two parts: section 2, attaching, is MVP 4.0's, the operator's alone and with no sandbox, by a listed name and never an address; sections 3 and 4, the sandboxed session, are set aside, the website running the plain shell in a container per visitor as MVP 4.2 decided on 2026-10-10, since a language-level sandbox is never the one wall and the container needs nothing of the language. Sections 3 and 4 are kept as what was weighed. `shell_design.md` is the shell as built; this page is what attaching adds to it and what a session open to strangers must refuse and bound.
 
 ## 1. Two uses, one mechanism
 
