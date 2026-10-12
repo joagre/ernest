@@ -1,6 +1,6 @@
 # Placement by push
 
-Decided on 2026-10-13, with the user, every question of section 7; built as MVP 3.2's item 7.5, before the deployment guide, so that the guide teaches the placement that ships. Begun the same day, it reopened one question of `proposals/balancer/suggestion.md`, decided for MVP 3.25: how a node learns how busy its peers are. There, a node asks at the moment of the pick, `Placement.leastBusy(names, ms)` asking every name its utilisation at once. Here, each node tells its peers on an interval, and a node picks from what it holds. Once built, the report owns the rules and this page is the record of the design.
+Decided on 2026-10-13, with the user, every question of section 7; built as MVP 3.2's item 8, before the deployment guide, so that the guide teaches the placement that ships. Begun the same day, it reopened one question of `proposals/balancer/suggestion.md`, decided for MVP 3.25: how a node learns how busy its peers are. There, a node asks at the moment of the pick, `Placement.leastBusy(names, ms)` asking every name its utilisation at once. Here, each node tells its peers on an interval, and a node picks from what it holds. Once built, the report owns the rules and this page is the record of the design.
 
 ## 1. What it is
 
@@ -16,7 +16,7 @@ The number a node tells is its own to design. By default it is the measure `util
 
 `Peer.spawn`, `Peer.spawnMonitored` and `Peer.find` keep their names and their peer. A process is placed by a deployment's decision, where the data is, where the service is to live, which a name says; a computation is work, placed where there is room. The asymmetry is stated, and section 7 names what would change it.
 
-`libs/placement` goes with Appendix G.5, since a pull beside a push is two ways to one end (principle 2); `Peer.utilisation(name, ms)` stays, a measurement asked for now, which a program wanting a fresher number than the table's takes.
+The `Placement` library goes with Appendix G.5, since a pull beside a push is two ways to one end (principle 2); `Peer.utilisation(name, ms)` stays, a measurement asked for now, which a program wanting a fresher number than the table's takes.
 
 ## 2. What a program sees
 
@@ -75,7 +75,7 @@ Run by MVP 3.27 across the user's four machines, one on a separate LAN, once the
 - §10: the frames' cost per interval, stated.
 - Appendix C: `"utilisation-interval"`, its default.
 - E.27: `compute`, `computeAt`, `loads`, `load`; the guide's §8.1 taught over them.
-- G.5 goes, and `libs/placement` with it; its tests move to `Peer`'s.
+- G.5 goes, and the `Placement` library with it; its tests move to `Peer`'s.
 - The log's *Placing Work by Name* gains the reversal and why; `proposals/balancer/README.md` points here.
 - `docs/soundness.md`: nothing, since no type changes; a load is a number.
 
@@ -88,6 +88,6 @@ Run by MVP 3.27 across the user's four machines, one on a separate LAN, once the
 5. **The number's design.** `Peer.load(x)` sets a value the node tells until it is set again, the plainest shape; a function the node would call at each telling would run the program's code in a process of the runtime's on the runtime's interval, which §0's paragraph on time and principle 3 count against. A program that wants a fresh number sets it when its own state changes.
 6. **A node that lists no peers.** Tells no one, holds nothing, and `Peer.compute` answers `Left(NotListed)`, there being no peer to reach; `Left(Unreachable)` is for peers listed and none with a usable load.
 
-## 8. Built as MVP 3.2's item 7.5
+## 8. Built as MVP 3.2's item 8
 
-The report's sentences first, then the frame, the table and the four functions, `libs/placement` removed, the guide's §8.1 taught over the new names, the nodes tests over the rules, `make test` green, the measurements of the pick's cost in the log; MVP 3.27 measures it across machines, and the deployment guide, item 8, teaches it.
+The report's sentences first, then the frame, the table and the four functions, the `Placement` library removed, the guide's §8.1 taught over the new names, the nodes tests over the rules, `make test` green, the measurements of the pick's cost in the log; MVP 3.27 measures it across machines, and the deployment guide, item 8, teaches it.

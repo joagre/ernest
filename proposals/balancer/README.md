@@ -8,4 +8,4 @@ What each file here is, and which is current.
 
 The proposal is decided and kept as the record of its design, as [`CLAUDE.md`](../../CLAUDE.md) says of a built proposal; the report owns the rules. The program written against `Balancer` on 2026-10-10, which the proposal's section 2 describes, is not kept here; it goes around no gap and stands on nothing the guide does not show.
 
-On 2026-10-13 [`../placement/push.md`](../placement/push.md) reopened the pull decided here, every peer asked its utilisation at the moment of the pick, and decided for a push, each node telling its peers on a configured interval and `Peer.compute` picking by two choices from what it holds; built as MVP 3.2's item 7.5, `libs/placement` going with it.
+On 2026-10-13 [`../placement/push.md`](../placement/push.md) reopened the pull decided here, every peer asked its utilisation at the moment of the pick, and decided for a push, each node telling its peers on a configured interval and `Peer.compute` picking by two choices from what it holds; built as MVP 3.2's item 8, the `Placement` library going with it.
