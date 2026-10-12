@@ -1,6 +1,6 @@
 # Placement by push
 
-Decided on 2026-10-13, with the user, every question of section 7; built as MVP 3.2's item 8, before the deployment guide, so that the guide teaches the placement that ships. Begun the same day, it reopened one question of `proposals/balancer/suggestion.md`, decided for MVP 3.25: how a node learns how busy its peers are. There, a node asks at the moment of the pick, `Placement.leastBusy(names, ms)` asking every name its utilisation at once. Here, each node tells its peers on an interval, and a node picks from what it holds. Once built, the report owns the rules and this page is the record of the design.
+Decided on 2026-10-13, with the user, every question of section 7; built as MVP 3.2's item 8, before the deployment guide, so that the guide teaches the placement that ships; `Peer.load` and `Peer.loads` were renamed `Peer.setUtilisation` and `Peer.utilisations` as it was built, the number told being the utilisation, and this page keeps the names it was written with. Begun the same day, it reopened one question of `proposals/balancer/suggestion.md`, decided for MVP 3.25: how a node learns how busy its peers are. There, a node asks at the moment of the pick, `Placement.leastBusy(names, ms)` asking every name its utilisation at once. Here, each node tells its peers on an interval, and a node picks from what it holds. Once built, the report owns the rules and this page is the record of the design.
 
 ## 1. What it is
 

@@ -20,12 +20,13 @@
 %% utilisation it answers itself, from the host's counters, keeping the
 %% node's measure and its last reading, and turning on the host's keeping
 %% of the schedulers' time, which lasts as long as the process that turns it
-%% on, where the measure is the schedulers', or with the load the program
-%% set (ern_rt:program_load/0). The same number it tells each connected
-%% peer, with the interval of its tellings, every `utilisation-interval`
-%% while the node lists peers, by a timer of its own, since it owns the
-%% connections and the measure, and a peer's telling it holds as it comes
-%% (ern_peer:hold_load/3), dropping the load at the peer's loss. It watches
+%% on, where the measure is the schedulers', or with the utilisation the
+%% program set (ern_rt:program_utilisation/0). The same number it tells
+%% each connected peer, with the interval of its tellings, every
+%% `utilisation-interval` while the node lists peers, by a timer of its
+%% own, since it owns the connections and the measure, and a peer's telling
+%% it holds as it comes (ern_peer:hold_utilisation/3), dropping it at the
+%% peer's loss. It watches
 %% the node's connections and says each change of one (ern_carrier:said/1),
 %% since a connection's end is said by the frames that came before it: a
 %% peer that told this node it ends ended, and one that did not was lost. A
@@ -124,7 +125,7 @@ gateway(Workers, Ended, Measured, Telling) ->
         {ern_frame, From, {telling, Utilisation, Interval}}
           when is_pid(From), node(From) =/= node(), is_float(Utilisation), Utilisation >= 0.0,
                is_integer(Interval), Interval >= 1 ->
-            ok = ern_peer:hold_load(node(From), Utilisation, Interval),
+            ok = ern_peer:hold_utilisation(node(From), Utilisation, Interval),
             gateway(Workers, Ended, Measured, Telling);
         %% report §8.7: a peer that ends says so before its connection
         %% closes, so that its end is said as an end and not as a loss
@@ -165,14 +166,14 @@ gateway(Workers, Ended, Measured, Telling) ->
             {Worker, _} = worker(Node, Workers),
             Worker ! stop,
             noted(fun() -> ern_rt:drop_notes(Node) end),
-            ok = ern_peer:drop_load(Node),
+            ok = ern_peer:drop_utilisation(Node),
             said(case Ended of
                      #{Node := true} -> {ended, Node};
                      _ -> Event
                  end),
             gateway(maps:remove(Node, Workers), maps:remove(Node, Ended), Measured, Telling);
         %% report §8.7: a peer that connects is told at once, so that it
-        %% holds this node's load before an interval has passed
+        %% holds this node's utilisation before an interval has passed
         {nodeup, Node, _} = Event ->
             said(Event),
             gateway(Workers, Ended, told([Node || is_peer(Node)], Measured), Telling);
@@ -212,9 +213,9 @@ is_peer(Node) ->
 
 %% Report §8.7: each of Nodes told how busy the node is, the number an ask
 %% answers (utilisation/1), with the interval of its tellings, by which the
-%% peer ages the load, over its connection and without opening one; and
-%% what the measure keeps for the next reading; nothing read where there is
-%% no one to tell.
+%% peer ages it, over its connection and without opening one; and what the
+%% measure keeps for the next reading; nothing read where there is no one
+%% to tell.
 told([], Measured) ->
     Measured;
 told(Nodes, Measured) ->
@@ -225,12 +226,12 @@ told(Nodes, Measured) ->
     Measured1.
 
 %% Report §8.7: how busy the node is, as it tells and answers its peers: the
-%% load its program set with `Peer.load`, which keeps the measure as it
-%% was, and else its measure.
+%% utilisation its program set with `Peer.setUtilisation`, which keeps the
+%% measure as it was, and else its measure.
 utilisation(Measured) ->
-    case ern_rt:program_load() of
+    case ern_rt:program_utilisation() of
         none -> measure(Measured);
-        Load -> {Load, Measured}
+        Set -> {Set, Measured}
     end.
 
 %% Report §8.7: the node's measure of how busy it is, as its configuration

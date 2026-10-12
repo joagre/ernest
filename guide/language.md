@@ -2321,14 +2321,14 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilisation-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last load each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the node's `"utilisation"` entry says, by its run queue where it says nothing. `Peer.compute` draws two of the peers whose loads the node may use, at random, and takes the less loaded, the first in the configuration's order where the two are equal; a load older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its load. Where no peer has told a load the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilisation(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilisation-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilisation each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the node's `"utilisation"` entry says, by its run queue where it says nothing. `Peer.compute` draws two of the peers whose utilisations the node may use, at random, and takes the less busy, the first in the configuration's order where the two are equal; a utilisation older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its utilisation. Where no peer has told a utilisation the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilisation(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 
-A rule of the program's own is a function over `Peer.loads()`, the loads the node holds, each peer's name, its load and the milliseconds since it came, in the configuration's order, a peer not heard from left out. The least loaded of them all:
+A rule of the program's own is a function over `Peer.utilisations()`, the utilisations the node holds, each peer's name, its utilisation and the milliseconds since it came, in the configuration's order, a peer not heard from left out. The least busy of them all:
 
 ```ernest
 // least.ern
 export fn computed(n : Int) : Either(Io.Error, Int) with m =
-    match List.sort(Peer.loads(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
+    match List.sort(Peer.utilisations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
         #(name, _, _) :: _ -> Peer.computeAt(name, fn() = heavy(n), 5000)
       | [] -> Right(heavy(n))
     }
@@ -2339,7 +2339,7 @@ fn heavy(n : Int) : Int =
 
 Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
 
-A program that knows its load better than its node's measure, a queue's depth or work it has promised, tells it with `Peer.load(x)`, `x` from 0.0 to 1.0: from then on its node tells its peers that number, and answers it to a `Peer.utilisation`, until the program sets it again. A number outside the scale faults the caller (report Appendix E.27).
+A program that knows how busy it is better than its node's measure does, by a queue's depth or work it has promised, says so with `Peer.setUtilisation(x)`, `x` from 0.0 to 1.0: from then on its node tells its peers that number, and answers it to a `Peer.utilisation`, until the program sets it again or its run ends. A number outside the scale faults the caller (report Appendix E.27).
 
 **A result that comes later.** A program that is not to wait for the value spawns a process that computes it and sends it back, one message later:
 

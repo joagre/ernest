@@ -889,9 +889,9 @@ terminal_scenarios() ->
 
 %% Appendix E.27: a service as the compiler makes it, with its type's
 %% hash; an offer and its withdrawal beside the host's two tables written
-%% and emptied; the peers' names, and the loads held of them, none in a
-%% run of one node, beside the host's read of the names; a load set beside
-%% the host's row written. A find, a spawn, a compute on a peer named or
+%% and emptied; the peers' names, and the utilisations held of them, none
+%% in a run of one node, beside the host's read of the names; a
+%% utilisation set beside the host's row written. A find, a spawn, a compute on a peer named or
 %% picked and a utilisation act on a peer, which a run of one node cannot
 %% reach; `make bench`'s node parts measure them, the pick among them, on
 %% real nodes.
@@ -899,9 +899,9 @@ peer_scenarios() ->
     Peer = ern_named:functions('ern@peer'),
     PeerOffer = Peer(offer),
     PeerPeers = Peer(peers),
-    PeerLoads = Peer(loads),
-    PeerLoad = Peer(load),
-    Loads = ets:new(ern_measure_load, [set, public]),
+    PeerUtilisations = Peer(utilisations),
+    PeerSetUtilisation = Peer(setUtilisation),
+    Launch = ets:new(ern_measure_launch, [set, public]),
     Me = ern_rt:self(),
     {Name, Hash} = {<<"measured">>, <<0:256>>},
     Withdrawn = fun() ->
@@ -929,9 +929,10 @@ peer_scenarios() ->
      {<<"Peer.utilisation">>, AcrossNodes},
      {<<"Peer.peers">>, {fun() -> PeerPeers() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}},
-     {<<"Peer.loads">>, {fun() -> PeerLoads() end,
-                         fun() -> persistent_term:get({ern_peer, names}, []) end}},
-     {<<"Peer.load">>, {fun() -> PeerLoad(0.5) end, fun() -> ets:insert(Loads, {load, 0.5}) end}}].
+     {<<"Peer.utilisations">>, {fun() -> PeerUtilisations() end,
+                                fun() -> persistent_term:get({ern_peer, names}, []) end}},
+     {<<"Peer.setUtilisation">>, {fun() -> PeerSetUtilisation(0.5) end,
+                                  fun() -> ets:insert(Launch, {utilisation, 0.5}) end}}].
 
 %% Appendix E.28: a compiled module's hashes beside the host's read of its
 %% forms' chunk; a load of a module the node holds already, its file read,

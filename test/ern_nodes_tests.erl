@@ -1373,7 +1373,7 @@ compute_on_peer(Base) ->
                     - 1),
     has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:520 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:521 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
@@ -2158,7 +2158,7 @@ bare_build(Base) ->
              "    }\n"
              "\n"
              "// Spawns, computes, a find, a utilisation and a pick, each answer a line;\n"
-             "// the bare node tells its load every interval.\n"
+             "// the bare node tells its utilisation every interval.\n"
              "fn placed(bare : String, interval : Int) : Unit with Note = {\n"
              "    let counter = Peer.spawn(bare, fn() : Unit with Int = counts(0), 5000);\n"
              "    Io.println(\"spawn: \" <> outcome(counter));\n"
@@ -2223,10 +2223,10 @@ bare_build(Base) ->
              "\n"
              "fn answer() : Int = 6 * 7\n"
              "\n"
-             "// Report §8.7: until the node holds the bare node's load, read again at\n"
-             "// each of its intervals, at which alone the table changes.\n"
+             "// Report §8.7: until the node holds the bare node's utilisation, read\n"
+             "// again at each of its intervals, at which alone the table changes.\n"
              "fn heard(bare : String, interval : Int) : Unit with m =\n"
-             "    if List.any(Peer.loads(), fn(#(peer, _, _)) = peer == bare) then\n"
+             "    if List.any(Peer.utilisations(), fn(#(peer, _, _)) = peer == bare) then\n"
              "        Unit\n"
              "    else\n"
              "        receive {\n"
@@ -2281,7 +2281,7 @@ line_of(Text, Part) ->
 %% of the program's function runs there with its code crossed, and takes
 %% the peer's messages; a compute answers its value; a process spawned
 %% there offers a service, which the peer finds and sends to; its
-%% utilisation answers, and it tells its load as any node does, so that a
+%% utilisation answers, and it tells it as any node does, so that a
 %% compute that names no peer runs there once it has; a library on its
 %% load path is loaded and its binding not evaluated, so a spawn whose reach
 %% names the binding is NotLoaded, the node saying so; a fault in received
@@ -3650,16 +3650,16 @@ typed_channels(Base) ->
 %% report §8.7, Appendix E.27, C, G.4: a compute on a peer the desk picks,
 %% the store and the desk telling every `utilisation-interval` of their
 %% configurations, of the desk's two peers the store alone reached: before
-%% any connection, the desk holding no load, Unreachable; once the spawn
-%% of the loads' check has connected them and the store has told its load,
-%% on the store, the value its peers, the desk and the third node, and the
-%% store the one peer the desk holds a load of, the peer gone left out;
-%% Load answers the host's services' loads on the store, whose measures run
-%% them, and none on the desk, whose do not. A regression test, written
-%% after the code; the pick's rules over two peers and more are
-%% pick_test_'s and ern_peer_tests', and the desk waits for the telling by
-%% reading its loads at each interval, so that the telling's coming within
-%% one interval is held by no time here
+%% any connection, the desk holding no utilisation, Unreachable; once the
+%% spawn of the loads' check has connected them and the store has told its
+%% utilisation, on the store, the value its peers, the desk and the third
+%% node, and the store the one peer the desk holds a utilisation of, the
+%% peer gone left out; Load answers the host's services' loads on the
+%% store, whose measures run them, and none on the desk, whose do not. A
+%% regression test, written after the code; the pick's rules over two peers
+%% and more are pick_test_'s and ern_peer_tests', and the desk waits for
+%% the telling by reading its utilisations at each interval, so that the
+%% telling's coming within one interval is held by no time here
 placed_test_() ->
     nodes_test(90, fun placed/1).
 
@@ -3696,7 +3696,8 @@ pick_build(Base) ->
     Dir = filename:join(Base, "pick"),
     ok = filelib:ensure_path(Dir),
     Source = "// Report §8.7: the spawner, which lists p1 and p2, computes on the one\n"
-             "// it picks by the loads they told it; p1 and p2, which list it, wait;\n"
+             "// it picks by the utilisations they told it; p1 and p2, which list it,\n"
+             "// wait;\n"
              "// and a node that lists no peer picks none.\n"
              "\n"
              "export fn main() : Unit with Unit =\n"
@@ -3714,40 +3715,41 @@ pick_build(Base) ->
              "\n"
              "fn picks(interval : Int) : Unit with Unit = {\n"
              "    Io.println(\"before a telling: \" <> Io.show(Peer.compute(ran, 5000)));\n"
-             "    Io.println(\"p1 set: \" <> Io.show(Peer.computeAt(\"p1\", fn() = Peer.load(0.9),"
-             " 5000)));\n"
-             "    Io.println(\"p2 set: \" <> Io.show(Peer.computeAt(\"p2\", fn() = Peer.load(0.1),"
-             " 5000)));\n"
-             "    told(\"p1\", 0.9, interval);\n"
-             "    told(\"p2\", 0.1, interval);\n"
-             "    Io.println(\"loads: \" <> Io.show(List.map(Peer.loads(), fn(#(name, load, _)) ="
-             " #(name, load))));\n"
+             "    let set1 = Peer.computeAt(\"p1\", fn() = Peer.setUtilisation(0.9), 5000);\n"
+             "    Io.println(\"p1 set: \" <> Io.show(set1));\n"
+             "    let set2 = Peer.computeAt(\"p2\", fn() = Peer.setUtilisation(0.1), 5000);\n"
+             "    Io.println(\"p2 set: \" <> Io.show(set2));\n"
+             "    heard(\"p1\", 0.9, interval);\n"
+             "    heard(\"p2\", 0.1, interval);\n"
+             "    let told = List.map(Peer.utilisations(), fn(#(name, utilisation, _)) ="
+             " #(name, utilisation));\n"
+             "    Io.println(\"utilisations: \" <> Io.show(told));\n"
              "    Io.println(\"utilisation of p1: \" <> Io.show(Peer.utilisation(\"p1\", 5000)));\n"
              "    let computed = List.map(List.range(1, 20), fn(_) = Peer.compute(ran, 5000));\n"
              "    Io.println(\"computed: \" <> Io.show(List.unique(computed)));\n"
              "    Io.println(\"named: \" <> Io.show(Peer.computeAt(\"p1\", ran, 5000)));\n"
              "    Io.println(\"now stop p2\");\n"
              "    let _ = Io.readLine();\n"
-             "    let left = List.map(Peer.loads(), fn(#(name, _, _)) = name);\n"
+             "    let left = List.map(Peer.utilisations(), fn(#(name, _, _)) = name);\n"
              "    Io.println(\"after the loss: \" <> Io.show(left));\n"
              "    Io.println(\"computed alone: \" <> Io.show(Peer.compute(ran, 5000)))\n"
              "}\n"
              "\n"
-             "// Report §8.7: until the node holds the load given of the peer named,\n"
-             "// read again every interval, the time between the peer's tellings, at\n"
-             "// which alone the table changes.\n"
-             "fn told(name : String, load : Float, interval : Int) : Unit with m =\n"
-             "    if List.any(Peer.loads(), fn(#(peer, held, _)) = peer == name && held == load)"
-             " then\n"
+             "// Report §8.7: until the node holds the utilisation given of the peer\n"
+             "// named, read again every interval, the time between the peer's\n"
+             "// tellings, at which alone the table changes.\n"
+             "fn heard(name : String, utilisation : Float, interval : Int) : Unit with m =\n"
+             "    if List.any(Peer.utilisations(), fn(#(peer, held, _)) ="
+             " peer == name && held == utilisation) then\n"
              "        Unit\n"
              "    else\n"
              "        receive {\n"
-             "            after interval -> told(name, load, interval)\n"
+             "            after interval -> heard(name, utilisation, interval)\n"
              "        }\n"
              "\n"
              "fn alone() : Unit with Unit = {\n"
              "    Io.println(\"no peer: \" <> Io.show(Peer.compute(ran, 5000)));\n"
-             "    Io.println(\"no load: \" <> Io.show(Peer.loads()))\n"
+             "    Io.println(\"no utilisation: \" <> Io.show(Peer.utilisations()))\n"
              "}\n"
              "\n"
              "// Until the node is stopped: a node waiting for ever is no deadlock.\n"
@@ -3764,19 +3766,21 @@ pick_build(Base) ->
 %% started with its name, which a compute of the node's arguments answers:
 %% the spawner, listing p1 and p2 and heard from by neither before its
 %% first operation, answers a compute that names no peer Unreachable; p1's
-%% load set high and p2's low by a compute on each, `Peer.load` in the
-%% process it starts, the spawner's loads show both, in the configuration's
-%% order, and p1's utilisation asked answers the number its program set;
-%% every compute that names no peer runs on p2, the less loaded of the two
-%% the draw takes, each load aged by its teller's interval and not the
-%% spawner's, by which it would mostly be too old, and `Peer.computeAt` runs on
-%% the peer named, p1; p2 stopped, its load is dropped at the loss, which
-%% the spawner says, and a compute runs on p1, the one peer left, taken as
-%% it is; and a node that lists no peer answers NotListed and holds no
-%% load. A regression test, written after the code; the spawner waits for
-%% each telling by reading its loads at each interval, so that a telling's
-%% coming within one interval is held by no time here, and the draw among
-%% more than two peers and the age of a load are ern_peer_tests'
+%% utilisation set high and p2's low by a compute on each,
+%% `Peer.setUtilisation` in the process it starts, the spawner's
+%% utilisations show both, in the configuration's order, and p1's
+%% utilisation asked answers the number its program set; every compute that
+%% names no peer runs on p2, the less busy of the two the draw takes, each
+%% utilisation aged by its teller's interval and not the spawner's, by
+%% which it would mostly be too old, and `Peer.computeAt` runs on the peer
+%% named, p1; p2 stopped, its utilisation is dropped at the loss, which the
+%% spawner says, and a compute runs on p1, the one peer left, taken as it
+%% is; and a node that lists no peer answers NotListed and holds no
+%% utilisation. A regression test, written after the code; the spawner
+%% waits for each telling by reading its utilisations at each interval, so
+%% that a telling's coming within one interval is held by no time here, and
+%% the draw among more than two peers and the age of a utilisation are
+%% ern_peer_tests'
 pick_test_() ->
     nodes_test(90, fun pick/1).
 
@@ -3806,12 +3810,12 @@ pick(Base) ->
     {Out, _} = said(S),
     [has(Out, Line)
      || Line <- ["before a telling: Left(Unreachable)", "p1 set: Right(Unit)",
-                 "p2 set: Right(Unit)", "loads: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
+                 "p2 set: Right(Unit)", "utilisations: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
                  "utilisation of p1: Right(0.9)", "computed: [Right([\"p2\"])]",
                  "named: Right([\"p1\"])", "after the loss: [\"p1\"]",
                  "computed alone: Right([\"p1\"])"]],
     {AloneOut, _} = said(Alone),
-    [has(AloneOut, Line) || Line <- ["no peer: Left(NotListed)", "no load: []"]].
+    [has(AloneOut, Line) || Line <- ["no peer: Left(NotListed)", "no utilisation: []"]].
 
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two

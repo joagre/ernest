@@ -173,8 +173,8 @@ sample() ->
     {Packets, Reductions}.
 
 %% Report §8.7: the microseconds Count picks of a compute that names no peer
-%% take on this node, each a read of the loads its peers told it and a
-%% draw, and no frame.
+%% take on this node, each a read of the utilisations its peers told it and
+%% a draw, and no frame.
 -spec picks(integer()) -> integer().
 picks(Count) ->
     {Micros, ok} = timer:tc(fun() -> picked(Count) end),

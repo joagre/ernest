@@ -6,8 +6,9 @@
 %% fix's callers cost, crossed with it to a node of the old build; what an
 %% arrival, a `Code.load` and a development day's spawns add to the host's
 %% four counts, against their limits (§11.2); what a utilisation costs, and
-%% a compute on a peer the node picks by the loads its peers told it beside
-%% one on a peer named, the pick alone and the read of the loads, and what
+%% a compute on a peer the node picks by the utilisations its peers told it
+%% beside one on a peer named, the pick alone and the read of the
+%% utilisations, and what
 %% connected nodes exchange idle, the tellings among it (§8.7, plan MVP
 %% 3.2 item 8); and the sizes of the
 %% standard library's `.erc` files and of a code frame, and what reading a
@@ -272,9 +273,9 @@ costs() ->
      "fn one() : Int = 1\n"
      "\n"
      "// Report §8.7: rounds of a utilisation, of a compute on a peer the node\n"
-     "// picks by the loads its peers told it, of one on the peer named, of the\n"
-     "// loads read, and of the pick alone, the read and the draw, each peer\n"
-     "// holding `one` first, so that no compute carries code.\n"
+     "// picks by the utilisations its peers told it, of one on the peer named,\n"
+     "// of the utilisations read, and of the pick alone, the read and the\n"
+     "// draw, each peer holding `one` first, so that no compute carries code.\n"
      "fn placing(q1 : String) : Unit with m = {\n"
      "    List.forEach(Peer.peers(), fn(node) = {\n"
      "        let _ = Peer.computeAt(node, one, 30000);\n"
@@ -294,8 +295,8 @@ costs() ->
      "            let _ = Peer.computeAt(q1, one, 5000);\n"
      "            Unit\n"
      "        });\n"
-     "        rounds(\"loads\", label, fn() = {\n"
-     "            let _ = Peer.loads();\n"
+     "        rounds(\"utilisations\", label, fn() = {\n"
+     "            let _ = Peer.utilisations();\n"
      "            Unit\n"
      "        });\n"
      "        said([\"pick\", label, Int.toString(picks(", integer_to_list(?ROUNDS), "))])\n"
@@ -933,15 +934,16 @@ counted([]) ->
     [].
 
 %% Report §8.7: a utilisation, a compute on a peer picked and one on a peer
-%% named, the loads read and the pick alone, each a round's microseconds.
+%% named, the utilisations read and the pick alone, each a round's
+%% microseconds.
 pick_table(Lines) ->
     heading("a utilisation and a compute, between nodes", "µs"),
     [row(Name, [list_to_integer(Micros) / ?ROUNDS || {_, [Micros]} <- lines(Scenario, Lines)])
      || {Scenario, Name} <- [{"utilisation", "Peer.utilisation of one peer"},
                              {"compute", "Peer.compute, a peer picked of eight"},
                              {"compute_at", "Peer.computeAt, the peer named"},
-                             {"loads", "Peer.loads, eight peers' loads read"},
-                             {"pick", "the pick alone, the loads read and the draw"}]].
+                             {"utilisations", "Peer.utilisations, eight peers' read"},
+                             {"pick", "the pick alone, the utilisations read and the draw"}]].
 
 %% Report §8.7: the packets each connection of three nodes carried idle,
 %% each way, as the host counts them, the tellings every interval and the
