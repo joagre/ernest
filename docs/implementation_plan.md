@@ -330,33 +330,30 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    table and the four functions, the guide's §8.1 over the new names, the nodes tests over the rules
    and the pick's cost measured; the log's *Placing Work by Name* records the reversal, principles 2
    and 3 and Mitzenmacher's result on old information. MVP 3.27 measures it across machines.
-9. **The deployment guide.** `guide/deployment.md`, written whole here as a teaching document of its
-   own, which owns running nodes: a node's configuration directory, `ern reload` and `ern stop`, the
-   service manager, and what code by its hash gives a system of nodes, several builds running at
-   once and connecting on one floor, two versions of a type as two types, a fix shipped with a
-   spawn, the bare node given its work, and a running service moved to new code by the program's own
-   upgrade over `Code.running`; what a node keeps for its life and the counts that never fall, that
-   it says once at four fifths of one, and that a restart at a time of the operator's choosing holds
-   the build and is sent the rest again (§11.2; decided 2026-10-12, the log's *The Report for Code
-   with a Spawn*). Its outline, agreed with the user 2026-10-13: who it is for, the operator,
-   assuming the language guide's chapter 8; one node, `ern config`, the directory and `ernest.conf`
-   line by line, `ern run`, `ern stop`, `ern reload`, the pid file, what the node says and its
-   statuses, the service manager, which §9.5 of the language guide holds today and moves here with a
-   pointer; two nodes, keys, certificates, the floor, the handshake, a lost peer on each side and in
-   the program; services and work, offering and finding, utilisation and placement, the proxy, a
-   bare node given its work; code across nodes, what crosses and when, what a node keeps for its
-   life, the counts, the four-fifths line, the restart and what it holds, the `NotLoaded` and
-   `Other` lines; builds, several on one floor, two versions of a type, a fix from a shell, a
-   service moved over `Code.running` and `Code.load` with `examples/upgrade_tool.ern`, the upgrade
-   idiom's two lines named, and the adapted address a service with `Upgrade` is offered through
-   (§6.10); looking in, a shell beside a running node, `Process.status`, `Peer.utilisation`, the
-   measures, a trace; what a node says and what to do, the catalogue of standard-error lines; a
-   deployment end to end, three nodes on one machine to a rolling upgrade, run by the tests;
-   containers and orchestration left out, and the design to the log. Decided 2026-10-13 (the log's
-   *The Report for Code with a Spawn*, and *Later*): no `Code.upgrade`, since the message it would
-   send is the program's own type, which no library function can build at a type, and the two lines
-   show the mechanism whole. Written after item 8, placement by push, decided 2026-10-13 from
-   `proposals/placement/push.md`, so that the guide's placement is the one that ships.
+9. **The deployment guide.** `guide/deployment.md`, *Running Ernest*, written whole as a teaching
+   document of its own for the operator, who runs nodes and may write no Ernest, after item 8 and
+   MVP 3.27, so that it teaches the placement that ships and stands on numbers measured across
+   machines. Its outline, agreed 2026-10-13 and tightened the same day to the operator's half of
+   each subject, the programmer's half the language guide's chapter 8 with one line pointing there:
+   one node, `ern config`, the directory and `ernest.conf` line by line, `ern run`, `ern stop`, `ern
+   reload`, the pid file, what the node says and its statuses, the service manager, which §9.5 of
+   the language guide holds today and moves here with a pointer; two nodes, keys, certificates, the
+   floor, the handshake, a lost peer on each side and in the program; services and placement as the
+   configuration sees them, the `services`, `utilisation` and `utilisation-interval` entries and the
+   measures, a bare node given its work; code across nodes as the operator meets it, what a node
+   keeps for its life, the counts and the four-fifths line, the restart and what it holds, the
+   `NotLoaded` and `Other` lines and the move for each; builds, several on one floor, two versions
+   of a type, a fix from a shell, and `examples/upgrade_tool.ern` run against a running service, how
+   a service is written to be upgradable being chapter 8's; looking in, a shell beside a running
+   node, `Process.status`, `Peer.utilisation` and `Peer.loads`, the measures, a trace; what a node
+   says and what to do, the catalogue of standard-error lines, each with its cause and the
+   operator's move; and a deployment end to end as a runbook, three nodes on one machine to a
+   rolling upgrade, each command in order, each node's configuration, what each says after each
+   step, the check and what to do where a step fails, run by the tests, while the tour (MVP 3.3)
+   tells the same deployment as a story and points here to operate it; containers and orchestration
+   left out, and the design to the log. Decided 2026-10-13 (the log's *The Report for Code with a
+   Spawn*, and *Later*): no `Code.upgrade`, since the message it would send is the program's own
+   type, which no library function can build at a type, and the two lines show the mechanism whole.
 10. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
    MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
@@ -366,8 +363,13 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    pressure and reversed two, the whole principles review being MVP 3.9's full review's to hold;
    every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
    exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say what a
-   program written for 0.3.1 changes, the tag `v0.4.0` and the archive (decided with the user on
-   2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*). ---
+   program written for 0.3.1 changes, the README rewritten from
+   `proposals/scratch/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
+   changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
+   2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
+
+---
+
 ## MVP 3.27 (measured across machines), about a week
 
 A milestone made on 2026-10-13, when MVP 3.2's item 7 measured the exchange, the picks and the
