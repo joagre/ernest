@@ -822,6 +822,31 @@ host_exit_reason_test() ->
     after 2000 -> error(no_program_end)
     end.
 
+%% Appendix E.21, report §10: a fault's trace is the innermost twelve
+%% frames of the host's stack, which the runtime keeps from its start, the
+%% host keeping eight unless told. A regression test of a defect MVP 3.2's
+%% item 6 found, a trace of eight lines under a deeper stack
+trace_twelve_frames_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Failed = ern_rt:spawn(fun() -> receive Text -> nested(20, Text) end end,
+                                     <<"Main.main:3">>),
+               erlang:monitor(process, Failed),
+               Failed ! <<"x">>,
+               receive {'DOWN', _, process, Failed, Reason} -> Self ! {trace, Reason} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {ern, fault, <<"error:badarg">>, Trace} = wait(trace),
+    ?assertEqual(12, length(binary:split(Trace, <<"\n">>, [global, trim]))).
+
+%% Twice N calls deep, each returning to another function than the last,
+%% so that the host keeps each frame, and then a raise of a function the
+%% host's compiler takes to return, which leaves the calls body calls.
+nested(0, Text) -> binary_to_integer(Text);
+nested(N, Text) -> 1 + nested_again(N - 1, Text).
+
+nested_again(N, Text) -> 1 + nested(N, Text).
+
 %% report §6.9: a process the host ends otherwise, here killed by foreign
 %% code, has the reason Fault(text), the host's term as the host writes it.
 %% A regression test of the sentence, written after the code

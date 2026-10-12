@@ -1,0 +1,128 @@
+/// A node's code after its start: a compiled module loaded by the program, a
+/// module's definitions by their hashes, and the processes running a function.
+///
+/// A program uses it to move what runs to new code without a restart: it loads
+/// a module built after the node started, and sends each process that runs an
+/// old function the message by which the process replaces its own code (report
+/// §6.10). Code that a peer lacks crosses with a spawn, and needs no load
+/// (report §8.7).
+///
+/// A unit a load makes is held for the node's life, as every unit is, and adds
+/// to the host's counts of module names, export entries, function entries and
+/// atoms, which never fall while the node runs (report §11.2).
+///
+/// `running` is a form, as `Peer.spawn` is: it is called where it is named, with
+/// the name of a top-level `fn` whose result type is `Unit with m`, and answers
+/// the processes that run that function at the moment of the call (report
+/// §3.11).
+///
+/// ## Examples
+///
+/// Every process that runs `count` sent the message by which it moves to
+/// `count2`, which counts each `Inc` twice, its total kept; here no process
+/// runs `count`, and none is sent one:
+///
+/// ```ernest
+/// type CounterMsg =
+///     Inc(Int)
+///   | Get(reply : Reply(Int))
+///   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+///
+/// fn count(total : Int) : Unit with CounterMsg =
+///     receive {
+///         Inc(amount) -> count(total + amount)
+///       | Get(reply = reply) -> {
+///             answer(reply, total);
+///             count(total)
+///         }
+///       | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+///     }
+///
+/// fn count2(total : Int) : Unit with CounterMsg =
+///     receive {
+///         Inc(amount) -> count2(total + 2 * amount)
+///       | Get(reply = reply) -> {
+///             answer(reply, total);
+///             count2(total)
+///         }
+///       | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+///     }
+///
+/// List.forEach(Code.running(count),
+///              fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)))
+/// // => Unit
+/// ```
+///
+/// ## See also
+///
+/// `Peer.spawn`, which carries a function to a peer that lacks it, and
+/// `Process.live`, every process the runtime runs.
+///
+/// since 0.4.0
+
+/// Loads the compiled module at `path`, with the modules it uses, and evaluates
+/// the top-level bindings among them that have no value on this node, in the
+/// calling process, and answers `Right(Unit)`. The modules it uses are found by
+/// their namespaces under the module's own root and then on the load path, as
+/// `ern run` finds a program's (report §11.2), and each definition is verified
+/// against its hash. A module the node holds with the same code is the node's
+/// own; one it holds with other code, another build's, is loaded beside it, and
+/// a process that runs the other goes on running it. The bindings are evaluated
+/// in the order `ern run` evaluates a program's before `main`, each in a body of
+/// mailbox type `Never` (report §8.5).
+///
+/// A file that is no `.erc` of this `ern`, or that was compiled against another
+/// interface than the node holds, answers `Left(Invalid)`, and a module the load
+/// path lacks `Left(NotFound)`. A binding that faults answers `Left(Other(text))`,
+/// `text` the fault as `ern run` reports it, `Init.bad:3 faulted: division by
+/// zero`: nothing is loaded, and every process the evaluation started is killed.
+/// So does a load the node cannot make, `text` its reason, a count of the host's
+/// that the load would pass among them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Code.load(Path("nowhere/counter.erc"))
+/// // => Left(NotFound)
+/// ```
+export foreign fn load(path : Path) : Either(Io.Error, Unit) with m =
+    "ern_code_load:load/1"
+
+/// The definitions the compiled module at `path` holds, each as its qualified
+/// name and its hash, the digest in lowercase hexadecimal, in the order the
+/// module declares them. A foreign declaration has no hash and is left out. A
+/// file that is no `.erc` of this `ern` answers `Left(Invalid)`, and a path that
+/// names no file `Left(NotFound)`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Code.hashes(Path("nowhere/counter.erc"))
+/// // => Left(NotFound)
+/// ```
+export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))) with m =
+    "ern_code:hashes/1"
+
+/// The addresses of the processes on this node whose stack holds a frame of `f`
+/// itself at the moment of the call, in unspecified order. `f` is the name of a
+/// top-level `fn` of any arity whose result type is `Unit with m`, `m` holding
+/// no type variable, so that every process listed has the mailbox type `m`. A
+/// process spawned from a lambda written in `f` runs that lambda, and is not
+/// listed. The list is a snapshot: a process may have left `f`, or ended, by
+/// the time it is sent to. The host keeps at most the innermost 64 frames of a
+/// stack, so a process whose frame of `f` lies beneath them is not listed.
+/// `running` is called where it is named, and is no value (report §3.11).
+///
+/// ### Examples
+///
+/// ```ernest
+/// fn idle() : Unit with Int =
+///     receive {
+///         _ -> idle()
+///     }
+///
+/// Code.running(idle)
+/// // => []
+/// ```
+export foreign fn running(f : a) : List(Address(m)) with n =
+    "ern_code:running/1"

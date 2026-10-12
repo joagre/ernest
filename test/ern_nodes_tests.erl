@@ -3677,3 +3677,151 @@ given_up_within_the_detectors_time(Out) ->
     {match, [Seconds]} = re:run(Out, "given up after: ([0-9]+)", [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Seconds) >= 44),
     ?assert(list_to_integer(Seconds) =< 80).
+
+%% Report §6.10, §8.7, Appendix E.28: a counter's two builds, built in
+%% Base: the first, whose node runs counters on `count`, and the second,
+%% which keeps `count` as the first wrote it beside the new `count2`, with
+%% a binding a bare node evaluates only once Code.load loads the module,
+%% and the tool that moves a node's counters and loads a module on a bare
+%% node. The first build's `.erc`, the second's counter, and the tool's.
+upgraded_builds(Base) ->
+    [One, Two] = [filename:join([Base, "builds", Dir]) || Dir <- ["one", "two"]],
+    [ok = filelib:ensure_path(Dir) || Dir <- [One, Two]],
+    Count = "export type CounterMsg =\n"
+            "    Inc(Int)\n"
+            "  | Get(reply : Reply(Int))\n"
+            "  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)\n"
+            "\n"
+            "export fn count(total : Int) : Unit with CounterMsg =\n"
+            "    receive {\n"
+            "        Inc(amount) -> count(total + amount)\n"
+            "      | Get(reply = reply) -> {\n"
+            "            answer(reply, total);\n"
+            "            count(total)\n"
+            "        }\n"
+            "      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))\n"
+            "    }\n"
+            "\n"
+            "// Two counters spawned, and the entry process a third.\n"
+            "export fn serve() : Unit with CounterMsg = {\n"
+            "    let _ = spawn(fn() = count(10));\n"
+            "    let _ = spawn(fn() = count(20));\n"
+            "    Io.println(\"serving\");\n"
+            "    count(0)\n"
+            "}\n",
+    Count2 = "\n"
+             "// The second build's loop, which says each total it reaches.\n"
+             "export fn count2(total : Int) : Unit with CounterMsg =\n"
+             "    receive {\n"
+             "        Inc(amount) -> {\n"
+             "            Io.println(\"count2 \" <> Int.toString(total + amount));\n"
+             "            count2(total + amount)\n"
+             "        }\n"
+             "      | Get(reply = reply) -> {\n"
+             "            answer(reply, total);\n"
+             "            count2(total)\n"
+             "        }\n"
+             "      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))\n"
+             "    }\n"
+             "\n"
+             "// Report §8.5: a binding a bare node evaluates when Code.load loads the\n"
+             "// module there.\n"
+             "export let start : Int = 100\n"
+             "\n"
+             "export fn fromStart() : Unit with Int =\n"
+             "    receive {\n"
+             "        n -> Io.println(\"from start \" <> Int.toString(start + n))\n"
+             "    }\n",
+    Tool = "type Report = Moved(count : Int, left : Int)\n"
+           "\n"
+           "export fn main() : Unit with Report =\n"
+           "    match Os.arguments {\n"
+           "        [node, bare, path] -> {\n"
+           "            moved(node);\n"
+           "            loaded(bare, path)\n"
+           "        }\n"
+           "      | _ -> Unit\n"
+           "    }\n"
+           "\n"
+           "// Report §6.10: every process on the peer that runs count moved to\n"
+           "// count2 and asked for its total, which count2 answers, and then how\n"
+           "// many still run count.\n"
+           "fn moved(node : String) : Unit with Report = {\n"
+           "    let tool = self();\n"
+           "    match Peer.spawn(node, fn() = upgrade(tool), 5000) {\n"
+           "        Right(_) -> receive {\n"
+           "            Moved(count = count, left = left) ->\n"
+           "                Io.println(\"moved \" <> Int.toString(count) <> \", left \"\n"
+           "                           <> Int.toString(left))\n"
+           "        }\n"
+           "      | Left(failure) -> Io.println(\"moved: \" <> Io.show(failure))\n"
+           "    }\n"
+           "}\n"
+           "\n"
+           "fn upgrade(tool : Address(Report)) : Unit with m = {\n"
+           "    let old = Code.running(Counter.count);\n"
+           "    List.forEach(old, fn(process) =\n"
+           "        send(process, Counter.Upgrade(migrate = fn(n) = n, next = Counter.count2)));\n"
+           "    List.forEach(old, fn(process) = send(process, Counter.Inc(1)));\n"
+           "    let _ = List.map(old, fn(process) =\n"
+           "        Address.call(process, fn(reply) = Counter.Get(reply = reply), 5000));\n"
+           "    let left = Code.running(Counter.count);\n"
+           "    send(tool, Moved(count = List.size(old), left = List.size(left)))\n"
+           "}\n"
+           "\n"
+           "// Appendix E.28: a function whose reach names a binding the bare node\n"
+           "// never ran, refused before Code.load loads its module there and run\n"
+           "// after.\n"
+           "fn loaded(bare : String, path : String) : Unit with m = {\n"
+           "    Io.println(\"before load: \" <> started(bare));\n"
+           "    let loading = Peer.compute(bare, fn() = Code.load(Path(path)), 5000);\n"
+           "    Io.println(\"load: \" <> Io.show(loading));\n"
+           "    Io.println(\"after load: \" <> started(bare))\n"
+           "}\n"
+           "\n"
+           "fn started(bare : String) : String with m =\n"
+           "    match Peer.spawn(bare, Counter.fromStart, 5000) {\n"
+           "        Right(_) -> \"Right\"\n"
+           "      | Left(failure) -> Io.show(failure)\n"
+           "    }\n",
+    [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
+     || {Dir, File, Text} <- [{One, "counter.ern", Count}, {Two, "counter.ern", Count ++ Count2},
+                              {Two, "tool.ern", Tool}]],
+    0 = ern_cli:ern(["build", One], group_leader()),
+    0 = ern_cli:ern(["build", Two], group_leader()),
+    {filename:join(One, "counter.erc"), filename:join(Two, "counter.erc"),
+     filename:join(Two, "tool.erc")}.
+
+%% report §6.10, §8.7, §3.11, Appendix E.28: the upgrade tool of the
+%% proposal's section 3. A node runs the first build's counters on `count`;
+%% the tool, of the second build, spawns on it a process that lists them by
+%% Code.running, the code the node lacks, `count2` among it, crossing with
+%% the spawn, and moves each to `count2` by its own Upgrade, its total
+%% kept, so that `count` then lists none. On a bare node, which holds no
+%% program, a spawn whose reach names a binding is NotLoaded until a
+%% compute there runs Code.load of the module with its reach from the load
+%% path, which evaluates the binding, and the same spawn then runs.
+%% Written after the code
+code_upgrade_test_() ->
+    nodes_test(90, fun code_upgrade/1).
+
+code_upgrade(Base) ->
+    {CounterOne, CounterTwo, Tool} = upgraded_builds(Base),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    C = made(Base, "c", 0),
+    [lists(Dir, [{"a", A, none}]) || Dir <- [B, C]],
+    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main Counter.serve ",
+                              CounterOne]),
+    prints(B, "serving"),
+    PortB = bound_port(B),
+    WaitC = bare_started(C, []),
+    lists(A, [{"b", B, PortB}, {"c", C, bound_port(C)}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ", Tool, " b c ", CounterTwo]),
+    ?assertEqual(0, WaitA()),
+    [prints(B, Line) || Line <- ["count2 1", "count2 11", "count2 21"]],
+    stop(B, WaitB),
+    stop(C, WaitC),
+    {Out, _} = said(A),
+    [has(Out, Line) || Line <- ["moved 3, left 0", "before load: NotLoaded",
+                                "load: Right(Right(Unit))", "after load: Right"]].

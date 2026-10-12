@@ -34,7 +34,7 @@
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
          interface/2, declared_type/4, stripped/1, recorded_source/2, lambdas/2, unit_reaches/2,
-         references/1, verified/2, encode/1, read/1]).
+         references/1, verified/2, is_verified/1, encode/1, read/1]).
 
 -export_type([canonical/0, reach/0, source/0]).
 
@@ -597,6 +597,33 @@ verified([_, _ | _] = Hashes, Bytes) when is_binary(Bytes) ->
     end;
 verified(_, _) ->
     error.
+
+%% Report Appendix E.28, §8.7, Appendix H: whether every definition a
+%% compiled form records is its hash, as a code frame's is verified: a
+%% definition alone the hash of its form, and the members of a group,
+%% in their positions, the hashes of the group's forms.
+-spec is_verified([#definition{}]) -> boolean().
+is_verified(Definitions) ->
+    {Alone, Grouped} = lists:partition(fun(#definition{group = Group}) -> Group =:= none end,
+                                       Definitions),
+    Groups = maps:groups_from_list(fun(#definition{group = {GroupHash, _}}) -> GroupHash end,
+                                   Grouped),
+    lists:all(fun(#definition{hash = Hash, form = Form}) ->
+                      verified([Hash], bytes(hashed([Form]))) =/= error
+              end, Alone)
+        andalso lists:all(fun(Members) ->
+                                  Ordered = lists:keysort(#definition.group, Members),
+                                  Positions = [Position || #definition{group = {_, Position}}
+                                                               <- Ordered],
+                                  Positions =:= lists:seq(1, length(Ordered))
+                                      andalso length(Ordered) >= 2
+                                      andalso verified([Hash || #definition{hash = Hash}
+                                                                    <- Ordered],
+                                                       bytes(hashed([Form
+                                                                     || #definition{form = Form}
+                                                                            <- Ordered])))
+                                              =/= error
+                          end, maps:values(Groups)).
 
 %% The forms the verified bytes hold, of this version of the form: a
 %% definition's alone, or a group's of as many members as were named.

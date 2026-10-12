@@ -1276,6 +1276,12 @@ callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest],
 callee(Source, {var, {named, ['Peer', Name]}, _, Held}, _, [PeerName, Spawned | Rest], Context)
   when Name =:= spawn; Name =:= spawnMonitored ->
     peer_spawn(Source, Name, Held, PeerName, Spawned, Rest, Context);
+%% Appendix E.28, report §3.11: Code.running, the identity of the
+%% declaration it names in place of the function, its hash (Appendix H),
+%% by which the runtime finds a frame of it in any unit that holds it
+callee(_, {var, {named, ['Code', running]}, _}, _, [Named], Context) ->
+    {call_remote(ern_code, running, [erl_syntax:abstract(running_hash(Named, Context))]),
+     Context};
 callee(Source, {var, {named, QualifiedName} = Reference, []} = Node, _, Args, Context) ->
     case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
         true ->
@@ -2270,6 +2276,27 @@ spawned_node({var, {named, QualifiedName} = Reference, _}, _, _, Context) ->
     end;
 spawned_node(_, _, _, _Context) ->
     fail(none, "a spawn on a peer starts a function the checker refuses").
+
+%% The hash of the declaration Code.running names: its reference's, or,
+%% for a name the standard library's forms write, its own definition's or
+%% the one its link gives. The checker admitted no other (ern_bound).
+running_hash(Named, Context) ->
+    case sourced(Named) of
+        {_, {var, {hash, Hash}, _}} ->
+            Hash;
+        {_, {var, {named, _} = Reference, _}} ->
+            case own_position(Reference, Context) of
+                {ok, Position} ->
+                    #emit_context{own = #own{forms = Forms}} = Context,
+                    {#definition{hash = Hash}, _} = maps:get(Position, Forms),
+                    Hash;
+                error ->
+                    #linked{identity = Hash} = linked(Reference, Context),
+                    Hash
+            end;
+        _ ->
+            fail(none, "Code.running names a function the checker refuses")
+    end.
 
 foreign_identity(QualifiedName) ->
     erl_syntax:abstract({foreign, [atom_to_binary(Part) || Part <- QualifiedName]}).

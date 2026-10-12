@@ -49,6 +49,9 @@ manual(Beam) ->
 prelude_manual() ->
     roff("Ernest.Prelude", "Ernest prelude", "", ern_prelude:docs()).
 
+%% Appendix E.0 shape rule 6: a doc block's text is the page's as written,
+%% an example's declarations before its expression among it, where the call
+%% needs one, a `fn` that `Code.running` names (Appendix E.28).
 render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
     [head(Title, ModuleDoc),
      [entry(Entry, Prefix) || Entry <- Entries],

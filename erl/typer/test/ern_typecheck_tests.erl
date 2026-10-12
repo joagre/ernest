@@ -891,6 +891,62 @@ compute_function_test() ->
                  " function it starts",
                  peer_refusal("fn f() : Unit = { let c = Peer.compute; Unit }\n")).
 
+%% report §3.11, Appendix E.28: Code.running names a top-level `fn` of any
+%% arity whose result type is Unit and whose
+%% mailbox type, read from its declaration, holds no type variable, and the
+%% call is List(Address(m)), m that mailbox type, so a send over the list
+%% is checked against it; a local, a lambda, a top-level `let`, a foreign
+%% declaration and the prelude's name are refused, so are a result type
+%% other than Unit, a pure function and a mailbox type that holds a type
+%% variable, and Code.running is called where it is named. A regression
+%% test, written after the code
+code_running_test() ->
+    Loop = "type Msg = Stop\n"
+           "fn loop(n : Int, name : String) : Unit with Msg = receive { Stop -> Unit }\n",
+    Listing = fun(Function) ->
+                  "fn f() : Unit with m = {\n    let _ = Code.running(" ++ Function ++ ");\n"
+                  "    Unit\n}\n"
+              end,
+    ?assertEqual(ok, peer_ok(Loop ++ "fn f() : Unit with m =\n"
+                             "    List.forEach(Code.running(loop), fn(p) = send(p, Stop))\n")),
+    ?assertEqual(ok, peer_ok(Loop ++ "fn f() : List(Address(Msg)) with m = Code.running(loop)\n")),
+    ?assertMatch({error, _},
+                 peer_ok(Loop ++ "fn f() : Unit with m =\n"
+                         "    List.forEach(Code.running(loop), fn(p) = send(p, 1))\n")),
+    %% a recursive declaration names itself
+    ?assertEqual(ok, peer_ok("fn again() : Unit with Int =\n"
+                             "    receive { _ -> List.forEach(Code.running(again), fn(p) ="
+                             " send(p, 1)) }\n")),
+    ?assertEqual("Code.running lists the processes that run a declaration, and g is a local,"
+                 " whose function is no declaration",
+                 peer_refusal(Loop ++ "fn f() : Unit with m = {\n    let g = loop;\n"
+                              "    let _ = Code.running(g);\n    Unit\n}\n")),
+    ?assertEqual("Code.running lists the processes that run a declaration, named where the call"
+                 " is written",
+                 peer_refusal(Loop ++ Listing("fn() : Unit with Msg = loop(1, \"a\")"))),
+    ?assertEqual("Code.running lists the processes that run a declaration, and g is a top-level"
+                 " `let`, whose value is no declaration",
+                 peer_refusal("let g : (Int) -> Int = fn(n) = n\n" ++ Listing("g"))),
+    ?assertEqual("Code.running lists the processes that run a declaration, and outside is a"
+                 " foreign declaration, which has no hash",
+                 peer_refusal("foreign fn outside() : Unit with Int = \"m:f/0\"\n"
+                              ++ Listing("outside"))),
+    ?assertEqual("Code.running lists the processes that run a declaration, and spawn is the"
+                 " prelude's, which no module declares",
+                 peer_refusal(Listing("spawn"))),
+    ?assertEqual("Code.running lists the processes that run g, whose result type is Int, not"
+                 " Unit",
+                 peer_refusal("fn g() : Int with Int = receive { n -> n }\n" ++ Listing("g"))),
+    ?assertEqual("Code.running lists the processes that run g, which is pure and names no"
+                 " mailbox type",
+                 peer_refusal("fn g() : Unit = Unit\n" ++ Listing("g"))),
+    ?assertEqual("Code.running lists the processes that run g, whose mailbox type m holds a"
+                 " type variable",
+                 peer_refusal("fn g() : Unit with m = Io.println(\"g\")\n" ++ Listing("g"))),
+    ?assertEqual("Code.running is called where it is named, so that the compiler sees the"
+                 " declaration it names",
+                 peer_refusal("fn f() : Unit = { let r = Code.running; Unit }\n")).
+
 %% report §3.11, §8.7, §3.9: the value a compute answers crosses back, so
 %% the result type of its function is known whole where the compute is
 %% written and is not bound; a function with a mailbox type runs there, as

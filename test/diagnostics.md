@@ -4516,3 +4516,171 @@ example.ern:9:36: Peer.compute starts a process whose mailbox type Msg is bound 
   |                                    ^^^^^
   | = help: the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses (§3.11)
 ```
+
+### `Code.running` taken as a value (§3.11)
+
+```ernest-rejected
+fn lister() : Unit = {
+    let list = Code.running;
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:16: Code.running is called where it is named, so that the compiler sees the declaration it names
+1 | fn lister() : Unit = {
+2 |     let list = Code.running;
+  |                ^^^^^^^^^^^^
+  | = help: call it: `Code.running(f)`, `f` a top-level `fn` (§3.11)
+```
+
+### `Code.running` of a local (§3.11)
+
+```ernest-rejected
+type Msg = Stop
+
+fn loop() : Unit with Msg =
+    receive {
+        Stop -> Unit
+    }
+
+fn stopAll() : Unit with m = {
+    let f = loop;
+    List.forEach(Code.running(f), fn(process) = send(process, Stop))
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:10:31: Code.running lists the processes that run a declaration, and f is a local, whose function is no declaration
+ 9 |     let f = loop;
+10 |     List.forEach(Code.running(f), fn(process) = send(process, Stop))
+   |                               ^
+   | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+```
+
+### `Code.running` of a lambda (§3.11)
+
+```ernest-rejected
+fn listed() : Int with m =
+    List.size(Code.running(fn() : Unit with Int = Unit))
+```
+
+```console
+$ ern build example.ern
+example.ern:2:28: Code.running lists the processes that run a declaration, named where the call is written
+1 | fn listed() : Int with m =
+2 |     List.size(Code.running(fn() : Unit with Int = Unit))
+  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+```
+
+### `Code.running` of a top-level `let` (§3.11)
+
+```ernest-rejected
+let loop : () -> Unit with Never = fn() = Unit
+
+fn listed() : Int with m =
+    List.size(Code.running(loop))
+```
+
+```console
+$ ern build example.ern
+example.ern:4:28: Code.running lists the processes that run a declaration, and loop is a top-level `let`, whose value is no declaration
+3 | fn listed() : Int with m =
+4 |     List.size(Code.running(loop))
+  |                            ^^^^
+  | = help: declare the function with `fn` and name it: `Code.running(count)` (§3.11)
+```
+
+### `Code.running` of a foreign declaration (§3.11)
+
+```ernest-rejected
+foreign fn waits() : Unit with Int = "erlang:yield/0"
+
+fn listed() : Int with m =
+    List.size(Code.running(waits))
+```
+
+```console
+$ ern build example.ern
+example.ern:4:28: Code.running lists the processes that run a declaration, and waits is a foreign declaration, which has no hash
+3 | fn listed() : Int with m =
+4 |     List.size(Code.running(waits))
+  |                            ^^^^^
+  | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+```
+
+### `Code.running` of the prelude's function (§3.11)
+
+```ernest-rejected
+fn listed() : Int with m =
+    List.size(Code.running(spawn))
+```
+
+```console
+$ ern build example.ern
+example.ern:2:28: Code.running lists the processes that run a declaration, and spawn is the prelude's, which no module declares
+1 | fn listed() : Int with m =
+2 |     List.size(Code.running(spawn))
+  |                            ^^^^^
+  | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+```
+
+### `Code.running` of a function whose result type is not `Unit` (§3.11)
+
+```ernest-rejected
+fn total() : Int with Int =
+    receive {
+        n -> n
+    }
+
+fn listed() : Int with m =
+    List.size(Code.running(total))
+```
+
+```console
+$ ern build example.ern
+example.ern:7:28: Code.running lists the processes that run total, whose result type is Int, not Unit
+6 | fn listed() : Int with m =
+7 |     List.size(Code.running(total))
+  |                            ^^^^^
+  | = help: a process runs a function whose result type is `Unit with m` (§3.11)
+```
+
+### `Code.running` of a pure function (§3.11)
+
+```ernest-rejected
+fn quiet() : Unit = Unit
+
+fn listed() : Int with m =
+    List.size(Code.running(quiet))
+```
+
+```console
+$ ern build example.ern
+example.ern:4:28: Code.running lists the processes that run quiet, which is pure and names no mailbox type
+3 | fn listed() : Int with m =
+4 |     List.size(Code.running(quiet))
+  |                            ^^^^^
+  | = help: give quiet its mailbox type, `fn quiet(...) : Unit with Msg = ...`: every process listed has it (§3.11)
+```
+
+### `Code.running` of a function whose mailbox type holds a type variable (§3.11)
+
+```ernest-rejected
+fn say() : Unit with m = Io.println("said")
+
+fn listed() : Int with m =
+    List.size(Code.running(say))
+```
+
+```console
+$ ern build example.ern
+example.ern:4:28: Code.running lists the processes that run say, whose mailbox type m holds a type variable
+3 | fn listed() : Int with m =
+4 |     List.size(Code.running(say))
+  |                            ^^^
+  | = help: give say its mailbox type, `fn say(...) : Unit with Msg = ...`: every process listed has it (§3.11)
+```

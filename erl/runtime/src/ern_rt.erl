@@ -57,7 +57,7 @@
 -export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
          spawn_root/3, self/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/3,
          answer/2, not_started/1, refuse/2, monitor/2, kill/1, reason/1, started_by/1,
-         processes/0, status/1, faults/1,
+         kill_started/1, kill_all/1, rooting/0, rooted/2, processes/0, status/1, faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
          source_end/0, opened/3, forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, in_foreign/1,
@@ -746,6 +746,14 @@ reaper_loop(Reaper, Wait) ->
         {adopt, Pid, Site, Owner, From, Ref} ->
             adopted(Pid, Site, Owner, From, Ref),
             reaper_loop(Reaper);
+        %% Appendix E.28: the processes a load's evaluation started given
+        %% their caller's root, between two spawns (rooted/2)
+        {rooted, From, Ref, Mark, Root} ->
+            _ = ets:select_replace(?PROCESSES,
+                                   [{{'$1', '$2', '$3', '$4', '$5', Mark, '$7'}, [],
+                                     [{{'$1', '$2', '$3', '$4', '$5', {const, Root}, '$7'}}]}]),
+            From ! {Ref, rooted},
+            reaper_loop(Reaper);
         {monitor, Pid, Caller, Wrap, Ref} ->
             reaper_loop(monitored(Pid, Caller, Wrap, Ref, Reaper));
         {report, Pid, Site, Fault} ->
@@ -1104,7 +1112,7 @@ live() ->
 %% one it started, whether that one lives or not, each with its spawn site,
 %% in the order they were spawned: those whose root is Root, which the
 %% shell's refused load kills. Root itself is not among them.
--spec started_by(pid()) -> [{pid(), binary()}].
+-spec started_by(pid() | reference()) -> [{pid(), binary()}].
 started_by(Root) ->
     Rows = try ets:match_object(?PROCESSES, {'_', '_', '_', '_', '_', Root, '_'})
            catch error:badarg -> []
@@ -1112,6 +1120,69 @@ started_by(Root) ->
     [{Pid, Site} || {_, Pid, Site} <- lists:sort([{Order, Pid, Site}
                                                   || {Pid, Site, _, _, Order, _, _} <- Rows]),
                     Pid =/= Root, erlang:is_process_alive(Pid)].
+
+%% Report §11.2, §6.9, Appendix E.28: the processes each of Roots started,
+%% directly or through one it started (started_by/1), killed and waited for,
+%% each root's in the order they were spawned, and their spawn sites; asked
+%% again once they have ended, since one may start another before its kill
+%% reaches it, until none is left. A refused load of the shell's and of
+%% Code.load undoes what its evaluation started so; the caller, which
+%% Code.load's evaluation ran in under the mark, is not among them.
+-spec kill_started([pid() | reference()]) -> [binary()].
+kill_started(Roots) ->
+    case [Process || Root <- Roots, {Pid, _} = Process <- started_by(Root),
+                     Pid =/= erlang:self()] of
+        [] ->
+            [];
+        Started ->
+            kill_all([Pid || {Pid, _} <- Started]),
+            [Site || {_, Site} <- Started] ++ kill_started(Roots)
+    end.
+
+%% Report §6.9: each process killed, and waited for, so that a unit is
+%% purged only once no process runs it, since the purge kills one that
+%% runs its code and has not yet taken the signal itself.
+-spec kill_all([pid()]) -> ok.
+kill_all(Pids) ->
+    MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
+    lists:foreach(fun kill/1, Pids),
+    lists:foreach(fun(MonitorRef) -> receive {'DOWN', MonitorRef, process, _, _} -> ok end end,
+                  MonitorRefs).
+
+%% Appendix E.28, report §11.2: the calling process made the head of a
+%% spawn chain of its own while Code.load evaluates bindings in it, under a
+%% mark, so that what the evaluation starts, directly or through a process
+%% it started, is known by the mark (started_by/1) and not mixed with what
+%% the caller started before; the mark and the root the caller had, which
+%% rooted/2 gives back. A process the runtime did not start heads no chain,
+%% and is given none.
+-spec rooting() -> {reference(), pid() | reference() | none}.
+rooting() ->
+    Mark = make_ref(),
+    case ets_lookup(?PROCESSES, erlang:self()) of
+        [{_, _, _, _, _, Root, _}] ->
+            true = ets:update_element(?PROCESSES, erlang:self(), {6, Mark}),
+            {Mark, Root};
+        _ ->
+            {Mark, none}
+    end.
+
+%% Appendix E.28, report §11.2: the root the calling process had given back
+%% once a load's evaluation is over, to it and to every process the
+%% evaluation started that lives, so that a root the caller belongs to,
+%% the shell's load's among them, knows them as its own (started_by/1). The
+%% reaper rewrites their rows between two spawns, so that no process started
+%% meanwhile keeps the mark.
+-spec rooted(reference(), pid() | reference() | none) -> ok.
+rooted(_Mark, none) ->
+    ok;
+rooted(Mark, Root) ->
+    true = ets:update_element(?PROCESSES, erlang:self(), {6, Root}),
+    Ref = make_ref(),
+    persistent_term:get({?MODULE, reaper}) ! {rooted, erlang:self(), Ref, Mark, Root},
+    receive
+        {Ref, rooted} -> ok
+    end.
 
 %% Appendix E.21: Process.live, the live processes the runtime started or
 %% adopted, the system processes excepted, which are the runtime's.
@@ -2127,6 +2198,11 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
+    %% Appendix E.21, report §10: a fault's trace is the innermost twelve
+    %% frames of the host's stack, which the host keeps only where its
+    %% backtrace depth, eight by default, names as many; each raise saves
+    %% that many frames, and Code.running deepens it (ern_code:running/1)
+    _ = erlang:system_flag(backtrace_depth, 12),
     %% report §8.6: a node can be reached from outside, and detects no deadlock
     persistent_term:put({?MODULE, node}, is_map_key(node, Options)),
     Launch = launched(Options),

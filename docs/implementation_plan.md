@@ -265,45 +265,71 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    status 143 and `Os.exit(3)` with status 3, a lambda beside a binding and a foreign function it
    does not use, a relay over four nodes, and the refusals (the log's *The Report for Code with a
    Spawn*).
-6. **`Code`.** §11.1's outcome for a build written under a running node, which MVP 3.1 states as reaching the node at its next start alone, is restated here for a node that reads a unit after its start. `Code.load(path)`, `ern run`'s loading reached from Ernest, the module's canonical
-   forms and its reach's read from the load path, verified against their hashes and made a unit
-   as a load of the shell's is, counted against the limits, a load that would pass one failing
-   as one the node cannot load (§11.2), its `Left` E.28's to state, `Left` for a file that is no `.erc`
-   of this `ern` or whose reach the load path lacks; `Code.hashes(path)`, the `.erc`'s table of
-   names and hashes; `Code.running(f)`, a form checked as `Peer.spawn`'s function is, `f` a top-level
-   declaration of any arity whose result is `Unit with m` known whole where it is written, the
-   host's stack of each process mapped through the table to hashes, the processes with a frame of
-   `f` itself, typed `Address(m)`, a snapshot; hashes as `String`s, the digest in hexadecimal;
-   the page with its executed examples, section 3's upgrade tool among them under `examples/`;
-   E.28's listing block, which the tests hold to the module, lands here.
-7. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes on
-   one machine: a spawn of a function typed at a shell that is a node ships exactly the lacking
+6. **`Code`.** Done 2026-10-13. `stdlib/code.ern`, Appendix E.28: `Code.load(path)` loads a compiled
+   module and its reach, found under the module's root and then on the node's load path, each form
+   verified against its hash, each module the node's own unit or one made from its forms beside
+   another of its name, in one atomic load, the bindings of the module and of its reach that have no
+   value evaluated in the calling process in §8.5's order, a faulting one loading nothing, killing
+   what it started and answering `Left(Other(text))`, `Left(Invalid)`, `Left(NotFound)` and the
+   host's error as E.28 states them, a module loaded again making no unit; `Code.hashes(path)`, each
+   definition's name and hash in hexadecimal; `Code.running(f)`, a form of §3.11 declared `running(f
+   : a)` and refused as a value, the call's `m` tied to `f`'s mailbox type, the processes whose
+   stack holds a frame of `f` within the 64 frames the host keeps, the runtime keeping twelve from
+   its start, which E.21 promised and nothing set, and 64 from the first call (§10). An example may
+   begin with declarations (E.0 shape rule 6), so `Code`'s page shows §6.10's pattern.
+   `examples/upgrade_tool.ern`, the proposal's tool, moves a counter's processes alone and on every
+   peer. §11.1 names `Code.load` as the way a build reaches a running node. Found and decided (the
+   log's *The Report for Code with a Spawn*): a type that carries `Upgrade` holds a function and is
+   bound to its node (§3.11), so a service upgraded by §6.10's pattern is offered through an adapted
+   address (§6.5) of a type without it, stated in §6.10; two declarations whose forms are one term
+   are one definition, so `Code.running(f)` lists a process on either (Appendix H, E.28); both in
+   `docs/language_feedback.md`. Tests: the form's rules and refusals, `load`'s paths and its fault,
+   `hashes`, `running` beneath 32 frames, a lambda not listed and none after an `Upgrade`, a trace
+   of twelve frames, the upgrade over nodes with build 2's tool spawned onto build 1's node and
+   `Code.load` on a bare node; `Code.load` past a host count untested, since no test may near a
+   limit.
+7. **The tests, the measurements and the guide.** The proposal's section 8 whole, on nodes on one
+   machine: a spawn of a function typed at a shell that is a node ships exactly the lacking
    definitions, verified and loaded at once, and the process runs; a spawn onto a bare node ships
    the program's reach once and nothing the second time, and the process offers a service the
    program finds; `NotLoaded` for a binding and for a foreign declaration; a faulty frame ends the
-   connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its
-   callers, which compile on the peer; a unit whose processes have ended is held, as every unit is;
-   a node told to load many units says so at four fifths of a limit, once, measured; what a build
-   upgraded through `Code.load` and a development day's spawns of edited code add to the host's
-   four counts, measured against their limits, so that the deployment guide's word on a restart
-   stands on numbers; the shell fixes a service on a
-   peer through `Upgrade`; `Code.load`, `Code.hashes` and `Code.running` as section 8 states them.
-   The measurements of section 7, and of what a spawn that ships code costs, a bare node's first
-   spawn and the callers of a fix above all, against the spawn's time. `mvp3.2.md`'s status line,
-   and `mvp3.1.md`'s for what this milestone changed in it.
-8. **The deployment guide.** `guide/deployment.md`, written whole here as a teaching document of
-   its own, which owns running nodes: a node's configuration directory, `ern reload` and `ern
-   stop`, the service manager, and what code by its hash gives a system of nodes, several builds
-   running at once and connecting on one floor, two versions of a type as two types, a fix
-   shipped with a spawn, the bare node given its work, and a running service moved to new code
-   by the program's own upgrade over `Code.running`; what a node keeps for its life and the counts
-   that never fall, that it says once at four fifths of one, and that a restart at a time of the
-   operator's choosing holds the build and is sent the rest again (§11.2; decided 2026-10-12, the
-   log's *The Report for Code with a Spawn*). Its outline is discussed with the user
-   before a line is written, as a design is (requested on 2026-10-10). Decided with it, a named
-   decision of this milestone: whether `Code.upgrade` returns, a function that sends a process
-   its `Upgrade`, which `mvp3.2.md` set aside as a second way to write one `send` (principle 2)
-   and the user reopened for the guide's reader.
+   connection; a late or broken exchange leaves nothing half-loaded; a fix crosses with its callers,
+   which compile on the peer; a unit whose processes have ended is held, as every unit is; a node
+   told to load many units says so at four fifths of a limit, once, measured; what a build upgraded
+   through `Code.load` and a development day's spawns of edited code add to the host's four counts,
+   measured against their limits, so that the deployment guide's word on a restart stands on
+   numbers; a process spawned on a peer moves a service's processes by `Upgrade` over
+   `Code.running`, the service offered through an adapted address of a type without `Upgrade`
+   (§6.10); `Code.load`, `Code.hashes` and `Code.running` as section 8 states them. The measurements
+   of section 7, and of what a spawn that ships code costs, a bare node's first spawn and the
+   callers of a fix above all, against the spawn's time. `mvp3.2.md`'s status line, and
+   `mvp3.1.md`'s for what this milestone changed in it.
+8. **The deployment guide.** `guide/deployment.md`, written whole here as a teaching document of its
+   own, which owns running nodes: a node's configuration directory, `ern reload` and `ern stop`, the
+   service manager, and what code by its hash gives a system of nodes, several builds running at
+   once and connecting on one floor, two versions of a type as two types, a fix shipped with a
+   spawn, the bare node given its work, and a running service moved to new code by the program's own
+   upgrade over `Code.running`; what a node keeps for its life and the counts that never fall, that
+   it says once at four fifths of one, and that a restart at a time of the operator's choosing holds
+   the build and is sent the rest again (§11.2; decided 2026-10-12, the log's *The Report for Code
+   with a Spawn*). Its outline, agreed with the user 2026-10-13: who it is for, the operator,
+   assuming the language guide's chapter 8; one node, `ern config`, the directory and `ernest.conf`
+   line by line, `ern run`, `ern stop`, `ern reload`, the pid file, what the node says and its
+   statuses, the service manager, which §9.5 of the language guide holds today and moves here with a
+   pointer; two nodes, keys, certificates, the floor, the handshake, a lost peer on each side and in
+   the program; services and work, offering and finding, utilisation and placement, the proxy, a
+   bare node given its work; code across nodes, what crosses and when, what a node keeps for its
+   life, the counts, the four-fifths line, the restart and what it holds, the `NotLoaded` and
+   `Other` lines; builds, several on one floor, two versions of a type, a fix from a shell, a
+   service moved over `Code.running` and `Code.load` with `examples/upgrade_tool.ern`, the upgrade
+   idiom's two lines named, and the adapted address a service with `Upgrade` is offered through
+   (§6.10); looking in, a shell beside a running node, `Process.status`, `Peer.utilisation`, the
+   measures, a trace; what a node says and what to do, the catalogue of standard-error lines; a
+   deployment end to end, three nodes on one machine to a rolling upgrade, run by the tests;
+   containers and orchestration left out, and the design to the log. Decided 2026-10-13 (the log's
+   *The Report for Code with a Spawn*, and *Later*): no `Code.upgrade`, since the message it would
+   send is the program's own type, which no library function can build at a type, and the two lines
+   show the mechanism whole.
 9. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`:
    the review before a release as [`release_review.md`](release_review.md) says, its readers
    over what MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over

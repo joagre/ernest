@@ -36,9 +36,10 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
-         forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
-         present/1, function/2, function_text/2, nearing/0, nearing/1, nearing/2, line/3,
+-export([loaded/1, loaded/2, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1, forms/1,
+         called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
+         present/1, function/2, function_text/2, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
+         running/1, hashes/1, binding_keys/1, withdrawn/2, nearing/0, nearing/1, nearing/2, line/3,
          counts/0]).
 
 -include_lib("typer/include/ern_canonical.hrl").
@@ -470,6 +471,166 @@ declared_name(Function, Code) ->
         [] ->
             none
     end.
+
+%%
+%% A unit's name, report §11.2
+%%
+
+%% Report §11.2: whether the host holds no code of a unit's name, current
+%% or old.
+-spec is_free(module()) -> boolean().
+is_free(Unit) ->
+    not erlang:module_loaded(Unit) andalso not erlang:check_old_code(Unit).
+
+%% Report §11.2: whether the host holds this very code as the unit's
+%% current code.
+-spec is_held(module(), binary()) -> boolean().
+is_held(Unit, Beam) ->
+    {ok, {_, Md5}} = beam_lib:md5(Beam),
+    erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5.
+
+%% Report §11.2: a unit of a name of its own, for a module whose Erlang
+%% name the node holds code of, as a reload's version and a compiled module
+%% loaded beside another are: the name and `$` and a number,
+%% `ern@counter$2`, the first the host holds no code of. The name is
+%% measured against the host's limit before it is made an atom (§11.1).
+-spec fresh_unit([atom()]) -> {ok, module()} | {error, binary()}.
+fresh_unit(Namespace) ->
+    case unit_beside(Namespace, fun(_) -> false end) of
+        {free, Unit} -> {ok, Unit};
+        {error, _} = Error -> Error
+    end.
+
+%% Report §11.2, Appendix E.28: the same, where a unit the node holds under
+%% one of those names may be the one wanted, as Wanted says of it, a unit an
+%% earlier load made from the same forms: the first name, in their order,
+%% of a unit Wanted takes, held, or the host holds no code of, free. The
+%% names are a module's versions, walked as a fresh name is.
+-spec unit_beside([atom()], fun((module()) -> boolean())) ->
+          {free, module()} | {held, module()} | {error, binary()}.
+unit_beside(Namespace, Wanted) ->
+    unit_beside(Namespace, Wanted, 2).
+
+unit_beside(Namespace, Wanted, Number) ->
+    Text = ern_namespace:erlang_module_text(Namespace) ++ "$" ++ integer_to_list(Number),
+    case length(Text) =< ern_namespace:host_name_limit() of
+        true ->
+            Unit = list_to_atom(Text),
+            case is_free(Unit) of
+                true ->
+                    {free, Unit};
+                false ->
+                    case erlang:module_loaded(Unit) andalso Wanted(Unit) of
+                        true -> {held, Unit};
+                        false -> unit_beside(Namespace, Wanted, Number + 1)
+                    end
+            end;
+        false ->
+            What = ["the name of ", ern_namespace:text(Namespace), "'s new unit, `", Text, "`,"],
+            {error, unicode:characters_to_binary(
+                      ern_namespace:host_name_text(lists:flatten(What), Text))}
+    end.
+
+%%
+%% Appendix E.28: the Code module's running and hashes
+%%
+
+%% Appendix E.28, report §3.11: Code.running, the processes of this node,
+%% the system processes excepted (Appendix E.21), whose stack holds a frame
+%% of the definition of Hash itself: of the function each unit that holds it
+%% runs it by, which its row in the table names (loaded/1), so that a unit
+%% the build loaded and one an arrival or a load made of the same definition
+%% count alike (§8.7). A lambda's and a local function's frames are their
+%% own functions', '$N.P' or a fun, and no definition's. The scan reads each
+%% process's stack once, its input being the node's processes.
+%%
+%% Appendix E.28, E.21, report §10: the host keeps at most the innermost
+%% frames of a stack its backtrace depth names, and stores no more than 64
+%% however many it is given (OTP 29); the runtime keeps twelve from its start
+%% (ern_rt:run_main/3) and 64 from the first call of running, for the
+%% runtime's life, so that a program that never calls it pays the deeper
+%% stack in no raise. A frame beneath the 64 is not seen, as E.28 states.
+-spec running(binary()) -> [pid()].
+running(Hash) ->
+    _ = erlang:system_flag(backtrace_depth, 64),
+    Functions = #{{Unit, Function, Arity} => true
+                  || {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Hash})},
+    [Pid || map_size(Functions) > 0, Pid <- ern_rt:processes(), runs(Pid, Functions)].
+
+%% Whether Pid's stack holds a frame of one of Functions; a process that
+%% has ended holds none.
+runs(Pid, Functions) ->
+    case erlang:process_info(Pid, current_stacktrace) of
+        {current_stacktrace, Frames} ->
+            lists:any(fun({ErlangModule, Function, Arity, _}) ->
+                              is_map_key({ErlangModule, Function, frame_arity(Arity)}, Functions)
+                      end, Frames);
+        undefined ->
+            false
+    end.
+
+%% A frame's arity, or the arguments the host gives in its place.
+frame_arity(Arity) when is_integer(Arity) -> Arity;
+frame_arity(Arguments) when is_list(Arguments) -> length(Arguments).
+
+%% Appendix E.28: Code.hashes, the definitions the compiled module at the
+%% path records (§11.1), each its qualified name as text and its hash, the
+%% digest in lowercase hexadecimal, in the order of their forms, which is
+%% the order the module declares them; a foreign declaration has no hash
+%% and no definition (Appendix H). A path that names no file answers
+%% `NotFound`, and a file that is no `.erc` of this `ern`, whose interface
+%% or forms are of another format or none, `Invalid`; a file the host
+%% cannot read answers the host's reason (Appendix E.1).
+-spec hashes({'Path', binary()}) -> {'Right', [{binary(), binary()}]} | {'Left', term()}.
+hashes({'Path', Path}) ->
+    case file:read_file(Path) of
+        {ok, Bytes} ->
+            case {ern_interface:read(Bytes), ern_canonical:read(Bytes)} of
+                {{ok, _}, {ok, #recorded{definitions = Definitions}}} ->
+                    {'Right', [{unicode:characters_to_binary(ern_namespace:text(QualifiedName)),
+                                binary:encode_hex(DefinitionHash, lowercase)}
+                               || #definition{qualified_name = QualifiedName,
+                                              hash = DefinitionHash} <- Definitions]};
+                _ ->
+                    {'Left', 'Invalid'}
+            end;
+        {error, Error} ->
+            {'Left', read_error(Error)}
+    end.
+
+%% Appendix E.28, E.1: a path that names no file, one whose directory does
+%% not exist or is a file among them, is `NotFound`; any other reason the
+%% host gives is its Io.Error.
+-spec read_error(atom()) -> term().
+read_error(enotdir) -> 'NotFound';
+read_error(eisdir) -> 'Invalid';
+read_error(Error) -> ern_io:host_error(Error, fun file:format_error/1).
+
+%% Report §8.5, §11.2: the keys a unit's top-level bindings keep their
+%% values under, as its '$code'/0 lists them; none for a module that is no
+%% unit.
+-spec binding_keys(module()) -> [term()].
+binding_keys(Unit) ->
+    case erlang:function_exported(Unit, '$code', 0) of
+        true -> [Key || {_, {binding, _, Key}} <- Unit:'$code'()];
+        false -> []
+    end.
+
+%% Report §11.2, Appendix E.28: a refused load undone: the units it brought,
+%% Units, deleted, out of the table and purged, each process that ran them
+%% having been killed and waited for, since a purge kills one that runs a
+%% unit's code and has not yet taken its signal; and the values Keys, the
+%% bindings of every unit its evaluation gave a value, gone (§8.5), so that
+%% a unit the node held, and had not evaluated, is without them as before.
+-spec withdrawn([module()], [term()]) -> ok.
+withdrawn(Units, Keys) ->
+    lists:foreach(fun(Unit) ->
+                      code:delete(Unit),
+                      unloaded(Unit)
+                  end, Units),
+    lists:foreach(fun code:purge/1, Units),
+    lists:foreach(fun persistent_term:erase/1, Keys),
+    ok.
 
 %%
 %% The host's limits, report §11.2

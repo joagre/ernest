@@ -16,6 +16,7 @@ The commands assume `ern` on your `PATH`, the repository's `bin/` or an installa
 | [`file_sync.ern`](file_sync.ern) | two directories kept identical; it runs until stopped | two processes that learn each other's address from a message, the file system, a program's own tests | chapters 4 and 5 |
 | [`typed_channels.ern`](typed_channels.ern) | a counter whose mailbox has one type, met with the doubts a reader may have of a typed channel | a send checked against the address's type, a reply answered once, an adapted address | chapters 4 and 5 |
 | [`typed_channels_nodes.ern`](typed_channels_nodes.ern) | the same counter on a node of its own, found from another | a service that carries its message type, a call across nodes | chapter 8 |
+| [`upgrade_tool.ern`](upgrade_tool.ern) | a counter moved to new code while it runs, here and on every peer | the processes that run a function, listed by `Code.running`, each sent its `Upgrade`; a spawn that carries the new code to a peer | chapters 4 and 8 |
 | [`snake.ern`](snake.ern) | a snake game at a terminal | a world that is one value, ticks kept to a deadline, keys as messages, randomness passed as a seed | chapters 2, 4 and 5 |
 
 `snake.ern` draws with the library `libs/ansi`, and is built and run with `--load-path ../build/libs/ansi`, as its first comment shows. The others need the standard library alone.

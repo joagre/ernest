@@ -23,6 +23,7 @@
 
 -include_lib("kernel/include/file.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("typer/include/ern_canonical.hrl").
 
 %% The machine's line, E.0 rule 1's for an operation on a value the
 %% language owns that a host function almost does: past it, the Ernest form
@@ -592,7 +593,7 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), load_scenarios(), placement_scenarios(),
+                  peer_scenarios(), code_scenarios(), load_scenarios(), placement_scenarios(),
                   proxy_scenarios()]).
 
 dev_null() ->
@@ -920,6 +921,34 @@ peer_scenarios() ->
      {<<"Peer.utilisation">>, AcrossNodes},
      {<<"Peer.peers">>, {fun() -> PeerPeers() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}}].
+
+%% Appendix E.28: a compiled module's hashes beside the host's read of its
+%% forms' chunk; a load of a module the node holds already, its file read,
+%% its forms verified and nothing loaded or evaluated, beside the host's
+%% read of the file and its code's digest; and the processes that run a
+%% function beside the host's read of each process's stack.
+code_scenarios() ->
+    Code = ern_named:functions('ern@code'),
+    CodeHashes = Code(hashes),
+    CodeLoad = Code(load),
+    CodeRunning = Code(running),
+    File = filename:join(filename:dirname(code:which('ern@bool')), "bool.erc"),
+    Path = {'Path', list_to_binary(File)},
+    {ok, Bytes} = file:read_file(File),
+    {ok, #recorded{definitions = [#definition{hash = Hash} | _]}} = ern_canonical:read(Bytes),
+    [{<<"Code.hashes">>, {fun() -> CodeHashes(Path) end,
+                          fun() ->
+                              {ok, Read} = file:read_file(File),
+                              beam_lib:chunks(Read, ["ErnC"])
+                          end}},
+     {<<"Code.load">>, {fun() -> CodeLoad(Path) end,
+                        fun() ->
+                            {ok, Read} = file:read_file(File),
+                            beam_lib:md5(Read)
+                        end}},
+     {<<"Code.running">>,
+      {fun() -> CodeRunning(Hash) end,
+       fun() -> [erlang:process_info(Pid, current_stacktrace) || Pid <- ern_rt:processes()] end}}].
 
 %% Appendix G.4: the runtime's two measures beside the host's statistics,
 %% and the host's services' three, which answer None where the service does

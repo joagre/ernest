@@ -129,16 +129,21 @@ never(Variables, Env) ->
 %% The mailbox types taken as Never under a node: walk/3 answers the
 %% variables each spawn or compute in it leaves so.
 walk(#e_call{callee = #e_var{referent = Referent} = Callee, args = Args}, Scope, Context) ->
-    Spawned = case spawn_name(Referent) of
-                  none -> walk(Callee, Scope, Context);
-                  Name -> spawned(Name, Callee, Args, Scope, Context)
+    Spawned = case {spawn_name(Referent), is_running(Referent)} of
+                  {none, false} -> walk(Callee, Scope, Context);
+                  {none, true} -> running(Args, Context);
+                  {Name, _} -> spawned(Name, Callee, Args, Scope, Context)
               end,
     Spawned ++ walk(Args, Scope, Context);
 walk(#e_var{span = Span, referent = Referent}, _Scope, _Context) ->
-    case spawn_name(Referent) of
-        none ->
+    case {spawn_name(Referent), is_running(Referent)} of
+        {none, false} ->
             [];
-        Name ->
+        {none, true} ->
+            fail(Span, "Code.running is called where it is named, so that the compiler sees the"
+                       " declaration it names",
+                 "call it: `Code.running(f)`, `f` a top-level `fn` (§3.11)");
+        {Name, _} ->
             fail(Span, Name ++ " is called where it is named, so that the compiler sees the"
                        " function it starts",
                  "call it: `" ++ Name ++ "(name, fn() = ..., ms)` (§3.11)")
@@ -180,6 +185,74 @@ spawn_name(#remote_declaration{namespace = ['Peer'], member_of = undefined, name
     "Peer." ++ atom_to_list(Name);
 spawn_name(_) ->
     none.
+
+%% Appendix E.28: `Code.running`, the module's own function as the checker
+%% resolved it, not a name spelled so.
+is_running(#remote_declaration{namespace = ['Code'], member_of = undefined, name = running}) ->
+    true;
+is_running(_) ->
+    false.
+
+%% Report §3.11, Appendix E.28: the function `Code.running` names is a
+%% top-level `fn` declaration of any arity, which has a hash, whose result
+%% type is Unit and whose mailbox type holds no type variable, read from
+%% its declaration and not from this use, since every process listed has
+%% it as its mailbox type; a pure one names none. Nothing is taken as Never
+%% here.
+running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}],
+        {_Held, Env}) ->
+    Written = ern_namespace:text(Namespace ++ [Name]),
+    Help = "name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)`"
+           " (§3.11)",
+    What = fun(Text) -> "Code.running lists the processes that run a declaration, and "
+                            ++ Written ++ Text end,
+    case Referent of
+        var ->
+            fail(Span, What(" is a local, whose function is no declaration"), Help);
+        {prelude, _} ->
+            fail(Span, What(" is the prelude's, which no module declares"), Help);
+        _ ->
+            ern_typecheck:is_top_let(Referent, Env)
+                andalso fail(Span, What(" is a top-level `let`, whose value is no declaration"),
+                             "declare the function with `fn` and name it: "
+                             "`Code.running(count)` (§3.11)"),
+            ern_typecheck:is_foreign(Referent, Env)
+                andalso fail(Span, What(" is a foreign declaration, which has no hash"), Help),
+            #scheme{type = Type} = ern_typecheck:declaration_scheme(Referent, Env),
+            declared_running(Span, {Written, atom_to_list(Name)}, Type, Env)
+    end,
+    [];
+running([Function], _Context) ->
+    fail(ern_ast:span(Function),
+         "Code.running lists the processes that run a declaration, named where the call is"
+         " written",
+         "name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)`"
+         " (§3.11)").
+
+%% The declaration's type: its result Unit, and its mailbox type known
+%% whole, neither pure nor holding a type variable.
+declared_running(Span, {Written, Declared}, Type, Env) ->
+    TypeState = ern_typecheck:type_state(Env),
+    {tfn, _, Effect, Result} = ern_types:substitute(Type, TypeState),
+    Annotated = "give " ++ Written ++ " its mailbox type, `fn " ++ Declared
+        ++ "(...) : Unit with Msg = ...`: every process listed has it (§3.11)",
+    case Result of
+        {tcon, ['Unit'], []} -> ok;
+        _ -> fail(Span, "Code.running lists the processes that run " ++ Written
+                        ++ ", whose result type is " ++ ern_types:format(Result, TypeState)
+                        ++ ", not Unit",
+                  "a process runs a function whose result type is `Unit with m` (§3.11)")
+    end,
+    case Effect of
+        pure ->
+            fail(Span, "Code.running lists the processes that run " ++ Written ++ ", which is"
+                       " pure and names no mailbox type", Annotated);
+        _ ->
+            ern_types:free_variables(Effect, TypeState) =:= []
+                orelse fail(Span, "Code.running lists the processes that run " ++ Written
+                                  ++ ", whose mailbox type " ++ ern_types:format(Effect, TypeState)
+                                  ++ " holds a type variable", Annotated)
+    end.
 
 %% Report §3.11: the function the spawn or the compute starts, written
 %% where its captures are seen, each capture and the process's mailbox type

@@ -2126,56 +2126,29 @@ in_order(CompiledModules) ->
 %% Report §8.7: the units a load brought to the node, those it held no
 %% code of before; a unit the node held, of its build, is the node's.
 brought(CompiledModules) ->
-    [Compiled || #compiled{unit = Unit} = Compiled <- CompiledModules, is_free(Unit)].
+    [Compiled || #compiled{unit = Unit} = Compiled <- CompiledModules, ern_code:is_free(Unit)].
 
 %% Report §11.2: a refused `:load` or `:reload` undone, so that the session
 %% is as it was: every process its evaluation started, directly or
 %% through one it started, is killed (§6.9) and waited for, each of them
 %% started by one of Roots, the processes the bindings were evaluated in
-%% (ern_rt:started_by/1), a process of a unit the node held among them, and
-%% then each of Roots that lives on, the shell's own, which nothing names;
-%% each unit it brought is then deleted and purged; and the values the
-%% bindings of every unit it evaluated stored go (§8.5), so that a unit the
-%% node held, which the session had not evaluated, is without them as
-%% before, its code and its rows the node's. The keys are read while the
-%% code is current. The spawn sites of the processes killed.
+%% (ern_rt:kill_started/1), a process of a unit the node held among them,
+%% and then each of Roots that lives on, the shell's own, which nothing
+%% names; each unit it brought is then deleted and purged, and the values
+%% the bindings of every unit it evaluated stored go (ern_code:withdrawn/2),
+%% so that a unit the node held, which the session had not evaluated, is
+%% without them as before, its code and its rows the node's. Code.load
+%% undoes a load so too (Appendix E.28). The keys are read while the code
+%% is current. The spawn sites of the processes killed.
 withdraw(Brought, All, Roots) ->
-    Keys = [Key || #compiled{unit = Unit} <- All, {_, Key} <- maps:values(unit_bindings(Unit))],
-    Sites = killed_started([Root || {Root, _} <- Roots]),
+    Keys = lists:append([ern_code:binding_keys(Unit) || #compiled{unit = Unit} <- All]),
+    Sites = ern_rt:kill_started([Root || {Root, _} <- Roots]),
     Living = [{Root, Ref} || {Root, Ref} <- Roots, erlang:is_process_alive(Root)],
-    killed([Root || {Root, _} <- Living]),
+    ern_rt:kill_all([Root || {Root, _} <- Living]),
     %% the end of each, which its monitor from its spawn tells the session
     lists:foreach(fun({_, Ref}) -> receive {Ref, {'Down', _, _, _}} -> ok end end, Living),
-    Units = [Unit || #compiled{unit = Unit} <- Brought],
-    lists:foreach(fun(Unit) ->
-                      code:delete(Unit),
-                      ern_code:unloaded(Unit)
-                  end, Units),
-    lists:foreach(fun code:purge/1, Units),
-    lists:foreach(fun persistent_term:erase/1, Keys),
+    ern_code:withdrawn([Unit || #compiled{unit = Unit} <- Brought], Keys),
     Sites.
-
-%% Report §11.2, §6.9: the processes each of Roots started killed and their
-%% spawn sites, each root's in the order they were spawned; asked again
-%% once they have ended, since one may start another before its kill
-%% reaches it, until none is left.
-killed_started(Roots) ->
-    case lists:append([ern_rt:started_by(Root) || Root <- Roots]) of
-        [] ->
-            [];
-        Started ->
-            killed([Pid || {Pid, _} <- Started]),
-            [Site || {_, Site} <- Started] ++ killed_started(Roots)
-    end.
-
-%% Report §6.9: each process killed, and waited for, before a unit is
-%% purged, since the purge kills one that runs its code and has not yet
-%% taken the signal itself.
-killed(Pids) ->
-    MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
-    lists:foreach(fun ern_rt:kill/1, Pids),
-    lists:foreach(fun(MonitorRef) -> receive {'DOWN', MonitorRef, process, _, _} -> ok end end,
-                  MonitorRefs).
 
 %% Report §11.2: the refusal names the processes it killed by their spawn
 %% sites.
@@ -2349,7 +2322,7 @@ needed_one(Session, Namespace, Acc, Compiled) ->
 %% the modules it uses are (install_one/2).
 compiled_unit(Namespace, Beam, Hash) ->
     Unit = ern_namespace:erlang_module(Namespace),
-    case is_free(Unit) orelse is_held(Unit, Beam) of
+    case ern_code:is_free(Unit) orelse ern_code:is_held(Unit, Beam) of
         true ->
             {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
         false ->
@@ -2371,7 +2344,7 @@ compiled_unit(Namespace, Beam, Hash) ->
 %% name of its own.
 compile_unit(#session{source_hashes = Loaded} = Session, Namespace, File, Interfaces, Units) ->
     Plain = ern_namespace:erlang_module(Namespace),
-    case {is_map_key(Namespace, Loaded), is_free(Plain)} of
+    case {is_map_key(Namespace, Loaded), ern_code:is_free(Plain)} of
         {true, _} ->
             fresh_compiled(Session, Namespace, File, {Interfaces, Units},
                            site_namespace(Session, Namespace));
@@ -2380,7 +2353,7 @@ compile_unit(#session{source_hashes = Loaded} = Session, Namespace, File, Interf
         {false, false} ->
             case compiled_as(Session, Namespace, Plain, File, {Interfaces, Units}, own) of
                 {ok, #compiled{beam = Beam}} = Compiled ->
-                    case is_held(Plain, Beam) of
+                    case ern_code:is_held(Plain, Beam) of
                         true -> Compiled;
                         false -> fresh_compiled(Session, Namespace, File, {Interfaces, Units}, own)
                     end;
@@ -2417,35 +2390,13 @@ compiled_as(Session, Namespace, Unit, File, {Interfaces, Units}, SiteNamespace) 
     end.
 
 %% Report §11.2: a unit of a name of its own, for a module whose Erlang name
-%% the node holds code of: the name and `$` and a number, `ern@counter$2`,
-%% the first the host holds no code of. The name is measured against the
-%% host's limit before it is made an atom (§11.1).
+%% the node holds code of (ern_code:fresh_unit/1), or the refusal of a name
+%% the host does not hold, a line of the shell's.
 fresh_unit(Namespace) ->
-    fresh_unit(Namespace, 2).
-
-fresh_unit(Namespace, Number) ->
-    Text = ern_namespace:erlang_module_text(Namespace) ++ "$" ++ integer_to_list(Number),
-    case length(Text) =< ern_namespace:host_name_limit() of
-        true ->
-            Unit = list_to_atom(Text),
-            case is_free(Unit) of
-                true -> {ok, Unit};
-                false -> fresh_unit(Namespace, Number + 1)
-            end;
-        false ->
-            What = ["the name of ", ern_namespace:text(Namespace), "'s new unit, `", Text, "`,"],
-            {error, unicode:characters_to_binary(
-                      [ern_namespace:host_name_text(lists:flatten(What), Text), "\n"])}
+    case ern_code:fresh_unit(Namespace) of
+        {ok, Unit} -> {ok, Unit};
+        {error, Text} -> {error, <<Text/binary, "\n">>}
     end.
-
-%% Whether the host holds no code of a unit's name, current or old.
-is_free(Unit) ->
-    not erlang:module_loaded(Unit) andalso not erlang:check_old_code(Unit).
-
-%% Whether the host holds this very code as the unit's current code.
-is_held(Unit, Beam) ->
-    {ok, {_, Md5}} = beam_lib:md5(Beam),
-    erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5.
 
 %% The unit map with a module's unit, which names it only where it is not
 %% the module's Erlang name.
@@ -2731,7 +2682,7 @@ install_one(#compiled{namespace = Namespace, unit = Unit, beam = Compiled, sourc
                false ->
                    Compiled
            end,
-    case is_held(Unit, Beam) of
+    case ern_code:is_held(Unit, Beam) of
         true -> ok;
         false -> {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam)
     end,

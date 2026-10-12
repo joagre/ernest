@@ -21,13 +21,11 @@
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, with_interfaces/2, lookup_type/2, type_qualified_name/3, identity/2,
-         position/2, reach/2,
-         global_scheme/2,
-         is_provided/2, described_type/2, is_reply_carrying/2,
-         assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
-         foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, declared_fields/3,
-         session_member/3, lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2,
-         node_type/1]).
+         position/2, reach/2, global_scheme/2, is_provided/2, described_type/2,
+         is_reply_carrying/2, assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
+         foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, is_foreign/2,
+         declaration_scheme/2, declared_fields/3, session_member/3, lookup_constructor/4,
+         constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -80,7 +78,9 @@
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
-              reaches = #{}, positions = #{}}).
+              reaches = #{}, positions = #{}, foreign = #{}}).
+%% foreign: the module's own foreign declarations, by qualified name,
+%% which have no hash and are no definition (report Appendix H, §3.11)
 %% private_types: the private types of the modules given, which their
 %% abstract types' fields name; the descriptor builder reads them
 %% (described_type/2), and no name resolves to one (report §4.2, §11.1)
@@ -1361,7 +1361,11 @@ register_value_name(Declaration, #env{local_values = LocalValues} = Env) ->
                #let_declaration{} -> (Env#env.lets)#{QualifiedName => true};
                _ -> Env#env.lets
            end,
-    Env#env{local_values = LocalValues#{Key => QualifiedName}, lets = Lets}.
+    Foreign = case Declaration of
+                  #foreign_fn_declaration{} -> (Env#env.foreign)#{QualifiedName => true};
+                  _ -> Env#env.foreign
+              end,
+    Env#env{local_values = LocalValues#{Key => QualifiedName}, lets = Lets, foreign = Foreign}.
 
 is_operator(Name) ->
     case atom_to_list(Name) of
@@ -4111,7 +4115,8 @@ infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
             {TypedArgs, Env2} = lists:mapfoldl(Check, Env1,
                                                lists:zip3(lists:seq(1, length(Args)), Args,
                                                           ParamTypes)),
-            Env3 = use_effect(Span, Name, Effect, Env2),
+            Env3 = use_effect(Span, Name, Effect,
+                              running_mailbox(TypedCallee, TypedArgs, ResultType, Env2)),
             {Opened, TypeState1} = open_effect(ResultType, Env3#env.type_state),
             {Expr#e_call{callee = TypedCallee, args = TypedArgs, type = Opened, returns = Returns},
              Opened, Env3#env{type_state = TypeState1}};
@@ -4232,6 +4237,26 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
 infer(Expr, Env) when is_record(Expr, e_if); is_record(Expr, e_match); is_record(Expr, e_receive) ->
     {Type, TypeState} = ern_types:fresh(Env#env.type_state),
     check_expr(Expr, Type, undefined, undefined, Env#env{type_state = TypeState}).
+
+%% Report §3.11, Appendix E.28: `Code.running(f)` answers the addresses of
+%% processes whose mailbox type is f's, the effect of f where the call
+%% names it; what f may be is read once the definition is inferred
+%% (ern_bound), where a pure f is refused.
+running_mailbox(#e_var{referent = #remote_declaration{namespace = ['Code'],
+                                                            member_of = undefined,
+                                                            name = running}},
+                [Function], ResultType, #env{type_state = TypeState} = Env) ->
+    case {ern_types:resolve(node_type(Function), TypeState),
+          ern_types:resolve(ResultType, TypeState)} of
+        {{tfn, _, Effect, _}, {tcon, ['List'], [Address]}} when Effect =/= pure ->
+            %% the call's mailbox type is a fresh variable of its scheme's
+            {tcon, ['Address'], [Mailbox]} = ern_types:resolve(Address, TypeState),
+            bound(Mailbox, Effect, Env);
+        _ ->
+            Env
+    end;
+running_mailbox(_, _, _, Env) ->
+    Env.
 
 %% Report §11.5: after a sequence's first element, its type is the origin
 %% of the rest's expected type.
@@ -4469,6 +4494,30 @@ is_top_let({prelude, QualifiedName}, #env{lets = Lets}) ->
     is_map_key(QualifiedName, Lets);
 is_top_let(_, _) ->
     false.
+
+%% Report §3.11, Appendix E.28: whether a name resolved to a foreign
+%% declaration, the module's own or another module's, which has no hash.
+-spec is_foreign(term(), env()) -> boolean().
+is_foreign(#own_declaration{member_of = MemberOf, name = Name}, #env{foreign = Foreign} = Env) ->
+    is_map_key(value_qualified_name(Env, MemberOf, Name), Foreign);
+is_foreign(#remote_declaration{namespace = Namespace, member_of = MemberOf, name = Name}, Env) ->
+    identity(Namespace ++ [Part || Part <- [MemberOf], Part =/= undefined] ++ [Name], Env)
+        =:= foreign;
+is_foreign(_, _) ->
+    false.
+
+%% Report §3.11, Appendix E.28: the scheme of the top-level declaration a
+%% name resolved to, as the checker holds it now: a definition's of the
+%% group under inference is its placeholder, whose type the type state
+%% resolves; undefined for any other name.
+-spec declaration_scheme(term(), env()) -> #scheme{} | undefined.
+declaration_scheme(#own_declaration{member_of = MemberOf, name = Name}, Env) ->
+    global_scheme(value_qualified_name(Env, MemberOf, Name), Env);
+declaration_scheme(#remote_declaration{namespace = Namespace, member_of = MemberOf, name = Name},
+                   Env) ->
+    global_scheme(Namespace ++ [Part || Part <- [MemberOf], Part =/= undefined] ++ [Name], Env);
+declaration_scheme(_, _) ->
+    undefined.
 
 %% After the first branch, the expectation's origin is that branch when
 %% nothing outside fixed it.

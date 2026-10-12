@@ -6,7 +6,7 @@
 %% the host with.
 -module(ern_cli).
 
--export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, say_limits/0]).
+-export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, load_path/0, say_limits/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -1061,8 +1061,18 @@ program(File, Options) ->
 %% a `.beam` in a directory of the load path, the host's own found first.
 %% The working directory, which the host puts on its code path, is neither,
 %% unless it is a root of the load path; start/0 has taken it off.
+%% Appendix E.28: the load path is kept, where Code.load finds the modules
+%% a module it loads uses (load_path/0).
 host_path(LoadPath) ->
+    persistent_term:put({?MODULE, load_path}, LoadPath),
     ok = code:add_pathsz(LoadPath).
+
+%% Appendix E.28, report §11.2: the load path of the run in progress, its
+%% roots in order, the standard library aside, which every run holds; none
+%% where no run of `ern` gave one, as in a test that runs a program itself.
+-spec load_path() -> [file:filename()].
+load_path() ->
+    persistent_term:get({?MODULE, load_path}, []).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
 %% in the session's scope, each with the hash of the source it was compiled

@@ -74,8 +74,10 @@ check_examples(Namespace, Source, Docs) ->
     Libraries = libraries(Namespace),
     {ok, _, Own, _} = checked(Namespace, Source, Libraries),
     lists:foreach(fun({{Number, {Body, _}}, Where}) ->
-                      Example = <<"fn docExample", (integer_to_binary(Number))/binary,
-                                  "() = fn() = {\n", Body/binary, "\n}\n">>,
+                      {Declared, Expression} = declared(Body),
+                      Example = <<Declared/binary, "fn docExample",
+                                  (integer_to_binary(Number))/binary, "() = fn() = {\n",
+                                  Expression/binary, "\n}\n">>,
                       Checked = case Where of
                                     outside ->
                                         {ok, Declarations} = ern_parser:parse_string(Example),
@@ -105,7 +107,16 @@ check_examples(Namespace, Source, Docs) ->
     %% report §11.1: a module that uses another is compiled against its
     %% interface as compiled, which holds its definitions' hashes
     {ok, #{interface := Compiled}} = ern_interface:read(Beam),
-    ExampleModule = example_module(Outside, [Compiled | Libraries]),
+    %% Appendix E.0 shape rule 6: an example whose declarations stand before
+    %% it runs in a module of its own, so that two examples of a page may
+    %% declare one name
+    {Plain, Declaring} = lists:partition(fun({_, Body, _}) -> declared(Body) =:= {<<>>, Body} end,
+                                         Outside),
+    ExampleModules = [{example_module(['Docexample'], Plain, [Compiled | Libraries]), Plain}
+                      | [{example_module([list_to_atom("Docexample" ++ integer_to_list(Number))],
+                                         [Example], [Compiled | Libraries]),
+                          [Example]}
+                         || {Number, _, _} = Example <- Declaring]],
     try
         %% Appendix E.0 shape rule 6: each example runs on its own, and the value
         %% it ends with is the last line it prints; what it prints itself,
@@ -113,19 +124,38 @@ check_examples(Namespace, Source, Docs) ->
         lists:foreach(fun({Number, _, Value}) ->
                           run_example(ErlangModule, [ErlangModule], Number, Value)
                       end, Inside),
-        lists:foreach(fun({Number, _, Value}) ->
-                          run_example(ExampleModule, [ErlangModule, ExampleModule], Number,
-                                      Value)
-                      end, Outside)
+        [run_example(ExampleModule, [ErlangModule, ExampleModule], Number, Value)
+         || {ExampleModule, Examples} <- ExampleModules, {Number, _, Value} <- Examples]
     after
         restore(ErlangModule, Original),
-        restore(ExampleModule, non_existing)
+        [restore(ExampleModule, non_existing) || {ExampleModule, _} <- ExampleModules]
     end.
 
-%% The examples with a result, each a function of its own.
+%% The examples with a result, each a function of its own, its
+%% declarations before it.
 example_fns(Examples) ->
-    [<<"export fn docExample", (integer_to_binary(Number))/binary, "() = {\n", Body/binary,
-       "\n}\n">> || {Number, Body, _} <- Examples].
+    [begin
+         {Declared, Expression} = declared(Body),
+         <<Declared/binary, "export fn docExample", (integer_to_binary(Number))/binary, "() = {\n",
+           Expression/binary, "\n}\n">>
+     end || {Number, Body, _} <- Examples].
+
+%% Appendix E.0 shape rule 6: an example is an expression, which
+%% declarations may stand before, as in a module, where the call needs one,
+%% a `fn` that `Code.running` names (Appendix E.28): the paragraphs before
+%% its last blank line, where they parse as a module's declarations, each
+%% line ending, and the expression after them; else no declaration and the
+%% whole example.
+declared(Body) ->
+    case string:split(Body, <<"\n\n">>, trailing) of
+        [Declared, Expression] ->
+            case ern_parser:parse_string(Declared) of
+                {ok, [_ | _]} -> {<<Declared/binary, "\n">>, Expression};
+                _ -> {<<>>, Body}
+            end;
+        _ ->
+            {<<>>, Body}
+    end.
 
 %% Each example's value printed as `Io.show` writes it, by a main of its
 %% own; the module Io names its own functions plain (report §4.2).
@@ -138,13 +168,14 @@ example_mains(Namespace, Examples) ->
                        Print, "docExample", integer_to_list(Number), "()))\n"])
      || {Number, _, _} <- Examples].
 
-%% The module the outside examples run in, compiled and loaded against the
-%% documented module's interface and the libraries'.
-example_module(Examples, Interfaces) ->
-    Text = iolist_to_binary([example_fns(Examples), example_mains(['Docexample'], Examples)]),
+%% A module the outside examples run in, of the namespace Namespace,
+%% compiled and loaded against the documented module's interface and the
+%% libraries'.
+example_module(Namespace, Examples, Interfaces) ->
+    Text = iolist_to_binary([example_fns(Examples), example_mains(Namespace, Examples)]),
     {ok, Declarations} = ern_parser:parse_string(Text),
-    {ok, Typed, Interface, Env} = ern_typecheck:check(['Docexample'], Declarations, Interfaces),
-    {ok, ExampleModule, Beam} = ern_compile:compile(['Docexample'], Typed, Interface, Env),
+    {ok, Typed, Interface, Env} = ern_typecheck:check(Namespace, Declarations, Interfaces),
+    {ok, ExampleModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
     {module, ExampleModule} = code:load_binary(ExampleModule, "doc examples", Beam),
     ExampleModule.
 
