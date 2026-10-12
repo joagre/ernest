@@ -22,7 +22,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
 of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). MVP 3.2's items 1 to 3, the report for code with a spawn and the exchange, are done the same day (the log's *The Report for Code with a Spawn*). The road to 1.0 is MVP 3.1, 3.25,
 3.2, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
-1.0 (the log's *The Road to 1.0, Ordered*). MVP 3.1 ended with a read of what it built, its item
+0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). MVP 3.1 ended with a read of what it built, its item
 9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 9 (the log's *A Read Before MVP 3.2* and
 *Ernest 0.4.0 Ends MVP 3.2*); any other release waits until the user calls it.
 
@@ -79,11 +79,11 @@ paragraph under "Done".
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 7.5's push against the pull across them | made 2026-10-13; after MVP 3.2's item 7.5 and before the deployment guide |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
-| MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
+| MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13 |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
 | MVP 4.3 | the shell's second round | |
-| MVP 4.4 | after 1.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
+| MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first |
 
 ---
 
@@ -402,7 +402,7 @@ mailbox on one node to a rolling upgrade across three nodes written in Ernest. D
 user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about deployment (MVP
 3.2's item 8). It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its
 last chapters need, and before MVP 3.9, whose newcomer reads it: it is the language's hardest
-test, so what it finds is found before the promise of 1.0 (the log's *The Road to 1.0, Ordered*).
+test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordered*).
 
 - **The outline first, written with the user**, as a design is: the chapters, the program's
   growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
@@ -415,12 +415,17 @@ test, so what it finds is found before the promise of 1.0 (the log's *The Road t
   report's and the guides', and the tour names the section.
 - **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
-  one program grown across every feature is the language's hardest test before 1.0.
+  one program grown across every feature is the language's hardest test before 0.5.0.
 
-## MVP 3.9 (the review before 1.0)
+## MVP 3.9 (the review, and Ernest 0.5.0)
 
-What a promise of stability needs and a first release could leave out (the log's *The First
-Release Is for Others*), after the language was argued in MVP 2.99c:
+The last milestone of the planned road, decided with the user on 2026-10-13: it ends in a release,
+Ernest 0.5.0, and not in 1.0. Ernest has no users yet and its author has no more of the language in
+mind, so nothing is frozen and no promise of stability is made; from 0.5.0 on, a change to the
+language, the standard library or the libraries is driven by a need met in use, the author's or
+another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is the release that
+follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
+log's *The First Release Is for Others*:
 
 - **The full review**, when the user says so: every reader over the whole of its area
   ([`full_review.md`](full_review.md)), and its findings worked.
@@ -428,9 +433,10 @@ Release Is for Others*), after the language was argued in MVP 2.99c:
   0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
   citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
   numbers kept for good (the log's *The Language Argued Before Peers*).
-- **The promise**: what 1.0 holds stable, stated in the report's §0 and the release's notes.
-  Until then a release may refuse a program the previous release accepted, and its notes
-  point at what changed rather than list it (the log's *A Release Carries No History*).
+- **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
+  0.4.0 and that a release may still refuse a program the previous release accepted, as every
+  release before 1.0 may (the log's *A Release Carries No History*); no section of the report states
+  a promise, since none is made.
 
 ---
 
@@ -548,7 +554,7 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 
 ## MVP 4.4 (a back end to BEAM's own instructions)
 
-The first milestone after Ernest 1.0, decided with the user on 2026-10-10 (the log's *The Road
+The first milestone after Ernest 0.5.0, decided with the user on 2026-10-10 (the log's *The Road
 to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format, writing the
 BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
 record instructions among them), with Ernest's proven types written as the loader's typed
