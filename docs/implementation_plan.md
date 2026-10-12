@@ -21,7 +21,7 @@ designs, [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md) and
 2026-10-09, and their sections below are written from them. The principles review ran the same day over
 MVP 3.1's proposal and over peers, and its decisions are built (the log's *The Principles Review
 of 2026-10-09*). MVP 3.1 is done on 2026-10-10 (the log's *MVP 3.1 Done*). MVP 3.25 is done on 2026-10-11, built before MVP 3.2's item 1 (the log's *Placing Work by Name*). MVP 3.2's items 1 to 3, the report for code with a spawn and the exchange, are done the same day (the log's *The Report for Code with a Spawn*). The road to 1.0 is MVP 3.1, 3.25,
-3.2, the tour and the review; ehttpd, the website, the shell's second round and the back end follow
+3.2, the tour and the review; the attached shell, ehttpd, the website, the shell's second round and the back end follow
 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). MVP 3.1 ended with a read of what it built, its item
 9, and MVP 3.2 ends with a release, Ernest 0.4.0, its item 10 (the log's *A Read Before MVP 3.2* and
 *Ernest 0.4.0 Ends MVP 3.2*); any other release waits until the user calls it.
@@ -80,6 +80,7 @@ paragraph under "Done".
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13 |
+| MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | |
 | MVP 4.3 | the shell's second round | |
@@ -377,8 +378,7 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
    exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say what a
    program written for 0.3.1 changes and what the shell does not yet do beside a node, attach to it
-   with its inputs run there, which MVP 4.3's item 4 brings and the deployment guide's section 6
-   says (decided 2026-10-13: nothing more goes into 0.4.0), the README rewritten from
+   with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0), the README rewritten from
    `proposals/scratch/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
    changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
@@ -460,6 +460,26 @@ log's *The First Release Is for Others*:
   a promise, since none is made.
 
 ---
+
+## MVP 4.0 (a shell attached to a running node), about a week
+
+The first milestone after Ernest 0.5.0, made on 2026-10-13 from MVP 4.3's item 4 when the deployment
+guide's section 6 was written and the user saw how thin a shell beside a node is for an operator:
+every look is a compute wrapped by hand, and nothing of the node's own is at the prompt. An attached
+shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping of code, so that a
+binding read is the node's, a process listed is the node's and a function called runs there without
+the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
+reload code on the node, as `erl -remsh` attaches to an Erlang node. The shell's design does not
+assume it runs on the node whose code it evaluates (`proposals/shell/shell_design.md`). Nothing of
+it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
+it.
+
+1. **The design**, discussed with the user first: what attaches, a `--attach name` to a listed peer
+   or a command at the prompt; what an input's process is on the node and who its root is; what
+   `:processes`, `:load` and `:reload` do there and what stays the shell's own; what the attached
+   shell shows when the node is lost; and the deployment guide's section 6 rewritten over it.
+2. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
+   program's node, the guide's section 6 run by them, and the release that follows.
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
 
@@ -554,9 +574,8 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
    constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
    check an unfinished input, designed first.
-4. **A shell attached to a running node**, about a week: each input run on the peer, over MVP
-   3.0's peers and MVP 3.1's shipping of code. The shell's design does not assume it runs on
-   the node whose code it evaluates.
+4. **A shell attached to a running node**: MVP 4.0's since 2026-10-13, the first milestone
+   after 0.5.0.
 5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
    a running program an input opens end with the input's process, their owner (§11.2), and
    the session could own them instead, so that they live until it ends, by a way the shell
