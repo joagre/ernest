@@ -77,6 +77,7 @@ paragraph under "Done".
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
+| MVP 3.26 | placement by push: each node tells its peers its utilisation on a configured interval, `Peer.compute(f, ms)` on the least loaded peer beside `Peer.computeAt(name, f, ms)`, `Peer.loads()` and `Peer.load(x)`, `libs/placement` gone, by `proposals/placement/push.md` | proposal under discussion since 2026-10-13; decided from its experiment after MVP 3.2's item 7, built before its item 8 |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
@@ -345,6 +346,32 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    user on 2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*).
 
 ---
+
+## MVP 3.26 (placement by push), about a week
+
+A milestone made on 2026-10-13 for a question the user raised while MVP 3.2's item 6 closed: whether
+a node should learn how busy its peers are by asking at the moment of the pick, as MVP 3.25 decided,
+or by each node telling its peers on an interval, so that a computation is placed by what the node
+already holds. Its design is `proposals/placement/push.md`, under discussion, and nothing of it is
+decided: the milestone holds the decision's place, between MVP 3.2's item 7, whose measurements of
+the utilisation path it needs, and item 8, whose guide teaches the placement that ships. One
+requirement stands whatever is decided: the program designs the number its node tells, on §8.7's
+scale, the configured measure being the default alone.
+
+1. **The decision.** The proposal read back and its experiment run on the nodes harness: three
+   nodes, a burst and a stream of computes under the pull of today, push by the least loaded and
+   push by two choices, with the frames' cost at three and ten nodes; the pick's rule, spawn's form,
+   the default interval and the number's design decided from it, in the proposal first and then in
+   the report, the log's *Placing Work by Name* recording the reversal and why.
+2. **The build, if adopted.** The telling, one frame more of the runtime's own, on `ernest.conf`'s
+   `utilisation-interval`; the table of loads with its rules; `Peer.compute`, `Peer.computeAt`,
+   `Peer.loads` and `Peer.load`; `libs/placement` and Appendix G.5 removed, their tests moved to
+   `Peer`'s; §8.7, §10, Appendix C and E.27 edited first; the guide's §8.1 taught over the new
+   names; the nodes tests over the experiment's programs; `make test` green; the measurements in the
+   log.
+3. **If declined.** The proposal kept as the record of a design set aside, its README saying so, the
+   plan's item 8 teaching the pull with the helper of the program's own, and a *Later* entry naming
+   what would reopen it.
 
 ## MVP 3.3 (the tour)
 

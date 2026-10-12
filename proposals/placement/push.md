@@ -12,6 +12,8 @@ The table's rules. A peer not heard from is not chosen. A load older than two in
 
 The interval. `"utilisation-interval"` in `ernest.conf` (Appendix C), milliseconds between a node's tellings, 5000 where it is left out. It is the operator's time, as `utilisation` is the operator's measure, and the report states it as a configured value; the runtime still chooses no time of its own.
 
+The number a node tells is its own to design. By default it is the measure `utilisation` names, as `Peer.utilisation` answers it today; a program that knows its load better, a queue's depth, a store's fill, work it has promised, tells the node the number itself, `Peer.load(x)`, `x` from 0.0 to 1.0, and from then on the node tells that number at each interval and `Peer.utilisation` answers it to a peer, until the program sets it again. The scale stays §8.7's, 0.0 idle and 1.0 full, so that nodes of different programs are compared on one scale; what the number means is the program's.
+
 `Peer.spawn`, `Peer.spawnMonitored` and `Peer.find` keep their names and their peer. A process is placed by a deployment's decision, where the data is, where the service is to live, which a name says; a computation is work, placed where there is room. The asymmetry is stated, and section 7 names what would change it.
 
 `libs/placement` goes with Appendix G.5, since a pull beside a push is two ways to one end (principle 2); `Peer.utilisation(name, ms)` stays, a measurement asked for now, which a program wanting a fresher number than the table's takes.
@@ -75,7 +77,7 @@ The experiment decides the pick's rule, section 7's first question, and gives it
 - §8.7: the telling, one frame more among the runtime's own, the table and its four rules, `compute` on the least loaded and `computeAt` on a name, the loss dropping a load.
 - §10: the frames' cost per interval, stated.
 - Appendix C: `"utilisation-interval"`, its default.
-- E.27: `compute`, `computeAt`, `loads`; the guide's §8.1 taught over them.
+- E.27: `compute`, `computeAt`, `loads`, `load`; the guide's §8.1 taught over them.
 - G.5 goes, and `libs/placement` with it; its tests move to `Peer`'s.
 - The log's *Placing Work by Name* gains the reversal and why; `proposals/balancer/README.md` points here.
 - `docs/soundness.md`: nothing, since no type changes; a load is a number.
@@ -86,7 +88,8 @@ The experiment decides the pick's rule, section 7's first question, and gives it
 2. **Spawn.** Whether `Peer.spawn` gains a nameless form too. Against: a process's place is a deployment's decision, and four names in place of two. For: a worker pool spawned where there is room, which today's program writes over `Peer.loads()` and `Peer.spawn` in two lines. What would change it: programs that write those two lines everywhere.
 3. **The default interval.** Five seconds is Kubernetes' order; a shorter one costs frames, a longer one staleness. The experiment's steady stream shows where the knee is.
 4. **A bare node.** It tells its load as any node does, and holds its peers'; a compute from it picks as any does. Nothing special, stated for completeness.
-5. **A node that lists no peers.** Tells no one, holds nothing, and `Peer.compute` answers `Left(NotListed)` as today's does for a name not listed, since there is no peer to reach, not `Unreachable`. Stated.
+5. **The number's design.** `Peer.load(x)` sets a value the node tells until it is set again, the plainest shape; the alternative, a function the node calls at each telling, `Peer.load(fn() = ...)`, runs the program's code in a process of the runtime's on the runtime's interval, which §0's paragraph on time and principle 3 count against it. A program that wants a fresh number sets it when its own state changes. Recommended: the value.
+6. **A node that lists no peers.** Tells no one, holds nothing, and `Peer.compute` answers `Left(NotListed)` as today's does for a name not listed, since there is no peer to reach, not `Unreachable`. Stated.
 
 ## 8. If adopted
 
