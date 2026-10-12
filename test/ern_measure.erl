@@ -593,7 +593,7 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), code_scenarios(), load_scenarios(), proxy_scenarios()]).
+                  peer_scenarios(), code_scenarios(), utilisation_scenarios(), proxy_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -965,24 +965,27 @@ code_scenarios() ->
 %% Appendix G.4: the runtime's two measures beside the host's statistics,
 %% and the host's services' three, which answer None where the service does
 %% not run, as in this launch, beside the host's look for the service.
-load_scenarios() ->
-    Load = ern_named:functions('ern@load'),
-    LoadRunQueue = Load(runQueue),
-    LoadSchedulers = Load(schedulers),
-    LoadCpu = Load(cpu),
-    LoadMemory = Load(memory),
-    LoadDisk = Load(disk),
+utilisation_scenarios() ->
+    Utilisation = ern_named:functions('ern@utilisation'),
+    UtilisationRunQueue = Utilisation(runQueue),
+    UtilisationSchedulers = Utilisation(schedulers),
+    UtilisationCpu = Utilisation(cpu),
+    UtilisationMemory = Utilisation(memory),
+    UtilisationDisk = Utilisation(disk),
     WallTime = fun() ->
                    erlang:system_flag(scheduler_wall_time, true),
                    erlang:statistics(scheduler_wall_time),
                    erlang:statistics(scheduler_wall_time)
                end,
-    [{<<"Load.runQueue">>, {fun() -> LoadRunQueue() end,
-                            fun() -> erlang:statistics(total_run_queue_lengths) end}},
-     {<<"Load.schedulers">>, {fun() -> LoadSchedulers(0) end, WallTime}},
-     {<<"Load.cpu">>, {fun() -> LoadCpu() end, fun() -> erlang:whereis(cpu_sup) end}},
-     {<<"Load.memory">>, {fun() -> LoadMemory() end, fun() -> erlang:whereis(memsup) end}},
-     {<<"Load.disk">>, {fun() -> LoadDisk() end, fun() -> erlang:whereis(disksup) end}}].
+    [{<<"Utilisation.runQueue">>, {fun() -> UtilisationRunQueue() end,
+                                   fun() -> erlang:statistics(total_run_queue_lengths) end}},
+     {<<"Utilisation.schedulers">>, {fun() -> UtilisationSchedulers(0) end, WallTime}},
+     {<<"Utilisation.cpu">>, {fun() -> UtilisationCpu() end,
+                              fun() -> erlang:whereis(cpu_sup) end}},
+     {<<"Utilisation.memory">>, {fun() -> UtilisationMemory() end,
+                                 fun() -> erlang:whereis(memsup) end}},
+     {<<"Utilisation.disk">>, {fun() -> UtilisationDisk() end,
+                               fun() -> erlang:whereis(disksup) end}}].
 
 %% Appendix G.7: a proxy started and ended, its find answering
 %% at once in a launch that is no node, beside a process spawned and

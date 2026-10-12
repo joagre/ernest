@@ -665,10 +665,10 @@ debug_information(Dir) ->
 %% report §9.3, §11.2, Appendix G.2, G.4, G.6, G.7, Appendix G.5, plan MVP
 %% 3.2: every library's own tests, run by `ern test` over the directory
 %% their compiled modules are under, as the shell's are: the Markdown
-%% library's read and lay out what G.2 says, the Load library's measure as
-%% G.4 says, the JSON library's read and write what G.6 says, and the
-%% proxy's wait for its service as G.7 says, and no module of the placement
-%% library, which G.5 says is removed; no test's process faults. A
+%% library's read and lay out what G.2 says, the Utilisation library's
+%% measure as G.4 says, the JSON library's read and write what G.6 says,
+%% and the proxy's wait for its service as G.7 says, and no module of the
+%% placement library, which G.5 says is removed; no test's process faults. A
 %% regression test too: the modules were run by one command joined with
 %% `&&`, which the host runs by `exec`, so only the first module's tests
 %% ran, and it has none
@@ -682,7 +682,7 @@ libs() ->
     ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<" faulted: ">>) =/= nomatch]),
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Json">>, <<"Load">>, <<"Markdown">>, <<"Proxy">>],
+    ?assertEqual([<<"Json">>, <<"Markdown">>, <<"Proxy">>, <<"Utilisation">>],
                  Lines -- Passed),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).

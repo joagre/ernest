@@ -1,17 +1,19 @@
-// Report §8.7, Appendix G.4: the loads the host's services give on a node,
-// which its measures run, and the wait for a peer's telling; a module with
-// no binding, so that its spawns run on any peer that has the build.
+// Report §8.7, Appendix G.4: the readings the host's services give on a
+// node, which its measures run, and the wait for a peer's telling; a module
+// with no binding, so that its spawns run on any peer that has the build.
 
-// Whether each of the host's services, cpu, memory and disk, answers a load
-// on the peer, which writes it to its standard output.
-export fn loadsOn(name : String) : Either(Io.Error, Address(Never)) with m =
-    Peer.spawn(name, fn() : Unit with Never = Io.println("loads there: " <> loads()), 5000)
+// Whether each of the host's services, cpu, memory and disk, answers a
+// reading on the peer, which writes it to its standard output.
+export fn readingsOn(name : String) : Either(Io.Error, Address(Never)) with m =
+    Peer.spawn(name, fn() : Unit with Never = Io.println("readings there: " <> readings()), 5000)
 
-export fn loads() : String with m =
-    Io.show(#(answers(Load.cpu()), answers(Load.memory()), answers(Load.disk())))
+export fn readings() : String with m =
+    Io.show(#(answers(Utilisation.cpu()),
+              answers(Utilisation.memory()),
+              answers(Utilisation.disk())))
 
-fn answers(load : Optional(Float)) : Bool =
-    match load {
+fn answers(reading : Optional(Float)) : Bool =
+    match reading {
         Some(fraction) -> fraction >= 0.0 && fraction <= 1.0
       | None -> false
     }

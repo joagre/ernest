@@ -145,7 +145,9 @@ day, fifteen names a cold reader could not predict, `Standing` to `Proxy`, `via`
 `nextInt`, `Fs.makeLink` to `makeSymlink`, `Entry.mtime` to `modified`, `FaultReport.peer` to
 `spawnedBy` and `Link.address` to `url`, and `slice` taking an end index (the log's *Names Read as
 a Newcomer Reads Them*; E.0's tenth shape rule), all before 0.4.0 freezes a name. The reviews'
-newcomer now lists the names it could not predict.
+newcomer now lists the names it could not predict. On 2026-10-13, after item 9, the library
+`Load` became `Utilisation`, since in Ernest `load` loads code and the library reads the
+utilisation §8.7 names (report Appendix G.4; the log's *Placing Work by Name*).
 
 **Fifth, with item 3, two shell tests under load.** Done 2026-10-11, with item 3. `command_argument`
 in `test/ern_shell_tests.erl` had failed once in the whole suite, its final bytes not holding the
@@ -511,9 +513,10 @@ that work, when someone asks for it, or when we want it, decided 2026-09-25 (the
 program adds with `--load-path`, with `stdlib/`'s test discipline, documented in one pass to
 [`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
 user, and a section in the appendix of libraries. Own repositories come later, when there is a
-package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/load`,
-`libs/balancer` and `libs/json` (Appendix G; `libs/markdown` under "Done", `load`, `balancer`
-and `json` in MVP 3.0). Named so far:
+package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilisation`,
+`libs/json` and `libs/proxy` (Appendix G; `libs/markdown` under "Done", `utilisation`, named
+`load` until 2026-10-13, and `json` in MVP 3.0, and `proxy`, named `standing` until 2026-10-10,
+in MVP 3.1). Named so far:
 
 - **`libs/base64`**, a shim over `base64`.
 - **`libs/tls`**, a shim over `ssl` and `public_key`: `listen`, `accept`, `connect`. Whether

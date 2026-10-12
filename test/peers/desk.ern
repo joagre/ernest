@@ -326,17 +326,17 @@ fn reloaded() : Unit with Msg = {
 // its peers the store alone telling it its utilisation, the peer gone never
 // reached: Unreachable before any has told one, no connection yet open;
 // once the store has told its utilisation, which it does as the spawn of
-// the loads' check connects them, on the store, its value the peers of the
-// node it ran on, the store the one peer the desk holds a utilisation of;
-// and the loads of the host's services, which the store runs and the desk
-// does not.
+// the readings' check connects them, on the store, its value the peers of
+// the node it ran on, the store the one peer the desk holds a utilisation
+// of; and the readings of the host's services, which the store runs and the
+// desk does not.
 fn placed(interval : Int) : Unit with Msg = {
     Io.println("before a telling: " <> Io.show(Peer.compute(fn() = Peer.peers(), 5000)));
-    Io.println("loads: " <> started(Placing.loadsOn("store")));
+    Io.println("readings: " <> started(Placing.readingsOn("store")));
     Placing.heard("store", interval);
     Io.println("computed: " <> Io.show(Peer.compute(fn() = Peer.peers(), 5000)));
     Io.println("held: " <> Io.show(List.map(Peer.utilisations(), fn(#(name, _, _)) = name)));
-    Io.println("loads here: " <> Placing.loads())
+    Io.println("readings here: " <> Placing.readings())
 }
 
 // Report §8.7, the proposal's section 4: what a silence ends and what it

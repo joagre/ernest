@@ -134,7 +134,7 @@ A node that lists peers tells each of them its utilisation every `utilisation-in
 
 ### 3.3 The host's measures
 
-`measures` names the host's own services that run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it, `check-interval` and `almost-full`, which the `Load` library reads (report Appendix G.4). None runs where the section is absent, and a reload starts or stops them. They cost what the host's services cost and nothing of Ernest's.
+`measures` names the host's own services that run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it, `check-interval` and `almost-full`, which the `Utilisation` library reads (report Appendix G.4). None runs where the section is absent, and a reload starts or stops them. They cost what the host's services cost and nothing of Ernest's.
 
 ### 3.4 A bare node
 

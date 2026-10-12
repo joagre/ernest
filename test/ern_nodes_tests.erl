@@ -24,7 +24,7 @@
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["json", "load", "proxy"]]).
+                    || Library <- ["json", "proxy", "utilisation"]]).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
@@ -3700,15 +3700,16 @@ typed_channels(Base) ->
 %% the store and the desk telling every `utilisation-interval` of their
 %% configurations, of the desk's two peers the store alone reached: before
 %% any connection, the desk holding no utilisation, Unreachable; once the
-%% spawn of the loads' check has connected them and the store has told its
-%% utilisation, on the store, the value its peers, the desk and the third
-%% node, and the store the one peer the desk holds a utilisation of, the
-%% peer gone left out; Load answers the host's services' loads on the
-%% store, whose measures run them, and none on the desk, whose do not. A
-%% regression test, written after the code; the pick's rules over two peers
-%% and more are pick_test_'s and ern_peer_tests', and the desk waits for
-%% the telling by reading its utilisations at each interval, so that the
-%% telling's coming within one interval is held by no time here
+%% spawn of the readings' check has connected them and the store has told
+%% its utilisation, on the store, the value its peers, the desk and the
+%% third node, and the store the one peer the desk holds a utilisation of,
+%% the peer gone left out; Utilisation answers the host's services'
+%% readings on the store, whose measures run them, and none on the desk,
+%% whose do not. A regression test, written after the code; the pick's
+%% rules over two peers and more are pick_test_'s and ern_peer_tests', and
+%% the desk waits for the telling by reading its utilisations at each
+%% interval, so that the telling's coming within one interval is held by no
+%% time here
 placed_test_() ->
     nodes_test(90, fun placed/1).
 
@@ -3725,7 +3726,7 @@ placed(Base) ->
     WaitStore = start(Store, StoreProgram, []),
     prints(Store, "offered"),
     ?assertEqual(0, (start(Desk, DeskProgram, ["place", integer_to_list(Interval)]))()),
-    prints(Store, "loads there"),
+    prints(Store, "readings there"),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
     {StoreOut, StoreErr} = said(Store),
@@ -3734,10 +3735,10 @@ placed(Base) ->
     %% ended, that the host had closed
     ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
     [has(Out, Line)
-     || Line <- ["before a telling: Left(Unreachable)", "loads: Right",
+     || Line <- ["before a telling: Left(Unreachable)", "readings: Right",
                  "computed: Right([\"desk\", \"third\"])", "held: [\"store\"]",
-                 "loads here: #(false, false, false)"]],
-    has(StoreOut, "loads there: #(true, true, true)").
+                 "readings here: #(false, false, false)"]],
+    has(StoreOut, "readings there: #(true, true, true)").
 
 %% The program of three nodes of one build, each started with its name, and
 %% of a node that lists no peer, built in Base: the `.erc`.

@@ -750,21 +750,21 @@ Ansi.clearBelow : String // erases from the cursor to the end of the screen
 Ansi.clearScreen : String // erases the screen and puts the cursor at its top left
 ```
 
-### Appendix G.4. `libs/load` (namespace `Load`)
+### Appendix G.4. `libs/utilisation` (namespace `Utilisation`)
 
 How busy this node is, by the host's measures, each a function of Ernest over the host's (§8.7). `runQueue` answers the processes ready to run and waiting for a scheduler, and `schedulers(window)` the fraction of the schedulers' time spent running processes over a window of the next `window` milliseconds, which it waits for, a window below 1 being 1 (§7.4); both read the runtime and answer in any program. `cpu`, `memory` and `disk` read the host's services `cpu_sup`, `memsup` and `disksup`, which a node starts where its `measures` name `cpu`, `memory` and `disk` (§8.7), and answer `None` where the service does not run, as in a program that is no node: `cpu` the fraction of the processor's time busy since the calling process's previous call, and at a process's first call, or its first since the service started again, a value the host does not promise, on most systems the fraction since the machine started; `memory` the fraction of the machine's memory not available, and `disk` the fraction used of the fullest of the machine's disks. Each fraction is from 0.0 to 1.0.
 
 ```
-Load.runQueue : () -> Int with m+
-Load.schedulers : (Int) -> Float with m+
-Load.cpu : () -> Optional(Float) with m+
-Load.memory : () -> Optional(Float) with m+
-Load.disk : () -> Optional(Float) with m+
+Utilisation.runQueue : () -> Int with m+
+Utilisation.schedulers : (Int) -> Float with m+
+Utilisation.cpu : () -> Optional(Float) with m+
+Utilisation.memory : () -> Optional(Float) with m+
+Utilisation.disk : () -> Optional(Float) with m+
 ```
 
 ### Appendix G.5. `libs/placement` (namespace `Placement`)
 
-Removed on 2026-10-13. The library asked every peer its utilisation at the moment of a pick and answered the least busy; a node now holds its peers' loads from their tellings and `Peer.compute` draws a peer by them (§8.7, Appendix E.27), and a rule of a program's own is written over `Peer.utilisations()`. The number is kept, as every section's is.
+Removed on 2026-10-13. The library asked every peer its utilisation at the moment of a pick and answered the least busy; a node now holds its peers' utilisations from their tellings and `Peer.compute` draws a peer by them (§8.7, Appendix E.27), and a rule of a program's own is written over `Peer.utilisations()`. The number is kept, as every section's is.
 
 ### Appendix G.6. `libs/json` (namespace `Json`)
 

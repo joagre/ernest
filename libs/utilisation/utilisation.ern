@@ -21,14 +21,14 @@
 /// The processes waiting to run, none or more:
 ///
 /// ```ernest
-/// Load.runQueue() >= 0
+/// Utilisation.runQueue() >= 0
 /// // => true
 /// ```
 ///
 /// A program that is no node runs none of the host's services:
 ///
 /// ```ernest
-/// #(Load.cpu(), Load.memory(), Load.disk())
+/// #(Utilisation.cpu(), Utilisation.memory(), Utilisation.disk())
 /// // => #(None, None, None)
 /// ```
 ///
@@ -40,7 +40,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Load.runQueue() >= 0
+/// Utilisation.runQueue() >= 0
 /// // => true
 /// ```
 export fn runQueue() : Int with m =
@@ -55,7 +55,7 @@ export fn runQueue() : Int with m =
 ///
 /// ```ernest
 /// {
-///     let busy = Load.schedulers(10);
+///     let busy = Utilisation.schedulers(10);
 ///     busy >= 0.0 && busy <= 1.0
 /// }
 /// // => true
@@ -103,11 +103,11 @@ fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
 /// ### Examples
 ///
 /// ```ernest
-/// Load.cpu()
+/// Utilisation.cpu()
 /// // => None
 /// ```
 export fn cpu() : Optional(Float) with m =
-    if runs("cpu_sup") then Some(utilisation() / 100.0) else None
+    if runs("cpu_sup") then Some(cpuPercent() / 100.0) else None
 
 /// The fraction of the machine's memory in use, from 0.0 to 1.0, by the
 /// host's `memsup`: what is not available, of the total; `None` where the
@@ -116,7 +116,7 @@ export fn cpu() : Optional(Float) with m =
 /// ### Examples
 ///
 /// ```ernest
-/// Load.memory()
+/// Utilisation.memory()
 /// // => None
 /// ```
 export fn memory() : Optional(Float) with m =
@@ -148,7 +148,7 @@ fn valued(data : List(#(Foreign.Term, Int)), name : String) : Int = {
 /// ### Examples
 ///
 /// ```ernest
-/// Load.disk()
+/// Utilisation.disk()
 /// // => None
 /// ```
 export fn disk() : Optional(Float) with m =
@@ -202,7 +202,7 @@ foreign fn setFlag(flag : Foreign.Term, value : Foreign.Term) : Bool with m =
 foreign fn registered(name : Foreign.Term) : Foreign.Term with m =
     "erlang:whereis/1"
 
-foreign fn utilisation() : Float with m =
+foreign fn cpuPercent() : Float with m =
     "cpu_sup:util/0"
 
 foreign fn memoryData() : List(#(Foreign.Term, Int)) with m =
