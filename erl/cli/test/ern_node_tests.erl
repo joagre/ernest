@@ -92,14 +92,15 @@ create_test() ->
                  iolist_to_binary(lists:last(string:split(refusal(fun() ->
                                                                       ern_node:create(Dir)
                                                                   end), "/", trailing)))),
-    %% what it makes, a node reads
-    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue},
+    %% what it makes, a node reads, its tellings every 5000 ms
+    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue, 5000},
                  ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may say, read whole: a
 %% listener of IPv6, peers with an address, a name, or none, services
-%% naming them in the order a find asks them, the host's measures, and the
-%% node's utilisation, the run queue where the entry is absent
+%% naming them in the order a find asks them, the host's measures, the
+%% node's utilisation, the run queue where the entry is absent, and the
+%% interval of its tellings, 5000 ms where the entry is absent
 read_test() ->
     Dir = made(),
     One = other_key(),
@@ -113,9 +114,12 @@ read_test() ->
                                     <<"memory">> => #{<<"check-interval">> => 120000,
                                                       <<"almost-full">> => 0.9},
                                     <<"disk">> => #{<<"check-interval">> => 500}},
-                <<"utilisation">> => <<"schedulers">>}),
-    {configuration, _, Listen, _, Peers, Services, Measures, Utilisation} = ern_node:read(Dir),
+                <<"utilisation">> => <<"schedulers">>,
+                <<"utilisation-interval">> => 2000}),
+    {configuration, _, Listen, _, Peers, Services, Measures, Utilisation, Interval} =
+        ern_node:read(Dir),
     ?assertEqual(schedulers, Utilisation),
+    ?assertEqual(2000, Interval),
     ?assertEqual({{0, 0, 0, 0, 0, 0, 0, 0}, 0}, Listen),
     ?assertMatch([{peer, <<"store">>, _, {{0, 0, 0, 0, 0, 0, 0, 1}, 8654}},
                   {peer, <<"desk">>, _, none}], Peers),
@@ -127,10 +131,10 @@ read_test() ->
     with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => One,
                                   <<"network-address">> => <<"localhost:8654">>}]}),
     ?assertMatch({configuration, _, none, _, [{peer, <<"store">>, _, {"localhost", 8654}}], _, _,
-                  run_queue},
+                  run_queue, 5000},
                  ern_node:read(Dir)),
-    with(Dir, #{<<"utilisation">> => <<"run-queue">>}),
-    ?assertMatch({configuration, _, _, _, _, _, _, run_queue}, ern_node:read(Dir)).
+    with(Dir, #{<<"utilisation">> => <<"run-queue">>, <<"utilisation-interval">> => 1}),
+    ?assertMatch({configuration, _, _, _, _, _, _, run_queue, 1}, ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may not say, each refused when
 %% the file is read, naming the file and why
@@ -199,7 +203,15 @@ read_refusals_test() ->
           "measures' disk's almost-full is not a fraction from 0 to 1"},
          {#{<<"utilisation">> => <<"cpu">>},
           "utilisation is \"cpu\", which is neither \"run-queue\" nor \"schedulers\""},
-         {#{<<"utilisation">> => 1}, "utilisation is neither \"run-queue\" nor \"schedulers\""}],
+         {#{<<"utilisation">> => 1}, "utilisation is neither \"run-queue\" nor \"schedulers\""},
+         {#{<<"utilisation-interval">> => 0},
+          "utilisation-interval is not a count of milliseconds above 0"},
+         {#{<<"utilisation-interval">> => -5000},
+          "utilisation-interval is not a count of milliseconds above 0"},
+         {#{<<"utilisation-interval">> => 2500.5},
+          "utilisation-interval is not a count of milliseconds above 0"},
+         {#{<<"utilisation-interval">> => <<"5000">>},
+          "utilisation-interval is not a count of milliseconds above 0"}],
     Ends = fun(Message, Expected) ->
                case is_list(Message) andalso ends(Message, Expected) of
                    true -> ok;
@@ -238,7 +250,7 @@ name_not_resolved_test() ->
                                       <<"network-address">> => <<"only6.ernest.invalid:8654">>}]}),
         ?assertMatch({configuration, _, _, _,
                       [{peer, <<"store">>, _, {"no.such.host.invalid", 8654}},
-                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _, _},
+                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _, _, _},
                      ern_node:read(Dir))
     after
         ok = inet_db:set_lookup(Lookup),

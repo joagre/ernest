@@ -593,8 +593,7 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), code_scenarios(), load_scenarios(), placement_scenarios(),
-                  proxy_scenarios()]).
+                  peer_scenarios(), code_scenarios(), load_scenarios(), proxy_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -890,13 +889,19 @@ terminal_scenarios() ->
 
 %% Appendix E.27: a service as the compiler makes it, with its type's
 %% hash; an offer and its withdrawal beside the host's two tables written
-%% and emptied; the peers' names beside the host's read of them. A find, a
-%% spawn, a compute and a utilisation act on a peer, which a run of one node
-%% cannot reach; `make bench`'s node part measures them on real nodes.
+%% and emptied; the peers' names, and the loads held of them, none in a
+%% run of one node, beside the host's read of the names; a load set beside
+%% the host's row written. A find, a spawn, a compute on a peer named or
+%% picked and a utilisation act on a peer, which a run of one node cannot
+%% reach; `make bench`'s node parts measure them, the pick among them, on
+%% real nodes.
 peer_scenarios() ->
     Peer = ern_named:functions('ern@peer'),
     PeerOffer = Peer(offer),
     PeerPeers = Peer(peers),
+    PeerLoads = Peer(loads),
+    PeerLoad = Peer(load),
+    Loads = ets:new(ern_measure_load, [set, public]),
     Me = ern_rt:self(),
     {Name, Hash} = {<<"measured">>, <<0:256>>},
     Withdrawn = fun() ->
@@ -920,9 +925,13 @@ peer_scenarios() ->
      {<<"Peer.spawn">>, AcrossNodes},
      {<<"Peer.spawnMonitored">>, AcrossNodes},
      {<<"Peer.compute">>, AcrossNodes},
+     {<<"Peer.computeAt">>, AcrossNodes},
      {<<"Peer.utilisation">>, AcrossNodes},
      {<<"Peer.peers">>, {fun() -> PeerPeers() end,
-                         fun() -> persistent_term:get({ern_peer, names}, []) end}}].
+                         fun() -> persistent_term:get({ern_peer, names}, []) end}},
+     {<<"Peer.loads">>, {fun() -> PeerLoads() end,
+                         fun() -> persistent_term:get({ern_peer, names}, []) end}},
+     {<<"Peer.load">>, {fun() -> PeerLoad(0.5) end, fun() -> ets:insert(Loads, {load, 0.5}) end}}].
 
 %% Appendix E.28: a compiled module's hashes beside the host's read of its
 %% forms' chunk; a load of a module the node holds already, its file read,
@@ -973,22 +982,6 @@ load_scenarios() ->
      {<<"Load.cpu">>, {fun() -> LoadCpu() end, fun() -> erlang:whereis(cpu_sup) end}},
      {<<"Load.memory">>, {fun() -> LoadMemory() end, fun() -> erlang:whereis(memsup) end}},
      {<<"Load.disk">>, {fun() -> LoadDisk() end, fun() -> erlang:whereis(disksup) end}}].
-
-%% Appendix G.5: a pick over no name, which spawns the process that
-%% gathers and calls it, beside a process spawned that answers and a
-%% receive; a pick over names asks peers, which a run of one node cannot
-%% reach, and `make bench`'s node part measures a utilisation on real nodes.
-placement_scenarios() ->
-    Placement = ern_named:functions('ern@placement'),
-    PlacementLeastBusy = Placement(leastBusy),
-    [{<<"Placement.leastBusy">>,
-      {fun() -> PlacementLeastBusy([], 1000) end,
-       fun() ->
-           Self = erlang:self(),
-           Ref = make_ref(),
-           _ = spawn(fun() -> Self ! Ref end),
-           receive Ref -> ok end
-       end}}].
 
 %% Appendix G.7: a proxy started and ended, its find answering
 %% at once in a launch that is no node, beside a process spawned and

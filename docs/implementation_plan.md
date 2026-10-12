@@ -316,20 +316,28 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    prelude's environment, which item 9 says. The two proposals' status lines say what this milestone
    built and changed.
 
-8. **Placement by push.** Decided 2026-10-13 from `proposals/placement/push.md`, read back with the
-   user, every question of its section 7: each node tells its peers its utilisation on
-   `ernest.conf`'s `utilisation-interval`, 5000 ms where left out, the operator's time; a node holds
-   the last load heard from each peer with its moment, a peer not heard from not chosen, a load
-   older than two intervals not used, a peer's loss dropping its load; `Peer.compute(f, ms)` draws
-   two peers with a usable load at random and runs `f` on the less loaded, one taken as it is,
-   `Left(Unreachable)` where none has a usable load and `Left(NotListed)` where none is listed;
-   `Peer.computeAt(name, f, ms)` is today's `compute`; `Peer.loads()` the table for a program's own
-   rule, which is never a line of `ernest.conf`; `Peer.load(x)` the number a program designs, 0.0 to
-   1.0, told until set again, the configured measure the default; `Peer.spawn` keeps its peer;
-   `libs/placement` and Appendix G.5 go. §8.7, §10, Appendix C and E.27 first; then the frame, the
-   table and the four functions, the guide's §8.1 over the new names, the nodes tests over the rules
-   and the pick's cost measured; the log's *Placing Work by Name* records the reversal, principles 2
-   and 3 and Mitzenmacher's result on old information. MVP 3.27 measures it across machines.
+8. **Placement by push.** Done 2026-10-13, decided the same day from `proposals/placement/push.md`,
+   read back with the user, every question of its section 7. Each node that lists peers tells each
+   connected one how busy it is, every `utilisation-interval` milliseconds of its `ernest.conf`,
+   5000 where left out and refused unless a whole number of at least one, and once as a peer
+   connects, the telling carrying the teller's interval, the fourteenth frame, the gateway's since
+   it owns the connections; a node holds of each peer the last load heard, its moment and its
+   teller's interval, a peer not heard from not chosen, a load older than two of its teller's
+   intervals not used, a peer's loss dropping its load; `Peer.compute(f, ms)` draws two peers with a
+   usable load at random and runs `f` on the less loaded, one taken as it is, two equally loaded the
+   first in the configuration's order, `Left(Unreachable)` where none has a usable load and
+   `Left(NotListed)` where none is listed; `Peer.computeAt(name, f, ms)` is the compute by name,
+   both forms of §3.11; `Peer.loads()` the table for a program's own rule, which is never a line of
+   `ernest.conf`; `Peer.load(x)` the number a program designs, 0.0 to 1.0, a value outside faulting,
+   told until set again or the run ends, the configured measure the default, which a telling reads
+   as an ask does; the `Placement` library gone with Appendix G.5's content, its tests moved to
+   `Peer`'s, the guide's §8.1 taught over the new names. Measured on one machine: the pick 3.6 µs, a
+   table read and a draw, about one part in a hundred of a compute, three idle nodes exchanging 1.2
+   packets a second, the tellings replacing the host's ticks (the log's *Placing Work by Name*).
+   Found and decided: a program's own rule cannot wrap the compute over a function parameter
+   (§3.11), so it answers a name and the compute is written at the call, `docs/language_feedback.md`
+   106, and `List` has no `minimumBy`, 107. MVP 3.27 measures the push against the pull across
+   machines.
 9. **The deployment guide.** `guide/deployment.md`, *Running Ernest*, written whole as a teaching
    document of its own for the operator, who runs nodes and may write no Ernest, after item 8 and
    MVP 3.27, so that it teaches the placement that ships and stands on numbers measured across

@@ -5,9 +5,11 @@
 %% each of the exchange's steps on both nodes (report §8.7, §10); what a
 %% fix's callers cost, crossed with it to a node of the old build; what an
 %% arrival, a `Code.load` and a development day's spawns add to the host's
-%% four counts, against their limits (§11.2); what a utilisation and a pick
-%% by `Placement.leastBusy` over one, two and three peers cost, and what
-%% connected nodes exchange idle (§8.7, Appendix G.6); and the sizes of the
+%% four counts, against their limits (§11.2); what a utilisation costs, and
+%% a compute on a peer the node picks by the loads its peers told it beside
+%% one on a peer named, the pick alone and the read of the loads, and what
+%% connected nodes exchange idle, the tellings among it (§8.7, plan MVP
+%% 3.2 item 8); and the sizes of the
 %% standard library's `.erc` files and of a code frame, and what reading a
 %% module's forms costs (§11.1). Every number is a median of seven runs or
 %% more, with their range.
@@ -29,11 +31,10 @@
 -include_lib("typer/include/ern_canonical.hrl").
 
 -define(ERN, filename:absname("../bin/ern")).
--define(PLACEMENT, filename:absname("../build/libs/placement")).
 -define(STDLIB, filename:absname("../build/stdlib")).
 %% Each measurement's runs, the reaches' and the fixes' sizes in definitions,
 %% the definitions of a development day, and the rounds a run of a
-%% placement measurement times.
+%% utilisation's or a compute's measurement times.
 -define(RUNS, 7).
 -define(SIZES, [1, 5, 20]).
 -define(DAY, 200).
@@ -65,7 +66,7 @@ main([Dir]) ->
     cold_table(),
     steps_table(Lines, New),
     lists:foreach(fun(Table) -> Table(Lines) end,
-                  [fun fix_table/1, fun counts_table/1, fun placement_table/1]),
+                  [fun fix_table/1, fun counts_table/1, fun pick_table/1]),
     idle_table(Lines, OnCarrier),
     sizes_table(Lines, New),
     halt(0).
@@ -109,7 +110,7 @@ built(Base) ->
             || Index <- lists:seq(0, ?RUNS)],
     [ok = file:write_file(filename:join(Path, File ++ ".ern"), unicode:characters_to_binary(Text))
      || {Path, File, Text} <- Files],
-    0 = ern_cli:ern(["build", "--load-path", ?PLACEMENT, New], group_leader()),
+    0 = ern_cli:ern(["build", New], group_leader()),
     0 = ern_cli:ern(["build", Old], group_leader()),
     0 = ern_cli:ern(["build", Loads], group_leader()),
     {New, Old, Loads, Probe}.
@@ -131,6 +132,8 @@ costs() ->
      "\n"
      "foreign fn windowed() : List(String) with m = \"ern_code_probe:windowed/0\"\n"
      "\n"
+     "foreign fn picks(count : Int) : Int with m = \"ern_code_probe:picks/1\"\n"
+     "\n"
      "export fn main() : Unit with Never =\n"
      "    match Os.arguments {\n"
      "        [t, c, p, d, l, q1, q2, f, loads] -> {\n"
@@ -145,7 +148,7 @@ costs() ->
      "                Fixes.spawnTop(f, size, chain));\n"
      "            loading(l, loads);\n"
      "            day(d);\n"
-     "            placing(t, q1, q2);\n"
+     "            placing(q1);\n"
      "            idle(q1, q2)\n"
      "        }\n"
      "      | _ -> Unit\n"
@@ -201,10 +204,10 @@ costs() ->
      "          sizes : List(Int),\n"
      "          spawned : (Int, Int) -> Either(Io.Error, Address(Never)) with m)"
      " : Unit with m = {\n"
-     "    let _ = Peer.compute(node, traced, 30000);\n"
-     "    let _ = Peer.compute(node, counts, 30000);\n"
-     "    let _ = Peer.compute(node, steps, 30000);\n"
-     "    let _ = Peer.compute(node, steps, 30000);\n"
+     "    let _ = Peer.computeAt(node, traced, 30000);\n"
+     "    let _ = Peer.computeAt(node, counts, 30000);\n"
+     "    let _ = Peer.computeAt(node, steps, 30000);\n"
+     "    let _ = Peer.computeAt(node, steps, 30000);\n"
      "    let _ = steps();\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(variant) =\n"
      "        List.forEach(sizes, fn(size) = {\n"
@@ -212,13 +215,14 @@ costs() ->
      "            countsSaid(scenario <> \"_before\", label, node);\n"
      "            timedSaid(scenario, label, fn() = spawned(size, variant));\n"
      "            countsSaid(scenario <> \"_after\", label, node);\n"
-     "            stepsSaid(scenario <> \"_receiver\", label, Peer.compute(node, steps, 30000));\n"
+     "            stepsSaid(scenario <> \"_receiver\", label,\n"
+     "                      Peer.computeAt(node, steps, 30000));\n"
      "            stepsSaid(scenario <> \"_sender\", label, Right(steps()))\n"
      "        }))\n"
      "}\n"
      "\n"
      "fn countsSaid(scenario : String, label : String, node : String) : Unit with m =\n"
-     "    match Peer.compute(node, counts, 30000) {\n"
+     "    match Peer.computeAt(node, counts, 30000) {\n"
      "        Right(text) -> said([scenario, label, text])\n"
      "      | Left(failure) -> said([scenario, label, \"failed\", Io.show(failure)])\n"
      "    }\n"
@@ -235,7 +239,7 @@ costs() ->
      "// runs the load, and the host's counts around it; the loader crosses\n"
      "// with a first load, of load0.\n"
      "fn loading(node : String, loads : String) : Unit with m = {\n"
-     "    let _ = Peer.compute(node, counts, 30000);\n"
+     "    let _ = Peer.computeAt(node, counts, 30000);\n"
      "    let _ = loadedOn(node, loads <> \"/load0.erc\");\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(index) = {\n"
      "        let label = Int.toString(index);\n"
@@ -247,7 +251,7 @@ costs() ->
      "}\n"
      "\n"
      "fn loadedOn(node : String, path : String) : Either(Io.Error, Unit) with m =\n"
-     "    match Peer.compute(node, fn() = Code.load(Path(path)), 30000) {\n"
+     "    match Peer.computeAt(node, fn() = Code.load(Path(path)), 30000) {\n"
      "        Right(loaded) -> loaded\n"
      "      | Left(failure) -> Left(failure)\n"
      "    }\n"
@@ -256,7 +260,7 @@ costs() ->
      "// spawned onto one bare node one after another, the host's counts read\n"
      "// before the first and after each.\n"
      "fn day(node : String) : Unit with m = {\n"
-     "    let _ = Peer.compute(node, counts, 30000);\n"
+     "    let _ = Peer.computeAt(node, counts, 30000);\n"
      "    countsSaid(\"day_counts\", \"0\", node);\n"
      "    List.forEach(List.range(1, ", integer_to_list(?DAY), "), fn(index) = {\n"
      "        let label = Int.toString(index);\n"
@@ -267,12 +271,13 @@ costs() ->
      "\n"
      "fn one() : Int = 1\n"
      "\n"
-     "// Report §8.7, Appendix G.6: rounds of a utilisation, of a pick over two\n"
-     "// peers and over three, of a pick and a compute on the peer picked, and\n"
-     "// of a compute alone, each peer holding `one` first.\n"
-     "fn placing(t : String, q1 : String, q2 : String) : Unit with m = {\n"
-     "    List.forEach([t, q1, q2], fn(node) = {\n"
-     "        let _ = Peer.compute(node, one, 30000);\n"
+     "// Report §8.7: rounds of a utilisation, of a compute on a peer the node\n"
+     "// picks by the loads its peers told it, of one on the peer named, of the\n"
+     "// loads read, and of the pick alone, the read and the draw, each peer\n"
+     "// holding `one` first, so that no compute carries code.\n"
+     "fn placing(q1 : String) : Unit with m = {\n"
+     "    List.forEach(Peer.peers(), fn(node) = {\n"
+     "        let _ = Peer.computeAt(node, one, 30000);\n"
      "        Unit\n"
      "    });\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(run) = {\n"
@@ -281,29 +286,19 @@ costs() ->
      "            let _ = Peer.utilisation(q1, 5000);\n"
      "            Unit\n"
      "        });\n"
-     "        rounds(\"least_busy_1\", label, fn() = {\n"
-     "            let _ = Placement.leastBusy([q1], 5000);\n"
-     "            Unit\n"
-     "        });\n"
-     "        rounds(\"least_busy_2\", label, fn() = {\n"
-     "            let _ = Placement.leastBusy([q1, q2], 5000);\n"
-     "            Unit\n"
-     "        });\n"
-     "        rounds(\"least_busy_3\", label, fn() = {\n"
-     "            let _ = Placement.leastBusy([q1, q2, t], 5000);\n"
-     "            Unit\n"
-     "        });\n"
-     "        rounds(\"placed\", label, fn() = match Placement.leastBusy([q1, q2], 5000) {\n"
-     "            Some(name) -> {\n"
-     "                let _ = Peer.compute(name, one, 5000);\n"
-     "                Unit\n"
-     "            }\n"
-     "          | None -> Unit\n"
-     "        });\n"
      "        rounds(\"compute\", label, fn() = {\n"
-     "            let _ = Peer.compute(q1, one, 5000);\n"
+     "            let _ = Peer.compute(one, 5000);\n"
      "            Unit\n"
-     "        })\n"
+     "        });\n"
+     "        rounds(\"compute_at\", label, fn() = {\n"
+     "            let _ = Peer.computeAt(q1, one, 5000);\n"
+     "            Unit\n"
+     "        });\n"
+     "        rounds(\"loads\", label, fn() = {\n"
+     "            let _ = Peer.loads();\n"
+     "            Unit\n"
+     "        });\n"
+     "        said([\"pick\", label, Int.toString(picks(", integer_to_list(?ROUNDS), "))])\n"
      "    })\n"
      "}\n"
      "\n"
@@ -318,13 +313,13 @@ costs() ->
      "// computes that open the others' fall outside its own; then what crossed\n"
      "// each connection, read once every window has closed.\n"
      "fn idle(q1 : String, q2 : String) : Unit with m = {\n"
-     "    let _ = Peer.compute(q1, utilisationOfQ2, 30000);\n"
-     "    let _ = Peer.compute(q1, window, 30000);\n"
-     "    let _ = Peer.compute(q2, window, 30000);\n"
+     "    let _ = Peer.computeAt(q1, utilisationOfQ2, 30000);\n"
+     "    let _ = Peer.computeAt(q1, window, 30000);\n"
+     "    let _ = Peer.computeAt(q2, window, 30000);\n"
      "    window();\n"
      "    List.forEach(windowed(), fn(line) = said([\"idle\", \"a\", line]));\n"
      "    List.forEach([q1, q2], fn(node) =\n"
-     "        stepsSaid(\"idle\", node, Peer.compute(node, windowed, 30000)))\n"
+     "        stepsSaid(\"idle\", node, Peer.computeAt(node, windowed, 30000)))\n"
      "}\n"
      "\n"
      "fn utilisationOfQ2() : Either(Io.Error, Float) with m = Peer.utilisation(\"q2\", 5000)\n"].
@@ -358,7 +353,7 @@ reach_module(Variant, Reaches) ->
      [chain(Size, Variant) || {Size, _} <- Reaches],
      dispatch("spawned", "size", "Address(Never)", "Peer.spawn",
               [{integer_to_list(Size), reach_name(Size, Variant, 1)} || {Size, _} <- Reaches]),
-     dispatch("computed", "size", "Unit", "Peer.compute",
+     dispatch("computed", "size", "Unit", "Peer.computeAt",
               [{integer_to_list(Size), reach_name(Size, Variant, 1)} || {Size, _} <- Reaches])].
 
 %% A reach of Size definitions, each named for its size, its variant and
@@ -660,7 +655,7 @@ stopped({_, Ported}) ->
 %% lines, each split into its words.
 measured(Base, New, Loads, Probe, {A, _}) ->
     Names = ?BARE ++ ["f"],
-    Command = lists:flatten([?ERN, " run --config-dir ", A, " --load-path ", ?PLACEMENT,
+    Command = lists:flatten([?ERN, " run --config-dir ", A,
                              " --load-path ", Probe, " ", filename:join(New, "costs.erc"),
                              [[" ", Name] || Name <- Names], " ", Loads,
                              " 2> ", filename:join(Base, "a.err")]),
@@ -937,20 +932,20 @@ counted([Table, Entries | Rest]) ->
 counted([]) ->
     [].
 
-%% Report §8.7, Appendix G.6: a utilisation and the picks, each a round's
-%% microseconds.
-placement_table(Lines) ->
-    heading("a utilisation and a pick, between nodes", "µs"),
+%% Report §8.7: a utilisation, a compute on a peer picked and one on a peer
+%% named, the loads read and the pick alone, each a round's microseconds.
+pick_table(Lines) ->
+    heading("a utilisation and a compute, between nodes", "µs"),
     [row(Name, [list_to_integer(Micros) / ?ROUNDS || {_, [Micros]} <- lines(Scenario, Lines)])
      || {Scenario, Name} <- [{"utilisation", "Peer.utilisation of one peer"},
-                             {"least_busy_1", "Placement.leastBusy over one peer"},
-                             {"least_busy_2", "Placement.leastBusy over two peers"},
-                             {"least_busy_3", "Placement.leastBusy over three peers"},
-                             {"placed", "a pick over two and a compute on it"},
-                             {"compute", "a compute alone"}]].
+                             {"compute", "Peer.compute, a peer picked of eight"},
+                             {"compute_at", "Peer.computeAt, the peer named"},
+                             {"loads", "Peer.loads, eight peers' loads read"},
+                             {"pick", "the pick alone, the loads read and the draw"}]].
 
 %% Report §8.7: the packets each connection of three nodes carried idle,
-%% each way, as the host counts them, and the gateway's and the exchange's
+%% each way, as the host counts them, the tellings every interval and the
+%% host's ticks where nothing else went, and the gateway's and the exchange's
 %% work meanwhile; each connection read at a node whose window held no
 %% compute of the measuring program's: a's to q1 and to q2, and q1's to q2.
 idle_table(Lines, OnCarrier) ->
@@ -963,6 +958,11 @@ idle_table(Lines, OnCarrier) ->
                   Count <- [In, Out]],
     heading(io_lib:format("idle over ~B ms", [Window]), "packets"),
     row("a connection, each way, over the window", Packets),
+    %% report §8.7: two nodes hold one connection and three hold three, each
+    %% carrying its packets both ways
+    PerSecond = [Count * 1000 / Window || Count <- Packets],
+    row("  two connected nodes, a second, both ways", [2 * Rate || Rate <- PerSecond]),
+    row("  three connected nodes, a second, all ways", [6 * Rate || Rate <- PerSecond]),
     [io:format("  ~s's ~s: ~s reductions~n", [Node, Name, Count])
      || {Node, ["reductions", Name, Count]} <- Idle,
         lists:member(Node, ["a", "q1", "q2"])].

@@ -2242,7 +2242,7 @@ Every example here runs on a program that is no node too: without a configuratio
 
 ### 8.1 Work on a peer
 
-Work runs on a peer by the peer's name. `Peer.compute(name, f, ms)` runs `f` in a process started on the peer named `name`, and answers its value within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
+Work runs on a peer by the peer's name. `Peer.computeAt(name, f, ms)` runs `f` in a process started on the peer named `name`, and answers its value within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
 
 ```ernest
 // square.ern
@@ -2250,7 +2250,7 @@ fn heavy(a : Int, b : Int) : Int =
     a * a + b * b
 
 export fn main() : Unit with Never =
-    match Peer.compute("foo", fn() = heavy(3, 4), 5000) {
+    match Peer.computeAt("foo", fn() = heavy(3, 4), 5000) {
         Right(value) -> Io.println("foo computed " <> Int.toString(value))
       | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
     }
@@ -2307,21 +2307,39 @@ A fault in `heavy` is the caller's, as if `heavy(3, 4)` had faulted here: the ca
 
 The compiler must see what the function captures, so the function a compute or a spawn on a peer runs is written where it can see it: a declaration's name, or, in the same definition, a lambda written at the compute or bound by a `let`, or a local `fn`. A function that came as a value, a parameter or a message, is refused (report §3.11). And the function runs on the peer only where the peer holds it, by its hash, its program has run every top-level binding the function reaches, and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7).
 
-**Which peer.** The program names it, and may pick it by how busy each peer is. `Peer.utilisation(name, ms)` answers how busy the peer named is, a `Float` on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the peer's own `ernest.conf` says under `"utilisation"`, by its run queue where it says nothing (report §8.7, Appendix C). The library `Placement` asks every name it is given at once, and answers the least busy, the first given at a tie, or `None` where none answered (report Appendix G.5):
+**Which peer.** A computation needs room more than a place, so `Peer.compute(f, ms)` names no peer: the node picks one, and runs `f` there as `Peer.computeAt` runs it on the peer named (report §8.7, Appendix E.27):
 
 ```ernest
 // placed.ern
 export fn computed(n : Int) : Either(Io.Error, Int) with m =
-    match Placement.leastBusy(Peer.peers(), 1000) {
-        Some(name) -> Peer.compute(name, fn() = heavy(n), 5000)
-      | None -> Right(heavy(n))
+    match Peer.compute(fn() = heavy(n), 5000) {
+        Left(Io.Unreachable) or Left(Io.NotListed) -> Right(heavy(n))
+      | result -> result
     }
 
 fn heavy(n : Int) : Int =
     n * n
 ```
 
-Where no peer answered, the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none (report §8.7). In a program that is no node `Peer.peers()` is empty, and the pick answers `None`. A pick waits for its slowest answer, each within the `ms` given, and chooses no time of its own; a program with many peers passes a sample it drew itself. Another rule is a function of the program's over `Peer.utilisation`, as `leastBusy` is.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilisation-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last load each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the node's `"utilisation"` entry says, by its run queue where it says nothing. `Peer.compute` draws two of the peers whose loads the node may use, at random, and takes the less loaded, the first in the configuration's order where the two are equal; a load older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its load. Where no peer has told a load the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilisation(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
+
+A rule of the program's own is a function over `Peer.loads()`, the loads the node holds, each peer's name, its load and the milliseconds since it came, in the configuration's order, a peer not heard from left out. The least loaded of them all:
+
+```ernest
+// least.ern
+export fn computed(n : Int) : Either(Io.Error, Int) with m =
+    match List.sort(Peer.loads(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
+        #(name, _, _) :: _ -> Peer.computeAt(name, fn() = heavy(n), 5000)
+      | [] -> Right(heavy(n))
+    }
+
+fn heavy(n : Int) : Int =
+    n * n
+```
+
+Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
+
+A program that knows its load better than its node's measure, a queue's depth or work it has promised, tells it with `Peer.load(x)`, `x` from 0.0 to 1.0: from then on its node tells its peers that number, and answers it to a `Peer.utilisation`, until the program sets it again. A number outside the scale faults the caller (report Appendix E.27).
 
 **A result that comes later.** A program that is not to wait for the value spawns a process that computes it and sends it back, one message later:
 

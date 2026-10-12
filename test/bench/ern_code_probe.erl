@@ -4,13 +4,15 @@
 %% host's call trace of the node's exchange process, each call with its
 %% time, and the two steps of the spawner's node with their returns; the
 %% host's four counts, as the runtime reads them (ern_code:counts/0, report
-%% §11.2); and what crossed each of the node's connections over a window of
-%% the host's ticks. Each function is a foreign function of the measuring
-%% program, run on a peer by a compute of its name (report §8.7) or called
-%% on the measuring node itself; none is any program's.
+%% §11.2); what crossed each of the node's connections over a window of
+%% the host's ticks; and the pick of a compute that names no peer, timed
+%% where the node makes it (ern_peer:picked/0). Each function is a foreign
+%% function of the measuring program, run on a peer by a compute of its name
+%% (report §8.7) or called on the measuring node itself; none is any
+%% program's.
 -module(ern_code_probe).
 
--export([traced/0, read/0, counts/0, window/0, windowed/0]).
+-export([traced/0, read/0, counts/0, window/0, windowed/0, picks/1]).
 
 %% The exchange's steps as the node that lacks a function takes its reach,
 %% each a call alone, since a return would carry the exchange's state, the
@@ -169,3 +171,17 @@ sample() ->
                                    {reductions, Count}
                                        <- [erlang:process_info(whereis(Name), reductions)]],
     {Packets, Reductions}.
+
+%% Report §8.7: the microseconds Count picks of a compute that names no peer
+%% take on this node, each a read of the loads its peers told it and a
+%% draw, and no frame.
+-spec picks(integer()) -> integer().
+picks(Count) ->
+    {Micros, ok} = timer:tc(fun() -> picked(Count) end),
+    Micros.
+
+picked(0) ->
+    ok;
+picked(Count) ->
+    {picked, _} = ern_peer:picked(),
+    picked(Count - 1).

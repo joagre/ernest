@@ -424,13 +424,17 @@ namespaces([Heading | Lines]) ->
     end.
 
 %% Appendix G's sections, each with its library's directory and namespace
-%% from the heading.
+%% from the heading; a section whose library was removed, which keeps its
+%% number and says so first (report Appendix G.5), names no library.
 libraries([]) -> [];
 libraries([Heading | Lines]) ->
     case captures(Heading, "^### Appendix G\\.\\d+\\. `libs/(\\w+)` \\(namespace `(\\w+)`\\)") of
         [Library, Namespace] ->
             {Body, Rest} = lists:splitwith(fun(Line) -> not lists:prefix("### ", Line) end, Lines),
-            [{Library, [list_to_atom(Namespace)], Body} | libraries(Rest)];
+            case [Line || Line <- Body, Line =/= ""] of
+                ["Removed on " ++ _ | _] -> libraries(Rest);
+                _ -> [{Library, [list_to_atom(Namespace)], Body} | libraries(Rest)]
+            end;
         _ -> libraries(Lines)
     end.
 

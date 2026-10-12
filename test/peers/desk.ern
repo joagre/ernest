@@ -1,6 +1,6 @@
 // Report §8.7: the desk, which finds the store's services, spawns and
-// computes on it, asks how busy it is and picks it, printing what each
-// answers; the test ends the store where it says so.
+// computes on it, asks how busy it is and computes on the peer it picks,
+// printing what each answers; the test ends the store where it says so.
 
 type Msg = Died(Down) | Reported(Process.FaultReport) | Started(String)
 
@@ -14,7 +14,7 @@ export fn main() : Unit with Msg =
       | ["calls"] -> calls()
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
-      | ["place"] -> placed()
+      | ["place", interval] -> placed(Optional.withDefault(String.toInt(interval), 0))
       | ["silence"] -> silenced()
       | ["dial"] -> dialled()
       | ["costs"] -> costs()
@@ -322,25 +322,20 @@ fn reloaded() : Unit with Msg = {
                    <> Io.show(Address.call(again, fn(reply) = Counter.Get(reply = reply), 2000)))
 }
 
-// Appendix G.5, G.4: the least busy of the names given: the store, which
-// answers, alone and beside a name no peer has; none of a name no peer has,
-// of the peer gone, whose dial is refused, and of no name; the work computed
-// on the least busy of the desk's peers, or here where none answered, its
-// value the peers of the node it ran on; and the loads of the host's
-// services, which the store runs and the desk does not.
-fn placed() : Unit with Msg = {
-    Io.println("store: " <> Io.show(Placement.leastBusy(["store"], 5000)));
-    Io.println("beside no peer: " <> Io.show(Placement.leastBusy(["nobody", "store"], 5000)));
-    Io.println("no peer: " <> Io.show(Placement.leastBusy(["nobody"], 5000)));
-    Io.println("gone: " <> Io.show(Placement.leastBusy(["gone"], 5000)));
-    Io.println("no name: " <> Io.show(Placement.leastBusy([], 5000)));
-    let computed = match Placement.leastBusy(Peer.peers(), 5000) {
-        Some(name) -> Peer.compute(name, fn() = Peer.peers(), 5000)
-      | None -> Right(Peer.peers())
-    };
-    Io.println("computed: " <> Io.show(computed));
-    Io.println("loads here: " <> Placing.loads());
-    Io.println("loads: " <> started(Placing.loadsOn("store")))
+// Report §8.7, Appendix E.27, G.4: a compute on a peer the desk picks, of
+// its peers the store alone telling it a load, the peer gone never reached:
+// Unreachable before any has told one, no connection yet open; once the
+// store has told its load, which it does as the spawn of the loads' check
+// connects them, on the store, its value the peers of the node it ran on,
+// the store the one peer the desk holds a load of; and the loads of the
+// host's services, which the store runs and the desk does not.
+fn placed(interval : Int) : Unit with Msg = {
+    Io.println("before a telling: " <> Io.show(Peer.compute(fn() = Peer.peers(), 5000)));
+    Io.println("loads: " <> started(Placing.loadsOn("store")));
+    Placing.heard("store", interval);
+    Io.println("computed: " <> Io.show(Peer.compute(fn() = Peer.peers(), 5000)));
+    Io.println("held: " <> Io.show(List.map(Peer.loads(), fn(#(name, _, _)) = name)));
+    Io.println("loads here: " <> Placing.loads())
 }
 
 // Report §8.7, the proposal's section 4: what a silence ends and what it
@@ -470,7 +465,7 @@ fn costs() : Unit with Msg = {
                    })));
     Io.println("compute "
                    <> Io.show(timed(rounds, fn() = {
-                       let _ = Peer.compute("store", fn() = 1, 5000);
+                       let _ = Peer.computeAt("store", fn() = 1, 5000);
                        Unit
                    })));
     Io.println("utilisation "
@@ -520,42 +515,42 @@ foreign fn pings(process : Process, count : Int) : Float with m =
 // the store.
 fn computes() : Unit with Msg = {
     Process.faults(Reported);
-    Io.println("value: " <> Io.show(Peer.compute("store", fn() = 6 * 7, 5000)));
-    Io.println("not listed: " <> Io.show(Peer.compute("nobody", fn() = 6 * 7, 5000)));
-    Io.println("not loaded: " <> Io.show(Peer.compute("store", Lonely.speak, 5000)));
+    Io.println("value: " <> Io.show(Peer.computeAt("store", fn() = 6 * 7, 5000)));
+    Io.println("not listed: " <> Io.show(Peer.computeAt("nobody", fn() = 6 * 7, 5000)));
+    Io.println("not loaded: " <> Io.show(Peer.computeAt("store", Lonely.speak, 5000)));
     faulted("divided", fn() : Unit with Never = {
-        let _ = Peer.compute("store", fn() = 1 / List.size([]), 5000);
+        let _ = Peer.computeAt("store", fn() = 1 / List.size([]), 5000);
         Unit
     });
     reported();
     faulted("raised", fn() : Unit with Never = {
-        let _ = Peer.compute("store", fn() = toInteger("x"), 5000);
+        let _ = Peer.computeAt("store", fn() = toInteger("x"), 5000);
         Unit
     });
     reported();
     let killed =
-        Peer.compute("store",
-                     fn() : Int with Int = {
-                         kill(self());
-                         receive {
-                             n -> n
-                         }
-                     },
-                     5000);
+        Peer.computeAt("store",
+                       fn() : Int with Int = {
+                           kill(self());
+                           receive {
+                               n -> n
+                           }
+                       },
+                       5000);
     Io.println("killed: " <> Io.show(killed));
     let watcher = Shared.found(Counter.watcher);
     let me = self();
     let abandoned = spawn(fn() : Unit with Never = {
         let _ =
-            Peer.compute("store",
-                         fn() : Int with Int = {
-                             watchedBy(watcher, "the abandoned compute's process");
-                             send(me, Started("abandoned"));
-                             receive {
-                                 n -> n
-                             }
-                         },
-                         600000);
+            Peer.computeAt("store",
+                           fn() : Int with Int = {
+                               watchedBy(watcher, "the abandoned compute's process");
+                               send(me, Started("abandoned"));
+                               receive {
+                                   n -> n
+                               }
+                           },
+                           600000);
         Unit
     });
     receive {
@@ -564,14 +559,14 @@ fn computes() : Unit with Msg = {
     timedOut(watcher, 1);
     let _ = spawnMonitored(fn() : Unit with Never = {
                                let ended =
-                                   Peer.compute("store",
-                                                fn() : Int with Int = {
-                                                    send(me, Started("ending"));
-                                                    receive {
-                                                        n -> n
-                                                    }
-                                                },
-                                                600000);
+                                   Peer.computeAt("store",
+                                                  fn() : Int with Int = {
+                                                      send(me, Started("ending"));
+                                                      receive {
+                                                          n -> n
+                                                      }
+                                                  },
+                                                  600000);
                                Io.println("with the store's end: " <> Io.show(ended))
                            },
                            Died);
@@ -609,15 +604,15 @@ fn watchedBy(watcher : Address(Counter.WatcherMsg), label : String) : Unit with 
 fn timedOut(watcher : Address(Counter.WatcherMsg), ms : Int) : Unit with Msg = {
     let me = self();
     let late =
-        Peer.compute("store",
-                     fn() : Int with Int = {
-                         watchedBy(watcher, "the timed-out compute's process");
-                         send(me, Started("timed out"));
-                         receive {
-                             n -> n
-                         }
-                     },
-                     ms);
+        Peer.computeAt("store",
+                       fn() : Int with Int = {
+                           watchedBy(watcher, "the timed-out compute's process");
+                           send(me, Started("timed out"));
+                           receive {
+                               n -> n
+                           }
+                       },
+                       ms);
     receive {
         Started(label) when label == "timed out" -> Io.println("timed out: " <> Io.show(late))
       | after 0 -> timedOut(watcher, ms * 2)

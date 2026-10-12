@@ -27,7 +27,7 @@ answer_test() ->
         ?assertEqual({ern, killed}, receive {'DOWN', MonitorRef, process, Late, Why} -> Why end),
         exit(Started, kill)
     after
-        ets:delete(ern_spawns)
+        untabled()
     end.
 
 %% report §8.7: the answer for a spawner that died while it waited ends the
@@ -57,15 +57,140 @@ dead_spawner_test() ->
         ?assertEqual({Living, {failed, 'Unreachable'}}, receive {Living, _} = Got -> Got end),
         ?assertEqual([{{'other@node.ernest', Other}, self()}], ets:tab2list(ern_spawns))
     after
-        ets:delete(ern_spawns)
+        untabled()
     end.
+
+%% The node's peers, {Name, Node} in the configuration's order, listed for
+%% Test, and the tables held, as the carrier lists them and the gateway
+%% holds them; none listed after it.
+listing(Peers, Test) ->
+    ok = ern_peer:configure(Peers, #{}),
+    ok = ern_peer:tables(),
+    try
+        Test()
+    after
+        untabled(),
+        ok = ern_peer:configure([], #{})
+    end.
+
+%% The gateway's tables, which ern_peer:tables/0 made, gone.
+untabled() ->
+    ets:delete(ern_spawns),
+    ets:delete(ern_loads).
+
+%% A peer's load as its telling, Age ms ago, the peer telling every
+%% Interval ms, would have left it.
+told(Node, Load, Age, Interval) ->
+    true = ets:insert(ern_loads, {Node, Load, erlang:monotonic_time(millisecond) - Age, Interval}).
+
+%% The nodes Count picks named, each once, in order.
+picks(Count) ->
+    lists:usort([Node || _ <- lists:seq(1, Count), {picked, Node} <- [ern_peer:picked()]]).
+
+%% report §8.7, Appendix E.27: a node that lists no peer holds no load and
+%% picks none, `NotListed`; one whose peers it has not heard from holds
+%% none and picks none, `Unreachable`; a telling held is answered by
+%% `loads`, the peer's name, its utilisation and its age, a later telling
+%% in its place, and a loss drops it. A regression test, written after the
+%% code
+loads_test() ->
+    listing([], fun() ->
+                    ?assertEqual('NotListed', ern_peer:picked()),
+                    ?assertEqual([], ern_peer:loads())
+                end),
+    listing([{<<"a">>, 'a@node.ernest'}, {<<"b">>, 'b@node.ernest'}],
+            fun() ->
+                ?assertEqual('Unreachable', ern_peer:picked()),
+                ?assertEqual([], ern_peer:loads()),
+                ok = ern_peer:hold_load('b@node.ernest', 0.75, 5000),
+                ?assertMatch([{<<"b">>, 0.75, Age}] when Age >= 0, ern_peer:loads()),
+                ?assertEqual({picked, 'b@node.ernest'}, ern_peer:picked()),
+                ok = ern_peer:hold_load('b@node.ernest', 0.25, 5000),
+                ?assertMatch([{<<"b">>, 0.25, _}], ern_peer:loads()),
+                ok = ern_peer:drop_load('b@node.ernest'),
+                ?assertEqual([], ern_peer:loads()),
+                ?assertEqual('Unreachable', ern_peer:picked())
+            end).
+
+%% report §8.7: the pick's rules over the loads a node holds, the
+%% configuration's order a, b, c, d, e: a single usable peer is taken as it
+%% is, whatever its load; a load older than two of its teller's intervals
+%% is not used, and `loads` answers it as it is, with its age, while one as
+%% old from a peer that tells seldom enough is used; of two peers the less
+%% loaded
+%% is taken at every draw, and of two equally loaded the first in the
+%% configuration's order; and the draw among more than two stays within
+%% the usable ones, never takes the most loaded, which is no less loaded
+%% than any it is drawn with, and takes each other one, two being drawn at
+%% random. A regression test, written after the code; that the draw is
+%% uniform is the host's generator's, and is not measured
+pick_test() ->
+    [A, B, C, D, E] = Nodes = ['a@node.ernest', 'b@node.ernest', 'c@node.ernest',
+                               'd@node.ernest', 'e@node.ernest'],
+    Peers = lists:zip([<<"a">>, <<"b">>, <<"c">>, <<"d">>, <<"e">>], Nodes),
+    Interval = 1000,
+    Old = 2 * Interval + 1000,
+    listing(Peers,
+            fun() ->
+                told(C, 0.9, 0, Interval),
+                ?assertEqual([C], picks(50)),
+                %% older than two of its teller's intervals, and less
+                %% loaded: not used
+                told(B, 0.1, Old, Interval),
+                ?assertEqual([C], picks(50)),
+                ?assertMatch([{<<"b">>, 0.1, Age}, {<<"c">>, 0.9, _}] when Age > 2 * Interval,
+                             ern_peer:loads()),
+                %% as old, its teller telling seldom: used, and less loaded
+                told(B, 0.1, Old, Old),
+                ?assertEqual([B], picks(50)),
+                told(B, 0.1, Old, Interval),
+                %% a less loaded peer is taken at every draw
+                told(D, 0.1, 0, Interval),
+                ?assertEqual([D], picks(50)),
+                %% two equally loaded: the first in the configuration's
+                %% order
+                told(C, 0.1, 0, Interval),
+                ?assertEqual([C], picks(50)),
+                %% more than two: within the usable ones, never the most
+                %% loaded, a not heard from and b too old
+                told(C, 0.9, 0, Interval),
+                told(E, 0.5, 0, Interval),
+                ?assertEqual([D, E], picks(300)),
+                ?assertNot(lists:member(A, picks(300)))
+            end).
+
+%% report §8.7, Appendix E.27, §7.4: `Peer.load` sets the number the node
+%% tells and answers, on the scale from 0.0 to 1.0, its ends among it, a
+%% later one in its place; a number outside the scale faults the caller
+%% and sets nothing. The launch's table, which a launch makes, stands in
+%% for one here. A regression test, written after the code
+load_test() ->
+    undefined = ets:whereis(ern_launch),
+    ern_launch = ets:new(ern_launch, [named_table, public]),
+    try
+        ?assertEqual(none, ern_rt:program_load()),
+        [begin
+             ?assertEqual('Unit', ern_peer:load(Load)),
+             ?assertEqual(Load, ern_rt:program_load())
+         end || Load <- [0.0, 1.0, 0.25]],
+        [?assertThrow({ern, fault, <<"a load is from 0.0 to 1.0">>}, ern_peer:load(Load))
+         || Load <- [1.5, -0.25, 1.0000001]],
+        ?assertEqual(0.25, ern_rt:program_load())
+    after
+        ets:delete(ern_launch)
+    end,
+    %% no launch in progress: none set
+    ?assertEqual(none, ern_rt:program_load()).
 
 %% report §8.7: a frame whose fields are not those of its kind is one the
 %% gateway cannot read: an answer that names no spawn's outcome, or a
 %% process of another node than the peer's, a find whose name is no text,
-%% and a message to an adapted address another node made. A regression
+%% a message to an adapted address another node made, and a telling whose
+%% utilisation is no float of 0.0 or more or whose interval is no whole
+%% number of at least 1, which the gateway does not hold. A regression
 %% test: each frame was read by its tag alone, and one that raised killed
-%% the gateway's worker, every later frame from the peer lost
+%% the gateway's worker, every later frame from the peer lost; the
+%% tellings' cases written after the code
 faulty_fields_test() ->
     ok = ern_peer:tables(),
     try
@@ -87,9 +212,14 @@ faulty_fields_test() ->
                                           {restarting, 'Unlimited', {function, <<0:256>>}}},
                       <<"s">>, false},
                      {spawn, make_ref(), {restarting, forever, {function, <<0:256>>}}, <<"s">>,
-                      false}]]
+                      false},
+                     %% a telling the gateway does not hold, its utilisation
+                     %% or its interval out of shape, which it leaves to the
+                     %% worker
+                     {telling, 0.5}, {telling, 0.5, 0}, {telling, 0.5, 2.5e3},
+                     {telling, -0.5, 5000}, {telling, 1, 5000}]]
     after
-        ets:delete(ern_spawns)
+        untabled()
     end.
 
 %% report §8.7: a find or a spawn that comes while no run is in progress, as
@@ -474,12 +604,16 @@ compute_caller_test() ->
                  receive {reported, _} = Reported -> Reported end).
 
 %% report §8.7, Appendix E.27: a program that is no node has no peers, so
-%% a compute and a utilisation answer NotListed, as a find and a spawn do.
-%% A regression test, written after the code
+%% a compute on a peer named or picked and a utilisation answer NotListed,
+%% as a find and a spawn do, and it holds no load. A regression test,
+%% written after the code
 no_node_test() ->
     ?assertEqual({'Left', 'NotListed'},
-                 ern_peer:compute(<<"worker">>, {function, <<0:256>>}, 1000, <<"M.f:1">>)),
-    ?assertEqual({'Left', 'NotListed'}, ern_peer:utilisation(<<"worker">>, 1000)).
+                 ern_peer:compute_at(<<"worker">>, {function, <<0:256>>}, 1000, <<"M.f:1">>)),
+    ?assertEqual({'Left', 'NotListed'},
+                 ern_peer:compute({function, <<0:256>>}, 1000, <<"M.f:1">>)),
+    ?assertEqual({'Left', 'NotListed'}, ern_peer:utilisation(<<"worker">>, 1000)),
+    ?assertEqual([], ern_peer:loads()).
 
 %% report §8.7: a function whose reach names a binding through a group, a
 %% type whose compare reads a binding of its module, starts nothing where

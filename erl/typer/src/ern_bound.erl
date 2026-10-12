@@ -2,9 +2,10 @@
 %% value of one from starting towards another node. A service at a bound
 %% type is refused where the checker supplies the service's type
 %% (ern_typecheck's supply of `service`); a spawn on a peer, and a compute,
-%% are read off a definition here, once the definition is inferred: the
-%% function is a declaration's name, or a lambda or a `fn` written in the
-%% definition, at the spawn or the compute or bound by a `let` it names, or
+%% on a peer named or on one the node picks, are read off a definition
+%% here, once the definition is inferred: the function is a declaration's
+%% name, or a lambda or a `fn` written in the definition, at the spawn or
+%% the compute or bound by a `let` it names, or
 %% `restarting` applied to one of these, and what that lambda or `fn`
 %% captures, and the mailbox type of the process it starts, are neither
 %% bound nor hold a type variable, but for a mailbox type that is a
@@ -146,7 +147,8 @@ walk(#e_var{span = Span, referent = Referent}, _Scope, _Context) ->
         {Name, _} ->
             fail(Span, Name ++ " is called where it is named, so that the compiler sees the"
                        " function it starts",
-                 "call it: `" ++ Name ++ "(name, fn() = ..., ms)` (§3.11)")
+                 "call it: `" ++ Name ++ "(" ++ peer_argument(Name) ++ "fn() = ..., ms)`"
+                 " (§3.11)")
     end;
 walk(#e_lambda{params = Params, body = Body}, Scope, Context) ->
     walk(Body, shadowed(param_names(Params), Scope), Context);
@@ -177,14 +179,25 @@ statement(#fn_declaration{params = Params, body = Body}, Scope, Context) ->
 statement(Expr, Scope, Context) ->
     {walk(Expr, Scope, Context), Scope}.
 
-%% Appendix E.27: `Peer.spawn`, `Peer.spawnMonitored` and `Peer.compute`,
-%% the module's own functions as the checker resolved them, not names
-%% spelled so.
+%% Appendix E.27: `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute` and
+%% `Peer.computeAt`, the module's own functions as the checker resolved
+%% them, not names spelled so.
 spawn_name(#remote_declaration{namespace = ['Peer'], member_of = undefined, name = Name})
-  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
+  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute; Name =:= computeAt ->
     "Peer." ++ atom_to_list(Name);
 spawn_name(_) ->
     none.
+
+%% Appendix E.27: the peer's name an operation takes before its function,
+%% as a help writes the call: every one's but `Peer.compute`'s, whose peer
+%% the node picks.
+peer_argument("Peer.compute") -> "";
+peer_argument(_) -> "name, ".
+
+%% The function the operation takes among its arguments, at its position
+%% among its parameters: after the peer's name, where it takes one.
+function_position("Peer.compute") -> 1;
+function_position(_) -> 2.
 
 %% Appendix E.28: `Code.running`, the module's own function as the checker
 %% resolved it, not a name spelled so.
@@ -259,12 +272,16 @@ declared_running(Span, {Written, Declared}, Type, Env) ->
 %% neither bound nor holding a type variable, but for a mailbox type that is
 %% Never; and a compute's result type, which crosses back, neither bound nor
 %% holding one.
-spawned(Name, #e_var{type = CalleeType}, [_Peer, Function | _], Scope, {Held, Env}) ->
+spawned(Name, #e_var{type = CalleeType}, Args, Scope, {Held, Env}) ->
+    Position = function_position(Name),
+    Function = lists:nth(Position, Args),
     Captures = restarted_captures(Name, Function, Scope, Env),
     lists:foreach(fun(Capture) -> capture_crosses(Name, Capture, Env) end, Captures),
-    Name =:= "Peer.compute"
-        andalso result_crosses(Name, ern_ast:span(Function), function_type(CalleeType, Env), Env),
-    mailbox_crosses(Name, ern_ast:span(Function), mailbox(CalleeType, Env), Held, Env).
+    FunctionType = function_type(CalleeType, Position, Env),
+    is_compute(Name)
+        andalso result_crosses(Name, ern_ast:span(Function), FunctionType, Env),
+    {tfn, [], Mailbox, _} = FunctionType,
+    mailbox_crosses(Name, ern_ast:span(Function), Mailbox, Held, Env).
 
 %% Report §3.11, §6.9: `restarting` applied to a function the spawn admits
 %% captures the limit, a `RestartLimit`, which crosses, and what that
@@ -376,18 +393,12 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
                  " what crosses (§3.11)")
     end.
 
-%% The function the spawn or the compute takes, its second parameter, at
-%% this use.
-function_type(CalleeType, Env) ->
+%% The function the spawn or the compute takes, the parameter at Position,
+%% at this use; its effect is the mailbox type of the process it starts.
+function_type(CalleeType, Position, Env) ->
     TypeState = ern_typecheck:type_state(Env),
-    {tfn, [_, Function | _], _, _} = ern_types:substitute(CalleeType, TypeState),
-    ern_types:resolve(Function, TypeState).
-
-%% The mailbox type of the process the spawn or the compute starts: the
-%% effect of the function it takes.
-mailbox(CalleeType, Env) ->
-    {tfn, [], Mailbox, _} = function_type(CalleeType, Env),
-    Mailbox.
+    {tfn, Params, _, _} = ern_types:substitute(CalleeType, TypeState),
+    ern_types:resolve(lists:nth(Position, Params), TypeState).
 
 %% Report §3.11, §8.7: the result type of the function a compute runs,
 %% whose value crosses back to the caller's node, known whole where the
@@ -443,33 +454,40 @@ mailbox_crosses(Name, Span, Mailbox, Held, Env) ->
                  bound_mailbox_help(Name))
     end.
 
+%% Appendix E.27: whether the operation is a compute, on a peer named or on
+%% one the node picks, whose function's value crosses back.
+is_compute(Name) ->
+    Name =:= "Peer.compute" orelse Name =:= "Peer.computeAt".
+
 %% The help of a bound mailbox type: a spawn answers the process's address,
 %% which may cross; a compute's function is checked as a spawn's, one rule
 %% for the function a peer runs (§3.11).
-bound_mailbox_help("Peer.compute") ->
-    "the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses"
-    " (§3.11)";
-bound_mailbox_help(_) ->
-    "the spawn answers an address that may cross to another node, so its messages are values"
-    " that cross (§3.11)".
+bound_mailbox_help(Name) ->
+    case is_compute(Name) of
+        true -> "the function a peer runs, a compute's as a spawn's, has a mailbox type that"
+                " crosses (§3.11)";
+        false -> "the spawn answers an address that may cross to another node, so its messages"
+                 " are values that cross (§3.11)"
+    end.
 
 %% What the operation does with its function, in the report's words
-%% (§3.11): a spawn starts it, a compute runs it.
-verb("Peer.compute") -> " runs ";
-verb(_) -> " starts ".
+%% (§3.11): a spawn starts it, a compute runs it; and the operation as a
+%% help names it, the one written.
+verb(Name) -> by_kind(Name, " runs ", " starts ").
 
-%% The operation as a help names it, the one written (§3.11).
-act("Peer.compute") -> "the compute";
-act(_) -> "the spawn".
+act(Name) -> by_kind(Name, "the compute", "the spawn").
 
-act_on_peer("Peer.compute") -> "a compute on a peer";
-act_on_peer(_) -> "a spawn on a peer".
+act_on_peer(Name) -> by_kind(Name, "a compute on a peer", "a spawn on a peer").
 
-here("Peer.compute") -> "run the function on this node, `f()`";
-here(_) -> "spawn on this node".
+here(Name) -> by_kind(Name, "run the function on this node, `f()`", "spawn on this node").
 
-annotated("Peer.compute") -> "`fn() : Int with Msg = ...`";
-annotated(_) -> "`fn() : Unit with Msg = ...`".
+annotated(Name) -> by_kind(Name, "`fn() : Int with Msg = ...`", "`fn() : Unit with Msg = ...`").
+
+by_kind(Name, Compute, Spawn) ->
+    case is_compute(Name) of
+        true -> Compute;
+        false -> Spawn
+    end.
 
 %%
 %% Utilities

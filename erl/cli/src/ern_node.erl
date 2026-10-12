@@ -26,7 +26,7 @@
 
 %% Report §8.7, Appendix E.27: what `ernest.conf` may say.
 -define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>,
-                 <<"utilisation">>]).
+                 <<"utilisation">>, <<"utilisation-interval">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
 %%
@@ -425,7 +425,10 @@ configuration(ConfigDir) ->
                                        Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none)),
                    utilisation = utilisation(ConfigDir,
-                                             maps:get(<<"utilisation">>, Fields, <<"run-queue">>))}.
+                                             maps:get(<<"utilisation">>, Fields, <<"run-queue">>)),
+                   utilisation_interval =
+                       utilisation_interval(ConfigDir,
+                                            maps:get(<<"utilisation-interval">>, Fields, 5000))}.
 
 %% A whole number of the file, as the host reads its numeral; one too long
 %% for the host to hold, which the host would raise for, is refused with the
@@ -659,6 +662,14 @@ utilisation(ConfigDir, Text) when is_binary(Text) ->
                            " \"run-queue\" nor \"schedulers\"");
 utilisation(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "utilisation is neither \"run-queue\" nor \"schedulers\"").
+
+%% Report §8.7, Appendix C: `utilisation-interval`, the milliseconds between
+%% the node's tellings of how busy it is to its peers, 5000 where the entry
+%% is absent; a count of milliseconds, as `check-interval` is.
+utilisation_interval(_ConfigDir, Ms) when is_integer(Ms), Ms > 0 ->
+    Ms;
+utilisation_interval(ConfigDir, _) ->
+    fail(ConfigDir, ?CONF, "utilisation-interval is not a count of milliseconds above 0").
 
 %%
 %% Utilities

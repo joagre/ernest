@@ -47,7 +47,8 @@
 %% `ern_deliveries` the deliveries in flight, `ern_restarts` the restarts a
 %% process may be asked, `ern_checkers` the checkers of §8.4, and
 %% `ern_launch` the way the terminal is read, the process a deadlock faults
-%% and whether the end waits for its subscribers. A node's (§8.7):
+%% and whether the end waits for its subscribers, and the load the program
+%% set (§8.7). A node's (§8.7):
 %% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
 %% modules whose initializers have run, whose bindings a peer's spawn asks
 %% for, and `ern_notes` the notes of calls from other nodes, a compute's
@@ -69,8 +70,8 @@
          binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
          spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/2, offered/2,
-         asked_of_run/1, note_call/3, drop_note/1, note_compute/2, computed/2, is_launched/0,
-         drop_notes/1, ordered/1]).
+         set_load/1, program_load/0, asked_of_run/1, note_call/3, drop_note/1, note_compute/2,
+         computed/2, is_launched/0, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -126,7 +127,8 @@
 %% entry process, {entry_process, Pid}, the process a deadlock faults,
 %% {deadlock_victim, Pid}, while the end looks for its subscribers and
 %% waits for them, the runner that tells them, {ending, Runner, Launch},
-%% and once the wait is over, {wait_over}
+%% once the wait is over, {wait_over}, and the load the program set with
+%% `Peer.load`, {load, Load} (§8.7)
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
 %% the service's name and its type's hash, ordered so that one name's are
@@ -3052,6 +3054,24 @@ offered(Name, Hash) ->
                 {[_], _} -> 'OtherType';
                 '$end_of_table' -> 'NotOffered'
             end
+    end.
+
+%% Report §8.7, Appendix E.27: the load a program set with `Peer.load`,
+%% which its node tells its peers and answers them until the program sets
+%% it again: a row of the launch's, so that each launch begins with none,
+%% and its node tells the measure its configuration names.
+-spec set_load(float()) -> ok.
+set_load(Load) ->
+    true = ets:insert(?LAUNCH, {load, Load}),
+    ok.
+
+%% The load the program set, or none: none set, or no launch in progress,
+%% between two launches of `ern test` over a directory, in one host.
+-spec program_load() -> float() | none.
+program_load() ->
+    case ets_lookup(?LAUNCH, load) of
+        [{load, Load}] -> Load;
+        [] -> none
     end.
 
 %% Report §8.7: what a peer's frame asks of the run in progress, answered

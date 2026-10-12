@@ -17,9 +17,7 @@
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["json", "load", "placement", "proxy"]]).
-%% Appendix G.6's library, on the load path of a program that picks a peer.
--define(PLACEMENT, filename:absname("../build/libs/placement")).
+                    || Library <- ["json", "load", "proxy"]]).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
@@ -1375,7 +1373,7 @@ compute_on_peer(Base) ->
                     - 1),
     has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:525 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:520 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
@@ -1974,7 +1972,7 @@ exchanged(Base) ->
              "        [receiver] -> {\n"
              "            let plain = Peer.spawn(receiver, Lacked.plain, 5000);\n"
              "            Io.println(\"plain: \" <> outcome(plain));\n"
-             "            let counted = Peer.compute(receiver, Lacked.counted, 5000);\n"
+             "            let counted = Peer.computeAt(receiver, Lacked.counted, 5000);\n"
              "            Io.println(\"counted: \" <> Io.show(counted));\n"
              "            let told = Peer.spawn(receiver, Lacked.told, 5000);\n"
              "            Io.println(\"told: \" <> outcome(told));\n"
@@ -1994,7 +1992,7 @@ exchanged(Base) ->
              "    Io.println(\"spawner: \" <> outcome(spawner));\n"
              "    let yielded = Peer.spawn(receiver, Lacked.yielded, 5000);\n"
              "    Io.println(\"yielded: \" <> outcome(yielded));\n"
-             "    let collected = Peer.compute(receiver, Lacked.collected, 5000);\n"
+             "    let collected = Peer.computeAt(receiver, Lacked.collected, 5000);\n"
              "    Io.println(\"collected: \" <> Io.show(collected));\n"
              "    let named = Peer.spawn(receiver, Lacked.only, 5000);\n"
              "    Io.println(\"only by name: \" <> outcome(named));\n"
@@ -2153,21 +2151,24 @@ bare_build(Base) ->
              "\n"
              "export fn main() : Unit with Note =\n"
              "    match Os.arguments {\n"
-             "        [bare] -> placed(bare)\n"
-             "      | [bare, \"exit\"] -> exits(bare)\n"
+             "        [bare, \"exit\"] -> exits(bare)\n"
+             "      | [bare, interval] -> placed(bare, Optional.withDefault(String.toInt(interval),"
+             " 0))\n"
              "      | _ -> Unit\n"
              "    }\n"
              "\n"
-             "// Spawns, computes, a find, a utilisation and a pick, each answer a line.\n"
-             "fn placed(bare : String) : Unit with Note = {\n"
+             "// Spawns, computes, a find, a utilisation and a pick, each answer a line;\n"
+             "// the bare node tells its load every interval.\n"
+             "fn placed(bare : String, interval : Int) : Unit with Note = {\n"
              "    let counter = Peer.spawn(bare, fn() : Unit with Int = counts(0), 5000);\n"
              "    Io.println(\"spawn: \" <> outcome(counter));\n"
              "    match counter {\n"
              "        Right(address) -> send(address, 1)\n"
              "      | Left(_) -> Unit\n"
              "    };\n"
-             "    Io.println(\"compute: \" <> Io.show(Peer.compute(bare, answer, 5000)));\n"
-             "    Io.println(\"entry shown: \" <> Io.show(Peer.compute(bare, entryShown, 5000)));\n"
+             "    Io.println(\"compute: \" <> Io.show(Peer.computeAt(bare, answer, 5000)));\n"
+             "    Io.println(\"entry shown: \" <> Io.show(Peer.computeAt(bare, entryShown,"
+             " 5000)));\n"
              "    let told = self();\n"
              "    let offering = Peer.spawn(bare, fn() : Unit with Int = offers(told), 5000);\n"
              "    Io.println(\"offering: \" <> outcome(offering));\n"
@@ -2190,7 +2191,8 @@ bare_build(Base) ->
              "      | Left(failure) -> Io.show(failure)\n"
              "    };\n"
              "    Io.println(\"utilisation: \" <> utilisation);\n"
-             "    Io.println(\"least busy: \" <> Io.show(Placement.leastBusy([bare], 5000)));\n"
+             "    heard(bare, interval);\n"
+             "    Io.println(\"picked: \" <> Io.show(Peer.compute(answer, 5000)));\n"
              "    Io.println(\"binding: \" <> outcome(Peer.spawn(bare, Shared.greet, 5000)));\n"
              "    Io.println(\"divides: \" <> outcome(Peer.spawn(bare, divides, 5000)));\n"
              "    Io.println(\"raises: \" <> outcome(Peer.spawn(bare, raises, 5000)));\n"
@@ -2220,6 +2222,16 @@ bare_build(Base) ->
              "}\n"
              "\n"
              "fn answer() : Int = 6 * 7\n"
+             "\n"
+             "// Report §8.7: until the node holds the bare node's load, read again at\n"
+             "// each of its intervals, at which alone the table changes.\n"
+             "fn heard(bare : String, interval : Int) : Unit with m =\n"
+             "    if List.any(Peer.loads(), fn(#(peer, _, _)) = peer == bare) then\n"
+             "        Unit\n"
+             "    else\n"
+             "        receive {\n"
+             "            after interval -> heard(bare, interval)\n"
+             "        }\n"
              "\n"
              "// Whether the bare node's entry process is among its live processes, by\n"
              "// its site.\n"
@@ -2255,8 +2267,7 @@ bare_build(Base) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{SharedDir, "shared.ern", Shared}, {ProgramDir, "bare.ern", Source}]],
     0 = ern_cli:ern(["build", SharedDir], group_leader()),
-    0 = ern_cli:ern(["build", "--load-path", SharedDir, "--load-path", ?PLACEMENT, ProgramDir],
-                    group_leader()),
+    0 = ern_cli:ern(["build", "--load-path", SharedDir, ProgramDir], group_leader()),
     {SharedDir, filename:join(ProgramDir, "bare.erc"), Source}.
 
 %% The number of the first line of Text that holds Part.
@@ -2264,13 +2275,14 @@ line_of(Text, Part) ->
     Lines = string:split(Text, "\n", all),
     length(lists:takewhile(fun(Line) -> string:find(Line, Part) =:= nomatch end, Lines)) + 1.
 
-%% report §8.7, §8.1, §8.5, §8.6, §11.2, §11.8, Appendix E.21, E.27, G.6: a
+%% report §8.7, §8.1, §8.5, §8.6, §11.2, §11.8, Appendix E.21, E.27: a
 %% bare node, `ern run --config-dir` with no `.erc`, listening on the port
 %% the host picks, holds none of the program's definitions: a peer's spawn
 %% of the program's function runs there with its code crossed, and takes
 %% the peer's messages; a compute answers its value; a process spawned
 %% there offers a service, which the peer finds and sends to; its
-%% utilisation answers, and `Placement.leastBusy` picks it; a library on its
+%% utilisation answers, and it tells its load as any node does, so that a
+%% compute that names no peer runs there once it has; a library on its
 %% load path is loaded and its binding not evaluated, so a spawn whose reach
 %% names the binding is NotLoaded, the node saying so; a fault in received
 %% code is reported there at the spawn's site, the sender's, with the peer
@@ -2292,12 +2304,13 @@ bare_node(Base) ->
     A = made(Base, "a", none),
     B = made(Base, "b", 0),
     lists(B, [{"a", A, none}]),
+    Interval = 200,
+    edit(B, fun(Conf) -> Conf#{<<"utilisation-interval">> => Interval} end),
     edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
     WaitB = bare_started(B, [SharedDir]),
     lists(A, [{"b", B, bound_port(B)}]),
-    Placing = [?ERN, " run --config-dir ", A, " --load-path ", SharedDir, " --load-path ",
-               ?PLACEMENT, " ", Program, " b"],
-    {_, WaitA} = launched(A, Placing),
+    Placing = [?ERN, " run --config-dir ", A, " --load-path ", SharedDir, " ", Program, " b"],
+    {_, WaitA} = launched(A, [Placing, " ", integer_to_list(Interval)]),
     ?assertEqual(0, WaitA()),
     Site = fun(Part) -> "Bare.placed:" ++ integer_to_list(line_of(Source, Part)) end,
     Raised = " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg, spawned"
@@ -2315,7 +2328,7 @@ bare_node(Base) ->
     [has(Out, Line)
      || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
                  "offering: Right", "found: Right", "utilisation: Right",
-                 "least busy: Some(\"b\")", "binding: NotLoaded", "divides: Right",
+                 "picked: Right(42)", "binding: NotLoaded", "divides: Right",
                  "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
     ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
     {match, [[First], [Second]]} = re:run(ErrB, "'(ern\\$[0-9]+)':'Bare\\.raises'/0",
@@ -2935,10 +2948,10 @@ shell_compute(Base) ->
     true = port_command(InputWorker, [Declared, "Io.println(\"declared\")\n"]),
     prints(Worker, "declared"),
     {InputDesk, WaitDesk} = shell_started(Desk, Root),
-    true = port_command(InputDesk, [Declared, "Peer.compute(\"worker\", answer, 5000)\n",
-                                    "Peer.compute(\"worker\", fn() = 6 * 7, 5000)\n",
+    true = port_command(InputDesk, [Declared, "Peer.computeAt(\"worker\", answer, 5000)\n",
+                                    "Peer.computeAt(\"worker\", fn() = 6 * 7, 5000)\n",
                                     "fn alone() : Int = 6 * 9\n",
-                                    "Peer.compute(\"worker\", alone, 5000)\n",
+                                    "Peer.computeAt(\"worker\", alone, 5000)\n",
                                     "type Count = Count(Int)\n",
                                     "foreign fn wrong() : Count with m = \"erlang:yield/0\"\n",
                                     "fn counts() : Unit with Never = {\n"
@@ -3634,30 +3647,35 @@ typed_channels(Base) ->
     {OutA, _} = said(ConfigDirA),
     has(OutA, "total on b: Some(5)").
 
-%% Appendix G.5, G.4, report §8.7, Appendix E.27: the least busy of the
-%% names given is the store, which answers its utilisation, alone and
-%% beside a name no peer has, passed over; a pick of a name no peer has, of
-%% the peer gone, whose dial is refused, and of no name answers None; the
-%% four lines over the desk's peers, the store and the peer gone, compute on
-%% the store, the one that answered, the value the store's peers; Load
-%% answers the host's services' loads on the store, whose measures run them,
-%% and none on the desk, whose do not. A regression test, written after the
-%% code; it does not cover two peers that answer, whose utilisations no test
-%% can order, which the library's own test of its rule covers, nor a peer
-%% whose time runs out
-placement_test_() ->
-    nodes_test(90, fun placement/1).
+%% report §8.7, Appendix E.27, C, G.4: a compute on a peer the desk picks,
+%% the store and the desk telling every `utilisation-interval` of their
+%% configurations, of the desk's two peers the store alone reached: before
+%% any connection, the desk holding no load, Unreachable; once the spawn
+%% of the loads' check has connected them and the store has told its load,
+%% on the store, the value its peers, the desk and the third node, and the
+%% store the one peer the desk holds a load of, the peer gone left out;
+%% Load answers the host's services' loads on the store, whose measures run
+%% them, and none on the desk, whose do not. A regression test, written
+%% after the code; the pick's rules over two peers and more are
+%% pick_test_'s and ern_peer_tests', and the desk waits for the telling by
+%% reading its loads at each interval, so that the telling's coming within
+%% one interval is held by no time here
+placed_test_() ->
+    nodes_test(90, fun placed/1).
 
-placement(Base) ->
+placed(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
+    Interval = 200,
+    [edit(Dir, fun(Conf) -> Conf#{<<"utilisation-interval">> => Interval} end)
+     || Dir <- [Store, Desk]],
     edit(Store, fun(Conf) ->
                     Conf#{<<"measures">> => #{<<"cpu">> => #{}, <<"memory">> => #{},
                                               <<"disk">> => #{}}}
                 end),
     WaitStore = start(Store, StoreProgram, []),
     prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["place"]))()),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["place", integer_to_list(Interval)]))()),
     prints(Store, "loads there"),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
@@ -3667,10 +3685,133 @@ placement(Base) ->
     %% ended, that the host had closed
     ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
     [has(Out, Line)
-     || Line <- ["store: Some(\"store\")", "beside no peer: Some(\"store\")", "no peer: None",
-                 "gone: None", "no name: None", "computed: Right([\"desk\", \"third\"])",
-                 "loads here: #(false, false, false)", "loads: Right"]],
+     || Line <- ["before a telling: Left(Unreachable)", "loads: Right",
+                 "computed: Right([\"desk\", \"third\"])", "held: [\"store\"]",
+                 "loads here: #(false, false, false)"]],
     has(StoreOut, "loads there: #(true, true, true)").
+
+%% The program of three nodes of one build, each started with its name, and
+%% of a node that lists no peer, built in Base: the `.erc`.
+pick_build(Base) ->
+    Dir = filename:join(Base, "pick"),
+    ok = filelib:ensure_path(Dir),
+    Source = "// Report §8.7: the spawner, which lists p1 and p2, computes on the one\n"
+             "// it picks by the loads they told it; p1 and p2, which list it, wait;\n"
+             "// and a node that lists no peer picks none.\n"
+             "\n"
+             "export fn main() : Unit with Unit =\n"
+             "    match Os.arguments {\n"
+             "        [\"s\", interval] -> picks(Optional.withDefault(String.toInt(interval), 0))\n"
+             "      | [\"alone\"] -> alone()\n"
+             "      | _ -> {\n"
+             "            Io.println(\"waiting\");\n"
+             "            waits()\n"
+             "        }\n"
+             "    }\n"
+             "\n"
+             "// Where a compute ran: the node's arguments, which name it.\n"
+             "fn ran() : List(String) = Os.arguments\n"
+             "\n"
+             "fn picks(interval : Int) : Unit with Unit = {\n"
+             "    Io.println(\"before a telling: \" <> Io.show(Peer.compute(ran, 5000)));\n"
+             "    Io.println(\"p1 set: \" <> Io.show(Peer.computeAt(\"p1\", fn() = Peer.load(0.9),"
+             " 5000)));\n"
+             "    Io.println(\"p2 set: \" <> Io.show(Peer.computeAt(\"p2\", fn() = Peer.load(0.1),"
+             " 5000)));\n"
+             "    told(\"p1\", 0.9, interval);\n"
+             "    told(\"p2\", 0.1, interval);\n"
+             "    Io.println(\"loads: \" <> Io.show(List.map(Peer.loads(), fn(#(name, load, _)) ="
+             " #(name, load))));\n"
+             "    Io.println(\"utilisation of p1: \" <> Io.show(Peer.utilisation(\"p1\", 5000)));\n"
+             "    let computed = List.map(List.range(1, 20), fn(_) = Peer.compute(ran, 5000));\n"
+             "    Io.println(\"computed: \" <> Io.show(List.unique(computed)));\n"
+             "    Io.println(\"named: \" <> Io.show(Peer.computeAt(\"p1\", ran, 5000)));\n"
+             "    Io.println(\"now stop p2\");\n"
+             "    let _ = Io.readLine();\n"
+             "    let left = List.map(Peer.loads(), fn(#(name, _, _)) = name);\n"
+             "    Io.println(\"after the loss: \" <> Io.show(left));\n"
+             "    Io.println(\"computed alone: \" <> Io.show(Peer.compute(ran, 5000)))\n"
+             "}\n"
+             "\n"
+             "// Report §8.7: until the node holds the load given of the peer named,\n"
+             "// read again every interval, the time between the peer's tellings, at\n"
+             "// which alone the table changes.\n"
+             "fn told(name : String, load : Float, interval : Int) : Unit with m =\n"
+             "    if List.any(Peer.loads(), fn(#(peer, held, _)) = peer == name && held == load)"
+             " then\n"
+             "        Unit\n"
+             "    else\n"
+             "        receive {\n"
+             "            after interval -> told(name, load, interval)\n"
+             "        }\n"
+             "\n"
+             "fn alone() : Unit with Unit = {\n"
+             "    Io.println(\"no peer: \" <> Io.show(Peer.compute(ran, 5000)));\n"
+             "    Io.println(\"no load: \" <> Io.show(Peer.loads()))\n"
+             "}\n"
+             "\n"
+             "// Until the node is stopped: a node waiting for ever is no deadlock.\n"
+             "fn waits() : Unit with Unit =\n"
+             "    receive {\n"
+             "        _ -> waits()\n"
+             "    }\n",
+    ok = file:write_file(filename:join(Dir, "pick.ern"), unicode:characters_to_binary(Source)),
+    0 = ern_cli:ern(["build", Dir], group_leader()),
+    filename:join(Dir, "pick.erc").
+
+%% report §8.7, Appendix E.27, C: three nodes telling each other every
+%% `utilisation-interval`, the spawner far more often than p1 and p2, each
+%% started with its name, which a compute of the node's arguments answers:
+%% the spawner, listing p1 and p2 and heard from by neither before its
+%% first operation, answers a compute that names no peer Unreachable; p1's
+%% load set high and p2's low by a compute on each, `Peer.load` in the
+%% process it starts, the spawner's loads show both, in the configuration's
+%% order, and p1's utilisation asked answers the number its program set;
+%% every compute that names no peer runs on p2, the less loaded of the two
+%% the draw takes, each load aged by its teller's interval and not the
+%% spawner's, by which it would mostly be too old, and `Peer.computeAt` runs on
+%% the peer named, p1; p2 stopped, its load is dropped at the loss, which
+%% the spawner says, and a compute runs on p1, the one peer left, taken as
+%% it is; and a node that lists no peer answers NotListed and holds no
+%% load. A regression test, written after the code; the spawner waits for
+%% each telling by reading its loads at each interval, so that a telling's
+%% coming within one interval is held by no time here, and the draw among
+%% more than two peers and the age of a load are ern_peer_tests'
+pick_test_() ->
+    nodes_test(90, fun pick/1).
+
+pick(Base) ->
+    Program = pick_build(Base),
+    {Port1, Port2} = {free_port(), free_port()},
+    S = made(Base, "s", none),
+    P1 = made(Base, "p1", Port1),
+    P2 = made(Base, "p2", Port2),
+    Alone = made(Base, "alone", none),
+    {Interval, SpawnersInterval} = {200, 20},
+    lists(S, [{"p1", P1, Port1}, {"p2", P2, Port2}]),
+    [lists(Dir, [{"s", S, none}]) || Dir <- [P1, P2]],
+    [edit(Dir, fun(Conf) -> Conf#{<<"utilisation-interval">> => Ms} end)
+     || {Dir, Ms} <- [{S, SpawnersInterval}, {P1, Interval}, {P2, Interval}]],
+    Wait1 = start(P1, Program, ["p1"]),
+    Wait2 = start(P2, Program, ["p2"]),
+    [prints(Dir, "waiting") || Dir <- [P1, P2]],
+    {SPort, WaitS} = started(S, Program, ["s", integer_to_list(Interval)]),
+    prints(S, "now stop p2"),
+    stop(P2, Wait2),
+    says(S, "the peer p2 ended"),
+    true = port_command(SPort, "go\n"),
+    ?assertEqual(0, WaitS()),
+    stop(P1, Wait1),
+    ?assertEqual(0, (start(Alone, Program, ["alone"]))()),
+    {Out, _} = said(S),
+    [has(Out, Line)
+     || Line <- ["before a telling: Left(Unreachable)", "p1 set: Right(Unit)",
+                 "p2 set: Right(Unit)", "loads: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
+                 "utilisation of p1: Right(0.9)", "computed: [Right([\"p2\"])]",
+                 "named: Right([\"p1\"])", "after the loss: [\"p1\"]",
+                 "computed alone: Right([\"p1\"])"]],
+    {AloneOut, _} = said(Alone),
+    [has(AloneOut, Line) || Line <- ["no peer: Left(NotListed)", "no load: []"]].
 
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two
@@ -4075,7 +4216,7 @@ upgraded_builds(Base) ->
            "// after.\n"
            "fn loaded(bare : String, path : String) : Unit with m = {\n"
            "    Io.println(\"before load: \" <> started(bare));\n"
-           "    let loading = Peer.compute(bare, fn() = Code.load(Path(path)), 5000);\n"
+           "    let loading = Peer.computeAt(bare, fn() = Code.load(Path(path)), 5000);\n"
            "    Io.println(\"load: \" <> Io.show(loading));\n"
            "    Io.println(\"after load: \" <> started(bare))\n"
            "}\n"

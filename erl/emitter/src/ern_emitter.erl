@@ -1260,22 +1260,25 @@ callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument],
     exposed({Crossing, ArgumentForm}, Context1);
 %% Report §8.7, Appendix E.27: Peer.service makes its service with its
 %% message type's hash, of the type the checker supplied; Peer.spawn,
-%% Peer.spawnMonitored and Peer.compute send the function's identity and
-%% captures in place of the function, and the spawn's or the compute's
-%% site, as a spawn on this node keeps it (§6.9); a spawn passes last the
-%% captures that carry a reply, whose calls it ends where it fails (§6.6),
-%% and a compute none, since the checker refuses a compute's function that
-%% captured one (§6.6's rule)
+%% Peer.spawnMonitored, Peer.computeAt and Peer.compute send the function's
+%% identity and captures in place of the function, and the spawn's or the
+%% compute's site, as a spawn on this node keeps it (§6.9); a spawn passes
+%% last the captures that carry a reply, whose calls it ends where it fails
+%% (§6.6), and a compute none, since the checker refuses a compute's
+%% function that captured one (§6.6's rule)
 callee(_, {var, {named, ['Peer', service]}, [ServiceType]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     {call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType)]), Context1};
+callee(Source, {var, {named, ['Peer', compute]}, _}, _, [Spawned | Rest], Context) ->
+    %% a compute's function holds no reply (§6.6's rule), nor its form any;
+    %% the node picks its peer
+    peer_spawn(Source, compute, [], [], Spawned, Rest, Context);
 callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest], Context)
-  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
-    %% a compute's function holds no reply (§6.6's rule), nor its form any
-    peer_spawn(Source, Name, [], PeerName, Spawned, Rest, Context);
+  when Name =:= spawn; Name =:= spawnMonitored; Name =:= computeAt ->
+    peer_spawn(Source, Name, [], [PeerName], Spawned, Rest, Context);
 callee(Source, {var, {named, ['Peer', Name]}, _, Held}, _, [PeerName, Spawned | Rest], Context)
   when Name =:= spawn; Name =:= spawnMonitored ->
-    peer_spawn(Source, Name, Held, PeerName, Spawned, Rest, Context);
+    peer_spawn(Source, Name, Held, [PeerName], Spawned, Rest, Context);
 %% Appendix E.28, report §3.11: Code.running, the identity of the
 %% declaration it names in place of the function, its hash (Appendix H),
 %% by which the runtime finds a frame of it in any unit that holds it
@@ -2210,17 +2213,20 @@ field_sets(Names, FieldSets, Context) ->
 %% A spawn on a peer, and a compute, report §8.7 and §3.11
 %%
 
-peer_spawn(Source, Name, Held, PeerName, Spawned, Rest, Context) ->
-    {PeerForm, Context1} = expr(PeerName, Context),
+%% Peered is the peer's name the operation takes before its function, or
+%% none for a compute whose peer the node picks.
+peer_spawn(Source, Name, Held, Peered, Spawned, Rest, Context) ->
+    {PeerForms, Context1} = exprs(Peered, Context),
     {SpawnedForm, Replies, Context2} = spawned(Spawned, Held, Context1),
     {RestForms, Context3} = exprs(Rest, Context2),
     {Function, Kept} = case Name of
                            spawn -> {spawn, [erl_syntax:list(Replies)]};
                            spawnMonitored -> {spawn_monitored, [erl_syntax:list(Replies)]};
+                           computeAt -> {compute_at, []};
                            compute -> {compute, []}
                        end,
     {call_remote(ern_peer, Function,
-                 [PeerForm, SpawnedForm | RestForms] ++ [site(Source, Context) | Kept]),
+                 PeerForms ++ [SpawnedForm | RestForms] ++ [site(Source, Context) | Kept]),
      Context3}.
 
 %% The function a spawn on a peer starts, or a compute runs, as its frame

@@ -71,7 +71,7 @@ shell/             the shell as Ernest source; its README.md guides a reader
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ansi, ets, json, load, markdown, which needs
-                   ansi, placement and proxy
+                   ansi, and proxy
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
@@ -131,7 +131,8 @@ make bench        what each of a few operations costs in Ernest beside the same
                   address made there; then, on nodes it starts, what a spawn and a compute
                   cost whose code crosses, each step of the exchange, a fix's callers,
                   what an arrival, a Code.load and a day's spawns add to the host's
-                  counts, a utilisation and a pick, what connected nodes exchange idle,
+                  counts, a utilisation, a compute on a peer picked and on one named,
+                  the pick alone, what connected nodes exchange idle with their tellings,
                   and the sizes of an .erc and a code frame; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md

@@ -312,7 +312,7 @@ received_linked_test() ->
         "export fn outer() : Either(Io.Error, Int) with m = {\n"
         "    absent();\n"
         "    let _ = now() + note;\n"
-        "    Peer.compute(\"p\", fn() = 6 * 7, 100)\n"
+        "    Peer.computeAt(\"p\", fn() = 6 * 7, 100)\n"
         "}\n").
 
 %% report §8.7, §8.4, §11.2: a lambda crosses as the definition that

@@ -32,13 +32,13 @@ match Peer.compute(fn() = render(scene), 5000) {
 
 The one `Left` a program must think about is `Unreachable`, no peer having said its load, which the program answers by working here or by waiting; before this, the same arm was `Placement.leastBusy`'s `None`. The rest are `Peer.compute`'s today: `Timeout`, `NotLoaded`, `Other`.
 
-A rule of the program's own, the least loaded of every peer:
+A rule of the program's own, the least loaded of every peer, the compute written where the lambda is, since §3.11 admits no function that came as a parameter (`docs/language_feedback.md` 106):
 
 ```ernest
-fn leastLoaded(f : () -> a with m, ms : Int) : Either(Io.Error, a) with n+ =
-    match List.sortBy(Peer.loads(), fn(#(_, load, _)) = load) {
-        #(name, _, _) :: _ -> Peer.computeAt(name, f, ms)
-      | [] -> Left(Unreachable)
+fn computed(n : Int) : Either(Io.Error, Int) with m =
+    match List.sort(Peer.loads(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
+        #(name, _, _) :: _ -> Peer.computeAt(name, fn() = heavy(n), 5000)
+      | [] -> Left(Io.Unreachable)
     }
 ```
 
