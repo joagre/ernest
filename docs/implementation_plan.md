@@ -78,6 +78,7 @@ paragraph under "Done".
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
 | MVP 3.26 | placement by push: each node tells its peers its utilisation on a configured interval, `Peer.compute(f, ms)` on the least loaded peer beside `Peer.computeAt(name, f, ms)`, `Peer.loads()` and `Peer.load(x)`, `libs/placement` gone, by `proposals/placement/push.md` | proposal under discussion since 2026-10-13; decided from its experiment after MVP 3.2's item 7, built before its item 8 |
+| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and MVP 3.26's experiment where it asks for it | made 2026-10-13; after MVP 3.26 and before the deployment guide |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
@@ -372,6 +373,25 @@ scale, the configured measure being the default alone.
 3. **If declined.** The proposal kept as the record of a design set aside, its README saying so, the
    plan's item 8 teaching the pull with the helper of the program's own, and a *Later* entry naming
    what would reopen it.
+
+## MVP 3.27 (measured across machines), about a week
+
+A milestone made on 2026-10-13, when MVP 3.2's item 7 measured the exchange, the picks and the
+host's distribution on one machine and found that the asks of different peers did not overlap there,
+the host's distribution serialising them, so that every number of item 7's that crosses a wire is
+one machine's. The user gives four machines to start nodes on, one of them on a separate LAN, and
+the measurements run again between them: a spawn whose code crosses, a compute, a fix's callers,
+`Peer.utilisation`, the pick of `Placement.leastBusy` or of MVP 3.26's push, the carrier's dial and
+its loss, on one LAN and across the two, each a median over runs with its range, in the log beside
+item 7's. What differs decides what the deployment guide says of a network, and whether what MVP
+3.26's experiment concluded on one machine holds.
+
+1. **The machines.** The four nodes' configuration directories and keys, made with `ern config` and
+   listed as peers across the machines, a script that starts and stops them, and the measuring
+   programs of `make bench` run between them, the node on the separate LAN last.
+2. **The numbers.** Item 7's tables again across machines, and MVP 3.26's experiment where it asks
+   for them; the log's paragraph beside item 7's; `docs/memory.md` where a measured fact changes;
+   the deployment guide's sections on two nodes and on code across nodes written from them.
 
 ## MVP 3.3 (the tour)
 
