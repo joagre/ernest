@@ -77,8 +77,7 @@ paragraph under "Done".
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
-| MVP 3.26 | placement by push: each node tells its peers its utilisation on a configured interval, `Peer.compute(f, ms)` on the least loaded peer beside `Peer.computeAt(name, f, ms)`, `Peer.loads()` and `Peer.load(x)`, `libs/placement` gone, by `proposals/placement/push.md` | proposal under discussion since 2026-10-13; decided from its experiment after MVP 3.2's item 7, built before its item 8 |
-| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and MVP 3.26's experiment where it asks for it | made 2026-10-13; after MVP 3.26 and before the deployment guide |
+| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 7.5's push against the pull across them | made 2026-10-13; after MVP 3.2's item 7.5 and before the deployment guide |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
@@ -306,6 +305,21 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    of section 7, and of what a spawn that ships code costs, a bare node's first spawn and the
    callers of a fix above all, against the spawn's time. `mvp3.2.md`'s status line, and
    `mvp3.1.md`'s for what this milestone changed in it.
+7.5. **Placement by push.** Decided 2026-10-13 from `proposals/placement/push.md`, read back with
+     the user, every question of its section 7: each node tells its peers its utilisation on
+     `ernest.conf`'s `utilisation-interval`, 5000 ms where left out, the operator's time; a node
+     holds the last load heard from each peer with its moment, a peer not heard from not chosen, a
+     load older than two intervals not used, a peer's loss dropping its load; `Peer.compute(f, ms)`
+     draws two peers with a usable load at random and runs `f` on the less loaded, one taken as it
+     is, `Left(Unreachable)` where none has a usable load and `Left(NotListed)` where none is
+     listed; `Peer.computeAt(name, f, ms)` is today's `compute`; `Peer.loads()` the table for a
+     program's own rule, which is never a line of `ernest.conf`; `Peer.load(x)` the number a program
+     designs, 0.0 to 1.0, told until set again, the configured measure the default; `Peer.spawn`
+     keeps its peer; `libs/placement` and Appendix G.5 go. §8.7, §10, Appendix C and E.27 first;
+     then the frame, the table and the four functions, the guide's §8.1 over the new names, the
+     nodes tests over the rules and the pick's cost measured; the log's *Placing Work by Name*
+     records the reversal, principles 2 and 3 and Mitzenmacher's result on old information. MVP 3.27
+     measures it across machines.
 8. **The deployment guide.** `guide/deployment.md`, written whole here as a teaching document of its
    own, which owns running nodes: a node's configuration directory, `ern reload` and `ern stop`, the
    service manager, and what code by its hash gives a system of nodes, several builds running at
@@ -331,12 +345,8 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    containers and orchestration left out, and the design to the log. Decided 2026-10-13 (the log's
    *The Report for Code with a Spawn*, and *Later*): no `Code.upgrade`, since the message it would
    send is the program's own type, which no library function can build at a type, and the two lines
-   show the mechanism whole. A named decision before the guide is written:
-   `proposals/placement/push.md`, begun 2026-10-13, proposes that each node tells its peers its
-   utilisation on a configured interval and places a computation by what it holds, `Peer.compute(f,
-   ms)` beside `Peer.computeAt(name, f, ms)`, in place of `Placement.leastBusy`'s ask at the moment
-   of the pick; decided from its experiment after item 7, and, if adopted, a milestone of its own,
-   MVP 3.26, built before this item, so that the guide's placement is the one that ships.
+   show the mechanism whole. Written after item 7.5, placement by push, decided 2026-10-13 from
+   `proposals/placement/push.md`, so that the guide's placement is the one that ships.
 9. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`:
    the review before a release as [`release_review.md`](release_review.md) says, its readers
    over what MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over
@@ -348,32 +358,6 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
 
 ---
 
-## MVP 3.26 (placement by push), about a week
-
-A milestone made on 2026-10-13 for a question the user raised while MVP 3.2's item 6 closed: whether
-a node should learn how busy its peers are by asking at the moment of the pick, as MVP 3.25 decided,
-or by each node telling its peers on an interval, so that a computation is placed by what the node
-already holds. Its design is `proposals/placement/push.md`, under discussion, and nothing of it is
-decided: the milestone holds the decision's place, between MVP 3.2's item 7, whose measurements of
-the utilisation path it needs, and item 8, whose guide teaches the placement that ships. One
-requirement stands whatever is decided: the program designs the number its node tells, on §8.7's
-scale, the configured measure being the default alone.
-
-1. **The decision.** The proposal read back and its experiment run on the nodes harness: three
-   nodes, a burst and a stream of computes under the pull of today, push by the least loaded and
-   push by two choices, with the frames' cost at three and ten nodes; the pick's rule, spawn's form,
-   the default interval and the number's design decided from it, in the proposal first and then in
-   the report, the log's *Placing Work by Name* recording the reversal and why.
-2. **The build, if adopted.** The telling, one frame more of the runtime's own, on `ernest.conf`'s
-   `utilisation-interval`; the table of loads with its rules; `Peer.compute`, `Peer.computeAt`,
-   `Peer.loads` and `Peer.load`; `libs/placement` and Appendix G.5 removed, their tests moved to
-   `Peer`'s; §8.7, §10, Appendix C and E.27 edited first; the guide's §8.1 taught over the new
-   names; the nodes tests over the experiment's programs; `make test` green; the measurements in the
-   log.
-3. **If declined.** The proposal kept as the record of a design set aside, its README saying so, the
-   plan's item 8 teaching the pull with the helper of the program's own, and a *Later* entry naming
-   what would reopen it.
-
 ## MVP 3.27 (measured across machines), about a week
 
 A milestone made on 2026-10-13, when MVP 3.2's item 7 measured the exchange, the picks and the
@@ -381,18 +365,19 @@ host's distribution on one machine and found that the asks of different peers di
 the host's distribution serialising them, so that every number of item 7's that crosses a wire is
 one machine's. The user gives four machines to start nodes on, one of them on a separate LAN, and
 the measurements run again between them: a spawn whose code crosses, a compute, a fix's callers,
-`Peer.utilisation`, the pick of `Placement.leastBusy` or of MVP 3.26's push, the carrier's dial and
-its loss, on one LAN and across the two, each a median over runs with its range, in the log beside
-item 7's. What differs decides what the deployment guide says of a network, and whether what MVP
-3.26's experiment concluded on one machine holds.
+`Peer.utilisation`, the pick of item 7.5's push against `Placement.leastBusy`'s pull, the carrier's
+dial and its loss, on one LAN and across the two, each a median over runs with its range, in the log
+beside item 7's. What differs decides what the deployment guide says of a network, and whether the
+push's two choices hold under a burst across a wire, as `proposals/placement/push.md`'s section 5
+asks.
 
 1. **The machines.** The four nodes' configuration directories and keys, made with `ern config` and
    listed as peers across the machines, a script that starts and stops them, and the measuring
-   programs of `make bench` run between them, the node on the separate LAN last.
-2. **The numbers.** Item 7's tables again across machines, and MVP 3.26's experiment where it asks
-   for them; the log's paragraph beside item 7's; `docs/memory.md` where a measured fact changes;
-   the deployment guide's sections on two nodes and on code across nodes written from them.
-
+   programs of `make bench` run between them, the node on the separate LAN last. 2. **The numbers.**
+   Item 7's tables again across machines, and the push's experiment of
+   `proposals/placement/push.md`'s section 5; the log's paragraph beside item 7's; `docs/memory.md`
+   where a measured fact changes; the deployment guide's sections on two nodes and on code across
+   nodes written from them.
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
