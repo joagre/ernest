@@ -329,7 +329,12 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    containers and orchestration left out, and the design to the log. Decided 2026-10-13 (the log's
    *The Report for Code with a Spawn*, and *Later*): no `Code.upgrade`, since the message it would
    send is the program's own type, which no library function can build at a type, and the two lines
-   show the mechanism whole.
+   show the mechanism whole. A named decision before the guide is written:
+   `proposals/placement/push.md`, begun 2026-10-13, proposes that each node tells its peers its
+   utilisation on a configured interval and places a computation by what it holds, `Peer.compute(f,
+   ms)` beside `Peer.computeAt(name, f, ms)`, in place of `Placement.leastBusy`'s ask at the moment
+   of the pick; decided from its experiment after item 7, and, if adopted, a milestone of its own,
+   MVP 3.26, built before this item, so that the guide's placement is the one that ships.
 9. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`:
    the review before a release as [`release_review.md`](release_review.md) says, its readers
    over what MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over
