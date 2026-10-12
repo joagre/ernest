@@ -5,10 +5,10 @@
 %% each of the exchange's steps on both nodes (report §8.7, §10); what a
 %% fix's callers cost, crossed with it to a node of the old build; what an
 %% arrival, a `Code.load` and a development day's spawns add to the host's
-%% four counts, against their limits (§11.2); what a utilisation costs, and
-%% a compute on a peer the node picks by the utilisations its peers told it
+%% four counts, against their limits (§11.2); what a utilization costs, and
+%% a compute on a peer the node picks by the utilizations its peers told it
 %% beside one on a peer named, the pick alone and the read of the
-%% utilisations, and what
+%% utilizations, and what
 %% connected nodes exchange idle, the tellings among it (§8.7, plan MVP
 %% 3.2 item 8); and the sizes of the
 %% standard library's `.erc` files and of a code frame, and what reading a
@@ -35,7 +35,7 @@
 -define(STDLIB, filename:absname("../build/stdlib")).
 %% Each measurement's runs, the reaches' and the fixes' sizes in definitions,
 %% the definitions of a development day, and the rounds a run of a
-%% utilisation's or a compute's measurement times.
+%% utilization's or a compute's measurement times.
 -define(RUNS, 7).
 -define(SIZES, [1, 5, 20]).
 -define(DAY, 200).
@@ -177,12 +177,12 @@ costs() ->
      "      | Left(failure) -> Io.show(failure)\n"
      "    }\n"
      "\n"
-     "// Report §8.7: a dial, timed by the first utilisation, and then a bare\n"
+     "// Report §8.7: a dial, timed by the first utilization, and then a bare\n"
      "// node's first spawn, which builds the prelude's environment every\n"
      "// arrival links through, a reach of five, on each node.\n"
      "fn firsts(nodes : List(String)) : Unit with m =\n"
      "    List.forEach(nodes, fn(node) = {\n"
-     "        timedSaid(\"dial\", node, fn() = Peer.utilisation(node, 30000));\n"
+     "        timedSaid(\"dial\", node, fn() = Peer.utilization(node, 30000));\n"
      "        timedSaid(\"first\", node, fn() = R0.spawned(node, 5))\n"
      "    })\n"
      "\n"
@@ -272,9 +272,9 @@ costs() ->
      "\n"
      "fn one() : Int = 1\n"
      "\n"
-     "// Report §8.7: rounds of a utilisation, of a compute on a peer the node\n"
-     "// picks by the utilisations its peers told it, of one on the peer named,\n"
-     "// of the utilisations read, and of the pick alone, the read and the\n"
+     "// Report §8.7: rounds of a utilization, of a compute on a peer the node\n"
+     "// picks by the utilizations its peers told it, of one on the peer named,\n"
+     "// of the utilizations read, and of the pick alone, the read and the\n"
      "// draw, each peer holding `one` first, so that no compute carries code.\n"
      "fn placing(q1 : String) : Unit with m = {\n"
      "    List.forEach(Peer.peers(), fn(node) = {\n"
@@ -283,8 +283,8 @@ costs() ->
      "    });\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(run) = {\n"
      "        let label = Int.toString(run);\n"
-     "        rounds(\"utilisation\", label, fn() = {\n"
-     "            let _ = Peer.utilisation(q1, 5000);\n"
+     "        rounds(\"utilization\", label, fn() = {\n"
+     "            let _ = Peer.utilization(q1, 5000);\n"
      "            Unit\n"
      "        });\n"
      "        rounds(\"compute\", label, fn() = {\n"
@@ -295,8 +295,8 @@ costs() ->
      "            let _ = Peer.computeAt(q1, one, 5000);\n"
      "            Unit\n"
      "        });\n"
-     "        rounds(\"utilisations\", label, fn() = {\n"
-     "            let _ = Peer.utilisations();\n"
+     "        rounds(\"utilizations\", label, fn() = {\n"
+     "            let _ = Peer.utilizations();\n"
      "            Unit\n"
      "        });\n"
      "        said([\"pick\", label, Int.toString(picks(", integer_to_list(?ROUNDS), "))])\n"
@@ -309,12 +309,12 @@ costs() ->
      "    said([scenario, label, Int.toString(Clock.monotonicMicros() - started)])\n"
      "}\n"
      "\n"
-     "// Report §8.7: three nodes connected each to the other two, q1 dialling\n"
+     "// Report §8.7: three nodes connected each to the other two, q1 dialing\n"
      "// q2, left idle over a window each opens, this node's last, so that the\n"
      "// computes that open the others' fall outside its own; then what crossed\n"
      "// each connection, read once every window has closed.\n"
      "fn idle(q1 : String, q2 : String) : Unit with m = {\n"
-     "    let _ = Peer.computeAt(q1, utilisationOfQ2, 30000);\n"
+     "    let _ = Peer.computeAt(q1, utilizationOfQ2, 30000);\n"
      "    let _ = Peer.computeAt(q1, window, 30000);\n"
      "    let _ = Peer.computeAt(q2, window, 30000);\n"
      "    window();\n"
@@ -323,7 +323,7 @@ costs() ->
      "        stepsSaid(\"idle\", node, Peer.computeAt(node, windowed, 30000)))\n"
      "}\n"
      "\n"
-     "fn utilisationOfQ2() : Either(Io.Error, Float) with m = Peer.utilisation(\"q2\", 5000)\n"].
+     "fn utilizationOfQ2() : Either(Io.Error, Float) with m = Peer.utilization(\"q2\", 5000)\n"].
 
 %% The module that spawns or computes a reach by its variant, from the
 %% module that holds it.
@@ -709,7 +709,7 @@ heading(Text, Unit) ->
 %% the peer holds; a bare node's first.
 crossing_table(Lines) ->
     heading("a spawn or a compute onto a bare node", "µs"),
-    row("a dial, by the first utilisation",
+    row("a dial, by the first utilization",
         [checked("dial", Node, Micros, Outcome)
          || {Node, [Micros | Outcome]} <- lines("dial", Lines)]),
     row("a bare node's first spawn, a reach of 5",
@@ -933,17 +933,17 @@ counted([Table, Entries | Rest]) ->
 counted([]) ->
     [].
 
-%% Report §8.7: a utilisation, a compute on a peer picked and one on a peer
-%% named, the utilisations read and the pick alone, each a round's
+%% Report §8.7: a utilization, a compute on a peer picked and one on a peer
+%% named, the utilizations read and the pick alone, each a round's
 %% microseconds.
 pick_table(Lines) ->
-    heading("a utilisation and a compute, between nodes", "µs"),
+    heading("a utilization and a compute, between nodes", "µs"),
     [row(Name, [list_to_integer(Micros) / ?ROUNDS || {_, [Micros]} <- lines(Scenario, Lines)])
-     || {Scenario, Name} <- [{"utilisation", "Peer.utilisation of one peer"},
+     || {Scenario, Name} <- [{"utilization", "Peer.utilization of one peer"},
                              {"compute", "Peer.compute, a peer picked of eight"},
                              {"compute_at", "Peer.computeAt, the peer named"},
-                             {"utilisations", "Peer.utilisations, eight peers' read"},
-                             {"pick", "the pick alone, the utilisations read and the draw"}]].
+                             {"utilizations", "Peer.utilizations, eight peers' read"},
+                             {"pick", "the pick alone, the utilizations read and the draw"}]].
 
 %% Report §8.7: the packets each connection of three nodes carried idle,
 %% each way, as the host counts them, the tellings every interval and the

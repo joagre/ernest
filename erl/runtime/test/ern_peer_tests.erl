@@ -76,47 +76,47 @@ listing(Peers, Test) ->
 %% The gateway's tables, which ern_peer:tables/0 made, gone.
 untabled() ->
     ets:delete(ern_spawns),
-    ets:delete(ern_utilisations).
+    ets:delete(ern_utilizations).
 
-%% A peer's utilisation as its telling, Age ms ago, the peer telling every
+%% A peer's utilization as its telling, Age ms ago, the peer telling every
 %% Interval ms, would have left it.
-told(Node, Utilisation, Age, Interval) ->
+told(Node, Utilization, Age, Interval) ->
     At = erlang:monotonic_time(millisecond) - Age,
-    true = ets:insert(ern_utilisations, {Node, Utilisation, At, Interval}).
+    true = ets:insert(ern_utilizations, {Node, Utilization, At, Interval}).
 
 %% The nodes Count picks named, each once, in order.
 picks(Count) ->
     lists:usort([Node || _ <- lists:seq(1, Count), {picked, Node} <- [ern_peer:picked()]]).
 
 %% report §8.7, Appendix E.27: a node that lists no peer holds no
-%% utilisation and picks none, `NotListed`; one whose peers it has not
+%% utilization and picks none, `NotListed`; one whose peers it has not
 %% heard from holds none and picks none, `Unreachable`; a telling held is
-%% answered by `utilisations`, the peer's name, its utilisation and its
+%% answered by `utilizations`, the peer's name, its utilization and its
 %% age, and picked, a later telling in its place, and a loss drops it. A
 %% regression test, written after the code
-utilisations_test() ->
+utilizations_test() ->
     listing([], fun() ->
                     ?assertEqual('NotListed', ern_peer:picked()),
-                    ?assertEqual([], ern_peer:utilisations())
+                    ?assertEqual([], ern_peer:utilizations())
                 end),
     listing([{<<"a">>, 'a@node.ernest'}, {<<"b">>, 'b@node.ernest'}],
             fun() ->
                 ?assertEqual('Unreachable', ern_peer:picked()),
-                ?assertEqual([], ern_peer:utilisations()),
-                ok = ern_peer:hold_utilisation('b@node.ernest', 0.75, 5000),
-                ?assertMatch([{<<"b">>, 0.75, Age}] when Age >= 0, ern_peer:utilisations()),
+                ?assertEqual([], ern_peer:utilizations()),
+                ok = ern_peer:hold_utilization('b@node.ernest', 0.75, 5000),
+                ?assertMatch([{<<"b">>, 0.75, Age}] when Age >= 0, ern_peer:utilizations()),
                 ?assertEqual({picked, 'b@node.ernest'}, ern_peer:picked()),
-                ok = ern_peer:hold_utilisation('b@node.ernest', 0.25, 5000),
-                ?assertMatch([{<<"b">>, 0.25, _}], ern_peer:utilisations()),
-                ok = ern_peer:drop_utilisation('b@node.ernest'),
-                ?assertEqual([], ern_peer:utilisations()),
+                ok = ern_peer:hold_utilization('b@node.ernest', 0.25, 5000),
+                ?assertMatch([{<<"b">>, 0.25, _}], ern_peer:utilizations()),
+                ok = ern_peer:drop_utilization('b@node.ernest'),
+                ?assertEqual([], ern_peer:utilizations()),
                 ?assertEqual('Unreachable', ern_peer:picked())
             end).
 
-%% report §8.7: the pick's rules over the utilisations a node holds, the
+%% report §8.7: the pick's rules over the utilizations a node holds, the
 %% configuration's order a, b, c, d, e: a single usable peer is taken as it
-%% is, however busy; a utilisation older than two of its teller's intervals
-%% is not used, and `utilisations` answers it as it is, with its age, while
+%% is, however busy; a utilization older than two of its teller's intervals
+%% is not used, and `utilizations` answers it as it is, with its age, while
 %% one as old from a peer that tells seldom enough is used; of two peers
 %% the less busy is taken at every draw, and of two equally busy the first
 %% in the configuration's order; and the draw among more than two stays
@@ -139,7 +139,7 @@ pick_test() ->
                 told(B, 0.1, Old, Interval),
                 ?assertEqual([C], picks(50)),
                 ?assertMatch([{<<"b">>, 0.1, Age}, {<<"c">>, 0.9, _}] when Age > 2 * Interval,
-                             ern_peer:utilisations()),
+                             ern_peer:utilizations()),
                 %% as old, its teller telling seldom: used, and less busy
                 told(B, 0.1, Old, Old),
                 ?assertEqual([B], picks(50)),
@@ -158,36 +158,36 @@ pick_test() ->
                 ?assertNot(lists:member(A, picks(300)))
             end).
 
-%% report §8.7, Appendix E.27, §7.4: `Peer.setUtilisation` sets the
-%% utilisation the node tells and answers, on the scale from 0.0 to 1.0,
+%% report §8.7, Appendix E.27, §7.4: `Peer.setUtilization` sets the
+%% utilization the node tells and answers, on the scale from 0.0 to 1.0,
 %% its ends among it, a later one in its place; a number outside the scale
 %% faults the caller and sets nothing. The launch's table, which a launch
 %% makes, stands in for one here. A regression test, written after the
 %% code
-set_utilisation_test() ->
+set_utilization_test() ->
     undefined = ets:whereis(ern_launch),
     ern_launch = ets:new(ern_launch, [named_table, public]),
     try
-        ?assertEqual(none, ern_rt:program_utilisation()),
+        ?assertEqual(none, ern_rt:program_utilization()),
         [begin
-             ?assertEqual('Unit', ern_peer:set_utilisation(Utilisation)),
-             ?assertEqual(Utilisation, ern_rt:program_utilisation())
-         end || Utilisation <- [0.0, 1.0, 0.25]],
-        [?assertThrow({ern, fault, <<"a utilisation is from 0.0 to 1.0">>},
-                      ern_peer:set_utilisation(Utilisation))
-         || Utilisation <- [1.5, -0.25, 1.0000001]],
-        ?assertEqual(0.25, ern_rt:program_utilisation())
+             ?assertEqual('Unit', ern_peer:set_utilization(Utilization)),
+             ?assertEqual(Utilization, ern_rt:program_utilization())
+         end || Utilization <- [0.0, 1.0, 0.25]],
+        [?assertThrow({ern, fault, <<"a utilization is from 0.0 to 1.0">>},
+                      ern_peer:set_utilization(Utilization))
+         || Utilization <- [1.5, -0.25, 1.0000001]],
+        ?assertEqual(0.25, ern_rt:program_utilization())
     after
         ets:delete(ern_launch)
     end,
     %% no launch in progress: none set, the node telling its measure
-    ?assertEqual(none, ern_rt:program_utilisation()).
+    ?assertEqual(none, ern_rt:program_utilization()).
 
 %% report §8.7: a frame whose fields are not those of its kind is one the
 %% gateway cannot read: an answer that names no spawn's outcome, or a
 %% process of another node than the peer's, a find whose name is no text,
 %% a message to an adapted address another node made, and a telling whose
-%% utilisation is no float of 0.0 or more or whose interval is no whole
+%% utilization is no float of 0.0 or more or whose interval is no whole
 %% number of at least 1, which the gateway does not hold. A regression
 %% test: each frame was read by its tag alone, and one that raised killed
 %% the gateway's worker, every later frame from the peer lost; the
@@ -214,7 +214,7 @@ faulty_fields_test() ->
                       <<"s">>, false},
                      {spawn, make_ref(), {restarting, forever, {function, <<0:256>>}}, <<"s">>,
                       false},
-                     %% a telling the gateway does not hold, its utilisation
+                     %% a telling the gateway does not hold, its utilization
                      %% or its interval out of shape, which it leaves to the
                      %% worker
                      {telling, 0.5}, {telling, 0.5, 0}, {telling, 0.5, 2.5e3},
@@ -605,16 +605,16 @@ compute_caller_test() ->
                  receive {reported, _} = Reported -> Reported end).
 
 %% report §8.7, Appendix E.27: a program that is no node has no peers, so
-%% a compute on a peer named or picked and a utilisation answer NotListed,
-%% as a find and a spawn do, and it holds no utilisation. A regression test,
+%% a compute on a peer named or picked and a utilization answer NotListed,
+%% as a find and a spawn do, and it holds no utilization. A regression test,
 %% written after the code
 no_node_test() ->
     ?assertEqual({'Left', 'NotListed'},
                  ern_peer:compute_at(<<"worker">>, {function, <<0:256>>}, 1000, <<"M.f:1">>)),
     ?assertEqual({'Left', 'NotListed'},
                  ern_peer:compute({function, <<0:256>>}, 1000, <<"M.f:1">>)),
-    ?assertEqual({'Left', 'NotListed'}, ern_peer:utilisation(<<"worker">>, 1000)),
-    ?assertEqual([], ern_peer:utilisations()).
+    ?assertEqual({'Left', 'NotListed'}, ern_peer:utilization(<<"worker">>, 1000)),
+    ?assertEqual([], ern_peer:utilizations()).
 
 %% report §8.7: a function whose reach names a binding through a group, a
 %% type whose compare reads a binding of its module, starts nothing where

@@ -8,7 +8,7 @@
 # shell and the terminal, driven through the pseudo-terminal, which python3
 # opens since Erlang cannot (ern_pty.py). Beside them, the loads, the
 # service manager's checks and the bench, which a release runs, and the
-# targets that write the catalogue, the contents lists and the layout anew.
+# targets that write the catalog, the contents lists and the layout anew.
 
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror

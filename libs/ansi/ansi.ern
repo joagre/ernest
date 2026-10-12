@@ -1,6 +1,6 @@
 /// Styles and cursor movement for text written to a terminal.
 ///
-/// Use it to make a program's output bold, coloured or underlined, or to redraw
+/// Use it to make a program's output bold, colored or underlined, or to redraw
 /// part of the screen. Each function answers a string of ECMA-48's control
 /// sequences, the standard a terminal speaks, which the program writes with
 /// `Io.print` (report Appendix G.3). Reading keys and the terminal's size is
@@ -34,7 +34,7 @@
 ///
 /// since 0.2.0
 
-/// The eight colours of ECMA-48.
+/// The eight colors of ECMA-48.
 ///
 /// ### Examples
 ///
@@ -42,9 +42,11 @@
 /// Ansi.Foreground(Ansi.Red)
 /// // => Foreground(Red)
 /// ```
-export type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+///
+/// since 0.4.0
+export type Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
 
-/// How text is drawn: bold or dim, in italics, underlined, or in a colour.
+/// How text is drawn: bold or dim, in italics, underlined, or in a color.
 ///
 /// ### Examples
 ///
@@ -52,14 +54,14 @@ export type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | Whit
 /// Ansi.styled("warning", Ansi.Bold)
 /// // => "\u{1B}[1mwarning\u{1B}[22m"
 /// ```
-export type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
+export type Style = Bold | Dim | Italic | Underline | Foreground(Color)
 
 /// `text` in `style`, the style turned off after it.
 ///
 /// The code that turns it off turns off every style of its kind: `Bold` and
-/// `Dim` are one kind, `Italic` one, `Underline` one, and the colours one. So a
+/// `Dim` are one kind, `Italic` one, `Underline` one, and the colors one. So a
 /// style of another kind around the text stays on, and one of the same kind is
-/// turned off with it: a colour around a colour, italics around italics, `Bold`
+/// turned off with it: a color around a color, italics around italics, `Bold`
 /// around `Dim`.
 ///
 /// ### Examples
@@ -74,13 +76,13 @@ export fn styled(text : String, style : Style) : String = {
       | Dim -> #("2", "22")
       | Italic -> #("3", "23")
       | Underline -> #("4", "24")
-      | Foreground(colour) -> #("3" <> Int.toString(colourCode(colour)), "39")
+      | Foreground(color) -> #("3" <> Int.toString(colorCode(color)), "39")
     };
     sequence(on <> "m") <> text <> sequence(off <> "m")
 }
 
-fn colourCode(colour : Colour) : Int =
-    match colour {
+fn colorCode(color : Color) : Int =
+    match color {
         Black -> 0
       | Red -> 1
       | Green -> 2

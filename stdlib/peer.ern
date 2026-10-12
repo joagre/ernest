@@ -16,20 +16,20 @@
 /// process as a message, or a function run there for its value, which the
 /// caller waits for as for a call's answer. A spawn names its peer, and so
 /// does `computeAt`; `compute` runs on a peer the node picks by the
-/// utilisations it holds. Each node that lists peers tells them how busy it
-/// is every `utilisation-interval` of its `ernest.conf`, and holds what each
+/// utilizations it holds. Each node that lists peers tells them how busy it
+/// is every `utilization-interval` of its `ernest.conf`, and holds what each
 /// told it: `compute` draws two of them and takes the less busy, and
-/// `utilisations` answers the table, over which a program writes a rule of
+/// `utilizations` answers the table, over which a program writes a rule of
 /// its own. A program that knows how busy it is better than its node's
-/// measure says so with `setUtilisation` (report §8.7).
+/// measure says so with `setUtilization` (report §8.7).
 ///
-/// A find, a spawn, a compute and a utilisation wait at most the milliseconds
+/// A find, a spawn, a compute and a utilization wait at most the milliseconds
 /// they are given, and answer what they found or an `Io.Error`, which the
 /// program matches on; none faults for what the network or a peer does, and a
 /// compute faults only for a fault in the function it runs. A program that is
 /// no node has no peers, so they answer `NotListed`; a node dials only once
 /// its bindings have their values, so in an initializer they answer
-/// `Unreachable`, and a node holds no utilisation until a peer has told it
+/// `Unreachable`, and a node holds no utilization until a peer has told it
 /// one.
 ///
 /// ## Examples
@@ -195,12 +195,12 @@ export foreign fn spawnMonitored(name : String,
     "ern_peer:spawn_monitored/4"
 
 /// The value of `f()`, run on a peer this node picks, as `computeAt` runs it
-/// on the peer named. Of the peers whose utilisations the node holds, each
+/// on the peer named. Of the peers whose utilizations the node holds, each
 /// told within two of the intervals at which that peer tells, two are drawn
 /// at random and the less busy taken, the first in the configuration's order
 /// of two equally busy; a single one is taken as it is. Where no peer is
 /// listed the compute answers `NotListed`, and where none has told a
-/// utilisation the node may use, `Unreachable`; once the peer is picked, the compute is
+/// utilization the node may use, `Unreachable`; once the peer is picked, the compute is
 /// `computeAt`'s, and meets what it meets. `compute` is called where it is
 /// named, and is no value.
 ///
@@ -257,22 +257,22 @@ export foreign fn computeAt(name : String,
 
 /// How busy the peer of that name is, answered within `ms` milliseconds: a
 /// `Float` on one scale, 1.0 every scheduler busy, below it room, above it
-/// work waiting. The peer measures it as its `ernest.conf`'s `utilisation`
+/// work waiting. The peer measures it as its `ernest.conf`'s `utilization`
 /// says: by default the processes running or ready to run, over its
 /// schedulers, or the fraction of its schedulers' time spent running
 /// processes since it last read it, which never passes 1.0 (report §8.7);
-/// or, where the peer's program set one with `setUtilisation`, that number.
-/// A utilisation asks the peer now, where `utilisations` answers what the
+/// or, where the peer's program set one with `setUtilization`, that number.
+/// A utilization asks the peer now, where `utilizations` answers what the
 /// peers last told; it meets `NotListed`, `Unreachable` and `Timeout`.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Peer.utilisation("worker", 1000)
+/// Peer.utilization("worker", 1000)
 /// // => Left(NotListed)
 /// ```
-export foreign fn utilisation(name : String, ms : Int) : Either(Io.Error, Float) with n =
-    "ern_peer:utilisation/2"
+export foreign fn utilization(name : String, ms : Int) : Either(Io.Error, Float) with n =
+    "ern_peer:utilization/2"
 
 /// The names of the peers this node lists, in the configuration's order. The
 /// running node is no peer of itself, and a program that is no node has none.
@@ -286,12 +286,12 @@ export foreign fn utilisation(name : String, ms : Int) : Either(Io.Error, Float)
 export foreign fn peers() : List(String) with n =
     "ern_peer:peers/0"
 
-/// The utilisations this node holds of its peers, each peer's name, its
-/// utilisation as its last telling said it, and the milliseconds since the
+/// The utilizations this node holds of its peers, each peer's name, its
+/// utilization as its last telling said it, and the milliseconds since the
 /// telling came, in the configuration's order. Each peer tells it every
-/// `utilisation-interval` of its own `ernest.conf`; a peer not heard from
+/// `utilization-interval` of its own `ernest.conf`; a peer not heard from
 /// since its connection opened is left out, and so is one whose connection
-/// was lost. A utilisation older than two of its peer's intervals, which
+/// was lost. A utilization older than two of its peer's intervals, which
 /// `compute` does not use, is answered as it is, with its age, so that a
 /// rule of the program's own sees what the node sees (report §8.7).
 ///
@@ -301,18 +301,18 @@ export foreign fn peers() : List(String) with n =
 /// are, or here, as in a program that is no node, which holds none:
 ///
 /// ```ernest
-/// match List.sort(Peer.utilisations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
+/// match List.sort(Peer.utilizations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
 ///     #(name, _, _) :: _ -> Peer.computeAt(name, fn() = 6 * 7, 5000)
 ///   | [] -> Right(6 * 7)
 /// }
 /// // => Right(42)
 /// ```
-export foreign fn utilisations() : List(#(String, Float, Int)) with n =
-    "ern_peer:utilisations/0"
+export foreign fn utilizations() : List(#(String, Float, Int)) with n =
+    "ern_peer:utilizations/0"
 
-/// Sets the utilisation this node tells its peers, and answers them when
+/// Sets the utilization this node tells its peers, and answers them when
 /// they ask, from now on and until it is set again or the program's run
-/// ends, in place of the measure its `ernest.conf`'s `utilisation` names,
+/// ends, in place of the measure its `ernest.conf`'s `utilization` names,
 /// which the node tells before the first and between two runs. `x` is on
 /// the scale from 0.0, idle, to 1.0, full; what it counts, a queue's depth
 /// or work promised, is the program's. The next telling carries it (report
@@ -322,13 +322,13 @@ export foreign fn utilisations() : List(#(String, Float, Int)) with n =
 /// ### Errors
 ///
 /// A number outside the scale faults the caller with
-/// `Fault("a utilisation is from 0.0 to 1.0")`.
+/// `Fault("a utilization is from 0.0 to 1.0")`.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Peer.setUtilisation(0.25)
+/// Peer.setUtilization(0.25)
 /// // => Unit
 /// ```
-export foreign fn setUtilisation(x : Float) : Unit with n =
-    "ern_peer:set_utilisation/1"
+export foreign fn setUtilization(x : Float) : Unit with n =
+    "ern_peer:set_utilization/1"

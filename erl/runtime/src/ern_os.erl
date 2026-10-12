@@ -10,7 +10,7 @@
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signalled/3, host/0, user/0,
+-export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
          umask/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
@@ -123,9 +123,9 @@ locked(PidFile, ProcessNumber) ->
 %% file; `no_process` where the file names none; `none` where the process
 %% it names has ended; `others` where that process is another user's; or
 %% `{failed, Text}`.
--spec node_signalled(file:filename(), non_neg_integer(), boolean()) ->
+-spec node_signaled(file:filename(), non_neg_integer(), boolean()) ->
           sent | no_file | no_node | no_process | none | others | {failed, string()}.
-node_signalled(PidFile, Number, Wait) ->
+node_signaled(PidFile, Number, Wait) ->
     Helper = open(["node", PidFile, integer_to_list(Number) | ["wait" || Wait]]),
     receive
         {Helper, {data, <<"f", Name/binary>>}} -> ended(Helper), {failed, error_text(Name)};

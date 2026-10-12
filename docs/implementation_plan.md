@@ -76,7 +76,7 @@ paragraph under "Done".
 | MVP 3.0 | peers: one program on several nodes, by its proposal | done 2026-10-09 |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
-| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
+| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13 |
@@ -146,8 +146,11 @@ day, fifteen names a cold reader could not predict, `Standing` to `Proxy`, `via`
 `spawnedBy` and `Link.address` to `url`, and `slice` taking an end index (the log's *Names Read as
 a Newcomer Reads Them*; E.0's tenth shape rule), all before 0.4.0 freezes a name. The reviews'
 newcomer now lists the names it could not predict. On 2026-10-13, after item 9, the library
-`Load` became `Utilisation`, since in Ernest `load` loads code and the library reads the
-utilisation §8.7 names (report Appendix G.4; the log's *Placing Work by Name*).
+`Load` became `Utilization`, since in Ernest `load` loads code and the library reads the
+utilization §8.7 names (report Appendix G.4; the log's *Placing Work by Name*). The same day the
+spelling became American throughout, in every document, name and message, `Color` and the
+morning's `Utilization` among the names respelled (`docs/style.md`; the log's *American English
+Throughout*).
 
 **Fifth, with item 3, two shell tests under load.** Done 2026-10-11, with item 3. `command_argument`
 in `test/ern_shell_tests.erl` had failed once in the whole suite, its final bytes not holding the
@@ -248,7 +251,7 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    starts a bare node: the standard library's bindings evaluated and no other, the entry process
    waiting under the site `bare node`, the node listening and taking what its peers spawn and
    compute on it, their code crossing, offering what the processes spawned on it offer, answering
-   its utilisation and placed on by name, ending by termination with §11.8's status, by a spawned
+   its utilization and placed on by name, ending by termination with §11.8's status, by a spawned
    process's `Os.exit` or by a stream that can no longer be written; refused without `listen`, since
    it never dials, while a shell with no `.erc`, which dials from its prompt, is not; `--main` with
    no file refused, and no `--config-dir` with no file the usage error it was, since `--config-dir`
@@ -263,7 +266,7 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    the module and the node ships the definition, and a lacked foreign function's declaration, onward
    to a third node, which links it itself (§8.7, §11.2; `soundness.md`'s section 7).
    `docs/development.md`'s last row is lifted. Tests on real nodes: a lambda spawned onto a bare
-   node with its code, a compute, a service offered from a spawned process and found, utilisation
+   node with its code, a compute, a service offered from a spawned process and found, utilization
    and `Placement.leastBusy`, `NotLoaded` for a library binding the bare node does not evaluate, the
    sender's sites in the bare node's faults, the second spawn crossing nothing, `ern stop` with
    status 143 and `Os.exit(3)` with status 3, a lambda beside a binding and a foreign function it
@@ -321,17 +324,17 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
 
 8. **Placement by push.** Done 2026-10-13, decided the same day from `proposals/placement/push.md`,
    read back with the user, every question of its section 7. Each node that lists peers tells each
-   connected one how busy it is, every `utilisation-interval` milliseconds of its `ernest.conf`,
+   connected one how busy it is, every `utilization-interval` milliseconds of its `ernest.conf`,
    5000 where left out and refused unless a whole number of at least one, and once as a peer
    connects, the telling carrying the teller's interval, the fourteenth frame, the gateway's since
-   it owns the connections; a node holds of each peer the last utilisation heard, its moment and its
-   teller's interval, a peer not heard from not chosen, a utilisation older than two of its teller's
-   intervals not used, a peer's loss dropping its utilisation; `Peer.compute(f, ms)` draws two peers
-   with a usable utilisation at random and runs `f` on the less busy, one taken as it is, two
+   it owns the connections; a node holds of each peer the last utilization heard, its moment and its
+   teller's interval, a peer not heard from not chosen, a utilization older than two of its teller's
+   intervals not used, a peer's loss dropping its utilization; `Peer.compute(f, ms)` draws two peers
+   with a usable utilization at random and runs `f` on the less busy, one taken as it is, two
    equally busy the first in the configuration's order, `Left(Unreachable)` where none has a usable
-   utilisation and `Left(NotListed)` where none is listed; `Peer.computeAt(name, f, ms)` is the
-   compute by name, both forms of §3.11; `Peer.utilisations()` the table for a program's own rule,
-   which is never a line of `ernest.conf`; `Peer.setUtilisation(x)` the utilisation a program
+   utilization and `Left(NotListed)` where none is listed; `Peer.computeAt(name, f, ms)` is the
+   compute by name, both forms of §3.11; `Peer.utilizations()` the table for a program's own rule,
+   which is never a line of `ernest.conf`; `Peer.setUtilization(x)` the utilization a program
    designs, 0.0 to 1.0, a value outside faulting, told until set again or the run ends, the
    configured measure the default, which a telling reads as an ask does; the `Placement` library
    gone with Appendix G.5's content, its tests moved to `Peer`'s, the guide's §8.1 taught over the
@@ -341,8 +344,8 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    cannot wrap the compute over a function parameter (§3.11), so it answers a name and the compute
    is written at the call, `docs/language_feedback.md` 106, and `List` has no `minimumBy`, 107. MVP
    3.27 measures the push against the pull across machines. Renamed the same day: `Peer.load` to
-   `Peer.setUtilisation` and `Peer.loads` to `Peer.utilisations`, since the number told is the
-   utilisation and "load" named it a second time beside `Code.load`'s verb and G.4's library (the
+   `Peer.setUtilization` and `Peer.loads` to `Peer.utilizations`, since the number told is the
+   utilization and "load" named it a second time beside `Code.load`'s verb and G.4's library (the
    log's *Placing Work by Name*).
 9. **The deployment guide.** Done 2026-10-13. `guide/deployment.md`, *Running Ernest*, for the
    operator, written whole and read back by the user: one node, its directory, `ernest.conf` entry
@@ -352,13 +355,13 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    the bare node; code across nodes as the operator meets it, what a node keeps and when to restart,
    the lines a spawn can leave; builds on one floor, a fix from a shell, a service moved by the
    upgrade tool; looking in from a shell beside a node, with what an attached shell will add (MVP
-   4.0); the catalogue of what a node says, each line with its cause and the operator's move; and a
+   4.0); the catalog of what a node says, each line with its cause and the operator's move; and a
    deployment end to end as a runbook over `examples/upgrade_tool.ern`. The tests run the guide:
    `test/ern_deployment_tests.erl` reads the guide's consoles and runs sections 1, 5.3 and 8 on real
    nodes, the runbook step by step with every quoted line checked, the refusals of a held
    `ernest.pid`, an existing directory and a node's own key, the statuses 0, `Os.exit`'s and 143, a
    peer frozen until it fell silent, a faulty code frame refused and the four-fifths line over given
-   counts; and a catalogue test holds every line sections 7 and 4.3 quote to a line the nodes tests
+   counts; and a catalog test holds every line sections 7 and 4.3 quote to a line the nodes tests
    see, so a changed text in the code fails the guide. Six lines of the draft were corrected to the
    code's words by it, and the runbook to what the nodes found: `ops` without `listen`, three ports
    on one machine, a shell started with no file. The guide says which of its commands the tests run
@@ -386,10 +389,10 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
 
 A milestone made on 2026-10-13, when MVP 3.2's item 7 measured the exchange, the picks and the
 host's distribution on one machine and found that the asks of different peers did not overlap there,
-the host's distribution serialising them, so that every number of item 7's that crosses a wire is
+the host's distribution serializing them, so that every number of item 7's that crosses a wire is
 one machine's. The user gives four machines to start nodes on, one of them on a separate LAN, and
 the measurements run again between them: a spawn whose code crosses, a compute, a fix's callers,
-`Peer.utilisation`, the pick of item 8's push against `Placement.leastBusy`'s pull, the carrier's
+`Peer.utilization`, the pick of item 8's push against `Placement.leastBusy`'s pull, the carrier's
 dial and its loss, on one LAN and across the two, each a median over runs with its range, in the log
 beside item 7's. What differs goes into the log beside item 7's numbers and, where a sentence of the
 deployment guide quotes a number, into the guide, which is written before this milestone on one
@@ -513,8 +516,8 @@ that work, when someone asks for it, or when we want it, decided 2026-09-25 (the
 program adds with `--load-path`, with `stdlib/`'s test discipline, documented in one pass to
 [`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
 user, and a section in the appendix of libraries. Own repositories come later, when there is a
-package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilisation`,
-`libs/json` and `libs/proxy` (Appendix G; `libs/markdown` under "Done", `utilisation`, named
+package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilization`,
+`libs/json` and `libs/proxy` (Appendix G; `libs/markdown` under "Done", `utilization`, named
 `load` until 2026-10-13, and `json` in MVP 3.0, and `proxy`, named `standing` until 2026-10-10,
 in MVP 3.1). Named so far:
 
@@ -1051,9 +1054,9 @@ record of its design; the report's §3.11, §6.7, §8.7, §10, §11.2, §11.3, �
 E.27 and G.5 own the rules. `Peer.compute(name, f, ms)` runs a function on a named peer and
 answers its value, its frame the call's first note and its answer through the host's alias, a
 fault in `f` the caller's, carried whole and reported once on the caller's node, a process that
-ends unanswering `Other`, the late process killed by the call's second note; `Peer.utilisation(name,
+ends unanswering `Other`, the late process killed by the call's second note; `Peer.utilization(name,
 ms)` answers how busy a peer is on one scale, as the peer's `ernest.conf` says under
-`"utilisation"`, the running with the ready over the schedulers by default or the schedulers'
+`"utilization"`, the running with the ready over the schedulers by default or the schedulers'
 time since last asked, answered by the gateway itself; `libs/placement`'s
 `Placement.leastBusy(names, ms)` asks every name at once and answers the least busy, in
 `Balancer`'s place, which is gone with its measures and its places; the guide's §8.1 teaches

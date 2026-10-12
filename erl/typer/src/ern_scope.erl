@@ -146,7 +146,7 @@ check_uses(Expr, FnNames, Needs, Bound, BoundSpans) ->
                  end, Expr, ok).
 
 %% Report §5.4: a local fn used where a `let` it references is not yet
-%% evaluated, the first such `let` labelled.
+%% evaluated, the first such `let` labeled.
 check_use(_Span, _FnName, [], _BoundSpans) ->
     ok;
 check_use(Span, FnName, [{LetName, _} = Let | _], BoundSpans) ->

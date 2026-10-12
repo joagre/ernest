@@ -53,7 +53,7 @@ port_please(_Name, Host, _Timeout) ->
 %% Report §8.7: a peer's address, by the host of its name on the carrier:
 %% an address, or a name the host resolves at each dial in the node's
 %% family; none for a peer listed without one, or for a node listed by no
-%% peer, which is never dialled. A name that resolves only to the other
+%% peer, which is never dialed. A name that resolves only to the other
 %% family fails as a dial refused does, and the node says why.
 -spec address_please(term(), term(), inet:address_family()) ->
           {ok, inet:ip_address(), inet:port_number(), pos_integer()} | {error, term()}.
@@ -80,7 +80,7 @@ other_family(Name, Named, Family) ->
     case inet:getaddr(Named, Other) of
         {ok, _} ->
             {Own, Its} = case Family of inet -> {"IPv4", "IPv6"}; inet6 -> {"IPv6", "IPv4"} end,
-            ern_carrier:say(["the peer ", Name, " was not dialled: its network-address names ",
+            ern_carrier:say(["the peer ", Name, " was not dialed: its network-address names ",
                              Named, ", which resolves only to ", Its, ", and this node runs over ",
                              Own]);
         {error, _} ->

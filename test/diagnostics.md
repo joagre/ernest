@@ -970,40 +970,40 @@ example.ern:1:10: Optional takes 1 type argument, not 2
 ### A type nothing declares (§3)
 
 ```ernest-rejected
-fn f(x : Colour) : Int = 0
+fn f(x : Color) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:10: unknown type Colour
-1 | fn f(x : Colour) : Int = 0
-  |          ^^^^^^
+example.ern:1:10: unknown type Color
+1 | fn f(x : Color) : Int = 0
+  |          ^^^^^
 ```
 
 ### A qualified type nothing declares (§4.2)
 
 ```ernest-rejected
-fn f(x : Shapes.Colour) : Int = 0
+fn f(x : Shapes.Color) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:10: unknown type Shapes.Colour
-1 | fn f(x : Shapes.Colour) : Int = 0
-  |          ^^^^^^^^^^^^^
+example.ern:1:10: unknown type Shapes.Color
+1 | fn f(x : Shapes.Color) : Int = 0
+  |          ^^^^^^^^^^^^
 ```
 
 ### `Prelude.` before a type the prelude lacks (§4.2)
 
 ```ernest-rejected
-fn f(x : Prelude.Colour) : Int = 0
+fn f(x : Prelude.Color) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:10: the prelude declares no type Colour
-1 | fn f(x : Prelude.Colour) : Int = 0
-  |          ^^^^^^^^^^^^^^
+example.ern:1:10: the prelude declares no type Color
+1 | fn f(x : Prelude.Color) : Int = 0
+  |          ^^^^^^^^^^^^^
 ```
 
 ### A type named `Prelude` (§4.2)
@@ -1022,31 +1022,31 @@ example.ern:1:1: Prelude names the prelude, and a type may not take it
 ### A type declared twice (§4.3)
 
 ```ernest-rejected
-type Colour = Red
-type Colour = Blue
+type Color = Red
+type Color = Blue
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:1: type Colour is declared twice
-1 | type Colour = Red
-  | ----------------- first declared here
-2 | type Colour = Blue
-  | ^^^^^^^^^^^^^^^^^^
+example.ern:2:1: type Color is declared twice
+1 | type Color = Red
+  | ---------------- first declared here
+2 | type Color = Blue
+  | ^^^^^^^^^^^^^^^^^
 ```
 
 ### A constructor declared twice (§3.5)
 
 ```ernest-rejected
-type Colour = Red | Red
+type Color = Red | Red
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:21: constructor Red is declared twice
-1 | type Colour = Red | Red
-  |               --- first declared here
-  |                     ^^^
+example.ern:1:20: constructor Red is declared twice
+1 | type Color = Red | Red
+  |              --- first declared here
+  |                    ^^^
 ```
 
 ### A constructor named as a type (§3.1)
@@ -1233,14 +1233,14 @@ example.ern:3:1: a function has one clause
 ### A member of a type the module does not declare (§4.2)
 
 ```ernest-rejected
-fn Colour.negate(n : Int) : Int = n
+fn Color.negate(n : Int) : Int = n
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:1: Colour is not a type declared in this module
-1 | fn Colour.negate(n : Int) : Int = n
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+example.ern:1:1: Color is not a type declared in this module
+1 | fn Color.negate(n : Int) : Int = n
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A member whose Erlang name the host cannot hold (§11.1)
@@ -1523,17 +1523,17 @@ example.ern:2:13: the prelude declares no constructor Red
 
 ```ernest-rejected
 fn f() : Int = {
-    let c = Colours.Red;
+    let c = Colors.Red;
     1
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:13: unknown constructor Colours.Red
+example.ern:2:13: unknown constructor Colors.Red
 1 | fn f() : Int = {
-2 |     let c = Colours.Red;
-  |             ^^^^^^^^^^^
+2 |     let c = Colors.Red;
+  |             ^^^^^^^^^^
 ```
 
 ### Another module's abstract constructor (§4.4)

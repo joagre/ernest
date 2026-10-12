@@ -115,9 +115,9 @@ boot_flags_test() ->
                                                                          8654}}),
     ?assertMatch(["-proto_dist", "inet6_tls" | _], All),
     ?assertNot(lists:member("inet_dist_use_interface", All)),
-    Dialling = ern_carrier:boot_flags(Configuration#configuration{listen = none}),
-    ?assertMatch(["-proto_dist", "inet_tls" | _], Dialling),
-    ?assertNot(lists:member("inet_dist_use_interface", Dialling)).
+    Dialing = ern_carrier:boot_flags(Configuration#configuration{listen = none}),
+    ?assertMatch(["-proto_dist", "inet_tls" | _], Dialing),
+    ?assertNot(lists:member("inet_dist_use_interface", Dialing)).
 
 contains(List, Part) ->
     lists:prefix(Part, List) orelse (List =/= [] andalso contains(tl(List), Part)).
@@ -258,7 +258,7 @@ dial_family_test() ->
                    Dial = fun(#configuration{public_key = Key}, Family) ->
                                   ern_epmd:address_please("ernest", ern_carrier:host(Key), Family)
                           end,
-                   Self ! {dialled, Dial(Peer, inet), Dial(Peer, inet6), Dial(Other, inet)}
+                   Self ! {dialed, Dial(Peer, inet), Dial(Peer, inet6), Dial(Other, inet)}
            end,
     Said = fun(Bytes) -> Self ! {said, Bytes} end,
     try
@@ -267,10 +267,10 @@ dial_family_test() ->
         ok = inet_db:set_lookup(Lookup),
         ok = inet_db:del_host({0, 0, 0, 0, 0, 0, 0, 1})
     end,
-    ?assertMatch({dialled, {error, _}, {ok, {0, 0, 0, 0, 0, 0, 0, 1}, 8654, _},
+    ?assertMatch({dialed, {error, _}, {ok, {0, 0, 0, 0, 0, 0, 0, 1}, 8654, _},
                   {ok, {127, 0, 0, 1}, 8655, _}},
-                 receive {dialled, _, _, _} = Dialled -> Dialled end),
-    ?assertEqual({said, <<"the peer store was not dialled: its network-address names"
+                 receive {dialed, _, _, _} = Dialed -> Dialed end),
+    ?assertEqual({said, <<"the peer store was not dialed: its network-address names"
                           " only6.ernest.invalid, which resolves only to IPv6, and this node runs"
                           " over IPv4\n">>},
                  receive {said, _} = Line -> Line end).

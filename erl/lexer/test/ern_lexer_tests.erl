@@ -251,7 +251,7 @@ bom_is_stripped_test() ->
     ?assertEqual([{ident, a}], tokens([16#FEFF | "a"])).
 
 %% report §2.1: a source is UTF-8, and bytes that are not are refused
-%% where the first of them stands. A regression test: the catalogue of
+%% where the first of them stands. A regression test: the catalog of
 %% diagnostics, which cannot hold such bytes, found no test that gave the
 %% error, and the release review found it placed at 1:1
 not_utf8_test() ->
@@ -280,7 +280,7 @@ escape_errors_test() ->
     ?assertEqual({1, 2, "unterminated escape"}, refusal("\"\\")),
     ?assertEqual({1, 2, "unknown escape \\q"}, refusal("\"\\q\"")),
     %% a line break after a backslash is named, not printed into the message; a
-    %% regression test, the catalogue of diagnostics having found it printed
+    %% regression test, the catalog of diagnostics having found it printed
     ?assertEqual({1, 2, "a line break cannot follow `\\`; use \\n"}, refusal("\"\\\nx\"")),
     ?assertEqual({1, 2, "\\u{D800} is not a Unicode scalar value"}, refusal("\"\\u{D800}\"")),
     ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, refusal("\"\\u{110000}\"")),
@@ -292,7 +292,7 @@ escape_errors_test() ->
 char_literal_errors_test() ->
     ?assertEqual({1, 1, "empty char literal"}, refusal("''")),
     %% a literal of two code points is closed, and named as what it is; a
-    %% regression test, the catalogue of diagnostics having found it called
+    %% regression test, the catalog of diagnostics having found it called
     %% unterminated
     ?assertEqual({1, 1, "a char literal holds one code point; a string is written between"
                         " double quotes"}, refusal("'ab'")),

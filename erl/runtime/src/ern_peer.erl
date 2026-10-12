@@ -13,8 +13,8 @@
 %% them so too, its frame the call's first note, and its process answers
 %% the function's value, or its fault, through the caller's alias, its call
 %% the runtime's (ern_rt:compute/3), on the peer named or on one the node
-%% picks by the utilisations its peers told it (picked/0), which the
-%% gateway holds (hold_utilisation/3); a utilisation asks the peer's gateway, which answers it
+%% picks by the utilizations its peers told it (picked/0), which the
+%% gateway holds (hold_utilization/3); a utilization asks the peer's gateway, which answers it
 %% (ern_gateway). A node's peers and services are the carrier's to give
 %% (configure/2); a program that is no node has none. A wait has no upper
 %% bound: it is made against the moment its time ends, in slices the host
@@ -23,8 +23,8 @@
 
 -export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/5,
          spawn_monitored/4, spawn_monitored/6, compute/2, compute/3, compute_at/3, compute_at/4,
-         picked/0, utilisation/2, peers/0, utilisations/0, set_utilisation/1,
-         hold_utilisation/3, drop_utilisation/1, frame/2, failed/4, reach_lacked/2,
+         picked/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
+         hold_utilization/3, drop_utilization/1, frame/2, failed/4, reach_lacked/2,
          foreign_lacked/1, lost/1]).
 
 -export_type([identity/0]).
@@ -32,7 +32,7 @@
 %% Report §8.6: the shims that wait on no process, each a table or a
 %% persistent term read or a table written, which the emitter does not
 %% count as foreign code.
--waits_on_nothing([offer/2, peers/0, utilisations/0, set_utilisation/1]).
+-waits_on_nothing([offer/2, peers/0, utilizations/0, set_utilization/1]).
 
 %% A spawn waiting for its answer, {{Node, Ref}, Waiting}, by the peer's
 %% node and the spawn's reference: the waiting process. Ordered, so that a
@@ -40,14 +40,14 @@
 %% from the peer the spawn went to.
 -define(SPAWNS, ern_spawns).
 
-%% Report §8.7: the utilisation each peer last told this node, {Node,
-%% Utilisation, At, Interval}, At the host's monotonic milliseconds when
+%% Report §8.7: the utilization each peer last told this node, {Node,
+%% Utilization, At, Interval}, At the host's monotonic milliseconds when
 %% its telling came and Interval the milliseconds between the peer's
 %% tellings, which the telling carries, by the peer's name on the carrier,
 %% which its key gives, so that a peer renamed by a reload keeps its
-%% utilisation; written by the gateway alone, which hears the tellings and
+%% utilization; written by the gateway alone, which hears the tellings and
 %% the losses.
--define(UTILISATIONS, ern_utilisations).
+-define(UTILIZATIONS, ern_utilizations).
 
 %% Report §8.7: the function a spawn frame or a compute frame names, as the
 %% compiler writes it (ern_emitter's spawned/2): a declaration by its hash,
@@ -88,13 +88,13 @@ configure(Peers, Services) ->
     persistent_term:put({?MODULE, named}, maps:from_list([{Node, Name} || {Name, Node} <- Peers])),
     persistent_term:put({?MODULE, services}, Services).
 
-%% The table of spawns waiting and the table of the peers' utilisations,
+%% The table of spawns waiting and the table of the peers' utilizations,
 %% owned by the process that calls this, the gateway, which outlives every
 %% run of a node's program.
 -spec tables() -> ok.
 tables() ->
     ?SPAWNS = ets:new(?SPAWNS, [named_table, public, ordered_set]),
-    ?UTILISATIONS = ets:new(?UTILISATIONS, [named_table, protected, set,
+    ?UTILIZATIONS = ets:new(?UTILIZATIONS, [named_table, protected, set,
                                             {read_concurrency, true}]),
     ok.
 
@@ -168,7 +168,7 @@ found([Node | Nodes], Name, Hash, Deadline, _Last) ->
             end
     end.
 
-%% A peer's answer to a find or a utilisation, through an alias that takes
+%% A peer's answer to a find or a utilization, through an alias that takes
 %% one answer and drops a late one; `Unreachable` where its gateway cannot
 %% be reached. An answer that came before the alias went at the time's end
 %% is taken, so that none is left in the caller's mailbox.
@@ -319,10 +319,10 @@ started({spawned, Pid}, Ref, Wrap) ->
 started({failed, Error}, _Ref, _Wrap) ->
     {'Left', Error}.
 
-%% Report §8.7: a function run on a peer the node picks by the utilisations
+%% Report §8.7: a function run on a peer the node picks by the utilizations
 %% it holds (picked/0), as compute_at/4 runs it on the peer named once the
 %% pick is made; `NotListed` where no peer is listed, and `Unreachable`
-%% where none has a utilisation to use. compute/2 is the declaration's, which the
+%% where none has a utilization to use. compute/2 is the declaration's, which the
 %% compiler calls with the function's identity and captures in place of
 %% the function (ern_emitter's spawned/2) and the compute's site after
 %% them.
@@ -363,13 +363,13 @@ computed(Node, Spawned, Ms, Site) ->
     ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Site} end, ern_rt:deadline(Ms)).
 
 %% Report §8.7: the peer a compute that names none runs on, the one
-%% picked: of the peers whose utilisation this node may use, each heard
+%% picked: of the peers whose utilization this node may use, each heard
 %% from within two of its own intervals, which its telling carried, so that
 %% a peer that tells seldom is as usable as one that tells often, two drawn
 %% at random, by the host's generator, and the less busy taken, the first
 %% in the configuration's order of two equally busy, and one taken as it
 %% is; `NotListed` where no peer is listed, and `Unreachable` where none
-%% has a utilisation to use, in an initializer among
+%% has a utilization to use, in an initializer among
 %% them, before the node holds any. A read of the peers' rows and a draw,
 %% and no frame (§10).
 -spec picked() -> {picked, node()} | 'NotListed' | 'Unreachable'.
@@ -379,9 +379,9 @@ picked() ->
             'NotListed';
         Names ->
             Now = erlang:monotonic_time(millisecond),
-            drawn(list_to_tuple([{Utilisation, Node}
+            drawn(list_to_tuple([{Utilization, Node}
                                  || Name <- Names, Node <- [node_of(Name)],
-                                    {Utilisation, At, Interval} <- held(Node),
+                                    {Utilization, At, Interval} <- held(Node),
                                     Now - At =< 2 * Interval]))
     end.
 
@@ -398,17 +398,17 @@ drawn(Usable) ->
                  Drawn when Drawn >= First -> Drawn + 1;
                  Drawn -> Drawn
              end,
-    {EarlierUtilisation, Earlier} = element(min(First, Second), Usable),
+    {EarlierUtilization, Earlier} = element(min(First, Second), Usable),
     case element(max(First, Second), Usable) of
-        {LaterUtilisation, Later} when LaterUtilisation < EarlierUtilisation -> {picked, Later};
+        {LaterUtilization, Later} when LaterUtilization < EarlierUtilization -> {picked, Later};
         _ -> {picked, Earlier}
     end.
 
 %% Report §8.7: how busy the peer named is, the Float its gateway answers
 %% through an alias, as a find's is answered, within the time;
 %% `Unreachable` where its gateway cannot be reached.
--spec utilisation(binary(), integer()) -> {'Right', float()} | {'Left', atom()}.
-utilisation(Name, Ms) ->
+-spec utilization(binary(), integer()) -> {'Right', float()} | {'Left', atom()}.
+utilization(Name, Ms) ->
     case node_of(Name) of
         none ->
             {'Left', 'NotListed'};
@@ -419,9 +419,9 @@ utilisation(Name, Ms) ->
             Gateway = {ern_gateway, Node},
             MonitorRef = erlang:monitor(process, Gateway),
             Alias = erlang:alias([reply]),
-            erlang:send(Gateway, {ern_frame, erlang:self(), {utilisation, Alias}}),
+            erlang:send(Gateway, {ern_frame, erlang:self(), {utilization, Alias}}),
             case gateway_answer(Alias, MonitorRef, Deadline) of
-                Utilisation when is_float(Utilisation) -> {'Right', Utilisation};
+                Utilization when is_float(Utilization) -> {'Right', Utilization};
                 timeout -> {'Left', 'Timeout'};
                 Error -> {'Left', Error}
             end
@@ -432,52 +432,52 @@ utilisation(Name, Ms) ->
 peers() ->
     persistent_term:get({?MODULE, names}, []).
 
-%% Report §8.7, Appendix E.27: the utilisations this node holds, each
-%% listed peer's name, its utilisation and the milliseconds since its
+%% Report §8.7, Appendix E.27: the utilizations this node holds, each
+%% listed peer's name, its utilization and the milliseconds since its
 %% telling came, in the configuration's order; a peer not heard from is
-%% left out, and a utilisation too old for a pick to use is answered as it
+%% left out, and a utilization too old for a pick to use is answered as it
 %% is, with its age.
--spec utilisations() -> [{binary(), float(), integer()}].
-utilisations() ->
+-spec utilizations() -> [{binary(), float(), integer()}].
+utilizations() ->
     Now = erlang:monotonic_time(millisecond),
-    [{Name, Utilisation, Now - At}
-     || Name <- peers(), {Utilisation, At, _} <- held(node_of(Name))].
+    [{Name, Utilization, Now - At}
+     || Name <- peers(), {Utilization, At, _} <- held(node_of(Name))].
 
-%% The utilisation a peer last told, with its moment and the peer's
+%% The utilization a peer last told, with its moment and the peer's
 %% interval, or none: none heard, or no table, in a program that is no node
 %% and in an initializer, before the gateway starts.
 held(Node) ->
-    try ets:lookup(?UTILISATIONS, Node) of
-        [{_, Utilisation, At, Interval}] -> [{Utilisation, At, Interval}];
+    try ets:lookup(?UTILIZATIONS, Node) of
+        [{_, Utilization, At, Interval}] -> [{Utilization, At, Interval}];
         [] -> []
     catch
         error:badarg -> []
     end.
 
-%% Report §8.7, Appendix E.27, §7.4: the utilisation this node tells its
+%% Report §8.7, Appendix E.27, §7.4: the utilization this node tells its
 %% peers and answers them from now on, set by its program, on the scale
 %% from 0.0 to 1.0; one outside it faults the caller.
--spec set_utilisation(float()) -> 'Unit'.
-set_utilisation(Utilisation) when Utilisation >= 0.0, Utilisation =< 1.0 ->
-    ok = ern_rt:set_utilisation(Utilisation),
+-spec set_utilization(float()) -> 'Unit'.
+set_utilization(Utilization) when Utilization >= 0.0, Utilization =< 1.0 ->
+    ok = ern_rt:set_utilization(Utilization),
     'Unit';
-set_utilisation(_Utilisation) ->
-    ern_rt:fault(<<"a utilisation is from 0.0 to 1.0">>).
+set_utilization(_Utilization) ->
+    ern_rt:fault(<<"a utilization is from 0.0 to 1.0">>).
 
 %% Report §8.7: a peer's telling, held by the gateway as it comes, its
-%% utilisation, the moment it came and the peer's interval, in place of the
+%% utilization, the moment it came and the peer's interval, in place of the
 %% one before.
--spec hold_utilisation(node(), float(), pos_integer()) -> ok.
-hold_utilisation(Node, Utilisation, Interval) ->
-    Row = {Node, Utilisation, erlang:monotonic_time(millisecond), Interval},
-    true = ets:insert(?UTILISATIONS, Row),
+-spec hold_utilization(node(), float(), pos_integer()) -> ok.
+hold_utilization(Node, Utilization, Interval) ->
+    Row = {Node, Utilization, erlang:monotonic_time(millisecond), Interval},
+    true = ets:insert(?UTILIZATIONS, Row),
     ok.
 
-%% Report §8.7: a peer's utilisation dropped at its loss, with its
+%% Report §8.7: a peer's utilization dropped at its loss, with its
 %% connection.
--spec drop_utilisation(node()) -> ok.
-drop_utilisation(Node) ->
-    true = ets:delete(?UTILISATIONS, Node),
+-spec drop_utilization(node()) -> ok.
+drop_utilization(Node) ->
+    true = ets:delete(?UTILIZATIONS, Node),
     ok.
 
 %%
@@ -497,7 +497,7 @@ drop_utilisation(Node) ->
 %% in progress, and one that comes while none is answers `Unreachable`:
 %% between two runs of `ern test` over a directory, in one host, and as a
 %% run ends (ern_rt:asked_of_run/1). Any other frame is one the gateway
-%% cannot read; the gateway answers a utilisation itself, and hands the
+%% cannot read; the gateway answers a utilization itself, and hands the
 %% exchange's four to the exchange.
 -spec frame(pid(), term()) ->
           ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}

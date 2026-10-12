@@ -62,7 +62,7 @@ marked_prelude_test() ->
     same(Listed, Printed).
 
 %% report Appendix E.0 rule 9: no exported function of the standard library
-%% takes a `Bool` that chooses a behaviour; `Bool`'s own module takes the
+%% takes a `Bool` that chooses a behavior; `Bool`'s own module takes the
 %% value it operates on. A regression test: the library complied when the
 %% rule was written
 no_bool_choice_test() ->

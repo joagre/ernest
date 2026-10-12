@@ -287,7 +287,7 @@ is_within(_, _) ->
 
 %% Report §4.5, §11.5: a function has one clause, and a second fn of one
 %% name directly after the first, the habit of languages whose functions
-%% have clauses, is said to be that, at the second with the first labelled.
+%% have clauses, is said to be that, at the second with the first labeled.
 one_clause([#fn_declaration{span = First, member_of = MemberOf, name = Name},
             #fn_declaration{span = Second, member_of = MemberOf, name = Name} | _]) ->
     fail(Second, "a function has one clause", [{ern_diagnostic:span(First), "first clause"}],
@@ -298,7 +298,7 @@ one_clause([]) ->
     ok.
 
 %% Report §4.2, §11.5: a type, a constructor or a value a module declares
-%% twice is an error at the second, with the first labelled.
+%% twice is an error at the second, with the first labeled.
 declared_twice(Declarations) ->
     Named = [{{Kind, Key}, Span} || Declaration <- Declarations,
                                     {Kind, Key, Span} <- declaration_names(Declaration)],
@@ -1081,7 +1081,7 @@ not_prelude(_, _) ->
     ok.
 
 %% Report §4.3, §4.7: a type's parameters are distinct type variables; the
-%% second of two alike is underlined and the first labelled (§11.5).
+%% second of two alike is underlined and the first labeled (§11.5).
 distinct_parameters(Name, Params, ParamSpans) ->
     lists:foldl(fun({Param, Span}, Seen) ->
                     case lists:keyfind(Param, 1, Seen) of
@@ -1145,7 +1145,7 @@ constructor_fields({positional, Syntax}, AnnotationVariables, Env) ->
 constructor_fields({named, Fields}, AnnotationVariables, Env) ->
     %% report §3.5: the fields in the order the declaration writes them
     Names = [Name || #field{name = Name} <- Fields],
-    %% report §11.5: at the second, named, the first labelled
+    %% report §11.5: at the second, named, the first labeled
     case repeated([{Name, Span} || #field{name = Name, span = Span} <- Fields]) of
         none ->
             ok;
@@ -1975,7 +1975,7 @@ requirement_variables(#fn_declaration{requirement = Members}, AnnotationVariable
      || #member{span = Span, member_of = Variable, name = Member} <- Members].
 
 %% Report §4.9, §11.5: a requirement names each member once; the second
-%% naming is the error, the first labelled.
+%% naming is the error, the first labeled.
 named_once(Members) ->
     lists:foldl(fun(#member{span = Span, member_of = Variable, name = Name}, Seen) ->
                     case Seen of
@@ -2619,7 +2619,7 @@ solve_one(#deferred_bind_arrow{span = Span, spans = {_, ExprSpan}, expr_type = E
 
 %% Report §11.5: the pattern is reported where it stands, against the value
 %% inside, whose type the value's span labels. The value is reported against
-%% the block's sum type, labelled where that type was fixed.
+%% the block's sum type, labeled where that type was fixed.
 bind_arrow(#deferred_bind_arrow{spans = {PatternSpan, ExprSpan}, expr_type = ExprType,
                                 pattern_type = PatternType, rest_type = RestType, fixed = Fixed},
            Wrap, ErrorType, ValueType, Env) ->
@@ -2643,7 +2643,7 @@ bind_arrow(#deferred_bind_arrow{spans = {PatternSpan, ExprSpan}, expr_type = Exp
     end.
 
 %% Report §11.5: the block's last expression fixed its type; an `if` or a
-%% `match` there did so by its branches, which are labelled each, since two
+%% `match` there did so by its branches, which are labeled each, since two
 %% of them together may tie the value inside the sum to the sum itself.
 fixed_label({last, Last}, RestType, TypeState) ->
     Text = "the block's value has type " ++ ern_types:format(RestType, TypeState),
@@ -3357,7 +3357,7 @@ constructor_namespace(QualifiedName, #env{namespace = OwnNamespace}) ->
     end.
 
 %% Report §5.6, §11.5: no path is a prefix of another, and none is given
-%% twice; the second is reported, the first labelled.
+%% twice; the second is reported, the first labeled.
 no_path_covers_another(FieldSets) ->
     Paths = [{[FieldName | Path], SetSpan}
              || #field_set{span = SetSpan, name = FieldName, path = Path} <- FieldSets],
@@ -3873,7 +3873,7 @@ user_operator(Span, Operator, OperandType, QualifiedName, Env) ->
             end
     end.
 
-%% Report §11.5: a member this module declares is labelled at its
+%% Report §11.5: a member this module declares is labeled at its
 %% declaration with its type; another module's is not in the source shown.
 member_declared(QualifiedName, Member, Name, MemberType,
                 #env{namespace = Namespace, typed = Typed, type_state = TypeState}) ->
@@ -4638,7 +4638,7 @@ never_receives(Span, #effect_origin{what = top_let, help = Help} = Origin) ->
          labels(Origin), Help);
 never_receives(Span, #effect_origin{what = Name} = Origin) ->
     %% report §11.5: the function named, and the `with` that fixed its
-    %% mailbox labelled
+    %% mailbox labeled
     fail(Span, Name ++ " is declared with mailbox Never and cannot receive", labels(Origin),
          "only an `after` clause is allowed; give " ++ Name ++ " another mailbox type with"
          " `with`");
@@ -4660,7 +4660,7 @@ what(#effect_origin{what = top_let}) -> "a top-level `let`";
 what(#effect_origin{what = What}) -> What.
 
 %% Report §11.5: a field given or matched twice, named, at the second, the
-%% first labelled.
+%% first labeled.
 twice(Fields, Verb) ->
     case repeated(Fields) of
         none -> ok;
@@ -5315,7 +5315,7 @@ check_pattern(Pattern, Env) ->
     case Names -- lists:usort(Names) of
         [] -> ok;
         [Repeated | _] ->
-            %% report §11.5: at the second, the first labelled; a name
+            %% report §11.5: at the second, the first labeled; a name
             %% after `as` binds as a variable does
             [First, Second | _] = [Span || {Name, Span, _} <- ern_ast:pattern_binders(Pattern),
                                            Name =:= Repeated],

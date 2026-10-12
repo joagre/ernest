@@ -1,34 +1,34 @@
-/// The shell's colours (report §11.2): colour where it carries meaning, at
+/// The shell's colors (report §11.2): color where it carries meaning, at
 /// a terminal only, and where the environment's `NO_COLOR` is unset or
-/// empty. Each function takes the text and then whether the shell colours,
+/// empty. Each function takes the text and then whether the shell colors,
 /// `Markdown.Styled` or `Markdown.Plain` as documentation is rendered, as
 /// `Markdown.render` takes them (report Appendix E.0 shape rule 1), and
 /// gives the text unchanged when it is `Plain`, so what the shell says
-/// reads the same without colour; the parameter a signature marks is the
+/// reads the same without color; the parameter a signature marks is the
 /// one mark that must show, and has asterisks then.
 
 /// A fault, or the first line of a diagnostic: what needs the eye.
-export fn fault(text : String, colour : Markdown.Output) : String =
-    paint(colour, Ansi.Foreground(Ansi.Red), text)
+export fn fault(text : String, color : Markdown.Output) : String =
+    paint(color, Ansi.Foreground(Ansi.Red), text)
 
-/// A diagnostic, its first line coloured as a fault, the source under it
+/// A diagnostic, its first line colored as a fault, the source under it
 /// plain.
-export fn diagnostic(text : String, colour : Markdown.Output) : String =
+export fn diagnostic(text : String, color : Markdown.Output) : String =
     match String.split(text, "\n") {
         [] -> text
-      | first :: rest -> String.join(fault(first, colour) :: rest, "\n")
+      | first :: rest -> String.join(fault(first, color) :: rest, "\n")
     }
 
 /// The type after a printed value, dimmed so that the value stands out.
-export fn quiet(text : String, colour : Markdown.Output) : String =
-    paint(colour, Ansi.Dim, text)
+export fn quiet(text : String, color : Markdown.Output) : String =
+    paint(color, Ansi.Dim, text)
 
 /// A name in a listing or a brief, the name bold: `name : type`, a
 /// function's declaration `List.map(list : List(a), ...) : List(b)`, or a
 /// type's `type Down = ...`. The name is the last word before the first
 /// `(`, ` : ` or ` = `, or before a type declaration's end; any other line,
 /// a command's, has no name.
-export fn named(text : String, colour : Markdown.Output) : String = {
+export fn named(text : String, color : Markdown.Output) : String = {
     let found = List.filterMap(["(", " : ", " = "], fn(mark) = String.indexOf(text, mark));
     let declared =
         List.any(["type ", "abstract type ", "foreign type "],
@@ -41,7 +41,7 @@ export fn named(text : String, colour : Markdown.Output) : String = {
             let name = Optional.withDefault(List.last(String.words(before)), "");
             let start = end - String.size(name);
             String.slice(text, 0, start)
-                <> paint(colour, Ansi.Bold, name)
+                <> paint(color, Ansi.Bold, name)
                 <> String.slice(text, end, String.size(text))
         }
     }
@@ -49,16 +49,16 @@ export fn named(text : String, colour : Markdown.Output) : String = {
 
 /// The parameter at the cursor in a signature, in the terminal's cyan, which
 /// its theme chooses, so that it reads on a dark screen and a light one.
-/// Report §11.2: without colour it is between asterisks, since the mark
-/// carries meaning where the other colours only help the eye.
-export fn emphasis(text : String, colour : Markdown.Output) : String =
-    match colour {
+/// Report §11.2: without color it is between asterisks, since the mark
+/// carries meaning where the other colors only help the eye.
+export fn emphasis(text : String, color : Markdown.Output) : String =
+    match color {
         Markdown.Plain -> if String.isEmpty(text) then text else "*" <> text <> "*"
-      | Markdown.Styled -> paint(colour, Ansi.Foreground(Ansi.Cyan), text)
+      | Markdown.Styled -> paint(color, Ansi.Foreground(Ansi.Cyan), text)
     }
 
-fn paint(colour : Markdown.Output, style : Ansi.Style, text : String) : String =
-    match colour {
+fn paint(color : Markdown.Output, style : Ansi.Style, text : String) : String =
+    match color {
         Markdown.Styled -> if String.isEmpty(text) then text else Ansi.styled(text, style)
       | Markdown.Plain -> text
     }
@@ -68,13 +68,13 @@ fn paint(colour : Markdown.Output, style : Ansi.Style, text : String) : String =
 //
 
 let off =
-    Test.Case(name = "without colour the text is unchanged",
+    Test.Case(name = "without color the text is unchanged",
               run = fn() =
                   if fault("f faulted", Markdown.Plain) == "f faulted"
                       && named("a : Int", Markdown.Plain) == "a : Int" then
                       Test.Passed
                   else
-                      Test.Failed("coloured when off"))
+                      Test.Failed("colored when off"))
 
 let faults =
     Test.Case(name = "a fault is red",
@@ -102,15 +102,15 @@ let names =
                       Test.Failed(named("List.map : (a) -> b", Markdown.Styled)))
 
 let marksWithout =
-    Test.Case(name = "without colour the marked parameter is between asterisks",
+    Test.Case(name = "without color the marked parameter is between asterisks",
               run = fn() = if emphasis("f : Int", Markdown.Plain) == "*f : Int*" then
                   Test.Passed
               else
                   Test.Failed(emphasis("f : Int", Markdown.Plain)))
 
 let empties =
-    Test.Case(name = "an empty text takes no colour",
+    Test.Case(name = "an empty text takes no color",
               run = fn() = if emphasis("", Markdown.Styled) == "" then
                   Test.Passed
               else
-                  Test.Failed("coloured nothing"))
+                  Test.Failed("colored nothing"))

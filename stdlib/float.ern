@@ -23,7 +23,7 @@
 /// // => "5.0"
 /// ```
 ///
-/// Rounding: `round` takes a half to the even neighbour, `floor` goes down and
+/// Rounding: `round` takes a half to the even neighbor, `floor` goes down and
 /// `ceil` up:
 ///
 /// ```ernest

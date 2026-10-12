@@ -1,4 +1,4 @@
-;;; editing.el --- What the mode gives beyond colour and indentation  -*- lexical-binding: t; -*-
+;;; editing.el --- What the mode gives beyond color and indentation  -*- lexical-binding: t; -*-
 
 ;; Moving over declarations, `imenu', naming the declaration point is in,
 ;; and the regexp `M-x compile' reads `ern build' with.  Run from `emacs/':

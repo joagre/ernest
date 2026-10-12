@@ -31,7 +31,7 @@ VERSION            the toolchain's version, read at build time
 README.md          what Ernest is and where to begin
 CLAUDE.md          the working rules
 Makefile           the build and the tests' targets
-LICENSE, THIRD_PARTY_LICENSES  the licence, and the third-party code's
+LICENSE, THIRD_PARTY_LICENSES  the license, and the third-party code's
 report/            the report (normative), in three files: language.md, §0 to §10 and
                    Appendices A, B and F; toolchain.md, §11 and Appendices C and H;
                    library.md, Appendices D, E and G
@@ -58,7 +58,7 @@ test/              what spans applications: the integration, nodes, deployment g
                    service manager's checks and the pseudo-terminal, ern_grammar.erl,
                    which reads Appendix A,
                    ern_repository.erl, which the document and style tests read the
-                   repository through, and the catalogue of diagnostics; target/, the
+                   repository through, and the catalog of diagnostics; target/, the
                    hand-written target modules; programs/, the programs the tests keep:
                    the first test programs, a two-module tree, the module of
                    docs/module_doc_template.md and the echo measurement; expected/ and
@@ -73,7 +73,7 @@ shell/             the shell as Ernest source; its README.md guides a reader
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ansi, ets, json, markdown, which needs ansi,
-                   proxy and utilisation
+                   proxy and utilization
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
@@ -108,7 +108,7 @@ make test-programs  the integration tests and nodes on one machine: the programs
                   pages and the installation, and that the measuring machine reaches
                   every function of the library
 make test-docs    the document tests and the style tests
-make test-guide   the guide's examples, the report's, the README's, and the catalogue of
+make test-guide   the guide's examples, the report's, the README's, and the catalog of
                   diagnostics
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
                   parsed, laid out and given as near misses; ERN_SEED=n runs a failing
@@ -135,7 +135,7 @@ make bench        what each of a few operations costs in Ernest beside the same
                   address made there; then, on nodes it starts, what a spawn and a compute
                   cost whose code crosses, each step of the exchange, a fix's callers,
                   what an arrival, a Code.load and a day's spawns add to the host's
-                  counts, a utilisation, a compute on a peer picked and on one named,
+                  counts, a utilization, a compute on a peer picked and on one named,
                   the pick alone, what connected nodes exchange idle with their tellings,
                   and the sizes of an .erc and a code frame; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
@@ -210,4 +210,4 @@ The toolchain is the report, on one node and across nodes. Everything the report
 | Construct | Until | What you see today |
 |---|---|---|
 
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.
+Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

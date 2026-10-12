@@ -124,7 +124,7 @@ export type Output =
     /// A code span between single backticks, emphasis between `*`s and
     /// strong emphasis between `**`s, whether the source wrote `*` or `_`.
     Plain
-  /// Bold, italics and colour, in the terminal's escape sequences.
+  /// Bold, italics and color, in the terminal's escape sequences.
   | Styled
 
 /// What a manual page's header, footer and NAME line say.
@@ -955,7 +955,7 @@ fn itemRows(start : Optional(Int),
     let labelWidth = widest(labels) + 1;
     List.flatMap(List.zip(labels, items), fn(#(label, item)) = {
         let rows = render(item, width - labelWidth, output);
-        labelled(rows, label, labelWidth)
+        labeled(rows, label, labelWidth)
     })
 }
 
@@ -972,7 +972,7 @@ fn widest(labels : List(String)) : Int =
     List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label)))
 
 // An item's rows after its label, those after the first under its text.
-fn labelled(rows : List(String), label : String, labelWidth : Int) : List(String) =
+fn labeled(rows : List(String), label : String, labelWidth : Int) : List(String) =
     match rows {
         [] -> [label]
       | first :: rest -> {

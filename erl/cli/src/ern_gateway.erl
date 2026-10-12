@@ -17,15 +17,15 @@
 %% word that it ends; a compute's frame is its call's first note, which it
 %% records before its worker reads the frame, so that the second note,
 %% which may come before the compute's process starts, finds it. A
-%% utilisation it answers itself, from the host's counters, keeping the
+%% utilization it answers itself, from the host's counters, keeping the
 %% node's measure and its last reading, and turning on the host's keeping
 %% of the schedulers' time, which lasts as long as the process that turns it
-%% on, where the measure is the schedulers', or with the utilisation the
-%% program set (ern_rt:program_utilisation/0). The same number it tells
+%% on, where the measure is the schedulers', or with the utilization the
+%% program set (ern_rt:program_utilization/0). The same number it tells
 %% each connected peer, with the interval of its tellings, every
-%% `utilisation-interval` while the node lists peers, by a timer of its
+%% `utilization-interval` while the node lists peers, by a timer of its
 %% own, since it owns the connections and the measure, and a peer's telling
-%% it holds as it comes (ern_peer:hold_utilisation/3), dropping it at the
+%% it holds as it comes (ern_peer:hold_utilization/3), dropping it at the
 %% peer's loss. It watches
 %% the node's connections and says each change of one (ern_carrier:said/1),
 %% since a connection's end is said by the frames that came before it: a
@@ -33,7 +33,7 @@
 %% frame is {ern_frame, From, Body}, From the process on the peer that sent
 %% it, whose node is the frame's peer; fourteen bodies are the runtime's
 %% frames, an adapted address's message, a spawn and its answer, a compute,
-%% a find, a utilisation and a telling, the call's two notes, a node's end,
+%% a find, a utilization and a telling, the call's two notes, a node's end,
 %% and the exchange's `reach_request`, `reach`, `lacks` and `code_frame`. A
 %% message to the gateway that names no process of another node names no
 %% connection to end, and is dropped, which the node says.
@@ -57,9 +57,9 @@ start() ->
                         true = register(?NAME, self()),
                         ok = ern_peer:tables(),
                         ok = net_kernel:monitor_nodes(true, [nodedown_reason, {node_type, all}]),
-                        #configuration{utilisation = Utilisation} = ern_carrier:configuration(),
+                        #configuration{utilization = Utilization} = ern_carrier:configuration(),
                         Self ! {self(), started},
-                        gateway(#{}, #{}, measured(Utilisation, run_queue), armed(none))
+                        gateway(#{}, #{}, measured(Utilization, run_queue), armed(none))
                     end),
     receive {Gateway, started} -> ok end.
 
@@ -111,21 +111,21 @@ gateway(Workers, Ended, Measured, Telling) ->
         %% report §8.7, §11.2: how busy the node is, answered through the
         %% asker's alias as a find is answered, `Unreachable` between two
         %% launches of `ern test` over a directory, in one host
-        {ern_frame, From, {utilisation, Alias}}
+        {ern_frame, From, {utilization, Alias}}
           when is_pid(From), node(From) =/= node(), is_reference(Alias),
                node(Alias) =:= node(From) ->
             {Answer, Measured1} = case ern_rt:is_launched() of
-                                      true -> utilisation(Measured);
+                                      true -> utilization(Measured);
                                       false -> {'Unreachable', Measured}
                                   end,
             Alias ! {Alias, Answer},
             gateway(Workers, Ended, Measured1, Telling);
         %% report §8.7: a peer's telling of how busy it is and of its
         %% interval, held as it comes
-        {ern_frame, From, {telling, Utilisation, Interval}}
-          when is_pid(From), node(From) =/= node(), is_float(Utilisation), Utilisation >= 0.0,
+        {ern_frame, From, {telling, Utilization, Interval}}
+          when is_pid(From), node(From) =/= node(), is_float(Utilization), Utilization >= 0.0,
                is_integer(Interval), Interval >= 1 ->
-            ok = ern_peer:hold_utilisation(node(From), Utilisation, Interval),
+            ok = ern_peer:hold_utilization(node(From), Utilization, Interval),
             gateway(Workers, Ended, Measured, Telling);
         %% report §8.7: a peer that ends says so before its connection
         %% closes, so that its end is said as an end and not as a loss
@@ -135,8 +135,8 @@ gateway(Workers, Ended, Measured, Telling) ->
             Pid ! {MonitorRef, fresh},
             gateway(Workers, Ended, Measured, Telling);
         {reloaded, From, MonitorRef} when is_pid(From), node(From) =:= node() ->
-            #configuration{utilisation = Utilisation} = ern_carrier:configuration(),
-            Measured1 = measured(Utilisation, Measured),
+            #configuration{utilization = Utilization} = ern_carrier:configuration(),
+            Measured1 = measured(Utilization, Measured),
             From ! {MonitorRef, reloaded},
             gateway(Workers, Ended, Measured1, armed(Telling));
         %% report §8.7: every interval, each connected peer told how busy
@@ -166,14 +166,14 @@ gateway(Workers, Ended, Measured, Telling) ->
             {Worker, _} = worker(Node, Workers),
             Worker ! stop,
             noted(fun() -> ern_rt:drop_notes(Node) end),
-            ok = ern_peer:drop_utilisation(Node),
+            ok = ern_peer:drop_utilization(Node),
             said(case Ended of
                      #{Node := true} -> {ended, Node};
                      _ -> Event
                  end),
             gateway(maps:remove(Node, Workers), maps:remove(Node, Ended), Measured, Telling);
         %% report §8.7: a peer that connects is told at once, so that it
-        %% holds this node's utilisation before an interval has passed
+        %% holds this node's utilization before an interval has passed
         {nodeup, Node, _} = Event ->
             said(Event),
             gateway(Workers, Ended, told([Node || is_peer(Node)], Measured), Telling);
@@ -184,14 +184,14 @@ gateway(Workers, Ended, Measured, Telling) ->
     end.
 
 %% Report §8.7: the moment of the next telling, Telling where one is set,
-%% and else one `utilisation-interval` from now where the node lists peers,
+%% and else one `utilization-interval` from now where the node lists peers,
 %% or none where it lists none and tells no one.
 armed(none) ->
     case ern_peer:peers() of
         [] ->
             none;
         _ ->
-            #configuration{utilisation_interval = Interval} = ern_carrier:configuration(),
+            #configuration{utilization_interval = Interval} = ern_carrier:configuration(),
             sliced(ern_rt:deadline(Interval))
     end;
 armed(Telling) ->
@@ -212,24 +212,24 @@ is_peer(Node) ->
     ern_peer:name(Node) =/= 'None'.
 
 %% Report §8.7: each of Nodes told how busy the node is, the number an ask
-%% answers (utilisation/1), with the interval of its tellings, by which the
+%% answers (utilization/1), with the interval of its tellings, by which the
 %% peer ages it, over its connection and without opening one; and what the
 %% measure keeps for the next reading; nothing read where there is no one
 %% to tell.
 told([], Measured) ->
     Measured;
 told(Nodes, Measured) ->
-    {Utilisation, Measured1} = utilisation(Measured),
-    #configuration{utilisation_interval = Interval} = ern_carrier:configuration(),
-    Telling = {ern_frame, self(), {telling, Utilisation, Interval}},
+    {Utilization, Measured1} = utilization(Measured),
+    #configuration{utilization_interval = Interval} = ern_carrier:configuration(),
+    Telling = {ern_frame, self(), {telling, Utilization, Interval}},
     lists:foreach(fun(Node) -> _ = erlang:send({?NAME, Node}, Telling, [noconnect]) end, Nodes),
     Measured1.
 
 %% Report §8.7: how busy the node is, as it tells and answers its peers: the
-%% utilisation its program set with `Peer.setUtilisation`, which keeps the
+%% utilization its program set with `Peer.setUtilization`, which keeps the
 %% measure as it was, and else its measure.
-utilisation(Measured) ->
-    case ern_rt:program_utilisation() of
+utilization(Measured) ->
+    case ern_rt:program_utilization() of
         none -> measure(Measured);
         Set -> {Set, Measured}
     end.

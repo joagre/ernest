@@ -7,7 +7,7 @@
 %% the store, whose difference is the gateway's step; a find of the store's
 %% counter; a spawn on the store of a process that ends at once; a compute
 %% there of a function that answers at once, which §10 costs at a spawn's
-%% and a call's answer; and a utilisation of the store, its frame and its
+%% and a call's answer; and a utilization of the store, its frame and its
 %% answer. Two
 %% plain nodes of the host's time its ping over TCP, which TLS is set
 %% beside. It measures and asserts nothing, so it is not part of `make
@@ -18,7 +18,7 @@
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["json", "proxy", "utilisation"]]).
+                    || Library <- ["json", "proxy", "utilization"]]).
 
 %% Prints the table, the nodes' directories under Dir, and halts.
 -spec main([string()]) -> no_return().
@@ -52,8 +52,8 @@ main([Dir]) ->
             {"  beside the host's ping", maps:get("spawn", Costs) / Ping, ratio},
             {"a compute on the other node", maps:get("compute", Costs), none},
             {"  beside the host's ping", maps:get("compute", Costs) / Ping, ratio},
-            {"a utilisation of the other node", maps:get("utilisation", Costs), none},
-            {"  beside the host's ping", maps:get("utilisation", Costs) / Ping, ratio}],
+            {"a utilization of the other node", maps:get("utilization", Costs), none},
+            {"  beside the host's ping", maps:get("utilization", Costs) / Ping, ratio}],
     io:format("~-48s ~12s~n", ["between two nodes on this machine", "µs or ratio"]),
     lists:foreach(fun({Name, Value, none}) -> io:format("~-48ts ~12.1f~n", [Name, Value]);
                      ({Name, Value, ratio}) -> io:format("~-48ts ~11.1fx~n", [Name, Value])

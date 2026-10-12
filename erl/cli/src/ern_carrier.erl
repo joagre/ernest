@@ -215,8 +215,8 @@ is_node() ->
 %% at the start, the node's own key and `listen` unchanged, or the file
 %% refused and the configuration kept; then the names the host allows gain
 %% the new peers', the peer table the rule and the dial read, the services,
-%% the measures, the utilisation and its interval are the new file's, the
-%% utilisation holding from the next ask and the interval from the next
+%% the measures, the utilization and its interval are the new file's, the
+%% utilization holding from the next ask and the interval from the next
 %% telling (ern_gateway:reloaded/0), and a peer removed, or listed under
 %% another key, has its connection ended, both nodes running the loss. The
 %% node says that it read the file, and each peer added, removed or
@@ -308,7 +308,7 @@ peer(Host) ->
 %% host's checks of them, which come as a bad certificate, are answered by
 %% the key; an extension is the host's. A key not listed, and a
 %% certificate that names another host than its key gives, are refused, and
-%% the node says so. A node this node dials answers under the name dialled,
+%% the node says so. A node this node dials answers under the name dialed,
 %% which the host's handshake checks (dist_util).
 -spec verify(#'OTPCertificate'{}, term(), term()) ->
           {valid, term()} | {unknown, term()} | {fail, term()}.

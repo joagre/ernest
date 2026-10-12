@@ -1373,7 +1373,7 @@ as_binds_twice_test() ->
 %% refused at the second and labels the first. A regression test, found by
 %% the independent read of MVP 2.99b's item 7: the name after `as` kept its
 %% token's position where every other node keeps a span, so the two sorted
-%% the wrong way, and the error stood at the first `b` labelling the second
+%% the wrong way, and the error stood at the first `b` labeling the second
 as_binds_first_test() ->
     Diagnostic = diagnostic("fn f(p : #(Int, Int)) : Int = match p { #(a as b, b) -> a }"),
     ?assertMatch(#diagnostic{span = {1, 51, {1, 52}}, labels = [{{1, 48, {1, 49}}, _}]},
@@ -1527,7 +1527,7 @@ declared_names_in_labels_test() ->
 %% fixed the operand type, beside the annotation. A regression test: the
 %% found type had no visible source; it does not cover a type fixed by a
 %% unification that cannot fail, as a first branch's
-settled_operand_labelled_test() ->
+settled_operand_labeled_test() ->
     #diagnostic{labels = SelectionLabels} =
         diagnostic("type Point = Point(x : Int)\n"
                    "fn f(p) : String = {\n    let s : String = p.x;\n    let q : Point = p;\n"
@@ -1575,7 +1575,7 @@ bind_arrow_open_sum_and_pattern_test() ->
 %%
 
 %% report §4.5, §11.5: two fns of one name in a row are told they are one
-%% function written as clauses, at the second with the first labelled, at
+%% function written as clauses, at the second with the first labeled, at
 %% the top and in a block; moved from the parser's tests in MVP 2.99c item
 %% 1, when the parser came to read them as Appendix A does
 two_clause_function_test() ->
@@ -1621,7 +1621,7 @@ type_parameters_distinct_test() ->
                  refusal("abstract type Stack(a, a) = Stack(List(a))")),
     ?assertEqual("type variable k appears twice among the parameters of Table",
                  refusal("foreign type Table(k=, k)")),
-    %% the second underlined, the first labelled: a regression test, the
+    %% the second underlined, the first labeled: a regression test, the
     %% declaration was underlined whole
     ?assertMatch(#diagnostic{span = {1, 14, _}, labels = [{{1, 11, _}, "first written here"}]},
                  diagnostic("type Pair(a, a) = Pair(a)")).
@@ -3273,13 +3273,13 @@ leaf_placement_test() ->
                  ElseBranch#diagnostic.message),
     ?assertEqual([{{1, 28, {1, 29}}, "the then branch has type Int"}],
                  ElseBranch#diagnostic.labels),
-    %% a call argument, at the argument, labelled with the callee's type
+    %% a call argument, at the argument, labeled with the callee's type
     Argument = diagnostic("fn f(x : Int) = x\nfn g() = f(\"x\")\n"),
     ?assertEqual("the argument does not fit f: expected Int, found String",
                  Argument#diagnostic.message),
     ?assertEqual({2, 12, {2, 15}}, Argument#diagnostic.span),
     ?assertEqual([{{2, 10, {2, 11}}, "f : (Int) -> Int"}], Argument#diagnostic.labels),
-    %% a binary operator: the right operand, labelled with the left's type
+    %% a binary operator: the right operand, labeled with the left's type
     Operand = diagnostic("fn f() = 1 + \"x\"\n"),
     ?assertEqual({1, 14, {1, 17}}, Operand#diagnostic.span),
     ?assertEqual([{{1, 10, {1, 11}}, "the left operand has type Int"}], Operand#diagnostic.labels),
@@ -3287,7 +3287,7 @@ leaf_placement_test() ->
     Element = diagnostic("fn f() = [1, \"x\"]\n"),
     ?assertEqual({1, 14, {1, 17}}, Element#diagnostic.span),
     ?assertEqual([{{1, 11, {1, 12}}, "the first element has type Int"}], Element#diagnostic.labels),
-    %% an annotated `let` in a block: the value, labelled with the annotation
+    %% an annotated `let` in a block: the value, labeled with the annotation
     Annotated = diagnostic("fn f() = { let x : Int = \"x\"; x }\n"),
     ?assertEqual("the value does not have the declared type: expected Int, found String",
                  Annotated#diagnostic.message),
@@ -3305,9 +3305,9 @@ leaf_placement_test() ->
                  LetPattern#diagnostic.message),
     ?assertEqual({2, 9, {2, 16}}, LetPattern#diagnostic.span),
     ?assertEqual([{{2, 19, {2, 20}}, "the value has type Int"}], LetPattern#diagnostic.labels),
-    %% a `<-` pattern against the value inside, at the pattern and labelled
+    %% a `<-` pattern against the value inside, at the pattern and labeled
     %% at the value; a regression test too, the error having stood at the
-    %% `let`, unlabelled and turned round
+    %% `let`, unlabeled and turned round
     ArrowPattern = diagnostic("fn f(o : Optional(Int)) : Optional(Int) = {\n    let #(a, b) <- o;\n"
                               "    Some(a)\n}\n"),
     ?assertEqual("the pattern does not fit the value inside the sum type: expected Int,"
@@ -3718,7 +3718,7 @@ requirement_variable_test() ->
     ?assertEqual(ok, ok("fn f() : List(a) needs a.compare = []")).
 
 %% report §4.9, §11.5: a requirement names a variable's member once, the
-%% second naming refused and the first labelled, an operator's and a local
+%% second naming refused and the first labeled, an operator's and a local
 %% fn's alike; one member on two variables is no repetition. Written with
 %% the rule, which the report had been silent on
 requirement_named_twice_test() ->

@@ -72,20 +72,20 @@ Template.Point(x = 1, y = 2)
 ## Template.Shape
 
 ```ernest
-type Shape = Dot(Point) | Circle(centre : Point, radius : Int)
+type Shape = Dot(Point) | Circle(center : Point, radius : Int)
 ```
 
-A shape: a point alone, or a circle of a radius around a centre.
+A shape: a point alone, or a circle of a radius around a center.
 
 ### Examples
 
 ```ernest
-Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
-// => Circle(centre = Point(x = 0, y = 0), radius = 1)
+Template.Circle(center = Template.Point(x = 0, y = 0), radius = 1)
+// => Circle(center = Point(x = 0, y = 0), radius = 1)
 ```
 
 - `Dot`: A point alone; its area is zero.
-- `Circle`: A circle by its centre and radius.
+- `Circle`: A circle by its center and radius.
 
 ## Template.Stack
 
@@ -147,10 +147,10 @@ Optional.isNone(Template.pop(Template.emptyStack))
 ## Template.circle
 
 ```ernest
-Template.circle(centre : Point, radius : Int) : Shape
+Template.circle(center : Point, radius : Int) : Shape
 ```
 
-The circle of the radius around the centre.
+The circle of the radius around the center.
 
 ## Template.area
 

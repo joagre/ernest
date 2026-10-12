@@ -34,7 +34,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/memory.md`](docs/memory.md) | how memory is checked |
 | [`docs/soundness.md`](docs/soundness.md) | the argument that a well-typed program does not go wrong |
 | [`docs/otp_bugs.md`](docs/otp_bugs.md) | the defects found in OTP, each a report ready for OTP's tracker, until a release Ernest requires has its fix |
-| [`test/diagnostics.md`](test/diagnostics.md) | the catalogue of diagnostics, which `make diagnostics` writes |
+| [`test/diagnostics.md`](test/diagnostics.md) | the catalog of diagnostics, which `make diagnostics` writes |
 | [`man/`](man/) | the last release's pages, which `make pages` writes |
 | [`assets/README.md`](assets/README.md) | the logo files |
 | [`tools/release/README.md`](tools/release/README.md) | what a reader of the release archive, or of an installation, needs first |
@@ -103,7 +103,8 @@ Each fact has one owner. Every other document points at the owner and does not r
 - **A proposal and its reasons say what Ernest does, and why.** What was tried and set aside, and what Ernest does not do, stays in the experiment or goes to the log, not into the paragraph that states the rule.
 - **A report edit updates the revision date** in line 3 of each file it changes.
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
-- **Compiler behaviour goes to §11.**
+- **Compiler behavior goes to §11.**
+- **The spelling is American English**, in every document, name and message; `docs/style.md`'s *Every language* states the rule and its two exceptions.
 - **No document or message names who proposed an idea**, or that person's role; it states the argument.
 
 ## Done

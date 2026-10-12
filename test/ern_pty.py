@@ -15,7 +15,7 @@ program prints, `>` among it, and no shell should read that.  A blank
 line and a line beginning with # are skipped.
 
     expect:TEXT   wait until TEXT appears on the screen, after whatever
-                  the previous expect matched; a colour sequence, ESC [ ... m,
+                  the previous expect matched; a color sequence, ESC [ ... m,
                   is not part of the text, as a reader does not see it
     send:HEX      write those bytes to the terminal
     resize:RxC    give the terminal a new size, as a window manager does
@@ -75,7 +75,7 @@ class Screen:
         self.wake = wake
         self.seen = bytearray()
         # what has been shown as it reads, without the sequences that only
-        # colour it; a sequence a read cut short waits for the next read
+        # color it; a sequence a read cut short waits for the next read
         self.plain = bytearray()
         self.partial = b""
         self.cursor = 0

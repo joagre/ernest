@@ -834,7 +834,7 @@ reader_and_screen_ends() ->
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
 %% editor's function from a line and an event to what the reader must do,
 %% the history file's escaping, the region's geometry, completion's
-%% matching, and the colours, run by `ern test` over the directory the
+%% matching, and the colors, run by `ern test` over the directory the
 %% shell is built into, so that a module's tests run from the day it is
 %% written
 editor_test_() ->
@@ -1436,13 +1436,13 @@ command_argument() ->
     ?assertEqual(nomatch, binary:match(Bytes, <<"> :output     ">>)).
 
 %% report §11.2: the parameter at the cursor is written in the terminal's
-%% cyan, and the colour ends where the parameter does; a brief's name is
+%% cyan, and the color ends where the parameter does; a brief's name is
 %% bold, a function's before its parameters and a type's after its keyword.
 %% The brief's half is a regression test: it bolded up to the first ` : `
-shift_tab_colour_test_() ->
-    {timeout, 60, fun shift_tab_colour/0}.
+shift_tab_color_test_() ->
+    {timeout, 60, fun shift_tab_color/0}.
 
-shift_tab_colour() ->
+shift_tab_color() ->
     Raw = raw(alone("../bin/ern shell"),
               [{expect, "> "},
                {send, hex("List.map([1], ") ++ "1b5b5a"},
@@ -2037,12 +2037,12 @@ shadowed_constructor_kept() ->
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the
-%% colour following the code path and not the meaning; the release review
+%% color following the code path and not the meaning; the release review
 %% found `:load` of a standard library module answered as a success
-refusal_colour_test_() ->
-    {timeout, 60, fun refusal_colour/0}.
+refusal_color_test_() ->
+    {timeout, 60, fun refusal_color/0}.
 
-refusal_colour() ->
+refusal_color() ->
     Raw = raw(alone("../bin/ern shell"),
               [{expect, "> "},
                {send, hex(":sreload\r")},
@@ -2928,7 +2928,7 @@ doc_every_name() ->
     SourceRoot = scratch("ern_docroot_"),
     ok = file:write_file(filename:join(SourceRoot, "m.ern"),
                          "/// A little module.\n///\n/// since 0.1.0\n\n"
-                         "/// A colour.\nexport type Colour = Red | Green\n"),
+                         "/// A color.\nexport type Color = Red | Green\n"),
     ok = filelib:ensure_path(filename:join(SourceRoot, "net")),
     ok = file:write_file(filename:join([SourceRoot, "net", "http.ern"]),
                          "export fn get() : Int = 1\n"),
@@ -2949,8 +2949,8 @@ doc_every_name() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> Tcp.ListenerMsg\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Optional\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Ernest module Fs\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> M.Colour\n\n    type Colour = Red | Green"
-                                                "\n\nA colour.">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> M.Color\n\n    type Color = Red | Green"
+                                                "\n\nA color.">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Ernest module M\n\n*Since 0.1.0.*\n\n"
                                                 "A little module.">>)),
     %% a namespace lists what it holds, and a type that is a module too
@@ -3184,7 +3184,7 @@ front_end_test_() ->
 %% report §11.2, Appendix E.0 shape rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as
 %% declared, in three parts around the one at the cursor, which the shell
-%% colours; the prelude's too, its parameters named for their roles;
+%% colors; the prelude's too, its parameters named for their roles;
 %% nothing outside a call. On a name, its page and beside it the version
 %% it appeared in, its own or its module's
 signature() ->
@@ -4237,8 +4237,8 @@ screen(Command, Steps, Seconds, Size) ->
     pty(Command, Steps, Seconds, " --screen --size " ++ Size).
 
 %% What the terminal was sent, as a reader sees it: the sequences that only
-%% colour the text are left out. `raw/3` keeps them, for a test of the
-%% colour itself.
+%% color the text are left out. `raw/3` keeps them, for a test of the
+%% color itself.
 pty(Command, Steps, Seconds, Extra) ->
     re:replace(raw(Command, Steps, Seconds, Extra), "\e\\[[0-9;]*m", "",
                [global, {return, binary}]).

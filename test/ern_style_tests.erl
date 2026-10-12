@@ -11,6 +11,34 @@
 -define(DOCUMENTS, ["guide/language.md", "report/language.md", "report/toolchain.md",
                     "report/library.md"]).
 
+%% The British spellings the American rule refuses, each with the
+%% inflections the repository has written or a writer would.
+-define(BRITISH,
+        ["colour", "colours", "coloured", "colouring", "behaviour", "behaviours",
+         "utilisation", "utilisations", "utilise", "utilises", "utilised",
+         "initialise", "initialises", "initialised", "initialiser", "initialisers",
+         "normalise", "normalises", "normalised", "catalogue", "catalogues", "catalogued",
+         "labelled", "labelling", "unlabelled", "judgement", "judgements", "licence", "licences",
+         "favour", "favours", "favoured", "favourite", "favourable", "grey", "greys",
+         "centre", "centres", "centred", "serialise", "serialises", "serialised", "serialiser",
+         "serialising", "recognise", "recognises", "recognised", "organise", "organises",
+         "organised", "synchronise", "synchronises", "synchronised", "optimise", "optimises",
+         "optimised", "minimise", "minimises", "minimised", "realise", "realises", "realised",
+         "analyse", "analysed", "modelling", "modelled", "signalling", "signalled",
+         "travelling", "cancelled", "cancelling", "dialled", "dialling", "equalled",
+         "totalling", "artefact", "artefacts", "defence", "offence", "pretence", "fulfil",
+         "programme", "programmes", "whilst", "amongst", "learnt", "spelt", "metre", "metres",
+         "litre", "litres", "fibre", "theatre", "sceptical", "ageing", "tyre", "tyres", "mould",
+         "cheque", "cheques", "draught", "aluminium", "sulphur", "maths", "honour", "honouring",
+         "humour", "armour", "flavour", "harbour", "labour", "neighbour", "neighbours",
+         "neighbouring", "rumour", "savour", "vapour", "enrol", "instalment", "skilful", "storey",
+         "practise", "enquire", "acknowledgement", "acknowledgements", "characterise",
+         "criticised", "specialisation"]).
+
+%% The host's names that keep the host's spelling.
+-define(HOST_NAMES, "(?<![A-Za-z])-behaviour|behaviour_info|erl_parse:normalise"
+                    "|digraph_utils:reachable_neighbours").
+
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the
 %% vendored getopt keeps its upstream form, and test/build holds a build's
@@ -46,6 +74,78 @@ no_tab_test() ->
     ?assert(length(Files) > 20),
     ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- numbered(File),
                                         lists:member($\t, Line)]).
+
+%% docs/style.md: the spelling is American English, in every tracked file
+%% of text but a proposal, the last release's pages, the licenses and a
+%% borrowed file. A word is matched whole, whatever its case, and a name is
+%% read as the words it joins at `_` or a capital, `ern_utilizations` and
+%% `setUtilization` alike; a name of the host's keeps the host's spelling,
+%% and this module's list is the one place the British spellings are
+%% written. A regression test, written after the sweep that made it hold:
+%% it refuses the spellings its list holds and no other
+american_spelling_test_() ->
+    {timeout, 60, fun american_spelling/0}.
+
+american_spelling() ->
+    Unread = ["LICENSE", "THIRD_PARTY_LICENSES" | borrowed()],
+    ?assert(length(Unread) > 2),
+    Files = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
+                     not lists:prefix("proposals/", File), not lists:prefix("man/", File),
+                     not lists:member(File, Unread),
+                     filelib:is_regular(filename:join(?ROOT, File))],
+    ?assert(length(Files) > 300),
+    British = sets:from_list([list_to_binary(Spelling) || Spelling <- ?BRITISH], [{version, 2}]),
+    {ok, HostNames} = re:compile(?HOST_NAMES),
+    {ok, Word} = re:compile("[A-Z]?[a-z]+|[A-Z]+(?![a-z])"),
+    ?assertEqual([], [{File, Number, Found} || File <- Files,
+                                               {Number, Line} <- spelled_lines(File),
+                                               Found <- words(Line, HostNames, Word),
+                                               sets:is_element(string:lowercase(Found), British)]).
+
+%% The files THIRD_PARTY_LICENSES says were copied from upstream; a table
+%% derived from upstream's data is in a file of ours.
+borrowed() ->
+    Pattern = "  Path: +([^ ,\n]+)\n(?:  [A-Z][a-z]+: [^\n]*\n)*  Copied:",
+    {match, Paths} = re:run(ern_repository:read("THIRD_PARTY_LICENSES"), Pattern,
+                            [global, {capture, all_but_first, list}]),
+    [Path || [Path] <- Paths].
+
+%% The numbered lines of a file the spelling rule reads, but this module's
+%% list of the British spellings, from its `-define` to the line that
+%% closes it.
+spelled_lines(File) ->
+    Lines = text_lines(File),
+    case File =:= "test/" ++ atom_to_list(?MODULE) ++ ".erl" of
+        true ->
+            {Before, Listed} = lists:splitwith(fun({_, Line}) -> not opens_list(Line) end, Lines),
+            {_, [_ | After]} = lists:splitwith(fun({_, Line}) -> not closes_list(Line) end,
+                                               Listed),
+            Before ++ After;
+        false ->
+            Lines
+    end.
+
+opens_list(Line) ->
+    Line =:= <<"-define(BRITISH,">>.
+
+closes_list(Line) ->
+    binary:longest_common_suffix([Line, <<"]).">>]) =:= 3.
+
+%% A file's numbered lines, or none where it holds a zero byte and is not text.
+text_lines(File) ->
+    Bytes = ern_repository:read(File),
+    case binary:match(Bytes, <<0>>) of
+        nomatch -> lists:enumerate(binary:split(Bytes, <<"\n">>, [global]));
+        _ -> []
+    end.
+
+%% A line's words, but in the host's names.
+words(Line, HostNames, Word) ->
+    Ours = re:replace(Line, HostNames, " ", [global, {return, binary}]),
+    case re:run(Ours, Word, [global, {capture, first, binary}]) of
+        {match, Words} -> [Found || [Found] <- Words];
+        nomatch -> []
+    end.
 
 %% docs/style.md: one `-export` list, in the order the functions appear,
 %% and a `-spec` on every exported function, in the toolchain's modules;

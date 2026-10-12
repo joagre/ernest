@@ -851,7 +851,7 @@ fn said(edited : Edit) : String =
       | Completing(_) -> "completing"
       | Documenting(_) -> "documenting"
       | Submit(Editing(text = text)) -> "submitted \"" <> text <> "\""
-      | Cancel -> "cancelled"
+      | Cancel -> "canceled"
       | ClearScreen(_) -> "cleared"
       | Quit -> "left"
     }

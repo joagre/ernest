@@ -418,7 +418,7 @@ sequence(Lists) ->
                 end, [], Lists).
 
 %% Report §11.5: a second use is reported where it stands, the first
-%% labelled.
+%% labeled.
 check_first_use({'$fault', _}, _Earlier) ->
     ok;
 check_first_use({Name, Span}, Earlier) ->
@@ -452,8 +452,8 @@ compared([{_, _, First} | _] = Branches) ->
     First.
 
 %% Report §11.5: a path that lacks a use is reported where it stands, the
-%% use on another path labelled, and the first binding on the path that
-%% shadows the name labelled as well (§5.10).
+%% use on another path labeled, and the first binding on the path that
+%% shadows the name labeled as well (§5.10).
 check_every_path(Name, Branches) ->
     case [{Span, Node} || {Span, Node, BranchUses} <- Branches,
                           not lists:keymember(Name, 1, BranchUses)] of

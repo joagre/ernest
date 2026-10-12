@@ -99,7 +99,7 @@ create_test() ->
 %% report §8.7, Appendix C: what ernest.conf may say, read whole: a
 %% listener of IPv6, peers with an address, a name, or none, services
 %% naming them in the order a find asks them, the host's measures, the
-%% node's utilisation, the run queue where the entry is absent, and the
+%% node's utilization, the run queue where the entry is absent, and the
 %% interval of its tellings, 5000 ms where the entry is absent
 read_test() ->
     Dir = made(),
@@ -114,11 +114,11 @@ read_test() ->
                                     <<"memory">> => #{<<"check-interval">> => 120000,
                                                       <<"almost-full">> => 0.9},
                                     <<"disk">> => #{<<"check-interval">> => 500}},
-                <<"utilisation">> => <<"schedulers">>,
-                <<"utilisation-interval">> => 2000}),
-    {configuration, _, Listen, _, Peers, Services, Measures, Utilisation, Interval} =
+                <<"utilization">> => <<"schedulers">>,
+                <<"utilization-interval">> => 2000}),
+    {configuration, _, Listen, _, Peers, Services, Measures, Utilization, Interval} =
         ern_node:read(Dir),
-    ?assertEqual(schedulers, Utilisation),
+    ?assertEqual(schedulers, Utilization),
     ?assertEqual(2000, Interval),
     ?assertEqual({{0, 0, 0, 0, 0, 0, 0, 0}, 0}, Listen),
     ?assertMatch([{peer, <<"store">>, _, {{0, 0, 0, 0, 0, 0, 0, 1}, 8654}},
@@ -133,7 +133,7 @@ read_test() ->
     ?assertMatch({configuration, _, none, _, [{peer, <<"store">>, _, {"localhost", 8654}}], _, _,
                   run_queue, 5000},
                  ern_node:read(Dir)),
-    with(Dir, #{<<"utilisation">> => <<"run-queue">>, <<"utilisation-interval">> => 1}),
+    with(Dir, #{<<"utilization">> => <<"run-queue">>, <<"utilization-interval">> => 1}),
     ?assertMatch({configuration, _, _, _, _, _, _, run_queue, 1}, ern_node:read(Dir)).
 
 %% report §8.7, Appendix C: what ernest.conf may not say, each refused when
@@ -201,17 +201,17 @@ read_refusals_test() ->
           "measures' disk's check-interval is not a count of milliseconds above 0"},
          {#{<<"measures">> => #{<<"disk">> => #{<<"almost-full">> => 2}}},
           "measures' disk's almost-full is not a fraction from 0 to 1"},
-         {#{<<"utilisation">> => <<"cpu">>},
-          "utilisation is \"cpu\", which is neither \"run-queue\" nor \"schedulers\""},
-         {#{<<"utilisation">> => 1}, "utilisation is neither \"run-queue\" nor \"schedulers\""},
-         {#{<<"utilisation-interval">> => 0},
-          "utilisation-interval is not a count of milliseconds above 0"},
-         {#{<<"utilisation-interval">> => -5000},
-          "utilisation-interval is not a count of milliseconds above 0"},
-         {#{<<"utilisation-interval">> => 2500.5},
-          "utilisation-interval is not a count of milliseconds above 0"},
-         {#{<<"utilisation-interval">> => <<"5000">>},
-          "utilisation-interval is not a count of milliseconds above 0"}],
+         {#{<<"utilization">> => <<"cpu">>},
+          "utilization is \"cpu\", which is neither \"run-queue\" nor \"schedulers\""},
+         {#{<<"utilization">> => 1}, "utilization is neither \"run-queue\" nor \"schedulers\""},
+         {#{<<"utilization-interval">> => 0},
+          "utilization-interval is not a count of milliseconds above 0"},
+         {#{<<"utilization-interval">> => -5000},
+          "utilization-interval is not a count of milliseconds above 0"},
+         {#{<<"utilization-interval">> => 2500.5},
+          "utilization-interval is not a count of milliseconds above 0"},
+         {#{<<"utilization-interval">> => <<"5000">>},
+          "utilization-interval is not a count of milliseconds above 0"}],
     Ends = fun(Message, Expected) ->
                case is_list(Message) andalso ends(Message, Expected) of
                    true -> ok;
@@ -421,23 +421,23 @@ pid_test() ->
 %% holds ernest.pid, and fail where there is no file or no node holds it,
 %% a living process the file names among the ways, which is sent nothing.
 %% A regression test, written after the code (finding E4): the file's
-%% number was signalled where it named a living process, a node or not; it
+%% number was signaled where it named a living process, a node or not; it
 %% does not cover the wait for the node's end, which the nodes' tests do
-signalled_test() ->
+signaled_test() ->
     Dir = made(),
     Pid = filename:join(Dir, "ernest.pid"),
     _ = ern_node:start(Dir),
     %% the signal 0 sends nothing, and asks whether the node lives
-    ?assertEqual(ok, ern_node:signalled(Dir, 0)),
+    ?assertEqual(ok, ern_node:signaled(Dir, 0)),
     ok = ern_node:stop(Dir),
     ?assertEqual(Pid ++ ": no such file: no node runs from the directory",
-                 refusal(fun() -> ern_node:signalled(Dir, 0) end)),
+                 refusal(fun() -> ern_node:signaled(Dir, 0) end)),
     Waiting = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary]),
     {os_pid, Living} = erlang:port_info(Waiting, os_pid),
     ok = file:write_file(Pid, integer_to_list(Living) ++ "\n"),
     [?assertEqual(Pid ++ ": no node holds it: no node runs from the directory",
                   refusal(fun() -> Job(Dir) end))
-     || Job <- [fun(Given) -> ern_node:signalled(Given, 1) end, fun ern_node:stopped/1]],
+     || Job <- [fun(Given) -> ern_node:signaled(Given, 1) end, fun ern_node:stopped/1]],
     %% the process lives, and reads its input still
     true = port_command(Waiting, <<"alive">>),
     ?assertEqual(<<"alive">>, receive {Waiting, {data, Echoed}} -> Echoed end),

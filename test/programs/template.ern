@@ -55,19 +55,19 @@ export type Point = Point(
     /// The vertical coordinate, growing upward.
     y : Int)
 
-/// A shape: a point alone, or a circle of a radius around a centre.
+/// A shape: a point alone, or a circle of a radius around a center.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
-/// // => Circle(centre = Point(x = 0, y = 0), radius = 1)
+/// Template.Circle(center = Template.Point(x = 0, y = 0), radius = 1)
+/// // => Circle(center = Point(x = 0, y = 0), radius = 1)
 /// ```
 export type Shape =
     /// A point alone; its area is zero.
     Dot(Point)
-  /// A circle by its centre and radius.
-  | Circle(centre : Point, radius : Int)
+  /// A circle by its center and radius.
+  | Circle(center : Point, radius : Int)
 
 /// Shapes in the order they were pushed, most recent on top. The
 /// representation is private.
@@ -111,9 +111,9 @@ export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
       | top :: rest -> Some(#(top, Stack(rest)))
     }
 
-/// The circle of the radius around the centre.
-export fn circle(centre : Point, radius : Int) : Shape =
-    Circle(centre = centre, radius = radius)
+/// The circle of the radius around the center.
+export fn circle(center : Point, radius : Int) : Shape =
+    Circle(center = center, radius = radius)
 
 /// The area of the shape. A point's is zero, and a circle's is pi times
 /// its radius squared.

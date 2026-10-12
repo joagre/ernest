@@ -1,6 +1,6 @@
 %% Diagnostics, report §11.5: one record for every stage, rendered as the
 %% first line `file:line:column: message`, then the source with a gutter,
-%% the spans underlined and labelled, and at most one help line.
+%% the spans underlined and labeled, and at most one help line.
 -module(ern_diagnostic).
 
 -export([span/1, short/2, format/3]).

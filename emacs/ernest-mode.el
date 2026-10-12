@@ -5,7 +5,7 @@
 ;; The mode for `.ern' files.  proposals/emacs/emacs_mode.md designs it, and says
 ;; what it does and what it does not do.
 ;;
-;; A buffer being edited is broken most of the time, so colouring and
+;; A buffer being edited is broken most of the time, so coloring and
 ;; indentation are the buffer's own work.  The toolchain is reached in
 ;; two places: `ernest-format-buffer' runs `ern format', and `M-x
 ;; compile' the compiler, whose diagnostics
@@ -141,7 +141,7 @@ bracket pair (report section 5.11)."
     ("\\(>\\)>" (1 ")<")))
    start end))
 
-;;; Colour
+;;; Color
 
 (defface ernest-doc-comment-face
   '((t :inherit font-lock-doc-face))

@@ -9,7 +9,7 @@
 %% and desk are two nodes; the tests of two builds (MVP 3.1) write a
 %% program and build it twice, one function and one type changed. A test
 %% that provokes a line the deployment guide quotes holds it to the guide's
-%% (ern_deployment_tests:catalogued/4), and the harness is exported for
+%% (ern_deployment_tests:cataloged/4), and the harness is exported for
 %% ern_deployment_tests, which runs the guide's commands on nodes.
 -module(ern_nodes_tests).
 
@@ -24,7 +24,7 @@
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["json", "proxy", "utilisation"]]).
+                    || Library <- ["json", "proxy", "utilization"]]).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
@@ -533,7 +533,7 @@ unlisted(Base) ->
     has(ErrB, "a node with the key " ++ digest(A) ++ " was refused: no peer has its key"),
     ?assertEqual(nomatch, string:find(ErrB, "TLS")),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrB, "7", "no peer has its key", [{"b", digest(A)}]).
+    ern_deployment_tests:cataloged(ErrB, "7", "no peer has its key", [{"b", digest(A)}]).
 
 %% report §8.7: a node accepts a connection from a peer whose key it lists
 %% only under the name that key gives it: a host that holds the key of the
@@ -570,7 +570,7 @@ bound(Base) ->
     {Own, Owned} = client(Root, name(B), key_files(B), Cookie, PortA, Target, true),
     says(A, "the peer b connected"),
     lists(A, [{"c", C, none}]),
-    ?assertMatch({0, _}, signalled("reload", A)),
+    ?assertMatch({0, _}, signaled("reload", A)),
     says(A, "the peer b was removed"),
     true = port_command(Own, "go\n"),
     {0, OwnOut} = Owned(),
@@ -581,10 +581,10 @@ bound(Base) ->
     has(OwnOut, "after: "),
     {_, ErrA} = said(A),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrA, "7", "gives another name", []),
-    ern_deployment_tests:catalogued(ErrA, "7", "certificate names another host", [{"b", "b"}]).
+    ern_deployment_tests:cataloged(ErrA, "7", "gives another name", []),
+    ern_deployment_tests:cataloged(ErrA, "7", "certificate names another host", [{"b", "b"}]).
 
-%% report §8.7: a node it dials must answer under the name it dialled: the
+%% report §8.7: a node it dials must answer under the name it dialed: the
 %% address a lists for the peer b is the port of c, another peer it lists,
 %% which answers under its own name, and the dial fails, neither node
 %% connected; the host's handshake refuses the answer, and neither says
@@ -664,7 +664,7 @@ other_floor(Base) ->
     {_, ErrA} = said(A),
     ?assertEqual(nomatch, string:find(ErrA, "**")),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrA, "7", "another floor", [{"b", "b"}]).
+    ern_deployment_tests:cataloged(ErrA, "7", "another floor", [{"b", "b"}]).
 
 %% report §8.7, limit 14 of the proposal: two nodes started from copies of
 %% one directory are one node to their peers; the second's dial ends the
@@ -696,7 +696,7 @@ replaced(Base) ->
     {_, ErrB} = said(B),
     has(ErrB, "the peer a's connection was replaced by another from the same node"),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrB, "7", "was replaced by another", [{"b", "a"}]).
+    ern_deployment_tests:cataloged(ErrB, "7", "was replaced by another", [{"b", "a"}]).
 
 %% report §8.7: a node whose `listen` names port 0 takes the port the host
 %% picks and says which it bound; a node without `listen` does not listen,
@@ -758,7 +758,7 @@ faulty_frame(Base) ->
     has(ErrB, "the peer a sent a frame this node cannot read, and its connection was ended"),
     has(ErrA, "the peer b was lost: it closed"),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrA, "7", "it closed", [{"b", "b"}]).
+    ern_deployment_tests:cataloged(ErrA, "7", "it closed", [{"b", "b"}]).
 
 %% report §8.7: a spawn frame whose site is not UTF-8 is a frame the node
 %% cannot read, though the node holds the function it names: the node ends
@@ -884,8 +884,8 @@ os_exit(Base) ->
 %% report §8.7, §11.2: a node whose `ernest.conf` is refused is refused with
 %% the file and the rule, as the launcher's second start says it, the first
 %% having given the host no flags: peers that are no array, and a
-%% `utilisation` that names neither measure. A regression test: the refusal
-%% said the host had not been started as a node; the utilisation's was
+%% `utilization` that names neither measure. A regression test: the refusal
+%% said the host had not been started as a node; the utilization's was
 %% written after the code
 refused_configuration_test_() ->
     nodes_test(60, fun refused_configuration/1).
@@ -898,9 +898,9 @@ refused_configuration(Base) ->
     Said = os:cmd(Run),
     has(Said, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": peers is not a JSON array"),
     has(Said, "status 1"),
-    edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilisation">> => <<"cpu">>} end),
+    edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilization">> => <<"cpu">>} end),
     Measured = os:cmd(Run),
-    has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": utilisation is \"cpu\","
+    has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": utilization is \"cpu\","
                   " which is neither \"run-queue\" nor \"schedulers\""),
     has(Measured, "status 1").
 
@@ -957,7 +957,7 @@ carrier_not_started(Base) ->
     ?assertEqual({ok, <<>>}, file:read_file(Out)),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(Said, "7", "carrier did not start", [{"Site", "Prog.main"}]).
+    ern_deployment_tests:cataloged(Said, "7", "carrier did not start", [{"Site", "Prog.main"}]).
 
 %% report §8.6: a node detects no deadlock, since it can be reached from
 %% outside: a node that waits for a message that never comes waits, where
@@ -1036,7 +1036,7 @@ store_and_desk(Base) ->
     {Store, Desk}.
 
 %% report §8.7, Appendix E.27, §6.5, §6.9, §6.6, E.21: a find in a node's
-%% initializer answers Unreachable, the node not yet dialling; a find over
+%% initializer answers Unreachable, the node not yet dialing; a find over
 %% a service's peers in order passes over one that cannot be reached and
 %% answers the next's address, a service not listed NotListed, a name
 %% offered at another type OtherType, a name not offered NotOffered, a
@@ -1242,10 +1242,10 @@ peer_fault(Base) ->
     has(ErrB, "Squares.main:20 faulted, restarted: division by zero, spawned by the peer a\n"),
     ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrB, "7", "spawned by the peer",
-                                    [{"Counter.serve:14", "Squares.main:20"}, {"a", "a"}]).
+    ern_deployment_tests:cataloged(ErrB, "7", "spawned by the peer",
+                                   [{"Counter.serve:14", "Squares.main:20"}, {"a", "a"}]).
 
-%% The program of two nodes, a and b, each listing the other, a dialling b:
+%% The program of two nodes, a and b, each listing the other, a dialing b:
 %% a service on a whose answer is given on b, by a lambda it spawns there
 %% with the request's reply among its captures, and a function a spawns on
 %% b that faults, restarting once, after it spawns one there that faults.
@@ -1415,26 +1415,26 @@ compute_on_peer(Base) ->
 %% the code; that the run queue's measure is the run queue over the
 %% schedulers, and not the schedulers' time, is read from the code, since an
 %% idle node answers 0.0 or more under both
-utilisation_test_() ->
-    nodes_test(90, fun utilisation_of_peer/1).
+utilization_test_() ->
+    nodes_test(90, fun utilization_of_peer/1).
 
-utilisation_of_peer(Base) ->
+utilization_of_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    edit(Store, fun(Conf) -> Conf#{<<"utilisation">> => <<"schedulers">>} end),
+    edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"schedulers">>} end),
     WaitStore = start(Store, StoreProgram, []),
     prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["utilisation"]),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["utilization"]),
     prints(Store, "the store keeps the schedulers' time at the start: true"),
     prints(Desk, "now measure the run queue"),
-    edit(Store, fun(Conf) -> maps:remove(<<"utilisation">>, Conf) end),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    edit(Store, fun(Conf) -> maps:remove(<<"utilization">>, Conf) end),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "ernest.conf was read again"),
     true = port_command(DeskPort, "go\n"),
     prints(Store, "the store keeps the schedulers' time after the reload: false"),
     prints(Desk, "now refuse a reload"),
-    edit(Store, fun(Conf) -> Conf#{<<"utilisation">> => <<"cpu">>} end),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"cpu">>} end),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "the reload was refused"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
@@ -1444,7 +1444,7 @@ utilisation_of_peer(Base) ->
     [has(Out, Line) || Line <- ["not listed: Left(NotListed)", "schedulers: #(true, true)",
                                 "run queue: true", "after the refusal: true"]],
     has(StoreErr, "the reload was refused, and the configuration stays as it was: "),
-    has(StoreErr, "ernest.conf: utilisation is \"cpu\", which is neither \"run-queue\" nor"
+    has(StoreErr, "ernest.conf: utilization is \"cpu\", which is neither \"run-queue\" nor"
                   " \"schedulers\"").
 
 %% report §8.7, §6.5, §6.9, §8.4, §3.11: a correct program's messages make
@@ -1532,7 +1532,7 @@ calls(Base) ->
                  "waits again: 1", "its connection lost: Returned", "after the loss: 0"]].
 
 %% `ern <job> --config-dir Dir` run as a person runs it, its status.
-signalled(Job, Dir) ->
+signaled(Job, Dir) ->
     Said = os:cmd(?ERN ++ " " ++ Job ++ " --config-dir " ++ Dir ++ " 2>&1; echo status $?"),
     {match, [Status]} = re:run(Said, "status ([0-9]+)", [{capture, all_but_first, list}]),
     {list_to_integer(Status), Said}.
@@ -1553,7 +1553,7 @@ stop_in_order(Base) ->
     prints(Store, "offered"),
     {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["ending"]),
     prints(Desk, "watching"),
-    ?assertMatch({0, _}, signalled("stop", Store)),
+    ?assertMatch({0, _}, signaled("stop", Store)),
     ?assertEqual(143, WaitStore()),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
@@ -1561,7 +1561,7 @@ stop_in_order(Base) ->
     has(Out, "ended: ProgramEnd \"\""),
     has(Out, "after: Unreachable \"\""),
     ?assertNot(filelib:is_file(filename:join(Store, "ernest.pid"))),
-    {Status, Said} = signalled("stop", Store),
+    {Status, Said} = signaled("stop", Store),
     ?assertEqual(1, Status),
     has(Said, "ernest.pid: no such file: no node runs from the directory").
 
@@ -1573,7 +1573,7 @@ stop_in_order(Base) ->
 %% process that is no node, `ern stop` and `ern reload` fail, saying that
 %% no node holds it, and the process is sent nothing. A regression test,
 %% written after the code (finding E4): a start was refused by a file whose
-%% number a living process held, and the jobs signalled that process
+%% number a living process held, and the jobs signaled that process
 pid_lock_test_() ->
     nodes_test(60, fun pid_lock/1).
 
@@ -1603,7 +1603,7 @@ pid_lock(Base) ->
     {os_pid, LivingNumber} = erlang:port_info(Living, os_pid),
     ok = file:write_file(PidFile, integer_to_list(LivingNumber) ++ "\n"),
     [begin
-         {Status, Said} = signalled(Job, A),
+         {Status, Said} = signaled(Job, A),
          ?assertEqual(1, Status),
          has(Said, "ernest.pid: no node holds it: no node runs from the directory")
      end || Job <- ["stop", "reload"]],
@@ -1649,7 +1649,7 @@ export fn main() : Unit with Msg = {
     0 = ern_cli:ern(["build", Root], group_leader()),
     Program = filename:join(Root, "stopping.erc"),
     Self = self(),
-    Stopping = fun() -> spawn_link(fun() -> Self ! {stopped, signalled("stop", A)} end) end,
+    Stopping = fun() -> spawn_link(fun() -> Self ! {stopped, signaled("stop", A)} end) end,
     {Port, Wait} = started(A, Program, []),
     prints(A, "subscribed"),
     _ = Stopping(),
@@ -1697,16 +1697,16 @@ reload(Base) ->
     {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["reload"]),
     prints(Desk, "watching"),
     lists(Store, [{"third", Third, none}]),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "the peer desk was removed"),
     prints(Desk, "now list the desk again"),
     lists(Store, [{"third", Third, none}, {"front", Desk, none}]),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "the peer front was added"),
     true = port_command(DeskPort, "go\n"),
     prints(Desk, "now rename the desk"),
     lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "the peer front is now named window"),
     true = port_command(DeskPort, "go\n"),
     prints(Desk, "now refuse a reload"),
@@ -1715,11 +1715,11 @@ reload(Base) ->
                                <<"public-key">> => undecodable(public(Desk))},
                     Conf#{<<"peers">> := Peers ++ [Broken]}
                 end),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "is not one public key in PEM"),
     lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
     edit(Store, fun(Conf) -> Conf#{<<"listen">> => address(free_port())} end),
-    ?assertMatch({0, _}, signalled("reload", Store)),
+    ?assertMatch({0, _}, signaled("reload", Store)),
     says(Store, "the reload was refused"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
@@ -1739,8 +1739,8 @@ reload(Base) ->
     ?assertEqual(nomatch, string:find(Err, "the peer front was lost")),
     ?assertEqual(nomatch, string:find(StoreOut, "WARNING REPORT")),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(Err, "7", "was removed", []),
-    ern_deployment_tests:catalogued(Err, "7", "is now named", [{"c", "window"}]).
+    ern_deployment_tests:cataloged(Err, "7", "was removed", []),
+    ern_deployment_tests:cataloged(Err, "7", "is now named", [{"c", "window"}]).
 
 %% A public key in PEM whose body the host's decoder cannot read: its first
 %% bytes, the key's algorithm, made another DER's.
@@ -2154,23 +2154,23 @@ exchange(Base) ->
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.Count")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")),
-    %% the lines as the deployment guide quotes them, in its catalogue and
+    %% the lines as the deployment guide quotes them, in its catalog and
     %% beside a spawn's
     Peer = {"a", "sender"},
-    ern_deployment_tests:catalogued(ReceiverErr, "7", "has no value here",
-                                    [Peer, {"Site", "Sender.main:13"}, {"Q", "Lacked.note"}]),
-    ern_deployment_tests:catalogued(ReceiverErr, "7", "is not here",
-                                    [Peer, {"Site", "Sender.main:15"}, {"M", "ern_sender_host"},
-                                     {"Q", "Lacked.only"}]),
-    ern_deployment_tests:catalogued(ReceiverErr, "4.3", "has no value here",
-                                    [Peer, {"Counter.main:13", "Sender.main:13"},
-                                     {"Counter.config", "Lacked.note"}]),
-    ern_deployment_tests:catalogued(ReceiverErr, "4.3", "is not here",
-                                    [Peer, {"Counter.main:15", "Sender.main:15"},
-                                     {"counter_host", "ern_sender_host"},
-                                     {"Counter.tick", "Lacked.only"}]),
-    ern_deployment_tests:catalogued(ReceiverErr, "4.3", "has no function",
-                                    [{"tick/0", "ern_absent_function/0"}]).
+    ern_deployment_tests:cataloged(ReceiverErr, "7", "has no value here",
+                                   [Peer, {"Site", "Sender.main:13"}, {"Q", "Lacked.note"}]),
+    ern_deployment_tests:cataloged(ReceiverErr, "7", "is not here",
+                                   [Peer, {"Site", "Sender.main:15"}, {"M", "ern_sender_host"},
+                                    {"Q", "Lacked.only"}]),
+    ern_deployment_tests:cataloged(ReceiverErr, "4.3", "has no value here",
+                                   [Peer, {"Counter.main:13", "Sender.main:13"},
+                                    {"Counter.config", "Lacked.note"}]),
+    ern_deployment_tests:cataloged(ReceiverErr, "4.3", "is not here",
+                                   [Peer, {"Counter.main:15", "Sender.main:15"},
+                                    {"counter_host", "ern_sender_host"},
+                                    {"Counter.tick", "Lacked.only"}]),
+    ern_deployment_tests:cataloged(ReceiverErr, "4.3", "has no function",
+                                   [{"tick/0", "ern_absent_function/0"}]).
 
 %% A library whose binding prints as it is evaluated, and a program that
 %% places work on a bare node and ends it, built in Base: the library's
@@ -2201,8 +2201,8 @@ bare_build(Base) ->
              "      | _ -> Unit\n"
              "    }\n"
              "\n"
-             "// Spawns, computes, a find, a utilisation and a pick, each answer a line;\n"
-             "// the bare node tells its utilisation every interval.\n"
+             "// Spawns, computes, a find, a utilization and a pick, each answer a line;\n"
+             "// the bare node tells its utilization every interval.\n"
              "fn placed(bare : String, interval : Int) : Unit with Note = {\n"
              "    let counter = Peer.spawn(bare, fn() : Unit with Int = counts(0), 5000);\n"
              "    Io.println(\"spawn: \" <> outcome(counter));\n"
@@ -2230,11 +2230,11 @@ bare_build(Base) ->
              "        }\n"
              "      | Left(failure) -> Io.println(\"found: \" <> Io.show(failure))\n"
              "    };\n"
-             "    let utilisation = match Peer.utilisation(bare, 5000) {\n"
+             "    let utilization = match Peer.utilization(bare, 5000) {\n"
              "        Right(_) -> \"Right\"\n"
              "      | Left(failure) -> Io.show(failure)\n"
              "    };\n"
-             "    Io.println(\"utilisation: \" <> utilisation);\n"
+             "    Io.println(\"utilization: \" <> utilization);\n"
              "    heard(bare, interval);\n"
              "    Io.println(\"picked: \" <> Io.show(Peer.compute(answer, 5000)));\n"
              "    Io.println(\"binding: \" <> outcome(Peer.spawn(bare, Shared.greet, 5000)));\n"
@@ -2267,10 +2267,10 @@ bare_build(Base) ->
              "\n"
              "fn answer() : Int = 6 * 7\n"
              "\n"
-             "// Report §8.7: until the node holds the bare node's utilisation, read\n"
+             "// Report §8.7: until the node holds the bare node's utilization, read\n"
              "// again at each of its intervals, at which alone the table changes.\n"
              "fn heard(bare : String, interval : Int) : Unit with m =\n"
-             "    if List.any(Peer.utilisations(), fn(#(peer, _, _)) = peer == bare) then\n"
+             "    if List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == bare) then\n"
              "        Unit\n"
              "    else\n"
              "        receive {\n"
@@ -2325,7 +2325,7 @@ line_of(Text, Part) ->
 %% of the program's function runs there with its code crossed, and takes
 %% the peer's messages; a compute answers its value; a process spawned
 %% there offers a service, which the peer finds and sends to; its
-%% utilisation answers, and it tells it as any node does, so that a
+%% utilization answers, and it tells it as any node does, so that a
 %% compute that names no peer runs there once it has; a library on its
 %% load path is loaded and its binding not evaluated, so a spawn whose reach
 %% names the binding is NotLoaded, the node saying so; a fault in received
@@ -2349,7 +2349,7 @@ bare_node(Base) ->
     B = made(Base, "b", 0),
     lists(B, [{"a", A, none}]),
     Interval = 200,
-    edit(B, fun(Conf) -> Conf#{<<"utilisation-interval">> => Interval} end),
+    edit(B, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end),
     edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
     WaitB = bare_started(B, [SharedDir]),
     lists(A, [{"b", B, bound_port(B)}]),
@@ -2365,13 +2365,13 @@ bare_node(Base) ->
                  Site("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
                  Site("\"raises: \"") ++ Raised, Site("\"raises again: \"") ++ Raised]],
     [prints(B, Line) || Line <- ["counted 1", "counted 7"]],
-    ?assertMatch({0, _}, signalled("stop", B)),
+    ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
     {Out, _} = said(A),
     {OutB, ErrB} = said(B),
     [has(Out, Line)
      || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
-                 "offering: Right", "found: Right", "utilisation: Right",
+                 "offering: Right", "found: Right", "utilization: Right",
                  "picked: Right(42)", "binding: NotLoaded", "divides: Right",
                  "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
     ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
@@ -2685,7 +2685,7 @@ lost_build(Root) ->
              "    }\n"
              "\n"
              "fn late(bare : String) : Unit with Never = {\n"
-             "    Io.println(\"dialled: \" <> outcome(Peer.utilisation(bare, 5000)));\n"
+             "    Io.println(\"dialed: \" <> outcome(Peer.utilization(bare, 5000)));\n"
              "    Io.println(\"late: \" <> outcome(Peer.spawn(bare, waits, 1)));\n"
              "    let again = Peer.spawn(bare, waits, 5000);\n"
              "    Io.println(\"again: \" <> outcome(again));\n"
@@ -2858,7 +2858,7 @@ broken_exchange(Base) ->
     stop(B, WaitB),
     {Out, _} = said(A),
     {_, ErrB} = said(B),
-    [has(Out, Line) || Line <- ["dialled: Right", "late: Timeout", "again: Right"]],
+    [has(Out, Line) || Line <- ["dialed: Right", "late: Timeout", "again: Right"]],
     [has(ErrB, Line)
      || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
                  " holds the function's reach",
@@ -2866,8 +2866,8 @@ broken_exchange(Base) ->
                  "'ern$1':'Lost.waits'/0"]],
     [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["'ern$2'", "could not take"]],
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(ErrB, "4.3", "no longer holds the function's reach",
-                                    [{"a", "z"}, {"Counter.main:19", "Lost.z:1"}]).
+    ern_deployment_tests:cataloged(ErrB, "4.3", "no longer holds the function's reach",
+                                   [{"a", "z"}, {"Counter.main:19", "Lost.z:1"}]).
 
 %% report §11.2, §8.7, Appendix H: a service at a type the session declares
 %% names that type by its hash, as any service does, and the hash is the
@@ -3604,7 +3604,7 @@ end_told_on_a_node(Base) ->
     has(DeskOut, "asked: Some(3)"),
     has(StoreErr, "the subscriber Keeper.main answered"),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:catalogued(StoreErr, "7", "the end waits for", []).
+    ern_deployment_tests:cataloged(StoreErr, "7", "the end waits for", []).
 
 %% report §8.6, §11.2: a second termination ends the node at once, past a
 %% subscriber that does not answer, which the node says. Written after the
@@ -3697,17 +3697,17 @@ typed_channels(Base) ->
     has(OutA, "total on b: Some(5)").
 
 %% report §8.7, Appendix E.27, C, G.4: a compute on a peer the desk picks,
-%% the store and the desk telling every `utilisation-interval` of their
+%% the store and the desk telling every `utilization-interval` of their
 %% configurations, of the desk's two peers the store alone reached: before
-%% any connection, the desk holding no utilisation, Unreachable; once the
+%% any connection, the desk holding no utilization, Unreachable; once the
 %% spawn of the readings' check has connected them and the store has told
-%% its utilisation, on the store, the value its peers, the desk and the
-%% third node, and the store the one peer the desk holds a utilisation of,
-%% the peer gone left out; Utilisation answers the host's services'
+%% its utilization, on the store, the value its peers, the desk and the
+%% third node, and the store the one peer the desk holds a utilization of,
+%% the peer gone left out; Utilization answers the host's services'
 %% readings on the store, whose measures run them, and none on the desk,
 %% whose do not. A regression test, written after the code; the pick's
 %% rules over two peers and more are pick_test_'s and ern_peer_tests', and
-%% the desk waits for the telling by reading its utilisations at each
+%% the desk waits for the telling by reading its utilizations at each
 %% interval, so that the telling's coming within one interval is held by no
 %% time here
 placed_test_() ->
@@ -3717,7 +3717,7 @@ placed(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     Interval = 200,
-    [edit(Dir, fun(Conf) -> Conf#{<<"utilisation-interval">> => Interval} end)
+    [edit(Dir, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end)
      || Dir <- [Store, Desk]],
     edit(Store, fun(Conf) ->
                     Conf#{<<"measures">> => #{<<"cpu">> => #{}, <<"memory">> => #{},
@@ -3746,7 +3746,7 @@ pick_build(Base) ->
     Dir = filename:join(Base, "pick"),
     ok = filelib:ensure_path(Dir),
     Source = "// Report §8.7: the spawner, which lists p1 and p2, computes on the one\n"
-             "// it picks by the utilisations they told it; p1 and p2, which list it,\n"
+             "// it picks by the utilizations they told it; p1 and p2, which list it,\n"
              "// wait;\n"
              "// and a node that lists no peer picks none.\n"
              "\n"
@@ -3765,41 +3765,41 @@ pick_build(Base) ->
              "\n"
              "fn picks(interval : Int) : Unit with Unit = {\n"
              "    Io.println(\"before a telling: \" <> Io.show(Peer.compute(ran, 5000)));\n"
-             "    let set1 = Peer.computeAt(\"p1\", fn() = Peer.setUtilisation(0.9), 5000);\n"
+             "    let set1 = Peer.computeAt(\"p1\", fn() = Peer.setUtilization(0.9), 5000);\n"
              "    Io.println(\"p1 set: \" <> Io.show(set1));\n"
-             "    let set2 = Peer.computeAt(\"p2\", fn() = Peer.setUtilisation(0.1), 5000);\n"
+             "    let set2 = Peer.computeAt(\"p2\", fn() = Peer.setUtilization(0.1), 5000);\n"
              "    Io.println(\"p2 set: \" <> Io.show(set2));\n"
              "    heard(\"p1\", 0.9, interval);\n"
              "    heard(\"p2\", 0.1, interval);\n"
-             "    let told = List.map(Peer.utilisations(), fn(#(name, utilisation, _)) ="
-             " #(name, utilisation));\n"
-             "    Io.println(\"utilisations: \" <> Io.show(told));\n"
-             "    Io.println(\"utilisation of p1: \" <> Io.show(Peer.utilisation(\"p1\", 5000)));\n"
+             "    let told = List.map(Peer.utilizations(), fn(#(name, utilization, _)) ="
+             " #(name, utilization));\n"
+             "    Io.println(\"utilizations: \" <> Io.show(told));\n"
+             "    Io.println(\"utilization of p1: \" <> Io.show(Peer.utilization(\"p1\", 5000)));\n"
              "    let computed = List.map(List.range(1, 20), fn(_) = Peer.compute(ran, 5000));\n"
              "    Io.println(\"computed: \" <> Io.show(List.unique(computed)));\n"
              "    Io.println(\"named: \" <> Io.show(Peer.computeAt(\"p1\", ran, 5000)));\n"
              "    Io.println(\"now stop p2\");\n"
              "    let _ = Io.readLine();\n"
-             "    let left = List.map(Peer.utilisations(), fn(#(name, _, _)) = name);\n"
+             "    let left = List.map(Peer.utilizations(), fn(#(name, _, _)) = name);\n"
              "    Io.println(\"after the loss: \" <> Io.show(left));\n"
              "    Io.println(\"computed alone: \" <> Io.show(Peer.compute(ran, 5000)))\n"
              "}\n"
              "\n"
-             "// Report §8.7: until the node holds the utilisation given of the peer\n"
+             "// Report §8.7: until the node holds the utilization given of the peer\n"
              "// named, read again every interval, the time between the peer's\n"
              "// tellings, at which alone the table changes.\n"
-             "fn heard(name : String, utilisation : Float, interval : Int) : Unit with m =\n"
-             "    if List.any(Peer.utilisations(), fn(#(peer, held, _)) ="
-             " peer == name && held == utilisation) then\n"
+             "fn heard(name : String, utilization : Float, interval : Int) : Unit with m =\n"
+             "    if List.any(Peer.utilizations(), fn(#(peer, held, _)) ="
+             " peer == name && held == utilization) then\n"
              "        Unit\n"
              "    else\n"
              "        receive {\n"
-             "            after interval -> heard(name, utilisation, interval)\n"
+             "            after interval -> heard(name, utilization, interval)\n"
              "        }\n"
              "\n"
              "fn alone() : Unit with Unit = {\n"
              "    Io.println(\"no peer: \" <> Io.show(Peer.compute(ran, 5000)));\n"
-             "    Io.println(\"no utilisation: \" <> Io.show(Peer.utilisations()))\n"
+             "    Io.println(\"no utilization: \" <> Io.show(Peer.utilizations()))\n"
              "}\n"
              "\n"
              "// Until the node is stopped: a node waiting for ever is no deadlock.\n"
@@ -3812,24 +3812,24 @@ pick_build(Base) ->
     filename:join(Dir, "pick.erc").
 
 %% report §8.7, Appendix E.27, C: three nodes telling each other every
-%% `utilisation-interval`, the spawner far more often than p1 and p2, each
+%% `utilization-interval`, the spawner far more often than p1 and p2, each
 %% started with its name, which a compute of the node's arguments answers:
 %% the spawner, listing p1 and p2 and heard from by neither before its
 %% first operation, answers a compute that names no peer Unreachable; p1's
-%% utilisation set high and p2's low by a compute on each,
-%% `Peer.setUtilisation` in the process it starts, the spawner's
-%% utilisations show both, in the configuration's order, and p1's
-%% utilisation asked answers the number its program set; every compute that
+%% utilization set high and p2's low by a compute on each,
+%% `Peer.setUtilization` in the process it starts, the spawner's
+%% utilizations show both, in the configuration's order, and p1's
+%% utilization asked answers the number its program set; every compute that
 %% names no peer runs on p2, the less busy of the two the draw takes, each
-%% utilisation aged by its teller's interval and not the spawner's, by
+%% utilization aged by its teller's interval and not the spawner's, by
 %% which it would mostly be too old, and `Peer.computeAt` runs on the peer
-%% named, p1; p2 stopped, its utilisation is dropped at the loss, which the
+%% named, p1; p2 stopped, its utilization is dropped at the loss, which the
 %% spawner says, and a compute runs on p1, the one peer left, taken as it
 %% is; and a node that lists no peer answers NotListed and holds no
-%% utilisation. A regression test, written after the code; the spawner
-%% waits for each telling by reading its utilisations at each interval, so
+%% utilization. A regression test, written after the code; the spawner
+%% waits for each telling by reading its utilizations at each interval, so
 %% that a telling's coming within one interval is held by no time here, and
-%% the draw among more than two peers and the age of a utilisation are
+%% the draw among more than two peers and the age of a utilization are
 %% ern_peer_tests'
 pick_test_() ->
     nodes_test(90, fun pick/1).
@@ -3844,7 +3844,7 @@ pick(Base) ->
     {Interval, SpawnersInterval} = {200, 20},
     lists(S, [{"p1", P1, Port1}, {"p2", P2, Port2}]),
     [lists(Dir, [{"s", S, none}]) || Dir <- [P1, P2]],
-    [edit(Dir, fun(Conf) -> Conf#{<<"utilisation-interval">> => Ms} end)
+    [edit(Dir, fun(Conf) -> Conf#{<<"utilization-interval">> => Ms} end)
      || {Dir, Ms} <- [{S, SpawnersInterval}, {P1, Interval}, {P2, Interval}]],
     Wait1 = start(P1, Program, ["p1"]),
     Wait2 = start(P2, Program, ["p2"]),
@@ -3860,12 +3860,12 @@ pick(Base) ->
     {Out, _} = said(S),
     [has(Out, Line)
      || Line <- ["before a telling: Left(Unreachable)", "p1 set: Right(Unit)",
-                 "p2 set: Right(Unit)", "utilisations: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
-                 "utilisation of p1: Right(0.9)", "computed: [Right([\"p2\"])]",
+                 "p2 set: Right(Unit)", "utilizations: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
+                 "utilization of p1: Right(0.9)", "computed: [Right([\"p2\"])]",
                  "named: Right([\"p1\"])", "after the loss: [\"p1\"]",
                  "computed alone: Right([\"p1\"])"]],
     {AloneOut, _} = said(Alone),
-    [has(AloneOut, Line) || Line <- ["no peer: Left(NotListed)", "no utilisation: []"]].
+    [has(AloneOut, Line) || Line <- ["no peer: Left(NotListed)", "no utilization: []"]].
 
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two
@@ -4132,7 +4132,7 @@ dial(Base) ->
     readdressed(Desk, <<"store">>, answers_nothing()),
     ?assertEqual(0, (start(Desk, DeskProgram, ["dial"]))()),
     {Out, _} = said(Desk),
-    {match, [Seconds]} = re:run(Out, "dialled: Left\\(Unreachable\\) after ([0-9]+)",
+    {match, [Seconds]} = re:run(Out, "dialed: Left\\(Unreachable\\) after ([0-9]+)",
                                 [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Seconds) >= 6),
     ?assert(list_to_integer(Seconds) =< 9).

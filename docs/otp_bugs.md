@@ -10,7 +10,7 @@ Not filed. Found on 2026-10-01; the log's *A Port Lost While It Starts*.
 
 **Describe the bug**
 
-When the emulator ends abruptly while it starts a port, by `SIGKILL` or by `SIGINT` under `+B`, the line `erl_child_setup: failed with error 32 on line 284` can appear on standard error. The forked child reads the port's command from the emulator, then waits for the emulator's acknowledgement; an emulator that is gone leaves the child with a broken pipe, which it reports. The helper itself exits silently when it loses the emulator, and the child does not. A program whose output is read by another, or that is meant to end quietly when it is killed, gets a line it did not write.
+When the emulator ends abruptly while it starts a port, by `SIGKILL` or by `SIGINT` under `+B`, the line `erl_child_setup: failed with error 32 on line 284` can appear on standard error. The forked child reads the port's command from the emulator, then waits for the emulator's acknowledgment; an emulator that is gone leaves the child with a broken pipe, which it reports. The helper itself exits silently when it loses the emulator, and the child does not. A program whose output is read by another, or that is meant to end quietly when it is killed, gets a line it did not write.
 
 **To Reproduce**
 

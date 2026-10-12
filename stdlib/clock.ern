@@ -6,7 +6,7 @@
 /// microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
 /// later.
 ///
-/// **Alarms.** An alarm fires once, and cannot be cancelled: a process that no
+/// **Alarms.** An alarm fires once, and cannot be canceled: a process that no
 /// longer wants it ignores its message. A periodic tick is set again each time
 /// the one before is handled. A restart of the process that set an alarm
 /// cancels it (report §6.9).

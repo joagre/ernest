@@ -255,7 +255,7 @@ bench: all
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to
 # run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
 EMACS ?= emacs
-EMACS_TESTS = flatten reindent format lint colour editing broken
+EMACS_TESTS = flatten reindent format lint color editing broken
 # typing.el costs the square of a file's length, so it runs in four parts,
 # the largest files in different parts, the longest jobs first.
 TYPING_PARTS = $(addprefix emacs-test-typing-,0 1 2 3)
@@ -311,7 +311,7 @@ dialyzer: all
 	  build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
-# undefined-behaviour sanitizers (docs/release_review.md): the analyzer
+# undefined-behavior sanitizers (docs/release_review.md): the analyzer
 # over its source, which must say nothing; then the helper built with the
 # sanitizers where make builds it, the runtime's tests and the programs'
 # run with it, each sanitizer writing what it finds into build/sanitize,
@@ -336,7 +336,7 @@ sanitize: all
 xref:
 	@$(MAKE) -s -C test xref
 
-# Rewrite the outputs of test/diagnostics.md, the catalogue of the front
+# Rewrite the outputs of test/diagnostics.md, the catalog of the front
 # end's errors, from what the compiler prints, after a change to a message
 # that is meant.
 diagnostics: all

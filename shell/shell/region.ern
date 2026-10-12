@@ -382,7 +382,7 @@ fn expanding(graphemes : List(String), acc : String) : String =
     }
 
 // A row cut to the window's width keeps its escape sequences whole, and
-// one cut short after a sequence ends with the reset, so the colour of
+// one cut short after a sequence ends with the reset, so the color of
 // what was cut off does not run on into the next row: the sequences cut
 // may be any, and the reset is the one sequence that ends them all.
 fn clip(line : String, width : Int) : String =
@@ -582,8 +582,8 @@ let offerWraps = Test.Case(name = "a row shown under the input wraps at the edge
     rowsAre(rowsOf(region1), ["> ", "abcdef", "gh"])
 })
 
-let wrapKeepsColour =
-    Test.Case(name = "a wrapped row is coloured on as it was",
+let wrapKeepsColor =
+    Test.Case(name = "a wrapped row is colored on as it was",
               run = fn() =
                   rowsAre(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
                           ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))

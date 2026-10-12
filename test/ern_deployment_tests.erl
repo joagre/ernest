@@ -5,7 +5,7 @@
 %% 1.1, 1.3 and 5.3, the harness's paths in place of the guide's; section
 %% 1.4's statuses; and the lines its sections 7 and 4.3 quote, each held to
 %% the line a node writes where a test provokes it, here or in
-%% ern_nodes_tests, by catalogued/4, which catalogue_test sees every quoted
+%% ern_nodes_tests, by cataloged/4, which catalog_test sees every quoted
 %% line has. The nodes are started by ern_nodes_tests' harness, which reads
 %% each node's streams through a watcher of its own and kills every node
 %% still running when a test ends. Regression tests, written after the
@@ -15,7 +15,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([catalogued/4]).
+-export([cataloged/4]).
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(GUIDE, "../guide/deployment.md").
@@ -101,10 +101,10 @@ runbook(Base) ->
     ?assertMatch({match, _}, re:run(ErrB, "\\A[^\n]* the peer ops connected\n")),
     ?assertMatch({match, _}, re:run(ErrC, "\\A[^\n]* the peer a connected\n")),
     %% the lines as the guide's section 7 quotes them
-    catalogued(ErrB, "7", "connected", [{"b", "ops"}]),
-    catalogued(ErrB, "7", "ended", [{"b", "a"}]),
-    catalogued(Reload, "7", "was read again", []),
-    catalogued(Reload, "7", "was added", [{"b", "d"}]).
+    cataloged(ErrB, "7", "connected", [{"b", "ops"}]),
+    cataloged(ErrB, "7", "ended", [{"b", "a"}]),
+    cataloged(Reload, "7", "was read again", []),
+    cataloged(Reload, "7", "was added", [{"b", "d"}]).
 
 %%
 %% Section 1, one node
@@ -191,13 +191,13 @@ one_node(Base) ->
     [Stale, _] = [no_node(Base, Job, Dir) || Job <- ["stop", "reload"]],
     [ern_nodes_tests:has(Said, "no node runs from the directory") || Said <- Gone],
     %% the lines as the guide quotes them, the refusal of its own key in
-    %% section 1.1 and the rest in the catalogue, which section 1.3 quotes
+    %% section 1.1 and the rest in the catalog, which section 1.3 quotes
     %% again; a job names the directory from its working directory
     ern_nodes_tests:has(OwnKey, "a peer has this node's own key, and a node is no peer"),
-    catalogued(Err, "7", "the reload was refused", []),
-    catalogued(Stale, "7", "no node runs from the directory", [{"dir", "b"}]),
-    catalogued(Held, "7", "configuration directory of",
-               [{"dir", "b"}, {"N", string:trim(binary_to_list(Number))}]).
+    cataloged(Err, "7", "the reload was refused", []),
+    cataloged(Stale, "7", "no node runs from the directory", [{"dir", "b"}]),
+    cataloged(Held, "7", "configuration directory of",
+              [{"dir", "b"}, {"N", string:trim(binary_to_list(Number))}]).
 
 %% What `ern Job --config-dir Dir` says where no node runs from the
 %% directory, which fails it.
@@ -307,7 +307,7 @@ fell_silent(Base) ->
     ern_nodes_tests:stop(A, WaitA),
     ern_nodes_tests:stop(B, WaitB),
     {_, ErrA} = ern_nodes_tests:said(A),
-    catalogued(ErrA, "7", "fell silent", [{"b", "b"}]).
+    cataloged(ErrA, "7", "fell silent", [{"b", "b"}]).
 
 %% guide/deployment.md, sections 4.3 and 7, and 1.2; report §8.7: a bare
 %% node whose `listen` names port 0 says the port it bound; and code that
@@ -351,10 +351,10 @@ refused_code(Base) ->
     ern_nodes_tests:says(B, "could not take the code it received"),
     ern_nodes_tests:stop(B, WaitB),
     {_, ErrB} = ern_nodes_tests:said(B),
-    catalogued(ErrB, "7", "listening on port", [{"51204", integer_to_list(PortB)}]),
-    catalogued(ErrB, "7", "could not take the code", [{"a", "z"}, {"Site", "Taker.main:1"}]),
-    catalogued(ErrB, "4.3", "could not take the code",
-               [{"a", "z"}, {"Counter.main:17", "Taker.main:1"}]).
+    cataloged(ErrB, "7", "listening on port", [{"51204", integer_to_list(PortB)}]),
+    cataloged(ErrB, "7", "could not take the code", [{"a", "z"}, {"Site", "Taker.main:1"}]),
+    cataloged(ErrB, "4.3", "could not take the code",
+              [{"a", "z"}, {"Counter.main:17", "Taker.main:1"}]).
 
 %% A peer of the test's own, run in a bare `erl` that holds a peer's key: it
 %% spawns on the node its command line names the function of the frame it
@@ -408,13 +408,13 @@ four_fifths() ->
     {0, Said} = collected(Host, <<>>),
     ?assertEqual(<<"the host has used 52429 of its 65536 module names, which it never gives"
                    " back\n">>, Said),
-    catalogued(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
+    cataloged(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
 
 %% guide/deployment.md, sections 7 and 4.3: every line the guide quotes
 %% there is held to a node's by a check that names it, beside the test
 %% that provokes the line, in this module or in ern_nodes_tests, and each
 %% check names one line
-catalogue_test() ->
+catalog_test() ->
     Quoted = quoted(),
     ?assert(length(Quoted) >= 26),
     Checks = lists:usort(lists:append([checks(File) || File <- ?PROVOKING])),
@@ -430,7 +430,7 @@ catalogue_test() ->
                                length(Named(Section, Fragment)) =/= 1]).
 
 %% Each check a module's tests make, {Section, Fragment}, read from its
-%% source, every form of which is read: a call of catalogued/4, whose
+%% source, every form of which is read: a call of cataloged/4, whose
 %% section and fragment are text.
 checks(File) ->
     {ok, Forms} = epp_dodger:parse_file(File),
@@ -447,7 +447,7 @@ check(Node) ->
                  _ ->
                      none
              end,
-    case lists:member(Called, [{catalogued, 4}, {?MODULE, {catalogued, 4}}]) of
+    case lists:member(Called, [{cataloged, 4}, {?MODULE, {cataloged, 4}}]) of
         true ->
             [_, Section, Fragment, _] = erl_syntax:application_arguments(Node),
             [{erl_syntax:string_value(Section), erl_syntax:string_value(Fragment)}];
@@ -461,8 +461,8 @@ check(Node) ->
 %% harness's in its place, and `...` any text. A line quoted after another
 %% in one cell or one item, `the peer b was added` / `was removed`, is the
 %% end of a line.
--spec catalogued(string(), string(), string(), [{string(), string()}]) -> ok.
-catalogued(Err, Section, Fragment, Names) ->
+-spec cataloged(string(), string(), string(), [{string(), string()}]) -> ok.
+cataloged(Err, Section, Fragment, Names) ->
     case [{Line, Whole} || {In, Line, Whole} <- quoted(), In =:= Section,
                            string:find(Line, Fragment) =/= nomatch] of
         [{Line, Whole}] ->
@@ -491,7 +491,7 @@ part("...", _) -> ".*";
 part(Part, Names) -> ["\\Q", proplists:get_value(Part, Names, Part), "\\E"].
 
 %% The lines sections 7 and 4.3 quote, {Section, Line, Whole}: each code
-%% span of the catalogue's first column, and each of an item's before its
+%% span of the catalog's first column, and each of an item's before its
 %% colon, a span after the first in its cell or its item continuing the
 %% one before it.
 quoted() ->

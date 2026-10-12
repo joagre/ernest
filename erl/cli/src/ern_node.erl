@@ -8,7 +8,7 @@
 %% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/1, start/1, start/2, stop/1, file/2, read/1, measures_changed/3, signalled/2,
+-export([create/1, start/1, start/2, stop/1, file/2, read/1, measures_changed/3, signaled/2,
          stopped/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
@@ -26,7 +26,7 @@
 
 %% Report §8.7, Appendix E.27: what `ernest.conf` may say.
 -define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>,
-                 <<"utilisation">>, <<"utilisation-interval">>]).
+                 <<"utilization">>, <<"utilization-interval">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
 %%
@@ -334,20 +334,20 @@ measures_stopped() ->
 %% directory, the one that holds its `ernest.pid`, the process the file
 %% names; where there is no file, no node holds it, or its process has
 %% ended or is another user's, the job fails, saying so, and nothing is
-%% signalled.
--spec signalled(file:filename(), non_neg_integer()) -> ok.
-signalled(ConfigDir, Number) ->
-    node_signalled(ConfigDir, Number, false).
+%% signaled.
+-spec signaled(file:filename(), non_neg_integer()) -> ok.
+signaled(ConfigDir, Number) ->
+    node_signaled(ConfigDir, Number, false).
 
-%% Report §8.6, §11.2: termination sent to the node as signalled/2 sends a
+%% Report §8.6, §11.2: termination sent to the node as signaled/2 sends a
 %% signal, and its end waited for, on the lock it holds on `ernest.pid`,
 %% which the host lets go when the node ends, however it ends.
 -spec stopped(file:filename()) -> ok.
 stopped(ConfigDir) ->
-    node_signalled(ConfigDir, 15, true).
+    node_signaled(ConfigDir, 15, true).
 
-node_signalled(ConfigDir, Number, Wait) ->
-    case ern_os:node_signalled(file(ConfigDir, pid), Number, Wait) of
+node_signaled(ConfigDir, Number, Wait) ->
+    case ern_os:node_signaled(file(ConfigDir, pid), Number, Wait) of
         sent -> ok;
         no_file -> fail(ConfigDir, ?PID_FILE, "no such file: no node runs from the directory");
         no_node -> fail(ConfigDir, ?PID_FILE, "no node holds it: no node runs from the directory");
@@ -424,11 +424,11 @@ configuration(ConfigDir) ->
                    services = services(ConfigDir, maps:get(<<"services">>, Fields, {object, []}),
                                        Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none)),
-                   utilisation = utilisation(ConfigDir,
-                                             maps:get(<<"utilisation">>, Fields, <<"run-queue">>)),
-                   utilisation_interval =
-                       utilisation_interval(ConfigDir,
-                                            maps:get(<<"utilisation-interval">>, Fields, 5000))}.
+                   utilization = utilization(ConfigDir,
+                                             maps:get(<<"utilization">>, Fields, <<"run-queue">>)),
+                   utilization_interval =
+                       utilization_interval(ConfigDir,
+                                            maps:get(<<"utilization-interval">>, Fields, 5000))}.
 
 %% A whole number of the file, as the host reads its numeral; one too long
 %% for the host to hold, which the host would raise for, is refused with the
@@ -507,7 +507,7 @@ family({Address, _}) when tuple_size(Address) =:= 4 -> inet;
 family({_, _}) -> inet6.
 
 %% Report §8.7: each peer a name, a public key and an address, the address
-%% left out where the peer is never dialled; names and keys each once.
+%% left out where the peer is never dialed; names and keys each once.
 peers(ConfigDir, List, Family) when is_list(List) ->
     Peers = [peer(ConfigDir, Item, Family) || Item <- List],
     Names = [Name || #peer{name = Name} <- Peers],
@@ -650,26 +650,26 @@ fraction(ConfigDir, Shown, Full) ->
         orelse fail(ConfigDir, ?CONF, Shown ++ "'s almost-full is not a fraction from 0 to 1"),
     Full.
 
-%% Report §8.7: `utilisation`, how the node measures how busy it is for its
+%% Report §8.7: `utilization`, how the node measures how busy it is for its
 %% peers, `run-queue`, the default where the entry is absent, or
 %% `schedulers`.
-utilisation(_ConfigDir, <<"run-queue">>) ->
+utilization(_ConfigDir, <<"run-queue">>) ->
     run_queue;
-utilisation(_ConfigDir, <<"schedulers">>) ->
+utilization(_ConfigDir, <<"schedulers">>) ->
     schedulers;
-utilisation(ConfigDir, Text) when is_binary(Text) ->
-    fail(ConfigDir, ?CONF, "utilisation is " ++ json_quoted(Text) ++ ", which is neither"
+utilization(ConfigDir, Text) when is_binary(Text) ->
+    fail(ConfigDir, ?CONF, "utilization is " ++ json_quoted(Text) ++ ", which is neither"
                            " \"run-queue\" nor \"schedulers\"");
-utilisation(ConfigDir, _) ->
-    fail(ConfigDir, ?CONF, "utilisation is neither \"run-queue\" nor \"schedulers\"").
+utilization(ConfigDir, _) ->
+    fail(ConfigDir, ?CONF, "utilization is neither \"run-queue\" nor \"schedulers\"").
 
-%% Report §8.7, Appendix C: `utilisation-interval`, the milliseconds between
+%% Report §8.7, Appendix C: `utilization-interval`, the milliseconds between
 %% the node's tellings of how busy it is to its peers, 5000 where the entry
 %% is absent; a count of milliseconds, as `check-interval` is.
-utilisation_interval(_ConfigDir, Ms) when is_integer(Ms), Ms > 0 ->
+utilization_interval(_ConfigDir, Ms) when is_integer(Ms), Ms > 0 ->
     Ms;
-utilisation_interval(ConfigDir, _) ->
-    fail(ConfigDir, ?CONF, "utilisation-interval is not a count of milliseconds above 0").
+utilization_interval(ConfigDir, _) ->
+    fail(ConfigDir, ?CONF, "utilization-interval is not a count of milliseconds above 0").
 
 %%
 %% Utilities

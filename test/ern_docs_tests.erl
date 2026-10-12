@@ -3,7 +3,7 @@
 %% heading of the report, and the guide's own bare `§x.y` a heading of the
 %% guide, docs/decisions.md being history and not checked; the contents
 %% lists, the paths the documents name, the release's pages, the third
-%% parties' licences, the glossary, the fault causes and the log's index
+%% parties' licenses, the glossary, the fault causes and the log's index
 %% are each current.
 -module(ern_docs_tests).
 
@@ -241,7 +241,7 @@ exists(Relative) ->
 %% THIRD_PARTY_LICENSES: every tracked file that
 %% carries an upstream author's copyright, and every file that holds a
 %% table a tool generated, is an entry's path; and every entry names a
-%% file that is there, and its licence
+%% file that is there, and its license
 third_party_test() ->
     Licenses = ern_repository:read("THIRD_PARTY_LICENSES"),
     Entries = [Entry || Entry <- binary:split(Licenses, <<"\n----">>, [global]),

@@ -66,7 +66,7 @@ message.ern:14:19: the argument does not fit send: expected CounterMsg, found St
    |                   ^^^^^^^^^^^
 ```
 
-An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labelled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, `Reply`, `answer`, and `with`, are taught in §1 to §4; here only the errors matter.
+An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labeled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, `Reply`, `answer`, and `with`, are taught in §1 to §4; here only the errors matter.
 
 **A request left unanswered.** A `Get` carries a `Reply(Int)`, in which the counter puts its answer. A reply is answered exactly once on every path. This counter forgets to, and whoever asked would wait.
 
@@ -1422,7 +1422,7 @@ fn waitForTick(state : World) : Unit with GameMsg =
 
 `game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `world.score`.
 
-An alarm cannot be cancelled. A process that no longer wants one takes its message when it comes and drops it, since even a cancel could not take back a message already delivered. A deadline for a piece of work carries the work's id, `Clock.alarm(5000, fn(_) = Expired(job))`, and the loop that waits matches every `Expired`, acting on one whose job is still open and dropping the rest; a message that no `receive` takes stays in the mailbox for as long as the process lives (report Appendix E.15).
+An alarm cannot be canceled. A process that no longer wants one takes its message when it comes and drops it, since even a cancel could not take back a message already delivered. A deadline for a piece of work carries the work's id, `Clock.alarm(5000, fn(_) = Expired(job))`, and the loop that waits matches every `Expired`, acting on one whose job is still open and dropping the rest; a message that no `receive` takes stays in the mailbox for as long as the process lives (report Appendix E.15).
 
 ### 5.6 The word counter at once
 
@@ -1686,7 +1686,7 @@ Some(3)
 
 `counter` is evaluated before `main` runs, in the entry process, like every top-level `let` (§2.2). An initializer may spawn, send and call, but not receive, so a service's `let` starts its process and nothing waits.
 
-`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address. The new run begins with an empty mailbox, and what the process asked the runtime for, an alarm, a monitor, a subscription, is cancelled (report §6.9). Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
+`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address. The new run begins with an empty mailbox, and what the process asked the runtime for, an alarm, a monitor, a subscription, is canceled (report §6.9). Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
 
 The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
 
@@ -2321,14 +2321,14 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilisation-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilisation each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the node's `"utilisation"` entry says, by its run queue where it says nothing. `Peer.compute` draws two of the peers whose utilisations the node may use, at random, and takes the less busy, the first in the configuration's order where the two are equal; a utilisation older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its utilisation. Where no peer has told a utilisation the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilisation(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the node's `"utilization"` entry says, by its run queue where it says nothing. `Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first in the configuration's order where the two are equal; a utilization older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its utilization. Where no peer has told a utilization the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 
-A rule of the program's own is a function over `Peer.utilisations()`, the utilisations the node holds, each peer's name, its utilisation and the milliseconds since it came, in the configuration's order, a peer not heard from left out. The least busy of them all:
+A rule of the program's own is a function over `Peer.utilizations()`, the utilizations the node holds, each peer's name, its utilization and the milliseconds since it came, in the configuration's order, a peer not heard from left out. The least busy of them all:
 
 ```ernest
 // least.ern
 export fn computed(n : Int) : Either(Io.Error, Int) with m =
-    match List.sort(Peer.utilisations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
+    match List.sort(Peer.utilizations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
         #(name, _, _) :: _ -> Peer.computeAt(name, fn() = heavy(n), 5000)
       | [] -> Right(heavy(n))
     }
@@ -2339,7 +2339,7 @@ fn heavy(n : Int) : Int =
 
 Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
 
-A program that knows how busy it is better than its node's measure does, by a queue's depth or work it has promised, says so with `Peer.setUtilisation(x)`, `x` from 0.0 to 1.0: from then on its node tells its peers that number, and answers it to a `Peer.utilisation`, until the program sets it again or its run ends. A number outside the scale faults the caller (report Appendix E.27).
+A program that knows how busy it is better than its node's measure does, by a queue's depth or work it has promised, says so with `Peer.setUtilization(x)`, `x` from 0.0 to 1.0: from then on its node tells its peers that number, and answers it to a `Peer.utilization`, until the program sets it again or its run ends. A number outside the scale faults the caller (report Appendix E.27).
 
 **A result that comes later.** A program that is not to wait for the value spawns a process that computes it and sends it back, one message later:
 
@@ -2810,7 +2810,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - There are no registered names, and addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, through a service binding, a top-level binding that holds one (§6.5), or, from another node, by the name it is offered under (§8.2).
 - There are no atoms in the language: constructors are the tags. `Foreign.atom` makes one for a foreign call.
-- There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
+- There are no OTP behaviors. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - A function does not travel to another node: the compiler refuses a service or a spawn that would take one, and work on a peer is a process spawned there, which carries its captured values and no code (§8.1, §8.4).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.

@@ -16,10 +16,10 @@ export fn main() : Unit with Msg =
       | ["reload"] -> reloaded()
       | ["place", interval] -> placed(Optional.withDefault(String.toInt(interval), 0))
       | ["silence"] -> silenced()
-      | ["dial"] -> dialled()
+      | ["dial"] -> dialed()
       | ["costs"] -> costs()
       | ["compute"] -> computes()
-      | ["utilisation"] -> utilisations()
+      | ["utilization"] -> utilizations()
       | _ -> Unit
     }
 
@@ -323,11 +323,11 @@ fn reloaded() : Unit with Msg = {
 }
 
 // Report §8.7, Appendix E.27, G.4: a compute on a peer the desk picks, of
-// its peers the store alone telling it its utilisation, the peer gone never
+// its peers the store alone telling it its utilization, the peer gone never
 // reached: Unreachable before any has told one, no connection yet open;
-// once the store has told its utilisation, which it does as the spawn of
+// once the store has told its utilization, which it does as the spawn of
 // the readings' check connects them, on the store, its value the peers of
-// the node it ran on, the store the one peer the desk holds a utilisation
+// the node it ran on, the store the one peer the desk holds a utilization
 // of; and the readings of the host's services, which the store runs and the
 // desk does not.
 fn placed(interval : Int) : Unit with Msg = {
@@ -335,7 +335,7 @@ fn placed(interval : Int) : Unit with Msg = {
     Io.println("readings: " <> started(Placing.readingsOn("store")));
     Placing.heard("store", interval);
     Io.println("computed: " <> Io.show(Peer.compute(fn() = Peer.peers(), 5000)));
-    Io.println("held: " <> Io.show(List.map(Peer.utilisations(), fn(#(name, _, _)) = name)));
+    Io.println("held: " <> Io.show(List.map(Peer.utilizations(), fn(#(name, _, _)) = name)));
     Io.println("readings here: " <> Placing.readings())
 }
 
@@ -415,10 +415,10 @@ fn counted(total : Int) : Unit with Counter.Msg =
 // the store's address a proxy that takes the connection and passes nothing,
 // is given up by the host after 7 seconds, and the find answers Unreachable
 // and not Timeout.
-fn dialled() : Unit with Msg = {
+fn dialed() : Unit with Msg = {
     let started = Clock.monotonic();
     let found = Peer.find(Counter.service, 30000);
-    Io.println("dialled: "
+    Io.println("dialed: "
                    <> Io.show(found)
                    <> " after "
                    <> Int.toString((Clock.monotonic() - started) / 1000))
@@ -429,7 +429,7 @@ fn dialled() : Unit with Msg = {
 // of a message to the store's counter, sent straight and through the
 // adapted address made on the store, of a find of the counter, of a spawn
 // there of a process that ends at once, of a compute there of a function
-// that answers at once, and of a utilisation of the store, each over many,
+// that answers at once, and of a utilization of the store, each over many,
 // a line each.
 fn costs() : Unit with Msg = {
     let counter = Shared.found(Counter.service);
@@ -469,9 +469,9 @@ fn costs() : Unit with Msg = {
                        let _ = Peer.computeAt("store", fn() = 1, 5000);
                        Unit
                    })));
-    Io.println("utilisation "
+    Io.println("utilization "
                    <> Io.show(timed(rounds, fn() = {
-                       let _ = Peer.utilisation("store", 5000);
+                       let _ = Peer.utilization("store", 5000);
                        Unit
                    })))
 }
@@ -628,32 +628,32 @@ foreign fn toInteger(text : String) : Int =
 // there; then the run queue, from the next ask after the reload that names
 // it, 0.0 or more, the host keeping the schedulers' time no longer; and,
 // after a reload refused, the run queue still.
-fn utilisations() : Unit with Msg = {
-    Io.println("not listed: " <> Io.show(Peer.utilisation("nobody", 1000)));
+fn utilizations() : Unit with Msg = {
+    Io.println("not listed: " <> Io.show(Peer.utilization("nobody", 1000)));
     Io.println("schedulers: "
-                   <> Io.show(#(fraction(Peer.utilisation("store", 5000)),
-                                fraction(Peer.utilisation("store", 5000)))));
+                   <> Io.show(#(fraction(Peer.utilization("store", 5000)),
+                                fraction(Peer.utilization("store", 5000)))));
     keeps("at the start");
     Io.println("now measure the run queue");
     let _ = Io.readLine();
-    Io.println("run queue: " <> Io.show(waiting(Peer.utilisation("store", 5000))));
+    Io.println("run queue: " <> Io.show(waiting(Peer.utilization("store", 5000))));
     keeps("after the reload");
     Io.println("now refuse a reload");
     let _ = Io.readLine();
-    Io.println("after the refusal: " <> Io.show(waiting(Peer.utilisation("store", 5000))))
+    Io.println("after the refusal: " <> Io.show(waiting(Peer.utilization("store", 5000))))
 }
 
 // Whether the answer is a fraction from 0.0 to 1.0.
 fn fraction(answer : Either(Io.Error, Float)) : Bool =
     match answer {
-        Right(utilisation) -> utilisation >= 0.0 && utilisation <= 1.0
+        Right(utilization) -> utilization >= 0.0 && utilization <= 1.0
       | Left(_) -> false
     }
 
 // Whether the answer is 0.0 or more.
 fn waiting(answer : Either(Io.Error, Float)) : Bool =
     match answer {
-        Right(utilisation) -> utilisation >= 0.0
+        Right(utilization) -> utilization >= 0.0
       | Left(_) -> false
     }
 

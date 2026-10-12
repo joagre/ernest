@@ -8,9 +8,9 @@ export fn readingsOn(name : String) : Either(Io.Error, Address(Never)) with m =
     Peer.spawn(name, fn() : Unit with Never = Io.println("readings there: " <> readings()), 5000)
 
 export fn readings() : String with m =
-    Io.show(#(answers(Utilisation.cpu()),
-              answers(Utilisation.memory()),
-              answers(Utilisation.disk())))
+    Io.show(#(answers(Utilization.cpu()),
+              answers(Utilization.memory()),
+              answers(Utilization.disk())))
 
 fn answers(reading : Optional(Float)) : Bool =
     match reading {
@@ -18,12 +18,12 @@ fn answers(reading : Optional(Float)) : Bool =
       | None -> false
     }
 
-// Report §8.7: until the node holds a utilisation of the peer named, the
-// utilisations read again every interval, the time between the peer's
+// Report §8.7: until the node holds a utilization of the peer named, the
+// utilizations read again every interval, the time between the peer's
 // tellings, at which alone the table changes; a wait no message can show,
 // since a telling is the runtime's frame and no program's.
 export fn heard(name : String, interval : Int) : Unit with m =
-    if List.any(Peer.utilisations(), fn(#(peer, _, _)) = peer == name) then
+    if List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == name) then
         Unit
     else receive {
         after interval -> heard(name, interval)

@@ -593,7 +593,7 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), code_scenarios(), utilisation_scenarios(), proxy_scenarios()]).
+                  peer_scenarios(), code_scenarios(), utilization_scenarios(), proxy_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -889,18 +889,18 @@ terminal_scenarios() ->
 
 %% Appendix E.27: a service as the compiler makes it, with its type's
 %% hash; an offer and its withdrawal beside the host's two tables written
-%% and emptied; the peers' names, and the utilisations held of them, none
+%% and emptied; the peers' names, and the utilizations held of them, none
 %% in a run of one node, beside the host's read of the names; a
-%% utilisation set beside the host's row written. A find, a spawn, a compute on a peer named or
-%% picked and a utilisation act on a peer, which a run of one node cannot
+%% utilization set beside the host's row written. A find, a spawn, a compute on a peer named or
+%% picked and a utilization act on a peer, which a run of one node cannot
 %% reach; `make bench`'s node parts measure them, the pick among them, on
 %% real nodes.
 peer_scenarios() ->
     Peer = ern_named:functions('ern@peer'),
     PeerOffer = Peer(offer),
     PeerPeers = Peer(peers),
-    PeerUtilisations = Peer(utilisations),
-    PeerSetUtilisation = Peer(setUtilisation),
+    PeerUtilizations = Peer(utilizations),
+    PeerSetUtilization = Peer(setUtilization),
     Launch = ets:new(ern_measure_launch, [set, public]),
     Me = ern_rt:self(),
     {Name, Hash} = {<<"measured">>, <<0:256>>},
@@ -926,13 +926,13 @@ peer_scenarios() ->
      {<<"Peer.spawnMonitored">>, AcrossNodes},
      {<<"Peer.compute">>, AcrossNodes},
      {<<"Peer.computeAt">>, AcrossNodes},
-     {<<"Peer.utilisation">>, AcrossNodes},
+     {<<"Peer.utilization">>, AcrossNodes},
      {<<"Peer.peers">>, {fun() -> PeerPeers() end,
                          fun() -> persistent_term:get({ern_peer, names}, []) end}},
-     {<<"Peer.utilisations">>, {fun() -> PeerUtilisations() end,
+     {<<"Peer.utilizations">>, {fun() -> PeerUtilizations() end,
                                 fun() -> persistent_term:get({ern_peer, names}, []) end}},
-     {<<"Peer.setUtilisation">>, {fun() -> PeerSetUtilisation(0.5) end,
-                                  fun() -> ets:insert(Launch, {utilisation, 0.5}) end}}].
+     {<<"Peer.setUtilization">>, {fun() -> PeerSetUtilization(0.5) end,
+                                  fun() -> ets:insert(Launch, {utilization, 0.5}) end}}].
 
 %% Appendix E.28: a compiled module's hashes beside the host's read of its
 %% forms' chunk; a load of a module the node holds already, its file read,
@@ -965,26 +965,26 @@ code_scenarios() ->
 %% Appendix G.4: the runtime's two measures beside the host's statistics,
 %% and the host's services' three, which answer None where the service does
 %% not run, as in this launch, beside the host's look for the service.
-utilisation_scenarios() ->
-    Utilisation = ern_named:functions('ern@utilisation'),
-    UtilisationRunQueue = Utilisation(runQueue),
-    UtilisationSchedulers = Utilisation(schedulers),
-    UtilisationCpu = Utilisation(cpu),
-    UtilisationMemory = Utilisation(memory),
-    UtilisationDisk = Utilisation(disk),
+utilization_scenarios() ->
+    Utilization = ern_named:functions('ern@utilization'),
+    UtilizationRunQueue = Utilization(runQueue),
+    UtilizationSchedulers = Utilization(schedulers),
+    UtilizationCpu = Utilization(cpu),
+    UtilizationMemory = Utilization(memory),
+    UtilizationDisk = Utilization(disk),
     WallTime = fun() ->
                    erlang:system_flag(scheduler_wall_time, true),
                    erlang:statistics(scheduler_wall_time),
                    erlang:statistics(scheduler_wall_time)
                end,
-    [{<<"Utilisation.runQueue">>, {fun() -> UtilisationRunQueue() end,
+    [{<<"Utilization.runQueue">>, {fun() -> UtilizationRunQueue() end,
                                    fun() -> erlang:statistics(total_run_queue_lengths) end}},
-     {<<"Utilisation.schedulers">>, {fun() -> UtilisationSchedulers(0) end, WallTime}},
-     {<<"Utilisation.cpu">>, {fun() -> UtilisationCpu() end,
+     {<<"Utilization.schedulers">>, {fun() -> UtilizationSchedulers(0) end, WallTime}},
+     {<<"Utilization.cpu">>, {fun() -> UtilizationCpu() end,
                               fun() -> erlang:whereis(cpu_sup) end}},
-     {<<"Utilisation.memory">>, {fun() -> UtilisationMemory() end,
+     {<<"Utilization.memory">>, {fun() -> UtilizationMemory() end,
                                  fun() -> erlang:whereis(memsup) end}},
-     {<<"Utilisation.disk">>, {fun() -> UtilisationDisk() end,
+     {<<"Utilization.disk">>, {fun() -> UtilizationDisk() end,
                                fun() -> erlang:whereis(disksup) end}}].
 
 %% Appendix G.7: a proxy started and ended, its find answering

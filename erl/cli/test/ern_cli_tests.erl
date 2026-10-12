@@ -2800,7 +2800,7 @@ bare_node_refusals_test() ->
 %% synopsis shows the option they require. A regression test, written
 %% after the code; real nodes reload and stop in test/ern_nodes_tests.erl,
 %% and a file that names a living process no node holds is
-%% ern_node_tests' signalled_test's
+%% ern_node_tests' signaled_test's
 signal_jobs_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),

@@ -47,7 +47,7 @@
 %% `ern_deliveries` the deliveries in flight, `ern_restarts` the restarts a
 %% process may be asked, `ern_checkers` the checkers of §8.4, and
 %% `ern_launch` the way the terminal is read, the process a deadlock faults
-%% and whether the end waits for its subscribers, and the utilisation the
+%% and whether the end waits for its subscribers, and the utilization the
 %% program set (§8.7). A node's (§8.7):
 %% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
 %% modules whose initializers have run, whose bindings a peer's spawn asks
@@ -70,7 +70,7 @@
          binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
          spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/2, offered/2,
-         set_utilisation/1, program_utilisation/0, asked_of_run/1, note_call/3, drop_note/1,
+         set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
          note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
@@ -127,8 +127,8 @@
 %% entry process, {entry_process, Pid}, the process a deadlock faults,
 %% {deadlock_victim, Pid}, while the end looks for its subscribers and
 %% waits for them, the runner that tells them, {ending, Runner, Launch},
-%% once the wait is over, {wait_over}, and the utilisation the program set
-%% with `Peer.setUtilisation`, {utilisation, Utilisation} (§8.7)
+%% once the wait is over, {wait_over}, and the utilization the program set
+%% with `Peer.setUtilization`, {utilization, Utilization} (§8.7)
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
 %% the service's name and its type's hash, ordered so that one name's are
@@ -676,12 +676,12 @@ monitor(Process, Wrap) ->
     Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
-%% The caller's monitors cancelled by the reaper (monitors_cancelled/2): a
+%% The caller's monitors canceled by the reaper (monitors_canceled/2): a
 %% teller's, once it has its word (tell/4).
 cancel_monitors() ->
     Ref = make_ref(),
     persistent_term:get({?MODULE, reaper}) ! {cancel_monitors, erlang:self(), Ref},
-    receive {Ref, cancelled} -> ok end.
+    receive {Ref, canceled} -> ok end.
 
 -spec kill(address()) -> 'Unit'.
 kill(Address) ->
@@ -766,8 +766,8 @@ reaper_loop(Reaper, Wait) ->
         {new_run, Pid, Ref} ->
             reaper_loop(new_run(Pid, Ref, Reaper));
         {cancel_monitors, Caller, Ref} ->
-            Reaper1 = monitors_cancelled(Caller, Reaper),
-            Caller ! {Ref, cancelled},
+            Reaper1 = monitors_canceled(Caller, Reaper),
+            Caller ! {Ref, canceled},
             reaper_loop(Reaper1);
         {end_program, From, Ref} ->
             ended_program(From, Ref);
@@ -874,24 +874,24 @@ monitored(Pid, Caller, Wrap, Ref,
                   monitoring = added(Caller, Pid, Monitoring), monitor_refs = MonitorRefs1}.
 
 %% Report §6.9: a restarted process's monitors and its subscriptions to
-%% faults and to the program's end are cancelled, with what is on its way
+%% faults and to the program's end are canceled, with what is on its way
 %% to it; the monitors of it stand, since a restart is not a death. A
 %% subscription to the end its new run makes is a new one, which the end
 %% tells if it waits (told/3).
 new_run(Pid, Ref, Reaper) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?TERMINATING, Pid),
-    Reaper1 = monitors_cancelled(Pid, Reaper),
-    cancelled(Pid),
+    Reaper1 = monitors_canceled(Pid, Reaper),
+    canceled(Pid),
     Pid ! {Ref, fresh},
     Reaper1.
 
-%% A caller's own monitors cancelled, taken from the processes it
+%% A caller's own monitors canceled, taken from the processes it
 %% monitored: at its restart (new_run/3), and for a process the runtime
 %% did not start, whose end the reaper does not see, when it asks
 %% (cancel_monitors/0).
-monitors_cancelled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
-                                   monitor_refs = MonitorRefs} = Reaper) ->
+monitors_canceled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
+                                  monitor_refs = MonitorRefs} = Reaper) ->
     {Monitors1, MonitorRefs1} = unmonitored(Caller, maps:get(Caller, Monitoring, []), Monitors,
                                             MonitorRefs),
     Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Caller, Monitoring),
@@ -1073,7 +1073,7 @@ wrapped(Caller, Wrap, Down) ->
 %% and linked, so that one that never finishes ends with the process that
 %% started it. Report §6.9: it is noted against its recipient and the
 %% process that started it, which ends it when the recipient restarts
-%% (cancelled/1).
+%% (canceled/1).
 counted_link(Address, Work) ->
     Recipient = process_of(Address),
     Starter = erlang:self(),
@@ -1091,7 +1091,7 @@ delivered(Recipient, Starter) ->
 %% Report §6.9: the deliveries this process started to Recipient, ended
 %% when Recipient restarts, each waited for, so that none reaches the new
 %% run.
-cancelled(Recipient) ->
+canceled(Recipient) ->
     Starter = erlang:self(),
     Mine = try ets:select(?DELIVERIES, [{{{Recipient, Starter, '$1'}}, [], ['$1']}])
            catch _:_ -> []
@@ -2090,7 +2090,7 @@ clock_loop(Clock) ->
         {'CHANGE', _, time_offset, clock_service, _} ->
             clock_loop(set_again(Clock));
         {new_run, Pid, Ref} ->
-            Clock1 = alarms_cancelled(Pid, Clock),
+            Clock1 = alarms_canceled(Pid, Clock),
             Pid ! {Ref, fresh},
             clock_loop(Clock1)
     end.
@@ -2104,7 +2104,7 @@ alarm(Moment, Address, Reply, Clock) ->
     Armed.
 
 %% A timer that fired: its alarm delivered once its moment has come, and
-%% set again before; one a restart cancelled as it fired, or a change of
+%% set again before; one a restart canceled as it fired, or a change of
 %% the clock set again, is gone.
 %% Report §6.5, E.15: the alarm's address may be an address seen through a
 %% function, and it is sent the time it fired, from a process of its own,
@@ -2140,13 +2140,13 @@ set_again(#clock{alarms = Alarms} = Clock) ->
 
 %% Report §6.9: a restart cancels the process's alarms, and those on their
 %% way to it.
-alarms_cancelled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient} = Clock) ->
+alarms_canceled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient} = Clock) ->
     {Timers, ByRecipient1} = case maps:take(Pid, ByRecipient) of
                                  {Own, Others} -> {Own, Others};
                                  error -> {[], ByRecipient}
                              end,
     lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
-    cancelled(Pid),
+    canceled(Pid),
     Clock#clock{alarms = maps:without(Timers, Alarms), by_recipient = ByRecipient1}.
 
 %% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
@@ -2369,7 +2369,7 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% process of its own, as a monitor's Down is, a fault in the wrap the
 %% subscriber's (§6.5); the answer waited for as a caller waits for its
 %% callee's, which the subscriber's end or its restart ends (§6.6, §6.9).
-%% Report §11.2: its end is learnt by the runtime's monitor, whose Down the
+%% Report §11.2: its end is learned by the runtime's monitor, whose Down the
 %% reaper gives once it has reported the subscriber's fault, so that the
 %% fault's line comes before the line that it ended without answering; a
 %% restart reports its fault before it ends the calls waiting on it
@@ -2822,7 +2822,7 @@ fault_cause({ern, fault, Cause}) -> Cause;
 fault_cause({ern, fault, Cause, _Trace}) -> Cause.
 
 %% Report §6.9: a restart begins a new run with nothing of the old. What
-%% the process asked the runtime for is cancelled, with what is on its way
+%% the process asked the runtime for is canceled, with what is on its way
 %% to it: its monitors and its subscriptions to faults and to the program's
 %% end by the reaper, its alarms by the clock, its keys by the terminal;
 %% then its mailbox is emptied, before the calls waiting on it are told
@@ -3056,23 +3056,23 @@ offered(Name, Hash) ->
             end
     end.
 
-%% Report §8.7, Appendix E.27: the utilisation a program set with
-%% `Peer.setUtilisation`, which its node tells its peers and answers them
+%% Report §8.7, Appendix E.27: the utilization a program set with
+%% `Peer.setUtilization`, which its node tells its peers and answers them
 %% until the program sets it again or its run ends: a row of the launch's,
 %% so that each launch begins with none, and its node tells the measure its
 %% configuration names before the first and between two runs (§11.2).
--spec set_utilisation(float()) -> ok.
-set_utilisation(Utilisation) ->
-    true = ets:insert(?LAUNCH, {utilisation, Utilisation}),
+-spec set_utilization(float()) -> ok.
+set_utilization(Utilization) ->
+    true = ets:insert(?LAUNCH, {utilization, Utilization}),
     ok.
 
-%% The utilisation the program set, or none: none set, or no launch in
+%% The utilization the program set, or none: none set, or no launch in
 %% progress, between two launches of `ern test` over a directory, in one
 %% host.
--spec program_utilisation() -> float() | none.
-program_utilisation() ->
-    case ets_lookup(?LAUNCH, utilisation) of
-        [{utilisation, Utilisation}] -> Utilisation;
+-spec program_utilization() -> float() | none.
+program_utilization() ->
+    case ets_lookup(?LAUNCH, utilization) of
+        [{utilization, Utilization}] -> Utilization;
         [] -> none
     end.
 

@@ -46,7 +46,7 @@ Eight tests under `emacs/test/`, which `make test-emacs` runs, or `make test-ema
 | `flatten.el` | the same sources, every line outside a string or a comment moved to column zero, reindent to what they were, so no line's place depends on the indentation it has |
 | `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut, but one whose place is read from what follows the cut: a comment ending the cut, and the contents of a brace in a bracket's first item, which align with the bracket's items where a further item follows |
 | `broken.el` over `broken/` | each half-typed buffer, written to report §11.6's layout by hand, keeps its indentation, and a fresh line at its end takes the column a person expects |
-| `colour.el` | one check for each kind of face, and what must not be painted |
+| `color.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
 | `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the header's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |
 

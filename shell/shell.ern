@@ -43,7 +43,7 @@ type ShellMsg =
   | SubscriptionRefused
 
 // What the session carries between inputs: the front end's session, the
-// settings `:set` changes, which are ordinary values, whether it colours
+// settings `:set` changes, which are ordinary values, whether it colors
 // what it says, read once at the start, the shell's own processes, whose
 // faults are not news, the last hundred faults reported, newest first, the
 // file and line of the startup input that runs, which its refusal and its
@@ -52,7 +52,7 @@ type ShellMsg =
 type State =
     State(session : Session,
           settings : Settings,
-          colour : Markdown.Output,
+          color : Markdown.Output,
           own : Set(Process),
           faults : List(Process.FaultReport),
           startupLine : Optional(#(String, Int)),
@@ -98,24 +98,24 @@ type ScreenMsg =
 // subscribed (`Terminal.subscribe(Key)`), and, once it holds the keyboard,
 // `main`'s `Start` with the screen it draws on, the inputs of the sessions
 // before this one, whether the history file takes what is typed, which it
-// does not where it could not be read, and whether the shell colours.
+// does not where it could not be read, and whether the shell colors.
 type ReaderMsg =
     Key(Terminal.Event)
   | Start(screen : Address(ScreenMsg),
           earlier : List(String),
           keeping : Bool,
-          colour : Markdown.Output)
+          color : Markdown.Output)
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
 // said how a multi-line input is run, what the key before did, and whether
-// the shell colours (report §11.2).
+// the shell colors (report §11.2).
 type Reading =
     Reading(editing : Shell.Editor.Editing,
             keeping : Bool,
             hinted : Bool,
             last : LastKey,
-            colour : Markdown.Output)
+            color : Markdown.Output)
 
 // What the key before this one did, since `Tab` twice lists and
 // `Shift-Tab` twice shows the whole page (report §11.2).
@@ -138,7 +138,7 @@ export fn main() : Unit with ShellMsg = {
     // report §11.2: at a terminal the keys are read and a region painted;
     // elsewhere lines are read and what is said is written as it comes
     let keys = readKeys(shell);
-    let colour = if Optional.isSome(keys) && colourAllowed then Markdown.Styled else Markdown.Plain;
+    let color = if Optional.isSome(keys) && colorAllowed then Markdown.Styled else Markdown.Plain;
     let screen = spawn(fn() = match keys {
         Some(Keys(size = size)) -> screenLoop(Shell.Region.new(size), None)
       | None -> plainLoop(None)
@@ -164,7 +164,7 @@ export fn main() : Unit with ShellMsg = {
     let state =
         State(session = start(),
               settings = defaults,
-              colour = colour,
+              color = color,
               own = own,
               faults = [],
               startupLine = None,
@@ -185,7 +185,7 @@ export fn main() : Unit with ShellMsg = {
         Some(Keys(reader = reader)) -> {
             let #(earlier, keeping) = history(screen);
             send(reader,
-                 Start(screen = screen, earlier = earlier, keeping = keeping, colour = colour));
+                 Start(screen = screen, earlier = earlier, keeping = keeping, color = color));
             // report §11.2: an editor that cannot read keys is no shell,
             // so the reader's death is said and the session ends with it
             monitor(Process.fromAddress(reader), ReaderDied);
@@ -219,9 +219,9 @@ fn readKeys(shell : Address(ShellMsg)) : Optional(Keys) with ShellMsg =
         }
     }
 
-// Report §11.2: the shell colours what it says at a terminal, where the
+// Report §11.2: the shell colors what it says at a terminal, where the
 // environment's `NO_COLOR` is unset or empty, as that convention asks.
-let colourAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
+let colorAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 
 // Report §11.2: the inputs of the sessions before this one, and whether
 // the history file takes what is typed; a history that cannot be read is
@@ -449,7 +449,7 @@ fn execute(state : State,
            printing : Bool) : Next with ShellMsg =
     match check(state.session, origin, input) {
         Left(text) -> {
-            diagnose(screen, state.colour, text);
+            diagnose(screen, state.color, text);
             Continue(state)
         }
       | Right(#(session, checked)) -> {
@@ -489,8 +489,7 @@ fn await(state : State,
             Continue(State(..state, session = collect(session)))
         }
       | Done(Faulted(cause = cause, serial = serial)) when serial == current -> {
-            say(screen,
-                Shell.Style.fault(placed(state, "fault: " <> escaped(cause)), state.colour));
+            say(screen, Shell.Style.fault(placed(state, "fault: " <> escaped(cause)), state.color));
             if printing then sayTime(screen, state.settings, started) else Unit;
             Continue(state)
         }
@@ -504,7 +503,7 @@ fn await(state : State,
         }
       | ReaderDied(down) -> {
             kill(inputProcess);
-            send(screen, Said(readerEnd(state.colour, down)));
+            send(screen, Said(readerEnd(state.color, down)));
             Leave
         }
       | ScreenDied(down) -> screenDied(down)
@@ -513,7 +512,7 @@ fn await(state : State,
       // brought, after which no `Done` comes
       | Reported(report) -> if report.process == Process.fromAddress(inputProcess) then {
             say(screen,
-                Shell.Style.fault(placed(state, "fault: " <> escaped(report.cause)), state.colour));
+                Shell.Style.fault(placed(state, "fault: " <> escaped(report.cause)), state.color));
             if printing then sayTime(screen, state.settings, started) else Unit;
             Continue(state)
         } else
@@ -541,7 +540,7 @@ fn printResult(state : State,
             Unit
         else {
             let shown = show(value, state.settings.depth, state.settings.length);
-            say(screen, shown <> Shell.Style.quiet(" : " <> typeText(checked), state.colour));
+            say(screen, shown <> Shell.Style.quiet(" : " <> typeText(checked), state.color));
             if leavesItUnchanged(checked) then
                 say(screen, "`it` is unchanged: this input did not determine the type of its value")
             else
@@ -572,7 +571,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit with ShellMsg =
       // report §11.2: a prompt is pending, and a fault said there stands
       // above the region, leaving the line being typed where it is
       | Reported(report) -> keyLoop(reported(state, screen, report, Noted), screen)
-      | ReaderDied(down) -> finish(screen, readerEnd(state.colour, down))
+      | ReaderDied(down) -> finish(screen, readerEnd(state.color, down))
       | ScreenDied(down) -> screenDied(down)
       // the end of a run that `Interrupted` killed, which `await` no longer
       // waits for
@@ -614,12 +613,12 @@ fn evaluate(state : State, screen : Address(ScreenMsg), input : String) : Next w
 
 // Report §11.2: what the session says as the reader's end ends it: nothing
 // where it returned, and its fault where it did not.
-fn readerEnd(colour : Markdown.Output, down : Down) : String =
+fn readerEnd(color : Markdown.Output, down : Down) : String =
     match down {
         Down(reason = Returned) -> ""
       | other -> {
             let text = "the shell stopped reading the keyboard: " <> faultLine(other);
-            Shell.Style.fault(text, colour) <> "\n"
+            Shell.Style.fault(text, color) <> "\n"
         }
     }
 
@@ -639,7 +638,7 @@ fn reported(state : State,
     if Set.contains(state.own, report.process) then
         state
     else {
-        send(screen, wrap(Shell.Style.fault(reportLine(report), state.colour)));
+        send(screen, wrap(Shell.Style.fault(reportLine(report), state.color)));
         State(..state, faults = List.take(report :: state.faults, keptFaults))
     }
 
@@ -693,9 +692,9 @@ fn escapedChar(char : Char) : String =
             Char.toString(char)
     }
 
-// A diagnostic, its first line coloured as a fault (report §11.2).
-fn diagnose(screen : Address(ScreenMsg), colour : Markdown.Output, text : String) : Unit with m =
-    send(screen, Said(Shell.Style.diagnostic(text, colour) <> "\n"))
+// A diagnostic, its first line colored as a fault (report §11.2).
+fn diagnose(screen : Address(ScreenMsg), color : Markdown.Output, text : String) : Unit with m =
+    send(screen, Said(Shell.Style.diagnostic(text, color) <> "\n"))
 
 fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
     send(screen, Said(text <> "\n"))
@@ -703,7 +702,7 @@ fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
 // Report §11.2: what the shell refuses is red, as a diagnostic's first
 // line is, and what it answers is plain.
 fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit with m =
-    say(screen, Shell.Style.fault(placed(state, text), state.colour))
+    say(screen, Shell.Style.fault(placed(state, text), state.color))
 
 // Report §11.2: where the input being run came from, which its diagnostics
 // name: a line of a startup file, the input beginning in that column, or
@@ -757,7 +756,7 @@ fn obey(state : State,
         action : Shell.Command.Action,
         argument : String,
         column : Int) : Next with ShellMsg = {
-    let State(session = session, colour = colour) = state;
+    let State(session = session, color = color) = state;
     match action {
         Shell.Command.Quit -> Leave
       | Shell.Command.Help -> answered(state, screen, Shell.Command.help())
@@ -779,7 +778,7 @@ fn obey(state : State,
         }
       | Shell.Command.Doc -> match doc(session, argument) {
             Left(text) -> refused(state, screen, text)
-          | Right(text) -> answered(state, screen, rendered(text, screenWidth(), colour))
+          | Right(text) -> answered(state, screen, rendered(text, screenWidth(), color))
         }
       | Shell.Command.Output -> match output(screen, argument) {
             Left(text) -> refused(state, screen, text)
@@ -796,7 +795,7 @@ fn obey(state : State,
                 answered(state,
                          screen,
                          List.map(reports,
-                                  fn(report) = Shell.Style.fault(reportLine(report), colour)))
+                                  fn(report) = Shell.Style.fault(reportLine(report), color)))
         }
       | Shell.Command.Load -> match load(session, argument) {
             Left(text) -> diagnosed(state, screen, placed(state, text))
@@ -842,14 +841,14 @@ fn refused(state : State, screen : Address(ScreenMsg), text : String) : Next wit
 
 // Report §11.2: so does a command whose input or module does not compile.
 fn diagnosed(state : State, screen : Address(ScreenMsg), text : String) : Next with m = {
-    diagnose(screen, state.colour, text);
+    diagnose(screen, state.color, text);
     Continue(state)
 }
 
 // Report §11.2: a page of documentation rendered for the terminal, at its
 // width, or at 80 columns where there is no terminal.
-fn rendered(text : String, width : Int, colour : Markdown.Output) : List(String) =
-    Markdown.render(Markdown.parse(text), width, colour)
+fn rendered(text : String, width : Int, color : Markdown.Output) : List(String) =
+    Markdown.render(Markdown.parse(text), width, color)
 
 fn screenWidth() : Int with m =
     match Terminal.size() {
@@ -1052,14 +1051,14 @@ fn reader(shell : Address(ShellMsg)) : Unit with ReaderMsg = {
         Right(_) -> {
             send(shell, Subscribed);
             receive {
-                Start(screen = screen, earlier = earlier, keeping = keeping, colour = colour) ->
+                Start(screen = screen, earlier = earlier, keeping = keeping, color = color) ->
                     readLoop(shell,
                              screen,
                              Reading(editing = Shell.Editor.start(earlier),
                                      keeping = keeping,
                                      hinted = false,
                                      last = Ordinary,
-                                     colour = colour))
+                                     color = color))
             }
         }
       | Left(_) -> send(shell, SubscriptionRefused)
@@ -1285,7 +1284,7 @@ fn offering(shell : Address(ShellMsg),
     let completed = Shell.Editor.withLine(editing, text, cursor);
     let hinted = hint(screen, reading, completed);
     let listed = reading.last == Tabbed || text == line || Shell.Complete.isLone(completion);
-    let rows = if listed then listing(completion, reading.colour) else [];
+    let rows = if listed then listing(completion, reading.color) else [];
     send(screen, under(completed, rows));
     readLoop(shell, screen, Reading(..reading, editing = completed, hinted = hinted, last = Tabbed))
 }
@@ -1293,8 +1292,8 @@ fn offering(shell : Address(ShellMsg),
 // Report §11.2: the candidates, a lone one too, a line each with the
 // type they carry, or a command's help line. The region cuts the listing
 // to the rows the screen has.
-fn listing(completion : Shell.Complete.Completion, colour : Markdown.Output) : List(String) =
-    List.map(completion.candidates, fn(name) = Shell.Style.named(name.shown, colour))
+fn listing(completion : Shell.Complete.Completion, color : Markdown.Output) : List(String) =
+    List.map(completion.candidates, fn(name) = Shell.Style.named(name.shown, color))
 
 // Report §11.2: `Shift-Tab` says what the name at the cursor is: its
 // type, the first sentence about it, and the version it appeared in, and
@@ -1305,7 +1304,7 @@ fn documenting(shell : Address(ShellMsg),
                screen : Address(ScreenMsg),
                reading : Reading,
                editing : Shell.Editor.Editing) : Unit with ReaderMsg = {
-    let Reading(last = last, colour = colour) = reading;
+    let Reading(last = last, color = color) = reading;
     let line = Shell.Editor.text(editing);
     let cursor = Shell.Editor.cursor(editing);
     // report §11.2: the whole name the cursor stands in, and a call is
@@ -1318,11 +1317,11 @@ fn documenting(shell : Address(ShellMsg),
         0;
     let rows = match page {
         Some(#(text, version)) -> if last == Documented then
-            rendered(text, screenWidth(), colour)
+            rendered(text, screenWidth(), color)
         else
-            brief(text, version, screenWidth(), colour)
+            brief(text, version, screenWidth(), color)
       | None -> match signature(String.slice(line, skipped, cursor)) {
-            Some(#(head, marked, rest)) -> [head <> Shell.Style.emphasis(marked, colour) <> rest]
+            Some(#(head, marked, rest)) -> [head <> Shell.Style.emphasis(marked, color) <> rest]
           | None -> []
         }
     };
@@ -1337,7 +1336,7 @@ fn documenting(shell : Address(ShellMsg),
 fn brief(text : String,
          version : Optional(String),
          width : Int,
-         colour : Markdown.Output) : List(String) = {
+         color : Markdown.Output) : List(String) = {
     let blocks = Markdown.parse(text);
     let declarations = List.flatMap(blocks, fn(block) = match block {
         Markdown.Code(lines = lines) -> List.take(lines, 1)
@@ -1359,9 +1358,9 @@ fn brief(text : String,
         }
       | None -> []
     };
-    List.map(List.take(declarations, 1), fn(declaration) = Shell.Style.named(declaration, colour))
-        <> Markdown.render(sentence, width, colour)
-        <> Markdown.render(since, width, colour)
+    List.map(List.take(declarations, 1), fn(declaration) = Shell.Style.named(declaration, color))
+        <> Markdown.render(sentence, width, color)
+        <> Markdown.render(since, width, color)
 }
 
 // The line §11.4 writes for the version a declaration appeared in.

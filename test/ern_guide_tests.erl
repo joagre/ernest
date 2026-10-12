@@ -127,14 +127,14 @@ report_examples_test_() ->
 readme_examples_test_() ->
     examples(?README, "readme").
 
-%% report §11.5: each error the catalogue shows is
-%% the compiler's, printed as the catalogue prints it; the catalogue's
+%% report §11.5: each error the catalog shows is
+%% the compiler's, printed as the catalog prints it; the catalog's
 %% errors are its point, a parse error and an unknown name among them
 diagnostics_test_() ->
     examples(?DIAGNOSTICS, "diagnostics").
 
 examples(Document, Kind) ->
-    Units = [catalogued(Kind, Unit) || Unit <- units(Document)],
+    Units = [cataloged(Kind, Unit) || Unit <- units(Document)],
     Named = [{label(Kind, Number, Unit), Unit}
              || {Number, Unit} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, Unit}) -> loads_nothing(Unit) end, Named),
@@ -142,9 +142,9 @@ examples(Document, Kind) ->
       [{Name, {timeout, 60, fun() -> check(Unit) end}} || {Name, Unit} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(Unit) end}} || {Name, Unit} <- Here]].
 
-%% The catalogue's errors may be the parser's or an unknown name's.
-catalogued("diagnostics", {rejected, Unit}) -> {rejected, Unit#{any_reason => true}};
-catalogued(_, Unit) -> Unit.
+%% The catalog's errors may be the parser's or an unknown name's.
+cataloged("diagnostics", {rejected, Unit}) -> {rejected, Unit#{any_reason => true}};
+cataloged(_, Unit) -> Unit.
 
 loads_nothing({modules, #{launch := #launch{invocation = Invocation, inputs = Inputs}}}) ->
     Invocation =:= "shell " orelse Inputs =/= [];
@@ -440,7 +440,7 @@ error_line(Output) ->
         nomatch -> none
     end.
 
-%% make diagnostics: every program of the catalogue compiled again, and
+%% make diagnostics: every program of the catalog compiled again, and
 %% the console after it written with what `ern build` prints for it, after
 %% a change to a message that is meant
 -spec write_diagnostics() -> ok.

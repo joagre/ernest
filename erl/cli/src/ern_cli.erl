@@ -787,7 +787,7 @@ report_tree(Statuses) ->
 %% `ernest.pid`, which reads its configuration again; the status says only
 %% that the signal was delivered.
 reload(Options, [], _ErrorDevice) ->
-    ern_node:signalled(node_dir(Options), 1),
+    ern_node:signaled(node_dir(Options), 1),
     0;
 reload(_Options, _Rest, _ErrorDevice) ->
     usage_fail("reload takes no argument").

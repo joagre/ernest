@@ -479,7 +479,7 @@ values() ->
       The process keeps its address across a restart, so whoever holds it keeps
       it. Everything else starts afresh: the mailbox is emptied, every call
       waiting for the process's answer ends, and what the process asked the
-      runtime for, its alarms, monitors and subscriptions, is cancelled. What
+      runtime for, its alarms, monitors and subscriptions, is canceled. What
       `f` held is gone (report §6.9).
 
       A restart is not a death: no `monitor` is told, and the process's `Down`

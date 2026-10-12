@@ -3,7 +3,7 @@
 /// the host's services watch.
 ///
 /// A program reads its own node's numbers here; how busy a peer is, it asks
-/// with `Peer.utilisation`, which each node answers as its own `ernest.conf`
+/// with `Peer.utilization`, which each node answers as its own `ernest.conf`
 /// measures it (report §8.7, Appendix E.27).
 ///
 /// A program puts the library on its load path when it is compiled and
@@ -21,14 +21,14 @@
 /// The processes waiting to run, none or more:
 ///
 /// ```ernest
-/// Utilisation.runQueue() >= 0
+/// Utilization.runQueue() >= 0
 /// // => true
 /// ```
 ///
 /// A program that is no node runs none of the host's services:
 ///
 /// ```ernest
-/// #(Utilisation.cpu(), Utilisation.memory(), Utilisation.disk())
+/// #(Utilization.cpu(), Utilization.memory(), Utilization.disk())
 /// // => #(None, None, None)
 /// ```
 ///
@@ -40,7 +40,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Utilisation.runQueue() >= 0
+/// Utilization.runQueue() >= 0
 /// // => true
 /// ```
 export fn runQueue() : Int with m =
@@ -55,7 +55,7 @@ export fn runQueue() : Int with m =
 ///
 /// ```ernest
 /// {
-///     let busy = Utilisation.schedulers(10);
+///     let busy = Utilization.schedulers(10);
 ///     busy >= 0.0 && busy <= 1.0
 /// }
 /// // => true
@@ -103,7 +103,7 @@ fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
 /// ### Examples
 ///
 /// ```ernest
-/// Utilisation.cpu()
+/// Utilization.cpu()
 /// // => None
 /// ```
 export fn cpu() : Optional(Float) with m =
@@ -116,7 +116,7 @@ export fn cpu() : Optional(Float) with m =
 /// ### Examples
 ///
 /// ```ernest
-/// Utilisation.memory()
+/// Utilization.memory()
 /// // => None
 /// ```
 export fn memory() : Optional(Float) with m =
@@ -148,7 +148,7 @@ fn valued(data : List(#(Foreign.Term, Int)), name : String) : Int = {
 /// ### Examples
 ///
 /// ```ernest
-/// Utilisation.disk()
+/// Utilization.disk()
 /// // => None
 /// ```
 export fn disk() : Optional(Float) with m =
