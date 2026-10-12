@@ -315,21 +315,22 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    first spawn costs about 254 ms after a dial of 115, the host compiler's first run and the
    prelude's environment, which item 8 says. The two proposals' status lines say what this milestone
    built and changed.
-7.5. **Placement by push.** Decided 2026-10-13 from `proposals/placement/push.md`, read back with
-     the user, every question of its section 7: each node tells its peers its utilisation on
-     `ernest.conf`'s `utilisation-interval`, 5000 ms where left out, the operator's time; a node
-     holds the last load heard from each peer with its moment, a peer not heard from not chosen, a
-     load older than two intervals not used, a peer's loss dropping its load; `Peer.compute(f, ms)`
-     draws two peers with a usable load at random and runs `f` on the less loaded, one taken as it
-     is, `Left(Unreachable)` where none has a usable load and `Left(NotListed)` where none is
-     listed; `Peer.computeAt(name, f, ms)` is today's `compute`; `Peer.loads()` the table for a
-     program's own rule, which is never a line of `ernest.conf`; `Peer.load(x)` the number a program
-     designs, 0.0 to 1.0, told until set again, the configured measure the default; `Peer.spawn`
-     keeps its peer; `libs/placement` and Appendix G.5 go. §8.7, §10, Appendix C and E.27 first;
-     then the frame, the table and the four functions, the guide's §8.1 over the new names, the
-     nodes tests over the rules and the pick's cost measured; the log's *Placing Work by Name*
-     records the reversal, principles 2 and 3 and Mitzenmacher's result on old information. MVP 3.27
-     measures it across machines.
+
+**7.5. Placement by push.** Decided 2026-10-13 from `proposals/placement/push.md`, read back with
+the user, every question of its section 7: each node tells its peers its utilisation on
+`ernest.conf`'s `utilisation-interval`, 5000 ms where left out, the operator's time; a node holds
+the last load heard from each peer with its moment, a peer not heard from not chosen, a load older
+than two intervals not used, a peer's loss dropping its load; `Peer.compute(f, ms)` draws two peers
+with a usable load at random and runs `f` on the less loaded, one taken as it is,
+`Left(Unreachable)` where none has a usable load and `Left(NotListed)` where none is listed;
+`Peer.computeAt(name, f, ms)` is today's `compute`; `Peer.loads()` the table for a program's own
+rule, which is never a line of `ernest.conf`; `Peer.load(x)` the number a program designs, 0.0 to
+1.0, told until set again, the configured measure the default; `Peer.spawn` keeps its peer;
+`libs/placement` and Appendix G.5 go. §8.7, §10, Appendix C and E.27 first; then the frame, the
+table and the four functions, the guide's §8.1 over the new names, the nodes tests over the rules
+and the pick's cost measured; the log's *Placing Work by Name* records the reversal, principles 2
+and 3 and Mitzenmacher's result on old information. MVP 3.27 measures it across machines.
+
 8. **The deployment guide.** `guide/deployment.md`, written whole here as a teaching document of its
    own, which owns running nodes: a node's configuration directory, `ern reload` and `ern stop`, the
    service manager, and what code by its hash gives a system of nodes, several builds running at
