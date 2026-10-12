@@ -47,7 +47,8 @@ No system known to me runs strangers' sessions on one shared runtime without a p
 2. **Where inputs compile.** On the shell's side, shipped as code crosses, or on the node; the sandbox's refusals are the checker's, so where the checker runs decides where they are enforced, and a sandbox enforced only on the client's side is no sandbox: the node must refuse what arrives, not trust what was sent.
 3. **The heap bound.** The host ends a process that passes its heap bound; whether the session is ended with it, or told, as a fault is reported.
 4. **`:load` of the tour's programs.** Whether the site's curated modules are loaded by name from the node's load path, which is `:load`'s normal way, and nothing else.
-5. **What an operator's attached session may do that a visitor's may not**, which is the whole of section 3, and whether the mode is the node's configuration, `"sessions": "sandboxed"`, and never the shell's flag, since the shell is the client's.
+5. **An address on the command line.** `ern shell --config-dir xx --attach ip:port`, raised 2026-10-13, reaches a remote node without listing it: the shell has its key from `xx`, so the node checks the shell and admits it, but no listed key gives the node a name for the shell to check, so the shell would trust whatever answers at the address, which §8.7 excludes. The listed peer, `--attach name`, keeps both sides checked for three lines in `xx/ernest.conf`, which the node's side needs touching for anyway, the operator's key listed there; an address with a key beside it on the line, `--attach ip:port --key file`, is that row written on the line, a second way to say what the file says. Leaning to the name alone.
+6. **What an operator's attached session may do that a visitor's may not**, which is the whole of section 3, and whether the mode is the node's configuration, `"sessions": "sandboxed"`, and never the shell's flag, since the shell is the client's.
 
 ## 7. If decided
 
