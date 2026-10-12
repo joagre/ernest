@@ -77,7 +77,7 @@ paragraph under "Done".
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | done 2026-10-10 |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | design read through 2026-10-09; stands on MVP 3.1 |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilisation` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place, by `proposals/balancer/suggestion.md` | done 2026-10-11 |
-| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; after MVP 3.2's item 8 and before the deployment guide |
+| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13 |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 |
@@ -321,47 +321,52 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    connected one how busy it is, every `utilisation-interval` milliseconds of its `ernest.conf`,
    5000 where left out and refused unless a whole number of at least one, and once as a peer
    connects, the telling carrying the teller's interval, the fourteenth frame, the gateway's since
-   it owns the connections; a node holds of each peer the last load heard, its moment and its
-   teller's interval, a peer not heard from not chosen, a load older than two of its teller's
-   intervals not used, a peer's loss dropping its load; `Peer.compute(f, ms)` draws two peers with a
-   usable load at random and runs `f` on the less loaded, one taken as it is, two equally loaded the
-   first in the configuration's order, `Left(Unreachable)` where none has a usable load and
-   `Left(NotListed)` where none is listed; `Peer.computeAt(name, f, ms)` is the compute by name,
-   both forms of §3.11; `Peer.loads()` the table for a program's own rule, which is never a line of
-   `ernest.conf`; `Peer.load(x)` the number a program designs, 0.0 to 1.0, a value outside faulting,
-   told until set again or the run ends, the configured measure the default, which a telling reads
-   as an ask does; the `Placement` library gone with Appendix G.5's content, its tests moved to
-   `Peer`'s, the guide's §8.1 taught over the new names. Measured on one machine: the pick 3.6 µs, a
-   table read and a draw, about one part in a hundred of a compute, three idle nodes exchanging 1.2
-   packets a second, the tellings replacing the host's ticks (the log's *Placing Work by Name*).
-   Found and decided: a program's own rule cannot wrap the compute over a function parameter
-   (§3.11), so it answers a name and the compute is written at the call, `docs/language_feedback.md`
-   106, and `List` has no `minimumBy`, 107. MVP 3.27 measures the push against the pull across
-   machines.
+   it owns the connections; a node holds of each peer the last utilisation heard, its moment and its
+   teller's interval, a peer not heard from not chosen, a utilisation older than two of its teller's
+   intervals not used, a peer's loss dropping its utilisation; `Peer.compute(f, ms)` draws two peers
+   with a usable utilisation at random and runs `f` on the less busy, one taken as it is, two
+   equally busy the first in the configuration's order, `Left(Unreachable)` where none has a usable
+   utilisation and `Left(NotListed)` where none is listed; `Peer.computeAt(name, f, ms)` is the
+   compute by name, both forms of §3.11; `Peer.utilisations()` the table for a program's own rule,
+   which is never a line of `ernest.conf`; `Peer.setUtilisation(x)` the utilisation a program
+   designs, 0.0 to 1.0, a value outside faulting, told until set again or the run ends, the
+   configured measure the default, which a telling reads as an ask does; the `Placement` library
+   gone with Appendix G.5's content, its tests moved to `Peer`'s, the guide's §8.1 taught over the
+   new names. Measured on one machine: the pick 3.6 µs, a table read and a draw, about one part in a
+   hundred of a compute, three idle nodes exchanging 1.2 packets a second, the tellings replacing
+   the host's ticks (the log's *Placing Work by Name*). Found and decided: a program's own rule
+   cannot wrap the compute over a function parameter (§3.11), so it answers a name and the compute
+   is written at the call, `docs/language_feedback.md` 106, and `List` has no `minimumBy`, 107. MVP
+   3.27 measures the push against the pull across machines. Renamed the same day: `Peer.load` to
+   `Peer.setUtilisation` and `Peer.loads` to `Peer.utilisations`, since the number told is the
+   utilisation and "load" named it a second time beside `Code.load`'s verb and G.4's library (the
+   log's *Placing Work by Name*).
 9. **The deployment guide.** `guide/deployment.md`, *Running Ernest*, written whole as a teaching
-   document of its own for the operator, who runs nodes and may write no Ernest, after item 8 and
-   MVP 3.27, so that it teaches the placement that ships and stands on numbers measured across
-   machines. Its outline, agreed 2026-10-13 and tightened the same day to the operator's half of
-   each subject, the programmer's half the language guide's chapter 8 with one line pointing there:
-   one node, `ern config`, the directory and `ernest.conf` line by line, `ern run`, `ern stop`, `ern
-   reload`, the pid file, what the node says and its statuses, the service manager, which §9.5 of
-   the language guide holds today and moves here with a pointer; two nodes, keys, certificates, the
-   floor, the handshake, a lost peer on each side and in the program; services and placement as the
-   configuration sees them, the `services`, `utilisation` and `utilisation-interval` entries and the
-   measures, a bare node given its work; code across nodes as the operator meets it, what a node
-   keeps for its life, the counts and the four-fifths line, the restart and what it holds, the
-   `NotLoaded` and `Other` lines and the move for each; builds, several on one floor, two versions
-   of a type, a fix from a shell, and `examples/upgrade_tool.ern` run against a running service, how
-   a service is written to be upgradable being chapter 8's; looking in, a shell beside a running
-   node, `Process.status`, `Peer.utilisation` and `Peer.loads`, the measures, a trace; what a node
-   says and what to do, the catalogue of standard-error lines, each with its cause and the
-   operator's move; and a deployment end to end as a runbook, three nodes on one machine to a
-   rolling upgrade, each command in order, each node's configuration, what each says after each
-   step, the check and what to do where a step fails, run by the tests, while the tour (MVP 3.3)
-   tells the same deployment as a story and points here to operate it; containers and orchestration
-   left out, and the design to the log. Decided 2026-10-13 (the log's *The Report for Code with a
-   Spawn*, and *Later*): no `Code.upgrade`, since the message it would send is the program's own
-   type, which no library function can build at a type, and the two lines show the mechanism whole.
+   document of its own for the operator, who runs nodes and may write no Ernest, after item 8, so
+   that it teaches the placement that ships; a number it quotes is one machine's until MVP 3.27
+   measures across machines, and says so, since a guide teaches shapes and moves and the log owns
+   the measurements (decided 2026-10-13). Its outline, agreed 2026-10-13 and tightened the same day
+   to the operator's half of each subject, the programmer's half the language guide's chapter 8 with
+   one line pointing there: one node, `ern config`, the directory and `ernest.conf` line by line,
+   `ern run`, `ern stop`, `ern reload`, the pid file, what the node says and its statuses, the
+   service manager, which §9.5 of the language guide holds today and moves here with a pointer; two
+   nodes, keys, certificates, the floor, the handshake, a lost peer on each side and in the program;
+   services and placement as the configuration sees them, the `services`, `utilisation` and
+   `utilisation-interval` entries and the measures, a bare node given its work; code across nodes as
+   the operator meets it, what a node keeps for its life, the counts and the four-fifths line, the
+   restart and what it holds, the `NotLoaded` and `Other` lines and the move for each; builds,
+   several on one floor, two versions of a type, a fix from a shell, and `examples/upgrade_tool.ern`
+   run against a running service, how a service is written to be upgradable being chapter 8's;
+   looking in, a shell beside a running node, `Process.status`, `Peer.utilisation` and `Peer.loads`,
+   the measures, a trace; what a node says and what to do, the catalogue of standard-error lines,
+   each with its cause and the operator's move; and a deployment end to end as a runbook, three
+   nodes on one machine to a rolling upgrade, each command in order, each node's configuration, what
+   each says after each step, the check and what to do where a step fails, run by the tests, while
+   the tour (MVP 3.3) tells the same deployment as a story and points here to operate it; containers
+   and orchestration left out, and the design to the log. Decided 2026-10-13 (the log's *The Report
+   for Code with a Spawn*, and *Later*): no `Code.upgrade`, since the message it would send is the
+   program's own type, which no library function can build at a type, and the two lines show the
+   mechanism whole.
 10. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
    MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
@@ -387,17 +392,20 @@ one machine's. The user gives four machines to start nodes on, one of them on a 
 the measurements run again between them: a spawn whose code crosses, a compute, a fix's callers,
 `Peer.utilisation`, the pick of item 8's push against `Placement.leastBusy`'s pull, the carrier's
 dial and its loss, on one LAN and across the two, each a median over runs with its range, in the log
-beside item 7's. What differs decides what the deployment guide says of a network, and whether the
-push's two choices hold under a burst across a wire, as `proposals/placement/push.md`'s section 5
-asks.
+beside item 7's. What differs goes into the log beside item 7's numbers and, where a sentence of the
+deployment guide quotes a number, into the guide, which is written before this milestone on one
+machine's numbers and says so; and it decides whether the push's two choices hold under a burst
+across a wire, as `proposals/placement/push.md`'s section 5 asks. It runs when the user's machines
+are ready, and the release waits for it only where the machines come first.
 
 1. **The machines.** The four nodes' configuration directories and keys, made with `ern config` and
    listed as peers across the machines, a script that starts and stops them, and the measuring
-   programs of `make bench` run between them, the node on the separate LAN last. 2. **The numbers.**
-   Item 7's tables again across machines, and the push's experiment of
+   programs of `make bench` run between them, the node on the separate LAN last.
+2. **The numbers.** Item 7's tables again across machines, and the push's experiment of
    `proposals/placement/push.md`'s section 5; the log's paragraph beside item 7's; `docs/memory.md`
-   where a measured fact changes; the deployment guide's sections on two nodes and on code across
-   nodes written from them.
+   where a measured fact changes; the deployment guide's numbers for two nodes and for code across
+   nodes corrected from them.
+
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
