@@ -394,12 +394,19 @@ likeliest, and the tag waits for that fix only if it recurs. The `install` test 
 under load against its limit of 300 s: its bound is derived from what it waits for, or the test
 is split, before the tag. A run that times out leaves its `closed` directory read-only, which the
 next run's cleanup cannot remove (`eexist`): the cleanup makes it writable first, before the tag.
-Beside them, found the same day: `make manual` writes every manual page again on every `make`,
-14.7 s of a no-op `make`'s 16 s, which `make test` and each `make install` pay again. `ern doc
---man` writes a page only where it is older than the module's `.erc`, `libs/markdown`'s `.erc`
-or `ern`'s own build, each written by the toolchain alone and only when its content changes, so
-that a page goes stale on none of them; §11.4 states it first; before the tag, since it shortens
-the `install` test too.
+Beside them, found the same day: `make manual` writes every manual page again on every `make`, 14.7
+s of a no-op `make`'s 16 s, which `make test` and each `make install` pay again, and `make doc` and
+`make man` do the same with `ern doc`'s Markdown. `ern doc`, with `--man` or without, writes a page
+only where it is older than the module's `.erc`, `libs/markdown`'s `.erc` or `ern`'s own build, each
+written by the toolchain alone and only when its content changes, so that a page goes stale on none
+of them; `ern(1)` is written only where it is older than §11's source, the manual tool or `VERSION`;
+§11.4 states it first; before the tag. It takes a no-op `make` from 16 s to about 4 s and each `make
+install` with it, so that the `install` test, which runs `make install` five times, spends about 20
+s there in place of about 87 s, well inside its limit. Also before the tag, decided with the user
+the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`,
+`make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
+leaves unchanged, and whether `:load` could take a build's current `.erc`, each step that costs more
+than its work fixed at its cause or planned with a date (the log's *Slow Tools Are Defects*).
 
 ---
 
@@ -506,6 +513,8 @@ it.
    stays silent, and standard output stays `--emit-erl`'s and the program's. §11.1 and §11.2 state
    the lines, `ern --help` lists the flag, and a test reads the lines of a build, a run and a test.
    About a day, first in the milestone since it touches `ern_build`, the runner and §11 alone.
+   The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
+   what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
 2. **The design**, discussed with the user first in `proposals/shell/attached.md` (begun
    2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell
    --config-dir ops --attach name` to a listed peer over the carrier, never a process number or an
