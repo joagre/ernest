@@ -238,6 +238,13 @@ The site's files as served.
   blocks' buttons are the script's additions.
 - No search: the report's whole pages serve the browser's find.
 - The site runs on ehttpd, as the deployment guide runs a node.
+- `make install` ships no page of the site: the pages are the server's, their
+  links absolute and the shell panel on each. An installation's documents stay
+  each in the form its reader uses: the man pages as roff, the report and the
+  guide, which have no roff form, as Markdown (`proposals/install/install.md`).
+  A form of the pages that works from a file, relative links and no panel,
+  shipped apart as Rust ships its book, is decided with MVP 4.2 if it is wanted
+  (decided 2026-10-13).
 
 ## The live shell, 2026-10-13
 
