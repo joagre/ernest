@@ -403,9 +403,13 @@ of them; `ern(1)` is written only where it is older than §11's source, the manu
 §11.4 states it first; before the tag. It takes a no-op `make` from 16 s to about 4 s and each `make
 install` with it, so that the `install` test, which runs `make install` five times, spends about 20
 s there in place of about 87 s, well inside its limit. Also before the tag, decided with the user
-the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`, `make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
-leaves unchanged, and whether `:load` could take a build's current `.erc`, each step that costs more
-than its work fixed at its cause or planned with a date (the log's *Slow Tools Are Defects*).
+the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`,
+`make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
+leaves unchanged, whether `ern doc` can read the `.erc` alone instead of compiling the source,
+whether one `ern build` or `ern doc` over several roots can replace the twenty starts of the host a
+no-op `make` makes, whether `make -j` can build the applications side by side, and whether `:load`
+could take a build's current `.erc`, each step that costs more than its work fixed at its cause or
+planned with a date (the log's *Slow Tools Are Defects*).
 
 ---
 
