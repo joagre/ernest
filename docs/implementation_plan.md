@@ -16,7 +16,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 **MVP 3.2 is in progress.** Its items 1 to 9 are done, code crossing with a spawn, the bare node,
 `Code`, the pick and the deployment guide, and its item 10, Ernest 0.4.0, waits for the user's
-word. Before the tag, in MVP 3.2 below: the speed investigation and the test defects. The split of `make test`, taken early from MVP 3.9, is done.
+word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects. The split of `make test`, taken early from MVP 3.9, is done.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -365,32 +365,38 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
 
-**Before the tag, three defects of the programs tests**, found on 2026-10-13 while tables were
-built (the log's *Tables in `libs/markdown`*). An intermittent fault of `ern doc --man` in the
-runtime it now starts, seen once in four runs of the suite, at the `install` test's third
-`make install`, its cause cut short then; a failure now prints its whole cause, so it is
-diagnosed and fixed at its cause when it next occurs, the measuring machine's deadlock of 2026-10-13, a wait of the job's own Erlang on a host process from the entry process outside the detector's count, being the first shape to check (the log's *Three Test Defects Found on the Way*), which the release review's full runs make
-likeliest, and the tag waits for that fix only if it recurs. Since the split of `make test` the same day (the log's *The Light Run and the Full Run*), the manual pages' test and the installation's no longer write the pages under `build/stdlib` at once, which they did when the fault was seen; if it stays away over the release review's runs, that overlap was its likeliest cause. The `install` test takes 190 to 350 s
-under load against its limit of 300 s: its bound is derived from what it waits for, or the test
-is split, before the tag. A run that times out leaves its `closed` directory read-only, which the
-next run's cleanup cannot remove (`eexist`): the cleanup makes it writable first, before the tag.
-Beside them, found the same day: `make manual` writes every manual page again on every `make`, 14.7
-s of a no-op `make`'s 16 s, which `make test-full` pays three times and each `make install` again, and `make doc` and
-`make man` do the same with `ern doc`'s Markdown. Done 2026-10-13: `ern doc`, with `--man` or
-without, writes a page only where none is there or the one there is older than what it is made from,
-and `ern(1)` likewise by make's prerequisites (§11.4 *What is written*; the log's *Pages Written
-Where Out of Date*). It took a no-op `make` from 16.5 s to 14.6 s, not to the 4 s estimated: writing
-the pages was 2 s of the 14.7 s attributed to `make manual`, and the rest is `ern doc`'s compile of
-every source, 6.5 s, and fifteen starts of the host, 5 s, both the investigation's below. Also
-before the tag, decided with the user
-the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`,
-`make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
-leaves unchanged, whether `ern doc` can read the `.erc` alone instead of compiling the source,
-whether one `ern build` or `ern doc` over several roots can replace the twenty starts of the host a
-no-op `make` makes, whether `make -j` can build the applications side by side, and why the spelling
-test takes 4 s of `make test-docs`'s 7 s, and whether `:load` could take a build's current `.erc`,
-each step that costs more than its work fixed at its cause or planned with a date (the log's *Slow
-Tools Are Defects*).
+**Before the tag: the tools' speed.** Done 2026-10-13: pages written only where out of date, a
+no-op `make` 16.5 s to 14.6 s (the log's *Pages Written Where Out of Date*); and the
+investigation, whose seven fixes took a no-op `make` to 13.0 s, a clean compile of the
+applications from 50 s to 16 s and `make test-docs` from 7.5 s to 5.3 s (the log's *The Tools
+Measured*). What is left is the seven `ern doc` runs' compile, 8.3 s, and sixteen starts of the
+host, about 5 s. Decided with the user the same day, each built before the tag:
+1. `ern doc` reads a module's current `.erc` and compiles only the rest, and compiles nothing
+   where every page is current; §11.4 says so first.
+2. `make man` writes its pages beside the build's `.erc`s and copies them, in place of compiling
+   every module again into `build/pages`.
+3. `index.md` is written only where its text differs; §11.4 says so first.
+4. The Makefile runs its independent `ern build`s and `ern doc`s side by side, after 1: about 3 s
+   for a no-op `make` on eight cores.
+5. `:load` takes a current `.erc` beside the source or on the load path; §11.2 says so first.
+
+One command over several roots was refused the same day (the log's *Later*).
+
+**Before the tag: the programs tests.** The intermittent fault of `ern doc --man` is fixed: a
+deadlock, the prelude's page waiting on the host's code and file servers inside the runtime (the
+log's *The Tools Measured*); if it recurs, the diagnosis was wrong. The `install` test takes 190
+to 350 s under load against its limit of 300 s: its bound is derived from what it waits for, or
+the test is split. A run that times out leaves its `closed` directory read-only, which the next
+run's cleanup cannot remove (`eexist`): the cleanup makes it writable first. `test/peers/desk.ern`
+asserts "send at once" as under 1000 ms, a chosen number, which failed under load on
+2026-10-13: the bound is derived from what it tells apart, a send that dials against one that
+does not, and the old call's from its own limit (CLAUDE.md's *No fixed sleep*). `make test-full`'s second
+phase, the shell's tests and the five program parts side by side, runs at a load of about 117 on
+eight cores, and three tests failed there on 2026-10-13 in four runs, one of them without that
+day's changes, each passing alone at its usual time: `one_node` in the deployment tests and
+`replaced` past their limits of 120 s, and `exchange` with a spawn's answer missing. Each limit is
+derived from what it waits for, and the phase runs no more side by side than the machine
+carries, measured before the tag.
 
 ---
 
