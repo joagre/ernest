@@ -7,12 +7,11 @@ documents still to write, Why and Features, and what is open about them.
 
 ## Open
 
-- **Why's pieces.** The four pieces below against the draft `but_why.md`,
-  whose six sections lack failure as messages and split code by content into
-  four.
-- **Where Features is reached from.** The homepage's characteristics at full
-  depth, reached from them, is this note's; `site.md`'s first open item
-  decides what the characteristics are.
+- **Why's pieces.** They are the guide's §0 list, "What Ernest adds"
+  ([`decisions.md`](decisions.md)), so what that list holds is open. The
+  outline below has failure as messages and code by content; the guide has
+  purity in the type and one build on every node, stale since code crosses
+  with a spawn; the draft `but_why.md` has six sections.
 
 ## `but_why.md`
 

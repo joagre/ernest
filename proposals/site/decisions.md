@@ -79,6 +79,9 @@ The site's files as served.
   intended use, with no milestone numbers; then a small complete example of
   typed process communication, its behavior beside the code. The introduction,
   the example and the doors are visible on a desktop without scrolling.
+- Between the example and the doors, the guide's §0 list "What Ernest adds",
+  generated from the guide, each item linking to its section in Why; then a
+  link, "everything Ernest has", to Features.
 - Its rows are four doors, in this order, each with its question: Try, "let me
   see it run", the shell's entry with Start; Tour, "show me the language";
   Guide, "help me write programs"; Report, "tell me the rules".
