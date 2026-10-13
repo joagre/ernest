@@ -394,6 +394,14 @@ build(_Options, _Rest, _ErrorDevice) ->
 %% every document is of a module that type-checks and every dependency has
 %% an interface.
 doc(Options, [Path], ErrorDevice) ->
+    try doc_path(Options, Path, ErrorDevice)
+    catch
+        throw:{ended, Status} -> Status
+    end;
+doc(_Options, _Rest, _ErrorDevice) ->
+    usage_fail("one file or directory argument is required").
+
+doc_path(Options, Path, ErrorDevice) ->
     case filelib:is_dir(Path) of
         true ->
             %% report §11.4: the tree is compiled and nothing but its pages
@@ -411,9 +419,7 @@ doc(Options, [Path], ErrorDevice) ->
                 throw:{errors, File, Diagnostics} ->
                     ern_build:report_errors(Options, File, Diagnostics, ErrorDevice)
             end
-    end;
-doc(_Options, _Rest, _ErrorDevice) ->
-    usage_fail("one file or directory argument is required").
+    end.
 
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
 %% is read; a source is compiled first, in memory, so that asking for a page
@@ -459,8 +465,25 @@ beam_of(Options, Path) ->
 %% page.
 page(Options, Beam) ->
     case lists:member(man, Options) of
-        true -> ern_page:manual(Beam);
+        true -> in_runtime(fun() -> ern_page:manual(Beam) end);
         false -> ern_page:page(Beam)
+    end.
+
+%% Report §11.4, §8.5: a manual page is laid out by libs/markdown, whose code
+%% runs as a program's does, in a started runtime, the standard library's
+%% top-level bindings and the library's evaluated first, so that a function
+%% that reads one finds its value. What Compute gives is passed back to the
+%% job, which writes it. A fault there is a failure of ern itself, and a
+%% signal ends the job as it ends a run (§11.8).
+in_runtime(Compute) ->
+    Caller = self(),
+    Ref = make_ref(),
+    Options = #{init => fun() -> ern_rt:init_modules(['ern@markdown']) end,
+                faults => fun(_FaultReport, _Peer) -> ok end},
+    case ern_rt:run_main(fun() -> Caller ! {Ref, Compute()} end, <<"ern doc">>, Options) of
+        ok -> receive {Ref, Result} -> Result end;
+        {signal, Signal} -> throw({ended, ern_signals:ended(Signal)});
+        Outcome -> erlang:error({libs_markdown, Outcome})
     end.
 
 doc_dir(Options, Path, Compiled) ->
@@ -502,23 +525,26 @@ markdown_dir(Modules, IsStdlib, BuildRoot, Compiled) ->
 %% .erc, in a file named as `man` finds it, `Ernest.Net.Http.3ern`, and the
 %% prelude's at the top of the standard library's own build root.
 man_dir(Modules, IsStdlib, BuildRoot, Compiled) ->
-    lists:foreach(fun(#build_module{namespace = Namespace}) ->
-                      Dir = filename:dirname(filename:join(BuildRoot,
-                                                           ern_build:module_path(Namespace))),
-                      Name = "Ernest." ++ ern_namespace:text(Namespace) ++ ".3ern",
-                      Page = ern_page:manual(maps:get(Namespace, Compiled)),
-                      Output = filename:join(Dir, Name),
+    Pages = in_runtime(fun() -> man_pages(Modules, IsStdlib, BuildRoot, Compiled) end),
+    lists:foreach(fun({Output, Page}) ->
                       ok = ern_build:make_dirs(Output),
-                      ok = ern_build:write_output(Output, unicode:characters_to_binary(Page))
-                  end, lists:sort(Modules)),
+                      ok = ern_build:write_output(Output, Page)
+                  end, Pages).
+
+%% Each page and the file it is written to; a page is text, written as UTF-8.
+man_pages(Modules, IsStdlib, BuildRoot, Compiled) ->
+    Pages = [begin
+                 Dir = filename:dirname(filename:join(BuildRoot, ern_build:module_path(Namespace))),
+                 Name = "Ernest." ++ ern_namespace:text(Namespace) ++ ".3ern",
+                 Page = ern_page:manual(maps:get(Namespace, Compiled)),
+                 {filename:join(Dir, Name), unicode:characters_to_binary(Page)}
+             end || #build_module{namespace = Namespace} <- lists:sort(Modules)],
     case IsStdlib of
         true ->
-            %% a page is text, written as UTF-8
-            Page = unicode:characters_to_binary(ern_page:prelude_manual()),
-            Output = filename:join(BuildRoot, "Ernest.Prelude.3ern"),
-            ok = ern_build:make_dirs(Output),
-            ok = ern_build:write_output(Output, Page);
-        false -> ok
+            Prelude = unicode:characters_to_binary(ern_page:prelude_manual()),
+            Pages ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"), Prelude}];
+        false ->
+            Pages
     end.
 
 %% Report §11.4: the standard library's own source root also gets the

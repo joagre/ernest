@@ -2,8 +2,9 @@
 /// page.
 ///
 /// Use it to show a document a program holds. `parse` reads CommonMark 0.31
-/// text, the specification at commonmark.org, into blocks; `render` lays the
-/// blocks out as rows for a terminal, and `roff` writes them as a manual page.
+/// text, the specification at commonmark.org, with GitHub's tables, into
+/// blocks; `render` lays the blocks out as rows for a terminal, and `roff`
+/// writes them as a manual page.
 /// The shell's `:doc` shows documentation with `render`, and `ern doc` writes
 /// manual pages with `roff`.
 ///
@@ -13,10 +14,10 @@
 /// beside it (report Appendix G.2).
 ///
 /// **What it reads.** `parse` reads headings, paragraphs, code blocks, block
-/// quotes, lists and thematic breaks, and inside them code spans, emphasis,
-/// strong emphasis, links, images and hard line breaks. An image is read as a
-/// `Link`. A line may end in a line feed, a carriage return and a line feed, or
-/// a carriage return.
+/// quotes, lists, thematic breaks and tables, and inside them code spans,
+/// emphasis, strong emphasis, links, images and hard line breaks. An image is
+/// read as a `Link`. A line may end in a line feed, a carriage return and a
+/// line feed, or a carriage return.
 ///
 /// **What it keeps as written.** An HTML block is a `Raw` block, and inline
 /// HTML, an entity and a link by reference stay in the text.
@@ -33,6 +34,15 @@
 /// processing instruction to one that holds `?>`, a CDATA section to one that
 /// holds `]]>`, and a declaration to one that holds `>`, its first line among
 /// them, and each to the end where no line does. A tag runs to a blank line.
+///
+/// **Tables, more simply than GitHub's.** A table begins after a blank line or
+/// another block, never inside a paragraph, at a line followed by a delimiter
+/// row of as many cells, and both lines hold a `|`. A delimiter cell is one or
+/// more `-`s, with a `:` at either end or both. A cell is the text between two
+/// `|`s no backslash escapes, trimmed, and each `\|` in it is `|`, in a code
+/// span too. The rows run to a blank line or a line that begins another block;
+/// a row with too few cells gains empty ones, and one with too many loses those
+/// beyond.
 ///
 /// **Tabs.** A tab in a line's indentation, quote marks and list markers
 /// reaches to the next multiple of four columns. One elsewhere is kept, in a
@@ -109,6 +119,43 @@ export type Block =
   | Rule
   /// Lines that are not read, an HTML block's, kept as written.
   | Raw(List(String))
+  /// A table: its columns, and its rows, each a cell's inlines for every
+  /// column.
+  | Table(columns : List(Column), rows : List(List(List(Inline))))
+
+/// A table's column: its heading's text, and how its cells are aligned.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Markdown.parse("| a |\n| - |")
+/// // => [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)], rows = [])]
+/// ```
+///
+/// since 0.4.0
+export type Column = Column(text : List(Inline), alignment : Alignment)
+
+/// How a table's column aligns its cells, as the colons of its delimiter row
+/// say.
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Markdown.parse("| a | b |\n| :-: | --: |") {
+///     [Markdown.Table(columns = columns)] -> List.map(columns, fn(column) = column.alignment)
+///   | _ -> []
+/// }
+/// // => [Centered, RightAligned]
+/// ```
+///
+/// since 0.4.0
+export type Alignment =
+    /// To the left, where the delimiter cell has no colon or one at its start.
+    LeftAligned
+  /// To the center, where it has a colon at each end.
+  | Centered
+  /// To the right, where it has a colon at its end alone.
+  | RightAligned
 
 /// How `render` writes a document: plain, or with the terminal's styles.
 ///
@@ -207,7 +254,7 @@ fn opened(openers : List((String, List(String)) -> Optional(#(Block, List(String
 // Each kind of block that may begin at a line, in the order they are tried;
 // a function rather than a `let`, which would be a cycle, since they reach back to it (§8.5).
 fn openers() : List((String, List(String)) -> Optional(#(Block, List(String)))) =
-    [headingStart, ruleStart, fenceStart, quoteStart, listStart, htmlStart]
+    [headingStart, ruleStart, fenceStart, quoteStart, listStart, htmlStart, tableStart]
 
 fn headingStart(line : String, rest : List(String)) : Optional(#(Block, List(String))) =
     Optional.map(atx(unindented(line)), fn(found) = #(found, rest))
@@ -637,6 +684,103 @@ fn underlineLevel(line : String) : Int =
     }
 
 //
+// Tables
+//
+
+// A table begins at a line that begins no other block, since the openers
+// before this one are tried first, followed by a delimiter row of as many
+// cells, both lines holding a `|`. It never begins inside a paragraph,
+// whose lines are read before an opener sees them (report Appendix G.2).
+fn tableStart(line : String, rest : List(String)) : Optional(#(Block, List(String))) =
+    match rest {
+        next :: later when indent(next) < 4
+            && String.contains(line, "|")
+            && String.contains(next, "|") -> {
+            let headings = cellTexts(line);
+            match alignmentsOf(next) {
+                Some(alignments) when List.size(alignments) == List.size(headings) -> {
+                    let columns =
+                        List.map(List.zip(headings, alignments),
+                                 fn(#(text, alignment)) =
+                                     Column(text = inlines(text), alignment = alignment));
+                    let #(rows, beyond) = tableRows(later, List.size(columns), []);
+                    Some(#(Table(columns = columns, rows = rows), beyond))
+                }
+              | _ -> None
+            }
+        }
+      | _ -> None
+    }
+
+// The cells of a table's line: its text without a `|` at its start or one
+// no backslash escapes at its end, split at each `|` no backslash escapes,
+// each cell trimmed.
+fn cellTexts(line : String) : List(String) = {
+    let chars = String.toList(String.trim(line));
+    let opened = match chars {
+        '|' :: rest -> rest
+      | _ -> chars
+    };
+    let closed = match List.reverse(opened) {
+        '|' :: '\\' :: _ -> opened
+      | '|' :: before -> List.reverse(before)
+      | _ -> opened
+    };
+    List.map(pipeSeparated(closed, [], []), String.trim)
+}
+
+// The text between the `|`s no backslash escapes, `current` the cell read so
+// far, last first. An escaped `|` is read as `|` here, before the cell's
+// inlines are, so that it is one inside a code span too.
+fn pipeSeparated(chars : List(Char), current : List(Char), acc : List(String)) : List(String) =
+    match chars {
+        [] -> List.reverse(String.fromList(List.reverse(current)) :: acc)
+      | '\\' :: '|' :: rest -> pipeSeparated(rest, '|' :: current, acc)
+      | '|' :: rest -> pipeSeparated(rest, [], String.fromList(List.reverse(current)) :: acc)
+      | char :: rest -> pipeSeparated(rest, char :: current, acc)
+    }
+
+// A delimiter row's alignments, a cell's each, where every cell is one.
+fn alignmentsOf(line : String) : Optional(List(Alignment)) = {
+    let cells = cellTexts(line);
+    let alignments = List.filterMap(cells, alignmentOf);
+    if List.size(alignments) == List.size(cells) then Some(alignments) else None
+}
+
+// A delimiter cell is one or more `-`s, with a `:` at either end or both,
+// which say how its column is aligned.
+fn alignmentOf(cell : String) : Optional(Alignment) = {
+    let left = String.startsWith(cell, ":");
+    let right = String.endsWith(cell, ":");
+    let dashes =
+        String.slice(cell, if left then 1 else 0, String.size(cell) - (if right then 1 else 0));
+    if String.isEmpty(dashes) || !List.all(String.toList(dashes), fn(char) = char == '-') then
+        None
+    else if left && right then
+        Some(Centered)
+    else if right then
+        Some(RightAligned)
+    else
+        Some(LeftAligned)
+}
+
+// A table's rows: its lines to a blank line or one that begins another
+// block, each with a cell for every column.
+fn tableRows(lines : List(String),
+             count : Int,
+             acc : List(List(List(Inline)))) : #(List(List(List(Inline))), List(String)) =
+    match lines {
+        line :: rest when !isBlank(line) && !interrupts(line) ->
+            tableRows(rest, count, fitted(List.map(cellTexts(line), inlines), count) :: acc)
+      | _ -> #(List.reverse(acc), lines)
+    }
+
+// A row with a cell for every column: an empty one for each it lacks, and
+// none for those beyond.
+fn fitted(row : List(List(Inline)), count : Int) : List(List(Inline)) =
+    List.take(row, count) <> List.repeat([], count - List.size(row))
+
+//
 // Reading the inlines
 //
 
@@ -905,7 +1049,10 @@ fn autolink(chars : List(Char), acc : List(Char)) : Optional(#(Inline, List(Char
 /// columns and never wrapped. A list item follows a bullet, or its number and a
 /// period, whatever delimiter it was written with. A block quote follows a bar,
 /// a thematic break is a line across the width, and a link is its text with its
-/// URL after it.
+/// URL after it. A table is laid out in columns, each as wide as its widest
+/// cell, a row's cells separated by `│`, its headings bold with styles and a
+/// row of `─`s under them, each cell at the side its column aligns it to; a
+/// hard break in a cell is a space, and no row is wrapped.
 ///
 /// With styles, emphasis is in italics, strong emphasis bold, and a code span
 /// cyan; emphasis within emphasis, and strong emphasis within a heading, are as
@@ -943,6 +1090,67 @@ fn rendered(block : Block, width : Int, output : Output) : List(String) =
       | Items(start = start, items = items) -> itemRows(start, items, width, output)
       | Rule -> [String.repeat("─", width)]
       | Raw(lines) -> lines
+      | Table(columns = columns, rows = rows) -> standing(output, tableLines(columns, rows, output))
+    }
+
+// A table's lines, each cell as the output shows inlines and the headings
+// bold with styles, as a heading's text is.
+fn tableLines(columns : List(Column),
+              rows : List(List(List(Inline))),
+              output : Output) : List(String) = {
+    let headings = List.map(columns, fn(column) = {
+        let text = spans(unstrong(column.text), output);
+        oneLine(paint(output, Ansi.Bold, text))
+    });
+    let body =
+        List.map(rows,
+                 fn(row) =
+                     List.map(fitted(row, List.size(columns)),
+                              fn(cell) = oneLine(spans(cell, output))));
+    columned(List.map(columns, fn(column) = column.alignment), headings :: body)
+}
+
+// A cell's text on one line, a hard break in it a space, and the columns it
+// takes, an escape sequence taking none.
+fn oneLine(text : String) : #(String, Int) = {
+    let line = String.replace(text, "\n", " ");
+    #(line, Terminal.width(line))
+}
+
+// The lines of a table, the headings' first, from each cell's text and the
+// columns it takes: each column as wide as its widest cell, a row's cells
+// separated by `│`, a row of `─`s under the headings, and a cell at the side
+// its column aligns it to. No row is wrapped, as no code block is.
+fn columned(alignments : List(Alignment), rows : List(List(#(String, Int)))) : List(String) = {
+    let widths =
+        List.foldLeft(rows,
+                      List.map(alignments, fn(_) = 0),
+                      fn(widest, row) =
+                          List.map(List.zip(widest, row),
+                                   fn(#(most, #(_, columns))) = Int.max(most, columns)));
+    let lines = List.map(rows, fn(row) = {
+        let cells =
+            List.map(List.zip(row, List.zip(widths, alignments)),
+                     fn(#(#(text, columns), #(width, alignment))) =
+                         aligned(text, width - columns, alignment));
+        String.trimEnd(String.join(cells, " │ "))
+    });
+    match lines {
+        [] -> []
+      | headings :: body ->
+            headings
+                :: String.join(List.map(widths, fn(width) = String.repeat("─", width)), "─┼─")
+                :: body
+    }
+}
+
+// A cell's text and the spaces its column leaves beside it, at the side its
+// alignment says.
+fn aligned(text : String, gap : Int, alignment : Alignment) : String =
+    match alignment {
+        LeftAligned -> text <> String.repeat(" ", gap)
+      | RightAligned -> String.repeat(" ", gap) <> text
+      | Centered -> String.repeat(" ", gap / 2) <> text <> String.repeat(" ", gap - gap / 2)
     }
 
 // Each item after its bullet or number, the rows after its first under
@@ -1153,7 +1361,9 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 /// A code span and strong emphasis are bold, and emphasis is in italics. A code
 /// block is indented and not filled, a list item follows its bullet or its
 /// number, a block quote is indented, a thematic break is a row of asterisks, a
-/// link is its text with its URL after it, and a `Raw` block is as written.
+/// table is laid out as `render` lays it out, its headings bold and its lines
+/// not filled, a link is its text with its URL after it, and a `Raw` block is
+/// as written.
 ///
 /// Every character roff would change is written as roff's escape for it, so
 /// that code copied from the page is the code written. The rest is UTF-8, which
@@ -1207,7 +1417,32 @@ fn roffed(block : Block) : List(String) =
       | Items(start = start, items = items) -> roffItems(start, items)
       | Rule -> [".PP", "   *   *   *   *   *"]
       | Raw(lines) -> [".PP", ".nf"] <> List.map(lines, codeLine) <> [".fi"]
+      | Table(columns = columns, rows = rows) ->
+            [".PP", ".nf"] <> List.map(roffTable(columns, rows), textLine) <> [".fi"]
     }
+
+// A table laid out as `render` lays it out, its headings bold: a cell takes
+// the columns its text takes on the page, where roff's escapes and fonts
+// take none, as a styled rendering's escapes take none.
+fn roffTable(columns : List(Column), rows : List(List(List(Inline)))) : List(String) = {
+    let headings = List.map(columns, roffHeading);
+    let body = List.map(rows, fn(row) = List.map(fitted(row, List.size(columns)), roffCell));
+    columned(List.map(columns, fn(column) = column.alignment), headings :: body)
+}
+
+// A column's heading in bold, and the columns it takes on the page.
+fn roffHeading(column : Column) : #(String, Int) =
+    #("\\fB" <> heading(column.text) <> "\\fR", shownWidth(column.text))
+
+// A cell's text on one line, a hard break in it a space, and the columns it
+// takes on the page.
+fn roffCell(cell : List(Inline)) : #(String, Int) =
+    #(String.replace(roffSpans(cell, Roman), "\n", " "), shownWidth(cell))
+
+fn shownWidth(cell : List(Inline)) : Int = {
+    let #(_, columns) = oneLine(spans(cell, Styled));
+    columns
+}
 
 // A heading is set in bold already, so its text begins in bold; a hard
 // break in it is a space, since a heading is one line.
@@ -1725,6 +1960,77 @@ let manualLinks =
                   rowsAre(List.drop(roff(parse("[home](https://a.org) <https://b.org>"), hello()),
                                     8),
                           ["home (https://a.org) https://b.org"]))
+
+let tables =
+    Test.Case(name = "a table reads its headings, its alignments and its rows",
+              run = fn() =
+                  blocksAre(parse("| a | b | c |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |"),
+                            [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned),
+                                              Column(text = [Text("b")], alignment = Centered),
+                                              Column(text = [Text("c")], alignment = RightAligned)],
+                                   rows = [[[Text("1")], [Text("2")], [Text("3")]]])]))
+
+let tableCells =
+    Test.Case(name = "a table's outer pipes are optional, and an escaped pipe is a cell's",
+              run = fn() =
+                  blocksAre(parse("a | b\n--- | ---\n`x\\|y` | *c* | d\ne\n| f |"),
+                            [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned),
+                                              Column(text = [Text("b")], alignment = LeftAligned)],
+                                   rows = [[[CodeSpan("x|y")], [Emphasis([Text("c")])]],
+                                           [[Text("e")], []],
+                                           [[Text("f")], []]])]))
+
+let notTables =
+    Test.Case(name = "no table where the cells' counts differ, nor inside a paragraph",
+              run = fn() =
+                  blocksAre(parse("| a | b |\n| - |\n\ntext\n| c |\n| - |"),
+                            [Paragraph([Text("| a | b | | - |")]),
+                             Paragraph([Text("text | c | | - |")])]))
+
+let tableEnds =
+    Test.Case(name = "a table ends at a blank line and at a line that begins a block",
+              run = fn() =
+                  blocksAre(parse("| a |\n| - |\n| 1 |\n# H\n| b |\n| - |\n\nc"),
+                            [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)],
+                                   rows = [[[Text("1")]]]),
+                             Heading(level = 1, text = [Text("H")]),
+                             Table(columns = [Column(text = [Text("b")], alignment = LeftAligned)],
+                                   rows = []),
+                             Paragraph([Text("c")])]))
+
+let tableLayout =
+    Test.Case(name = "a table's columns are as wide as their widest cells, aligned as they say",
+              run = fn() =
+                  rowsAre(render(parse("| a | bb |\n|:-:|--:|\n| ccc | d |"), 80, Plain),
+                          [" a  │ bb", "────┼───", "ccc │  d"]))
+
+let styledTable =
+    Test.Case(name = "a table's headings are bold, each cell's style ended in it",
+              run = fn() =
+                  rowsAre(render(parse("| a | b |\n| - | - |\n| *c* | d |"), 80, Styled),
+                          ["\u{1b}[1ma\u{1b}[22m │ \u{1b}[1mb\u{1b}[22m",
+                           "──┼──",
+                           "\u{1b}[3mc\u{1b}[23m │ d"]))
+
+let tableBreaks =
+    Test.Case(name = "a hard break in a cell is a space, and a cell beyond the columns is dropped",
+              run = fn() = {
+                  let table =
+                      Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)],
+                            rows = [[[Text("b"), Break, Text("c")], [Text("x")]]]);
+                  rowsAre(render([table], 80, Plain), ["a", "───", "b c"])
+              })
+
+let manualTable =
+    Test.Case(name = "a table is laid out as render lays it out, its headings bold",
+              run = fn() =
+                  rowsAre(List.drop(roff(parse("| a | b |\n|---|--:|\n| `c` | d-e |"), hello()), 7),
+                          [".PP",
+                           ".nf",
+                           "\\fBa\\fR │   \\fBb\\fR",
+                           "──┼────",
+                           "\\fBc\\fR │ d\\-e",
+                           ".fi"]))
 
 let sentences =
     Test.Case(name = "the first sentence ends at a period a space follows outside emphasis",

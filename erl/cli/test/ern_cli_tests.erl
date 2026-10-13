@@ -2087,6 +2087,32 @@ doc_man_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<".SH NAME\nErnest.Bare \\- Ernest module Bare\n">>)).
 
+%% report §11.4, Appendix G.2: a table in a doc block is on its module's
+%% page, as written in CommonMark and laid out in columns in a manual page.
+%% `ern doc --man` lays it out with libs/markdown, whose layout reads
+%% Terminal.width's table, a top-level binding, which has its value only
+%% where the library runs as a program runs it. Written before the fix: the
+%% manual page faulted, the binding having no value under `ern doc`
+doc_table_test() ->
+    Dir = tmp(),
+    File = write(Dir, "sizes.ern",
+                 "/// Sizes, in a table.\n"
+                 "///\n"
+                 "/// | Name | Count |\n"
+                 "/// | :--- | ----: |\n"
+                 "/// | one | 1 |\n"
+                 "///\n"
+                 "/// since 0.1.0\n"
+                 "\n"
+                 "/// One.\n"
+                 "export fn one() : Int = 1\n"),
+    ?assertEqual(0, ern_cli:ern(["doc", "--source-root", Dir, File])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"| Name | Count |\n| :--- | ----: |\n| one | 1 |\n">>)),
+    ?assertEqual(0, ern_cli:ern(["doc", "--man", "--source-root", Dir, File])),
+    Rows = <<".nf\n\\fBName\\fR │ \\fBCount\\fR\n─────┼──────\none  │     1\n.fi\n"/utf8>>,
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput), Rows)).
+
 %% report §11.1, §11.4: a compiled module may come from anywhere, so what
 %% its chunks say is read as data: a source's name with a line feed in it
 %% is written on the manual page's comment line with the line feed as an

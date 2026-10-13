@@ -6,8 +6,9 @@ Markdown documents, read and laid out as text for a terminal or as a manual
 page.
 
 Use it to show a document a program holds. `parse` reads CommonMark 0.31
-text, the specification at commonmark.org, into blocks; `render` lays the
-blocks out as rows for a terminal, and `roff` writes them as a manual page.
+text, the specification at commonmark.org, with GitHub's tables, into
+blocks; `render` lays the blocks out as rows for a terminal, and `roff`
+writes them as a manual page.
 The shell's `:doc` shows documentation with `render`, and `ern doc` writes
 manual pages with `roff`.
 
@@ -17,10 +18,10 @@ It styles text with `libs/ansi`, which a run needs on the load path
 beside it (report Appendix G.2).
 
 **What it reads.** `parse` reads headings, paragraphs, code blocks, block
-quotes, lists and thematic breaks, and inside them code spans, emphasis,
-strong emphasis, links, images and hard line breaks. An image is read as a
-`Link`. A line may end in a line feed, a carriage return and a line feed, or
-a carriage return.
+quotes, lists, thematic breaks and tables, and inside them code spans,
+emphasis, strong emphasis, links, images and hard line breaks. An image is
+read as a `Link`. A line may end in a line feed, a carriage return and a
+line feed, or a carriage return.
 
 **What it keeps as written.** An HTML block is a `Raw` block, and inline
 HTML, an entity and a link by reference stay in the text.
@@ -37,6 +38,15 @@ paragraph such a tag is text. A comment runs to the line that holds `-->`, a
 processing instruction to one that holds `?>`, a CDATA section to one that
 holds `]]>`, and a declaration to one that holds `>`, its first line among
 them, and each to the end where no line does. A tag runs to a blank line.
+
+**Tables, more simply than GitHub's.** A table begins after a blank line or
+another block, never inside a paragraph, at a line followed by a delimiter
+row of as many cells, and both lines hold a `|`. A delimiter cell is one or
+more `-`s, with a `:` at either end or both. A cell is the text between two
+`|`s no backslash escapes, trimmed, and each `\|` in it is `|`, in a code
+span too. The rows run to a blank line or a line that begins another block;
+a row with too few cells gains empty ones, and one with too many loses those
+beyond.
 
 **Tabs.** A tab in a line's indentation, quote marks and list markers
 reaches to the next multiple of four columns. One elsewhere is kept, in a
@@ -103,6 +113,7 @@ type Block =
   | Items(start : Optional(Int), items : List(List(Block)))
   | Rule
   | Raw(List(String))
+  | Table(columns : List(Column), rows : List(List(List(Inline))))
 ```
 
 A block of a document.
@@ -123,6 +134,50 @@ indented one, and its lines.
 and the blocks of each item.
 - `Rule`: A thematic break.
 - `Raw`: Lines that are not read, an HTML block's, kept as written.
+- `Table`: A table: its columns, and its rows, each a cell's inlines for every
+column.
+
+## Markdown.Column
+
+```ernest
+type Column = Column(text : List(Inline), alignment : Alignment)
+```
+
+*Since 0.4.0.*
+
+A table's column: its heading's text, and how its cells are aligned.
+
+### Examples
+
+```ernest
+Markdown.parse("| a |\n| - |")
+// => [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)], rows = [])]
+```
+
+## Markdown.Alignment
+
+```ernest
+type Alignment = LeftAligned | Centered | RightAligned
+```
+
+*Since 0.4.0.*
+
+How a table's column aligns its cells, as the colons of its delimiter row
+say.
+
+### Examples
+
+```ernest
+match Markdown.parse("| a | b |\n| :-: | --: |") {
+    [Markdown.Table(columns = columns)] -> List.map(columns, fn(column) = column.alignment)
+  | _ -> []
+}
+// => [Centered, RightAligned]
+```
+
+- `LeftAligned`: To the left, where the delimiter cell has no colon or one at its start.
+- `Centered`: To the center, where it has a colon at each end.
+- `RightAligned`: To the right, where it has a colon at its end alone.
 
 ## Markdown.Output
 
@@ -201,7 +256,10 @@ A heading is its text, bold with styles. A code block is indented four
 columns and never wrapped. A list item follows a bullet, or its number and a
 period, whatever delimiter it was written with. A block quote follows a bar,
 a thematic break is a line across the width, and a link is its text with its
-URL after it.
+URL after it. A table is laid out in columns, each as wide as its widest
+cell, a row's cells separated by `│`, its headings bold with styles and a
+row of `─`s under them, each cell at the side its column aligns it to; a
+hard break in a cell is a space, and no row is wrapped.
 
 With styles, emphasis is in italics, strong emphasis bold, and a code span
 cyan; emphasis within emphasis, and strong emphasis within a heading, are as
@@ -235,7 +293,9 @@ the text is never spread or broken.
 A code span and strong emphasis are bold, and emphasis is in italics. A code
 block is indented and not filled, a list item follows its bullet or its
 number, a block quote is indented, a thematic break is a row of asterisks, a
-link is its text with its URL after it, and a `Raw` block is as written.
+table is laid out as `render` lays it out, its headings bold and its lines
+not filled, a link is its text with its URL after it, and a `Raw` block is
+as written.
 
 Every character roff would change is written as roff's escape for it, so
 that code copied from the page is the code written. The rest is UTF-8, which
