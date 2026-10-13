@@ -17,7 +17,7 @@ Then visit http://localhost:8080/mockup/. The flat demo filenames keep the bundl
 | library.html | the library's contents | index.html |
 | module.html | a module's page, man/'s Markdown | chapter.html |
 | install.html | install | chapter.html |
-| changes.html | changes | index.html |
+| changes.html | the releases | index.html |
 | shell.html | the shell | shell.html |
 | 404.html | any unmatched path (HTTP 404) | error.html |
 

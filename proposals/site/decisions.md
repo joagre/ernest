@@ -37,7 +37,7 @@ The site's files as served.
     /man/libs/<name>/<module>.html
     /shell/                         the full-page shell
     /install/
-    /changes/                       releases/<version>.md
+    /releases/                      releases/<version>.md, newest first
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/img/                    ernest-light.svg, ernest-dark.svg, icons/
@@ -98,7 +98,7 @@ The site's files as served.
   homepage's door to it is Try.
   Features is not in the header.
 - One footer, the homepage's too, in two lines. First the rooms the header
-  leaves out: Features, Deployment and Changes. Then
+  leaves out: Features, Deployment and Releases. Then
   the page: its source file in the repository with its last commit date, the
   version the site is built from, the license, the issues, and "served by
   ehttpd, written in Ernest" once true.
@@ -108,8 +108,9 @@ The site's files as served.
 
 - Install holds the supported platforms, the installation, its verification
   and the first command.
-- Changes holds each release's notes, from `releases/<version>.md`, which the
-  release step writes.
+- Releases holds each release's notes as the release step writes them, newest
+  first, from `releases/<version>.md`. The notes list no changes; they say
+  where the changes are read.
 - The shell page: the terminal takes most of the space, with Start or Restart,
   Stop, Examples and the time remaining above it. The session and its limits
   are explained beside it. A dropped connection and an expired session are
@@ -225,7 +226,7 @@ The site's files as served.
   rule? The report. What does this function do? The library's pages. How do I
   run it? The deployment guide. What does this command do? `man ern`, and on
 the site the report's §11.
-  Let me try it: the shell. What changed? The release notes.
+  Let me try it: the shell. What is in each release? The release notes.
 - Why and Features are `guide/why.md` and `guide/features.md`. The guide tests
   run their examples; each has a row in CLAUDE.md's owners table.
 - Features is written first, then Why a section at a time, their lengths
