@@ -16,8 +16,9 @@ pieces' names, their order and the fourth's subsections are
    mailbox in the signature, what a value may be used for, requirements,
    operators as members, one `compare` per type. Failure arrives in it: a
    monitor's `Down` is a message of the mailbox's type, and §7 tells value
-   errors, message errors and faults apart. Precedent: ML for the types, Erlang for the mailbox and
-   for faults as messages; nobody for the two in one signature.
+   errors, message errors and faults apart. Precedent: ML for the types, Erlang
+   for the mailbox and for faults as messages; nobody for the two in one
+   signature.
 2. **Checked replies.** A reply answered exactly once on every path, or the
    program does not compile; a callee's death ends the call with its cause.
    Precedent: linear types, which Rust made ordinary; nobody applied them to a
