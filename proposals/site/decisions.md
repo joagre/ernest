@@ -136,7 +136,12 @@ The site's files as served.
 
 ## Links, 2026-10-13
 
-- Every internal link is the generator's. No page carries one written by hand.
+- A source's own link, written for GitHub, is mapped by the generator: to the
+  page of a document the site shows, `library.md` to `/report/library.html`; by
+  a heading's GitHub slug to that heading's number anchor, as the documents
+  test computes the slug; and to the file on GitHub, at the tag the site is
+  built from, where the site does not show its target, `examples/` or `docs/`.
+- A static page or a template links by hand, to a page's directory form.
 - A citation finer than a heading links to its heading: "shape rule 10" to
   `#E.0`.
 - A link into the guide holds while the guide's numbers hold, and they change
@@ -156,8 +161,8 @@ The site's files as served.
   page declares, since a module's own type shadows the library's namespace
   (report §4.2).
 - Each page has a title and a one-line description, its first sentence.
-- The site build fails on any internal link or anchor it made that does not
-  resolve.
+- The site build checks every internal link and anchor in `build/site/`, made or
+  written, and fails on one that does not resolve.
 
 ## The templates, 2026-10-13
 
