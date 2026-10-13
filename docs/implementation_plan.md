@@ -394,6 +394,12 @@ likeliest, and the tag waits for that fix only if it recurs. The `install` test 
 under load against its limit of 300 s: its bound is derived from what it waits for, or the test
 is split, before the tag. A run that times out leaves its `closed` directory read-only, which the
 next run's cleanup cannot remove (`eexist`): the cleanup makes it writable first, before the tag.
+Beside them, found the same day: `make manual` writes every manual page again on every `make`,
+14.7 s of a no-op `make`'s 16 s, which `make test` and each `make install` pay again. `ern doc
+--man` writes a page only where it is older than the module's `.erc`, `libs/markdown`'s `.erc`
+or `ern`'s own build, each written by the toolchain alone and only when its content changes, so
+that a page goes stale on none of them; §11.4 states it first; before the tag, since it shortens
+the `install` test too.
 
 ---
 
