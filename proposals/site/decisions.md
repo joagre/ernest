@@ -148,11 +148,16 @@ The site's files as served.
 - A citation of the log links to the log on GitHub.
 - Code is colored when the site is generated, by `ern`'s own lexer. A quoted
   compiler line is colored as the terminal colors it, through `libs/ansi`.
-- A qualified name in a code block, `List.sort` or `Markdown.Block`, links to
-  its declaration in `/man/`. A bare name does not, since a module or a pattern
-  may shadow a prelude name (report §4.2).
+- A qualified name in code, or in backticks in prose, `List.sort` or
+  `Markdown.Block`, links to its declaration in `/man/` where it is a `man/`
+  heading, a type or a function, and no code on its page declares a type of
+  that name. Any other name is text, never an error: a bare name, since a
+  module or a pattern may shadow a prelude name, and a member of a type the
+  page declares, since a module's own type shadows the library's namespace
+  (report §4.2).
 - Each page has a title and a one-line description, its first sentence.
-- The site build fails on any internal link or anchor that does not resolve.
+- The site build fails on any internal link or anchor it made that does not
+  resolve.
 
 ## The templates, 2026-10-13
 
