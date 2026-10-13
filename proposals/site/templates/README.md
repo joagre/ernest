@@ -35,12 +35,12 @@ The tour's, the guide's and the report's contents pages still need a layout. The
 
 ## Visual decisions
 
-- One dependency-free shared CSS stylesheet, with system fonts, compact navigation and a restrained teal link color.
-- Automatic light/dark mode; keyboard focus and skip link; responsive layouts and print rules.
-- 1120 px outer maximum width, narrower prose, wider code and terminal. The logo appears on the homepage at 230 px wide; other pages have a compact text home link.
-- Supplied ernest-light.svg is unchanged. ernest-dark.svg is a provisional derived variant: dark outlines/text become pale. Replace it with the approved dark logo when available.
-- Native details elements provide contents and supplementary controls without JavaScript. Contents remain open by default; mobile users can collapse them.
-- Lucide SVG icons are inlined in the rendered preview and supplied separately for reuse. Use icons with text, and keep decorative SVGs aria-hidden. No icon library runtime is needed. No external fonts or decorative imagery are used.
+The look is [decisions.md](../decisions.md)'s. The templates' own choices:
+
+- A teal accent, compact navigation, and a 1120 px outer maximum width.
+- A skip link and print rules.
+- Native details elements for the contents and the supplementary controls, without JavaScript: open by default, collapsible on a phone.
+- Lucide SVG icons, inlined in the rendered pages and supplied separately for reuse; used with text, a decorative one aria-hidden.
 
 ## Live shell integration
 

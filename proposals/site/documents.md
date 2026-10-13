@@ -1,38 +1,18 @@
 # The documents
 
-A discussion note, begun 2026-10-13, beside [`site.md`](site.md), the site's
-design. Which documents the project will have, which reader each serves, and
-what two of them, `but_why.md` and `features.md`, are to hold. Nothing here
-is decided; it flows into no plan item until it is. The same set would exist
-with no site; how the site shows them is `site.md`'s.
+A discussion note, begun 2026-10-13, beside [`site.md`](site.md). The set of
+documents, where each lives and the order of writing are
+[`decisions.md`](decisions.md)'s. This note keeps the outlines of the two
+documents still to write, Why and Features, and what is open about them.
 
-## One document per question
+## Open
 
-A reader arrives with a question. One document answers each, and CLAUDE.md's
-rule holds: each fact has one owner, and the others point at it.
-
-| Question | Document | Where it lives | What it does |
-|---|---|---|---|
-| Should I care? | `but_why.md` | to write | the argument: four pieces with their precedents, the principles, how the language is made, its status; persuades, cites, restates nothing |
-| What do I get? | `features.md` | to write | the inventory, one line a feature with a pointer; argues nothing |
-| Show me, in order | the tour | `tour/`, MVP 3.3 | a program growing chapter by chapter, each lesson with previous and next, which the guide cannot be since the guide is organized by rule |
-| How do I write it? | the guide | `guide/language.md` | exists; teaches by rule, restating the report where it teaches, each chapter stable and linkable |
-| What exactly is the rule? | the report | `report/language.md`, `toolchain.md`, `library.md` | exists; the one normative document, §0 to §11 and the appendices; the grammar wins over the prose |
-| What does this function do? | the library's pages | `ern doc`, a page per module from its doc block, with its examples run by the tests | exists; reference, never teaching |
-| How do I run it? | the deployment guide | `guide/deployment.md` | exists; the operator's day, one node to many, the catalog of what a node says |
-| What does this command do? | the manual pages | `make man`: `ern(1)` rendered from §11 by `tools/manual.ern` and a page per module by `ern doc --man`, installed; the module pages as Markdown in `man/`, from `main` | exists; what `man ern` answers at the terminal, the report's §11 in roff and nothing more |
-| What is it like at size? | a walk through one real program | to write | `examples/` and the operations programs are half of it; a page that walks one is what a hesitant reader opens last |
-| Let me try it | the shell, hands-on | the site's shell, MVP 4.2: xterm.js into a live `ern shell` in a container per visitor; no document | a link, not a page to read: the prompt itself, with the tour's examples linking into it; what the shell does is guide §1.2 and guide §9.3, and report §11.2 |
-| How does the shell's code read? | `shell/README.md` | exists | for a reader of the code, not of the language |
-| What changed? | release notes | on the site, each release's | what the release is, by its milestone, no history |
-
-Two that are easy to forget:
-
-- **A comparison page**, short and honest: Erlang, Elixir, Gleam, one paragraph
-  each on what was taken and what differs, written so that each community would
-  nod. The FAQ's seed. One page we control beats a thread we do not.
-- **A contributing page**, for the day a patch arrives; CLAUDE.md is not the
-  document to hand a contributor.
+- **Why's pieces.** The four pieces below against the draft `but_why.md`,
+  whose six sections lack failure as messages and split code by content into
+  four.
+- **Where Features is reached from.** The homepage's characteristics at full
+  depth, reached from them, is this note's; `site.md`'s first open item
+  decides what the characteristics are.
 
 ## `but_why.md`
 
@@ -89,41 +69,4 @@ the synthesis weakens without it.
 
 The inventory. One line a feature, grouped by the language, the library, the
 toolchain, the runtime and the operator, each with its pointer into the guide
-or the report, and nothing argued. The README's list today is its seed. It is
-an afternoon's work and is written first, so that `but_why.md` has something
-to point at.
-
-## Order of writing
-
-`features.md`; then `but_why.md` one chapter at a time, each with its examples
-compiled as the typing section's were; the comparison page last, once the
-chapters say what was taken from whom.
-
-## Doors and rooms
-
-Eight entrances were counted on 2026-10-13: the shell, the guide, the
-deployment guide, the tour, the report, `features.md`, `but_why.md` and the
-manual pages. Only a few are doors. A door answers a question a newcomer
-brings; a room answers a question a reader already inside has.
-
-- **Doors**: Try, Tour, Guide, Report and Why, on the homepage as
-  [`decisions.md`](decisions.md) lays them out.
-- **Rooms**: Features is the homepage's characteristics at full depth, reached
-  from them. Deployment is the operator's room, never on the homepage, since a
-  newcomer has no node; where it is reached from is `decisions.md`'s. The
-  manual pages are the site's Library, a room; at the terminal their door is
-  `man ern` after Install.
-
-The footer carries every room, and the site map page all of them with the
-reader's question beside each.
-
-## To decide
-
-- Whether the typing section drafted on 2026-10-13 stands as the template for
-  every piece, with its length brought level with its neighbors.
-- Whether the walk through one real program is a page of its own or the tour's
-  last chapter.
-- Where `but_why.md` and `features.md` live in the repository, and who tests
-  them: their code blocks are run as the guide tests run the guide's, so they
-  need a directory the docs tests read, which `proposals/site/` is not today, and a row
-  each in CLAUDE.md's owners table.
+or the report, and nothing argued. The README's list today is its seed.
