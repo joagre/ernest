@@ -475,13 +475,19 @@ page(Options, Beam, ErrorDevice) ->
 %% that reads one finds its value. What Compute gives is passed back to the
 %% job, which writes it. A fault there is reported as a run's is, its cause
 %% and its trace whole on standard error (§11.2), and is then a failure of
-%% ern itself; a signal ends the job as it ends a run (§11.8).
+%% ern itself; a signal ends the job as it ends a run (§11.8). Compute is
+%% the job's own code, which calls libs/markdown as foreign code calls a
+%% program's, and it is counted as a foreign call is (§8.4, §8.6): the
+%% prelude's page reads the standard library's interfaces, a wait on the
+%% host's code server and file server, which the deadlock detector would
+%% otherwise take, under load, for every process waiting.
 in_runtime(Compute, ErrorDevice) ->
     Caller = self(),
     Ref = make_ref(),
     Options = reporting_options(#{init => fun() -> ern_rt:init_modules(['ern@markdown']) end},
                                 ErrorDevice),
-    case ern_rt:run_main(fun() -> Caller ! {Ref, Compute()} end, <<"ern doc">>, Options) of
+    case ern_rt:run_main(fun() -> Caller ! {Ref, ern_rt:in_foreign(Compute)} end, <<"ern doc">>,
+                         Options) of
         ok -> receive {Ref, Result} -> Result end;
         {signal, Signal} -> throw({ended, ern_signals:ended(Signal)});
         Outcome -> erlang:error({libs_markdown, Outcome})
@@ -490,9 +496,10 @@ in_runtime(Compute, ErrorDevice) ->
 doc_dir(Options, Path, Compiled, ErrorDevice) ->
     SourceRoot = ern_build:source_root(Options, Path, Path),
     BuildRoot = ern_build:build_root(Options, SourceRoot),
-    Files = ern_build:sources(Path),
-    Modules = ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
-                                       || File <- Files], SourceRoot),
+    %% the modules compiled, by their files and namespaces, which is all the
+    %% pages need, so their sources are not parsed again
+    Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot)
+               || File <- ern_build:sources(Path)],
     IsStdlib = ern_build:is_stdlib_root(SourceRoot),
     %% report §11.4: the page of a module whose source is gone goes, as the
     %% build's sweep takes its .erc

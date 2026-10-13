@@ -120,6 +120,20 @@ format_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"broken.ern:1:">>)),
     ?assertEqual(1, ern_err(["format"])).
 
+%% report §11.6: a module already in the layout is not written back, named
+%% alone or under a directory: its file is the one it was, so that a
+%% layout of every source writes none it leaves as it was. A regression
+%% test, written after the code; a module that does not parse, which is
+%% left as it is, is format_test's
+format_leaves_a_module_in_the_layout_test() ->
+    Dir = tmp(),
+    Neat = write(Dir, "neat.ern", "fn g(y) =\n    y\n"),
+    {ok, #file_info{inode = Inode}} = file:read_file_info(Neat),
+    ?assertEqual(0, ern_err(["format", Neat])),
+    ?assertEqual(0, ern_err(["format", Dir])),
+    ?assertMatch({ok, #file_info{inode = Inode}}, file:read_file_info(Neat)),
+    ?assertEqual({ok, <<"fn g(y) =\n    y\n">>}, file:read_file(Neat)).
+
 %% report §11.6: a directory named is no source root, so a module under it
 %% whose name would take a prelude namespace from there is laid out as any
 %% other, and a path component that breaks the shape is still refused. A
@@ -1087,7 +1101,10 @@ prelude_value_runs_test() ->
 
 %% report §4.2, §11.5: a module namespace may not coincide with a type
 %% namespace of its parent module, found from either file and in either
-%% mode, the files named from the working directory
+%% mode, the files named from the working directory; and from a subtree
+%% whose parent's source the build does not compile, which is read. The
+%% subtree is a regression test, written when a build came to read the
+%% parent's types from its own parse of it
 namespace_clash_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", "type Stack = Stack(Int)\n" ++ hello()),
@@ -1100,7 +1117,8 @@ namespace_clash_test() ->
     ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
     Single = ["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/build"],
     ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main.ern"])),
-    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
+    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main/stack.ern"])),
+    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main"])).
 
 %% report §4.2: where no type of the parent's clashes with it, a module
 %% under the parent's namespace is reached from the parent by its whole
@@ -1759,6 +1777,16 @@ compiler_modules_closed_test() ->
     ?assertNot(lists:member(ern_cli, Modules)),
     Called = lists:usort([Callee || Module <- Modules, Callee <- calls(Module)]),
     ?assertEqual([], Called -- Modules).
+
+%% report §11.1: the build of the compiler a .erc records is one, whether
+%% the job that wrote it had loaded the compiler's code or found every
+%% module current and loaded none of it: a module's file digests as its
+%% loaded code does. A regression test, written when a build that compiles
+%% nothing came to digest the files of the modules it does not load
+compiler_digest_of_its_files_test() ->
+    ?assertEqual([], [Module || Module <- ern_build:compiler_modules(),
+                                {ok, {_, Digest}} <- [beam_lib:md5(code:which(Module))],
+                                Digest =/= Module:module_info(md5)]).
 
 %% The modules of the toolchain that Module calls, from its imports.
 calls(Module) ->

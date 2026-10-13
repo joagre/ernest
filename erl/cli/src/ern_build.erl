@@ -147,8 +147,12 @@ compiled_in_order(Order, SourceRoot, BuildRoot) ->
 %% modules compiled in memory, by namespace.
 built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}) ->
     Namespaces = [Namespace || #build_module{namespace = Namespace} <- Order],
+    %% report §11.1: what every module of the build is compiled against
+    %% beside its dependencies, the standard library and the build of
+    %% `ern`, as its .erc records them, found once for the build
+    Against = #{stdlib => StdlibHash, compiler => compiler_build()},
     BuildModule = fun(Module, Interfaces) ->
-                      build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, StdlibHash,
+                      build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, Against,
                             Namespaces)
                   end,
     {_, Failed, Compiled, Waiting} =
@@ -412,11 +416,17 @@ compile_order(Modules, SourceRoot, DependencyRoots) ->
     order([parse_module(Module, SourceRoot, DependencyRoots) || Module <- Modules]).
 
 %% Every module parsed, and each that does not parse with its errors, as a
-%% build reports them (report §11.5).
+%% build reports them (report §11.5). Every source is parsed before any
+%% namespace is checked, so that the check reads the types a module of the
+%% build declares from its parse, and parses a parent's source no more for
+%% each of its children (report §4.2).
 parse_all(Modules, SourceRoot, DependencyRoots) ->
-    lists:foldl(fun(Module, {Parsed, Failed}) ->
+    Sources = [{Module, source_parsed(Module)} || Module <- Modules],
+    Declared = maps:from_list([{File, local_types(Declarations)}
+                               || {#build_module{file = File}, {ok, Declarations}} <- Sources]),
+    lists:foldl(fun({Module, Source}, {Parsed, Failed}) ->
                     Namespace = Module#build_module.namespace,
-                    try parse_module(Module, SourceRoot, DependencyRoots) of
+                    try parsed_module(Module, Source, SourceRoot, {DependencyRoots, Declared}) of
                         ParsedModule -> {Parsed ++ [ParsedModule], Failed}
                     catch
                         throw:{errors, File, Diagnostics} ->
@@ -426,7 +436,7 @@ parse_all(Modules, SourceRoot, DependencyRoots) ->
                         throw:{cli_error, Refusal} ->
                             {Parsed, Failed ++ [{Namespace, {refused, Refusal}, []}]}
                     end
-                end, {[], []}, Modules).
+                end, {[], []}, Sources).
 
 %% The parsed modules in an order where each follows those it uses; a
 %% cycle is an error naming the modules in it (§11.1).
@@ -464,27 +474,47 @@ topsort(Graph) ->
             Sorted
     end.
 
-parse_module(#build_module{file = File} = Module, SourceRoot, DependencyRoots) ->
-    case ern_parser:parse_string(read(File)) of
+%% One module parsed alone, its namespace checked against its parent's
+%% source as it stands.
+parse_module(Module, SourceRoot, DependencyRoots) ->
+    parsed_module(Module, source_parsed(Module), SourceRoot, {DependencyRoots, #{}}).
+
+%% A module's source parsed, as ern_parser answers, or the refusal of a
+%% source that cannot be read, which fails the module as parsed_module/4
+%% throws it.
+source_parsed(#build_module{file = File}) ->
+    try ern_parser:parse_string(read(File))
+    catch
+        throw:{cli_error, _} = Refused -> Refused
+    end.
+
+%% A module with its declarations and its dependencies, its namespace
+%% checked against its parent's types and its own children, of which
+%% Declared holds those the build has parsed, by file.
+parsed_module(#build_module{file = File} = Module, Source, SourceRoot,
+              {DependencyRoots, Declared}) ->
+    case Source of
         {ok, Declarations} ->
-            namespace_clash(Module#build_module{declarations = Declarations}, SourceRoot),
+            namespace_clash(Module#build_module{declarations = Declarations}, SourceRoot,
+                            Declared),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
             Dependencies = dependencies(Declarations, SourceRoot, DependencyRoots)
                 -- [Module#build_module.namespace],
             Module#build_module{declarations = Declarations, dependencies = Dependencies};
-        {error, Diagnostic} -> throw({errors, File, [Diagnostic]})
+        {error, Diagnostic} -> throw({errors, File, [Diagnostic]});
+        {cli_error, _} = Refused -> throw(Refused)
     end.
 
 %% Report §4.2: a module namespace may not coincide with a type namespace
 %% of its parent module. Checked from both files, so either finds it.
 namespace_clash(#build_module{namespace = Namespace, relative = Relative,
-                              declarations = Declarations}, SourceRoot) ->
+                              declarations = Declarations}, SourceRoot, Declared) ->
     case Namespace of
         [_, _ | _] ->
             Parent = lists:droplast(Namespace),
             ParentRelative = module_path(Parent) ++ ".ern",
-            lists:member(lists:last(Namespace),
-                         source_types(filename:join(SourceRoot, ParentRelative)))
+            ParentFile = absolute(filename:join(SourceRoot, ParentRelative)),
+            lists:member(lists:last(Namespace), declared_types(ParentFile, Declared))
                 andalso clash(SourceRoot, Relative, lists:last(Namespace), ParentRelative,
                               Namespace);
         _ ->
@@ -503,6 +533,14 @@ clash(SourceRoot, ChildRelative, Type, ParentRelative, Namespace) ->
     fail(shown(filename:join(SourceRoot, ChildRelative)) ++ " and type " ++ atom_to_list(Type)
          ++ " in " ++ shown(filename:join(SourceRoot, ParentRelative))
          ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (§4.2)").
+
+%% The types a source declares: as the build parsed it, where it is a
+%% module of the build, else parsed here.
+declared_types(File, Declared) ->
+    case Declared of
+        #{File := Types} -> Types;
+        _ -> source_types(File)
+    end.
 
 %% The types a parsed source declares; none when it is absent or does not parse.
 source_types(File) ->
@@ -654,10 +692,11 @@ stdlib_namespaces() ->
 %% namespace, the modules of the build, of Namespaces, its forms reference,
 %% and the emit, given the interfaces once those are checked, which answers
 %% the compiled module where it is kept in memory and none where it is
-%% written.
+%% written. Against is what the build is compiled against beside the
+%% module's dependencies, built/3's.
 build(#build_module{namespace = Namespace, file = File, relative = Relative,
                     declarations = Declarations, dependencies = Dependencies},
-      Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, StdlibHash, Namespaces) ->
+      Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, Against, Namespaces) ->
     DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                  DependencyRoots, SourceRoot),
     DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
@@ -667,7 +706,7 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
     OutputBase = filename:join(BuildRoot, filename:rootname(Relative)),
     Erc = OutputBase ++ ".erc",
     Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-    case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash,
+    case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DependencyHashes, Against,
                                       Given) of
         {true, Interface} ->
             {Interfaces#{Namespace => Interface}, none};
@@ -676,11 +715,10 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
                 {ok, Typed, Interface, Env} ->
                     Standard = is_stdlib_root(SourceRoot),
                     Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
-                    Build = #{source_hash => SourceHash, source_path => SourcePath,
-                              deps => DependencyHashes, compiler => compiler_build(),
-                              stdlib => StdlibHash, standard => Standard,
-                              source => list_to_binary(filename:basename(Relative)),
-                              canonical => Canonical},
+                    Build = Against#{source_hash => SourceHash, source_path => SourcePath,
+                                     deps => DependencyHashes, standard => Standard,
+                                     source => list_to_binary(filename:basename(Relative)),
+                                     canonical => Canonical},
                     Referenced = referenced(Canonical, Namespace, Namespaces),
                     Emitting = fun(Checked) ->
                                    Fresh = [maps:get(Module, Checked) || Module <- Referenced],
@@ -874,16 +912,17 @@ gone(_, _, _) ->
 load_path(Options) ->
     [absolute(Dir) || {load_path, Dir} <- Options].
 
-%% Report §11.1: current when the source and its path from the build root,
-%% every dependency's interface, the standard library's interfaces, and the
-%% build of the compiler are those the .erc was built from.
-%% Report §11.1: whether a .erc is current, and its interface where it is.
-%% Beside the hashes of the interfaces it was compiled against, the hash of
-%% each other module's definition its forms reference is compared with the
-%% hash that module's interface now holds, so that a change confined to a
-%% dependency's bodies recompiles a dependent whose forms name what changed.
-current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash, DependencyInterfaces) ->
-    CompilerBuild = compiler_build(),
+%% Report §11.1: whether a .erc is current, and its interface where it is:
+%% current when the source and its path from the build root, every
+%% dependency's interface, the standard library's interfaces, and the
+%% build of the compiler, which Against holds, are those the .erc was built
+%% from. Beside the hashes of the interfaces it was compiled against, the
+%% hash of each other module's definition its forms reference is compared
+%% with the hash that module's interface now holds, so that a change
+%% confined to a dependency's bodies recompiles a dependent whose forms name
+%% what changed.
+current(Erc, SourceHash, SourcePath, DependencyHashes,
+        #{stdlib := StdlibHash, compiler := CompilerBuild}, DependencyInterfaces) ->
     case read_erc(Erc) of
         {ok, #{interface := Interface, source_hash := SourceHash, source_path := SourcePath,
                deps := RecordedHashes, references := References, compiler := CompilerBuild,
@@ -913,9 +952,24 @@ compiler_modules() ->
 %% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.
 compiler_build() ->
-    Hash = erlang:md5(term_to_binary([ErlangModule:module_info(md5)
+    Hash = erlang:md5(term_to_binary([code_md5(ErlangModule)
                                       || ErlangModule <- compiler_modules()])),
     <<(list_to_binary(?VERSION))/binary, $+, (binary:encode_hex(Hash, lowercase))/binary>>.
+
+%% A module's code as the host digests it: as loaded, which is the code
+%% that compiles, where the host has loaded the module; else as its file
+%% holds it, which is what the host will load, so that a build that finds
+%% every module current loads none of the compiler's code it does not run.
+%% A file replaced between the digest and the load leaves the older code's
+%% digest recorded, and the next build compiles the module again.
+code_md5(ErlangModule) ->
+    case erlang:module_loaded(ErlangModule) of
+        true ->
+            ErlangModule:module_info(md5);
+        false ->
+            {ok, {ErlangModule, Md5}} = beam_lib:md5(code:which(ErlangModule)),
+            Md5
+    end.
 
 read_erc(Erc) ->
     case file:read_file(Erc) of
