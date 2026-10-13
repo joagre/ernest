@@ -1,9 +1,9 @@
-# The documents
+# The outlines
 
-A discussion note, begun 2026-10-13, beside [`site.md`](site.md). The set of
-documents, where each lives, the order of writing and Why's pieces are
-[`decisions.md`](decisions.md)'s. This note keeps the outlines of the two
-documents still to write, Why and Features.
+The outlines of the two documents still to write, Why and Features, begun
+2026-10-13. The set of documents, where each lives, the order of writing and
+Why's pieces are [`decisions.md`](decisions.md)'s. Once both documents are
+begun, each outline is its document's skeleton, and this file goes.
 
 ## Why
 

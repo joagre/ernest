@@ -1,7 +1,7 @@
 # Decisions
 
-What is decided, tersely. `site.md` and `documents.md` hold what is still
-open; this file records. A decision changes here, with its date.
+What the discussion has settled, tersely. A decision changes here, with its
+date.
 
 ## Purpose, 2026-10-13
 
