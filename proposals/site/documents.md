@@ -35,18 +35,18 @@ pieces:
 
 Around the four: an opener stating the synthesis and naming the parents; a
 chapter on the five principles and what they refuse, since it answers every
-"why not X" at once, and holds §0's *Time*, that the runtime chooses no time
-of its own and retries nothing; a chapter on how the language is made, the report, the
-grammar that wins, a test per section, the soundness argument, the memory
+"why not X" at once, and holds §0's *Time*, that the runtime chooses no time of
+its own and retries nothing; a chapter on how the language is made, the report,
+the grammar that wins, a test per section, the soundness argument, the memory
 loads, the log; a status chapter, plainly; and a FAQ: why not Erlang with
 Dialyzer, why not Elixir, why not Gleam, why no type classes, why one mailbox
 per process, why is the compiler so strict. The toolchain and the operator's
 day stay as evidence, one paragraph each, not a tour.
 
-A section's form is [`decisions.md`](decisions.md)'s. Everything a reader
-would look up rather than be persuaded by, the library,
-the border to Erlang, the cost numbers, the formatter, the shell's commands,
-goes to Features with one link from here.
+A section's form is [`decisions.md`](decisions.md)'s. Everything a reader would
+look up rather than be persuaded by, the library, the border to Erlang, the cost
+numbers, the formatter, the shell's commands, goes to Features with one link
+from here.
 
 The test for adding a piece later: it has a precedent and a thing it adds, and
 the synthesis weakens without it.

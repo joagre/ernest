@@ -4,8 +4,8 @@ A proposal, under discussion. What is settled is in
 [`decisions.md`](decisions.md); nothing is open, and this file holds the gaps
 the decisions leave and the proposal's status. The templates under
 `templates/` are early versions of the design, and `templates/README.md` holds
-their rendering contract. The milestone is MVP 4.2,
-after 0.5.0; the generator can come earlier, whenever it is wanted.
+their rendering contract. The milestone is MVP 4.2, after 0.5.0; the generator
+can come earlier, whenever it is wanted.
 
 ## Gaps
 
@@ -19,12 +19,6 @@ after 0.5.0; the generator can come earlier, whenever it is wanted.
 
 ## Status
 
-Early versions: the templates are a first design, and the generator is not
-written. What the discussion has settled is in [`decisions.md`](decisions.md);
-nothing enters the plan until the proposal is decided. When it does, the plan's
-MVP 4.2 changes with it: it still builds the module pages from the doc chunk's
-parts, where `decisions.md` renders them from `man/`. The plan's MVP 4.2
-section records what was agreed on 2026-10-10: the generator is a program beside
-`tools/manual.ern` against the library's tree, nothing of the site enters the
-library, `roff` moves to the manual tool when the library is next touched, and
-the generator may come before the rest of the milestone.
+When the proposal is decided, the plan's MVP 4.2 changes with it: it still
+builds the module pages from the doc chunk's parts, where `decisions.md`
+renders them from `man/`.
