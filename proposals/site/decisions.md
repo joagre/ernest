@@ -224,8 +224,8 @@ The site's files as served.
 - A chapter of the guide or the tour is a second-level heading.
   Previous and next follow their order; the report's pages run language,
   toolchain, library.
-- `libs/markdown` gains tables. A test parses the report and the guide whole and
-  renders them back before any template meets them.
+- `libs/markdown` has tables, since 2026-10-13. A test parses the report and the
+  guide whole and renders them back before any template meets them.
 - `make site` builds the site from a release's tag without a worktree. It
   exports the tag with `git archive` into `build/site-source/` and builds the
   toolchain there, the checkout untouched, and runs `make man` there. It wipes
@@ -269,8 +269,9 @@ The site's files as served.
 - The shell panel is `base.html`'s, so every page has it, side by side or
   stacked, one toggle for every page, kept in the browser's local storage and
   never sent to the server; Paste and Load are a code block's, so a page
-  without code offers the panel and nothing to put in it (decided 2026-10-13). Stacked alone on a
-  narrow screen; not offered on a phone, where `/shell/` still serves.
+  without code offers the panel and nothing to put in it (decided 2026-10-13).
+  Stacked alone on a narrow screen; not offered on a phone, where `/shell/`
+  still serves.
 - No panel opens until the visitor asks. On a desktop, Try's Start opens the
   homepage's panel beside the example; on a phone, Try links to `/shell/`.
 - Only an `ernest` block, which the guide tests compile, has Paste or Load.
@@ -292,8 +293,7 @@ The site's files as served.
   me, in order: the tour. How do I write it? The guide. What exactly is the
   rule? The report. What does this function do? The library's pages. How do I
   run it? The deployment guide. What does this command do? `man ern`, and on
-the site the report's §11.
-  Let me try it: the shell. What is in each release? The release notes.
+  the site the report's §11. Let me try it: the shell. What is in each release? The release notes.
 - Why and Features are `guide/why.md` and `guide/features.md`. The guide tests
   run their examples; each has a row in CLAUDE.md's owners table.
 - Features is written first, then Why a section at a time, their lengths
