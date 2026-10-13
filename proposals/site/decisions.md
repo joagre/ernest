@@ -147,12 +147,12 @@ The site's files as served.
   test computes the slug; and to the file on GitHub, at the tag the site is
   built from, where the site does not show its target, `examples/` or `docs/`.
 - A static page or a template links by hand, to a page's directory form.
-- A citation is a form the documents test reads: `§x.y`, alone or after
-  "report" or "guide"; `Appendix X` and `Appendix X.n`; and `E.n`; besides the
-  log's *Title* and a qualified name. A bare `§` is the guide's own in
-  `guide/language.md`, and the report's in every other document. A reference
-  finer than a section is written with its section, "E.0 shape rule 10", whose
-  `E.0` links.
+- A citation is a form the documents test reads: `§x.y`, alone or after "report"
+  or "guide"; an appendix, `Appendix E`, or one of its sections, `Appendix
+  E.17`; and `E.n`; besides the log's *Title* and a qualified name. A bare `§`
+  is the guide's own in `guide/language.md`, and the report's in every other
+  document. A reference finer than a section is written with its section, "E.0
+  shape rule 10", whose `E.0` links.
 - A link into the guide holds while the guide's numbers hold, and they change
   only where a section cannot be placed otherwise. A link from outside, made
   before a renumbering, may land on the section that took its number; nothing
