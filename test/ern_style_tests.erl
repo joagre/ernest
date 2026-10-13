@@ -80,9 +80,13 @@ no_tab_test() ->
 %% matched whole, whatever its case, and a name is read as the words it
 %% joins at `_` or a capital, `ern_utilizations` and `setUtilization`
 %% alike; a name of the host's keeps the host's spelling, and this module's
-%% list is the one place the British spellings are written. A regression
-%% test, written after the sweep that made it hold: it refuses the
-%% spellings its list holds and no other
+%% list is the one place the British spellings are written. A word is a
+%% run of lowercase letters after at most one capital, or a run of
+%% capitals, so a British spelling stands in a line as one of three texts,
+%% in lowercase, capitalized or in capitals, and a line is read for its
+%% words only where it holds one of them. A regression test, written after
+%% the sweep that made it hold: it refuses the spellings its list holds and
+%% no other
 american_spelling_test_() ->
     {timeout, 60, fun american_spelling/0}.
 
@@ -94,11 +98,16 @@ american_spelling() ->
                      not lists:member(File, Unread),
                      filelib:is_regular(filename:join(?ROOT, File))],
     ?assert(length(Files) > 300),
-    British = sets:from_list([list_to_binary(Spelling) || Spelling <- ?BRITISH], [{version, 2}]),
+    Spellings = [list_to_binary(Spelling) || Spelling <- ?BRITISH],
+    British = sets:from_list(Spellings, [{version, 2}]),
+    Written = binary:compile_pattern(
+                lists:append([[Spelling, string:titlecase(Spelling), string:uppercase(Spelling)]
+                              || Spelling <- Spellings])),
     {ok, HostNames} = re:compile(?HOST_NAMES),
     {ok, Word} = re:compile("[A-Z]?[a-z]+|[A-Z]+(?![a-z])"),
     ?assertEqual([], [{File, Number, Found} || File <- Files,
                                                {Number, Line} <- spelled_lines(File),
+                                               binary:match(Line, Written) =/= nomatch,
                                                Found <- words(Line, HostNames, Word),
                                                sets:is_element(string:lowercase(Found), British)]).
 
