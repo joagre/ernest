@@ -12,11 +12,12 @@ discussion has settled meanwhile.
 | [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the docroot, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13 |
 | `templates/` | the templates, early versions of the design, with their rendering contract in `templates/README.md` | a first design |
 | `docroot/` | the pages served, as `decisions.md` lays them out: a directory for each part of the tree, holding a `remove.me` until its pages come; the assets; and under `mockup/` the first design's pages, flat, to open in a browser | a first design |
-| `tools/`, `Makefile`, `build/` | the generator's beginnings | not written |
+| `Makefile` | the prototype's build | empty |
 
 The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
 
-## What remains
+## Prototyping
 
-The gaps `site.md` lists, each to be closed or planned; then the proposal is
-decided and goes to the plan.
+The site is prototyped in this directory, its generator and its pages, as
+`decisions.md` lays them out. Nothing goes to the plan until the user says the
+proposal is ready; the gaps `site.md` lists stay there meanwhile.
