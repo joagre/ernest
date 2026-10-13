@@ -382,6 +382,14 @@ host, about 5 s. Decided with the user the same day, each built before the tag:
 
 One command over several roots was refused the same day (the log's *Later*).
 
+**Before the tag: the installation.** `make install` installs every `.md` under `report/`,
+`guide/` and `tour/`, by directory and not by a list of files, so that a document for a user of
+Ernest is installed by where it stands; `docs/`, `proposals/` and `CLAUDE.md` are the project's
+and stay out (decided with the user on 2026-10-13, the log's *Every User's Document Installed*).
+Today `guide/deployment.md`, which an operator reads on a server, is not installed.
+`proposals/install/install.md`'s listing changes with it, and the install test's check that every
+link of an installed document resolves covers the deployment guide's.
+
 **Before the tag: the programs tests.** The intermittent fault of `ern doc --man` is fixed: a
 deadlock, the prelude's page waiting on the host's code and file servers inside the runtime (the
 log's *The Tools Measured*); if it recurs, the diagnosis was wrong. The `install` test takes 190
