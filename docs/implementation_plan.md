@@ -385,6 +385,16 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
 
+**Before the tag, three defects of the programs tests**, found on 2026-10-13 while tables were
+built (the log's *Tables in `libs/markdown`*). An intermittent fault of `ern doc --man` in the
+runtime it now starts, seen once in four runs of the suite, at the `install` test's third
+`make install`, its cause cut short then; a failure now prints its whole cause, so it is
+diagnosed and fixed at its cause when it next occurs, which the release review's full runs make
+likeliest, and the tag waits for that fix only if it recurs. The `install` test takes 190 to 350 s
+under load against its limit of 300 s: its bound is derived from what it waits for, or the test
+is split, before the tag. A run that times out leaves its `closed` directory read-only, which the
+next run's cleanup cannot remove (`eexist`): the cleanup makes it writable first, before the tag.
+
 ---
 
 ## MVP 3.27 (measured across machines), about a week
