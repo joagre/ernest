@@ -106,21 +106,16 @@ deployment guide, the tour, the report, `features.md`, `but_why.md` and the
 manual pages. Only a few are doors. A door answers a question a newcomer
 brings; a room answers a question a reader already inside has.
 
-- **Doors**, on the homepage: Try, "let me see it run";
-  Tour, "show me the language"; Guide, "help me write programs"; Report, "tell
-  me the rules"; and Why, the smallest, whose first line is the homepage's own
-  "why would I use it" paragraph, with "the whole argument" as the link.
+- **Doors**: Try, Tour, Guide, Report and Why, on the homepage as
+  [`decisions.md`](decisions.md) lays them out.
 - **Rooms**: Features is the homepage's characteristics at full depth, reached
-  from them. Deployment is the operator's room, reached from Install and from
-  the guide's running chapter, never from the homepage, since a newcomer has no
-  node. The manual pages are the site's Library, a room; at the terminal their
-  door is `man ern` after Install.
+  from them. Deployment is the operator's room, never on the homepage, since a
+  newcomer has no node; where it is reached from is `decisions.md`'s. The
+  manual pages are the site's Library, a room; at the terminal their door is
+  `man ern` after Install.
 
-Three readers, three paths, which the homepage shows as three rows: the
-curious, Why, Try, Tour; the programmer, Guide, Report, Library; the operator,
-Install, Deployment, the manual pages at the terminal. The footer carries
-every room, and the site map page all of them with the reader's question beside
-each; whether the header carries the doors alone is `site.md`'s question 5.
+The footer carries every room, and the site map page all of them with the
+reader's question beside each.
 
 ## To decide
 

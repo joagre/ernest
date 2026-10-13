@@ -34,11 +34,8 @@ small complete example of typed process communication, the behavior beside the
 code, since the first audience knows BEAM; not a factorial, not a syntax
 collage. Four or five characteristics, each linking to its explanation and
 saying what it gives the programmer, no superiority claims: inferred types,
-typed mailboxes, explicit process effects, checked reply ownership. The three
-doors as plain linked rows, each with its reader: Tour, "show me the language";
-Guide, "help me write programs"; Report, "tell me exactly what the rules are".
-The shell entry, a brief explanation and a Start link, a container allocated
-only when the visitor starts a session. A short dated status, what is available
+typed mailboxes, explicit process effects, checked reply ownership. The doors
+as rows ([`decisions.md`](decisions.md)). A short dated status, what is available
 against what is planned. A small footer: version, license, source, issues, and
 "served by ehttpd, written in Ernest" once true. On a desktop display the
 introduction, the example and the primary links are visible without scrolling.
@@ -150,8 +147,8 @@ script a page needs to be read, light and dark, a skip link and keyboard
 focus, and print rules. `templates/README.md` holds the rendering contract.
 What this design adds to them:
 
-- the homepage's `doors` navigation as the three reader rows, and the header's
-  list once question 5 decides it;
+- the homepage's `doors` navigation as [`decisions.md`](decisions.md)'s rows,
+  and the header's list once question 5 decides it;
 - the shell panel in `base.html`, split side by side or stacked, with its
   toggle, and Paste, Load and Copy on every code block, added by the script
   and never required;
@@ -338,9 +335,9 @@ the machinery.
    `tools/manual.ern`, which may move to join it. Since `/man/` renders
    `man/`, `make site` runs `make man` first, or renders whatever `man/` last
    held.
-5. The header's list: the doors alone, as `documents.md`'s *Doors and rooms*
-   has them, or the doors with Library, Install and Source beside them; and
-   whether Features is in it.
+5. The header's list beyond Library and Install
+   ([`decisions.md`](decisions.md)): whether the doors, Source and Features are
+   in it.
 6. Whether a code block is pasted or loaded by its shape alone, or an author may
    mark one.
 7. What counts as activity for the five minutes: input at the prompt alone, or

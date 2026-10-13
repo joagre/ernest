@@ -66,3 +66,12 @@ The site's files as served.
   finds it: "§6.5" is `/report/language.html#6.5`, "Appendix E.17"
   `/report/library.html#E.17`, "guide §4.2" `/guide/4.html#4.2`, `List.sort`
   `/man/stdlib/list.html#List.sort`.
+
+## The homepage, 2026-10-13
+
+- Its rows are four doors, in this order, each with its question: Try, "let me
+  see it run", the shell's entry with Start; Tour, "show me the language";
+  Guide, "help me write programs"; Report, "tell me the rules".
+- Why is the link ending the introduction's paragraph, "the whole argument".
+- Library and Install are in the header. Deployment is reached from Install,
+  from the guide's running chapter and from Why's code by content.
