@@ -203,13 +203,15 @@ The site's files as served.
   Features, the deployment guide, Install, Releases, whose notes the generator
   joins newest first into one document, and the 404 page with its fixed body;
   what differs between them, a previous and a next, and what the footer names,
-  is data the generator passes, and a slot without it is empty. `index.html`,
-  a directory's default page, which every contents page is: a book's or a
-  directory's opening and its list of links, for `/tour/`, `/guide/`,
-  `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and `/man/libs/<name>/`.
-  `home.html` is the homepage, served as `/index.html`, and `shell.html` the
+  is data the generator passes, and a slot without it is empty. `toc.html`, a
+  contents page: a book's or a directory's opening and its list of links, for
+  `/tour/`, `/guide/`, `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and
+  `/man/libs/<name>/`. `home.html` is the homepage and `shell.html` the
   full-page shell; each is one page, not a template. All four stand on
-  `base.html` with its header and footer.
+  `base.html` with its header and footer. A template is named for what it is;
+  what it is written as is the docroot's: a directory's page is its
+  `index.html`, the homepage's, a contents page's, Why's and the shell's
+  alike, and a chapter is its number, `/guide/3.html`.
 - A book's opening, its title and its paragraphs before its first chapter,
   heads its contents page.
 - A page's footer names the file it renders: the README for the homepage and
