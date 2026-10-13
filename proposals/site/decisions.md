@@ -49,9 +49,8 @@ The site's files as served.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `man/`'s Markdown, which `make man`
   writes. The site calls them Library.
-- The docroot holds what is written by hand, laid out as served: the static
-  pages and the assets. The templates and their README stand beside it, in
-  `templates/`.
+- The docroot holds the assets, laid out as served; no page is written by
+  hand. The templates and their README stand beside it, in `templates/`.
 - A link names a directory by its own form, `/guide/`, never
   `/guide/index.html`.
 - The server serves a directory's `index.html` without a redirect. It
@@ -76,17 +75,17 @@ The site's files as served.
 
 ## The homepage, 2026-10-13
 
-- It opens with "Ernest", one factual sentence and one paragraph on its
-  intended use, with no milestone numbers; then a small complete example of
-  typed process communication, its behavior beside the code. The introduction,
-  the example and the doors are visible on a desktop without scrolling.
-- Between the example and the doors, the guide's §0 list "What Ernest adds",
-  generated from the guide: each item's bold name and its first sentence,
-  linking to its section in Why; then a link, "everything Ernest has", to
-  Features. The example stays local, so that Try runs it.
-- Its rows are four doors, in this order, each with its question: Try, "let me
-  see it run", the shell's entry with Start; Tour, "show me the language";
-  Guide, "help me write programs"; Report, "tell me the rules".
+- It is the README's head, in the README's order: its opening paragraph; the
+  guide's §0 list "What Ernest adds", which the README holds word for word,
+  each item's bold name and first sentence linking to its section in Why, then
+  a link, "everything Ernest has", to Features; the paragraph on intended use;
+  and the counter example with its output, local, so that Try runs it. A test
+  holds the four pieces where the generator finds them. The opening and the
+  list are visible on a desktop without scrolling.
+- After the example, its rows are four doors, in this order, each with its
+  question: Try, "let me see it run", the shell's entry with Start; Tour, "show
+  me the language"; Guide, "help me write programs"; Report, "tell me the
+  rules".
 - Why is the link ending the introduction's paragraph, "the whole argument".
 - Deployment is reached from Install, from the guide's running chapter, from
   Why's code by its hash and from the footer, never from the homepage's body.
@@ -106,8 +105,8 @@ The site's files as served.
 
 ## The other pages, 2026-10-13
 
-- Install holds the supported platforms, the installation, its verification
-  and the first command.
+- Install is the README's *Installing* section, which holds the supported
+  platforms, the installation, its verification and the first command.
 - Releases holds each release's notes as the release step writes them, newest
   first, from `releases/<version>.md`. The notes list no changes; they say
   where the changes are read.
@@ -186,6 +185,19 @@ The site's files as served.
   Ernest. It reads the repository, writes static files, and ends.
 - In the repository, `site/` holds `templates/` and `docroot/`; in the
   prototype they stand in `proposals/site/`.
+- Every page is generated from what the repository owns: the homepage and
+  Install from the README; the report's, the guide's, the tour's, Why's,
+  Features' and the deployment guide's pages and each `/man/` page from their
+  Markdown, into `chapter.html`; the contents pages and Releases into
+  `index.html`; the shell page into `shell.html`, its examples from `examples/`
+  and its limits from the server's configuration; the 404 page into
+  `error.html`.
+- A book's opening, its title and its paragraphs before its first chapter,
+  heads its contents page.
+- A page's footer names the file it renders: the README for the homepage and
+  Install, a document's Markdown, a module's `.ern` for a `/man/` page, since
+  `man/` is itself generated. A contents page and the 404 page name none.
+- A page's sidebar lists its anchored headings, two levels deep.
 - The sources stay Markdown: the report, the guide, `man/`, and the tour's
   document under `tour/`, named when MVP 3.3 writes it. A source's opening logo
   and its contents block are dropped; the site has its own.
