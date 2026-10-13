@@ -78,13 +78,15 @@ The site's files as served.
 
 ## The homepage, 2026-10-13
 
-- It is the README's head, in the README's order: its opening paragraph; the
-  guide's §0 list "What Ernest adds", which the README holds word for word,
-  each item's bold name and first sentence linking to its section in Why, then
-  a link, "everything Ernest has", to Features; the paragraph on intended use;
-  and the counter example with its output, local, so that Try runs it. A test
-  holds the four pieces where the generator finds them. The opening and the
-  list are visible on a desktop without scrolling.
+- It is `home.html`, its text the site's own; the README is the repository's,
+  and the homepage takes nothing from it (decided 2026-10-13). In order: an
+  opening paragraph; the guide's §0 list "What Ernest adds", word for word,
+  which the documents test holds equal to the guide's as it holds the
+  README's, each item's bold name and first sentence linking to its section in
+  Why, then a link, "everything Ernest has", to Features; a paragraph on
+  intended use; and a small example with its output, which a test runs, so
+  that Try prints what the page shows. The opening and the list are visible on
+  a desktop without scrolling.
 - After the example, its rows are four doors, in this order, each with its
   question: Try, "let me see it run", the shell's entry with Start; Tour, "show
   me the language"; Guide, "help me write programs"; Report, "tell me the
@@ -214,8 +216,8 @@ The site's files as served.
   alike, and a chapter is its number, `/guide/3.html`.
 - A book's opening, its title and its paragraphs before its first chapter,
   heads its contents page.
-- A page's footer names the file it renders: the README for the homepage and
-  Install, a document's Markdown, a module's `.ern` for a `/man/` page, since
+- A page's footer names the file it renders: `home.html` for the homepage, the
+  README for Install, a document's Markdown, a module's `.ern` for a `/man/` page, since
   `man/` is itself generated. A contents page and the 404 page name none.
 - A page's sidebar lists its anchored headings, two levels deep.
 - The sources stay Markdown: the report, the guide, `man/`, and the tour's
