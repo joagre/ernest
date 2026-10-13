@@ -4,7 +4,7 @@ Ernest stands on the work of the people named here, each by name alone, in the o
 
 ## Erlang and OTP
 
-Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang* (HOPL III, 2007) and of Bjarne Däcker's licentiate thesis *Concurrent Functional Programming for Telecommunications* (KTH, 2000), and everyone who has worked on Erlang/OTP since, whom [its history](https://github.com/erlang/otp) names.
+Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang* (HOPL III, 2007) and of Bjarne Däcker's licentiate thesis *Concurrent Functional Programming for Telecommunications* (KTH, 2000), but me:
 
 - Ingela Anderton Andin
 - Marcus Arendt
@@ -32,7 +32,6 @@ Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang*
 - Magnus Fröberg
 - Luke Gorrie
 - Catrin Granbom
-- Joacim Grebenö
 - Rickard Green
 - Dan Gudmundsson
 - Dilian Gurov
@@ -84,6 +83,8 @@ Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang*
 - Christopher Williams
 - Mike Williams
 - Patrik Winroth
+
+And everyone who has been on the OTP team at Ericsson, and everyone else who has worked on Erlang/OTP, whom [its history](https://github.com/erlang/otp) names.
 
 ## Beyond Erlang
 
