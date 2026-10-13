@@ -4,6 +4,10 @@ Revision of 14 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
+> To me beautiful code is clear, concise and does *exactly* what it is supposed to and *nothing* else with a minimum of fuss. It usually ends up being faster than ugly code - that's because God likes your code if it's beautiful.
+>
+> — Joe Armstrong, on erlang-questions, 23 January 2003
+
 This file holds the report's §0 to §10 and Appendices A, B and F. §11 and Appendices C and H are in [`toolchain.md`](toolchain.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
 **Contents**

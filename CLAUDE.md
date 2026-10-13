@@ -110,7 +110,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behavior goes to §11.**
 - **The spelling is American English**, in every document, name and message; `docs/style.md`'s *Every language* states the rule and its two exceptions.
-- **No document or message names who proposed an idea**, or that person's role; it states the argument. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) names people, and no idea of theirs.
+- **No document or message names who proposed an idea**, or that person's role; it states the argument. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) and the report's dedication with its epigraph name people and argue nothing.
 
 ## Done
 
