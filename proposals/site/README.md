@@ -7,7 +7,7 @@ discussion has settled meanwhile.
 
 | File | What it is | Status |
 |---|---|---|
-| [`site.md`](site.md) | what is still open about the site, and its gaps | current; begun 2026-10-10, its settled parts moved to `decisions.md` on 2026-10-13 |
+| [`site.md`](site.md) | the gaps the decisions leave, and the proposal's status | current; begun 2026-10-10, its settled parts moved to `decisions.md` on 2026-10-13 |
 | [`documents.md`](documents.md) | the outlines of Why and Features, and what is open about them | current; begun 2026-10-13, its settled parts moved to `decisions.md` the same day |
 | [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the docroot, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13 |
 | `templates/` | the templates, early versions of the design, with their rendering contract in `templates/README.md` | a first design |
@@ -18,5 +18,5 @@ The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
 
 ## What remains
 
-The open items of `site.md` and `documents.md`, then the gaps `site.md` lists.
-When none is open, the proposal is decided and goes to the plan.
+The gaps `site.md` lists, each to be closed or planned; then the proposal is
+decided and goes to the plan.

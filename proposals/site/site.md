@@ -1,15 +1,11 @@
 # The Ernest website
 
 A proposal, under discussion. What is settled is in
-[`decisions.md`](decisions.md); this file holds what is still open. The
-templates under `templates/` are early versions of the design, and
-`templates/README.md` holds their rendering contract. The milestone is MVP 4.2,
+[`decisions.md`](decisions.md); nothing is open, and this file holds the gaps
+the decisions leave and the proposal's status. The templates under
+`templates/` are early versions of the design, and `templates/README.md` holds
+their rendering contract. The milestone is MVP 4.2,
 after 0.5.0; the generator can come earlier, whenever it is wanted.
-
-## Open
-
-1. **Names in code.** Whether a function in a code block links to its library
-   page and a type to its declaration, through `man/`'s declarations.
 
 ## Gaps
 

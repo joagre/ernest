@@ -141,6 +141,9 @@ The site's files as served.
 - A citation of the log links to the log on GitHub.
 - Code is colored when the site is generated, by `ern`'s own lexer. A quoted
   compiler line is colored as the terminal colors it, through `libs/ansi`.
+- A qualified name in a code block, `List.sort` or `Markdown.Block`, links to
+  its declaration in `/man/`. A bare name does not, since a module or a pattern
+  may shadow a prelude name (report §4.2).
 - Each page has a title and a one-line description, its first sentence.
 - The site build fails on any internal link or anchor that does not resolve.
 
