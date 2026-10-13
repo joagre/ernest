@@ -23,7 +23,7 @@ share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
 share/doc/ernest/                the report's three files under report/, the guide, the release's
                                  README.md, the logo they show under assets/, LICENSE,
-                                 THIRD_PARTY_LICENSES
+                                 THIRD_PARTY_LICENSES, ACKNOWLEDGMENTS.md
 share/emacs/site-lisp/ernest-mode.el
 ```
 

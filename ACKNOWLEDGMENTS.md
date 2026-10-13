@@ -115,6 +115,7 @@ The people behind the type theory, the languages and the reports Ernest draws on
 - Richard Kelsey
 - Donald E. Knuth
 - E. Kohlbecker
+- Daan Leijen
 - Xavier Leroy
 - David MacQueen
 - J. McCarthy
