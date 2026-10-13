@@ -407,9 +407,10 @@ the same day: an investigation, measured, of where `ern build`, `ern format`, th
 `make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
 leaves unchanged, whether `ern doc` can read the `.erc` alone instead of compiling the source,
 whether one `ern build` or `ern doc` over several roots can replace the twenty starts of the host a
-no-op `make` makes, whether `make -j` can build the applications side by side, and whether `:load`
-could take a build's current `.erc`, each step that costs more than its work fixed at its cause or
-planned with a date (the log's *Slow Tools Are Defects*).
+no-op `make` makes, whether `make -j` can build the applications side by side, and why the spelling
+test takes 4 s of `make test-docs`'s 7 s, and whether `:load` could take a build's current `.erc`,
+each step that costs more than its work fixed at its cause or planned with a date (the log's *Slow
+Tools Are Defects*).
 
 ---
 
