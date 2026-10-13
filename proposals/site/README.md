@@ -10,7 +10,7 @@ discussion has settled meanwhile.
 | [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the docroot, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13, from the design the removed `site.md` and `documents.md` held |
 | [`outlines.md`](outlines.md) | the outlines of Why and Features, which guide their writing; it goes once both are begun | current; begun 2026-10-13 as `documents.md` |
 | `templates/` | the templates, early versions of the design, with their rendering contract in `templates/README.md` | a first design |
-| `docroot/` | the assets, laid out as served, and under `mockup/` the first design's pages, flat, to open in a browser | a first design |
+| `docroot/` | the assets, laid out as served, and under `mockup/` the first design's pages, flat, to open in a browser, with the logos they show | a first design |
 | `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
 
 The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
@@ -27,9 +27,9 @@ What the prototype still lacks:
 - `ern` has no command that gives a source's tokens, which the coloring needs.
 - `releases/<version>.md` does not exist; the release step writes the notes
   only to GitHub today.
-- The favicon and the approved dark logo are still to draw; `ernest-dark.svg`
-  is a provisional derivative.
-- `templates/header.html` links home by text alone, where `decisions.md` puts
-  the stoat beside "Ernest".
+- The favicon, a simplified stoat head, is still to draw.
+- The templates hold the first design, which `decisions.md` has moved past in
+  the header's stoat, the footer's rooms, the homepage's order and the shell's
+  controls; the fragments for a list's items do not exist yet.
 - The tour, whose document MVP 3.3 writes; until then the prototype has no
   tour pages.

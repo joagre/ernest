@@ -8,6 +8,8 @@ date.
 - The site is a compact language manual with a working terminal. Its homepage
   answers what Ernest is, why one would use it, and where to start.
 - No About and no Getting Started page.
+- The site is ernest-lang.org. Every path on ernest-lang.se redirects to the
+  same path there, and `sitemap.xml` names ernest-lang.org alone.
 
 ## The docroot, 2026-10-13
 
@@ -40,7 +42,7 @@ The site's files as served.
     /releases/                      releases/<version>.md, newest first
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
-    /assets/img/                    ernest-light.svg, ernest-dark.svg, icons/
+    /assets/img/                    the repository's logos, icons/
 
 - A report page is one of the report's files, whole. A citation's first
   number or letter names its page.
@@ -54,7 +56,8 @@ The site's files as served.
 - A link names a directory by its own form, `/guide/`, never
   `/guide/index.html`.
 - The server serves a directory's `index.html` without a redirect. It
-  redirects only a directory named without its slash, `/report` to `/report/`.
+  redirects only a directory named without its slash, `/report` to `/report/`,
+  and every path on ernest-lang.se.
 - No path holds a version: the site shows one version.
 - No site-map page and no diagnostics page: the header and the footer reach
   every page, and a diagnostic names its rule and what to write. A diagnostics
@@ -129,9 +132,12 @@ The site's files as served.
 - Prose 70 to 80 characters wide, code and the terminal wider. A narrow
   contents sidebar on a desktop, an expandable contents list on a phone.
 - Visible keyboard focus.
+- The logos are the repository's `assets/`, which `make site` copies into
+  `/assets/img/`; the docroot holds no copy.
 - The full logo appears once, on the homepage, 230 px wide. Every other page's
-  header links home with the stoat beside "Ernest". Dark mode selects the dark
-  logo through `<picture>`. The favicon is a simplified stoat head.
+  header links home with the stoat, `ernest-mark.svg`, beside "Ernest". Dark
+  mode selects the dark logo through `<picture>`. The favicon is a simplified
+  stoat head.
 
 ## Links, 2026-10-13
 
@@ -164,7 +170,8 @@ The site's files as served.
   module or a pattern may shadow a prelude name, and a member of a type the
   page declares, since a module's own type shadows the library's namespace
   (report §4.2).
-- Each page has a title and a one-line description, its first sentence.
+- Each page has a title, a one-line description, its first sentence, and
+  `ernest-social-preview.png` as the image a shared link shows.
 - The site build checks every internal link and anchor in `build/site/`, made or
   written, and fails on one that does not resolve.
 
@@ -174,8 +181,10 @@ The site's files as served.
   templating language.
 - Each page kind binds a fixed list of tokens, and a test holds each template
   to its list.
-- A plain token is escaped. A `*_html` token takes only the rendered Markdown of
-  the repository's own files, or the navigation among them.
+- A plain token is escaped. A `*_html` token takes only HTML the generator
+  makes from the repository, rendered Markdown or code, navigation or a
+  template's fragment, or from the server's configuration, the session's
+  limits.
 - A list in a page, `contents_html`, `navigation_html` or `entries_html`, takes
   its item's look from a fragment file beside the page's.
 
@@ -206,10 +215,12 @@ The site's files as served.
   toolchain, library.
 - `libs/markdown` gains tables. A test parses the report and the guide whole and
   renders them back before any template meets them.
-- `make site` builds the site from a release's tag, running `make man` first:
-  it wipes `build/site/`, copies the docroot there and writes every generated
-  page beside it, so that a page whose source is gone goes. One step copies
-  `build/site/` to the host; it is never edited in place.
+- `make site` builds the site from a release's tag without a worktree. It
+  exports the tag with `git archive` into `build/site-source/` and builds the
+  toolchain there, the checkout untouched, and runs `make man` there. It wipes
+  `build/site/`, copies the docroot and the logos there, and writes every
+  generated page beside them, so that a page whose source is gone goes. One step
+  copies `build/site/` to the host; it is never edited in place.
 - The pages are complete without JavaScript. The shell panel and the code
   blocks' buttons are the script's additions.
 - No search: the report's whole pages serve the browser's find.
@@ -218,7 +229,8 @@ The site's files as served.
 ## The live shell, 2026-10-13
 
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
-  WebSocket to a pseudo-terminal running `ern shell` unchanged.
+  WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
+  unchanged; the server behind it is MVP 4.2's first decision.
 - Five states, each announced once: connecting, running, disconnected, expired
   and unavailable.
 - Stop ends the session and its container. Restart is a deliberate act and
@@ -227,8 +239,9 @@ The site's files as served.
   when the shell first opens, reused after.
 - The image holds `ern`, the standard library, `libs/`, the examples and a
   scratch directory. No network.
-- A session ends after five minutes without input at the prompt, after a
-  five-second warning, or after 30 minutes in all.
+- A session ends after five minutes without input at the prompt, a program
+  running without input among them, after a five-second warning that a key
+  press answers, or after 30 minutes in all.
 - A second tab takes the session over, and the first says so.
 - A fixed number of containers; when all are taken, the shell is unavailable.
   Starts per visitor are limited. The numbers come with the host.
