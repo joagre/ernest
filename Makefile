@@ -7,6 +7,9 @@
 
 APPS = utils lexer parser format typer runtime emitter cli json
 
+# The jobs a make runs side by side, as many as the host has cores.
+JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+
 # Every Ernest source of the repository, which `make format` lays out and
 # the Emacs mode's tests read (report §11.6, proposals/emacs/emacs_mode.md).
 ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
@@ -27,8 +30,19 @@ ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
 EXEC = erl/runtime/priv/ern_exec
 
 all: $(EXEC)
-	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
+	@$(MAKE) $(SIDE_BY_SIDE) -O $(APP_BUILDS)
 	@$(MAKE) -s shell manual
+
+# The applications under erl/, side by side, since none needs another's
+# compiled code to compile: they share headers alone, which each
+# src/Makefile names. One make runs them, as many at once as the host has
+# cores, or within the count of a make that already runs jobs side by side,
+# as make test-full's phases do, since a make started with a -j of its own
+# runs apart from the count.
+SIDE_BY_SIDE = $(if $(findstring jobserver,$(MAKEFLAGS)),,-j$(JOBS))
+APP_BUILDS = $(APPS:%=app-%)
+$(APP_BUILDS): app-%:
+	@$(MAKE) -C erl/$*/src all
 
 $(EXEC): erl/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
@@ -199,7 +213,6 @@ unicode:
 # the modules under test/, are compiled first, once, so that no two parts
 # compile one module at once. A change runs its own area's target as it is
 # worked on (docs/development.md, *Building*).
-JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 test: all
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O $(APP_JOBS) test-docs
@@ -419,8 +432,8 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
-.PHONY: all stdlib libs shell tools manual man test test-full test-erl test-programs \
-        $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell load service \
-        bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections \
-        coverage golden xref contents format doc install uninstall release unicode dialyzer \
-        sanitize diagnostics
+.PHONY: all $(APP_BUILDS) stdlib libs shell tools manual man test test-full test-erl \
+        test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \
+        load service bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
+        sections coverage golden xref contents format doc install uninstall release unicode \
+        dialyzer sanitize diagnostics
