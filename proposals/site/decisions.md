@@ -196,21 +196,20 @@ The site's files as served.
   Ernest. It reads the repository, writes static files, and ends.
 - In the repository, `site/` holds `templates/` and `docroot/`; in the
   prototype they stand in `proposals/site/`.
-- Every page is generated from what the repository owns. Four templates and
-  two pages of their own, decided 2026-10-13: `toc.html`, a book's or a
+- Every page is generated from what the repository owns. Two templates and
+  two pages of their own, decided 2026-10-13: `page.html`, a Markdown document
+  with a sidebar of its headings and a footer naming its source, for every
+  chapter of the tour, the guide and the report, every `/man/` page, Why,
+  Features, the deployment guide, Install, Releases, whose notes the generator
+  joins newest first into one document, and the 404 page with its fixed body;
+  what differs between them, a previous and a next, and what the footer names,
+  is data the generator passes, and a slot without it is empty. `index.html`,
+  a directory's default page, which every contents page is: a book's or a
   directory's opening and its list of links, for `/tour/`, `/guide/`,
-  `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and `/man/libs/<name>/`;
-  `chapter.html`, a chapter of a book with previous and next, for the tour's,
-  the guide's and the report's pages; `module.html`, a `/man/` page, whose
-  footer names a module's `.ern`; `single.html`, a document that is no
-  chapter, for Why, Features, the deployment guide, Install, Releases, whose
-  notes the generator joins newest first into one document, and the 404 page
-  with its fixed body. The three document templates share their body, a
-  Markdown document with a sidebar of its headings and a footer naming its
-  source, and differ in what stands around it. `index.html` is the homepage,
-  from the README, and `full_page_shell.html` the shell page, its examples from
-  `examples/` and its limits from the server's configuration; each is one page,
-  not a template.
+  `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and `/man/libs/<name>/`.
+  `home.html` is the homepage, served as `/index.html`, and `shell.html` the
+  full-page shell; each is one page, not a template. All four stand on
+  `base.html` with its header and footer.
 - A book's opening, its title and its paragraphs before its first chapter,
   heads its contents page.
 - A page's footer names the file it renders: the README for the homepage and
@@ -265,8 +264,10 @@ The site's files as served.
   Starts per visitor are limited. The numbers come with the host.
 - The shell page carries a privacy line: no accounts, one cookie, the layout
   kept in the browser, what the server logs, nothing kept.
-- Every page with code has a panel, side by side or stacked, a toggle kept in
-  the browser's local storage and never sent to the server. Stacked alone on a
+- The shell panel is `base.html`'s, so every page has it, side by side or
+  stacked, one toggle for every page, kept in the browser's local storage and
+  never sent to the server; Paste and Load are a code block's, so a page
+  without code offers the panel and nothing to put in it (decided 2026-10-13). Stacked alone on a
   narrow screen; not offered on a phone, where `/shell/` still serves.
 - No panel opens until the visitor asks. On a desktop, Try's Start opens the
   homepage's panel beside the example; on a phone, Try links to `/shell/`.
