@@ -19,16 +19,15 @@ The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
 
 The site is prototyped in this directory, its generator and its pages, as
 `decisions.md` lays them out. Nothing goes to the plan until the user says the
-proposal is ready. When it is, the plan's MVP 4.2 changes with it: it still
-builds the module pages from the doc chunk's parts, where `decisions.md`
-renders them from `man/`.
+proposal is ready. When it is, the plan's MVP 4.2 changes with it, since it
+still builds the module pages from the doc chunk's parts.
 
 What the prototype still lacks:
 
 - `ern` has no command that gives a source's tokens, which the coloring needs.
 - `releases/<version>.md` does not exist; the release step writes the notes
   only to GitHub today.
-- The favicon, a simplified stoat head, and the approved dark logo are still to
-  draw; `ernest-dark.svg` is a provisional derivative.
+- The favicon and the approved dark logo are still to draw; `ernest-dark.svg`
+  is a provisional derivative.
 - `templates/header.html` links home by text alone, where `decisions.md` puts
   the stoat beside "Ernest".

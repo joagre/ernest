@@ -38,8 +38,6 @@ The site's files as served.
     /shell/                         the full-page shell
     /install/
     /changes/                       releases/<version>.md
-    /map/                           the documents, each with its question
-    /diagnostics/                   test/diagnostics.md
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/img/                    ernest-light.svg, ernest-dark.svg, icons/
@@ -59,6 +57,9 @@ The site's files as served.
 - The server serves a directory's `index.html` without a redirect. It
   redirects only a directory named without its slash, `/report` to `/report/`.
 - No path holds a version: the site shows one version.
+- No site-map page and no diagnostics page: the header and the footer reach
+  every page, and a diagnostic names its rule and what to write. A diagnostics
+  page returns if diagnostics gain stable ids.
 
 ## Anchors, 2026-10-13
 
@@ -80,22 +81,24 @@ The site's files as served.
   typed process communication, its behavior beside the code. The introduction,
   the example and the doors are visible on a desktop without scrolling.
 - Between the example and the doors, the guide's §0 list "What Ernest adds",
-  generated from the guide, each item linking to its section in Why; then a
-  link, "everything Ernest has", to Features.
+  generated from the guide: each item's bold name and its first sentence,
+  linking to its section in Why; then a link, "everything Ernest has", to
+  Features. The example stays local, so that Try runs it.
 - Its rows are four doors, in this order, each with its question: Try, "let me
   see it run", the shell's entry with Start; Tour, "show me the language";
   Guide, "help me write programs"; Report, "tell me the rules".
 - Why is the link ending the introduction's paragraph, "the whole argument".
-- Deployment is reached from Install, from the guide's running chapter and
-  from Why's code by content, never from the homepage.
+- Deployment is reached from Install, from the guide's running chapter, from
+  Why's code by its hash and from the footer, never from the homepage's body.
 
 ## Every page, 2026-10-13
 
 - The header: Why, Tour, Guide, Report, Library, Shell, Install, and Source,
-  the GitHub link. The terminal is labeled Shell, as `ern shell` names it.
+  the GitHub link. The terminal is labeled Shell, as `ern shell` names it; the
+  homepage's door to it is Try.
   Features is not in the header.
 - One footer, the homepage's too, in two lines. First the rooms the header
-  leaves out: Features, Deployment, Changes, Diagnostics and the site map. Then
+  leaves out: Features, Deployment and Changes. Then
   the page: its source file in the repository with its last commit date, the
   version the site is built from, the license, the issues, and "served by
   ehttpd, written in Ernest" once true.
@@ -163,8 +166,10 @@ The site's files as served.
 - One generator, `site.ern` in `tools/`, beside the manual tool, written in
   Ernest. It reads the repository, writes static files, and ends.
 - `site/` holds the templates, the static pages and the assets.
-- The sources stay Markdown: the report, the guide, the tour and `man/`.
-- The guide's and the tour's chapters are their second-level headings.
+- The sources stay Markdown: the report, the guide, the tour and `man/`. A
+  source's opening logo and its contents block are dropped; the site has its
+  own.
+- A guide chapter or a tour lesson is a second-level heading.
   Previous and next follow their order; the report's pages run language,
   toolchain, library.
 - `libs/markdown` gains tables. A test parses the report and the guide whole and
@@ -187,8 +192,8 @@ The site's files as served.
   one.
 - One operating-system container per visitor, shared by every page: allocated
   when the shell first opens, reused after.
-- The image holds `ern`, the library, the examples and a scratch directory. No
-  network.
+- The image holds `ern`, the standard library, `libs/`, the examples and a
+  scratch directory. No network.
 - A session ends after five minutes without input at the prompt, after a
   five-second warning, or after 30 minutes in all.
 - A second tab takes the session over, and the first says so.
@@ -213,7 +218,8 @@ The site's files as served.
 - One document per question: Should I care? Why. What do I get? Features. Show
   me, in order: the tour. How do I write it? The guide. What exactly is the
   rule? The report. What does this function do? The library's pages. How do I
-  run it? The deployment guide. What does this command do? The manual pages.
+  run it? The deployment guide. What does this command do? `man ern`, and on
+the site the report's §11.
   Let me try it: the shell. What changed? The release notes.
 - Why and Features are `guide/why.md` and `guide/features.md`. The guide tests
   run their examples; each has a row in CLAUDE.md's owners table.
@@ -224,8 +230,9 @@ The site's files as served.
   points to the guide and the report. No sentence describes another language;
   no superiority claim; no sentence answers an objection the text did not
   raise.
-- Why's four pieces are the guide's §0 list as the plan has it for 0.4.0, in
-  its order: the mailbox in the function's type, a monitor's `Down` arriving in
+- Why's four pieces are the guide's §0 list, found after its line "What
+  Ernest adds is where the parts meet:" as the documents test finds it, in its
+  order, its fourth item from 0.4.0 on: the mailbox in the function's type, a monitor's `Down` arriving in
   the mailbox's type among it; checked replies, a call ending with its callee's
   cause among it; purity in the type; and code by its hash across nodes, its
   subsections any number of revisions, code moving with a spawn, TLS between
@@ -234,5 +241,5 @@ The site's files as served.
 - No comparison page: Why's FAQ answers "why not Erlang, Elixir or Gleam".
 - A root `CONTRIBUTING.md`, written before the site goes live. Not a site page.
 - `shell/README.md` is for a reader of the code, and not on the site.
-- The manual pages are the site's Library. At the terminal, `man ern` after
-  Install.
+- The module pages are the site's Library; at the terminal, `man` shows them
+  after Install.

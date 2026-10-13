@@ -28,7 +28,7 @@ The tour's, the guide's and the report's contents pages still need a layout. The
 1. Resolve path, document and layout; render Markdown with libs/markdown.
 2. Render the body template, header and footer; insert them into base.html.
 3. HTML-escape every plain-text token and attribute value. Restrict layout_class to known layout classes. URLs must be validated for their context. Do not use a global textual replace over already-rendered user content; bind template tokens from the original template.
-4. Only *_html fields receive trusted server-generated HTML. These include Markdown from reviewed site sources and navigation. Escape code examples before placing them in pre/code. If user Markdown is ever accepted, sanitise it separately.
+4. Which fields take HTML is [decisions.md](../decisions.md)'s rule for `*_html` tokens. Escape code examples before placing them in pre/code.
 5. Set asset_base to /assets in production. Set aria-current="page" on the active navigation link. Omit absent previous/next links; preserve stable chapter and declaration anchors. The preview sidebar contains same-page links; production may also include chapter links.
 6. Supply a real version in the footer and documentation metadata. Status text must distinguish shipped features from proposals. Do not publish the preview labels or illustrative API pages as authoritative documentation.
 7. Wrap wide Markdown tables in .table-scroll. Preserve heading levels, list structure and descriptive links.
@@ -44,11 +44,7 @@ The look is [decisions.md](../decisions.md)'s. The templates' own choices:
 
 ## Live shell integration
 
-The template reserves #terminal and three disabled control buttons. It deliberately implements no fake shell. Host xterm.js, its CSS, a fit addon and a small session client locally when implementing the real service.
-
-Start creates an isolated server session and attaches a WebSocket to its pseudo-terminal. Fit the terminal on viewport/container resize and send rows/columns to the pseudo-terminal. Preserve the existing Terminal-based shell. Show connecting, running, disconnected, expired and unavailable states separately. Announce connection status in #session-state, not every terminal output byte. Never execute examples merely because they were selected.
-
-Display configured server limits and remaining time. Stop destroys the session; Restart requires a deliberate action and destroys the old one. Disconnection and expiry must not be conflated. Container isolation, quotas, authentication/origin checks, session cleanup and WebSocket handling belong to your server implementation. No runtime or session is created by this bundle.
+The shell's behavior is [decisions.md](../decisions.md)'s. The template reserves #terminal, three disabled control buttons and #session-state, where the connection's state is announced, and implements no fake shell. No runtime or session is created by this bundle.
 
 ## Licensing
 

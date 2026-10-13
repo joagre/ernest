@@ -9,13 +9,14 @@ begun, each outline is its document's skeleton, and this file goes.
 
 It answers "why another language on BEAM" with one argument, the synthesis:
 every piece has a parent elsewhere, and no runtime has had them together. The
-pieces:
+pieces' names, their order and the fourth's subsections are
+[`decisions.md`](decisions.md)'s; what each holds:
 
 1. **The mailbox in the function's type.** Hindley-Milner typing with the
    mailbox in the signature, what a value may be used for, requirements,
    operators as members, one `compare` per type. Failure arrives in it: a
-   monitor's `Down` is a message of the mailbox's type, and §7.4 names the four
-   kinds of failure. Precedent: ML for the types, Erlang for the mailbox and
+   monitor's `Down` is a message of the mailbox's type, and §7 tells value
+   errors, message errors and faults apart. Precedent: ML for the types, Erlang for the mailbox and
    for faults as messages; nobody for the two in one signature.
 2. **Checked replies.** A reply answered exactly once on every path, or the
    program does not compile; a callee's death ends the call with its cause.
@@ -26,12 +27,9 @@ pieces:
    keep the pure apart from IO; what Ernest adds is that the mark is the
    mailbox itself, the one mark a function type carries.
 4. **Code by its hash, across nodes.** A definition has an identity by hash and
-   a node holds what it has received. Three consequences, each a subsection:
-   any number of revisions at once, code traveling with a spawn to peers that
-   lack it, bare nodes included, and work placed where there is room. The
-   paragraph that makes it safe: code moves only between peers that list each
-   other, by key, over TLS, never a mesh. Precedent: Unison, which has no
-   runtime of Erlang's kind.
+   a node holds what it has received. Bare nodes take code with a spawn too.
+   Code moves only between peers that list each other, by key, over TLS, never
+   a mesh. Precedent: Unison, which has no runtime of Erlang's kind.
 
 Around the four: an opener stating the synthesis and naming the parents; a
 chapter on the five principles and what they refuse, since it answers every
