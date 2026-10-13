@@ -196,13 +196,21 @@ The site's files as served.
   Ernest. It reads the repository, writes static files, and ends.
 - In the repository, `site/` holds `templates/` and `docroot/`; in the
   prototype they stand in `proposals/site/`.
-- Every page is generated from what the repository owns: the homepage and
-  Install from the README; the report's, the guide's, the tour's, Why's,
-  Features' and the deployment guide's pages and each `/man/` page from their
-  Markdown, into `chapter.html`; the contents pages and Releases into
-  `index.html`; the shell page into `shell.html`, its examples from `examples/`
-  and its limits from the server's configuration; the 404 page into
-  `error.html`.
+- Every page is generated from what the repository owns. Four templates and
+  two pages of their own, decided 2026-10-13: `toc.html`, a book's or a
+  directory's opening and its list of links, for `/tour/`, `/guide/`,
+  `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and `/man/libs/<name>/`;
+  `chapter.html`, a chapter of a book with previous and next, for the tour's,
+  the guide's and the report's pages; `module.html`, a `/man/` page, whose
+  footer names a module's `.ern`; `single.html`, a document that is no
+  chapter, for Why, Features, the deployment guide, Install, Releases, whose
+  notes the generator joins newest first into one document, and the 404 page
+  with its fixed body. The three document templates share their body, a
+  Markdown document with a sidebar of its headings and a footer naming its
+  source, and differ in what stands around it. `index.html` is the homepage,
+  from the README, and `full_page_shell.html` the shell page, its examples from
+  `examples/` and its limits from the server's configuration; each is one page,
+  not a template.
 - A book's opening, its title and its paragraphs before its first chapter,
   heads its contents page.
 - A page's footer names the file it renders: the README for the homepage and
