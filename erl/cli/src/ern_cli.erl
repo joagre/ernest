@@ -498,65 +498,133 @@ doc_dir(Options, Path, Compiled, ErrorDevice) ->
     %% build's sweep takes its .erc
     Kept = [Namespace || #build_module{namespace = Namespace} <- Modules]
         ++ [['Prelude'] || IsStdlib],
+    %% report §11.4: every page is made by the toolchain's own code, whose
+    %% newest file is found once for the directory
+    Toolchain = toolchain_modified(),
     case lists:member(man, Options) of
         true ->
-            man_dir(Modules, IsStdlib, BuildRoot, Compiled, ErrorDevice),
+            man_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain, ErrorDevice),
             ern_build:sweep_pages(man, Path, SourceRoot, BuildRoot, Kept);
         false ->
-            markdown_dir(Modules, IsStdlib, BuildRoot, Compiled),
+            markdown_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain),
             ern_build:sweep_pages(markdown, Path, SourceRoot, BuildRoot, Kept)
     end,
     0.
 
-markdown_dir(Modules, IsStdlib, BuildRoot, Compiled) ->
-    Entries = [begin
-                   Relative = ern_build:module_path(Namespace) ++ ".md",
-                   Output = filename:join(BuildRoot, Relative),
-                   ok = ern_build:make_dirs(Output),
-                   Page = unicode:characters_to_binary(
-                            ern_page:page(maps:get(Namespace, Compiled))),
-                   ok = ern_build:write_output(Output, Page),
-                   ["- [", ern_namespace:text(Namespace), "](", Relative, ")\n"]
-               end || #build_module{namespace = Namespace} <- lists:sort(Modules)],
-    Prelude = prelude_page(IsStdlib, BuildRoot),
+%% Report §11.4: each module's document where it is not current, and the
+%% index, which is written every time. The standard library's own source
+%% root also has the prelude's page, first in the index.
+markdown_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain) ->
+    Sorted = lists:sort(Modules),
+    Documents = [{filename:join(BuildRoot, "prelude.md"), fun ern_page:prelude_page/0, []}
+                 || IsStdlib]
+        ++ [{filename:join(BuildRoot, ern_build:module_path(Namespace) ++ ".md"),
+             fun() -> ern_page:page(maps:get(Namespace, Compiled)) end,
+             module_modified(Module, BuildRoot)}
+            || #build_module{namespace = Namespace} = Module <- Sorted],
+    write_pages([{Output, Make()} || {Output, Make} <- outdated(Documents, [Toolchain])]),
+    Entries = ["- [Prelude](prelude.md)\n" || IsStdlib]
+        ++ [["- [", ern_namespace:text(Namespace), "](", ern_build:module_path(Namespace),
+             ".md)\n"] || #build_module{namespace = Namespace} <- Sorted],
     ok = ern_build:write_output(filename:join(BuildRoot, "index.md"),
-                                unicode:characters_to_binary(["# Modules\n\n", Prelude, Entries])).
+                                unicode:characters_to_binary(["# Modules\n\n", Entries])).
 
 %% Report §11.4: each manual page where `ern build` writes its module's
 %% .erc, in a file named as `man` finds it, `Ernest.Net.Http.3ern`, and the
-%% prelude's at the top of the standard library's own build root.
-man_dir(Modules, IsStdlib, BuildRoot, Compiled, ErrorDevice) ->
-    Pages = in_runtime(fun() -> man_pages(Modules, IsStdlib, BuildRoot, Compiled) end,
-                       ErrorDevice),
-    lists:foreach(fun({Output, Page}) ->
-                      ok = ern_build:make_dirs(Output),
-                      ok = ern_build:write_output(Output, Page)
-                  end, Pages).
-
-%% Each page and the file it is written to; a page is text, written as UTF-8.
-man_pages(Modules, IsStdlib, BuildRoot, Compiled) ->
-    Pages = [begin
-                 Dir = filename:dirname(filename:join(BuildRoot, ern_build:module_path(Namespace))),
-                 Name = "Ernest." ++ ern_namespace:text(Namespace) ++ ".3ern",
-                 Page = ern_page:manual(maps:get(Namespace, Compiled)),
-                 {filename:join(Dir, Name), unicode:characters_to_binary(Page)}
-             end || #build_module{namespace = Namespace} <- lists:sort(Modules)],
-    case IsStdlib of
-        true ->
-            Prelude = unicode:characters_to_binary(ern_page:prelude_manual()),
-            Pages ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"), Prelude}];
-        false ->
-            Pages
+%% prelude's at the top of the standard library's own build root, where it
+%% is not current. libs/markdown lays out the pages to be written, in a
+%% started runtime, and none is started where there is none.
+man_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain, ErrorDevice) ->
+    Pages = [{man_page(BuildRoot, Namespace),
+              fun() -> ern_page:manual(maps:get(Namespace, Compiled)) end,
+              module_modified(Module, BuildRoot)}
+             || #build_module{namespace = Namespace} = Module <- lists:sort(Modules)]
+        ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"), fun ern_page:prelude_manual/0, []}
+            || IsStdlib],
+    case outdated(Pages, [Toolchain | markdown_modified()]) of
+        [] ->
+            ok;
+        Outdated ->
+            LaidOut = fun() -> [{Output, Make()} || {Output, Make} <- Outdated] end,
+            write_pages(in_runtime(LaidOut, ErrorDevice))
     end.
 
-%% Report §11.4: the standard library's own source root also gets the
-%% prelude's page, first in the index.
-prelude_page(false, _BuildRoot) ->
-    [];
-prelude_page(true, BuildRoot) ->
-    ok = ern_build:write_output(filename:join(BuildRoot, "prelude.md"),
-                                unicode:characters_to_binary(ern_page:prelude_page())),
-    ["- [Prelude](prelude.md)\n"].
+%% A module's manual page, in the directory of its .erc.
+man_page(BuildRoot, Namespace) ->
+    Directory = filename:dirname(filename:join(BuildRoot, ern_build:module_path(Namespace))),
+    filename:join(Directory, "Ernest." ++ ern_namespace:text(Namespace) ++ ".3ern").
+
+%% Each page written to its file whole, as UTF-8.
+write_pages(Pages) ->
+    lists:foreach(fun({Output, Page}) ->
+                      ok = ern_build:make_dirs(Output),
+                      ok = ern_build:write_output(Output, unicode:characters_to_binary(Page))
+                  end, Pages).
+
+%% Report §11.4: each page of Pages that is not current, with what makes
+%% it. A page is current where its file is there and is as new as all it
+%% is made from: its module's own files, whose times Pages gives, and the
+%% code that makes every page, whose times Code gives. A link or
+%% anything else at the file's place is no page, and is replaced, as
+%% ern_build:write_output/2 replaces it. The times are compared as make
+%% compares them, to the second the host gives.
+outdated(Pages, Code) ->
+    [{Output, Make} || {Output, Make, Times} <- Pages, not is_current(Output, Code ++ Times)].
+
+is_current(Page, Times) ->
+    case file:read_link_info(Page, [{time, posix}]) of
+        {ok, #file_info{type = regular, mtime = Written}} ->
+            lists:all(fun(Time) -> Time =< Written end, Times);
+        _ ->
+            false
+    end.
+
+%% Report §11.4: the times of what a module's page is made from of its
+%% own: its source, and its .erc where `ern build` has written one in
+%% BuildRoot.
+module_modified(#build_module{file = File, relative = Relative}, BuildRoot) ->
+    Erc = filename:join(BuildRoot, filename:rootname(Relative)) ++ ".erc",
+    [Time || Input <- [File, Erc], {ok, Time} <- [modified(Input)]].
+
+%% Report §11.4: the newest time of the toolchain's own code, the .beam
+%% files of the applications bin/ern puts on the path, `erl/*/ebin` of the
+%% tree it runs from, the checkout or an installation.
+toolchain_modified() ->
+    Erl = filename:dirname(filename:dirname(filename:dirname(
+                                                ern_build:absolute(code:which(?MODULE))))),
+    lists:max([Time || Application <- names(Erl),
+                       Beam <- application_code(filename:join(Erl, Application)),
+                       {ok, Time} <- [modified(Beam)]]).
+
+%% An application's .beam files but its tests': a module whose source is in
+%% its test/ is a test's, and no code of the toolchain's, as no
+%% installation holds it (tools/install.sh).
+application_code(Directory) ->
+    Tests = [filename:rootname(Name) || Name <- names(filename:join(Directory, "test")),
+                                        filename:extension(Name) =:= ".erl"],
+    [filename:join([Directory, "ebin", Name]) || Name <- names(filename:join(Directory, "ebin")),
+                                                 filename:extension(Name) =:= ".beam",
+                                                 not lists:member(filename:rootname(Name), Tests)].
+
+%% Report §11.4: the time of libs/markdown's compiled code, which lays a
+%% manual page out, where the runtime loads it from (in_runtime/2); none
+%% where no path holds it, and laying a page out then fails in the runtime.
+markdown_modified() ->
+    [Time || File <- [code:which('ern@markdown')], is_list(File), {ok, Time} <- [modified(File)]].
+
+%% A file's last modification, in seconds, as the host gives it.
+modified(File) ->
+    case file:read_file_info(File, [{time, posix}]) of
+        {ok, #file_info{mtime = Time}} -> {ok, Time};
+        {error, _} -> error
+    end.
+
+%% The names in a directory, none where there is none.
+names(Directory) ->
+    case file:list_dir(Directory) of
+        {ok, Names} -> Names;
+        {error, _} -> []
+    end.
 
 %%
 %% ern format, report §11.6

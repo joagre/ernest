@@ -98,7 +98,8 @@ Beyond what the README's *Installing* needs, `make test-full` needs python3, whi
 
 ```
 make              build the helper, compile every application into its ebin/, then
-                  stdlib/, libs/, shell/ and tools/, and write the manual pages
+                  stdlib/, libs/, shell/ and tools/, and write each manual page
+                  that is missing or older than what it is made from
 make test         build, then the unit tests of every application and the document
                   and style tests, side by side: the light run, a minute or two
 make test-full    build, then every area below, side by side: the whole suite

@@ -85,17 +85,27 @@ doc: all
 # library's beside its own in build/libs, and ern(1), §11 of the report,
 # which tools/manual.ern writes into build/man with the standard library's
 # pages in its SEE ALSO. make writes them, so that make install, which a
-# user may run as another, only copies. A page is written whole or not at
-# all.
+# user may run as another, only copies. `ern doc` writes a page only where
+# none is there or the one there is older than what it is made from (report
+# §11.4), and make writes ern(1) likewise by its prerequisites, so that a
+# make with nothing to do writes none. ern(1) is made by a make of its own,
+# which reads build/stdlib after `ern doc` has written there. A page is
+# written whole or not at all.
 manual: stdlib libs tools
 	@bin/ern doc --man --build-root build/stdlib stdlib
 	@for d in libs/*/; do n=$$(basename $$d); \
 	  bin/ern doc --man --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n \
 	  $$d || exit 1; done
+	@$(MAKE) -s build/man/ern.1
+
+# ern(1)'s SEE ALSO names the pages in build/stdlib, so the directory is a
+# prerequisite: its time changes whenever a file there is written, added or
+# removed, a page among them, and a make with nothing to do changes none.
+build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 	@mkdir -p build/man
 	@bin/ern run $(LIB_PATH) build/tools/manual.erc \
-	  report/toolchain.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
-	@mv build/man/ern.1.new build/man/ern.1
+	  report/toolchain.md $$(cat VERSION) build/stdlib > $@.new
+	@mv $@.new $@
 
 # Every page: the manual pages make writes, and main's pages as CommonMark
 # in man/, which GitHub shows and a release commits (docs/release_review.md,

@@ -410,6 +410,30 @@ pair(Dir) ->
           "}\n"),
     Dir.
 
+%% A file's last modification, in the host's seconds, and the same set.
+modified(File) ->
+    {ok, #file_info{mtime = Time}} = file:read_file_info(File, [{time, posix}]),
+    Time.
+
+set_modified(File, Time) ->
+    ok = file:write_file_info(File, #file_info{mtime = Time, atime = Time}, [{time, posix}]).
+
+%% Run run with libs/markdown's code loaded from a copy in Dir whose time
+%% is Time, and then from where the code path holds it again, so that the
+%% code `ern doc --man` lays a page out with has a time of the test's and
+%% the tree's file is not touched.
+with_markdown_modified(Time, Dir, Run) ->
+    Tree = code:which('ern@markdown'),
+    Copy = filename:join(Dir, "ern@markdown.beam"),
+    {ok, _} = file:copy(Tree, Copy),
+    set_modified(Copy, Time),
+    loaded_from(Copy),
+    try Run() after loaded_from(Tree) end.
+
+loaded_from(File) ->
+    _ = code:purge('ern@markdown'),
+    {module, 'ern@markdown'} = code:load_abs(filename:rootname(File)).
+
 %%
 %% ern build, report §11.1
 %%
@@ -2196,6 +2220,108 @@ doc_sweeps_pages_test() ->
     ?assert(filelib:is_regular(Notes)),
     {ok, Index} = file:read_file(filename:join(BuildRoot, "index.md")),
     ?assertEqual(nomatch, binary:match(Index, <<"Extra">>)).
+
+%% report §11.4: `ern doc src-dir`, with --man or without, writes a
+%% module's page only where none is there or the one there is older than
+%% the module's source or its .erc in build-root, and writes index.md every
+%% time. A page is given a time ahead of all it is made from to be current;
+%% one left alone keeps that time, and a manual page left alone was laid
+%% out by no runtime.
+doc_writes_outdated_pages_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    Document = fun() ->
+                   ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot])),
+                   ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", BuildRoot,
+                                                SourceRoot]))
+               end,
+    Http = [filename:join(BuildRoot, "net/http.md"),
+            filename:join(BuildRoot, "net/Ernest.Net.Http.3ern")],
+    Main = [filename:join(BuildRoot, "main.md"), filename:join(BuildRoot, "Ernest.Main.3ern")],
+    Index = filename:join(BuildRoot, "index.md"),
+    Ahead = os:system_time(second) + 3600,
+    Document(),
+    [set_modified(File, Ahead) || File <- [Index | Http ++ Main]],
+    Document(),
+    ?assertEqual([Ahead, Ahead, Ahead, Ahead], [modified(File) || File <- Http ++ Main]),
+    ?assert(modified(Index) < Ahead),
+    %% the module's source newer than its pages
+    set_modified(filename:join(SourceRoot, "net/http.ern"), Ahead + 1),
+    Document(),
+    ?assert(lists:all(fun(File) -> modified(File) < Ahead end, Http)),
+    ?assertEqual([Ahead, Ahead], [modified(File) || File <- Main]),
+    %% the module's .erc, which `ern build` wrote in build-root, newer
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", BuildRoot, SourceRoot])),
+    set_modified(filename:join(BuildRoot, "main.erc"), Ahead + 1),
+    [set_modified(File, Ahead + 1) || File <- Http],
+    Document(),
+    ?assert(lists:all(fun(File) -> modified(File) < Ahead end, Main)),
+    ?assertEqual([Ahead + 1, Ahead + 1], [modified(File) || File <- Http]).
+
+%% report §11.4: a page older than any file of the toolchain's own code is
+%% written again, though its module's source is older than it and no .erc
+%% is there; the code the job runs, ern_cli's, is one such file
+doc_writes_pages_older_than_toolchain_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    Page = filename:join(BuildRoot, "main.md"),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot])),
+    Toolchain = modified(code:which(ern_cli)),
+    set_modified(filename:join(SourceRoot, "main.ern"), Toolchain - 2),
+    set_modified(Page, Toolchain - 1),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot])),
+    ?assert(modified(Page) > Toolchain - 1).
+
+%% report §11.4: a manual page older than libs/markdown's compiled code,
+%% which lays it out, is written again, and a document in CommonMark, which
+%% it does not lay out, is not. The code is given a time ahead of the
+%% pages' by loading a copy of it, so that the tree's is not touched.
+doc_writes_pages_older_than_markdown_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    Document = fun(Args) ->
+                   ?assertEqual(0, ern_cli:ern(["doc" | Args]
+                                               ++ ["--build-root", BuildRoot, SourceRoot]))
+               end,
+    Page = filename:join(BuildRoot, "Ernest.Main.3ern"),
+    Markdown = filename:join(BuildRoot, "main.md"),
+    Document([]),
+    Document(["--man"]),
+    Ahead = os:system_time(second) + 3600,
+    set_modified(Page, Ahead),
+    set_modified(Markdown, Ahead),
+    with_markdown_modified(Ahead + 1, Dir, fun() -> Document([]), Document(["--man"]) end),
+    ?assert(modified(Page) < Ahead),
+    ?assertEqual(Ahead, modified(Markdown)).
+
+%% report §9, §11.4: the prelude's page, which no source of the directory
+%% makes, is written where it is older than the toolchain's code, or, as a
+%% manual page, than libs/markdown's, and is otherwise left alone. A file
+%% at its place stands for a page, given its time.
+prelude_pages_follow_code_test_() ->
+    {timeout, 120, fun prelude_pages_follow_code/0}.
+
+prelude_pages_follow_code() ->
+    BuildRoot = tmp(),
+    Document = fun(Args) ->
+                   ?assertEqual(0, ern_cli:ern(["doc" | Args]
+                                               ++ ["--build-root", BuildRoot, "../../../stdlib"]))
+               end,
+    Ahead = os:system_time(second) + 3600,
+    Prelude = write(BuildRoot, "prelude.md", "kept\n"),
+    set_modified(Prelude, Ahead),
+    Document([]),
+    ?assertEqual({ok, <<"kept\n">>}, file:read_file(Prelude)),
+    set_modified(Prelude, modified(code:which(ern_cli)) - 1),
+    Document([]),
+    ?assertMatch({ok, <<"# Ernest prelude\n", _/binary>>}, file:read_file(Prelude)),
+    Manual = write(BuildRoot, "Ernest.Prelude.3ern", "kept\n"),
+    set_modified(Manual, Ahead),
+    with_markdown_modified(Ahead + 1, tmp(), fun() -> Document(["--man"]) end),
+    ?assertMatch({ok, <<".\\\" Generated by ern ", _/binary>>}, file:read_file(Manual)).
 
 %% report §11.4, §11.8: a page whose title names no module at its place
 %% is kept, however long the title, and one the sweep cannot read is

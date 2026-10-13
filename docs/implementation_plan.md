@@ -16,8 +16,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 **MVP 3.2 is in progress.** Its items 1 to 9 are done, code crossing with a spawn, the bare node,
 `Code`, the pick and the deployment guide, and its item 10, Ernest 0.4.0, waits for the user's
-word. Before the tag, in MVP 3.2 below: the pages written only where stale, the speed
-investigation and the test defects. The split of `make test`, taken early from MVP 3.9, is done.
+word. Before the tag, in MVP 3.2 below: the speed investigation and the test defects. The split of `make test`, taken early from MVP 3.9, is done.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -377,13 +376,13 @@ is split, before the tag. A run that times out leaves its `closed` directory rea
 next run's cleanup cannot remove (`eexist`): the cleanup makes it writable first, before the tag.
 Beside them, found the same day: `make manual` writes every manual page again on every `make`, 14.7
 s of a no-op `make`'s 16 s, which `make test-full` pays three times and each `make install` again, and `make doc` and
-`make man` do the same with `ern doc`'s Markdown. `ern doc`, with `--man` or without, writes a page
-only where it is older than the module's `.erc`, `libs/markdown`'s `.erc` or `ern`'s own build, each
-written by the toolchain alone and only when its content changes, so that a page goes stale on none
-of them; `ern(1)` is written only where it is older than §11's source, the manual tool or `VERSION`;
-§11.4 states it first; before the tag. It takes a no-op `make` from 16 s to about 4 s and each `make
-install` with it, so that the `install` test, which runs `make install` five times, spends about 20
-s there in place of about 87 s, well inside its limit. Also before the tag, decided with the user
+`make man` do the same with `ern doc`'s Markdown. Done 2026-10-13: `ern doc`, with `--man` or
+without, writes a page only where none is there or the one there is older than what it is made from,
+and `ern(1)` likewise by make's prerequisites (§11.4 *What is written*; the log's *Pages Written
+Where Out of Date*). It took a no-op `make` from 16.5 s to 14.6 s, not to the 4 s estimated: writing
+the pages was 2 s of the 14.7 s attributed to `make manual`, and the rest is `ern doc`'s compile of
+every source, 6.5 s, and fifteen starts of the host, 5 s, both the investigation's below. Also
+before the tag, decided with the user
 the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`,
 `make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
 leaves unchanged, whether `ern doc` can read the `.erc` alone instead of compiling the source,

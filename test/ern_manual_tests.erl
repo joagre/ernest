@@ -1,11 +1,12 @@
 %% The manual pages as `make manual` writes them, held to §11 and rendered.
 %% Run from this directory by its Makefile, never beside ern_install_tests:
 %% both write the pages under ../build/stdlib, these tests by `ern doc
-%% --man` and those by make. The helpers that run a command and build are
-%% ern_integration_tests'.
+%% --man` and by `make manual`, and those by make. The helpers that run a
+%% command and build are ern_integration_tests'.
 -module(ern_manual_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% report §11, §11.4: the manual pages `make manual` writes. `ern doc --man`
 %% writes the prelude's page and each standard library module's beside its
@@ -68,6 +69,23 @@ manual_pages() ->
     ?assertEqual([], [Module || Module <- Modules,
                                 binary:match(Output, SeeAlso(Module)) =:= nomatch]),
     rendered(["build/ern.1" | Pages]).
+
+%% report §11.4: make writes ern(1) as `ern doc` writes a page, only where
+%% it is older than what it is made from, so `make manual` after a make,
+%% which this target's make runs first, leaves it as it is: its time, and
+%% its file, which a writing replaces whole. Written after the code, a
+%% regression test; what each prerequisite of ern(1) makes it is the
+%% Makefile's rule, and is not covered, since the test touches no file of
+%% the tree.
+manual_written_once_test_() ->
+    {timeout, 120, fun manual_written_once/0}.
+
+manual_written_once() ->
+    {ok, #file_info{mtime = Written, inode = Inode}} =
+        file:read_file_info("../build/man/ern.1", [{time, posix}]),
+    _ = ern_integration_tests:succeed("make -s -C .. manual"),
+    ?assertMatch({ok, #file_info{mtime = Written, inode = Inode}},
+                 file:read_file_info("../build/man/ern.1", [{time, posix}])).
 
 rendered(Pages) ->
     case {os:find_executable("groff"), os:find_executable("mandoc")} of
