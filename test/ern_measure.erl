@@ -142,8 +142,12 @@ measured(Sizes, Mode) ->
 
 rows(Entries, Sizes, Mode, Dir) ->
     ern_rt:init_modules([Module || Module <- library_modules()]),
-    Types = types(),
-    Scenarios = scenarios(Dir),
+    %% report §8.6: the machine's own reading of the interfaces and writing
+    %% of the scenarios' files goes through the host's file server, a wait
+    %% the deadlock detector counts only inside a foreign call; under the
+    %% suite's load one outlasted the detector's look, and the run was a
+    %% deadlock
+    {Types, Scenarios} = ern_rt:in_foreign(fun() -> {types(), scenarios(Dir)} end),
     {Counter, Stop} = counter(),
     try [row(Entry, Sizes, Mode, Types, Scenarios, Counter) || Entry <- Entries]
     after Stop()

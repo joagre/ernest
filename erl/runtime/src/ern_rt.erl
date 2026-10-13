@@ -2962,13 +2962,20 @@ stdlib_modules() ->
 
 %% Report §8.5: the top-level lets of the modules given and of the modules
 %% they depend on through `'$deps'/0`, dependencies first, each module once;
-%% the order of the list is kept where no dependency decides it.
+%% the order of the list is kept where no dependency decides it. Report
+%% §8.5, §11.2: a fault while a binding is evaluated is reported under the
+%% binding's site, so the caller's own site is put back once the bindings
+%% have their values; the measuring machine's deadlock was once reported
+%% under the last library binding's, a Test.Case that waits on nothing.
 -spec init_modules([module()]) -> ok.
 init_modules(ErlangModules) ->
     {Order, _} = lists:foldl(fun(ErlangModule, Acc) ->
                                  visit(ErlangModule, all, Acc)
                              end, {[], #{}}, ErlangModules),
-    run_inits(lists:reverse(Order)).
+    Site = site(),
+    run_inits(lists:reverse(Order)),
+    _ = initializing(Site),
+    ok.
 
 run_inits(ErlangModules) ->
     lists:foreach(fun(ErlangModule) ->
