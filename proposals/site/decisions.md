@@ -205,8 +205,19 @@ The site's files as served.
   Let me try it: the shell. What changed? The release notes.
 - Why and Features are `guide/why.md` and `guide/features.md`. The guide tests
   run their examples; each has a row in CLAUDE.md's owners table.
-- Features is written first, then Why a section at a time, each in the typing
-  section's form, their lengths level.
+- Features is written first, then Why a section at a time, their lengths
+  level.
+- A section of Why states the rule, names its price before its gain, shows a
+  program and the compiler's line about it, compiled before it is quoted, and
+  points to the guide and the report. No sentence describes another language;
+  no superiority claim; no sentence answers an objection the text did not
+  raise.
+- Why's four pieces are the guide's §0 list as the plan has it for 0.4.0, in
+  its order: the mailbox in the function's type, a monitor's `Down` arriving in
+  the mailbox's type among it; checked replies, a call ending with its callee's
+  cause among it; purity in the type; and code by its hash across nodes, its
+  subsections any number of revisions, code moving with a spawn, TLS between
+  listed peers, and placement.
 - The walk through one real program is the tour's last chapter.
 - No comparison page: Why's FAQ answers "why not Erlang, Elixir or Gleam".
 - A root `CONTRIBUTING.md`, written before the site goes live. Not a site page.
