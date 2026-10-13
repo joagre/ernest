@@ -40,8 +40,7 @@ The site's files as served.
 
 - A report page is one of the report's files, whole. A citation's first
   number or letter names its page.
-- A chapter or a lesson is addressed by its number, as a citation names it:
-  "guide §4.2" links into `/guide/4.html`.
+- A chapter or a lesson is addressed by its number, as a citation names it.
 - Every contents page is generated, from the headings or from `libs/*/`.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `man/`'s Markdown, which `make man`
@@ -54,3 +53,16 @@ The site's files as served.
 - The server serves a directory's `index.html` without a redirect. It
   redirects only a directory named without its slash, `/report` to `/report/`.
 - No path holds a version: the site shows one version.
+
+## Anchors, 2026-10-13
+
+- An anchor is the citation's own text without its `§`: `#6.5`, `#E.17`, and
+  `#4.2` in the guide. A chapter's is its number or letter: `#6`, `#E`.
+- A declaration's anchor is its qualified name as `man/`'s heading writes it:
+  `#List.removeAt`, `#Address.call`, `#spawn`. An operator stays as written.
+- Only numbered headings and declarations have anchors. No anchor is made from
+  a heading's words.
+- A citation becomes a link to its anchor, its page found as the documents test
+  finds it: "§6.5" is `/report/language.html#6.5`, "Appendix E.17"
+  `/report/library.html#E.17`, "guide §4.2" `/guide/4.html#4.2`, `List.sort`
+  `/man/stdlib/list.html#List.sort`.

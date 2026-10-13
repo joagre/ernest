@@ -18,7 +18,7 @@ the language, then choose the depth.
 
 ## The site
 
-**Navigation.** One compact header, its list question 7's. The logo links
+**Navigation.** One compact header, its list question 5's. The logo links
 home. The terminal is labeled Shell, matching `ern shell`; a homepage link can
 say "Try Ernest" without a navigation category of its own.
 
@@ -97,7 +97,7 @@ resolve. A citation is a link that is not yet rendered.
   declaration, and a quoted compiler line to its entry in the diagnostics
   catalog.
 - **One header, one footer, on every page.** The header's list is question
-  7's. The footer carries the three depths with the reader's
+  5's. The footer carries the three depths with the reader's
   question beside each, "show me", "help me write", "tell me the rules", then
   Library, Shell, Changes, the page's source file in the repository with its
   revision date, and the version the page describes. Previous and next, in the
@@ -151,7 +151,7 @@ focus, and print rules. `templates/README.md` holds the rendering contract.
 What this design adds to them:
 
 - the homepage's `doors` navigation as the three reader rows, and the header's
-  list once question 7 decides it;
+  list once question 5 decides it;
 - the shell panel in `base.html`, split side by side or stacked, with its
   toggle, and Paste, Load and Copy on every code block, added by the script
   and never required;
@@ -200,21 +200,16 @@ into `chapter.html` with the base, header and footer fragments. Decided once:
 
 - **Where a chapter is cut.** The guide's and the tour's chapters are their own
   second-level headings.
-- **Anchors from the numbers.** A heading's anchor is its section number,
-  `#s6-5`, `#e-17`, `#h`, and a declaration's its qualified name, so that a link
-  into the report never breaks, since the numbers never change. The guide's and
-  the tour's anchors are their numbers the same way.
 - **Cross-references become links.** The report writes `§6.5` and
   `Appendix E.17`, which Markdown cannot link and HTML should. The generator
-  recognizes the two forms and links them to the anchor above, in the same file
-  or another of the three, by the rule the documents' tests use to check that
-  every citation resolves.
+  recognizes the two forms and links them to their anchors
+  ([`decisions.md`](decisions.md)), by the rule the documents' tests use to
+  check that every citation resolves.
 - **Previous and next** come from the chapter order.
 
 **The module pages** are rendered from `man/`'s Markdown
 ([`decisions.md`](decisions.md)) into `chapter.html`, as any other page is:
-the declarations' headings are its contents, each declaration's anchor its
-qualified name, stable across releases. The terminal's `man` and the shell's
+the declarations' headings are its contents and their anchors. The terminal's `man` and the shell's
 `:doc` show the same parts: three renderings of one source, differing in
 layout.
 
@@ -336,38 +331,37 @@ the machinery.
 ## To decide, before it enters the plan
 
 1. Where a chapter is cut, for the guide and the tour.
-2. The anchor scheme, section numbers for headings and qualified names for
-   declarations.
-3. The cross-reference rule, `§6.5` and `Appendix E.17` as links.
-4. The token sets per page kind, listed and held by a test.
-5. The table block in `libs/markdown`, and the whole-document parse test.
-6. The output directory and the `make site` target, and where the templates
+2. The token sets per page kind, listed and held by a test.
+3. The table block in `libs/markdown`, and the whole-document parse test.
+4. The output directory and the `make site` target, and where the templates
    and the generator live in the repository, `site/tools/` or beside
-   `tools/manual.ern`, which may move to join it.
-7. The header's list: the doors alone, as `documents.md`'s *Doors and rooms*
+   `tools/manual.ern`, which may move to join it. Since `/man/` renders
+   `man/`, `make site` runs `make man` first, or renders whatever `man/` last
+   held.
+5. The header's list: the doors alone, as `documents.md`'s *Doors and rooms*
    has them, or the doors with Library, Install and Source beside them; and
    whether Features is in it.
-8. Whether a code block is pasted or loaded by its shape alone, or an author may
+6. Whether a code block is pasted or loaded by its shape alone, or an author may
    mark one.
-9. What counts as activity for the five minutes: input at the prompt alone, or
+7. What counts as activity for the five minutes: input at the prompt alone, or
    any page view with the panel open.
-10. Which version the site describes, a release's tag with the version in the
+8. Which version the site describes, a release's tag with the version in the
    footer, or `main` with a date. It changes how `/changes/` and every citation
    into the report are read.
-11. Whether the pages are complete without JavaScript, the panel and the buttons
+9. Whether the pages are complete without JavaScript, the panel and the buttons
    added by the script and never required, which also makes the site readable
    by crawlers; and whether the site has a search, a static index, or says it
    has none.
-12. Where a citation of the log goes, since the log is not on the site: its
+10. Where a citation of the log goes, since the log is not on the site: its
    anchors fit GitHub's rendering, so the link goes there.
-13. Accessibility: xterm.js's screen-reader mode, Paste, Load and the toggle
+11. Accessibility: xterm.js's screen-reader mode, Paste, Load and the toggle
    from the keyboard, focus landing in the shell after a Paste; and whether the
    shell is offered on a phone at all, where the stacked panel and the soft
    keyboard leave half a screen.
-14. How the site is built and published: `make site`, and the step that puts
+12. How the site is built and published: `make site`, and the step that puts
    the output on the host, so that the site is reproducible from the repository
    and never edited in place.
-15. The site as a deployment of Ernest's own: ehttpd under the deployment guide,
+13. The site as a deployment of Ernest's own: ehttpd under the deployment guide,
    the service manager, TLS for the site itself, what is watched and who is
    told. The operator's day applied to the site is the evidence `but_why.md`
    cites.
@@ -376,7 +370,9 @@ the machinery.
 
 Early versions: the templates are a first design, and the generator is not
 written. What the discussion has settled is in [`decisions.md`](decisions.md);
-nothing enters the plan until the proposal is decided. The plan's MVP 4.2
+nothing enters the plan until the proposal is decided. When it does, the plan's
+MVP 4.2 changes with it: it still builds the module pages from the doc chunk's
+parts, where `decisions.md` renders them from `man/`. The plan's MVP 4.2
 section records what was agreed on 2026-10-10: the generator is a program beside
 `tools/manual.ern` against the library's tree, nothing of the site enters the
 library, `roff` moves to the manual tool when the library is next touched, and

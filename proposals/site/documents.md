@@ -120,7 +120,7 @@ Three readers, three paths, which the homepage shows as three rows: the
 curious, Why, Try, Tour; the programmer, Guide, Report, Library; the operator,
 Install, Deployment, the manual pages at the terminal. The footer carries
 every room, and the site map page all of them with the reader's question beside
-each; whether the header carries the doors alone is `site.md`'s question 7.
+each; whether the header carries the doors alone is `site.md`'s question 5.
 
 ## To decide
 
