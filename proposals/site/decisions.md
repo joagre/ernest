@@ -199,8 +199,8 @@ The site's files as served.
   WebSocket to a pseudo-terminal running `ern shell` unchanged.
 - Five states, each announced once: connecting, running, disconnected, expired
   and unavailable.
-- Stop destroys the session. Restart is a deliberate act and destroys the old
-  one.
+- Stop ends the session and its container. Restart is a deliberate act and
+  ends the old ones.
 - One operating-system container per visitor, shared by every page: allocated
   when the shell first opens, reused after.
 - The image holds `ern`, the standard library, `libs/`, the examples and a
@@ -210,15 +210,21 @@ The site's files as served.
 - A second tab takes the session over, and the first says so.
 - A fixed number of containers; when all are taken, the shell is unavailable.
   Starts per visitor are limited. The numbers come with the host.
-- The shell page carries a privacy line: no accounts, one cookie, what the
-  server logs, nothing kept.
-- Every page with code has a panel, side by side or stacked, a toggle
-  remembered per visitor. Stacked alone on a narrow screen; not offered on a
-  phone, where `/shell/` still serves.
-- A runnable block with `export fn main` is Loaded, any other runnable block
-  Pasted. A block that cannot run in the container is marked so by its info
-  string, as `ernest-rejected` is, and gets Copy alone. Copy is on every block.
-  The guide tests hold the marks.
+- The shell page carries a privacy line: no accounts, one cookie, the layout
+  kept in the browser, what the server logs, nothing kept.
+- Every page with code has a panel, side by side or stacked, a toggle kept in
+  the browser's local storage and never sent to the server. Stacked alone on a
+  narrow screen; not offered on a phone, where `/shell/` still serves.
+- No panel opens until the visitor asks. On a desktop, Try's Start opens the
+  homepage's panel beside the example; on a phone, Try links to `/shell/`.
+- Only an `ernest` block, which the guide tests compile, has Paste or Load.
+  `ernest-fragment`, `ernest-rejected`, `ernest-prelude`, a console and another
+  language's block have Copy alone. An `ernest` block that cannot run in the
+  container is `ernest-shown`: the tests compile it as `ernest`, and it has
+  Copy alone. Copy is on every block.
+- A block with `export fn main` is Loaded: written into the session's scratch
+  directory as `example.ern`, and `:load Example` typed, so that `main()` is
+  one Enter away. Any other is Pasted.
 - A Paste arrives as one input, as bracketed paste does. Nothing runs until
   Enter.
 - Everything is reachable by keyboard. Focus lands in the shell after a Paste.
