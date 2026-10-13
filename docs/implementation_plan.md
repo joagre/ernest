@@ -380,6 +380,11 @@ host, about 5 s. Decided with the user the same day, each built before the tag:
    for a no-op `make` on eight cores.
 5. `:load` takes a current `.erc` beside the source or on the load path; §11.2 says so first.
 
+After the five, `make test-install` is measured again (decided with the user on 2026-10-14). On
+2026-10-14 it took 105 s, 26 s of them CPU, `test-manual` before it included. Whatever of the
+wait the five leave is fixed at its cause before the tag, or planned with a date (the log's
+*Slow Tools Are Defects*).
+
 One command over several roots was refused the same day (the log's *Later*).
 
 **Before the tag: the installation.** `make install` installs every `.md` under `report/`,
