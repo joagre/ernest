@@ -238,7 +238,15 @@ The site's files as served.
 - One operating-system container per visitor, shared by every page: allocated
   when the shell first opens, reused after.
 - The image holds `ern`, the standard library, `libs/`, the examples and a
-  scratch directory. No network.
+  scratch directory, and nothing secret, since a `foreign fn` reads the image
+  and the environment. No network but loopback, so that the guide's `Tcp`
+  examples, which talk to themselves, run. The scratch directory is a
+  size-capped tmpfs, counted into the visitor's memory, so that a program
+  that writes without end ends its own session and no other. The language
+  is whole in the container: no module is forbidden, since nothing done
+  through `Fs`, `Os`, `Tcp` or a `foreign fn` leaves the container, and a
+  shell with fewer modules would be a second mode of the language that the
+  guide's examples would not run in (decided 2026-10-13).
 - A session ends after five minutes without input at the prompt, a program
   running without input among them, after a five-second warning that a key
   press answers, or after 30 minutes in all.
