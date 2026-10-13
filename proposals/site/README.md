@@ -31,3 +31,5 @@ What the prototype still lacks:
   is a provisional derivative.
 - `templates/header.html` links home by text alone, where `decisions.md` puts
   the stoat beside "Ernest".
+- The tour, whose document MVP 3.3 writes; until then the prototype has no
+  tour pages.

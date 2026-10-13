@@ -21,7 +21,7 @@ The site's files as served.
     /why/                           guide/why.md
     /features/                      guide/features.md
     /tour/                          contents
-    /tour/<n>.html                  lesson n, with previous and next
+    /tour/<n>.html                  chapter n, with previous and next
     /guide/                         contents
     /guide/<n>.html                 chapter n
     /deployment/                    guide/deployment.md
@@ -44,7 +44,7 @@ The site's files as served.
 
 - A report page is one of the report's files, whole. A citation's first
   number or letter names its page.
-- A chapter or a lesson is addressed by its number, as a citation names it.
+- A chapter is addressed by its number, as a citation names it.
 - Every contents page is generated, from the headings or from `libs/*/`.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `man/`'s Markdown, which `make man`
@@ -181,10 +181,10 @@ The site's files as served.
   Ernest. It reads the repository, writes static files, and ends.
 - In the repository, `site/` holds `templates/` and `docroot/`; in the
   prototype they stand in `proposals/site/`.
-- The sources stay Markdown: the report, the guide, the tour and `man/`. A
-  source's opening logo and its contents block are dropped; the site has its
-  own.
-- A guide chapter or a tour lesson is a second-level heading.
+- The sources stay Markdown: the report, the guide, `man/`, and the tour's
+  document under `tour/`, named when MVP 3.3 writes it. A source's opening logo
+  and its contents block are dropped; the site has its own.
+- A chapter of the guide or the tour is a second-level heading.
   Previous and next follow their order; the report's pages run language,
   toolchain, library.
 - `libs/markdown` gains tables. A test parses the report and the guide whole and
@@ -259,7 +259,8 @@ the site the report's §11.
   with its callee's cause among it; purity in the type; and code by its hash
   across nodes, its subsections any number of revisions, code moving with a
   spawn, TLS between listed peers, and placement.
-- The walk through one real program is the tour's last chapter.
+- The walk through one real program is the tour itself, which grows one
+  program through every chapter (the plan's MVP 3.3).
 - No comparison page: Why's FAQ answers "why not Erlang, Elixir or Gleam".
 - A root `CONTRIBUTING.md`, written before the site goes live. Not a site page.
 - `shell/README.md` is for a reader of the code, and not on the site.
