@@ -49,9 +49,9 @@ The site's files as served.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `man/`'s Markdown, which `make man`
   writes. The site calls them Library.
-- The docroot holds the pages served: the static pages written by hand,
-  beside the ones generated from Markdown. The templates and their README are
-  the generator's input and stand outside it, in `templates/`.
+- The docroot holds what is written by hand, laid out as served: the static
+  pages and the assets. The templates and their README stand beside it, in
+  `templates/`.
 - A link names a directory by its own form, `/guide/`, never
   `/guide/index.html`.
 - The server serves a directory's `index.html` without a redirect. It
@@ -165,7 +165,8 @@ The site's files as served.
 
 - One generator, `site.ern` in `tools/`, beside the manual tool, written in
   Ernest. It reads the repository, writes static files, and ends.
-- `site/` holds the templates, the static pages and the assets.
+- In the repository, `site/` holds `templates/` and `docroot/`; in the
+  prototype they stand in `proposals/site/`.
 - The sources stay Markdown: the report, the guide, the tour and `man/`. A
   source's opening logo and its contents block are dropped; the site has its
   own.
@@ -174,9 +175,10 @@ The site's files as served.
   toolchain, library.
 - `libs/markdown` gains tables. A test parses the report and the guide whole and
   renders them back before any template meets them.
-- `make site` builds the site from a release's tag into `build/site/`, running
-  `make man` first. One step copies it to the host; it is never edited in
-  place.
+- `make site` builds the site from a release's tag, running `make man` first:
+  it wipes `build/site/`, copies the docroot there and writes every generated
+  page beside it, so that a page whose source is gone goes. One step copies
+  `build/site/` to the host; it is never edited in place.
 - The pages are complete without JavaScript. The shell panel and the code
   blocks' buttons are the script's additions.
 - No search: the report's whole pages serve the browser's find.

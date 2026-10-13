@@ -10,8 +10,8 @@ discussion has settled meanwhile.
 | [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the docroot, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13, from the design the removed `site.md` and `documents.md` held |
 | [`outlines.md`](outlines.md) | the outlines of Why and Features, which guide their writing; it goes once both are begun | current; begun 2026-10-13 as `documents.md` |
 | `templates/` | the templates, early versions of the design, with their rendering contract in `templates/README.md` | a first design |
-| `docroot/` | the pages served, as `decisions.md` lays them out: a directory for each part of the tree, holding a `remove.me` until its pages come; the assets; and under `mockup/` the first design's pages, flat, to open in a browser | a first design |
-| `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and its compiled form | not written |
+| `docroot/` | what is written by hand, laid out as served: the assets, the shell page's and the install page's places, and under `mockup/` the first design's pages, flat, to open in a browser | a first design |
+| `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
 
 The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
 
