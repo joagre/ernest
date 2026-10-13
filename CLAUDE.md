@@ -103,7 +103,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 
 ## Writing
 
-- **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating. Clear before short: plain sentences, one rule per sentence, its exception and its example in sentences of their own. Cut a sentence for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
+- **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating. Clear before short: plain sentences, one rule per sentence, its exception and its example in sentences of their own. A paragraph holds one rule with its own exception and example, and a new one begins where the text turns, never at a count of words. Cut a sentence for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
 - **The plan, the log, a proposal and a commit message are plain and short.** One point to a sentence, in the order a reader needs it, without chains of clauses; the register above is the report's and the guide's alone.
 - **A proposal and its reasons say what Ernest does, and why.** What was tried and set aside, and what Ernest does not do, stays in the experiment or goes to the log, not into the paragraph that states the rule.
 - **A report edit updates the revision date** in line 3 of each file it changes.
