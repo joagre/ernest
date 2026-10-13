@@ -23,6 +23,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/architecture.md`](docs/architecture.md) | how the code is arranged |
 | [`docs/style.md`](docs/style.md) | the code's form and naming |
 | [`README.md`](README.md) | what Ernest is and where to begin |
+| [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
 | `proposals/shell/shell_design.md`, `proposals/install/install.md`, [`proposals/emacs/emacs_mode.md`](proposals/emacs/emacs_mode.md) | each its component's design; a design note changes when its component does |
 | [`shell/README.md`](shell/README.md) | how the shell's code reads |
@@ -109,7 +110,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behavior goes to §11.**
 - **The spelling is American English**, in every document, name and message; `docs/style.md`'s *Every language* states the rule and its two exceptions.
-- **No document or message names who proposed an idea**, or that person's role; it states the argument.
+- **No document or message names who proposed an idea**, or that person's role; it states the argument. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) names people, and no idea of theirs.
 
 ## Done
 

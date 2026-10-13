@@ -15,6 +15,8 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
+**2026-10-14.** [Acknowledgments and a Dedication](#acknowledgments-and-a-dedication-2026-10-14).
+
 **2026-10-13.** [Every User's Document Installed](#every-users-document-installed-2026-10-13). [The Tools Measured](#the-tools-measured-2026-10-13). [Pages Written Where Out of Date](#pages-written-where-out-of-date-2026-10-13). [Lighter Documents](#lighter-documents-2026-10-13). [The Light Run and the Full Run](#the-light-run-and-the-full-run-2026-10-13). [Three Test Defects Found on the Way](#three-test-defects-found-on-the-way-2026-10-13). [American English Throughout](#american-english-throughout-2026-10-13). [A Build Says What It Decided](#a-build-says-what-it-decided-2026-10-13). [The Pages Written From `main`](#the-pages-written-from-main-2026-10-13). [Tables in `libs/markdown`](#tables-in-libsmarkdown-2026-10-13). [Slow Tools Are Defects](#slow-tools-are-defects-2026-10-13).
 
 **2026-10-11.** [The Report for Code with a Spawn](#the-report-for-code-with-a-spawn-2026-10-11). [Placing Work by Name](#placing-work-by-name-2026-10-11).
@@ -7892,6 +7894,16 @@ The sixty-one findings of item 13's three readers (`docs/findings.md`), decided 
 ## The Plan Rewritten from the Split Proposals, 2026-10-09
 
 *The Milestones After 3.0, Weighed Again* had MVP 3.2 gone and everything kept of the two set-aside proposals in one MVP 3.1. The read-through split it on 2026-10-09: identity first, the hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told and `Standing`; then code with a spawn, the exchange, the bare node, the let-go and `Code`. Everything in the crossing needs the hash and nothing in the hash needs the crossing, and the hash alone already connects nodes of different builds, so the split puts what is needed before what needs it, and each milestone ends with something that runs: a deploy of two builds side by side, then a worker given its code. The number 3.2 stays for the second, a milestone of the language's where the set-aside one was an operations layer. The plan's two sections are written from the proposals, which are the specifications, their reasons `code.md`'s and `nodes.md`'s; the plan's old MVP 3.1 and 3.2 sections, written from the set-aside proposals, go with them, and what they decided that still stands is in the proposals' sections 10 and the log's entries above.
+
+## Acknowledgments and a Dedication, 2026-10-14
+
+Decided with the user on 2026-10-14. `ACKNOWLEDGMENTS.md` names the people Ernest stands on, in two lists: the Erlang people, and those beyond Erlang. It names each by name alone, without what they did. A line of what one person did says less than they did, and every such line makes a forgotten name easier to miss.
+
+The Erlang list is taken from two records, not from memory: the acknowledgments of Armstrong's *A History of Erlang* and of Däcker's thesis. A list from memory had already left out Hans Nilsson. Where Erlang/OTP's history spells a name as its owner writes it, that spelling holds over the paper's: the paper's Carlberg, Läng and Törnvist are Karlberg, Lang and Törnkvist, its "Klacke (Klacke)" is Claes, and Ingela Anderton is Ingela Anderton Andin. Everyone since is named by Erlang/OTP's history, about a thousand authors from 2009 on, which the file points to and does not copy: the history owns those names, and a copy is out of date at the next commit.
+
+The second list holds the people behind Hindley–Milner inference, Standard ML and OCaml, which §0 names as the languages the reader knows, Wirth and the Algol 60 and R5RS reports, whose form the report follows, Gleam, Elm and Unison, and Knuth. A report's authors are named as its title page prints them; Standard ML's are those of its Definition, and OCaml's those of its manual.
+
+The report is dedicated to the memory of Joe Armstrong, on its first file's front, as the Revised Report on Algol 60 and R5RS are each dedicated. CLAUDE.md's rule that no document names who proposed an idea governs arguments; the acknowledgments name people and no idea, and its table of owners holds their row.
 
 ## Every User's Document Installed, 2026-10-13
 

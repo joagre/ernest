@@ -1,6 +1,8 @@
 # Ernest Report: The Language
 
-Revision of 13 October 2026.
+Revision of 14 October 2026.
+
+*Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
 This file holds the report's §0 to §10 and Appendices A, B and F. §11 and Appendices C and H are in [`toolchain.md`](toolchain.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
