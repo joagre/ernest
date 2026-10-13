@@ -255,8 +255,15 @@ dial_family_test() ->
     Self = self(),
     Main = fun() ->
                    ok = ern_carrier:list(Own#configuration{peers = Peers}),
+                   %% the host's distribution dials from a process of its own; here
+                   %% the entry process waits on the host's resolver, a foreign
+                   %% call, which the deadlock detector counts (report §8.6)
                    Dial = fun(#configuration{public_key = Key}, Family) ->
-                                  ern_epmd:address_please("ernest", ern_carrier:host(Key), Family)
+                                  ern_rt:in_foreign(
+                                    fun() ->
+                                        ern_epmd:address_please("ernest", ern_carrier:host(Key),
+                                                                Family)
+                                    end)
                           end,
                    Self ! {dialed, Dial(Peer, inet), Dial(Peer, inet6), Dial(Other, inet)}
            end,
