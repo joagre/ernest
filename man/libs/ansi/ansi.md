@@ -4,28 +4,21 @@
 
 Styles and cursor movement for text written to a terminal.
 
-Use it to make a program's output bold, coloured or underlined, or to redraw
+Use it to make a program's output bold, colored or underlined, or to redraw
 part of the screen. Each function answers a string of ECMA-48's control
 sequences, the standard a terminal speaks, which the program writes with
 `Io.print` (report Appendix G.3). Reading keys and the terminal's size is
 `Terminal`'s work.
 
-A program that uses the library puts it on its load path, both when it is
-compiled and when it is run: `--load-path` with the directory of the
-compiled library, `lib/ernest/build/libs/ansi` under the prefix Ernest is
-installed in. Under `/usr/local`, where Ernest is installed by default:
-
-```sh
-ern build --load-path /usr/local/lib/ernest/build/libs/ansi main.ern
-ern run --load-path /usr/local/lib/ernest/build/libs/ansi main.erc
-```
+A program puts the library on its load path when it is compiled and
+when it is run; report Appendix G says where an installation keeps it.
 
 **Only for a terminal.** The sequences mean something to a terminal alone;
 written to a file or a pipe they are kept as bytes. `Terminal.size` answers
 `Left(NotATerminal)` where standard output is not a terminal, which tells a
 program to leave them out.
 
-**Styled text lines up.** `Terminal.columns` counts styled text as its text,
+**Styled text lines up.** `Terminal.width` counts styled text as its text,
 so it lines up as plain text does.
 
 ## Examples
@@ -40,16 +33,18 @@ Ansi.styled("warning", Ansi.Bold) <> Ansi.clearBelow
 
 ## See also
 
-`Terminal.columns` for the columns styled text takes, `Io.print` to
+`Terminal.width` for the columns styled text takes, `Io.print` to
 write it.
 
-## Ansi.Colour
+## Ansi.Color
 
 ```ernest
-type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+type Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
 ```
 
-The eight colours of ECMA-48.
+*Since 0.4.0.*
+
+The eight colors of ECMA-48.
 
 ### Examples
 
@@ -61,10 +56,10 @@ Ansi.Foreground(Ansi.Red)
 ## Ansi.Style
 
 ```ernest
-type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
+type Style = Bold | Dim | Italic | Underline | Foreground(Color)
 ```
 
-How text is drawn: bold or dim, in italics, underlined, or in a colour.
+How text is drawn: bold or dim, in italics, underlined, or in a color.
 
 ### Examples
 
@@ -82,9 +77,9 @@ Ansi.styled(text : String, style : Style) : String
 `text` in `style`, the style turned off after it.
 
 The code that turns it off turns off every style of its kind: `Bold` and
-`Dim` are one kind, `Italic` one, `Underline` one, and the colours one. So a
+`Dim` are one kind, `Italic` one, `Underline` one, and the colors one. So a
 style of another kind around the text stays on, and one of the same kind is
-turned off with it: a colour around a colour, italics around italics, `Bold`
+turned off with it: a color around a color, italics around italics, `Bold`
 around `Dim`.
 
 ### Examples

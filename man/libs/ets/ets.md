@@ -10,15 +10,8 @@ Use a table where several processes read and write the same state. For
 state that one process holds, a `Map` in that process is the usual
 choice, and the simpler one.
 
-A program that uses the library puts it on its load path, both when it
-is compiled and when it is run: `--load-path` with the directory of the
-compiled library, `lib/ernest/build/libs/ets` under the prefix Ernest is
-installed in. Under `/usr/local`, where Ernest is installed by default:
-
-```sh
-ern build --load-path /usr/local/lib/ernest/build/libs/ets main.ern
-ern run --load-path /usr/local/lib/ernest/build/libs/ets main.erc
-```
+A program puts the library on its load path when it is compiled and
+when it is run; report Appendix G says where an installation keeps it.
 
 **A table's life.** A table belongs to the process that made it. It ends
 when that process ends, or when any process that holds it calls
@@ -134,7 +127,7 @@ Ets.contains(table : Table(k=!, v!), key : k=!) : Bool with m+
 ### Errors
 
 Faults on a table that has ended. The cause names the host's function:
-`foreign function ets:lookup/2 raised error:badarg`.
+`foreign function ets:member/2 raised error:badarg`.
 
 ## Ets.remove
 

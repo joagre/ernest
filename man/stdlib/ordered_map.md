@@ -16,7 +16,7 @@ type's `compare` where the type is known. `fromList`, `contains`, `get`,
 `put`, `remove`, `update`, `merge` and `mergeWith` need it; the rest keep
 the keys and need none.
 
-**Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `foreach`
+**Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `forEach`
 and `find` go in the keys' order, and `map`, `filter`, `filterMap`, `any`,
 `all` and `mergeWith` meet the entries in it.
 
@@ -62,8 +62,8 @@ The map with no entries.
 OrderedMap.fromList(pairs : List(#(k!, v!))) : OrderedMap.Map(k!, v!) needs k.compare
 ```
 
-The map of `pairs`. Where two pairs have one key, the last one's value is
-kept.
+The map of `pairs`, put in turn. Where the order calls two pairs' keys
+`Equal`, the first one's key is kept with the last one's value.
 
 ### Examples
 
@@ -132,7 +132,8 @@ OrderedMap.get(OrderedMap.fromList([#("a", 1)]), "a")
 OrderedMap.put(OrderedMap.Map(k!, v!), key : k!, value : v!) : OrderedMap.Map(k!, v!) needs k.compare
 ```
 
-The map with `value` at `key`, replacing a value already there.
+The map with `value` at `key`. Where the map holds a key the order calls
+`Equal` to `key`, that key stays and its value is replaced.
 
 ### Examples
 
@@ -238,18 +239,20 @@ OrderedMap.foldLeft(OrderedMap.fromList([#(1, 2), #(3, 4)]),
 // => 14
 ```
 
-## OrderedMap.foreach
+## OrderedMap.forEach
 
 ```ernest
-OrderedMap.foreach(OrderedMap.Map(k, v), f : (k, v) -> Unit with e) : Unit with e
+OrderedMap.forEach(OrderedMap.Map(k, v), f : (k, v) -> Unit with e) : Unit with e
 ```
+
+*Since 0.4.0.*
 
 Applies `f` to each entry in order, for its effect.
 
 ### Examples
 
 ```ernest
-OrderedMap.foreach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(value))
+OrderedMap.forEach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(value))
 // => Unit
 ```
 

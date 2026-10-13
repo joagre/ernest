@@ -13,7 +13,7 @@ was.
 The element type needs equality, which the `=` in `Set(a=)` says: a set of
 functions or addresses is a type error.
 
-A set has no order. `toList`, `foldLeft`, `foreach` and `find` give the
+A set has no order. `toList`, `fold`, `forEach` and `find` give the
 elements in an order that is not specified, and `map`, `filter`,
 `filterMap`, `any` and `all` call their function for the elements in such an
 order.
@@ -105,7 +105,7 @@ Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 ## Set.map
 
 ```ernest
-Set.map(set : Set(a=!), f : (a=!) -> b=! with e) : Set(b=!) with e
+Set.map(set : Set(a=!), f : (a=!) -> b= with e) : Set(b=) with e
 ```
 
 The set of `f(x)` for each element `x`. Two elements `f` maps to equal
@@ -149,11 +149,13 @@ Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
 // => [1]
 ```
 
-## Set.foldLeft
+## Set.fold
 
 ```ernest
-Set.foldLeft(set : Set(a=!), acc : b, step : (b, a=!) -> b with e) : b with e
+Set.fold(set : Set(a=!), acc : b, step : (b, a=!) -> b with e) : b with e
 ```
+
+*Since 0.4.0.*
 
 The elements folded into one value. `step(acc, x)` is called with the given
 `acc` for the first element met, and with what `step` answered before for
@@ -163,22 +165,24 @@ any order.
 ### Examples
 
 ```ernest
-Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
+Set.fold(Set.fromList([1, 2]), 0, Int.+)
 // => 3
 ```
 
-## Set.foreach
+## Set.forEach
 
 ```ernest
-Set.foreach(set : Set(a=!), f : (a=!) -> Unit with e) : Unit with e
+Set.forEach(set : Set(a=!), f : (a=!) -> Unit with e) : Unit with e
 ```
+
+*Since 0.4.0.*
 
 Calls `f` for each element, for its effect, in unspecified order.
 
 ### Examples
 
 ```ernest
-Set.foreach(Set.fromList(["a"]), Io.println)
+Set.forEach(Set.fromList(["a"]), Io.println)
 // => Unit
 ```
 

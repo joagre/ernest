@@ -78,7 +78,7 @@ Either.map(Fs.stat(Path("."), 5000), fn(entry) = entry.kind == Fs.Directory)
 ## Fs.Entry
 
 ```ernest
-type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind, mode : Int, user : Int)
+type Entry = Entry(path : Path, modified : Int, size : Int, kind : Kind, mode : Int, user : Int)
 ```
 
 What `Fs.stat` and `Fs.list` tell of a file: its path, its modification
@@ -90,8 +90,8 @@ belongs to, as `Os.user` is the program's (report Appendix E.17).
 ### Examples
 
 ```ernest
-Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
-// => Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = File, mode = 420, user = 0)
+Fs.Entry(path = Path("a.txt"), modified = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
+// => Entry(path = Path("a.txt"), modified = 0, size = 5, kind = File, mode = 420, user = 0)
 ```
 
 ```ernest
@@ -194,7 +194,7 @@ a link is a `Link`, whatever it leads to.
 ```ernest
 {
     let _ <- Fs.makeDir(Path("kinds"), 5000);
-    let _ <- Fs.makeLink(Path("kinds/link"), Path("elsewhere"), 5000);
+    let _ <- Fs.makeSymlink(Path("kinds/link"), Path("elsewhere"), 5000);
     Either.map(Fs.list(Path("kinds"), 5000),
                fn(entries) = List.map(entries, fn(entry) = entry.kind))
 }
@@ -256,8 +256,11 @@ what it leads to.
 Fs.rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
-Renames what the first path names to the second path. A link is renamed
-itself, not what it leads to.
+Renames what the first path names to the second path. A file at the second
+path is replaced, and a reader of that path sees the old file or the new,
+whole, and never a part, within one file system, the host's `rename(2)`; a
+program that is to keep a whole file or none writes beside it and renames
+over it. A link is renamed itself, not what it leads to.
 
 ### Examples
 
@@ -292,11 +295,13 @@ takes away.
 // => Right(Some("y"))
 ```
 
-## Fs.makeLink
+## Fs.makeSymlink
 
 ```ernest
-Fs.makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.makeSymlink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m+
 ```
+
+*Since 0.4.0.*
 
 Makes a symbolic link at the first path that leads to the second, which
 is kept as it is written and may name nothing. A first path that names
@@ -307,7 +312,7 @@ something is `Left(Exists)`.
 ```ernest
 {
     let _ <- Fs.write(Path("target.txt"), String.toUtf8("t"), 5000);
-    let _ <- Fs.makeLink(Path("pointer"), Path("target.txt"), 5000);
+    let _ <- Fs.makeSymlink(Path("pointer"), Path("target.txt"), 5000);
     Either.map(Fs.read(Path("pointer"), 5000), String.fromUtf8)
 }
 // => Right(Some("t"))
@@ -352,7 +357,7 @@ UTF-8 is `Left(NotUtf8(target))`, the target's bytes.
 
 ```ernest
 {
-    let _ <- Fs.makeLink(Path("sign"), Path("somewhere"), 5000);
+    let _ <- Fs.makeSymlink(Path("sign"), Path("somewhere"), 5000);
     let _ <- Fs.write(Path("plain.txt"), <<>>, 5000);
     let target <- Fs.readLink(Path("sign"), 5000);
     let plain <- Fs.readLink(Path("plain.txt"), 5000);
@@ -384,39 +389,10 @@ file or a temporary file needs.
 // => #(Right(Unit), Left(Exists))
 ```
 
-## Fs.removeAll
-
-```ernest
-Fs.removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m+
-```
-
-Removes a directory and everything under it, or a file or a link. A link
-is removed and not followed, wherever it stands, so what it leads to is
-left, even where another process puts it in a directory's place while
-the removal runs. It waits the milliseconds given once, for the whole
-removal.
-
-### Errors
-
-Where the runtime's helper fails, the caller faults with `Fault("the
-runtime's helper ern_exec failed")`, as `Os.start`'s does.
-
-### Examples
-
-```ernest
-{
-    let _ <- Fs.makeDir(Path("tree/branch"), 5000);
-    let _ <- Fs.write(Path("tree/branch/leaf.txt"), <<>>, 5000);
-    let _ <- Fs.removeAll(Path("tree"), 5000);
-    Right(Either.isLeft(Fs.stat(Path("tree"), 5000)))
-}
-// => Right(true)
-```
-
 ## Fs.setModified
 
 ```ernest
-Fs.setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.setModified(path : Path, modified : Int, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
 Sets the modification time, in milliseconds since the epoch as
@@ -428,7 +404,7 @@ Sets the modification time, in milliseconds since the epoch as
 {
     let _ <- Fs.write(Path("dated.txt"), <<>>, 5000);
     let _ <- Fs.setModified(Path("dated.txt"), 86400000, 5000);
-    Either.map(Fs.stat(Path("dated.txt"), 5000), fn(entry) = entry.mtime)
+    Either.map(Fs.stat(Path("dated.txt"), 5000), fn(entry) = entry.modified)
 }
 // => Right(86400000)
 ```

@@ -21,8 +21,8 @@ Two throws of a die, the seed the first answers carried to the second:
 
 ```ernest
 {
-    let #(first, seed1) = Random.next(Random.seed(2026), 5);
-    let #(second, _) = Random.next(seed1, 5);
+    let #(first, seed1) = Random.nextInt(Random.seed(2026), 5);
+    let #(second, _) = Random.nextInt(seed1, 5);
     #(first + 1, second + 1)
 }
 // => #(2, 6)
@@ -31,7 +31,7 @@ Two throws of a die, the seed the first answers carried to the second:
 The same seed draws the same number:
 
 ```ernest
-Random.next(Random.seed(42), 100) == Random.next(Random.seed(42), 100)
+Random.nextInt(Random.seed(42), 100) == Random.nextInt(Random.seed(42), 100)
 // => true
 ```
 
@@ -51,7 +51,7 @@ any other, which can be stored, compared and sent to another node.
 ### Examples
 
 ```ernest
-Random.next(Random.seed(42), 100) == Random.next(Random.seed(42), 100)
+Random.nextInt(Random.seed(42), 100) == Random.nextInt(Random.seed(42), 100)
 // => true
 ```
 
@@ -64,11 +64,13 @@ Random.seed(int : Int) : Seed
 The seed `int` names. The same number gives the same sequence, and so do two
 numbers equal in their low 64 bits.
 
-## Random.next
+## Random.nextInt
 
 ```ernest
-Random.next(seed : Seed, bound : Int) : #(Int, Seed)
+Random.nextInt(seed : Seed, bound : Int) : #(Int, Seed)
 ```
+
+*Since 0.4.0.*
 
 A number from 0 to `bound`, both included, and the seed to draw with next. A
 negative `bound` draws from `bound` to 0, and a `bound` of 0 always draws 0.
@@ -78,7 +80,7 @@ Every number in the range is equally likely.
 
 ```ernest
 {
-    let #(x, _) = Random.next(Random.seed(1), -3);
+    let #(x, _) = Random.nextInt(Random.seed(1), -3);
     x <= 0 && x >= -3
 }
 // => true

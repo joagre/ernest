@@ -56,11 +56,16 @@ type Error =
   | Exists
   | NotUtf8(Bytes)
   | Invalid
+  | NotListed
+  | Unreachable
+  | NotOffered
+  | OtherType
+  | NotLoaded
   | Other(String)
 ```
 
-Why an operation of a system module failed. Every system module answers
-`Left` with one of these:
+Why an operation of a system module, or of `Peer`, failed. Every system
+module and `Peer` answer `Left` with one of these:
 
 - `NotFound`: the file or the host is not there.
 - `Denied`: access was refused.
@@ -75,6 +80,15 @@ Why an operation of a system module failed. Every system module answers
   them, with its bytes.
 - `Invalid`: an argument the host cannot take, one that holds U+0000, a port
   out of range or a time it cannot hold among them.
+- `NotListed`: `ernest.conf` lists no peer for a service's name, or no peer
+  of the name.
+- `Unreachable`: no connection to the peer could be opened, the peer refused
+  it, or it was lost while waiting.
+- `NotOffered`: the peer offers nothing under the service's name.
+- `OtherType`: the peer offers the name at another message type.
+- `NotLoaded`: the peer does not have the function, a binding it reaches has
+  no value there, or a module a foreign declaration it reaches calls is not
+  there.
 - `Other(text)`: another reason, in the host's words, `"address already in
   use"`.
 

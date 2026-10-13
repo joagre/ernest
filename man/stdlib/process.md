@@ -10,7 +10,7 @@ to it: an address is what a process is reached by, and a `Process` only says
 which one. `fromAddress` gives the process behind an address, and `monitor`
 watches one.
 
-`info`, `live` and `faults` show what runs, for a program that watches
+`status`, `live` and `faults` show what runs, for a program that watches
 itself. What they say of a live process is a snapshot, which may have
 changed by the time it is read, and the runtime keeps nothing of a process
 that has ended (report Appendix E.21).
@@ -32,11 +32,13 @@ The caller is among the processes the runtime runs:
 `monitor` for learning how a process one holds ended, `Io.debug`, which
 prints a process by the number the runtime gives it.
 
-## Process.Info
+## Process.Status
 
 ```ernest
-type Info = Info(site : String, queued : Int, activity : Activity)
+type Status = Status(site : String, queued : Int, activity : Activity)
 ```
+
+*Since 0.4.0.*
 
 What the runtime knows of a live process: where it was spawned, as `Down`'s
 site names it, how many messages wait in its mailbox, and what it is doing.
@@ -44,7 +46,7 @@ site names it, how many messages wait in its mailbox, and what it is doing.
 ### Examples
 
 ```ernest
-Optional.map(Process.info(Process.fromAddress(self())), fn(info) = info.activity)
+Optional.map(Process.status(Process.fromAddress(self())), fn(status) = status.activity)
 // => Some(Running)
 ```
 
@@ -68,13 +70,20 @@ Process.Receiving
 
 ```ernest
 type FaultReport =
-    FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
+    FaultReport(process : Process,
+                site : String,
+                cause : String,
+                restarted : Bool,
+                trace : String,
+                spawnedBy : Optional(String))
 ```
 
 A fault of a process the runtime started: the process, where it was spawned,
-the cause, whether it restarts after the fault, and the host's stack, one
+the cause, whether it restarts after the fault, the host's stack, one
 function to a line, beneath a failure in the runtime or a foreign function's
-raise. The stack is empty beneath the language's own causes.
+raise, and the name of the peer whose spawn started the process, as the
+configuration lists it (report §8.7), or `None`. The stack is empty beneath
+the language's own causes.
 
 ### Examples
 
@@ -83,7 +92,8 @@ Process.FaultReport(process = Process.fromAddress(self()),
                     site = "Main.worker:3",
                     cause = "division by zero",
                     restarted = false,
-                    trace = "").cause
+                    trace = "",
+                    spawnedBy = None).cause
 // => "division by zero"
 ```
 
@@ -93,21 +103,23 @@ Process.FaultReport(process = Process.fromAddress(self()),
 Process.fromAddress(address : Address(m)) : Process
 ```
 
-The process behind the address, through every `via`. Two addresses of one
+The process behind the address, through every adapted address. Two addresses of one
 process give equal processes, though addresses have no equality.
 
 ### Examples
 
 ```ernest
-Process.fromAddress(self()) == Process.fromAddress(via(self(), fn(x) = x))
+Process.fromAddress(self()) == Process.fromAddress(adapted(self(), fn(x) = x))
 // => true
 ```
 
-## Process.info
+## Process.status
 
 ```ernest
-Process.info(process : Process) : Optional(Info) with m+
+Process.status(process : Process) : Optional(Status) with m+
 ```
+
+*Since 0.4.0.*
 
 A snapshot of the process, or `None` once it has ended, and for a process on
 another node.
@@ -115,7 +127,7 @@ another node.
 ### Examples
 
 ```ernest
-Optional.isSome(Process.info(Process.fromAddress(self())))
+Optional.isSome(Process.status(Process.fromAddress(self())))
 // => true
 ```
 

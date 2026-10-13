@@ -8,7 +8,7 @@ The rules build on widely accepted guides and state only the repository's own ru
 - No file holds a tab, but a Makefile *(tested)*.
 - A line of code is at most 100 characters; prose in markdown may be longer *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.
-- The spelling is American English, in prose, names and messages alike: `color`, `behavior`, `initialize`, `utilization`, `catalog`, `license`, `gray`, `center`. A name of the host's or of another system's keeps its own, `-behaviour`, `LICENSE`, `prefers-color-scheme`, and a quotation its author's. The test reads every tracked file of text but a proposal under `proposals/`, a vendored file, `THIRD_PARTY_LICENSES`, `LICENSE` and the last release's pages under `man/` *(tested)*.
+- The spelling is American English, in prose, names and messages alike: `color`, `behavior`, `initialize`, `utilization`, `catalog`, `license`, `gray`, `center`. A name of the host's or of another system's keeps its own, `-behaviour`, `LICENSE`, `prefers-color-scheme`, and a quotation its author's. The test reads every tracked file of text but a proposal under `proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*.
 
 ### Names
 

@@ -150,7 +150,9 @@ newcomer now lists the names it could not predict. On 2026-10-13, after item 9, 
 utilization §8.7 names (report Appendix G.4; the log's *Placing Work by Name*). The same day the
 spelling became American throughout, in every document, name and message, `Color` and the
 morning's `Utilization` among the names respelled (`docs/style.md`; the log's *American English
-Throughout*).
+Throughout*). The same day `make man` came to write `man/`'s pages from `main`, the libraries
+written since 0.3.1 among them, and `make manual` the manual pages alone (the log's *The Pages
+Written From `main`*).
 
 **Fifth, with item 3, two shell tests under load.** Done 2026-10-11, with item 3. `command_argument`
 in `test/ern_shell_tests.erl` had failed once in the whole suite, its final bytes not holding the
@@ -898,7 +900,8 @@ release's notes. What the release leaves: the timers `Os` and `Tcp` leave armed 
 answer, with MVP 2.99b's item 8; the glossary's five names, with items 7 and 15; `ern test`
 over a directory, item 19; and four of the six rules that buy little, item 20, the principles review having decided the other two.
 After the tag, `man/` took 0.2.0's pages as CommonMark, which GitHub shows, and each release
-writes them again (`release_review.md`'s step 5; the log's *The Release's Pages in `man/`*).
+wrote them again until 2026-10-13 (`release_review.md`'s step 5; the log's *The Release's Pages in
+`man/`* and *The Pages Written From `main`*).
 
 ### MVP 2.99b — what the release review left, operations records, and running as a service (done 2026-10-03)
 

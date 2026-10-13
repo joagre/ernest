@@ -4,7 +4,7 @@
 // (report §11.4). Its SYNOPSIS is each job's usage line, its DESCRIPTION
 // §11 with §11.1 to §11.6, its OPTIONS and EXIT STATUS §11.7 and §11.8,
 // and its SEE ALSO names the manual pages in a directory, the ones `ern doc
-// --man` wrote for the standard library. `make man` runs it with the
+// --man` wrote for the standard library. `make manual` runs it with the
 // report, the version, and that directory, and it writes the page to
 // standard output.
 //

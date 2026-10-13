@@ -402,6 +402,8 @@ values() ->
           send(texts, 42)
       }
       ```
+
+      since 0.4.0
       """/utf8>>},
      {['Address', call], "(Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n",
       <<"""

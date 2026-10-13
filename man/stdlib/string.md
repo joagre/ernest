@@ -29,10 +29,10 @@ String.join(List.map(String.split("a,b", ","), String.toUpper), "-")
 // => "A-B"
 ```
 
-Three characters from index 1:
+The graphemes from index 1 up to index 4:
 
 ```ernest
-String.slice("hello", 1, 3)
+String.slice("hello", 1, 4)
 // => "ell"
 ```
 
@@ -222,18 +222,19 @@ String.replace("a-b-c", "-", "+")
 ## String.slice
 
 ```ernest
-String.slice(text : String, index : Int, count : Int) : String
+String.slice(text : String, index : Int, end : Int) : String
 ```
 
-The `count` graphemes of `text` from `index`, or as many as there are. An
-`index` below 0 starts at the beginning, and a `count` below 1 gives the
-empty string.
+The graphemes of `text` from `index` up to `end`, the one at `end` left
+out, as many as there are. An `index` below 0 is 0, an `end` past the last
+grapheme is the size, and an `end` at or below `index` gives the empty
+string.
 
 ### Examples
 
 ```ernest
-#(String.slice("hello", -1, 3), String.slice("hello", 3, 9))
-// => #("hel", "lo")
+#(String.slice("hello", 1, 3), String.slice("hello", -1, 3), String.slice("hello", 3, 9))
+// => #("el", "hel", "lo")
 ```
 
 ## String.padStart
@@ -434,7 +435,8 @@ String.toInt(text : String) : Optional(Int)
 
 Reads `text` as a decimal integer. It answers `Some(n)` where `text` is
 digits with an optional leading `-`. Other text answers `None`, text with a
-space, a `+`, an `_` or a point among it.
+space, a `+`, an `_` or a point among it, and so does an integer the host
+cannot hold.
 
 ### Examples
 
@@ -452,7 +454,7 @@ String.toIntBase(text : String, base : Int) : Optional(Int)
 Reads `text` as an integer in `base`, from 2 to 36. It answers `Some(n)`
 where `text` is digits and letters of the base, in either case, with an
 optional leading `-`. Other text answers `None`, a leading `+` among it, and
-so does a base outside 2 to 36.
+so do a base outside 2 to 36 and an integer the host cannot hold.
 
 ### Examples
 

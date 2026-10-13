@@ -12,7 +12,7 @@ For elements without values use a `Set`, for order and position a
 The key type needs equality, which the `=` in `Map(k=, v)` says: a key
 that holds a function or an address is a type error.
 
-A map has no order. `keys`, `values`, `toList`, `foldLeft`, `foreach`
+A map has no order. `keys`, `values`, `toList`, `fold`, `forEach`
 and `find` give the entries in an order that is not specified, and
 `map`, `filter`, `filterMap`, `any`, `all` and `mergeWith` call their
 function for the entries in such an order. Sort the result where the
@@ -156,7 +156,7 @@ Map.get(Map.update(Map.empty, "n", fn(o) = Optional.withDefault(o, 0) + 1), "n")
 ## Map.map
 
 ```ernest
-Map.map(map : Map(k=!, v!), f : (k=!, v!) -> w! with e) : Map(k=!, w!) with e
+Map.map(map : Map(k=!, v!), f : (k=!, v!) -> w with e) : Map(k=!, w) with e
 ```
 
 The map with each value replaced by `f(key, value)`. The keys stay as
@@ -193,11 +193,13 @@ Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]), fn(_, s) = St
 // => [#("a", 1)]
 ```
 
-## Map.foldLeft
+## Map.fold
 
 ```ernest
-Map.foldLeft(map : Map(k=!, v!), acc : b, step : (b, k=!, v!) -> b with e) : b with e
+Map.fold(map : Map(k=!, v!), acc : b, step : (b, k=!, v!) -> b with e) : b with e
 ```
+
+*Since 0.4.0.*
 
 The entries folded into one value. `step(acc, key, value)` is called for
 each entry, with `acc` for the first and what `step` answered for the
@@ -207,15 +209,17 @@ entry before for the rest. The order of the entries is unspecified, so
 ### Examples
 
 ```ernest
-Map.foldLeft(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
+Map.fold(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
 // => 3
 ```
 
-## Map.foreach
+## Map.forEach
 
 ```ernest
-Map.foreach(map : Map(k=!, v!), f : (k=!, v!) -> Unit with e) : Unit with e
+Map.forEach(map : Map(k=!, v!), f : (k=!, v!) -> Unit with e) : Unit with e
 ```
+
+*Since 0.4.0.*
 
 Calls `f(key, value)` for each entry, for its effect, in unspecified
 order.
@@ -223,7 +227,7 @@ order.
 ### Examples
 
 ```ernest
-Map.foreach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
+Map.forEach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
 // => Unit
 ```
 

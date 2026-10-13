@@ -26,7 +26,7 @@ Asking what a character is, and its upper case:
 A character's code point, and back; a surrogate is no character:
 
 ```ernest
-#(Char.toInt('A'), Char.fromInt(66), Char.fromInt(0xD800))
+#(Char.toCodePoint('A'), Char.fromCodePoint(66), Char.fromCodePoint(0xD800))
 // => #(65, Some('B'), None)
 ```
 
@@ -166,19 +166,23 @@ Char.toString('é')
 // => "é"
 ```
 
-## Char.toInt
+## Char.toCodePoint
 
 ```ernest
-Char.toInt(char : Char) : Int
+Char.toCodePoint(char : Char) : Int
 ```
+
+*Since 0.4.0.*
 
 The character's code point.
 
-## Char.fromInt
+## Char.fromCodePoint
 
 ```ernest
-Char.fromInt(code : Int) : Optional(Char)
+Char.fromCodePoint(code : Int) : Optional(Char)
 ```
+
+*Since 0.4.0.*
 
 The character with code point `code`, or `None` outside U+0000 to U+10FFFF
 and for a surrogate, U+D800 to U+DFFF.

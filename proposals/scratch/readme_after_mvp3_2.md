@@ -95,7 +95,7 @@ Two nodes on one machine take three more commands: `ern config` makes each node'
 - **[The guide](guide/language.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another, from a first program to processes across nodes. Start here.
 - **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, several builds on one floor, a fix shipped with a spawn, a bare node given its work, and a running service moved to new code.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), a small web server, [`web_server.ern`](examples/web_server.ern), and a counter found across nodes, [`typed_channels_nodes.ern`](examples/typed_channels_nodes.ern); [`examples/README.md`](examples/README.md) lists them in an order to read them, with what each shows.
-- **[The manual pages](man/)** of the latest release, the prelude's, every standard library module's and every library's, as `man Ernest.List` shows them where Ernest is installed.
+- **[The manual pages](man/)**, as `make man` last wrote them from `main`, the prelude's, every standard library module's and every library's, as `man Ernest.List` shows them where Ernest is installed.
 - **[The report](report/language.md)** is where the details are: the language's definition, which everything else defers to, in three files under `report/`, the language, the toolchain and the standard library.
 - **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain.
 

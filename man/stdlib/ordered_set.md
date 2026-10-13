@@ -19,7 +19,7 @@ it, and `map` and `filterMap` need their result's; the rest need none.
 **Equal is one.** Two elements the order calls `Equal` are one element, and
 `put` keeps the one already there.
 
-**Everything in order.** `toList`, `foldLeft`, `foreach`, `find`, `min` and
+**Everything in order.** `toList`, `foldLeft`, `forEach`, `find`, `min` and
 `max` go in the set's order, and `map`, `filter`, `filterMap`, `any` and
 `all` meet the elements in it. A set in another order is a set of another
 type, `type Descending = Descending(Int)` with its own `compare`, and the
@@ -218,18 +218,20 @@ OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, Int.+)
 // => 3
 ```
 
-## OrderedSet.foreach
+## OrderedSet.forEach
 
 ```ernest
-OrderedSet.foreach(OrderedSet.Set(a), f : (a) -> Unit with e) : Unit with e
+OrderedSet.forEach(OrderedSet.Set(a), f : (a) -> Unit with e) : Unit with e
 ```
+
+*Since 0.4.0.*
 
 Applies `f` to each element in order, for its effect.
 
 ### Examples
 
 ```ernest
-OrderedSet.foreach(OrderedSet.fromList(["a"]), Io.println)
+OrderedSet.forEach(OrderedSet.fromList(["a"]), Io.println)
 // => Unit
 ```
 

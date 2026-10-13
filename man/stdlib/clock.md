@@ -6,10 +6,11 @@ The time, and alarms.
 
 `now` is the time of day, in milliseconds since the epoch, 1970-01-01 UTC.
 `monotonic` is the clock to measure a duration by, since `now` moves when
-the host's clock is set. `alarm` and `alarmAt` put a message in the caller's
-mailbox later.
+the host's clock is set, and `monotonicMicros` is the same clock in
+microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
+later.
 
-**Alarms.** An alarm fires once, and cannot be cancelled: a process that no
+**Alarms.** An alarm fires once, and cannot be canceled: a process that no
 longer wants it ignores its message. A periodic tick is set again each time
 the one before is handled. A restart of the process that set an alarm
 cancels it (report §6.9).
@@ -57,6 +58,27 @@ clock stops while the machine is suspended, that time is left out.
 {
     let start = Clock.monotonic();
     Clock.monotonic() - start >= 0
+}
+// => true
+```
+
+## Clock.monotonicMicros
+
+```ernest
+Clock.monotonicMicros() : Int with m+
+```
+
+*Since 0.4.0.*
+
+Microseconds by the clock `monotonic` reads, which never go back, for a
+program that measures what takes less than a millisecond.
+
+### Examples
+
+```ernest
+{
+    let start = Clock.monotonicMicros();
+    Clock.monotonicMicros() - start >= 0
 }
 // => true
 ```

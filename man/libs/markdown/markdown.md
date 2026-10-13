@@ -11,18 +11,10 @@ blocks out as rows for a terminal, and `roff` writes them as a manual page.
 The shell's `:doc` shows documentation with `render`, and `ern doc` writes
 manual pages with `roff`.
 
-A program that uses the library puts it on its load path, both when it is
-compiled and when it is run: `--load-path` with the directory of the
-compiled library, `lib/ernest/build/libs/markdown` under the prefix Ernest
-is installed in. It styles text with `libs/ansi`, which a run needs on the
-load path beside it (report Appendix G.2). Under `/usr/local`, where Ernest
-is installed by default:
-
-```sh
-ern build --load-path /usr/local/lib/ernest/build/libs/markdown main.ern
-ern run --load-path /usr/local/lib/ernest/build/libs/markdown \
-    --load-path /usr/local/lib/ernest/build/libs/ansi main.erc
-```
+A program puts the library on its load path when it is compiled and
+when it is run; report Appendix G says where an installation keeps it.
+It styles text with `libs/ansi`, which a run needs on the load path
+beside it (report Appendix G.2).
 
 **What it reads.** `parse` reads headings, paragraphs, code blocks, block
 quotes, lists and thematic breaks, and inside them code spans, emphasis,
@@ -80,7 +72,7 @@ type Inline =
   | CodeSpan(String)
   | Emphasis(List(Inline))
   | Strong(List(Inline))
-  | Link(text : List(Inline), address : String)
+  | Link(text : List(Inline), url : String)
   | Break
 ```
 
@@ -89,15 +81,15 @@ A span of text inside a block.
 ### Examples
 
 ```ernest
-Markdown.Link(address = "https://example.org", text = [Markdown.Text("home")])
-// => Link(text = [Text("home")], address = "https://example.org")
+Markdown.Link(url = "https://example.org", text = [Markdown.Text("home")])
+// => Link(text = [Text("home")], url = "https://example.org")
 ```
 
 - `Text`: Text as it reads.
 - `CodeSpan`: A code span, its text taken literally.
 - `Emphasis`: Emphasis, shown in italics.
 - `Strong`: Strong emphasis, shown bold.
-- `Link`: A link or an image, by the text it shows and the address it names.
+- `Link`: A link or an image, by the text it shows and the URL it names.
 - `Break`: A hard line break.
 
 ## Markdown.Block
@@ -151,7 +143,7 @@ Markdown.render(Markdown.parse("Some *words*."), 80, Markdown.Plain)
 
 - `Plain`: A code span between single backticks, emphasis between `*`s and
 strong emphasis between `**`s, whether the source wrote `*` or `_`.
-- `Styled`: Bold, italics and colour, in the terminal's escape sequences.
+- `Styled`: Bold, italics and color, in the terminal's escape sequences.
 
 ## Markdown.Manual
 
@@ -209,7 +201,7 @@ A heading is its text, bold with styles. A code block is indented four
 columns and never wrapped. A list item follows a bullet, or its number and a
 period, whatever delimiter it was written with. A block quote follows a bar,
 a thematic break is a line across the width, and a link is its text with its
-address after it.
+URL after it.
 
 With styles, emphasis is in italics, strong emphasis bold, and a code span
 cyan; emphasis within emphasis, and strong emphasis within a heading, are as
@@ -243,7 +235,7 @@ the text is never spread or broken.
 A code span and strong emphasis are bold, and emphasis is in italics. A code
 block is indented and not filled, a list item follows its bullet or its
 number, a block quote is indented, a thematic break is a row of asterisks, a
-link is its text with its address after it, and a `Raw` block is as written.
+link is its text with its URL after it, and a `Raw` block is as written.
 
 Every character roff would change is written as roff's escape for it, so
 that code copied from the page is the code written. The rest is UTF-8, which

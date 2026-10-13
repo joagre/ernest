@@ -87,17 +87,18 @@ where there is no byte there: past the end, or at an index below 0.
 ## Bytes.slice
 
 ```ernest
-Bytes.slice(bytes : Bytes, index : Int, count : Int) : Bytes
+Bytes.slice(bytes : Bytes, index : Int, end : Int) : Bytes
 ```
 
-The `count` bytes from `index`, or as many as there are. An `index` or a
-`count` below 0 counts as 0.
+The bytes of `bytes` from `index` up to `end`, the one at `end` left out,
+as many as there are. An `index` below 0 is 0, an `end` past the last byte
+is the size, and an `end` at or below `index` gives no bytes.
 
 ### Examples
 
 ```ernest
-#(Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2, 3>>, -1, 2))
-// => #(<<2, 3>>, <<1, 2>>)
+#(Bytes.slice(<<1, 2, 3>>, 1, 2), Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2>>, -1, 1))
+// => #(<<2>>, <<2, 3>>, <<1>>)
 ```
 
 ## Bytes.toList

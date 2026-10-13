@@ -28,7 +28,7 @@ EXEC = erl/runtime/priv/ern_exec
 
 all: $(EXEC)
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
-	@$(MAKE) -s shell man
+	@$(MAKE) -s shell manual
 
 $(EXEC): erl/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
@@ -80,15 +80,33 @@ shell: stdlib libs
 doc: all
 	@bin/ern doc --build-root build/stdlib stdlib
 
-# The last release's pages as CommonMark in man/, which GitHub shows
-# (docs/release_review.md, step 5): the prelude's and the standard
-# library's under man/stdlib, with the index ern doc writes (report §11.4);
-# each library's under man/libs/<name>, with an index linking them; and an
-# index over the two, which links the report's §11 for ern itself. Each
-# index is its directory's README.md, which GitHub shows when the directory
-# is opened. They are written into build/pages and replace man/ whole, so a
-# page whose module has gone goes.
-pages: all
+# The manual pages (report §11, §11.4): the prelude's and every standard
+# library module's, beside the modules' .erc in build/stdlib, each
+# library's beside its own in build/libs, and ern(1), §11 of the report,
+# which tools/manual.ern writes into build/man with the standard library's
+# pages in its SEE ALSO. make writes them, so that make install, which a
+# user may run as another, only copies. A page is written whole or not at
+# all.
+manual: stdlib libs tools
+	@bin/ern doc --man --build-root build/stdlib stdlib
+	@for d in libs/*/; do n=$$(basename $$d); \
+	  bin/ern doc --man --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n \
+	  $$d || exit 1; done
+	@mkdir -p build/man
+	@bin/ern run $(LIB_PATH) build/tools/manual.erc \
+	  report/toolchain.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
+	@mv build/man/ern.1.new build/man/ern.1
+
+# Every page: the manual pages make writes, and main's pages as CommonMark
+# in man/, which GitHub shows and a release commits (docs/release_review.md,
+# step 5): the prelude's and the standard library's under man/stdlib, with
+# the index ern doc writes (report §11.4); each library's under
+# man/libs/<name>, with an index linking them; and an index over the two,
+# which links the report's §11 for ern itself. Each index is its
+# directory's README.md, which GitHub shows when the directory is opened.
+# They are written into build/pages and replace man/ whole, so a page whose
+# module has gone goes.
+man: all
 	@rm -rf build/pages
 	@bin/ern doc --build-root build/pages/stdlib stdlib
 	@for d in libs/*/; do n=$$(basename $$d); \
@@ -104,34 +122,18 @@ pages: all
 	      build/pages/libs/$$n/index.md; done; \
 	} > man/libs/README.md
 	@v=$$(cat VERSION); { \
-	  printf '# Ernest %s\n\n' "$$v"; \
-	  printf 'The pages `ern doc` wrote at the release of Ernest %s, ' "$$v"; \
-	  printf 'which `main` may have gone past. A page holds a module'"'"'s doc block, '; \
-	  printf 'then its declarations, each with its type and its own doc block '; \
-	  printf '(report §11.4). Where Ernest is installed, `man Ernest.List` shows a '; \
-	  printf 'module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
+	  printf '# The manual pages\n\n'; \
+	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the last '; \
+	  printf 'release then being Ernest %s; a module or a declaration that appeared ' "$$v"; \
+	  printf 'after it ends its doc block with the release that brings it. A page holds a '; \
+	  printf 'module'"'"'s doc block, then its declarations, each with its type and its '; \
+	  printf 'own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
+	  printf 'shows a module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
 	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
 	  printf -- '- [The libraries under `libs/`](libs/README.md)\n'; \
 	  printf -- '- [`ern`, the toolchain and its shell](../report/toolchain.md#11-toolchain), '; \
 	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n'; \
 	} > man/README.md
-
-# The manual pages (report §11, §11.4): the prelude's and every standard
-# library module's, beside the modules' .erc in build/stdlib, each
-# library's beside its own in build/libs, and ern(1), §11 of the report,
-# which tools/manual.ern writes into build/man with the standard library's
-# pages in its SEE ALSO. make writes them, so that make install, which a
-# user may run as another, only copies. A page is written whole or not at
-# all.
-man: stdlib libs tools
-	@bin/ern doc --man --build-root build/stdlib stdlib
-	@for d in libs/*/; do n=$$(basename $$d); \
-	  bin/ern doc --man --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n \
-	  $$d || exit 1; done
-	@mkdir -p build/man
-	@bin/ern run $(LIB_PATH) build/tools/manual.erc \
-	  report/toolchain.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
-	@mv build/man/ern.1.new build/man/ern.1
 
 # The installation (proposals/install/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
@@ -381,7 +383,7 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
-.PHONY: all stdlib libs shell tools man test test-erl test-programs test-docs test-guide \
+.PHONY: all stdlib libs shell tools manual man test test-erl test-programs test-docs test-guide \
         test-grammar test-typed test-shell load service bench test-emacs $(APP_TESTS) $(APP_PARTS) \
-        $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format doc pages \
+        $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format doc \
         install uninstall release unicode dialyzer sanitize diagnostics

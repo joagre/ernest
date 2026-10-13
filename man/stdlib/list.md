@@ -18,9 +18,8 @@ with `::` costs nothing, whatever the list's length. `size`, `get`,
 length. A list built one element at a time is built in front, and
 `reverse`d once at the end.
 
-**Equality.** `contains`, `remove` and `unique` compare elements with
-`==`, so the element type needs equality: a list of functions has none
-of the three.
+**Equality.** `contains` and `unique` compare elements with `==`, so the
+element type needs equality: a list of functions has neither.
 
 **Replies.** A list may hold a `Reply`, which must be answered exactly once
 (report §6.6). A function that drops or copies elements, `size`, `filter`
@@ -127,21 +126,24 @@ walked to the index.
 // => #(Some("b"), None)
 ```
 
-## List.remove
+## List.removeAt
 
 ```ernest
-List.remove(list : List(a=!), element : a=!) : List(a=!)
+List.removeAt(list : List(a!), index : Int) : List(a!)
 ```
 
-The list without the first element that is `==` to `element`. Later
-elements equal to it stay. A list without such an element is answered as
-it is.
+*Since 0.4.0.*
+
+The list without the element at `index`, counting from 0, as `get`
+counts. A list with no element there, past its end or at an index below
+0, is answered as it was. The list is walked to the index. To remove an
+element by its value, `filter` keeps the others.
 
 ### Examples
 
 ```ernest
-List.remove([1, 2, 1], 1)
-// => [2, 1]
+#(List.removeAt(["a", "b", "c"], 1), List.removeAt(["a", "b"], 2))
+// => #(["a", "c"], ["a", "b"])
 ```
 
 ## List.map
@@ -204,26 +206,28 @@ List.foldLeft([1, 2, 3], 0, fn(sum, n) = sum + n)
 ## List.foldRight
 
 ```ernest
-List.foldRight(list : List(a), acc : b, step : (a, b) -> b with e) : b with e
+List.foldRight(list : List(a), acc : b, step : (b, a) -> b with e) : b with e
 ```
 
-The elements folded into one value, from the last. `step(x, acc)` is
+The elements folded into one value, from the last. `step(acc, x)` is
 called with the given `acc` for the last element, and with what `step`
-answered for the one after it for the rest. The empty list answers
-`acc`.
+answered for the one after it for the rest. The accumulator comes first,
+as in `foldLeft`. The empty list answers `acc`.
 
 ### Examples
 
 ```ernest
-List.foldRight(["a", "b"], "", fn(s, acc) = s <> acc)
+List.foldRight(["a", "b"], "", fn(acc, text) = text <> acc)
 // => "ab"
 ```
 
-## List.foreach
+## List.forEach
 
 ```ernest
-List.foreach(list : List(a), f : (a) -> Unit with e) : Unit with e
+List.forEach(list : List(a), f : (a) -> Unit with e) : Unit with e
 ```
+
+*Since 0.4.0.*
 
 Calls `f` for each element, in order, for its effect, and answers `Unit`.
 
@@ -232,7 +236,7 @@ Calls `f` for each element, in order, for its effect, and answers `Unit`.
 Prints `1` and `2`, each on a line:
 
 ```ernest
-List.foreach([1, 2], fn(n) = Io.println(Int.toString(n)))
+List.forEach([1, 2], fn(n) = Io.println(Int.toString(n)))
 // => Unit
 ```
 
@@ -323,6 +327,24 @@ List.drop(list : List(a!), count : Int) : List(a!)
 The list without its first `count` elements, or empty where there are
 fewer. A `count` below 0 drops none.
 
+## List.takeLast
+
+```ernest
+List.takeLast(list : List(a!), count : Int) : List(a!)
+```
+
+*Since 0.4.0.*
+
+The last `count` elements, or all of them where there are fewer. A
+`count` below 0 takes none. The whole list is walked to find them.
+
+### Examples
+
+```ernest
+#(List.takeLast([1, 2, 3], 2), List.takeLast([1, 2, 3], 5))
+// => #([2, 3], [1, 2, 3])
+```
+
 ## List.dropLast
 
 ```ernest
@@ -378,9 +400,7 @@ List.unique(list : List(a=!)) : List(a=!)
 ```
 
 The list without repeats: the first occurrence of each element is kept,
-in order. Each element is compared with every later one, so the cost
-grows with the square of the length; for a long list, `Set.fromList`
-or `OrderedSet.fromList` is quicker where the order may change.
+in order.
 
 ### Examples
 

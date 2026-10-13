@@ -76,13 +76,13 @@ no_tab_test() ->
                                         lists:member($\t, Line)]).
 
 %% docs/style.md: the spelling is American English, in every tracked file
-%% of text but a proposal, the last release's pages, the licenses and a
-%% borrowed file. A word is matched whole, whatever its case, and a name is
-%% read as the words it joins at `_` or a capital, `ern_utilizations` and
-%% `setUtilization` alike; a name of the host's keeps the host's spelling,
-%% and this module's list is the one place the British spellings are
-%% written. A regression test, written after the sweep that made it hold:
-%% it refuses the spellings its list holds and no other
+%% of text but a proposal, the licenses and a borrowed file. A word is
+%% matched whole, whatever its case, and a name is read as the words it
+%% joins at `_` or a capital, `ern_utilizations` and `setUtilization`
+%% alike; a name of the host's keeps the host's spelling, and this module's
+%% list is the one place the British spellings are written. A regression
+%% test, written after the sweep that made it hold: it refuses the
+%% spellings its list holds and no other
 american_spelling_test_() ->
     {timeout, 60, fun american_spelling/0}.
 
@@ -90,7 +90,7 @@ american_spelling() ->
     Unread = ["LICENSE", "THIRD_PARTY_LICENSES" | borrowed()],
     ?assert(length(Unread) > 2),
     Files = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
-                     not lists:prefix("proposals/", File), not lists:prefix("man/", File),
+                     not lists:prefix("proposals/", File),
                      not lists:member(File, Unread),
                      filelib:is_regular(filename:join(?ROOT, File))],
     ?assert(length(Files) > 300),

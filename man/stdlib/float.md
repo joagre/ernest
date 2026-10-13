@@ -27,7 +27,7 @@ Float.toString(Float.abs(-2.5) * 2.0)
 // => "5.0"
 ```
 
-Rounding: `round` takes a half to the even neighbour, `floor` goes down and
+Rounding: `round` takes a half to the even neighbor, `floor` goes down and
 `ceil` up:
 
 ```ernest
@@ -151,6 +151,25 @@ Float.max(left : Float, right : Float) : Float
 ```
 
 The larger of the two.
+
+## Float.div
+
+```ernest
+Float.div(dividend : Float, divisor : Float) : Optional(Float)
+```
+
+*Since 0.4.0.*
+
+The quotient `dividend / divisor`, rounded to the nearest `Float`, or
+`None` where `/` would fault: a `divisor` of 0.0, or a quotient too large
+to be finite.
+
+### Examples
+
+```ernest
+#(Float.div(1.0, 4.0), Float.div(1.0, 0.0), Float.div(1.0e300, 1.0e-300))
+// => #(Some(0.25), None, None)
+```
 
 ## Float.toString
 

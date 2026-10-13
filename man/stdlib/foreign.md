@@ -7,8 +7,13 @@ Values from foreign code: asking what a `Term` is, and making one.
 Use it when writing a `foreign fn` over Erlang code whose result has no
 Ernest type. Declare the result `Foreign.Term`, then ask what it is with
 `toInt`, `toString`, `toList` and the rest, each answering `None` where the
-term is something else. `from` goes the other way: it gives a value as
+term is something else. `term` goes the other way: it gives a value as
 foreign code is given an argument of the value's type (report §3.8, §8.4).
+
+`atom` makes an Erlang atom, for an Erlang function that takes one:
+`Foreign.atom("utf8")`. An Erlang function that answers `{ok, V}` or
+`{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s
+encoding, `{'Right', V}` or `{'Left', R}` (report §8.4).
 
 A program that calls no foreign code never meets a `Term`.
 
@@ -17,7 +22,7 @@ A program that calls no foreign code never meets a `Term`.
 A term asked whether it is an `Int`, which `42` is and `"42"` is not:
 
 ```ernest
-#(Foreign.toInt(Foreign.from(42)), Foreign.toInt(Foreign.from("42")))
+#(Foreign.toInt(Foreign.term(42)), Foreign.toInt(Foreign.term("42")))
 // => #(Some(42), None)
 ```
 
@@ -25,7 +30,7 @@ A list of terms, each asked in turn:
 
 ```ernest
 {
-    let terms = Foreign.toList(Foreign.from([1, 2]));
+    let terms = Foreign.toList(Foreign.term([1, 2]));
     Optional.map(terms, fn(list) = List.filterMap(list, Foreign.toInt))
 }
 // => Some([1, 2])
@@ -33,7 +38,7 @@ A list of terms, each asked in turn:
 
 ## See also
 
-`Erl` for what a shim over an Erlang API needs, `String.toInt` for text.
+`String.toInt` for text.
 
 ## Foreign.Term
 
@@ -50,23 +55,25 @@ foreign type, so its `==` is the runtime's exact equality (report
 ### Examples
 
 ```ernest
-#(Foreign.from(1) == Foreign.from(1), Foreign.from(1) == Foreign.from(1.0))
+#(Foreign.term(1) == Foreign.term(1), Foreign.term(1) == Foreign.term(1.0))
 // => #(true, false)
 ```
 
-## Foreign.from
+## Foreign.term
 
 ```ernest
-Foreign.from(value : a!) : Term
+Foreign.term(value : a!) : Term
 ```
+
+*Since 0.4.0.*
 
 The value as it crosses into foreign code, for a `foreign fn` that declares
 a parameter `Term`. It crosses as an argument of its type does: an address
 in it behind the check of what foreign code sends it, and a function with
 the check of what foreign code calls it with (report §8.4).
 
-The type is the one `from` is used at, and must be known whole there; on a
-type variable `from` is a type error.
+The type is the one `term` is used at, and must be known whole there; on a
+type variable `term` is a type error.
 
 ## Foreign.toInt
 
@@ -87,7 +94,7 @@ The `Float` it is, or `None`.
 ### Examples
 
 ```ernest
-Foreign.toFloat(Foreign.from(1.5))
+Foreign.toFloat(Foreign.term(1.5))
 // => Some(1.5)
 ```
 
@@ -102,7 +109,7 @@ The `String` it is, or `None`; a binary that is not UTF-8 is `None`.
 ### Examples
 
 ```ernest
-Foreign.toString(Foreign.from("hi"))
+Foreign.toString(Foreign.term("hi"))
 // => Some("hi")
 ```
 
@@ -120,7 +127,7 @@ among them.
 ### Examples
 
 ```ernest
-#(Foreign.toBytes(Foreign.from(<<255>>)), Foreign.toBytes(Foreign.from(1)))
+#(Foreign.toBytes(Foreign.term(<<255>>)), Foreign.toBytes(Foreign.term(1)))
 // => #(Some(<<255>>), None)
 ```
 
@@ -135,7 +142,7 @@ The `Bool` it is, or `None`.
 ### Examples
 
 ```ernest
-#(Foreign.toBool(Foreign.from(true)), Foreign.toBool(Erl.atom("ready")))
+#(Foreign.toBool(Foreign.term(true)), Foreign.toBool(Foreign.atom("ready")))
 // => #(Some(true), None)
 ```
 
@@ -146,6 +153,34 @@ Foreign.toList(value : Term) : Optional(List(Term))
 ```
 
 The list it is, its elements still terms, or `None`.
+
+## Foreign.atom
+
+```ernest
+Foreign.atom(text : String) : Term
+```
+
+*Since 0.4.0.*
+
+The Erlang atom spelled by `text`. An atom is never freed while the node
+lives, and a node holds only as many as its host allows, so atoms are made
+of the names a shim needs, never of text a program receives.
+
+### Errors
+
+Faults where `text` is longer than 255 characters, which no atom holds, as a
+foreign function's raise does (report §7.4): `foreign function
+erlang:binary_to_atom/1 raised error:system_limit`.
+
+### Examples
+
+Two atoms of one spelling are equal, and the atom `true` is Erlang's `true`,
+a `Bool`:
+
+```ernest
+#(Foreign.atom("ready") == Foreign.atom("ready"), Foreign.toBool(Foreign.atom("true")))
+// => #(true, Some(true))
+```
 
 ---
 

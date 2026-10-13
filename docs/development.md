@@ -79,13 +79,13 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release; and
                    release/ holds the archive's own Makefile and README.md
-man/               the last release's pages as CommonMark, which make pages writes at the
-                   release: the prelude's and the standard library's under stdlib/,
-                   each library's under libs/, an index in each and one over them,
-                   each its directory's README.md
+man/               the pages as CommonMark, which make man writes from main and a
+                   release commits: the prelude's and the standard library's under
+                   stdlib/, each library's under libs/, an index in each and one over
+                   them, each its directory's README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
-                   in stdlib/ from make doc; pages/ from make pages; release/ from
+                   in stdlib/ from make doc; pages/ from make man; release/ from
                    make release; dialyzer/ and dialyzer.plt from make dialyzer;
                    sanitize/ from make sanitize
 ```
@@ -140,9 +140,10 @@ make bench        what each of a few operations costs in Ernest beside the same
                   and the sizes of an .erc and a code frame; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
-make pages        write man/, the release's pages: the standard library's, the prelude's
-                  and each library's, with their indexes (docs/release_review.md)
-make man          the manual pages alone, which make also writes: each module's beside
+make man          write every page: the manual pages make writes, and man/, main's pages
+                  as CommonMark, the standard library's, the prelude's and each
+                  library's, with their indexes (docs/release_review.md)
+make manual       the manual pages alone, which make also writes: each module's beside
                   its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
                   build/man/ern.1, which man -l shows
 make install      install under PREFIX, /usr/local by default, within DESTDIR if one

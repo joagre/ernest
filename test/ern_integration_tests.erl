@@ -378,7 +378,7 @@ cookie_of(Answer) ->
     [SessionId | _] = binary:split(After, <<";">>),
     SessionId.
 
-%% report §11, §11.4: the manual pages `make man` writes. `ern doc --man`
+%% report §11, §11.4: the manual pages `make manual` writes. `ern doc --man`
 %% writes the prelude's page and each standard library module's beside its
 %% .erc; tools/manual.ern writes ern(1), whose NAME line, DESCRIPTION, and
 %% subsections are §11's, in the report's order, whose SYNOPSIS holds every

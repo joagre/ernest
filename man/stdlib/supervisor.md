@@ -146,7 +146,12 @@ killed leaves the group.
 ### Errors
 
 Faults where `supervisor` has ended before the child joins, with the cause
-`the supervisor has ended`.
+`the supervisor has ended`, and where `supervisor` runs on another node,
+with the cause `a child runs on its supervisor's node`, before it joins.
+Faults where it runs inside a restarting function, another child's among
+them, with the cause `a child's function runs in no restarting function`:
+a child restarts by its group, and reads why it began from its own
+restart alone (report §6.9).
 
 ### Examples
 

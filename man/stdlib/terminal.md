@@ -133,11 +133,13 @@ match Terminal.size() {
 }
 ```
 
-## Terminal.columns
+## Terminal.width
 
 ```ernest
-Terminal.columns(text : String) : Int
+Terminal.width(text : String) : Int
 ```
+
+*Since 0.4.0.*
 
 The columns `text` takes at a terminal, counted by grapheme, for lining text
 up.
@@ -152,7 +154,7 @@ counts as its text does.
 ### Examples
 
 ```ernest
-#(Terminal.columns("a中"), Terminal.columns("\u{1b}[1mab\u{1b}[22m"))
+#(Terminal.width("a中"), Terminal.width("\u{1b}[1mab\u{1b}[22m"))
 // => #(3, 2)
 ```
 

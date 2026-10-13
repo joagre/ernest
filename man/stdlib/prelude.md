@@ -130,7 +130,7 @@ type Address(m)
 ```
 
 Where messages of type `m` are sent: a process, or a process seen through
-a function with `via`. Holding an address is the permission to send to
+a function with `adapted`. Holding an address is the permission to send to
 the process and to kill it. Addresses have no equality; the process
 behind one has, `Process.fromAddress(a)`.
 
@@ -191,7 +191,7 @@ address (report Appendix E.21).
 ### Examples
 
 ```ernest
-Process.fromAddress(self()) == Process.fromAddress(via(self(), fn(x) = x))
+Process.fromAddress(self()) == Process.fromAddress(adapted(self(), fn(x) = x))
 // => true
 ```
 
@@ -336,7 +336,7 @@ the line of the spawn, `Counter.main:19` (report §6.9).
 ## Reason
 
 ```ernest
-type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
+type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable
 ```
 
 How a process ended, as `Down` says it.
@@ -349,6 +349,8 @@ How a process ended, as `Down` says it.
 - `Fault(cause)`: it faulted, with that cause.
 - `Unknown`: it had ended before `monitor` was called, and how is not
   known.
+- `Unreachable`: its node went out of reach, and it may live on; a
+  monitor on a process of another node alone gives it (report §8.7).
 
 Only `Fault` counts as a fault: `ern run` reports it, and `restarting`
 restarts after it.
@@ -476,16 +478,18 @@ process can come before the watch (report §6.2, §6.9).
 spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d)
 ```
 
-## via
+## adapted
 
 ```ernest
-via(target : Address(b), wrap : (a) -> b) : Address(a)
+adapted(target : Address(b), wrap : (a) -> b) : Address(a)
 ```
 
-An address that turns each message with `wrap` and delivers it to
-`target`. It is no process of its own.
+*Since 0.4.0.*
 
-A process whose mailbox takes `Msg` hands out `via(self(), Wrap)` to take
+An adapted address of `target`, which turns each message with `wrap` and
+delivers it to `target`. It is no process of its own.
+
+A process whose mailbox takes `Msg` hands out `adapted(self(), Wrap)` to take
 a message of another type as one of its own, wrapped in its constructor
 `Wrap`. A fault in `wrap` ends the process behind `target`, not the
 sender (report §6.5).
@@ -494,7 +498,7 @@ sender (report §6.5).
 
 ```ernest
 {
-    let texts = via(self(), fn(n) = Int.toString(n));
+    let texts = adapted(self(), fn(n) = Int.toString(n));
     send(texts, 42)
 }
 ```
@@ -591,7 +595,7 @@ it faults. A program spawns what it answers: `spawn(restarting(limit, f))`.
 The process keeps its address across a restart, so whoever holds it keeps
 it. Everything else starts afresh: the mailbox is emptied, every call
 waiting for the process's answer ends, and what the process asked the
-runtime for, its alarms, monitors and subscriptions, is cancelled. What
+runtime for, its alarms, monitors and subscriptions, is canceled. What
 `f` held is gone (report §6.9).
 
 A restart is not a death: no `monitor` is told, and the process's `Down`
