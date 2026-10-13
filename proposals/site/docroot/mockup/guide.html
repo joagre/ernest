@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Ernest website template preview: Operations records.">
+<title>Operations records — Ernest</title>
+<link rel="stylesheet" href="../assets/css/site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap header-inner">
+<a class="brand" href="index.html">Ernest</a>
+<nav class="site-nav" aria-label="Main navigation"><a href="tour.html">Tour</a><a href="guide.html" aria-current="page">Guide</a><a href="report.html">Report</a><a href="library.html">Library</a><a href="shell.html">Shell</a><a href="install.html">Install</a></nav>
+<a class="source" href="https://github.com/joagre/ernest">GitHub <svg class="icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  
+  
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15 3h6v6" />
+  <path d="M10 14 21 3" />
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+</svg>
+</a>
+</div></header>
+<main id="main" class="wrap "><div class="doc-layout"><aside class="contents"><details open><summary>On this page</summary><nav aria-label="Page contents"><ol><li><a href="#contracts">The contract</a></li><li><a href="#choose">Representations</a></li><li><a href="#related">Related material</a></li></ol></nav></details></aside>
+<article class="article"><p class="eyebrow">Guide</p><h1>Operations records</h1><p class="lead">Write code against a record of operations.</p>
+<p class="meta">Template preview · illustrative content</p><section id="contracts"><h2>One contract, several representations</h2><p>A record of functions can express the operations a caller needs. The functions close over the representation of each value.</p><pre><code>type Shape = Shape(name : String, area : () -&gt; Float)
+
+fn square(side : Float) -&gt; Shape =
+    Shape(name = &quot;square&quot;, area = fn() = side * side)</code></pre></section>
+<section id="choose"><h2>Choosing a representation</h2><p>This space holds a practical explanation and a complete working example from the guide. Keep reference rules linked rather than repeated.</p></section>
+<section id="related"><h2>Related material</h2><ul><li><a href="report.html">Read the precise language rules</a></li><li><a href="library.html">Find library operations</a></li></ul></section>
+<nav class="page-nav" aria-label="Chapter navigation"><a href="tour.html" class=""><svg class="icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  
+  
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m12 19-7-7 7-7" />
+  <path d="M19 12H5" />
+</svg>
+Previous</a><a href="report.html" class=""><svg class="icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  
+  
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M5 12h14" />
+  <path d="m12 5 7 7-7 7" />
+</svg>
+Next</a></nav></article></div></main>
+<footer class="site-footer"><div class="wrap footer-inner">
+<span>Ernest · Website design preview</span>
+<span><a href="changes.html">Changes</a> · <a href="https://github.com/joagre/ernest/issues">Issues</a> · <a href="https://github.com/joagre/ernest">Source</a></span>
+</div></footer>
+</body></html>

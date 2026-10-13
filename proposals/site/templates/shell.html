@@ -1,0 +1,13 @@
+<div class="shell-heading"><h1>Ernest shell</h1><span class="meta">Server session</span></div>
+<p>Try Ernest in a temporary isolated environment. Session contents are discarded when the session ends.</p>
+<div class="shell-toolbar" role="group" aria-label="Session controls">
+<button id="session-start" type="button" disabled>Start session</button>
+<button id="session-restart" type="button" disabled>Restart</button>
+<button id="session-stop" type="button" disabled>Stop</button>
+<span id="session-state" class="session-state" role="status">Not connected</span></div>
+<section id="terminal" class="terminal-frame" aria-label="Ernest terminal"></section>
+<div class="shell-notes"><div>{{session_limits_html}}</div>
+<details><summary>Examples</summary>{{examples_html}}</details></div>
+<noscript><p>The live shell requires JavaScript. All documentation remains available.</p></noscript>
+<!-- Load locally hosted xterm.js, its stylesheet, fit addon and your session client here.
+     Only enable Start after the client initializes. Do not allocate a session on page load. -->
