@@ -42,7 +42,7 @@ The site's files as served.
     /releases/                      releases/<version>.md, newest first
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
-    /assets/img/                    the repository's logos, icons/
+    /assets/<logo>                  the repository's logos, at their paths in assets/
 
 - A report page is one of the report's files, whole. A citation's first
   number or letter names its page.
@@ -132,8 +132,10 @@ The site's files as served.
 - Prose 70 to 80 characters wide, code and the terminal wider. A narrow
   contents sidebar on a desktop, an expandable contents list on a phone.
 - Visible keyboard focus.
-- The logos are the repository's `assets/`, which `make site` copies into
-  `/assets/img/`; the docroot holds no copy.
+- The logos are the repository's `assets/`, which `make site` copies to
+  `/assets/`, each at its path in the repository; the docroot holds no copy. A
+  file the site takes from the repository keeps the repository's hierarchy, as
+  `/man/` keeps `man/`'s (decided 2026-10-13).
 - The full logo appears once, on the homepage, 230 px wide. Every other page's
   header links home with the stoat, `ernest-mark.svg`, beside "Ernest". Dark
   mode selects the dark logo through `<picture>`. The favicon is a simplified
