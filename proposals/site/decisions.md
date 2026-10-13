@@ -138,7 +138,10 @@ The site's files as served.
 - Every internal link is the generator's. No page carries one written by hand.
 - A citation finer than a heading links to its heading: "shape rule 10" to
   `#E.0`.
-- A renumbered guide section leaves a redirect.
+- A link into the guide holds while the guide's numbers hold, and they change
+  only where a section cannot be placed otherwise. A link from outside, made
+  before a renumbering, may land on the section that took its number; nothing
+  redirects it, since a fragment never reaches the server.
 - A report section carries a computed margin line naming the pages that cite
   it: "taught in guide §4.2; used by `List.sort`".
 - A citation of the log links to the log on GitHub.
