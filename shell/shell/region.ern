@@ -455,7 +455,7 @@ fn split(text : String) : #(List(String), String) =
     }
 
 //
-// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test` does.
+// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test-shell` does.
 // The region is pure, so a test reads the bytes it would have written.
 //
 

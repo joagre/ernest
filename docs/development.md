@@ -94,19 +94,27 @@ A module's path follows report §11.1. A file that is not a module is named with
 
 ## Building
 
-Beyond what the README's *Installing* needs, `make test` needs python3, which opens the terminal tests' pseudo-terminal and signals `ern` in the tests of how it ends, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped.
+Beyond what the README's *Installing* needs, `make test-full` needs python3, which opens the terminal tests' pseudo-terminal and signals `ern` in the tests of how it ends, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped.
 
 ```
 make              build the helper, compile every application into its ebin/, then
                   stdlib/, libs/, shell/ and tools/, and write the manual pages
-make test         build, then every area below, side by side
+make test         build, then the unit tests of every application and the document
+                  and style tests, side by side: the light run, a minute or two
+make test-full    build, then every area below, side by side: the whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
-make test-programs  the integration tests and nodes on one machine: the programs compiled and run as a user
-                  runs them, the deployment guide's commands and its deployment end to
-                  end run on nodes, the lines it quotes held to a node's, the manual
-                  pages and the installation, and that the measuring machine reaches
-                  every function of the library
+make test-programs  the five parts below, side by side
+make test-integration  the programs compiled and run as a user runs them, the
+                  signals, the streams, Os and the libraries' tests, and that the
+                  measuring machine reaches every function of the library
+make test-nodes   nodes on one machine
+make test-deployment  the deployment guide's commands and its deployment end to end
+                  run on nodes, and the lines it quotes held to a node's
+make test-manual  the manual pages against §11, each rendered
+make test-install  the installation and the release archive, installed and run
+                  where they are put; after test-manual, which it runs first,
+                  since both write the manual pages
 make test-docs    the document tests and the style tests
 make test-guide   the guide's examples, the report's, the README's, and the catalog of
                   diagnostics
@@ -119,11 +127,11 @@ make test-typed   well-typed programs generated, checked, compiled and run in on
                   ERN_SEED=n runs a failing seed again
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (proposals/emacs/emacs_mode.md)
-make load         the loads of docs/memory.md; not part of make test, which builds
-                  their programs and the benchmark's
+make load         the loads of docs/memory.md; not part of make test-full, whose
+                  test-integration builds their programs and the benchmark's
 make service      a program run by the host's service manager, a user's systemd or
                   launchd: started, stopped, started again after Os.exit(1); not
-                  part of make test
+                  part of make test-full
 make bench        what each of a few operations costs in Ernest beside the same
                   operation in Erlang, in nanoseconds, a raise at each backtrace depth
                   among them; then every function of the library beside the host's, at
@@ -137,7 +145,8 @@ make bench        what each of a few operations costs in Ernest beside the same
                   what an arrival, a Code.load and a day's spawns add to the host's
                   counts, a utilization, a compute on a peer picked and on one named,
                   the pick alone, what connected nodes exchange idle with their tellings,
-                  and the sizes of an .erc and a code frame; not part of make test
+                  and the sizes of an .erc and a code frame; not part of make
+                  test-full
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          write every page: the manual pages make writes, and man/, main's pages
@@ -172,9 +181,23 @@ make clean        remove build products
 make clean-emacs  remove Emacs backup, auto-save, and lock files
 ```
 
+While a change is worked on, it runs the targets of its kind; which run a commit needs is CLAUDE.md's *Tests*.
+
+| A change to | Runs |
+|---|---|
+| the Erlang of one application | `make test-erl APP=<app>`, then `make test`; the parser and the formatter `make test-grammar` too, the checker and the emitter `make test-typed` |
+| the runtime | `make test`, `make test-integration` |
+| nodes, or the deployment guide | `make test`, `make test-nodes`, `make test-deployment` |
+| the standard library, or a library under `libs/` | `make test`, `make test-integration` |
+| the shell | `make test`, `make test-shell` |
+| the installation, the release, or the manual pages | `make test-install`, which runs `test-manual` first; the pages alone `make test-manual` |
+| the Emacs mode | `make test-emacs` |
+| the language guide, the report, the README, `test/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
+| a proposal, or any other document | `make test-docs` |
+
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.
 
-One application's test module runs alone as the suite runs it: its test beams by `make -s -C erl/<app>/src beams`, then, from `erl/<app>/src`, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa ../../*/ebin -pa $(realpath ../../../build/stdlib) -pa $(realpath ../../../build/shell) -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test` takes about twenty minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
+One application's test module runs alone as the suite runs it: its test beams by `make -s -C erl/<app>/src beams`, then, from `erl/<app>/src`, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa ../../*/ebin -pa $(realpath ../../../build/stdlib) -pa $(realpath ../../../build/shell) -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
 
 ## Using
 

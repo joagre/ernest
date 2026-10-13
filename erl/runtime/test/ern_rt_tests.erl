@@ -59,7 +59,7 @@ stdin_failure_test() ->
 %% carriage return before it, and a last line needs none; a line that is
 %% not UTF-8 faults the process that asked, and the next line is read. The
 %% asker is monitored from its spawn: a regression, the monitor made after
-%% it, which under `make test`'s load came once the asker had faulted and
+%% it, which under `make test-full`'s load came once the asker had faulted and
 %% ended, and so gave `Unknown`
 stdin_stream_test() ->
     Next = queued_input([<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>],
@@ -328,6 +328,33 @@ failed_start_test() ->
         file:delete(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"))
     end,
     ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
+
+%% report §8.5, §11.2: a fault after the bindings a running program
+%% initializes have their values is reported under the process's own site,
+%% not the last binding's. A regression test: the measuring machine's
+%% deadlock was reported as an initializer fault of the last library
+%% binding, a Test.Case that waits on nothing
+site_kept_after_init_test() ->
+    ErlangModule = 'ern@zz_site_kept',
+    Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{'$init', 0}]},
+             {function, 1, '$init', 0,
+              [{clause, 1, [], [],
+                [{call, 1, {remote, 1, {atom, 1, ern_rt}, {atom, 1, initializing}},
+                  [{bin, 1, [{bin_element, 1, {string, 1, "ZzSiteKept.binding:1"}, default,
+                              default}]}]}]}]}],
+    {ok, ErlangModule, Beam} = compile:forms(Forms),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "zz_site_kept.erl", Beam),
+    Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
+    try
+        Outcome = ern_rt:run_main(fun() ->
+                                      ok = ern_rt:init_modules([ErlangModule]),
+                                      ern_rt:fault(<<"after the bindings">>)
+                                  end, <<"main">>, Quiet),
+        ?assertMatch([fault, <<"after the bindings">> | _], tuple_to_list(Outcome))
+    after
+        code:purge(ErlangModule),
+        code:delete(ErlangModule)
+    end.
 
 %% Compile a hand-written target module from forms, as the compiler will
 %% compile its own output, and run its main, the function of its number

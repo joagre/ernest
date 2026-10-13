@@ -478,7 +478,7 @@ fn alphanumeric(text : String, index : Int) : Bool =
 
 //
 // The tests (report Appendix E.24, §11.2), run by `ern test build/shell/shell/editor.erc`,
-// which `make test` does. Each plays a list of events onto a fresh line
+// which `make test-shell` does. Each plays a list of events onto a fresh line
 // and reads off the text and the cursor.
 //
 

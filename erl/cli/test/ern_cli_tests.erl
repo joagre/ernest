@@ -39,7 +39,7 @@ tmp() ->
 %% build/stdlib was removed by hand. Not covered: a copy read while another
 %% root builds, which is the library's and must be readable. A build of the
 %% whole library, about a second and a half alone, runs beside every other
-%% suite under `make test`, past eunit's five seconds once
+%% suite under `make test-full`, past eunit's five seconds once
 stdlib_build_sets_its_copy_aside_test_() ->
     {timeout, 60, fun stdlib_build_sets_its_copy_aside/0}.
 
@@ -2052,7 +2052,7 @@ doc_neither_test() ->
 %% page after its title under DESCRIPTION, and a declaration a subsection.
 %% Written after the code, a regression test; how roff lays out each block
 %% is libs/markdown's to test, and that man renders the pages is
-%% ern_integration_tests's.
+%% ern_manual_tests's.
 doc_man_test() ->
     Dir = tmp(),
     File = write(Dir, "shapes.ern",
@@ -2349,7 +2349,7 @@ mvp_refusals_listed_test() ->
 %% report §11, §8.7: --version prints the version text, the top-level
 %% VERSION file's content, and in the repository's build, which is no
 %% release, the mark after it; the release archive's is VERSION's alone,
-%% which ern_integration_tests' release test holds
+%% which ern_install_tests' release test holds
 version_test() ->
     {ok, Version} = file:read_file("../../../VERSION"),
     ?assertEqual(0, ern_cli:ern(["--version"])),

@@ -174,24 +174,32 @@ unicode:
 	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
-# The tests by area (plan, MVP 2.6). `make test` runs the suite's jobs side
-# by side, as many at once as the host has cores, each job's output together
-# as it ends. One make runs each phase, since a make started with a -j of
-# its own runs apart from the count. The unit tests run first, with the
-# jobs that start no host: EUnit gives a test with no time of its own five
-# seconds, which the load of the areas that start hosts would take from
-# them. Those areas then run, each its own tests side by side. Make starts
-# the jobs in the order given, so the longest come first. The modules under
-# test/, and the tests of the applications run in parts, are compiled
-# first, once, so that no two parts compile one module at once. A change
-# may run its own area's target as it is worked on.
+# The tests by area (plan, MVP 2.6), in two runs (MVP 3.9). `make test` is
+# the light run, for every commit: the applications' unit tests, and the
+# tests of the documents and the style. `make test-full` is every area, for
+# the commit that closes a plan item and for a release. Each runs its jobs
+# side by side, as many at once as the host has cores, each job's output
+# together as it ends. One make runs each phase, since a make started with
+# a -j of its own runs apart from the count. In the full run the unit tests
+# run first, with the jobs that start no host: EUnit gives a test with no
+# time of its own five seconds, which the load of the areas that start
+# hosts would take from them. Those areas then run, each its own tests side
+# by side. Make starts the jobs in the order given, so the longest come
+# first. The tests of the applications run in parts, and in the full run
+# the modules under test/, are compiled first, once, so that no two parts
+# compile one module at once. A change runs its own area's target as it is
+# worked on (docs/development.md, *Building*).
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 test: all
+	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
+	@$(MAKE) -s -j$(JOBS) -O $(APP_JOBS) test-docs
+
+test-full: all
 	@$(MAKE) -s -C test beams
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs test-grammar \
 	  test-typed
-	@$(MAKE) -s -j$(JOBS) -O test-shell test-programs
+	@$(MAKE) -s -j$(JOBS) -O test-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=typer. The runtime's tests are compiled first, since the
@@ -220,12 +228,30 @@ $(APP_PARTS): test-app-%:
 	@$(MAKE) -s -C erl/$(firstword $(subst -, ,$*))/src test PARTS=3 \
 	  PART=$(lastword $(subst -, ,$*))
 
-# The areas under test/: the example programs, the documents and the style,
-# the guide's examples, the grammar with the programs generated from it,
-# the well-typed programs generated and run, and the shell with the
-# terminal.
-test-programs: all
-	@$(MAKE) -C test programs
+# The areas under test/: the programs in five parts, the documents and the
+# style, the guide's examples, the grammar with the programs generated from
+# it, the well-typed programs generated and run, and the shell with the
+# terminal. The programs' parts are nodes on one machine, the manual pages,
+# the installation with the release archive, the deployment guide run on
+# nodes, and the example programs with the signals and the streams, the
+# longest first; test-programs runs them side by side. test-manual and
+# test-install both write the manual pages under build/stdlib, `ern doc
+# --man` there and make install's `make manual`, so test-install runs after
+# test-manual, always: alone it pays the pages' test, about 5 s, for a rule
+# with no case.
+PROGRAM_PARTS = test-nodes test-manual test-install test-deployment test-integration
+test-programs:
+	@$(MAKE) -s -j$(JOBS) -O $(PROGRAM_PARTS)
+test-integration: all
+	@$(MAKE) -C test integration
+test-nodes: all
+	@$(MAKE) -C test nodes
+test-deployment: all
+	@$(MAKE) -C test deployment
+test-manual: all
+	@$(MAKE) -C test manual
+test-install: all test-manual
+	@$(MAKE) -C test install
 test-docs:
 	@$(MAKE) -C test docs
 test-guide: all
@@ -253,7 +279,7 @@ bench: all
 
 # The Emacs mode's tests (proposals/emacs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
-# the only tests `make test` will run and not have built. `format` runs
+# the only tests `make test-full` will run and not have built. `format` runs
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to
 # run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
 EMACS ?= emacs
@@ -383,7 +409,8 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
-.PHONY: all stdlib libs shell tools manual man test test-erl test-programs test-docs test-guide \
-        test-grammar test-typed test-shell load service bench test-emacs $(APP_TESTS) $(APP_PARTS) \
-        $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format doc \
-        install uninstall release unicode dialyzer sanitize diagnostics
+.PHONY: all stdlib libs shell tools manual man test test-full test-erl test-programs \
+        $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell load service \
+        bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections \
+        coverage golden xref contents format doc install uninstall release unicode dialyzer \
+        sanitize diagnostics

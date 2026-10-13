@@ -177,7 +177,7 @@ fn undo(rest : List(Char), acc : List(Char)) : List(Char) =
     }
 
 //
-// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test` does.
+// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test-shell` does.
 // The file itself is tested through the shell, in `test/`.
 //
 

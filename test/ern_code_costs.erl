@@ -24,7 +24,7 @@
 %% measuring program runs on a peer by a compute of their names: the host's
 %% trace of the exchange's steps, the runtime's reading of the host's
 %% counts, and the host's counts of each connection's packets. It measures
-%% and asserts nothing, so it is not part of `make test`.
+%% and asserts nothing, so it is not part of `make test-full`.
 -module(ern_code_costs).
 
 -export([main/1]).

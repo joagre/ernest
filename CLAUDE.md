@@ -96,7 +96,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 
 - **Every report section has a test** whose comment cites it (`%% report §5.4`); `make sections` names a section without one, which is not implemented.
 - **A test written after the code is a regression test.** Say so, and name what it does not cover. What has found defects here is the terminal harness, a read-back of the code, an independent reader, and the user, not a test that passed on its first run.
-- **`make test` runs before the commit that closes a plan item.** While working, the area a change touches runs its own target (`docs/development.md`, *Building*).
+- **`make test`, the light run, runs before every commit; `make test-full`, every area, before the commit that closes a plan item and before a release.** A commit of documents alone runs `make test-docs`. While working, the area a change touches runs its own target; `docs/development.md`'s *Building* names them.
 - **Edits to a proposal under discussion are committed at a pause**, at the end of a topic and not after each verdict: one `make test-docs`, which reads every tracked document, a proposal's among them, then one commit by their paths, pushed then. Code, the Makefile and other documents are tested as always.
 - **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says; the findings of any review or read are sorted as its *The findings* says, the `fix` lines made at once, a design question discussed on its own, and the rest put to the user as one numbered list with recommendations.
 
@@ -127,7 +127,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 5. Every report section the item built cited by a test, and a test written after the code called a regression test (*Tests*).
 6. A new name in the glossary, and a new term in Appendix F (*Style*).
 7. The result read back, and every surprise decided (*Done*).
-8. `make test` green; the conformance section written; every known gap in the plan; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
+8. `make test-full` green; the conformance section written; every known gap in the plan; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
 9. The report to the user, ending with *Report conformance*, then a stop until the user's word; a push only on that word (*Done*).
 
 ## Style

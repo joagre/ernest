@@ -4,7 +4,7 @@
 %% program took, in nanoseconds an iteration, the loop's own cost included
 %% on both sides; a raise at each backtrace depth (Appendix E.21, report
 %% §10), the median of seven runs, with their range. It measures and
-%% asserts nothing, so it is not part of `make test`.
+%% asserts nothing, so it is not part of `make test-full`.
 -module(ern_bench).
 
 -export([main/1]).

@@ -389,13 +389,13 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
 built (the log's *Tables in `libs/markdown`*). An intermittent fault of `ern doc --man` in the
 runtime it now starts, seen once in four runs of the suite, at the `install` test's third
 `make install`, its cause cut short then; a failure now prints its whole cause, so it is
-diagnosed and fixed at its cause when it next occurs, which the release review's full runs make
-likeliest, and the tag waits for that fix only if it recurs. The `install` test takes 190 to 350 s
+diagnosed and fixed at its cause when it next occurs, the measuring machine's deadlock of 2026-10-13, a wait of the job's own Erlang on a host process from the entry process outside the detector's count, being the first shape to check (the log's *Three Test Defects Found on the Way*), which the release review's full runs make
+likeliest, and the tag waits for that fix only if it recurs. Since the split of `make test` the same day (the log's *The Light Run and the Full Run*), the manual pages' test and the installation's no longer write the pages under `build/stdlib` at once, which they did when the fault was seen; if it stays away over the release review's runs, that overlap was its likeliest cause. The `install` test takes 190 to 350 s
 under load against its limit of 300 s: its bound is derived from what it waits for, or the test
 is split, before the tag. A run that times out leaves its `closed` directory read-only, which the
 next run's cleanup cannot remove (`eexist`): the cleanup makes it writable first, before the tag.
 Beside them, found the same day: `make manual` writes every manual page again on every `make`, 14.7
-s of a no-op `make`'s 16 s, which `make test` and each `make install` pay again, and `make doc` and
+s of a no-op `make`'s 16 s, which `make test-full` pays three times and each `make install` again, and `make doc` and
 `make man` do the same with `ern doc`'s Markdown. `ern doc`, with `--man` or without, writes a page
 only where it is older than the module's `.erc`, `libs/markdown`'s `.erc` or `ern`'s own build, each
 written by the toolchain alone and only when its content changes, so that a page goes stale on none
@@ -476,15 +476,15 @@ another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is t
 follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
 log's *The First Release Is for Others*:
 
-- **`make test` split in two**, taken early: the next work, before anything else (decided with
-  the user on 2026-10-13). `make test` becomes the light run: the unit, style and documents tests,
-  a few minutes, for every commit. `make test-full` is the whole suite, for the commit that closes a
-  plan item and for a release. A proposal or document edit runs `make test-docs` alone.
-  `test-programs` is cut into the parts it bundles: `test-integration`, `test-nodes`,
-  `test-deployment`, `test-install` and `test-manual`, so that a change runs its own part.
-  `docs/development.md` gains a short table of which targets each kind of change runs. No test
-  is removed or made shallower. CLAUDE.md's rule says which run guards which commit. The full
-  suite took about twenty minutes and ran ten times on one day.
+- **`make test` split in two**, done 2026-10-13, taken early (the log's *The Light Run and the
+  Full Run*). `make test` is the light run, the applications' unit tests and the document and
+  style tests, 85 s, for every commit; `make test-full` is every area, about ten minutes, for
+  the commit that closes a plan item and for a release; a commit of documents alone runs
+  `make test-docs`. `test-programs` runs as five targets, `test-integration`, `test-nodes`,
+  `test-deployment`, `test-manual` and `test-install`, the last after `test-manual`, since
+  both write the manual pages; `docs/development.md`'s *Building* has the table of which
+  targets a change runs. No test went or was made shallower. CLAUDE.md's *Tests* states which
+  run guards which commit.
 - **Lighter documents**, right after the split (decided with the user on 2026-10-13). CLAUDE.md
   and `docs/style.md`, about 8,000 words read at every session's start, lose their repetition and
   their history, no rule dropped. The plan's finished milestones and releases go: a "Done" table

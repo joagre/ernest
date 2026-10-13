@@ -514,7 +514,7 @@ fn sharedPrefix(left : String, right : String, count : Int) : String =
         String.slice(left, 0, count)
 
 //
-// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test` does.
+// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test-shell` does.
 //
 
 let only =
