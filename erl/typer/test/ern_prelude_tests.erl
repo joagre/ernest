@@ -214,15 +214,15 @@ stdlib_types_test() ->
 %% functions of `Set` and `Map`, which rule 4 admits as the vocabulary. A
 %% regression test, written when rule 2 named them
 set_and_map_words_test() ->
-    Rules = lists:flatten(lists:join(" ", section("Four *admission rules*", "Nine *shape rules*"))),
+    Rules = lists:flatten(lists:join(" ", section("Four *admission rules*", "Ten *shape rules*"))),
     Exported = lists:append([maps:keys(Values)
                              || #interface{values = Values} <- ern_prelude:stdlib_interfaces()]),
     lists:foreach(
       fun({Kind, Module}) ->
           {match, [Sentence]} = re:run(Rules, "A " ++ Kind ++ " adds ([^.]*)\\.",
-                                       [{capture, all_but_first, list}]),
+                                       [unicode, {capture, all_but_first, list}]),
           {match, Words} = re:run(Sentence, "`([a-zA-Z]+)`",
-                                  [global, {capture, all_but_first, list}]),
+                                  [unicode, global, {capture, all_but_first, list}]),
           ?assertNotEqual([], Words),
           [?assert(lists:member([Module, list_to_atom(Word)], Exported)) || [Word] <- Words]
       end, [{"set", 'Set'}, {"map", 'Map'}]).
@@ -398,12 +398,19 @@ same(Report, Code) ->
 %%
 
 %% The lines from the first line starting with From up to the next line
-%% starting with To, or to the end with To none.
+%% starting with To, or to the end with To none. A marker the report no
+%% longer has fails here by its name: a sweep to the end in its place hid a
+%% stale marker for three days, until a character past Latin-1 reached a
+%% regex.
 section(From, To) ->
     Contents = iolist_to_binary([element(2, file:read_file(File)) || File <- ?REPORT]),
     Lines = string:split(unicode:characters_to_list(Contents), "\n", all),
     Rest = lists:dropwhile(fun(Line) -> not lists:prefix(From, Line) end, Lines),
-    lists:takewhile(fun(Line) -> To =:= none orelse not lists:prefix(To, Line) end, tl(Rest)).
+    Rest =/= [] orelse error({not_in_report, From}),
+    Inside = fun(Line) -> To =:= none orelse not lists:prefix(To, Line) end,
+    {Section, After} = lists:splitwith(Inside, tl(Rest)),
+    To =:= none orelse After =/= [] orelse error({not_in_report, To}),
+    Section.
 
 %% The lines inside ``` fences.
 code_lines(Lines) -> code_lines(Lines, false).
