@@ -151,8 +151,9 @@ The site's files as served.
 - A report section carries a computed margin line naming the pages that cite
   it: "taught in guide §4.2; used by `List.sort`".
 - A citation of the log links to the log on GitHub.
-- Code is colored when the site is generated, by `ern`'s own lexer. A quoted
-  compiler line is colored as the terminal colors it, through `libs/ansi`.
+- Ernest code is colored when the site is generated, by `ern`'s own lexer. A
+  console block is plain monospace, as written: `ern build` colors nothing
+  (report §11.2), and only the live shell shows the shell's colors.
 - A qualified name in code, or in backticks in prose, `List.sort` or
   `Markdown.Block`, links to its declaration in `/man/` where it is a `man/`
   heading, a type or a function, and no code on its page declares a type of
