@@ -92,9 +92,11 @@ collect(Acc) ->
 
 %% A directory of the test's own, for a program to leave a mark in, named
 %% by the run and a count so that no earlier run's is read; the test
-%% removes it once it has what it needs.
+%% removes it once it has what it needs, and the run's own directory, which
+%% `make` removes when the run ends (erl/app.mk), holds it, so that none is
+%% left where a test does not.
 scratch() ->
-    Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
                         "ern_os_" ++ os:getpid() ++ "_"
                         ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
