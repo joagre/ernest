@@ -52,6 +52,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 - The implementation is Erlang, OTP 29. The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern run`. `make` builds; `make test` tests.
 - Third-party code is listed in `THIRD_PARTY_LICENSES`. A borrowed file keeps its upstream header.
 - Work in the main checkout, on `main`. No worktree and no branch of a session's own: the user reads and edits this checkout.
+- A coding job of many steps goes to an agent, so that the discussion with the user goes on while it runs. The agent follows this file, and its report comes back to the user.
 - A commit names its paths, `git commit -F message -- path...`, never a bare `git commit` after `git add`. The user stages their own work while a session runs: read `git status --short` first for entries that are not yours, and leave the index as the user left it.
 
 ## Before code
