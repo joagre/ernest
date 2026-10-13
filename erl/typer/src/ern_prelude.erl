@@ -707,19 +707,52 @@ prelude_doc() ->
 %% name; taking every ern@ module on the path instead would make the
 %% shell's own module, which lives in `build/shell` and is on the same
 %% path, a standard library namespace (report §4.2, §11.2).
+%%
+%% Every check asks for them, and a build several times for each module,
+%% and decoding a chunk, which reads each of its bytes as data first
+%% (ern_chunk), costs about ten times reading the file. So the host holds, for
+%% each file the path gives, the bytes of its interface chunk and the
+%% interface they decode to, and decodes a chunk again only where its bytes
+%% differ from those held: what is answered is always the files' own. What
+%% is held is replaced whole where a file is added, removed or changed, and
+%% is never more than the files the path gave at the last call.
 -spec stdlib_interfaces() -> [#interface{}].
 stdlib_interfaces() ->
     Files = lists:usort(lists:append([filelib:wildcard(filename:join(Dir, "ern@*.beam"))
                                       || Dir <- code:get_path(),
                                          filename:basename(Dir) =:= "stdlib"])),
-    lists:append([stdlib_interface(File) || File <- Files]).
+    Held = persistent_term:get({?MODULE, stdlib_interfaces}, #{}),
+    Read = maps:from_list([{File, stdlib_interface(File, Held)} || File <- Files]),
+    Read =:= Held orelse persistent_term:put({?MODULE, stdlib_interfaces}, Read),
+    [Interface || File <- Files, {_, Interface} <- [maps:get(File, Read)]].
 
-%% A standard library module whose interface cannot be read is a broken
-%% build of the toolchain, said as such, never a namespace left out.
-stdlib_interface(File) ->
-    case ern_interface:read(File) of
-        {ok, #{interface := Interface}} ->
-            [Interface];
-        {error, Error} ->
-            error({broken_standard_library, File, Error, "rebuild it with make"})
+%% A file's interface chunk, its bytes copied out of the file's, and its
+%% interface: the one held where the bytes are those held, else the one they
+%% decode to. A standard library module whose interface cannot be read is
+%% a broken build of the toolchain, said as such, never a namespace left
+%% out.
+stdlib_interface(File, Held) ->
+    %% read raw, as the host's beam_lib reads, and not through its file
+    %% server, which a process of a started runtime that asks, laying out
+    %% the prelude's manual page (ern_cli), would wait on for each file
+    Beam = case file:read_file(File, [raw]) of
+               {ok, Bytes} -> Bytes;
+               {error, Reason} -> broken(File, file:format_error(Reason))
+           end,
+    Chunk = case beam_lib:chunks(Beam, [binary_to_list(ern_interface:chunk_name())]) of
+                {ok, {_, [{_, Found}]}} -> binary:copy(Found);
+                {error, beam_lib, _} -> broken(File, "not a compiled module")
+            end,
+    case Held of
+        #{File := {Chunk, _} = Same} ->
+            Same;
+        _ ->
+            case ern_interface:read(Beam) of
+                {ok, #{interface := Interface}} -> {Chunk, Interface};
+                {error, Error} -> broken(File, Error)
+            end
     end.
+
+-spec broken(file:filename(), string()) -> no_return().
+broken(File, Error) ->
+    error({broken_standard_library, File, Error, "rebuild it with make"}).

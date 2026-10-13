@@ -387,6 +387,38 @@ builtin_types_test() ->
     same(lists:sort(Base ++ Named),
          lists:sort([{Name, Arity} || {Name, Arity, _} <- ern_prelude:builtin_types()])).
 
+%% report §11.1: the standard library's interfaces are its files' own at
+%% every call, though the host holds those it last decoded: a file whose
+%% chunk has changed is decoded again, however soon after it was read, and
+%% a file the path no longer gives is no interface. A regression test,
+%% written with the hold
+stdlib_interfaces_follow_the_files_test() ->
+    Path = code:get_path(),
+    [Installed | _] = [Dir || Dir <- Path, filename:basename(Dir) =:= "stdlib"],
+    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+    Dir = filename:join([Base, "ern_prelude_" ++ os:getpid() ++ "_"
+                               ++ integer_to_list(erlang:unique_integer([positive])), "stdlib"]),
+    ok = filelib:ensure_path(Dir),
+    Copy = fun(Name, As) ->
+                   {ok, _} = file:copy(filename:join(Installed, Name), filename:join(Dir, As))
+           end,
+    Copy("ern@int.beam", "ern@int.beam"),
+    Copy("ern@list.beam", "ern@list.beam"),
+    Namespaces = fun() ->
+                         [Namespace || #interface{namespace = Namespace}
+                                           <- ern_prelude:stdlib_interfaces()]
+                 end,
+    true = code:set_path([Dir | [Other || Other <- Path, filename:basename(Other) =/= "stdlib"]]),
+    try
+        ?assertEqual([['Int'], ['List']], Namespaces()),
+        Copy("ern@char.beam", "ern@int.beam"),
+        ?assertEqual([['Char'], ['List']], Namespaces()),
+        ok = file:delete(filename:join(Dir, "ern@list.beam")),
+        ?assertEqual([['Char']], Namespaces())
+    after
+        code:set_path(Path)
+    end.
+
 %% The report's list and the code's equal, in order; where they are not, the
 %% failure shows first what each has that the other lacks.
 same(Report, Code) ->
