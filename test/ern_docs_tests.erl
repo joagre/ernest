@@ -1,10 +1,10 @@
 %% The documents held to what they name: every `§x.y`, appendix by its
 %% letter, and `E.n` written in a live document or in the code names a
-%% heading of the report, and the guide's own bare `§x.y` a heading of the
-%% guide, docs/decisions.md being history and not checked; the contents
-%% lists, the paths the documents name, the release's pages, the third
-%% parties' licenses, the glossary, the fault causes and the log's index
-%% are each current.
+%% heading of the report, and `guide §x.y`, `the guide's §x.y` and the
+%% guide's own bare `§x.y` a heading of the guide, docs/decisions.md
+%% being history and not checked; the contents lists, the paths the
+%% documents name, the release's pages, the third parties' licenses, the
+%% glossary, the fault causes and the log's index are each current.
 -module(ern_docs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -23,6 +23,9 @@
 -define(END, <<"<!-- /contents -->">>).
 
 %% report §11, docs/development.md "Building": `make xref`
+%% A regression test for the possessive, `the guide's §x.y`, read as a
+%% bare `§x.y`, the report's, until 2026-10-13; it does not read a
+%% curly apostrophe, which no document writes before a `§`.
 citations_resolve_test() ->
     Report = report(),
     Guide = ern_repository:read("guide/language.md"),
@@ -393,10 +396,12 @@ line_section_numbers(Line) ->
     end.
 
 %% Every citation in a document: {Kind, Target} with Kind report, guide,
-%% or bare, the bare ones resolved by the document's own convention.
+%% or bare, a `§x.y` after report or guide, or after the report's or the
+%% guide's, being that document's, and the bare ones resolved by the
+%% document's own convention.
 cites(Document) ->
     SectionCites = [{kind(Word), Number}
-                    || [Word, Number] <- matches(Document, "([Rr]eport|[Gg]uide)?,? ?"
+                    || [Word, Number] <- matches(Document, "([Rr]eport|[Gg]uide)?(?:'s)?,? ?"
                                                            "§([0-9]+(?:\\.[0-9]+)?)")],
     AppendixCites = [case Appendix of
                          [Letter] -> {report, "Appendix " ++ Letter};
