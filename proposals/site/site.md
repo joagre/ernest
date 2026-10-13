@@ -8,13 +8,7 @@ after 0.5.0; the generator can come earlier, whenever it is wanted.
 
 ## Open
 
-1. **The footer.** The homepage's carried the version, the license, the
-   source, the issues, and "served by ehttpd, written in Ernest" once true.
-   Every other page's carried the three depths with the reader's question
-   beside each, "show me", "help me write", "tell me the rules", then Library,
-   Shell, Changes, the page's source file with its revision date, and the
-   version. Previous and next sit above it.
-2. **Names in code.** Whether a function in a code block links to its library
+1. **Names in code.** Whether a function in a code block links to its library
    page and a type to its declaration, through `man/`'s declarations.
 
 ## Gaps

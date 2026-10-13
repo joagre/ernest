@@ -86,11 +86,20 @@ The site's files as served.
   see it run", the shell's entry with Start; Tour, "show me the language";
   Guide, "help me write programs"; Report, "tell me the rules".
 - Why is the link ending the introduction's paragraph, "the whole argument".
+- Deployment is reached from Install, from the guide's running chapter and
+  from Why's code by content, never from the homepage.
+
+## Every page, 2026-10-13
+
 - The header: Why, Tour, Guide, Report, Library, Shell, Install, and Source,
   the GitHub link. The terminal is labeled Shell, as `ern shell` names it.
   Features is not in the header.
-- Deployment is reached from Install, from the guide's running chapter and
-  from Why's code by content, never from the homepage.
+- One footer, the homepage's too, in two lines. First the rooms the header
+  leaves out: Features, Deployment, Changes, Diagnostics and the site map. Then
+  the page: its source file in the repository with its last commit date, the
+  version the site is built from, the license, the issues, and "served by
+  ehttpd, written in Ernest" once true.
+- Previous and next stand above the footer on a tour, guide or report page.
 
 ## The other pages, 2026-10-13
 
