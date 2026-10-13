@@ -403,8 +403,7 @@ of them; `ern(1)` is written only where it is older than §11's source, the manu
 §11.4 states it first; before the tag. It takes a no-op `make` from 16 s to about 4 s and each `make
 install` with it, so that the `install` test, which runs `make install` five times, spends about 20
 s there in place of about 87 s, well inside its limit. Also before the tag, decided with the user
-the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`,
-`make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
+the same day: an investigation, measured, of where `ern build`, `ern format`, the shell's `:load`, `make doc`, `make man` and `make manual` spend their time, whether `ern format` writes a module it
 leaves unchanged, and whether `:load` could take a build's current `.erc`, each step that costs more
 than its work fixed at its cause or planned with a date (the log's *Slow Tools Are Defects*).
 
@@ -481,6 +480,11 @@ log's *The First Release Is for Others*:
   `docs/development.md` gains a short table of which targets each kind of change runs. No test
   is removed or made shallower. CLAUDE.md's rule says which run guards which commit. The full
   suite took about twenty minutes and ran ten times on one day.
+- **Lighter documents**, right after the split (decided with the user on 2026-10-13). CLAUDE.md
+  and `docs/style.md`, about 8,000 words read at every session's start, lose their repetition and
+  their history, no rule dropped. The plan's finished milestones and releases go: a "Done" table
+  at its head keeps one line for each, its name, its date, its release and its log entry, and
+  CLAUDE.md's sentence on a finished milestone says so. Plain short prose throughout.
 - **The full review**, when the user says so: every reader over the whole of its area
   ([`full_review.md`](full_review.md)), the principles reader among them, so that no principles
   review runs beside it (decided 2026-10-13), and its findings worked.
