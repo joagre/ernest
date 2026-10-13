@@ -472,12 +472,15 @@ another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is t
 follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
 log's *The First Release Is for Others*:
 
-- **`make test` split in two**, taken early, the first commit after MVP 3.2's item 9 (decided
-  2026-10-13): a light run for every commit, the unit, style and documents tests in a few minutes,
-  and the full run as it is, the programs on real nodes, the deployment guide's runbook and the
-  measurements with their slow waits among them, before the commit that closes an item and before a
-  push; the Makefile's targets and CLAUDE.md's rule saying which run guards which commit. The full
-  suite took about twenty minutes by the end of MVP 3.2 and ran ten times on one day.
+- **`make test` split in two**, taken early: the next work, before anything else (decided with
+  the user on 2026-10-13). `make test` becomes the light run: the unit, style and documents tests,
+  a few minutes, for every commit. `make test-full` is the whole suite, for the commit that closes a
+  plan item and for a release. A proposal or document edit runs `make test-docs` alone.
+  `test-programs` is cut into the parts it bundles: `test-integration`, `test-nodes`,
+  `test-deployment`, `test-install` and `test-manual`, so that a change runs its own part.
+  `docs/development.md` gains a short table of which targets each kind of change runs. No test
+  is removed or made shallower. CLAUDE.md's rule says which run guards which commit. The full
+  suite took about twenty minutes and ran ten times on one day.
 - **The full review**, when the user says so: every reader over the whole of its area
   ([`full_review.md`](full_review.md)), the principles reader among them, so that no principles
   review runs beside it (decided 2026-10-13), and its findings worked.
