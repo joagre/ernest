@@ -407,13 +407,13 @@ doc_path(Options, Path, ErrorDevice) ->
             %% report §11.4: the tree is compiled and nothing but its pages
             %% is written
             case ern_build:compile_in_memory("ern doc", Options, Path, ErrorDevice) of
-                {0, Compiled} -> doc_dir(Options, Path, Compiled);
+                {0, Compiled} -> doc_dir(Options, Path, Compiled, ErrorDevice);
                 {Status, _} -> Status
             end;
         false ->
             filelib:is_regular(Path) orelse ern_build:fail("no such file " ++ Path),
             try
-                io:put_chars(page(Options, beam_of(Options, Path))),
+                io:put_chars(page(Options, beam_of(Options, Path), ErrorDevice)),
                 0
             catch
                 throw:{errors, File, Diagnostics} ->
@@ -463,9 +463,9 @@ beam_of(Options, Path) ->
 
 %% Report §11.4: a module's page, in CommonMark or with --man as a manual
 %% page.
-page(Options, Beam) ->
+page(Options, Beam, ErrorDevice) ->
     case lists:member(man, Options) of
-        true -> in_runtime(fun() -> ern_page:manual(Beam) end);
+        true -> in_runtime(fun() -> ern_page:manual(Beam) end, ErrorDevice);
         false -> ern_page:page(Beam)
     end.
 
@@ -473,20 +473,21 @@ page(Options, Beam) ->
 %% runs as a program's does, in a started runtime, the standard library's
 %% top-level bindings and the library's evaluated first, so that a function
 %% that reads one finds its value. What Compute gives is passed back to the
-%% job, which writes it. A fault there is a failure of ern itself, and a
-%% signal ends the job as it ends a run (§11.8).
-in_runtime(Compute) ->
+%% job, which writes it. A fault there is reported as a run's is, its cause
+%% and its trace whole on standard error (§11.2), and is then a failure of
+%% ern itself; a signal ends the job as it ends a run (§11.8).
+in_runtime(Compute, ErrorDevice) ->
     Caller = self(),
     Ref = make_ref(),
-    Options = #{init => fun() -> ern_rt:init_modules(['ern@markdown']) end,
-                faults => fun(_FaultReport, _Peer) -> ok end},
+    Options = reporting_options(#{init => fun() -> ern_rt:init_modules(['ern@markdown']) end},
+                                ErrorDevice),
     case ern_rt:run_main(fun() -> Caller ! {Ref, Compute()} end, <<"ern doc">>, Options) of
         ok -> receive {Ref, Result} -> Result end;
         {signal, Signal} -> throw({ended, ern_signals:ended(Signal)});
         Outcome -> erlang:error({libs_markdown, Outcome})
     end.
 
-doc_dir(Options, Path, Compiled) ->
+doc_dir(Options, Path, Compiled, ErrorDevice) ->
     SourceRoot = ern_build:source_root(Options, Path, Path),
     BuildRoot = ern_build:build_root(Options, SourceRoot),
     Files = ern_build:sources(Path),
@@ -499,7 +500,7 @@ doc_dir(Options, Path, Compiled) ->
         ++ [['Prelude'] || IsStdlib],
     case lists:member(man, Options) of
         true ->
-            man_dir(Modules, IsStdlib, BuildRoot, Compiled),
+            man_dir(Modules, IsStdlib, BuildRoot, Compiled, ErrorDevice),
             ern_build:sweep_pages(man, Path, SourceRoot, BuildRoot, Kept);
         false ->
             markdown_dir(Modules, IsStdlib, BuildRoot, Compiled),
@@ -524,8 +525,9 @@ markdown_dir(Modules, IsStdlib, BuildRoot, Compiled) ->
 %% Report §11.4: each manual page where `ern build` writes its module's
 %% .erc, in a file named as `man` finds it, `Ernest.Net.Http.3ern`, and the
 %% prelude's at the top of the standard library's own build root.
-man_dir(Modules, IsStdlib, BuildRoot, Compiled) ->
-    Pages = in_runtime(fun() -> man_pages(Modules, IsStdlib, BuildRoot, Compiled) end),
+man_dir(Modules, IsStdlib, BuildRoot, Compiled, ErrorDevice) ->
+    Pages = in_runtime(fun() -> man_pages(Modules, IsStdlib, BuildRoot, Compiled) end,
+                       ErrorDevice),
     lists:foreach(fun({Output, Page}) ->
                       ok = ern_build:make_dirs(Output),
                       ok = ern_build:write_output(Output, Page)
