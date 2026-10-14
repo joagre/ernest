@@ -2,7 +2,7 @@
 
 *Tentative: under discussion since 2026-10-14, and nothing of it is decided.*
 
-Three darlings of Ernest's type system, each weighed for what it costs against what it buys: the mark on every function that acts (sections 1 to 8), the reply mark `!` (section 9), and the reply's obligation (section 10). Section 11 sets Gleam's answers beside Ernest's, and section 12 weighs where many sources are folded into one type, with conversations as a middle design.
+Three darlings of Ernest's type system, each weighed for what it costs against what it buys: the mark on every function that acts (sections 1 to 8), the reply mark `!` (section 9), and the reply's obligation (section 10). Section 11 sets Gleam's answers beside Ernest's, section 12 weighs where many sources are folded into one type, with conversations as a middle design, and section 13 says what building it costs.
 
 ## 1. The question
 
@@ -241,7 +241,28 @@ The common case grows by `adapted(self(), …)`. An address also lets a monitor 
 
 **Its test.** It holds only if five programs read well under it, written before it is decided: `gathered` as a library; a server that answers some calls after others; a supervisor; a call made from inside a server; and the proxy.
 
-## 13. Before deciding
+## 13. What it costs to build
+
+It is no complete rework. The parser, the Hindley-Milner core, most of the emitter, the runtime's processes, nodes and exchange of code, the shell, and the logic of the standard library and the libraries stay. What changes is the type system's layer of effects, the processes' interface, and a large part of the documents. The figures were measured on 2026-10-14 and are rough.
+
+| Part | What changes | Size | Risk |
+|---|---|---|---|
+| The reply's obligation goes (section 10) | Mostly deletion: `ern_reply.erl`, 520 lines, about 28 places in the checker, the not-reply-carrying restriction and its `!`. §6.6, 1,330 words, keeps a call's rules at run time; §3.9, §11.5 and the soundness argument lose their parts on replies; the rejected programs and the catalog of diagnostics change with them. | a few days | low |
+| `!` printed or not (section 9) | Nothing, once the obligation goes. | none | none |
+| The mailbox alone, `receiving` for `with` (sections 1 to 8) | The checker: a send or an action no longer sets an effect, and only `receive`, `self` and a wrap do; effect variables and subsumption stay, and most of process-only goes. The word: the lexer, the parser, the formatter, the printer and the Emacs mode. Every Ernest source: about 1,670 lines that write `with`, across the standard library, the libraries, the shell, the examples and the tests, mostly by rote, the compiler naming the rest. The report's §0, §3.9, §4.5, §6.1, §9.4, §9.5, every signature of Appendix E, §11.5 and Appendix A's token; the guide's chapters 2 to 4. | one to two weeks | medium, mostly a sweep |
+| Conversations (section 12) | The runtime: an inbox for each conversation, a receive on it and its close, and `Reply` made a conversation of one answer. The checker: `Conversation(T)`, and at every spawn the check that a conversation stays in its process, on the analysis of captures that a spawn on a peer already has. The syntax: `receive c { … }`. If wraps go, every function that delivers later and every use of one. The proxy, rewritten. The report's §6.3 and §6.6, and the guide's chapters 4 and 5, rewritten. | three to four weeks, after its five programs | higher: new semantics |
+
+Every definition's hash changes, since Appendix H's forms hold types and effects. That costs nothing between releases, since each release stands on its own floor.
+
+**The order.**
+
+1. The reply's obligation first. It is deletion, depends on nothing else, and makes the type system smaller at once.
+2. The mailbox alone next. It is the largest sweep, of a kind already known.
+3. Conversations last, and only once their five programs read well.
+
+The first two together are about one milestone, the size of MVP 3.2's four weeks; conversations are one of their own. All of it lands best after 0.4.0 and before the tour, MVP 3.3, which teaches processes and would otherwise be written twice.
+
+## 14. Before deciding
 
 1. Read the signatures of the standard library, the shell, the examples and the libraries under the proposal: how many lose their mark, and how many keep it.
 2. Find what purity checking has caught: a guard, a `compare`, a size expression or a library function that acted where it should not have. The tests' rejected programs and the log are the places to look.
