@@ -12,12 +12,12 @@ export type Piece(a) = Piece(n : Int, value : a)
 
 type GatherMsg(a) = Collect(Reply(List(Piece(a)))) | Computed(Piece(a)) | Ended(Down)
 
-export fn gathered(numbers : List(Int), f : (Int) -> a) : List(Piece(a)) with m = {
+export fn gathered(numbers : List(Int), f : (Int) -> a with e) : List(Piece(a)) with m = {
     let gatherer = spawn(fn() = run(numbers, f));
     Address.callForever(gatherer, Collect)
 }
 
-fn run(numbers : List(Int), f : (Int) -> a) : Unit with GatherMsg(a) =
+fn run(numbers : List(Int), f : (Int) -> a with e) : Unit with GatherMsg(a) =
     receive {
         Collect(reply) -> {
             let me = self();

@@ -1,0 +1,29 @@
+// supervisor_today.ern: the guide's §6.6 pair.ern, a server under a
+// supervisor, copied as it stands. Compiles today.
+type CounterMsg = Add(amount : Int, reply : Reply(Int))
+
+let group : Address(Supervisor.Msg) =
+    spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
+
+let visits : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0)))
+
+let sales : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0)))
+
+fn count(total : Int) : Unit with CounterMsg =
+    receive {
+        Add(amount = amount, reply = reply) -> if amount < 0 then
+            fault("a negative amount")
+        else {
+            answer(reply, total + amount);
+            count(total + amount)
+        }
+    }
+
+fn add(counter : Address(CounterMsg), amount : Int) : Optional(Int) with m =
+    Address.call(counter, fn(reply) = Add(amount = amount, reply = reply), 1000)
+
+export fn main() : Unit with Never = {
+    Io.println(Io.show(add(visits, 2)) <> " " <> Io.show(add(sales, 5)));
+    Io.println(Io.show(add(visits, -1)));
+    Io.println(Io.show(add(visits, 1)) <> " " <> Io.show(add(sales, 1)))
+}
