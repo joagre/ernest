@@ -76,6 +76,8 @@ A function that receives is tied to its caller's mailbox type, so a library cann
 
 A design that lets a process receive on typed *conversations* beside its mailbox, each a tag on the host's one queue as Erlang's aliases are, `Reply` one of them, and a clause of `receive` naming its source, was weighed and set aside. It would add a concept, a check at every spawn that a conversation stays in its process, and a form of `receive`, to do inside a process what a process and a call already do; principle 5 decides, and principle 2 agrees. What would change it is a program that a process and a call cannot write well, found while writing the tour.
 
+What the set-aside design was for, moving a backlog of messages to another process, is a library of two functions over today's language, under `libs/` by E.0 and not in Appendix E: `drained(keep)`, every message of the caller's mailbox that `keep` says, taken in arrival order by a selective receive with `after 0`, and `refilled(messages)`, which puts them into the caller's own mailbox behind what it holds. A channel is then a `List(m)`, a value sent anywhere. It moves what has arrived, never what will arrive; redirecting the senders is the program's protocol. The tour's rolling upgrade, MVP 3.3, is the program that needs it, and it is written there, named for its subject, `Mailbox`.
+
 ## 5. The principles read again
 
 Today's design rests less on the five principles than on a premise: Ernest's first sentence speaks of pure functions, and pure means "affects nothing". Sections 2 and 3 keep the principles and drop the premise, so §0 is read again before any of them is decided:
