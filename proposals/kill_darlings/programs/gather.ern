@@ -1,5 +1,7 @@
-// gather.ern: section 12's first program, `gathered` as a library.
-// Written as the design would have it; nothing of it compiles today.
+// gather.ern: section 4's first program, `gathered` as a library.
+// Written as the design would have it; nothing of it compiles today. It takes
+// the open question's answer that wraps go: spawnMonitored delivers the Down to
+// an address, so it can reach the conversation. With wraps kept it cannot be written.
 export type Piece(a) = Piece(n : Int, value : a)
 
 type GatherMsg(a) = Computed(Piece(a)) | Ended(Down)

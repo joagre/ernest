@@ -1,7 +1,9 @@
-// cache.ern: section 12's second program, a server that answers some calls
+// cache.ern: section 4's second program, a server that answers some calls
 // after others, and calls a backend from inside its loop.
 // Written as the design would have it; nothing of it compiles today.
 type CacheMsg = Lookup(key : String, reply : Reply(String)) | Flush
+
+type StoreMsg = Fetch(key : String, reply : Reply(String))
 
 // `receiving CacheMsg` is the server's public protocol, the one mark left.
 // Replies wait in `pending` as plain values; one a backend call cannot answer
@@ -14,7 +16,7 @@ fn serve(pending : List(#(String, Reply(String))),
         Lookup(key = key, reply = reply) -> serve(#(key, reply) :: pending, backend)
       | Flush -> {
             List.forEach(pending, fn(#(key, reply)) =
-                match Address.call(backend, fn(r) = Fetch(key, r), 1000) {
+                match Address.call(backend, fn(r) = Fetch(key = key, reply = r), 1000) {
                     Some(value) -> answer(reply, value)
                   | None -> Unit
                 });
