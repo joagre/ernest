@@ -2349,6 +2349,55 @@ fn heavy(n : Int) : Int =
 
 Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
 
+**Many at once.** A compute is a call, and its caller waits for it. Work spread over the peers at once is a process for each piece, which computes and sends its piece home, spawned monitored so that its fault comes home too (§6.4). `Placed.computed` is each helper's whole work, so a piece that finds no peer runs here:
+
+```ernest
+// gathered.ern
+type Piece = Piece(n : Int, value : Either(Io.Error, Int))
+
+type GatherMsg = Computed(Piece) | Ended(Down)
+
+fn gathered(numbers : List(Int)) : List(Piece) with GatherMsg = {
+    let me = self();
+    List.forEach(numbers, fn(n) = {
+        let _ = spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = Placed.computed(n)))),
+                               Ended);
+        Unit
+    });
+    gather(List.size(numbers), 0, [])
+}
+
+// A helper that returned has sent its piece, and its Down keeps no order with
+// that message, so the gather ends once every helper has ended and each one
+// that returned has been heard from. owed counts the helpers that returned
+// and whose piece has not come; it is below 0 while a piece is ahead of its end.
+fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) with GatherMsg =
+    if running == 0 && owed == 0 then
+        pieces
+    else receive {
+        Computed(piece) -> gather(running, owed - 1, piece :: pieces)
+      | Ended(Down(reason = Returned)) -> gather(running - 1, owed + 1, pieces)
+      | Ended(_) -> gather(running - 1, owed, pieces)
+    }
+
+export fn main() : Unit with GatherMsg =
+    gathered([3, 1, 2])
+        |> List.sort(fn(a, b) = Int.compare(a.n, b.n))
+        |> List.forEach(fn(piece) =
+                            Io.println(Int.toString(piece.n) <> ": " <> Io.show(piece.value)))
+```
+
+```console
+$ ern run gathered.erc
+1: Right(1)
+2: Right(4)
+3: Right(9)
+```
+
+The pieces arrive in the order their computes end, so each carries its number, and `main` sorts them. A helper whose compute faulted sends no piece: its number is missing from the list, and `ern run` reports the fault, as it reports every fault (§6.3).
+
+In a burst the draw of two matters. Every piece reads the utilizations told before the burst began, so `least.ern`'s rule would send them all to one peer, where `Peer.compute` draws two peers at random for each piece and spreads them (report §8.7).
+
 A program that knows how busy it is better than its node's measure does, by a queue's depth or work it has promised, says so with `Peer.setUtilization(x)`, `x` from 0.0 to 1.0: from then on its node tells its peers that number, and answers it to a `Peer.utilization`, until the program sets it again or its run ends. A number outside the scale faults the caller (report Appendix E.27).
 
 **A result that comes later.** A program that is not to wait for the value spawns a process that computes it and sends it back, one message later:
