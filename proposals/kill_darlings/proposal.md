@@ -209,7 +209,7 @@ A receive needs one type, so many sources are folded into one, either where a me
 **The middle design: conversations.** A process keeps one public protocol and folds its conversations where it receives them.
 
 - A conversation is a typed inbox a process opens, holds and receives from. Its address travels anywhere, and the conversation never leaves its process.
-- The mailbox is the process's first conversation, opened at its spawn, `self()` its address. `receive { … }` receives on it, and `receive c { … }` on another.
+- The mailbox is the process's first conversation, opened at its spawn, `self()` its address. A clause of `receive` names the conversation it reads, and reads the mailbox where it names none (**The select** below).
 - `Reply(a)` is a conversation of one answer. `Address.call` opens one, puts its address in the request, receives one answer and closes it, and a late answer is dropped, as it is today.
 
 Ernest gains a concept and loses one: `Reply` becomes a case of `Conversation`. Receiving code composes, so `gathered` becomes a library function that opens its own conversation of its own private type, and works in any process. The helper process a function needs today to wait on something of its own mostly goes.
@@ -225,12 +225,25 @@ monitor(child, address(downs))             // into a conversation
 
 The common case grows by `adapted(self(), …)`. An address also lets a monitor deliver to a third process, which Erlang does not, and that is weighed on its own.
 
+**The select.** On the host a conversation is no queue of its own but a tag, a fresh reference, on messages in the process's one host mailbox, as Erlang's aliases are, and a receive on it is a selective receive on the tag. So every conversation and the mailbox share one queue in arrival order, and a receive over several is one host receive matching several tags: the earliest arrival wins, and no rule of fairness is needed. The syntax is a clause that names its source, the mailbox being the source a clause does not name:
+
+```ernest
+receive {
+    results: Computed(piece) -> …
+  | results: Ended(down) -> …
+  | Lookup(key = key, reply = reply) -> …
+  | after 1000 -> …
+}
+```
+
+That form covers one conversation, several and the mailbox, so `receive c { … }` is not needed and there is one `receive`. It costs the grammar an optional `ident ":"` before a clause's pattern; the checker types each clause against its source, the named `Conversation(t)` or the mailbox, and unifies the results as it does now; the emitter writes one host receive whose patterns carry each source's tag. A clause that names a conversation another process holds is refused by the check that a conversation stays in its process; one that names a closed conversation never matches, which is stated.
+
 **The proxy stays.** `libs/proxy` (Appendix G.7) is a process that keeps one address for a service across its end and its return. A conversation is the receiving side inside a process, so it does not remove the proxy's hop. It makes the proxy simpler inside: the service's messages arrive in its mailbox, and its finds and the service's `Down` in a conversation of their own, so it needs no message type beyond the service's. The hop itself is a different question, whether an address can follow a process that moves.
 
 **What it costs.**
 
 - A conversation must stay in its process. One captured by a lambda and spawned on the same node would let another process receive on it. That needs a check that it is bound to its process, as §3.11 checks a spawn on a peer, at every spawn.
-- A process that waits on its mailbox and a conversation at once, a server that serves while a call of its own is out, wants a select. It is rarer than in Gleam, since a library folds its own sources into its conversation's one type with `adapted`, but it is not never.
+- A process that waits on its mailbox and a conversation at once, a server that serves while a call of its own is out, wants a select. It is rarer than in Gleam, since a library folds its own sources into its conversation's one type with `adapted`, but it is not never. The select is below.
 
 **Weighed against the principles.**
 
@@ -239,7 +252,7 @@ The common case grows by `adapted(self(), …)`. An address also lets a monitor 
 - **Principle 5.** The count stays, with `Conversation` in place of `Reply`, and falls by the wrap if wraps go.
 - **Principle 1.** Erlang's aliases and Gleam's subjects are the reader's precedent.
 
-**Its test.** It holds only if five programs read well under it, written before it is decided: `gathered` as a library; a server that answers some calls after others; a supervisor; a call made from inside a server; and the proxy.
+**Its test.** It holds only if five programs read well under it, written before it is decided: `gathered` as a library; a server that answers some calls after others; a supervisor; a call made from inside a server; and the proxy. The first two, and the fourth inside the second, are under [`programs/`](programs/), `gather.ern` and `cache.ern`, written as the design would have them and compiled by nothing. What they do not show is a server that serves its mailbox while a call of its own is out, the select left open above.
 
 ## 13. What it costs to build
 
@@ -250,7 +263,7 @@ It is no complete rework. The parser, the Hindley-Milner core, most of the emitt
 | The reply's obligation goes (section 10) | Mostly deletion: `ern_reply.erl`, 520 lines, about 28 places in the checker, the not-reply-carrying restriction and its `!`. §6.6, 1,330 words, keeps a call's rules at run time; §3.9, §11.5 and the soundness argument lose their parts on replies; the rejected programs and the catalog of diagnostics change with them. | a few days | low |
 | `!` printed or not (section 9) | Nothing, once the obligation goes. | none | none |
 | The mailbox alone, `receiving` for `with` (sections 1 to 8) | The checker: a send or an action no longer sets an effect, and only `receive`, `self` and a wrap do; effect variables and subsumption stay, and most of process-only goes. The word: the lexer, the parser, the formatter, the printer and the Emacs mode. Every Ernest source: about 1,670 lines that write `with`, across the standard library, the libraries, the shell, the examples and the tests, mostly by rote, the compiler naming the rest. The report's §0, §3.9, §4.5, §6.1, §9.4, §9.5, every signature of Appendix E, §11.5 and Appendix A's token; the guide's chapters 2 to 4. | one to two weeks | medium, mostly a sweep |
-| Conversations (section 12) | The runtime: an inbox for each conversation, a receive on it and its close, and `Reply` made a conversation of one answer. The checker: `Conversation(T)`, and at every spawn the check that a conversation stays in its process, on the analysis of captures that a spawn on a peer already has. The syntax: `receive c { … }`. If wraps go, every function that delivers later and every use of one. The proxy, rewritten. The report's §6.3 and §6.6, and the guide's chapters 4 and 5, rewritten. | three to four weeks, after its five programs | higher: new semantics |
+| Conversations (section 12) | The runtime: an inbox for each conversation, a receive on it and its close, and `Reply` made a conversation of one answer. The checker: `Conversation(T)`, and at every spawn the check that a conversation stays in its process, on the analysis of captures that a spawn on a peer already has. The syntax: a clause's source. If wraps go, every function that delivers later and every use of one. The proxy, rewritten. The report's §6.3 and §6.6, and the guide's chapters 4 and 5, rewritten. | three to four weeks, after its five programs | higher: new semantics |
 
 Every definition's hash changes, since Appendix H's forms hold types and effects. That costs nothing between releases, since each release stands on its own floor.
 
