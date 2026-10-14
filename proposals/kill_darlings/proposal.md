@@ -2,7 +2,7 @@
 
 *Tentative: under discussion since 2026-10-14, and nothing of it is decided.*
 
-Three changes to the type system, each weighed for what it costs against what it buys, in the order they would be built: the reply's obligation goes (section 2); the mark on every function that acts goes, and `with` becomes `receiving` (section 3); and receiving kept composing across a process, as it does today (section 4). Section 5 reads §0 against them, section 6 says what building them costs, and section 7 what to find out first.
+Three changes to the type system, each weighed for what it costs against what it buys, in the order they would be built: the reply's obligation goes (section 2); the mark on every function that acts goes, and `with` becomes `receiving` (section 3); and receiving kept composing across a process, as it does today (section 4). Section 5 reads §0 against them, section 6 says what building them costs, section 7 what the guide teaches, and section 8 what to find out first.
 
 ## 1. What a type must carry
 
@@ -72,7 +72,7 @@ A callback that receives makes its caller receive, so `List.map` and its kind ke
 
 ## 4. Receiving composes across a process
 
-A function that receives is tied to its caller's mailbox type, so a library cannot wait on messages of its own inside the calling process: `gathered` in the guide's §8.1 works only where the mailbox is `GatherMsg`. Ernest's answer is already there. The library's receiving runs in a process of its own, and the caller gets the result by a call, which leaves the caller's mailbox untouched. That is Erlang's `gen_server` idiom, and it costs one spawn and one call. [`programs/gather_today.ern`](programs/gather_today.ern) is `gathered` written so, under today's language, thirty lines, and `main_today.ern` runs it. The report changes nothing for it, since it uses only what the report states. The guide teaches it once this is decided: a passage in §4.4, after `Address.call`, with this program, and §8.1's *Many at once* pointing at it, since today that example is written into `main` and a reader who copies it finds it cannot be a library.
+A function that receives is tied to its caller's mailbox type, so a library cannot wait on messages of its own inside the calling process: `gathered` in the guide's §8.1 works only where the mailbox is `GatherMsg`. Ernest's answer is already there. The library's receiving runs in a process of its own, and the caller gets the result by a call, which leaves the caller's mailbox untouched. That is Erlang's `gen_server` idiom, and it costs one spawn and one call. [`programs/gather_today.ern`](programs/gather_today.ern) is `gathered` written so, under today's language, thirty lines, and `main_today.ern` runs it. The report changes nothing for it, since it uses only what the report states; what the guide teaches is section 7's.
 
 A design that lets a process receive on typed *conversations* beside its mailbox, each a tag on the host's one queue as Erlang's aliases are, `Reply` one of them, and a clause of `receive` naming its source, was weighed and set aside. It would add a concept, a check at every spawn that a conversation stays in its process, and a form of `receive`, to do inside a process what a process and a call already do; principle 5 decides, and principle 2 agrees. What would change it is a program that a process and a call cannot write well, found while writing the tour.
 
@@ -97,7 +97,19 @@ No complete rework. The parser, the Hindley-Milner core, most of the emitter, th
 
 Every definition's hash changes, since Appendix H's forms hold types and effects, which costs nothing between releases. The two together are about one milestone, the size of MVP 3.2's four weeks, and land best after 0.4.0 and before the tour, MVP 3.3, which teaches processes and would otherwise be written twice.
 
-## 7. Before deciding
+## 7. The guide
+
+The guide changes with the report, section by section, and the language guide alone: the deployment guide teaches no type.
+
+**For section 2.** §4.2, *A reply is answered once*, is rewritten under a new title, *A reply*: a `Reply` in a message type says its sender waits and for what, `answer` is the one thing a server does with it, and a reply is a value a server keeps until it can answer, in a list as anywhere else. §4.4 teaches `Address.call(counter, Get, 1000)` first, the constructor's name where the request carries only its reply, and the lambda after it for one that carries more. The queue example stays, its sentence "each reply is answered once on every path" going. `callForever`'s paragraph gains the one sentence that a callee that lives on without answering holds its caller. §2.9's *Marks in a printed type* loses `a!`, and §4.8's exercise on a reply dropped goes.
+
+**For section 3.** §1's first example, `send : (Address(a), a) -> Unit with m+`, is shown without its mark. §1's *Work through a process, in a function that says it does none* goes: a function that only acts says nothing, and the passage that taught the mark teaches its absence instead, in one sentence, where `with` is first met: a function that receives names what it receives, `receiving Int`, and one that only sends names nothing, as in ML and Erlang. §2's sentence "one that only sends, such as `Io.println`, is written `with m`" goes. §2.9's *Pure where the result depends on the arguments alone* becomes *Receives nothing*, or goes. §3.4, *Pure functions and functions with a mailbox effect*, becomes *Functions that receive*; §3.5 keeps effect polymorphism for callbacks that receive, and its *Process-only* paragraph and the `+` mark go. Every signature the guide prints, in its `:type` consoles above all, is written again as the shell then prints it, which `make test-guide` holds the guide to.
+
+**For section 4.** A passage in §4.4, after `Address.call` and the queue, *A library that waits*: a function that must wait on messages of its own, from whatever process calls it, is a process and a call, with `gather_today.ern` as `gather.ern` beside a `collect.ern` that runs it, and three sentences after the console: the library's message type stays private, `Collect` stands as the function that builds the request, and `gather` ends on what it waits for and needs no deadline. §8.1's *Many at once* then says it is §4.4's `gathered` with a compute as each helper's work, and keeps its burst. This passage does not wait on sections 2 and 3: it is written once the proposal is decided either way, and loses only `with m` on `gathered` under section 3.
+
+Each chapter's prediction exercises are read again for a prediction the changes alter, §3.7's and §4.8's first.
+
+## 8. Before deciding
 
 1. Find what the obligation check and purity checking have caught: the rejected programs under `test/` and the log's entries on replies, guards and members.
 2. Write a server that holds pending replies, a server with a supervisor and a burst of computes gathered under today's design and under sections 2 and 3, and read them side by side.
@@ -105,3 +117,4 @@ Every definition's hash changes, since Appendix H's forms hold types and effects
 4. Settle the reply rule for guards on its new basis, and check the soundness argument for effects against it.
 5. Decide whether §8.7's held replies stay: they end a call whose reply a failed spawn took, and rest on a reply's type, not on the obligation.
 6. Read §0 again, as section 5 says.
+7. Read the guide's chapters 1 to 4 against section 7 before the sweep, so that nothing it teaches is taught twice or against the new rule.
