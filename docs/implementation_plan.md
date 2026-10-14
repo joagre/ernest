@@ -16,7 +16,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 **MVP 3.2 is in progress.** Its items 1 to 9 are done, code crossing with a spawn, the bare node,
 `Code`, the pick and the deployment guide, and its item 10, Ernest 0.4.0, waits for the user's
-word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects. The split of `make test`, taken early from MVP 3.9, is done.
+word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects; and, decided on 2026-10-14, MVP 3.26 whole, two subtractions from the type system, since a release for others should not ship a mark the next release removes (the log's *Kill Darlings*). The split of `make test`, taken early from MVP 3.9, is done.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -57,6 +57,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | 2026-10-10 | | [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md); *The Canonical Form, Built*, *The Code Table, Built*, *The Spawn by Hash, Built*, *The Shell's Reload by Hash, Built*, *Termination Told, Built*, *Standing and the Refusal, Built*, *What MVP 3.1 Costs, Measured*, *MVP 3.1 Read*, *MVP 3.1 Done*, *The Feedback Pass Before MVP 3.2*, *A Milestone for Placing Work by Load*, *The Back End Last* |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](../proposals/balancer/suggestion.md); *Placing Work by Name* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | items 1 to 9 done by 2026-10-13; item 10, the release, waits for the user's word | | below |
+| MVP 3.26 | kill darlings: the reply's obligation goes, and the mark on every function that acts, `with` becoming `receiving`; before MVP 3.2's item 10, the tag | decided 2026-10-14 with the user; `proposals/kill_darlings/` is the specification | | below |
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
@@ -360,7 +361,7 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
    exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say what a
    program written for 0.3.1 changes and what the shell does not yet do beside a node, attach to it
-   with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0, but tables in `libs/markdown`, decided with the user the same day, the log's *Tables in `libs/markdown`*), the README rewritten from
+   with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0, but tables in `libs/markdown`, decided with the user the same day, the log's *Tables in `libs/markdown`*; reopened 2026-10-14 for MVP 3.26 alone, the log's *Kill Darlings*, whose two subtractions the notes then state: `with` written `receiving` where a function receives and nowhere else, and no `!`), the README rewritten from
    `proposals/scratch/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
    changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
@@ -413,6 +414,64 @@ carries, measured before the tag.
 
 ---
 
+## MVP 3.26 (kill darlings), about four weeks
+
+Decided with the user on 2026-10-14 (the log's *Kill Darlings*). The specification is
+[`proposals/kill_darlings/proposal.md`](../proposals/kill_darlings/proposal.md), its findings
+[`findings.md`](../proposals/kill_darlings/findings.md), and its programs the three pairs under
+`programs/`, each as today and as it will be. Two subtractions from the type system, built before
+MVP 3.2's item 10, which reopens the decision of 2026-10-13 that nothing more goes into 0.4.0:
+a release that is for others does not ship a mark the next release removes, every 0.4.0 program
+would otherwise break at 0.5.0 on each `with` line, and the tour would teach processes twice. The
+tag slips about three weeks. MVP 3.2's five speed changes before the tag run meanwhile, by agents,
+since they touch `ern doc`, the Makefile and the reading of `.erc`s and not the checker.
+
+Each item: the report first, its revision date and the soundness paragraph of each rule changed in
+the same commit; then the log; then the code, by an agent from the settled report text; then
+`make test-full`, and a stop. The proposal's section 6 names what each touches beyond the code.
+
+0. **§0 read again**, as `principles_review.md` reads §0 against what it decided, with the user,
+   before item 1: the sentence that defines *pure* goes, since the report then calls nothing pure
+   and describes a function without `receiving` as one that receives nothing; principle 3's
+   "visible in the code or in the type" says it means visible where it happens, as failure is; and
+   whether a principle says what a type carries, what keeps values and messages safe and nothing
+   more, is decided there. CLAUDE.md's first line and the README's change with §0.
+1. **The reply's obligation goes.** §6.6 keeps what a call does at run time, the deadline, `None`
+   or a fault where the callee ends before it answers, a late or second answer dropped, and the
+   one sentence that a callee that lives on without answering holds a `callForever` caller; it
+   loses the obligation and the rules for where a reply may stand. §3.9's three inferred
+   restrictions become two, §11.5's `!` goes, §8.7's held replies stay, since they rest on a
+   reply's type and not on the obligation, and `soundness.md` loses its part on replies. Then
+   `ern_reply.erl` goes with the checker's places that call it, the catalog of diagnostics is
+   written again, the rejected programs of the reply rule go or change, and
+   `examples/typed_channels.ern`'s comment on a reply answered twice changes to what is then
+   true. Code changes nowhere else: the three programs' `_today` and `_after` files differ by
+   no line under this item.
+2. **The mark on every action goes.** `receiving M` in place of `with M`, on a function that
+   receives, calls `self`, asks for a message to be delivered into its mailbox, or calls one that
+   does, and no mark on any other action. The report's §0, §2.3's reserved words, §3.9, where
+   the process-only restriction survives for a `receive` with an `after` clause alone, printed
+   `+` there and nowhere else, §3.11, where `Code.running` asks of its function a result type
+   `Unit` alone, §4.5, §4.6, which takes ML's value restriction for a top-level `let` in place of
+   the process-only rule, closing the hole the findings' item 3 shows, §6.1, §9.4, §9.5, every
+   signature of Appendix E, E.21, which gains `Process.current : () -> Process` so that a function
+   that needs its identity and not its mailbox names none, E.28, §11.5, and Appendix A's token;
+   `soundness.md`'s part on effects rewritten, the one claim argued as a paragraph of its own,
+   that every message a `receive` matches is of its process's mailbox type; `docs/style.md`'s
+   glossary and Appendix F, where *obligation*, *pure function* and *process-only* go or change
+   and *receiving* enters. Then the lexer, the parser, the formatter, the printer, the Emacs mode
+   and the checker; every Ernest source, about 1,670 lines that write `with`, the compiler naming
+   the rest, the proposals' programs the tests run among them; the catalog of diagnostics; the
+   guide as the proposal's section 7 and the findings' item 6 say, the front page's *What Ernest
+   adds* and the README's lines the test holds equal to it among them; and `man/` at the release.
+3. **A library that waits**, the guide's §4.4 passage,
+   [`guide_passage.md`](../proposals/kill_darlings/guide_passage.md), after the queue, and §8.1's
+   *Many at once* pointing at it, checked by `make test-guide`.
+
+The tour's library `Mailbox`, `drained(keep)` and `refilled(messages)`, two functions over the
+language as it stands, is MVP 3.3's, written where its rolling upgrade needs it (the proposal's
+section 4).
+
 ## MVP 3.27 (measured across machines), about a week
 
 A milestone made on 2026-10-13, when MVP 3.2's item 7 measured the exchange, the picks and the
@@ -459,6 +518,13 @@ test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordere
   long, sends them all below. §11.6 says so first, then `ern format` and its tests, then `make
   format` lays every source and example out once, so that the tour is written in the layout
   it keeps.
+- **Second, the library `Mailbox`** under `libs/`, decided with the user on 2026-10-14 (the
+  log's *Kill Darlings*): `drained(keep)`, every message of the caller's mailbox that `keep` says,
+  in arrival order, by a selective receive with `after 0`, and `refilled(messages)`, which puts
+  them into the caller's own mailbox behind what it holds; a channel is a `List(m)`, a value sent
+  anywhere. It moves what has arrived, never what will arrive, which its doc block says; redirecting
+  the senders is the program's protocol. Written where the rolling upgrade's chapter needs it, by
+  Appendix E.0 a library's and not the standard library's.
 - **The outline first, written with the user**, as a design is: the chapters, the program's
   growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
   start from, not a decision: the counter and its client calling with a reply; faults, restarts

@@ -1,6 +1,6 @@
 # Kill Darlings
 
-*Tentative: under discussion since 2026-10-14, and nothing of it is decided.*
+*Decided with the user on 2026-10-14, sections 2 and 3 and section 4's library; built as MVP 3.26 (the plan) before 0.4.0's tag, by the log's *Kill Darlings*. This is the record of its design and does not change again; the report owns the rules once built.*
 
 Three changes to the type system, each weighed for what it costs against what it buys, in the order they would be built: the reply's obligation goes (section 2); the mark on every function that acts goes, and `with` becomes `receiving` (section 3); and receiving kept composing across a process, as it does today (section 4). Section 5 reads §0 against them, section 6 says what building them costs, section 7 what the guide teaches, and section 8 what to find out first.
 
