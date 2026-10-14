@@ -16,7 +16,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 **MVP 3.2 is in progress.** Its items 1 to 9 are done, code crossing with a spawn, the bare node,
 `Code`, the pick and the deployment guide, and its item 10, Ernest 0.4.0, waits for the user's
-word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects; and, decided on 2026-10-14, MVP 3.26 whole, two subtractions from the type system, since a release for others should not ship a mark the next release removes (the log's *Kill Darlings*). The split of `make test`, taken early from MVP 3.9, is done.
+word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects; and, decided on 2026-10-14, MVP 3.26 whole, two subtractions from the type system, since a release for others should not ship a mark the next release removes (the log's *Kill Darlings*). MVP 3.26 starts on the user's word, and the speed changes and the tests' defects run beside it, by agents, since neither waits on the other. The split of `make test`, taken early from MVP 3.9, is done.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
