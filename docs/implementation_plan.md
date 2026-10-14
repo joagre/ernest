@@ -452,6 +452,13 @@ user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about dep
 last chapters need, and before MVP 3.9, whose newcomer reads it: it is the language's hardest
 test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordered*).
 
+- **First, a clause's body all or none** (decided with the user on 2026-10-14, the log's *Clause
+  Bodies All or None*): in a `match` or a `receive`, every clause's body stands beside its
+  pattern, or every one goes on the line below it, indented; a block's `{` stays after the
+  arrow. They stay beside where every one fits, and one that does not, a block or a body too
+  long, sends them all below. §11.6 says so first, then `ern format` and its tests, then `make
+  format` lays every source and example out once, so that the tour is written in the layout
+  it keeps.
 - **The outline first, written with the user**, as a design is: the chapters, the program's
   growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
   start from, not a decision: the counter and its client calling with a reply; faults, restarts
