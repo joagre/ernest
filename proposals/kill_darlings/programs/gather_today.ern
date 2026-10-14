@@ -1,0 +1,35 @@
+// gather_today.ern: `gathered` as a library under today's language. The
+// library's receiving runs in a process of its own, and the caller gets the
+// result by a call, which leaves the caller's mailbox untouched. Compiles today.
+export type Piece(a) = Piece(n : Int, value : a)
+
+type GatherMsg(a) = Collect(Reply(List(Piece(a)))) | Computed(Piece(a)) | Ended(Down)
+
+export fn gathered(numbers : List(Int), f : (Int) -> a) : List(Piece(a)) with m = {
+    let gatherer = spawn(fn() = run(numbers, f));
+    Address.callForever(gatherer, Collect)
+}
+
+fn run(numbers : List(Int), f : (Int) -> a) : Unit with GatherMsg(a) =
+    receive {
+        Collect(reply) -> {
+            let me = self();
+            List.forEach(numbers, fn(n) = {
+                let _ = spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = f(n)))),
+                                       Ended);
+                Unit
+            });
+            answer(reply, gather(List.size(numbers), 0, []))
+        }
+    }
+
+// A helper that returned has sent its piece, and its Down keeps no order with
+// that message; owed counts the helpers that returned whose piece has not come.
+fn gather(running : Int, owed : Int, pieces : List(Piece(a))) : List(Piece(a)) with GatherMsg(a) =
+    if running == 0 && owed == 0 then
+        pieces
+    else receive {
+        Computed(piece) -> gather(running, owed - 1, piece :: pieces)
+      | Ended(Down(reason = Returned)) -> gather(running - 1, owed + 1, pieces)
+      | Ended(_) -> gather(running - 1, owed, pieces)
+    }

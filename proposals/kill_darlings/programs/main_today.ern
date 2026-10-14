@@ -1,0 +1,5 @@
+export fn main() : Unit with Never =
+    GatherToday.gathered([3, 1, 2], fn(n) = n * n)
+        |> List.sort(fn(a, b) = Int.compare(a.n, b.n))
+        |> List.forEach(fn(piece) =
+                            Io.println(Int.toString(piece.n) <> ": " <> Int.toString(piece.value)))
