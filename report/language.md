@@ -36,13 +36,39 @@ Every function runs inside a process, an execution of a function with a mailbox 
 
 Five principles. Principles 2 to 5 are constructive; when following them yields code that surprises, principle 1 overrides.
 
-1. Least surprise decides. A design surprises when a reader who knows the rest of Ernest would predict different code from the same requirement. The resulting code decides, not the rule. The reader knows Ernest first. Where Ernest's own rules do not decide, the reader knows types as Standard ML and OCaml have them, and values and processes as Erlang has them, and no other language; a form is not admitted because another language has it. Where Ernest departs from what that reader predicts, the report states the departure as a rule.
-2. One way, one job, in the language and prelude. No variants for the same thing, no two concepts that overlap. The standard library may pair functions for convenience. A second spelling of what the language already writes enters only where the first would nest where the reader reads a sequence, repeat a body, rebuild what a pattern already holds, or pair each of a record's fields with the declaration of the same name in one namespace; one that only shortens stays out. A literal form enters where the reader of principle 1 predicts it.
-3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. A top-level binding is visible when its name appears at the use site, or, in a fill, when the use site names its namespace and the record's declaration names its field (§5.6). A rule the type decides is checked when the program is compiled; one the value decides is a value, a message, or a fault when it runs (§7). The compiler refuses what the text alone shows can have no effect, a value dropped, a clause that cannot run, and accepts what the text shows only unused; there is no warning. Where a check refuses a program that would run, the rule is stated and its error names what to write.
-4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
-5. Small: few concepts, few primitives, few reserved words. The count is the language's, its concepts, its primitives and its reserved words; the standard library is bounded by Appendix E.0's rules, and a function is there where a reader who knows the type looks for it. How many programs ask for a feature decides nothing, for it or against it. A feature costs a program that does not use it nothing: no argument, no word, and no name of it is written there. Every function the prelude or a library names is a value, taken, passed and stored as any function is. One that is not is a primitive, named where the report states it and counted here. No rule of the language exists for the runtime's or a library's convenience: a cost the runtime cannot bear is a limit the report states, never a form the compiler refuses.
+1. Least surprise decides.
 
-**The host.** Ernest runs on a host runtime (§10). A rule of the host is a rule of Ernest only where this report states it as Ernest's own. A host rule whose outcome the program sees, a value or a fault, is taken and stated. One whose outcome would be silent, a truncation, a coerced value, a fault made false, is met by a check on the value or a refusal of the form, and the cost of the check falls on that form alone. An outcome that comes while the host starts, before the runtime runs, is the host's, and the report states it. Where the report is silent, the runtime carries the host's rule without letting it show.
+   A design surprises when a reader who knows the rest of Ernest would predict different code from the same requirement. The resulting code decides, not the rule.
+
+   The reader knows Ernest first. Where Ernest's own rules do not decide, the reader knows types as Standard ML and OCaml have them, and values and processes as Erlang has them, and no other language; a form is not admitted because another language has it. Where Ernest departs from what that reader predicts, the report states the departure as a rule.
+
+2. One way, one job, in the language and prelude.
+
+   No variants for the same thing, no two concepts that overlap. The standard library may pair functions for convenience.
+
+   A second spelling of what the language already writes enters only where the first would nest where the reader reads a sequence, repeat a body, rebuild what a pattern already holds, or pair each of a record's fields with the declaration of the same name in one namespace; one that only shortens stays out. A literal form enters where the reader of principle 1 predicts it.
+
+3. Nothing invisible.
+
+   Control flow, communication, and failure are visible in the code or in the type. A top-level binding is visible when its name appears at the use site, or, in a fill, when the use site names its namespace and the record's declaration names its field (§5.6).
+
+   A rule the type decides is checked when the program is compiled; one the value decides is a value, a message, or a fault when it runs (§7).
+
+   The compiler refuses what the text alone shows can have no effect, a value dropped, a clause that cannot run, and accepts what the text shows only unused; there is no warning. Where a check refuses a program that would run, the rule is stated and its error names what to write.
+
+4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
+
+5. Small: few concepts, few primitives, few reserved words.
+
+   The count is the language's, its concepts, its primitives and its reserved words; the standard library is bounded by Appendix E.0's rules, and a function is there where a reader who knows the type looks for it. How many programs ask for a feature decides nothing, for it or against it.
+
+   A feature costs a program that does not use it nothing: no argument, no word, and no name of it is written there. Every function the prelude or a library names is a value, taken, passed and stored as any function is. One that is not is a primitive, named where the report states it and counted here.
+
+   No rule of the language exists for the runtime's or a library's convenience: a cost the runtime cannot bear is a limit the report states, never a form the compiler refuses.
+
+**The host.** Ernest runs on a host runtime (§10). A rule of the host is a rule of Ernest only where this report states it as Ernest's own. A host rule whose outcome the program sees, a value or a fault, is taken and stated. One whose outcome would be silent, a truncation, a coerced value, a fault made false, is met by a check on the value or a refusal of the form, and the cost of the check falls on that form alone.
+
+An outcome that comes while the host starts, before the runtime runs, is the host's, and the report states it. Where the report is silent, the runtime carries the host's rule without letting it show.
 
 **Time.** A wait of the program's ends by the program's time, by the party it waits on, or by a time of the host's that the report states as the host states it; the runtime chooses no time of its own and retries nothing.
 

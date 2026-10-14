@@ -7907,6 +7907,8 @@ Two references to a paragraph changed with it: §8.7's "a rule of this paragraph
 
 The guides, written to teach, had far less of it, and took 20 breaks by the same rule, 15 in the language guide and 5 in the deployment guide. Three sentences that the breaks left beside the wrong topic moved to their own: the runtime's words on whom the end waits for now follow the wait, a silent peer's 45 to 75 seconds stand with the loss they time, and the pointer to the language guide's §8.1 closes the paragraph on how a peer is picked. The language guide's "for ever" is "forever", and the deployment guide's §6 no longer joins a look's cost to what a look reads with a colon. §13's answers stay one paragraph each, as every answer there is.
 
+The five principles of §0 read the same way, whitespace alone: each item's first sentence, the principle in short, stands on its own line, and what it says more follows in paragraphs inside the item, broken where it turns; principle 4, one sentence, stays whole. **The host.** breaks before what the host does as it starts.
+
 ## Acknowledgments and a Dedication, 2026-10-14
 
 Decided with the user on 2026-10-14. `ACKNOWLEDGMENTS.md` names the people Ernest stands on, in two lists: the Erlang people, and those beyond Erlang. It names each by name alone, without what they did. A line of what one person did says less than they did, and every such line makes a forgotten name easier to miss.
