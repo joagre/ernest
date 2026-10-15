@@ -126,12 +126,61 @@ notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design, and most of its parts exist already. The Erlang runtime gives processes, faults delivered as messages to the processes that watch, and code replaced while a program runs. Gleam showed that a statically typed language fits that runtime, and Ernest follows it in much: Hindley-Milner inference, `fn` and the pipe `|>`, the update `Con(..x, f = v)`, and foreign types and functions as the way to Erlang code. What Ernest adds is where the parts meet:
+These rules come from one design, and most of its parts exist already. The Erlang runtime gives processes, faults delivered as messages to the processes that watch, and code replaced while a program runs; the types are ML's, which Gleam brought to that runtime; and a definition known by the hash of its form is Unison's. What Ernest adds is where the parts meet:
 
-- **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver: an address's type is the type of the mailbox it reaches.
-- **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
-- **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
-- **One build on every node.** Values cross between nodes and code does not: a message is checked at the sender against the type the receiver was compiled with, and a value bound to its node, a function, a resource or an address of one, is refused at a service or a spawn.
+- **The mailbox in the function's type.** A process receives one type of message, and a function that receives says which, `with CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads.
+- **Code known by its hash.** A definition is known by the hash of its form, so a module has as many versions as it has had, each named apart, and a running process takes a new version of its function as a message. A spawn carries its function to a peer that lacks it, so any node can run anything: a bare node joins with no program of its own, and work is placed where there is room, with no deployment first.
+- **A distribution built for a WAN.** A node lists its peers by name, public key and address, accepts a connection from a listed key alone, and opens one TLS connection to a peer when an operation first needs it. No mesh and no port mapper: the key is the identity, and two nodes on two networks are the ordinary case.
+- **Little else.** Two concepts, five principles, one way for each thing, and a report of three files that is the whole language.
+
+The first two refusals above are the first bullet at work. The other two bullets show as programs too, taught in §4.6 and §8; here only the shape matters.
+
+**Code known by its hash.** The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old version runs on wherever a process still runs it:
+
+```ernest-fragment
+type CounterMsg =
+    Inc(Int)
+  | Get(reply : Reply(Int))
+  | Upgrade(next : (Int) -> Unit with CounterMsg)
+
+fn count(total : Int) : Unit with CounterMsg =
+    receive {
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+      | Upgrade(next = next) -> next(total)
+    }
+
+send(counter, Upgrade(next = countTwice))
+```
+
+The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every one it reaches, before the process starts. `foo` may be a bare node, started with a configuration and no program:
+
+```ernest-fragment
+match Peer.spawn("foo", fn() = count(0), 5000) {
+    Right(counter) -> send(counter, Inc(5))
+  | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
+}
+```
+
+**Built for a WAN.** A node is a program started with a configuration directory. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name the key gives it, and is opened over TLS when an operation first needs it:
+
+```json
+{
+  "listen": "0.0.0.0:8654",
+  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=\n-----END PUBLIC KEY-----\n",
+  "peers": [
+    {
+      "name": "foo",
+      "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAbcsDUdMBCWTaHU5iYs2EHT4fDQzaUBer/dL+n5DPJrk=\n-----END PUBLIC KEY-----\n",
+      "network-address": "foo.example.net:8654"
+    }
+  ],
+  "services": {}
+}
+```
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
@@ -2309,7 +2358,7 @@ foo computed 25
 $ ern stop --config-dir foo
 ```
 
-The compute takes with it the values the lambda captured, and nothing more: the peer holds `heavy` by its hash, since it runs the same build, and no code crosses (report §8.7). On the peer the function has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service. Its value crosses back at the type the compiler found where `compute` is written, which is known whole there and is bound to no node (§8.4).
+The compute takes with it the values the lambda captured, and nothing more. The peer holds `heavy` by its hash, since both nodes run one build; a peer that lacked it would be sent the definition, with every one it reaches, before the process starts (report §8.7, *The exchange*; the deployment guide's §3.4). On the peer the function has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service. Its value crosses back at the type the compiler found where `compute` is written, which is known whole there and is bound to no node (§8.4).
 
 A fault in `heavy` is the caller's, as if `heavy(3, 4)` had faulted here: the caller faults with its cause, and this node reports the fault once, with the stack that crossed with it; the peer writes nothing of it (report §8.7, report §11.2). Where the process ends on the peer before it answers, killed or with the peer's program, the compute answers `Left(Other(text))`, `text` the process's reason; where the caller stops waiting, its time run out or its process ended, the process is killed there.
 
@@ -2893,7 +2942,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - A function does not travel to another node: the compiler refuses a service or a spawn that would take one, and work on a peer is a process spawned there, which carries its captured values and no code (§8.1, §8.4).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
-- Nodes talk over Erlang's distribution, over TLS, with no port mapper, no mesh, and a rule that accepts a peer by its listed key; nodes of different builds connect where they run one release of `ern` on one major release of OTP, share what they share by hash, and no code crosses (report §8.7). The reasons are the decisions log's, [`docs/decisions.md`](../docs/decisions.md).
+- Nodes talk over Erlang's distribution, over TLS, with no port mapper, no mesh, and a rule that accepts a peer by its listed key; nodes of different builds connect where they run one release of `ern` on one major release of OTP, share what they share by hash, and a spawn or a compute carries to a peer the code it lacks (report §8.7). The reasons are the decisions log's, [`docs/decisions.md`](../docs/decisions.md).
 
 ## 11. The design
 

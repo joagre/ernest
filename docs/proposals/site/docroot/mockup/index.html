@@ -28,8 +28,8 @@
 <main id="main" class="wrap "><section class="home-intro" aria-labelledby="intro-title">
 <picture><source media="(prefers-color-scheme: dark)" srcset="ernest-dark.svg"><img class="logo" src="ernest-light.svg" alt="Ernest" width="1700" height="760"></picture>
 <div><p class="eyebrow">A functional language on BEAM</p>
-<h1 id="intro-title">Functions. Processes. Explicit contracts.</h1>
-<p>Ernest combines inferred types with typed process communication. Start with a short tour, read the programming guide, or examine the language report.</p>
+<h1 id="intro-title">Typed mailboxes. Code by its hash. Built for a WAN.</h1>
+<p>Ernest puts the types of ML, as Gleam brought them to the Erlang runtime, and Unison's code known by its hash on Erlang's processes, with a distribution built for a WAN. Start with the tour, read the guide, or open the report.</p>
 <div class="actions"><a href="shell.html" class="button primary"><svg class="icon" aria-hidden="true" focusable="false"
   xmlns="http://www.w3.org/2000/svg"
   
@@ -61,16 +61,25 @@ Try Ernest</a><a href="install.html" class="button"><svg class="icon" aria-hidde
 </svg>
 Install</a></div></div>
 </section>
-<div class="overview"><section><h2>A small example</h2><p>A shape carries the operation that knows its representation.</p>
-<pre><code>type Shape = Shape(name : String, area : () -&gt; Float)
+<div class="overview"><section><h2>The mailbox in the type</h2><p>A process receives one type of message, and the function it runs says which. Every <code>send</code> is checked against the mailbox it reaches.</p><pre><code>type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn square(side : Float) -&gt; Shape =
-    Shape(name = &quot;square&quot;, area = fn() = side * side)</code></pre><p class="meta">Illustrative excerpt · <a href="guide.html">Read the guide</a></p></section>
+fn count(total : Int) : Unit with CounterMsg =
+    receive {
+        Inc(amount) -&gt; count(total + amount)
+      | Get(reply = reply) -&gt; {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+let counter = spawn(fn() = count(0));
+send(counter, Inc(5));
+send(counter, "increment")   // refused: expected CounterMsg, found String</code></pre><p class="meta">Illustrative excerpt · <a href="guide.html">Read the guide</a></p></section>
 <section><h2>What to look for</h2><dl class="features">
-<dt>Inferred types</dt><dd>Function types checked without annotating every binding.</dd>
-<dt>Typed mailboxes</dt><dd>Message types describe what a process accepts.</dd>
-<dt>Explicit process effects</dt><dd>Mailbox effects appear in function types.</dd>
-<dt>Reply ownership</dt><dd>Reply obligations are checked through ownership rules.</dd>
+<dt>The mailbox in the function's type</dt><dd>A function that receives says which type, and every send and receive is checked against it.</dd>
+<dt>Code known by its hash</dt><dd>A module has every version it has had; a spawn carries its code to a peer that lacks it, so a bare node can run anything.</dd>
+<dt>A distribution built for a WAN</dt><dd>Peers listed by key, one TLS connection when needed, no mesh and no port mapper.</dd>
+<dt>Little else</dt><dd>Two concepts, five principles, one way for each thing, and a report of three files.</dd>
 </dl><p class="meta">Proposed homepage copy; verify against the published release.</p></section></div>
 <nav class="doors" aria-label="Choose your documentation"><a class="door" href="tour.html"><strong><svg class="icon" aria-hidden="true" focusable="false"
   xmlns="http://www.w3.org/2000/svg"

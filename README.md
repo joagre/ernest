@@ -8,16 +8,16 @@
 
 # Ernest
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is pure functions, whose types the compiler infers, and processes that talk through typed mailboxes. Most of its parts come from elsewhere: the Erlang runtime's processes, Gleam's static types on that runtime, and Unison's code known by the hash of its definition, planned here, which is what will let a message be checked across nodes. What Ernest adds is where the parts meet:
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam brought to that runtime, and Unison's code known by the hash of its definition. What Ernest adds is where the parts meet:
 
-- **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver: an address's type is the type of the mailbox it reaches.
-- **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
-- **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
-- **One build on every node.** Values cross between nodes and code does not: a message is checked at the sender against the type the receiver was compiled with, and a value bound to its node, a function, a resource or an address of one, is refused at a service or a spawn.
+- **The mailbox in the function's type.** A process receives one type of message, and a function that receives says which, `with CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads.
+- **Code known by its hash.** A definition is known by the hash of its form, so a module has as many versions as it has had, each named apart, and a running process takes a new version of its function as a message. A spawn carries its function to a peer that lacks it, so any node can run anything: a bare node joins with no program of its own, and work is placed where there is room, with no deployment first.
+- **A distribution built for a WAN.** A node lists its peers by name, public key and address, accepts a connection from a listed key alone, and opens one TLS connection to a peer when an operation first needs it. No mesh and no port mapper: the key is the identity, and two nodes on two networks are the ordinary case.
+- **Little else.** Two concepts, five principles, one way for each thing, and a report of three files that is the whole language.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
 
-A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in its type, so a `send` of anything else is refused, and a `Get` that the counter left unanswered would be refused too:
+**The mailbox in the type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`:
 
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
@@ -44,7 +44,54 @@ export fn main() : Unit with Never = {
 
 `main` receives nothing, `with Never`, and spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers once with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
-It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come in a later release, with MVP 3.0, the plan's milestone for peers, which is the name a message gives where a program asks for them; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan's MVP 3.9 says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+**Code known by its hash.** The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old version runs on wherever a process still runs it:
+
+```ernest-fragment
+type CounterMsg =
+    Inc(Int)
+  | Get(reply : Reply(Int))
+  | Upgrade(next : (Int) -> Unit with CounterMsg)
+
+fn count(total : Int) : Unit with CounterMsg =
+    receive {
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+      | Upgrade(next = next) -> next(total)
+    }
+
+send(counter, Upgrade(next = countTwice))
+```
+
+The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every one it reaches, before the process starts. `foo` may be a bare node, started with a configuration and no program:
+
+```ernest-fragment
+match Peer.spawn("foo", fn() = count(0), 5000) {
+    Right(counter) -> send(counter, Inc(5))
+  | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
+}
+```
+
+**Built for a WAN.** A node is a program started with a configuration directory. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name the key gives it, and is opened over TLS when an operation first needs it:
+
+```json
+{
+  "listen": "0.0.0.0:8654",
+  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=\n-----END PUBLIC KEY-----\n",
+  "peers": [
+    {
+      "name": "foo",
+      "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAbcsDUdMBCWTaHU5iYs2EHT4fDQzaUBer/dL+n5DPJrk=\n-----END PUBLIC KEY-----\n",
+      "network-address": "foo.example.net:8654"
+    }
+  ],
+  "services": {}
+}
+```
+
+It is young. Programs run on one node and across nodes; 0.4.0, the first release with nodes, is the plan's next tag, and where the project stands is "Where we are" in the [plan](docs/implementation_plan.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan's MVP 3.9 says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 
