@@ -40,7 +40,7 @@ citations_resolve_test() ->
         [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
                              not resolves(Citation, report, ReportSections, GuideSections)]
         %% a console of the guide quotes the toolchain, whose citations are
-        %% the report's (report §11.5), held to it by test/diagnostics.md
+        %% the report's (report §11.5), held to it by docs/diagnostics.md
         ++ [{"guide/language.md", Citation}
             || Citation <- cites(without_consoles(Guide)),
                not resolves(Citation, guide, ReportSections, GuideSections)],
@@ -173,9 +173,12 @@ adds(Document) ->
 %% or, as src/shell/README.md does, from its own directory. The report and the
 %% guide name paths a program might have, `net/http.ern`, the plan
 %% paths not yet written, and the findings' lists the paths of the tree
-%% their readers read, so every other document is checked.
+%% their readers read, so every other document is checked. A regression
+%% test for the paths a document writes from its own directory, which went
+%% unchecked once src/shell/ and docs/proposals/ left the top of the
+%% repository on 2026-10-15
 document_paths_test() ->
-    Missing = [{File, Path} || File <- described(), Path <- paths(ern_repository:read(File)),
+    Missing = [{File, Path} || File <- described(), Path <- paths(File),
                                not exists(Path),
                                not exists(filename:join(filename:dirname(File), Path))],
     ?assertEqual([], Missing).
@@ -223,19 +226,27 @@ documents() ->
 described() ->
     documents() -- (?REPORT ++ ["docs/implementation_plan.md", "docs/findings.md"]).
 
-%% A backticked path under one of the repository's own directories. A
-%% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
-%% and a wildcard stands for a set, so neither names one file.
-paths(Document) ->
+%% A backticked path a document writes under one of the repository's own
+%% directories, or under a directory beside the document, as
+%% src/shell/README.md writes `shell/editor.ern`. A metavariable is written
+%% `<name>`, as docs/style.md writes `ern_<thing>`, and a wildcard stands for
+%% a set, so neither names one file.
+paths(File) ->
     Tops = ["erl/", "docs/", "test/", "bin/", "src/", "examples/", "build/", "tools/",
             "editors/", "assets/"],
-    Pieces = binary:split(Document, <<"`">>, [global]),
+    Beside = [Name ++ "/" || Name <- subdirectories(filename:dirname(File))],
+    Pieces = binary:split(ern_repository:read(File), <<"`">>, [global]),
     [binary_to_list(Piece) || {Index, Piece} <- lists:zip(lists:seq(1, length(Pieces)), Pieces),
                               Index rem 2 =:= 0,
                               lists:any(fun(Top) -> lists:prefix(Top, binary_to_list(Piece)) end,
-                                        Tops),
+                                        Tops ++ Beside),
                               binary:match(Piece, [<<"*">>, <<"<">>]) =:= nomatch,
                               binary:last(Piece) =/= $/].
+
+%% The directories in a directory of the repository, by their names.
+subdirectories(Dir) ->
+    {ok, Names} = file:list_dir(filename:join(?ROOT, Dir)),
+    [Name || Name <- Names, filelib:is_dir(filename:join([?ROOT, Dir, Name]))].
 
 exists(Relative) ->
     filelib:is_file(filename:join(?ROOT, Relative)).
@@ -357,7 +368,7 @@ report() ->
 %% The examples and the programs kept for the tests, whose comments cite
 %% the report.
 examples() ->
-    ern_repository:files(["examples/**/*.ern", "test/programs/**/*.ern"]).
+    ern_repository:files(["examples/**/*.ern", "test/fixtures/programs/**/*.ern"]).
 
 %% The shell's Ernest source, whose comments cite the report as the
 %% standard library's do.

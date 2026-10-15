@@ -5,7 +5,7 @@
 # test` runs every test by area; docs/development.md names every other
 # target and what it is for.
 
-APPS = utils lexer parser format typer runtime emitter cli json
+APPS = shared lexer parser formatter checker runtime emitter cli json
 
 # The jobs a make runs side by side, as many as the host has cores.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
@@ -13,7 +13,8 @@ JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 # Every Ernest source of the repository, which `make format` lays out and
 # the Emacs mode's tests read (report §11.6, docs/proposals/emacs/emacs_mode.md).
 ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples/*.ern \
-		test/*/*.ern test/programs/modules/*.ern test/programs/modules/*/*.ern \
+		test/fixtures/*/*.ern test/fixtures/programs/modules/*.ern \
+		test/fixtures/programs/modules/*/*.ern \
 		src/libs/*/*.ern tools/*.ern docs/proposals/operations/programs/*.ern \
 		docs/proposals/nodes_and_code/experiments/code_update/*/*.ern \
 		docs/proposals/nodes_and_code/experiments/code_update/*/*/*.ern
@@ -227,7 +228,7 @@ test-full: all
 	@$(MAKE) -s -j$(JOBS) -O test-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one
-# with APP=typer. The runtime's tests are compiled first, since the
+# with APP=checker. The runtime's tests are compiled first, since the
 # emitter's call one of their modules, ern_named.
 APP_TESTS = $(APPS:%=test-app-%)
 ifdef APP
@@ -334,10 +335,11 @@ clean:
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/pages build/release \
 	  build/dialyzer build/dialyzer.plt build/sanitize $(EXEC)
 	@# sh reads `**` as `*`, so the programs' compiled modules are found
-	@find examples test/programs -name '*.erc' -delete
+	@find examples test/fixtures/programs -name '*.erc' -delete
 
-# Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
-# program of test/programs/ and services, after an intended change to the emitter.
+# Rewrite test/fixtures/golden/*.erl, the Erlang source the compiler emits for
+# every program of test/fixtures/programs/ and services, after an intended change
+# to the emitter.
 golden: all
 	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_emitter_tests.beam
 	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin -pa $(abspath build/stdlib) \
@@ -389,7 +391,7 @@ sanitize: all
 xref:
 	@$(MAKE) -s -C test xref
 
-# Rewrite the outputs of test/diagnostics.md, the catalog of the front
+# Rewrite the outputs of docs/diagnostics.md, the catalog of the front
 # end's errors, from what the compiler prints, after a change to a message
 # that is meant.
 diagnostics: all

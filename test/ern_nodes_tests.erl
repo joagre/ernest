@@ -5,7 +5,7 @@
 %% frame a gateway cannot read is sent by a host module on the program's
 %% load path; a host that holds a peer's key and names itself as it likes
 %% is a bare `erl` with the host's TLS distribution and the key's files.
-%% `Peer`'s tests run the programs of `test/peers/`, one build whose store
+%% `Peer`'s tests run the programs of `test/fixtures/peers/`, one build whose store
 %% and desk are two nodes; the tests of two builds (MVP 3.1) write a
 %% program and build it twice, one function and one type changed. A test
 %% that provokes a line the deployment guide quotes holds it to the guide's
@@ -15,14 +15,14 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 -export([nodes_test/2, free_port/0, made/3, edit/2, lists/2, name/1, program/1, client/0,
          client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2,
          says/3, prints/2, stop/2, written/2, said/1, has/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
-%% The libraries `test/peers/`'s programs use, on every node's load path.
+%% The libraries `test/fixtures/peers/`'s programs use, on every node's load path.
 -define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
                     || Library <- ["json", "proxy", "utilization"]]).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
@@ -996,15 +996,15 @@ no_deadlock(Base) ->
 %% Peer (report §8.7, Appendix E.27)
 %%
 
-%% The programs of test/peers/, one build: the store's and the desk's, with
+%% The programs of test/fixtures/peers/, one build: the store's and the desk's, with
 %% the third node's beside them, and the host module they ask of the host,
 %% on the load path, so that every node runs one build.
 peers(Base) ->
     Root = filename:join(Base, "build"),
     0 = ern_cli:ern(["build", "--build-root", Root]
                     ++ lists:append([["--load-path", Library] || Library <- ?LIBRARIES])
-                    ++ ["peers"], group_leader()),
-    {ok, _} = compile:file("peers/ern_peers_host.erl", [{outdir, Root}]),
+                    ++ ["fixtures/peers"], group_leader()),
+    {ok, _} = compile:file("fixtures/peers/ern_peers_host.erl", [{outdir, Root}]),
     {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
 
 %% A store that listens, a desk that dials it, and a peer the desk lists,
@@ -3569,7 +3569,7 @@ adapted_fault(Base) ->
 %% The end told, and the proxy (report §8.6, Appendix E.23, G.7)
 %%
 
-%% The directory test/peers/'s programs are built in (peers/1), the
+%% The directory test/fixtures/peers/'s programs are built in (peers/1), the
 %% counter's keeper, its asker and the proxy's client among them.
 built(Base) ->
     {Program, _} = peers(Base),
@@ -3917,11 +3917,11 @@ pair_program(Base) ->
                                             " offered at another type")),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
 
-%% Report §8.7: a second build of test/peers/pair.ern, its `Msg` given
+%% Report §8.7: a second build of test/fixtures/peers/pair.ern, its `Msg` given
 %% another constructor, so that its service's type has another hash, built in
 %% Base/second-build.
 second_build(Base) ->
-    {ok, Source} = file:read_file("peers/pair.ern"),
+    {ok, Source} = file:read_file("fixtures/peers/pair.ern"),
     Declared = <<"export type Msg = Double(n : Int, reply : Reply(Int))">>,
     Changed = binary:replace(Source, Declared, <<Declared/binary, " | Halve(Int)">>),
     ?assertNotEqual(Source, Changed),

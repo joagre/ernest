@@ -6,7 +6,7 @@
 -export([chunk_name/0, read/1, build/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
+-include_lib("checker/include/ern_types.hrl").
 
 -spec chunk_name() -> binary().
 chunk_name() ->

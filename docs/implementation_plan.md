@@ -356,7 +356,11 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    `tools/` and the rest stay where they were. The rule is `development.md`'s: `src/` holds the
    Ernest a release ships, `erl/` the Erlang it ships, `editors/` the editor modes, and the rest
    serves the repository. The installation mirrors the clone, so only the installer's list of
-   paths changed (the log's *The Repository Laid Out Again*).
+   paths changed (the log's *The Repository Laid Out Again*). A second commit the same day named
+   three applications under `erl/` for what they are, `checker`, `formatter` and `shared`, moved
+   the catalog of diagnostics to `docs/` and the tests' data under `test/fixtures/`, gave `docs/`
+   its index, `docs/README.md`, and left the standard library's source out of an installation
+   (the log's *The Layout Completed*).
 11. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
    MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
@@ -407,7 +411,7 @@ deadlock, the prelude's page waiting on the host's code and file servers inside 
 log's *The Tools Measured*); if it recurs, the diagnosis was wrong. The `install` test takes 190
 to 350 s under load against its limit of 300 s: its bound is derived from what it waits for, or
 the test is split. A run that times out leaves its `closed` directory read-only, which the next
-run's cleanup cannot remove (`eexist`): the cleanup makes it writable first. `test/peers/desk.ern`
+run's cleanup cannot remove (`eexist`): the cleanup makes it writable first. `test/fixtures/peers/desk.ern`
 asserts "send at once" as under 1000 ms, a chosen number, which failed under load on
 2026-10-13: the bound is derived from what it tells apart, a send that dials against one that
 does not, and the old call's from its own limit (CLAUDE.md's *No fixed sleep*). `make test-full`'s second

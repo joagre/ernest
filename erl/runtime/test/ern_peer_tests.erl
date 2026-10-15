@@ -7,7 +7,7 @@
 -module(ern_peer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 %% report §8.7: a spawn's answer goes to the process that waits for it, and
 %% one that comes after the spawner stopped waiting ends the process it

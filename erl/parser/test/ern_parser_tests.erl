@@ -5,7 +5,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diagnostic.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 
 expression(Text) ->
     {ok, Expr} = ern_parser:parse_expr(Text),
@@ -974,7 +974,7 @@ tags(Nodes, Acc) when is_list(Nodes) ->
 tags(_, Acc) ->
     Acc.
 
-%% report Appendix B, examples/ and test/programs/
+%% report Appendix B, examples/ and test/fixtures/programs/
 examples_parse_test_() ->
     Files = ernest_files(),
     ?assert(length(Files) >= 12),
@@ -989,7 +989,7 @@ examples_parse_test_() ->
 %% §11.1).
 ernest_files() ->
     Found = filelib:wildcard("../../../examples/**/*.ern")
-        ++ filelib:wildcard("../../../test/programs/**/*.ern")
+        ++ filelib:wildcard("../../../test/fixtures/programs/**/*.ern")
         ++ filelib:wildcard("../../../src/stdlib/*.ern")
         ++ filelib:wildcard("../../../src/libs/*/*.ern"),
     [File || File <- Found, hd(filename:basename(File)) =/= $.].

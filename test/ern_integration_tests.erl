@@ -1,6 +1,6 @@
 %% The toolchain as a user runs it, through bin/ern: the examples and the
 %% test programs built and run, their output compared as a multiset of lines with
-%% expected/<name>.out, since prints from different processes interleave
+%% fixtures/expected/<name>.out, since prints from different processes interleave
 %% by scheduling; the launcher, the signals and the streams; `Os`; the
 %% libraries' tests; and docs/proposals/operations/programs/. Run from this
 %% directory by its Makefile. The helpers that run a command and build are
@@ -18,7 +18,7 @@
 -define(BUILD, "--source-root ../examples --load-path ../build/libs/ansi --build-root build ").
 
 %% A program kept for the tests, compiled into test/build.
--define(BUILD_PROGRAM, "--source-root programs --build-root build ").
+-define(BUILD_PROGRAM, "--source-root fixtures/programs --build-root build ").
 
 %% The examples that end of themselves, and the programs kept for the tests.
 -define(EXAMPLES, ["hello", "services", "word_count", "shout", "typed_channels",
@@ -41,7 +41,8 @@ programs_test_() ->
     {inparallel,
      [{Name, {timeout, 60, fun() -> program(?BUILD ++ "../examples/", Name) end}}
       || Name <- ?EXAMPLES]
-     ++ [{Name, {timeout, 60, fun() -> program(?BUILD_PROGRAM ++ "programs/", Name) end}}
+     ++ [{Name, {timeout, 60,
+                 fun() -> program(?BUILD_PROGRAM ++ "fixtures/programs/", Name) end}}
          || Name <- ?PROGRAMS]}.
 
 program(Build, Name) ->
@@ -59,7 +60,8 @@ compiles_test_() ->
     {inparallel,
      [{Name, {timeout, 60, fun() -> compiles(?BUILD ++ "../examples/", Name) end}}
       || Name <- ?COMPILES]
-     ++ [{"echo", {timeout, 60, fun() -> compiles(?BUILD_PROGRAM ++ "programs/", "echo") end}}]}.
+     ++ [{"echo", {timeout, 60,
+                   fun() -> compiles(?BUILD_PROGRAM ++ "fixtures/programs/", "echo") end}}]}.
 
 compiles(Build, Name) ->
     0 = build(Build ++ Name ++ ".ern"),
@@ -74,11 +76,12 @@ tally_test_() ->
 
 tally() ->
     0 = build(?BUILD ++ "../examples/tally.ern"),
-    ?assertEqual({0, <<"2 5 24 input/two_lines.txt\n2 5 24 total\n">>},
-                 sh("../bin/ern run build/tally.erc input/two_lines.txt")),
-    ?assertEqual({1, <<"tally: input/absent.txt: no such file\n"
-                       "2 5 24 input/two_lines.txt\n2 5 24 total\n">>},
-                 sh("../bin/ern run build/tally.erc input/absent.txt input/two_lines.txt")),
+    ?assertEqual({0, <<"2 5 24 fixtures/input/two_lines.txt\n2 5 24 total\n">>},
+                 sh("../bin/ern run build/tally.erc fixtures/input/two_lines.txt")),
+    ?assertEqual({1, <<"tally: fixtures/input/absent.txt: no such file\n"
+                       "2 5 24 fixtures/input/two_lines.txt\n2 5 24 total\n">>},
+                 sh("../bin/ern run build/tally.erc fixtures/input/absent.txt"
+                    " fixtures/input/two_lines.txt")),
     ?assertEqual({2, <<"usage: tally file...\n">>}, sh("../bin/ern run build/tally.erc")).
 
 %% report §8.2, E.16: without a terminal snake has no keys, so it says so
@@ -118,7 +121,7 @@ repl_test_() ->
 
 repl() ->
     0 = build(?BUILD ++ "../examples/repl.ern"),
-    {0, Output} = sh("../bin/ern run build/repl.erc < input/repl.in"),
+    {0, Output} = sh("../bin/ern run build/repl.erc < fixtures/input/repl.in"),
     ?assertEqual(expected("repl"), lines(Output)).
 
 %% Paper program 2 (plan, MVP 2.5): the syncer runs until it is
@@ -461,7 +464,7 @@ stdin_test_() ->
     {timeout, 60, fun stdin/0}.
 
 stdin() ->
-    [0 = build("--source-root stdin --build-root build/stdin stdin/"
+    [0 = build("--source-root fixtures/stdin --build-root build/stdin fixtures/stdin/"
                ++ Program ++ ".ern") || Program <- ["lines", "stream", "chunks"]],
     Launch = fun(Input, Program) ->
                  sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
@@ -1326,7 +1329,7 @@ modules_test_() ->
     {timeout, 60, fun modules/0}.
 
 modules() ->
-    {0, _} = sh("../bin/ern build --build-root build/modules programs/modules"),
+    {0, _} = sh("../bin/ern build --build-root build/modules fixtures/programs/modules"),
     {0, Output} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Output)).
 
@@ -1344,7 +1347,8 @@ operations() ->
                 " ../docs/proposals/operations/programs"),
     lists:foreach(fun(Name) ->
                       {0, Output} = sh("../bin/ern run build/operations/" ++ Name ++ ".erc"),
-                      {ok, Expected} = file:read_file("expected/operations/" ++ Name ++ ".out"),
+                      {ok, Expected} = file:read_file("fixtures/expected/operations/" ++ Name
+                                                      ++ ".out"),
                       ?assertEqual({Name, in_order(Expected)}, {Name, in_order(Output)})
                   end, ?OPERATIONS).
 
@@ -1389,7 +1393,7 @@ locale() ->
     ?assertMatch({_, _}, binary:match(Output, <<"1 | let s : Int = \"caf", 16#C3, 16#A9, "\"">>)).
 
 expected(Name) ->
-    {ok, Bytes} = file:read_file("expected/" ++ Name ++ ".out"),
+    {ok, Bytes} = file:read_file("fixtures/expected/" ++ Name ++ ".out"),
     lines(Bytes).
 
 lines(Bytes) ->

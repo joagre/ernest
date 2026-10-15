@@ -10,9 +10,9 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diagnostic.hrl").
--include_lib("typer/include/ern_types.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 -include_lib("cli/include/ern_build.hrl").
 
@@ -111,7 +111,7 @@ example(Base) ->
 source_file(Base) when Base =:= "hello"; Base =:= "services" ->
     "../../../examples/" ++ Base ++ ".ern";
 source_file(Base) ->
-    "../../../test/programs/" ++ Base ++ ".ern".
+    "../../../test/fixtures/programs/" ++ Base ++ ".ern".
 
 %% The forms of an example and of a target file, made comparable: no
 %% annotations, and variables renamed in order of first occurrence, each
@@ -123,7 +123,7 @@ example_forms(Base) ->
     normalize(ern_compile:forms(Namespace, Typed, Env)).
 
 target_forms(File) ->
-    {ok, Forms} = epp:parse_file("../../../test/target/" ++ File, []),
+    {ok, Forms} = epp:parse_file("../../../test/fixtures/target/" ++ File, []),
     normalize([Form || Form <- Forms, not is_eof(Form), not is_file_attribute(Form)]).
 
 is_eof({eof, _}) -> true;
@@ -229,10 +229,10 @@ counter_golden_test() ->
 
 %%
 %% Golden files: the Erlang source of every MVP 1 example, as --emit-erl
-%% writes it, kept under test/golden and regenerated with make golden
+%% writes it, kept under test/fixtures/golden and regenerated with make golden
 %%
 
--define(GOLDEN, "../../../test/golden/").
+-define(GOLDEN, "../../../test/fixtures/golden/").
 
 golden_names() ->
     ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser", "services",
@@ -288,7 +288,7 @@ let_of_function_type_remote_test() ->
 %% The source the compiler emits for an example; the modules pair is
 %% checked in dependency order, main against http's interface.
 golden_source("modules/" ++ _ = Name) ->
-    {ok, HttpSource} = file:read_file("../../../test/programs/modules/net/http.ern"),
+    {ok, HttpSource} = file:read_file("../../../test/fixtures/programs/modules/net/http.ern"),
     {ok, HttpTyped, Checked, HttpEnv} = ern_typecheck:check_string(['Net', 'Http'], HttpSource),
     %% report §11.1: the interface as compiled, with its definitions' hashes
     Canonical = ern_canonical:module(['Net', 'Http'], HttpTyped, HttpEnv, false),
@@ -297,7 +297,7 @@ golden_source("modules/" ++ _ = Name) ->
         "modules/net/http" ->
             emitted(['Net', 'Http'], HttpTyped, HttpEnv);
         "modules/main" ->
-            {ok, MainSource} = file:read_file("../../../test/programs/modules/main.ern"),
+            {ok, MainSource} = file:read_file("../../../test/fixtures/programs/modules/main.ern"),
             {ok, Declarations} = ern_parser:parse_string(MainSource),
             {ok, Typed, _, Env} = ern_typecheck:check(['Main'], Declarations, [HttpInterface]),
             emitted(['Main'], Typed, Env)
@@ -343,7 +343,7 @@ write_golden() ->
 %% report Appendix H, §11.1, §8.7: the emitter makes every unit from its
 %% definitions' canonical forms, with what the build adds that is no
 %% definition's and the link of what the forms reference outside it, and
-%% reads no typed tree: each module of test/programs, of the standard
+%% reads no typed tree: each module of test/fixtures/programs, of the standard
 %% library and of the shell, made from its forms as the hash takes them,
 %% which hold no line and no local's name, is the code made from them with
 %% the source woven in but for its lines, its variables' names and its
@@ -354,7 +354,7 @@ units_from_forms_alone_test_() ->
     {timeout, 600, fun units_from_forms_alone/0}.
 
 units_from_forms_alone() ->
-    Programs = "../../../test/programs",
+    Programs = "../../../test/fixtures/programs",
     Roots = [{Programs, filelib:wildcard(Programs ++ "/*.ern"), []},
              {Programs ++ "/modules", ern_build:sources(Programs ++ "/modules"), []},
              {"../../../src/stdlib", ern_build:sources("../../../src/stdlib"), []},

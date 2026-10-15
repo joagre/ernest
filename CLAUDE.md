@@ -35,7 +35,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/memory.md`](docs/memory.md) | how memory is checked |
 | [`docs/soundness.md`](docs/soundness.md) | the argument that a well-typed program does not go wrong |
 | [`docs/otp_bugs.md`](docs/otp_bugs.md) | the defects found in OTP, each a report ready for OTP's tracker, until a release Ernest requires has its fix |
-| [`test/diagnostics.md`](test/diagnostics.md) | the catalog of diagnostics, which `make diagnostics` writes |
+| [`docs/diagnostics.md`](docs/diagnostics.md) | the catalog of diagnostics, which `make diagnostics` writes |
 | [`docs/man/`](docs/man/) | the pages as CommonMark, which `make man` writes from `main` |
 | [`assets/README.md`](assets/README.md) | the logo files |
 | [`tools/release/README.md`](tools/release/README.md) | what a reader of the release archive, or of an installation, needs first |

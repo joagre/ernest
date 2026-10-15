@@ -1,6 +1,6 @@
 %% `make bench`'s third part (docs/development.md), the costs the peer
 %% proposal's section 9 left to measure, between two nodes on this machine:
-%% the desk of test/peers/ times, against the store, the host's own round
+%% the desk of test/fixtures/peers/ times, against the store, the host's own round
 %% trip, its ping, over TLS; a call to a process there, five of the host's
 %% signals, beside a call to one here; and a round trip to the store's
 %% echo, the message sent straight and through the adapted address made on
@@ -26,9 +26,9 @@ main([Dir]) ->
     _ = file:del_dir_r(Dir),
     ok = filelib:ensure_path(Dir),
     Root = filename:absname(filename:join(Dir, "build")),
-    0 = ern_cli:ern(["build", "--build-root", Root] ++ load_path() ++ ["peers"],
+    0 = ern_cli:ern(["build", "--build-root", Root] ++ load_path() ++ ["fixtures/peers"],
                     group_leader()),
-    {ok, _} = compile:file("peers/ern_peers_host.erl", [{outdir, Root}]),
+    {ok, _} = compile:file("fixtures/peers/ern_peers_host.erl", [{outdir, Root}]),
     {Store, Desk} = configured(filename:absname(Dir)),
     Stopped = started(Store, filename:join(Root, "store.erc")),
     Costs = desk_costs(Desk, filename:join(Root, "desk.erc")),

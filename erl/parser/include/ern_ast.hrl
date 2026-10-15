@@ -78,7 +78,7 @@
 -record(e_var, {span, namespace = [], name, referent, supplies = [], type}).
 %% referent, which the checker sets (report §4.2): var, a name bound around
 %% it; #own_declaration{}, this module's declaration; #remote_declaration{},
-%% another module's, the two of typer/include/ern_types.hrl; {prelude,
+%% another module's, the two of checker/include/ern_types.hrl; {prelude,
 %% QualifiedName}. A qualified function, operator, or value: namespace is
 %% the name's prefix (report §4.2). supplies, which the checker sets: what the declaration's
 %% requirement is supplied with at this use (report §4.9), and Io.show's or

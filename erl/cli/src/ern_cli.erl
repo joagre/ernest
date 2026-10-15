@@ -9,7 +9,7 @@
 -export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, load_path/0, say_limits/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
+-include_lib("checker/include/ern_types.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
 -include("ern_node.hrl").

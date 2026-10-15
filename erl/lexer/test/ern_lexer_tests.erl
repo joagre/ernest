@@ -3,7 +3,7 @@
 -module(ern_lexer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("utils/include/ern_diagnostic.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 
 %% Token list without positions and without the trailing eof.
 tokens(Text) ->

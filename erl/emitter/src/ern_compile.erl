@@ -18,8 +18,8 @@
          erl_source/4, unit/5, link/5, references/1, named/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
 -spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.

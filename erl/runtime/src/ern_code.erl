@@ -47,7 +47,7 @@
          running/1, hashes/1, binding_keys/1, withdrawn/2, nearing/0, nearing/1, nearing/2, line/3,
          counts/0]).
 
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 -export_type([host_table/0, reach/0]).
 

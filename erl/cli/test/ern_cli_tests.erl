@@ -12,8 +12,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
 -include_lib("cli/include/ern_build.hrl").
 
@@ -2435,13 +2435,13 @@ prelude_page() ->
     ?assertMatch({_, _}, binary:match(Page, <<"from the prelude, report §9."/utf8>>)).
 
 %% report §11.4, Appendix E.0 shape rule 6: docs/module_doc_template.md is what
-%% `ern doc` renders for test/programs/template.ern, after its marker line
+%% `ern doc` renders for test/fixtures/programs/template.ern, after its marker line
 doc_template_test() ->
-    Source = "../../../test/programs/template.ern",
+    Source = "../../../test/fixtures/programs/template.ern",
     ?assertEqual(0, ern_cli:ern(["doc", "--source-root", filename:dirname(Source), Source])),
     Output = iolist_to_binary(?capturedOutput),
     {ok, Template} = file:read_file("../../../docs/module_doc_template.md"),
-    Marker = <<"<!-- generated: ern doc test/programs/template.ern -->\n">>,
+    Marker = <<"<!-- generated: ern doc test/fixtures/programs/template.ern -->\n">>,
     [_, Generated] = binary:split(Template, Marker),
     %% the last line names the compiler's version, which is compared to itself
     ?assertEqual(without_footer(Generated), without_footer(Output)),

@@ -9,7 +9,7 @@
 
 -export_type([descriptor/0]).
 
--include_lib("typer/include/ern_types.hrl").
+-include_lib("checker/include/ern_types.hrl").
 
 %% A type as this module describes it, which `Io.show`, `Io.debug` and the
 %% shell print a value by (ern_show) and the emitter builds the runtime's

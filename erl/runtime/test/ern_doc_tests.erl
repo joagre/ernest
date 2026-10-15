@@ -6,14 +6,14 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
+-include_lib("checker/include/ern_types.hrl").
 
 -define(ROOT, "../../..").
 
 %% The modules checked: the template, every file under src/stdlib/, and every
 %% library's top module under src/libs/.
 modules() ->
-    [{['Template'], filename:join(?ROOT, "test/programs/template.ern")}
+    [{['Template'], filename:join(?ROOT, "test/fixtures/programs/template.ern")}
      | [{ern_namespace:namespace([filename:basename(File, ".ern")]), File}
         || File <- filelib:wildcard(filename:join(?ROOT, "src/stdlib/*.ern"))
                ++ filelib:wildcard(filename:join(?ROOT, "src/libs/*/*.ern")),
@@ -374,7 +374,7 @@ patch_kept(Read) ->
                                                     =:= byte_size(Prefix)]
               end,
     {listed(Lines("report/library.md"), outside, []),
-     Defined("erl/typer/src/ern_canonical.erl", <<"-define(FORM_VERSION,">>),
+     Defined("erl/checker/src/ern_canonical.erl", <<"-define(FORM_VERSION,">>),
      Defined("erl/cli/src/ern_carrier.erl", <<"-define(PROTOCOL,">>)}.
 
 %% The repository's release tags, `v0.2.0`, oldest first, each with its
@@ -405,7 +405,7 @@ shipped(Tag, Relative) ->
 %% was examples/template.ern until it went among the programs kept for the
 %% tests, and the standard library and the libraries stood at the top,
 %% stdlib/ and libs/, until they went under src/ after 0.3.1.
-released("test/programs/template.ern") -> "examples/template.ern";
+released("test/fixtures/programs/template.ern") -> "examples/template.ern";
 released("src/" ++ Relative) -> Relative;
 released(Relative) -> Relative.
 

@@ -14,7 +14,7 @@
 
 -export([tokenize/1, tokenize/2]).
 
--include_lib("utils/include/ern_diagnostic.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 
 -export_type([position/0, token/0]).
 

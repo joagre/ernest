@@ -8,7 +8,7 @@
 -module(ern_code_load_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 %%
 %% Helpers

@@ -18,8 +18,8 @@
          write_output/2, write_output/3, read/1, make_dirs/1, refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
 

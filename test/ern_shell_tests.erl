@@ -25,8 +25,8 @@ session_test_() ->
     {timeout, 60, fun session/0}.
 
 session() ->
-    {0, Output} = ern_pty:sh("../bin/ern shell < session/basic.in"),
-    {ok, Expected} = file:read_file("session/basic.out"),
+    {0, Output} = ern_pty:sh("../bin/ern shell < fixtures/session/basic.in"),
+    {ok, Expected} = file:read_file("fixtures/session/basic.out"),
     ?assertEqual(Expected, Output).
 
 %% report §11.2: `:type` shows an expression's type and refuses a `let` and a
@@ -209,8 +209,8 @@ program_test_() ->
 %% answer. It ran on two waits of 400 ms before, and once failed under load.
 program() ->
     {0, _} = ern_pty:sh(
-        "../bin/ern build --source-root session --build-root build/session"
-        " session/counter.ern"),
+        "../bin/ern build --source-root fixtures/session --build-root build/session"
+        " fixtures/session/counter.ern"),
     Screen = screen(alone("../bin/ern shell build/session/counter.erc"),
                     [{expect, "Counter.main faulted: division by zero"},
                      {send, hex("let c = Counter.start()\r")},
@@ -952,7 +952,7 @@ history() ->
     %% is not
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)),
     %% a session that is not a terminal neither reads the file nor writes it
-    {0, _} = ern_pty:sh("HOME=" ++ Home ++ " ../bin/ern shell < session/basic.in"),
+    {0, _} = ern_pty:sh("HOME=" ++ Home ++ " ../bin/ern shell < fixtures/session/basic.in"),
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)).
 
 %% report §11.2, §11: the history file is trimmed at start to the last

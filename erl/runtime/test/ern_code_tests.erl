@@ -9,7 +9,7 @@
 -module(ern_code_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 %% A module compiled as the build compiles it, with its canonical forms and
 %% the '$code'/0 the table reads, loaded, and put in the table as the

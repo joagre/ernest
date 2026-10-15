@@ -46,7 +46,7 @@ Where standard output has no size, or the reader's subscription is refused becau
 
 ## The front end
 
-`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares but `holdTerminal`, which the runtime answers (`ern_rt:hold_terminal/1`). The shell's foreign functions stand at the foot of `src/shell/shell.ern`, and those `Shell.Complete` asks before its matching in `shell/shell/complete.ern`, each naming its Erlang function.
+`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares but `holdTerminal`, which the runtime answers (`ern_rt:hold_terminal/1`). The shell's foreign functions stand at the foot of `src/shell/shell.ern`, and those `Shell.Complete` asks before its matching in `src/shell/shell/complete.ern`, each naming its Erlang function.
 
 ### The foreign interface
 
@@ -173,5 +173,5 @@ A spawn site in an input's module is written as §11.2 *Faults* says. The emitte
 ## Testing
 
 - **The modules but `Shell`** are tested by their `Test` values (Appendix E.24, §11.2), at the foot of each file, which `make test-shell` runs for every module. Each of the editor's tests plays a list of events onto a fresh line and reads the text and the cursor; the region's read the bytes a redraw writes and where the cursor rests.
-- **The session** is tested by `test/ern_shell_tests.erl`. A golden test is a file of inputs run in line mode, `test/session/basic.in`, against its expected output. A session that drives a program is not one, since where a fault report lands among the inputs depends on when the process faults; that test asserts what must be true of it instead.
+- **The session** is tested by `test/ern_shell_tests.erl`. A golden test is a file of inputs run in line mode, `test/fixtures/session/basic.in`, against its expected output. A session that drives a program is not one, since where a fault report lands among the inputs depends on when the process faults; that test asserts what must be true of it instead.
 - **The terminal** is tested through `test/ern_pty.py`, which gives the shell a pseudo-terminal and sends each key once the screen shows what the step waits for. With `--screen` it renders the writes onto a grid of the terminal's size, since a shell that repaints writes a line many times over, and what is painted is asserted on that grid.

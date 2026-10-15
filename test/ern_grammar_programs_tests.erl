@@ -21,7 +21,7 @@
 -module(ern_grammar_programs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("utils/include/ern_diagnostic.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 
 -define(PROGRAMS, 1000).
 

@@ -89,4 +89,4 @@ The first road is the one to take first, if any: it measures before it commits, 
 
 ## 8. What would make this a proposal
 
-A measured answer to section 7's last question; the first road built far enough to run `test/programs` and `make bench`; and a design for the heap and the scheduler read back against §10 line by line, before a line of the interpreter is written. Until then this stays a pondering, and MVP 4.4 the next step toward the metal.
+A measured answer to section 7's last question; the first road built far enough to run `test/fixtures/programs` and `make bench`; and a design for the heap and the scheduler read back against §10 line by line, before a line of the interpreter is written. Until then this stays a pondering, and MVP 4.4 the next step toward the metal.

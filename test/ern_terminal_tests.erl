@@ -19,7 +19,7 @@ keys_test_() ->
     {timeout, 60, fun keys/0}.
 
 keys() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {0, Screen} = pty("../bin/ern run build/terminal/probe.erc",
                       [{expect, "ready"},
                        {send, "78"},        % x
@@ -54,7 +54,7 @@ unended_paste_test_() ->
     {timeout, 60, fun unended_paste/0}.
 
 unended_paste() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {0, Screen} = pty("../bin/ern run build/terminal/probe.erc",
                       [{expect, "ready"},
                        {send, "1b5b3230307e6869"},    % a paste's start, and `hi`
@@ -78,7 +78,7 @@ not_a_terminal_test_() ->
     {timeout, 60, fun not_a_terminal/0}.
 
 not_a_terminal() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     ?assertEqual({0, <<"no terminal, no size\n">>},
                  ern_pty:sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
@@ -91,7 +91,7 @@ no_size_test_() ->
     {timeout, 60, fun no_size/0}.
 
 no_size() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     Steps = [{expect, "ready"}, {send, "1b"}, {expect, "escape"}],
     {0, Piped} = pty("../bin/ern run build/terminal/probe.erc | cat", Steps, 30),
     ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Piped)),
@@ -105,7 +105,7 @@ unstamped_at_a_terminal_test_() ->
     {timeout, 60, fun unstamped_at_a_terminal/0}.
 
 unstamped_at_a_terminal() ->
-    ok = build("terminal/faulty.ern", "terminal"),
+    ok = build("fixtures/terminal/faulty.ern", "fixtures/terminal"),
     {1, Screen} = pty("../bin/ern run build/terminal/faulty.erc",
                       [{expect, "division by zero"}], 30),
     ?assertMatch({match, _}, re:run(Screen, "^Faulty\\.main faulted: division by zero",
@@ -119,7 +119,7 @@ utf8_key_interrupt_test_() ->
     {timeout, 60, fun utf8_key_interrupt/0}.
 
 utf8_key_interrupt() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {Status, Screen} = pty("LANG=C ../bin/ern run build/terminal/probe.erc",
                            [{expect, "ready"},
                             {send, "c3a9"},     % é, two bytes
@@ -137,7 +137,7 @@ terminal_restored_test_() ->
     {timeout, 60, fun terminal_restored/0}.
 
 terminal_restored() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {_, Screen} = pty("stty -a; ../bin/ern run build/terminal/probe.erc; stty -a",
                       [{expect, "ready"}, {send, "1b"}], 15),
     %% the terminal is described before and after, and is never left without
@@ -156,7 +156,7 @@ settings_kept_test_() ->
     {timeout, 60, fun settings_kept/0}.
 
 settings_kept() ->
-    ok = build("terminal/probe.ern", "terminal"),
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {_, Screen} = pty("stty tostop; ../bin/ern run build/terminal/probe.erc | cat; stty -a",
                       [{expect, "ready"}, {send, "1b"}], 15),
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),

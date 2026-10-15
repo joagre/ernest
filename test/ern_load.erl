@@ -1,5 +1,5 @@
 %% Plan, MVP 2.7, "Memory, read for what only grows": the load programs
-%% under load/, each run by `ern run` in a node of its own, as `make load`
+%% under fixtures/load/, each run by `ern run` in a node of its own, as `make load`
 %% does, and the shell under a long session. A load does the same work
 %% round after round and calls `mark(round)` after each, which collects
 %% every process's garbage and samples the node. After the warm-up rounds
@@ -21,7 +21,7 @@
 %% shows a leak of a hundred bytes an operation.
 -define(NOISE_BYTES, 128 * 1024).
 
-%% Runs one load, `Name` a program under load/ or `shell`, and halts with
+%% Runs one load, `Name` a program under fixtures/load/ or `shell`, and halts with
 %% status 0 if nothing grew and 1 otherwise, after printing its samples.
 %% `inputs File` writes the shell's session, which `make load` gives it as
 %% its standard input.

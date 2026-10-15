@@ -1,5 +1,5 @@
-%% Plan, MVP 2.99b's item 10: the program of test/service run under the
-%% host's service manager, as the deployment guide's section 1.5 says a
+%% Plan, MVP 2.99b's item 10: the program of test/fixtures/service run under
+%% the host's service manager, as the deployment guide's section 1.5 says a
 %% node is run, by a systemd unit on Linux and a launchd agent on macOS.
 %% The manager starts it, stops it, and starts it again after it ends with
 %% a status that is not 0; a stop asked for ends it by its signal (report

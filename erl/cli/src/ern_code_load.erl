@@ -35,8 +35,8 @@
 
 -export([load/1]).
 
--include_lib("typer/include/ern_types.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 %% A module of the load as its compiled form gives it: its namespace, the
 %% file it was read from, its bytes, its interface chunk (ern_interface)

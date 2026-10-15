@@ -83,7 +83,7 @@
 
 -export([start/0, handed/1, lacking/3, lost/1]).
 
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 -define(NAME, ern_exchange).
 

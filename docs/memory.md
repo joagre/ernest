@@ -6,7 +6,7 @@ How the project checks that nothing grows with the work done: the loads that mea
 
 `make load` runs each load in an Erlang node of its own and prints its samples and whether it stayed flat, which it also writes to `test/build/load/<load>.txt`. It takes about 110 seconds (measured 2026-09-30).
 
-A load does the same work in each of fourteen rounds and calls `mark(round)`, a `foreign fn` of `test/ern_load.erl`, after each. The programs are under `test/load/`; the shell's session is written by that harness.
+A load does the same work in each of fourteen rounds and calls `mark(round)`, a `foreign fn` of `test/ern_load.erl`, after each. The programs are under `test/fixtures/load/`; the shell's session is written by that harness.
 
 | Load | Each round |
 |---|---|
@@ -69,7 +69,7 @@ A growth found becomes a regression test in `make test-full` where one can show 
 
 ## Adding a load
 
-A new system module, a new long-lived process, or a new kind of state the shell keeps gets a load, or a line in an existing one, and a row in the table above. A load is an Ernest program under `test/load/`, named for what it loads and not for a module of the standard library, whose namespaces a program may not take. It declares `mark`, does the same work in each of its fourteen rounds, and is added to `LOADS` in `test/Makefile`.
+A new system module, a new long-lived process, or a new kind of state the shell keeps gets a load, or a line in an existing one, and a row in the table above. A load is an Ernest program under `test/fixtures/load/`, named for what it loads and not for a module of the standard library, whose namespaces a program may not take. It declares `mark`, does the same work in each of its fourteen rounds, and is added to `LOADS` in `test/Makefile`.
 
 ## What the loads leave out
 

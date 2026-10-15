@@ -114,7 +114,7 @@ export fn main() : Unit with Never = {
 
 ## Appendix E. Standard Library
 
-E.0 is normative; a function enters this appendix by its rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.size : (List(a!)) -> Int` takes no list that holds a reply, and `List.map` takes one. A module's own types are written there without its namespace.
+E.0 is normative; a function enters this appendix by its rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.size : (List(a!)) -> Int` takes no list that holds a reply, and `List.map` takes one. A module's own types are written there without its namespace.
 
 The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 

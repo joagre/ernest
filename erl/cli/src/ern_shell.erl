@@ -17,8 +17,8 @@
          leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("typer/include/ern_types.hrl").
--include_lib("utils/include/ern_diagnostic.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("cli/include/ern_build.hrl").
 -include_lib("kernel/include/file.hrl").
 

@@ -6,27 +6,13 @@ The report, in three files under [`report/`](../report/), is the one normative d
 
 ## The documents
 
-- **[`implementation_plan.md`](implementation_plan.md)**: where the project stands and what comes next.
-- **[`decisions.md`](decisions.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
-- **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
-- **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
-- **[`soundness.md`](soundness.md)**: the argument that a well-typed program does not go wrong, kept with the rules it covers.
-- **[`otp_bugs.md`](otp_bugs.md)**: the defects found in OTP, each written as a report for OTP's tracker.
-- **[`release_review.md`](release_review.md)**: what a release runs to be ready.
-- **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
-- **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.
-- **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
-- **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
-- **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`proposals/`](proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](proposals/shell/shell_design.md), of the Emacs major mode, [`emacs_mode.md`](proposals/emacs/emacs_mode.md), and of the installation, [`install.md`](proposals/install/install.md).
-- **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
-- **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode.
+What each document is, those under `docs/` and the two READMEs beside the code, is listed in [`README.md`](README.md), the index of this directory.
 
 The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 4.1.
 
 ## The layout of the repository
 
-`src/` holds the Ernest code a release ships, the standard library, the libraries and the shell; `erl/` holds the Erlang it ships; `editors/` holds the editor modes; everything else serves the repository. `report/` and `guide/` stand at the top, since they are the language, where `docs/` is the project talking about itself, the manual pages and the proposals among its documents.
+`src/` holds the Ernest code a release ships, the standard library, the libraries and the shell; `erl/` holds the Erlang it ships; `editors/` holds the editor modes; everything else serves the repository. `report/` and `guide/` stand at the top, since they are the language, where `docs/` holds every other document, the manual pages and the proposals among them.
 
 ```
 VERSION            the toolchain's version, read at build time
@@ -44,7 +30,8 @@ assets/            the logo the README, the guide and a release show, light and 
                    stoat mark alone as a vector and as a
                    512-pixel avatar, and the social preview GitHub's settings take,
                    with a note on each
-docs/              the documents listed above, and this one
+docs/              every other document, which docs/README.md lists, this one and the
+                   catalog of diagnostics among them
 docs/proposals/    what is designed, a directory for each proposal: the proposal, the
                    reasons for it, what other systems do, and its experiments or
                    programs; tentative until decided, and kept as a record once built
@@ -54,25 +41,26 @@ docs/man/          the pages as CommonMark, which make man writes from main and 
                    them, each its directory's README.md
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists in the order to read them
-erl/               the toolchain, as Erlang applications: lexer, parser, format,
-                   typer, runtime, emitter, cli, utils, which holds the vendored
-                   getopt, and json, the primitives of src/libs/json; each has src/, include/, ebin/ and test/, and the runtime
-                   also c_src/, the helper ern_exec's C source, and priv/, where make
-                   builds it
+erl/               the toolchain, as Erlang applications: shared, the three modules
+                   beneath every stage; lexer, parser, formatter, checker, runtime and
+                   emitter; cli, which holds the vendored getopt; and json, the
+                   primitives of src/libs/json. Each has src/ and ebin/, all but json
+                   include/ and test/ too, and the runtime also c_src/, the helper
+                   ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the integration, nodes, deployment guide,
                    document, style, guide, grammar, generated-program, shell and
                    terminal tests, the harnesses of the loads, the benchmark, the
                    service manager's checks and the pseudo-terminal, ern_grammar.erl,
-                   which reads Appendix A,
-                   ern_repository.erl, which the document and style tests read the
-                   repository through, and the catalog of diagnostics; target/, the
-                   hand-written target modules; programs/, the programs the tests keep:
-                   the first test programs, a two-module tree, the module of
-                   docs/module_doc_template.md and the echo measurement; expected/ and
-                   golden/, what programs/, hello, services and the operations programs print,
-                   repl's session among them, and the Erlang they compile to; and
-                   bench/, input/, layout/, load/, service/, session/, stdin/ and
-                   terminal/, the programs and inputs tests run
+                   which reads Appendix A, and ern_repository.erl, which the document
+                   and style tests read the repository through
+test/fixtures/     what the tests read: target/, the hand-written target modules;
+                   programs/, the programs the tests keep: the first test programs, a
+                   two-module tree, the module of docs/module_doc_template.md and the
+                   echo measurement; expected/ and golden/, what programs/, hello,
+                   services and the operations programs print, repl's session among
+                   them, and the Erlang they compile to; and bench/, input/, layout/,
+                   load/, peers/, service/, session/, stdin/ and terminal/, the
+                   programs and inputs tests run
 bin/               ern, the launcher, a POSIX sh script
 src/stdlib/        the standard library as Ernest source
 src/libs/          the first-party libraries, each a source root a program adds
@@ -107,7 +95,7 @@ make test         build, then the unit tests of every application and the docume
                   and style tests, side by side: the light run, a minute or two
 make test-full    build, then every area below, side by side: the whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
-                  APP=typer for one
+                  APP=checker for one
 make test-programs  the five parts below, side by side
 make test-integration  the programs compiled and run as a user runs them, the
                   signals, the streams, Os and the libraries' tests, and that the
@@ -172,9 +160,10 @@ make sections     list the report sections no test cites
 make xref         the document tests alone, without a build: every citation and
                   document path resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
-make golden       rewrite test/golden/, the Erlang the compiler emits for each program
-                  `golden_names/0` lists: test/programs/, hello and services
-make diagnostics  rewrite the outputs of test/diagnostics.md, the front end's errors,
+make golden       rewrite test/fixtures/golden/, the Erlang the compiler emits for each
+                  program `golden_names/0` lists: test/fixtures/programs/, hello and
+                  services
+make diagnostics  rewrite the outputs of docs/diagnostics.md, the front end's errors,
                   from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings
 make format       lay out every Ernest module, and the Ernest blocks of the report and the
@@ -197,7 +186,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the shell | `make test`, `make test-shell` |
 | the installation, the release, or the manual pages | `make test-install`, which runs `test-manual` first; the pages alone `make test-manual` |
 | the Emacs mode | `make test-emacs` |
-| the language guide, the report, the README, `test/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
+| the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
 | a proposal, or any other document | `make test-docs` |
 
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.
@@ -211,7 +200,7 @@ One application's test module runs alone as the suite runs it: its test beams by
 ```
 bin/ern build examples/hello.ern                  # writes examples/hello.erc
 bin/ern run examples/hello.erc                    # hello, world
-bin/ern build --build-root build/modules test/programs/modules  # a tree, in dependency order
+bin/ern build --build-root build/modules test/fixtures/programs/modules  # a tree, in dependency order
 bin/ern run build/modules/main.erc                # loads net/http.erc by namespace
 bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
 bin/ern doc src/stdlib/list.ern                   # the module's documentation as CommonMark

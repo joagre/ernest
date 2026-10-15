@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-15.** [The Repository Laid Out Again](#the-repository-laid-out-again-2026-10-15).
+**2026-10-15.** [The Layout Completed](#the-layout-completed-2026-10-15). [The Repository Laid Out Again](#the-repository-laid-out-again-2026-10-15).
 
 **2026-10-14.** [Kill Darlings](#kill-darlings-2026-10-14). [Clause Bodies All or None](#clause-bodies-all-or-none-2026-10-14). [The Guide Gathers Many Computes](#the-guide-gathers-many-computes-2026-10-14). [Paragraphs Break Where the Text Turns](#paragraphs-break-where-the-text-turns-2026-10-14). [Acknowledgments and a Dedication](#acknowledgments-and-a-dedication-2026-10-14).
 
@@ -7897,11 +7897,29 @@ The sixty-one findings of item 13's three readers (`docs/findings.md`), decided 
 
 *The Milestones After 3.0, Weighed Again* had MVP 3.2 gone and everything kept of the two set-aside proposals in one MVP 3.1. The read-through split it on 2026-10-09: identity first, the hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told and `Standing`; then code with a spawn, the exchange, the bare node, the let-go and `Code`. Everything in the crossing needs the hash and nothing in the hash needs the crossing, and the hash alone already connects nodes of different builds, so the split puts what is needed before what needs it, and each milestone ends with something that runs: a deploy of two builds side by side, then a worker given its code. The number 3.2 stays for the second, a milestone of the language's where the set-aside one was an operations layer. The plan's two sections are written from the proposals, which are the specifications, their reasons `code.md`'s and `nodes.md`'s; the plan's old MVP 3.1 and 3.2 sections, written from the set-aside proposals, go with them, and what they decided that still stands is in the proposals' sections 10 and the log's entries above.
 
+## The Layout Completed, 2026-10-15
+
+Decided with the user on 2026-10-15, the second part of *The Repository Laid Out Again*, before 0.4.0's tag.
+
+Three applications under `erl/` are named for what they are. `typer` is `checker`, the report's word, which the glossary and `architecture.md` already used. `format` is `formatter`, a noun among `lexer`, `parser` and `emitter`. `utils` is `shared`, since it holds the three modules beneath every stage, `ern_diagnostic`, `ern_chunk` and `ern_namespace`, and `utils` is the kind of name `style.md` refuses for a value. The vendored getopt moved into `cli`, the one application that uses it. The modules keep their names.
+
+The catalog of diagnostics moved from `test/` to `docs/diagnostics.md`. It is a document people read, which `make diagnostics` writes and a test holds to the compiler, as `docs/man/` is.
+
+The tests' data moved under `test/fixtures/`, each directory keeping its name. `test/` now lists the code that tests and one directory of what it reads.
+
+`docs/README.md` says what each file and directory of `docs/` is, the rule each proposal's directory already follows. `development.md`'s list of the documents moved there, so the list has one owner.
+
+The layout's rule says that `docs/` holds every other document, where it said `docs/` is the project talking about itself. The manual pages are for users, and that phrase did not fit them.
+
+An installation holds no source of the standard library. This reverses the sentence of *The Layout Under the Prefix* that installed it. Nothing on a user's machine reads it: the Emacs mode has no jump to a definition, `:browse` and `:doc` read interfaces and doc chunks, a fault names no source file, and the checker reads `.erc` files. The installed pages hold every doc block and every type. A function's body is for the curious, and it is in the repository, which the release's README names. "What runs is installed" then holds without exception. The installation still mirrors the clone for what it ships, and the build's `stdlib_root()` stays: in an installation that path is only compared, never opened. Two sentences of the report followed: §4.2 no longer calls the standard library's source root shipped with the toolchain, and Appendix E says its modules are written under `src/stdlib/`, where it said they ship as files there.
+
+`tour/`, MVP 3.3's, will stand at the top beside `report/` and `guide/` as a third way into Ernest, as the plan already has it; decided the same day.
+
 ## The Repository Laid Out Again, 2026-10-15
 
 Decided with the user on 2026-10-15, before 0.4.0's tag. Six directories moved: `stdlib/`, `libs/` and `shell/` under `src/`, `emacs/` under `editors/`, and `proposals/` and `man/` under `docs/`. The rule is `development.md`'s: `src/` holds the Ernest code a release ships, `erl/` the Erlang it ships, `editors/` the editor modes, and everything else serves the repository.
 
-The Ernest that ships now stands in one place. Its three kinds stay visible there: `src/stdlib/`, `src/libs/<name>/` and `src/shell/`. The editor modes have a directory of their own, with room for a second. The documents stand together under `docs/`, since the manual pages and the proposals are documents as the plan and the log are. `report/` and `guide/` stay at the top: they are the language, where `docs/` is the project talking about itself.
+The Ernest that ships now stands in one place. Its three kinds stay visible there: `src/stdlib/`, `src/libs/<name>/` and `src/shell/`. The editor modes have a directory of their own, with room for a second. The documents stand together under `docs/`, since the manual pages and the proposals are documents as the plan and the log are. `report/` and `guide/` stay at the top: they are the language, where `docs/` holds every other document.
 
 `erl/` keeps its name. It holds the runtime and the libraries' Erlang sides as well as the toolchain, so no word for one job fits it, and it names its language. `toolchain/` names only one of its jobs. `kernel/` is OTP's application, and `core/` reads as Core Erlang, the compiler's language. `tools/` stays out of `src/`, since it ships nothing: `tools/manual.ern` runs as the repository builds.
 

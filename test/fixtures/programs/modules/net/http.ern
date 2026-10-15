@@ -1,0 +1,14 @@
+//
+// Two modules: the library half
+//
+// From the guide, §7.1. This file's path under the source root, net/http.ern,
+// gives it the namespace Net.Http; main.ern calls Net.Http.parse. Build the
+// pair with ern build --build-root build test/fixtures/programs/modules and
+// run with ern run build/main.erc; ern build's directory mode compiles this
+// module before main.ern, in dependency order (§11.1).
+//
+
+export type Request = Request(method : String, path : String)
+
+export fn parse(text : String) : Optional(Request) =
+    if text == "GET /" then Some(Request(method = "GET", path = "/")) else None

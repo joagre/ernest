@@ -105,11 +105,14 @@ install: $(BEAMS) prepare
 measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
 	  $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam
 	@mkdir -p build/load build/bench/probe build/service
-	@erlc $(ERLC_FLAGS) -o build/bench/probe bench/ern_code_probe.erl
+	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl
 	@for p in $(LOADS); do \
-	  ../bin/ern build --source-root load --build-root build/load load/$$p.ern || exit 1; done
-	@../bin/ern build --source-root bench --build-root build/bench bench/bench.ern
-	@../bin/ern build --source-root service --build-root build/service service/service.ern
+	  ../bin/ern build --source-root fixtures/load --build-root build/load fixtures/load/$$p.ern \
+	  || exit 1; done
+	@../bin/ern build --source-root fixtures/bench --build-root build/bench \
+	  fixtures/bench/bench.ern
+	@../bin/ern build --source-root fixtures/service --build-root build/service \
+	  fixtures/service/service.ern
 
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
@@ -156,10 +159,11 @@ contents: $(EBIN)/ern_docs_tests.beam
 format: $(EBIN)/ern_style_tests.beam
 	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
 
-# The load programs under load/ and the shell under a long session, each in
-# a node of its own, as docs/memory.md says; not part of `make test-full`,
-# and run before every release (docs/release_review.md). Each prints its
-# samples and whether it stayed flat, into build/load/ as well.
+# The load programs under fixtures/load/ and the shell under a long
+# session, each in a node of its own, as docs/memory.md says; not part of
+# `make test-full`, and run before every release (docs/release_review.md).
+# Each prints its samples and whether it stayed flat, into build/load/ as
+# well.
 LOADS = processes supervisors sockets programs files alarms
 LOAD = erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN)
 load: $(EBIN)/ern_load.beam measured
@@ -172,15 +176,15 @@ load: $(EBIN)/ern_load.beam measured
 	  || status=1; \
 	cat build/load/shell.txt; exit $$status
 
-# The service manager's checks: the program of service/ run under the
-# user's systemd on Linux and launchd on macOS (ern_service_tests.erl);
+# The service manager's checks: the program of fixtures/service/ run under
+# the user's systemd on Linux and launchd on macOS (ern_service_tests.erl);
 # not part of `make test-full`, which a host without a service manager runs
 # too, and run before every release (docs/release_review.md).
 service: measured
 	$(call EUNIT,ern_service_tests)
 
-# The benchmark: bench/bench.ern built and run as a user runs a program,
-# and its times printed beside the same operations in Erlang by ern_bench,
+# The benchmark: fixtures/bench/bench.ern built and run as a user runs a
+# program, and its times printed beside the same operations in Erlang by ern_bench,
 # the faults its raises measure reported into build/bench/faults.txt;
 # then every function of the library measured against the host's by
 # ern_measure (plan MVP 2.99d item 1), its whole table in

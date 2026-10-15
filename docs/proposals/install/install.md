@@ -2,7 +2,7 @@
 
 Status: built. This is the installation's design note, and changes when the installation's design does. It is not authoritative.
 
-How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed* and *The Release Has a README of Its Own* argue it. `installation_test_` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
+How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed*, *The Release Has a README of Its Own* and *The Layout Completed* argue it. `installation_test_` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
 
 ## The layout
 
@@ -14,7 +14,6 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     bin/ern                      the launcher
     erl/<app>/ebin/              the toolchain's modules, without its tests
     erl/runtime/priv/ern_exec    the helper Os.run runs a program through
-    src/stdlib/*.ern             the standard library's source root (report §4.2)
     build/stdlib/                the standard library, compiled
     build/shell/                 the shell, compiled, with libs/markdown and libs/ansi
     build/libs/<name>/           each library, compiled, a root for --load-path
@@ -27,7 +26,7 @@ share/doc/ernest/                the report's three files under report/, the gui
 share/emacs/site-lisp/ernest-mode.el
 ```
 
-The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the tests, the shell's source and the examples are not installed. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
+The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, the tests and the examples are not installed. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
 
 The documents installed are for a reader with no checkout. The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout. The report and the guide are staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. So every link of an installed document names a file installed beside it or an address.
 

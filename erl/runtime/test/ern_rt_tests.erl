@@ -360,7 +360,7 @@ site_kept_after_init_test() ->
 %% compile its own output, and run its main, the function of its number
 %% Main (report §11.1), as the runner does, collecting what reaches stdout.
 run_target(File, Main) ->
-    Path = "../../../test/target/" ++ File,
+    Path = "../../../test/fixtures/target/" ++ File,
     {ok, Forms} = epp:parse_file(Path, []),
     {ok, ErlangModule, Beam} = compile:forms(Forms, [return_errors]),
     {module, ErlangModule} = code:load_binary(ErlangModule, Path, Beam),

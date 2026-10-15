@@ -20,7 +20,7 @@
 %% run as a person runs them: seven bare nodes listening on ports the host
 %% picks, a node of the fixed module's old build, and the measuring node,
 %% which lists them all. The nodes show their work through
-%% `bench/ern_code_probe.erl`, on each one's load path, whose functions the
+%% `fixtures/bench/ern_code_probe.erl`, on each one's load path, whose functions the
 %% measuring program runs on a peer by a compute of their names: the host's
 %% trace of the exchange's steps, the runtime's reading of the host's
 %% counts, and the host's counts of each connection's packets. It measures
@@ -29,7 +29,7 @@
 
 -export([main/1]).
 
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(STDLIB, filename:absname("../build/stdlib")).

@@ -22,8 +22,8 @@
 -export([main/1, entries/0, measured/2]).
 
 -include_lib("kernel/include/file.hrl").
--include_lib("typer/include/ern_types.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_types.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 %% The machine's line, E.0 rule 1's for an operation on a value the
 %% language owns that a host function almost does: past it, the Ernest form

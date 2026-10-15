@@ -38,7 +38,7 @@
 
 -export([unit/1, source/1, function_name/1, site_name/2]).
 
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
 %% The elements past which a list or a tuple literal is built an element at

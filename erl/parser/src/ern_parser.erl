@@ -12,7 +12,7 @@
          parse_statement/2, parse_type/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diagnostic.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 
 -define(DECLARATION_START, [export, type, abstract, fn, 'let', foreign]).
 -define(SPECS, [bytes, int, float, utf8, utf16, utf32, big, little, signed, unsigned]).

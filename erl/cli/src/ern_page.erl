@@ -9,7 +9,7 @@
 -export([page/1, prelude_page/0, module_head/1, manual/1, prelude_manual/0, declaration/3,
          session_declaration/3, prelude_declaration/1, since/1, declared_since/2]).
 
--include_lib("typer/include/ern_types.hrl").
+-include_lib("checker/include/ern_types.hrl").
 
 %% Report §11.4: the page of one compiled module, built from its
 %% documentation chunk and the namespace in its interface chunk (§11.1).

@@ -1,4 +1,4 @@
-%% `make bench` (docs/development.md): the operations of bench/bench.ern,
+%% `make bench` (docs/development.md): the operations of fixtures/bench/bench.ern,
 %% each written as Erlang writes it, run as the Ernest program runs them,
 %% the fastest of three runs of a loop, and printed beside what the Ernest
 %% program took, in nanoseconds an iteration, the loop's own cost included

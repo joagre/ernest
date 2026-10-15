@@ -7,7 +7,7 @@
 -module(ern_exchange_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 
 -define(REACHED,
         "export type Shape = Square(Int) | Circle(Int)\n"

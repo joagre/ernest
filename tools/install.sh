@@ -47,7 +47,7 @@ stage() {
     rm -rf "$stage"
     tree=$stage/lib/ernest
     cd "$repo"
-    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec src/stdlib/*.ern \
+    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec \
              build/stdlib/*.erc build/stdlib/ern@*.beam \
              $(find build/shell build/libs -type f \( -name '*.erc' -o -name '*.beam' \) | sort)
     do

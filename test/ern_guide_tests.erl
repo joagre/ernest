@@ -36,7 +36,7 @@
 -export([units/1, write_diagnostics/0]).
 
 -define(GUIDE, "../guide/language.md").
--define(DIAGNOSTICS, "diagnostics.md").
+-define(DIAGNOSTICS, "../docs/diagnostics.md").
 %% The report, in its three files (report §0): the language, the toolchain
 %% and the standard library.
 -define(REPORT, ["../report/language.md", "../report/toolchain.md", "../report/library.md"]).

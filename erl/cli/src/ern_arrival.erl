@@ -47,7 +47,7 @@
 
 -export([received/5, name/1]).
 
--include_lib("typer/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
 %% Report §8.7: the definitions Arrived, each of one code frame, verified,
