@@ -133,7 +133,7 @@ Or from a release: download `ern-<version>.tar.gz` from the [releases page](http
 
 ## Reading more
 
-- **[The guide](guide/language.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here.
+- **[The guide](guide/language.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here. Beside it, [Why Ernest](guide/why.md) is the argument above, whole, and [the questions](guide/faq.md) answer what a reader of another BEAM language asks first.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them in an order to read them, with what each shows.
 - **[The manual pages](docs/man/)**, as `make man` last wrote them from `main`, the prelude's, every standard library module's and every library's, as `man Ernest.List` shows them where Ernest is installed.
 - **[The report](report/language.md)** is where the details are: the language's definition, which everything else defers to, in three files under `report/`, the language, the toolchain and the standard library.

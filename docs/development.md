@@ -24,8 +24,9 @@ ACKNOWLEDGMENTS.md the people Ernest stands on
 report/            the report (normative), in three files: language.md, §0 to §10 and
                    Appendices A, B and F; toolchain.md, §11 and Appendices C and H;
                    library.md, Appendices D, E and G
-guide/             the guides: language.md, the language guide, and deployment.md,
-                   Running Ernest, the operator's
+guide/             the guides: language.md, the language guide; deployment.md,
+                   Running Ernest, the operator's; why.md, the argument for the
+                   design, its list held equal to the README's; and faq.md
 assets/            the logo the README, the guide and a release show, light and dark, the
                    stoat mark alone as a vector and as a
                    512-pixel avatar, and the social preview GitHub's settings take,

@@ -7921,7 +7921,9 @@ The hash's lineage is told in §12 as the sources confirm it, checked on 2026-10
 
 The 2014 talk *The Mess We're In* is reported by listeners to propose hashes in place of names at about its thirty-sixth minute. No transcript was found to confirm it, so the guide does not say it. Unison's own slides name Erlang among its influences, and no source has its authors naming any of these, so the guide says only that.
 
-Unison Cloud runs hosted and, since its *bring your own cloud* of October 2025, on a user's own machines, so the guide no longer says Unison runs only on its service. The acknowledgments name Unison's three founders. "No cookie" was left out, since the host's cookie proves a node's floor.
+Unison Cloud runs hosted and, since its *bring your own cloud* of October 2025, on a user's own machines, so the guide no longer says Unison runs only on its service.
+
+The argument lives in `guide/why.md`, beside the guide, and the questions in `guide/faq.md`, decided with the user the same day: a reader who wants the argument or an answer should not open a tutorial of three thousand lines for it. The README's front page carries the same list and proofs, held to `why.md`'s list by the test that held it to the guide's. The guide's §0, now *What the compiler refuses*, keeps its refusals and the layout of an error, which §1 to §8 lean on, and points at `why.md`; its §12 keeps its number and points at `faq.md`, since the exercises cite §13. A citation in either file names the guide, `the guide's §4.4`, since a bare section number outside the guide is the report's. The acknowledgments name Unison's three founders. "No cookie" was left out, since the host's cookie proves a node's floor.
 
 One precedent on the runtime itself is known and not named in the list: Alpaca put a type on a process's `receive` on BEAM years before, and the acknowledgments name its author; what is Ernest's is the type on the function, and the nodes behind it.
 

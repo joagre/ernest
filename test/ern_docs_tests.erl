@@ -156,11 +156,11 @@ anchored(Heads) ->
           end, #{}, Heads),
     Anchored.
 
-%% README.md, the language guide §0, CLAUDE.md *Who owns each fact*: the front
-%% page's list of what Ernest adds is the guide's, word for word, so that the
-%% two cannot drift apart
+%% README.md, guide/why.md, CLAUDE.md *Who owns each fact*: the front page's
+%% list of what Ernest adds is why.md's, word for word, so that the two
+%% cannot drift apart
 what_ernest_adds_test() ->
-    ?assertEqual(adds(ern_repository:read("guide/language.md")),
+    ?assertEqual(adds(ern_repository:read("guide/why.md")),
                  adds(ern_repository:read("README.md"))).
 
 adds(Document) ->

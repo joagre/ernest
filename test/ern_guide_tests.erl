@@ -42,6 +42,8 @@
 -define(REPORT, ["../report/language.md", "../report/toolchain.md", "../report/library.md"]).
 -define(LANGUAGE, "../report/language.md").
 -define(README, "../README.md").
+-define(WHY, "../guide/why.md").
+-define(FAQ, "../guide/faq.md").
 
 %% A fenced block of a document: the line its fence opens on, the word
 %% after the fence, the heading it stands under, and its lines.
@@ -126,6 +128,14 @@ report_examples_test_() ->
 %% README.md: the front page's example compiles, as the guide's do
 readme_examples_test_() ->
     examples(?README, "readme").
+
+%% guide/why.md, guide/faq.md: the argument's programs compile as the
+%% guide's do, and the questions' would if they had any
+why_examples_test_() ->
+    examples(?WHY, "why").
+
+faq_examples_test_() ->
+    examples(?FAQ, "faq").
 
 %% report §11.5: each error the catalog shows is
 %% the compiler's, printed as the catalog prints it; the catalog's

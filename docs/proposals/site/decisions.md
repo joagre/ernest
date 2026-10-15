@@ -21,7 +21,7 @@ The site's files as served.
     /robots.txt
     /sitemap.xml
     /why/                           guide/why.md
-    /features/                      guide/features.md
+    /faq/                           guide/faq.md
     /tour/                          contents
     /tour/<n>.html                  chapter n, with previous and next
     /guide/                         contents
@@ -83,7 +83,7 @@ The site's files as served.
   opening paragraph; the guide's §0 list "What Ernest adds", word for word,
   which the documents test holds equal to the guide's as it holds the
   README's, each item's bold name and first sentence linking to its section in
-  Why, then a link, "everything Ernest has", to Features; a paragraph on
+  Why; a paragraph on
   intended use; and a small example with its output, which a test runs, so
   that Try prints what the page shows. The opening and the list are visible on
   a desktop without scrolling.
@@ -100,9 +100,8 @@ The site's files as served.
 - The header: Why, Tour, Guide, Report, Library, Shell, Install, and Source,
   the GitHub link. The terminal is labeled Shell, as `ern shell` names it; the
   homepage's door to it is Try.
-  Features is not in the header.
 - One footer, the homepage's too, in two lines. First the rooms the header
-  leaves out: Features, Deployment and Releases. Then
+  leaves out: the questions, Deployment and Releases. Then
   the page: its source file in the repository with its last commit date, the
   version the site is built from, the license, the issues, and "served by
   ehttpd, written in Ernest" once true.
@@ -202,7 +201,7 @@ The site's files as served.
   two pages of their own, decided 2026-10-13: `page.html`, a Markdown document
   with a sidebar of its headings and a footer naming its source, for every
   chapter of the tour, the guide and the report, every `/man/` page, Why,
-  Features, the deployment guide, Install, Releases, whose notes the generator
+  the questions, the deployment guide, Install, Releases, whose notes the generator
   joins newest first into one document, and the 404 page with its fixed body;
   what differs between them, a previous and a next, and what the footer names,
   is data the generator passes, and a slot without it is empty. `toc.html`, a
@@ -298,15 +297,16 @@ The site's files as served.
 
 ## The documents, 2026-10-13
 
-- One document per question: Should I care? Why. What do I get? Features. Show
+- One document per question: Should I care? Why. Show
   me, in order: the tour. How do I write it? The guide. What exactly is the
   rule? The report. What does this function do? The library's pages. How do I
   run it? The deployment guide. What does this command do? `man ern`, and on
   the site the report's §11. Let me try it: the shell. What is in each release? The release notes.
-- Why and Features are `guide/why.md` and `guide/features.md`. The guide tests
-  run their examples; each has a row in CLAUDE.md's owners table.
-- Features is written first, then Why a section at a time, their lengths
-  level.
+- Why is `guide/why.md`, written 2026-10-15 as the README's list of four with a
+  program for each, and the questions are `guide/faq.md`; the guide tests run
+  their examples. Features, the inventory, was dropped the same day: what it
+  would list is the README's four, the guide's contents and the manual pages'
+  index, and a fourth list would drift from them.
 - A section of Why states the rule, names its price before its gain, shows a
   program and the compiler's line about it, compiled before it is quoted, and
   points to the guide and the report. No sentence describes another language;
