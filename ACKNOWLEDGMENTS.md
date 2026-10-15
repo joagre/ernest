@@ -95,6 +95,7 @@ The people behind the type theory, the languages and the reports Ernest draws on
 - J. W. Backus
 - D. H. Bartley
 - F. L. Bauer
+- Rúnar Bjarnason
 - G. Brooks
 - Paul Chiusano
 - William Clinger
@@ -111,6 +112,7 @@ The people behind the type theory, the languages and the reports Ernest draws on
 - Robert Harper
 - C. T. Haynes
 - J. Roger Hindley
+- Arya Irani
 - C. Katz
 - Richard Kelsey
 - Donald E. Knuth
