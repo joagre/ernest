@@ -8,7 +8,7 @@
 
 # Ernest
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam brought to that runtime, and Unison's code known by the hash of its definition. What Ernest adds is where the parts meet:
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's code known by the hash of its definition. What Ernest adds is where the parts meet:
 
 - **The mailbox in the function's type.** A process receives one type of message, and a function that receives says which, `with CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads.
 - **Code known by its hash.** A definition is known by the hash of its form, so a module has as many versions as it has had, each named apart, and a running process takes a new version of its function as a message. A spawn carries its function to a peer that lacks it, so any node can run anything: a bare node joins with no program of its own, and work is placed where there is room, with no deployment first.
