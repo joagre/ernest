@@ -65,7 +65,7 @@ fn count(total : Int) : Unit with CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it: here `Counter.Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused with the reason.
+In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused with the reason.
 
 ```
 > let old = spawn(fn() = Counter.count(0))
