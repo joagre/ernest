@@ -2962,31 +2962,19 @@ Principle 3 turns an omission into a statement. Exhaustiveness makes you say wha
 
 **It looks like Gleam. What differs?**
 
-The syntax is near, and that is where the likeness ends. In Ernest the process is the language: a function's type names the mailbox of the process it runs in, a `receive` is checked against that mailbox's type, a request carries its `Reply`, and `spawn`, `monitor` and `Address.call` are the prelude's, so the compiler reaches all of them (§4). Nodes are the language too: a node lists its peers by key, a spawn carries its function's code to a peer that lacks it, and a running program replaces a module beside its earlier versions (§8, report §8.7, report §11.2). A function generic in a type names what it needs of that type, `needs a.compare`, and the type's one `compare` is supplied (§7.3). The likeness is not an accident: Ernest took its line comment and `todo` from that syntax and left the rest aside on purpose, each form weighed on its five principles (§11). Ernest compiles to the Erlang runtime, OTP 29, and to nothing else.
-
-**Why not Erlang with Dialyzer, or Elixir?**
-
-A type in Ernest is inferred for every expression and refused before the program runs, and it reaches what Erlang's types do not: the mailbox, so that a message a process does not take is a compile error and not a message that waits for ever, and the border to another node, so that a value that cannot leave its node is stopped where it would be sent (§4.1, §8.4). There are no exceptions, no links, no registered names, no atoms and no behaviors, each replaced by one thing the type checker sees (§10). What an Erlang programmer knows otherwise carries over, and a `foreign fn` calls any Erlang function directly (§8.3).
+The types are the same family, Hindley-Milner as ML has it, and Gleam brought them to the Erlang runtime well, in semantics and in syntax; Ernest took its line comment and `todo` from that syntax and weighed the rest form by form on its five principles (§11). What differs is how far the types reach. In Ernest the process is the language: a function that receives names its mailbox's type, a `receive` is checked against it, every `send` against the address it reaches, a request carries its `Reply`, and `spawn`, `monitor` and `Address.call` are the prelude's, so the compiler sees all of them (§4). Nodes are the language too: a node lists its peers by key, a spawn carries code by its hash to a peer that lacks it, and a module keeps every version it has had (§8, report §8.7, report §11.2). A function generic in a type names what it needs of that type, `needs a.compare` (§7.3). Ernest compiles to the Erlang runtime, OTP 29, and to nothing else.
 
 **Why one mailbox per process, and not several typed channels?**
 
 A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out. A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, which turns that source's messages into the process's own as they arrive, written where the reader sees it (§4.1, report §6.5). The process's protocol is one type, read in one place, and a channel is a value: a list of messages, sent anywhere.
 
-**Can I call Erlang, and what happens at the border?**
+**How does Ernest talk to Erlang, and to the other languages on the runtime?**
 
-A `foreign fn` names an Erlang function and declares its Ernest type, and a `foreign type` names a value Ernest holds without looking inside (§8.3, report §4.7). The foreign side promises the declared types: a return value that breaks the promise faults the caller when the call returns, and a message from foreign code is checked by a process the runtime puts in front of the exposed address, before it reaches the process behind, so that a compiled `receive` never sees a value of the wrong shape (report §8.4). Everything else is Ernest's own: the standard library stands on the host's functions through such declarations (§8.5).
+Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, and declares its Ernest type; a `foreign type` names a value Ernest holds without looking inside (§8.3, report §4.7). The foreign side promises the declared types. A return value that breaks the promise faults the caller when the call returns, and a message from foreign code is checked by a process the runtime puts in front of the exposed address, so that a compiled `receive` never sees a value of the wrong shape (report §8.4). The standard library stands on the host through such declarations (§8.5), and an Ernest program is otherwise written in Ernest: it is not an OTP application and is not mixed with another language's modules.
 
-**Does it compile to JavaScript, or anything but BEAM?**
+**What does "built for a WAN" mean?**
 
-No. Ernest is a language for the Erlang runtime, OTP 29, and the runtime is part of what the report states: processes, mailboxes, monitors, nodes and the border to Erlang are its own (report §10). A second target would be a second runtime to state, and nothing in the language asks for one.
-
-**Why do peers list each other, over TLS, with no mesh?**
-
-A node knows a peer by a name, a public key and an address in its own configuration, and accepts a connection from a listed key alone, under the name that key gives it (report §8.3, §8.7). Two nodes have at most one connection, opened by the first operation that needs it, so a program's nodes talk where the program says and nowhere else, and a node that is not listed is not there. There is no port mapper and no cookie: the key is the identity, and the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
-
-**Why can't a function or a socket cross to another node?**
-
-A function's code lives on the node that compiled it, and a socket is open on the node that opened it, so a value of either type is *bound* to its node, and so is any value that holds one (report §3.11). The compiler refuses the operation that would start such a value on its way, a `send` through a service or a spawn's capture, at the type, so a program never learns at run time that its message could not be sent (§8.4). Work on a peer is a process spawned there, which carries its captured values and, where the peer lacks it, its function's code by hash (§8.1).
+That two nodes on two networks are the ordinary case. A node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, §8.7). There is no mesh, so a program's nodes talk where its configuration says and nowhere else; no port mapper, so one port per node is opened; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
 
 **How is code replaced in a running program, and why not old and new code?**
 
