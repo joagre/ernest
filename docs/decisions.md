@@ -7915,6 +7915,8 @@ An installation holds no source of the standard library. This reverses the sente
 
 `tour/`, MVP 3.3's, will stand at the top beside `report/` and `guide/` as a third way into Ernest, as the plan already has it; decided the same day.
 
+`docs/proposals/scratch/`, the copies written for one reader outside the project, is `docs/proposals/handouts/`, which says what they are. `scratch/` inside a proposal's directory is the user's untracked thinking, and one name meant two things.
+
 ## The Repository Laid Out Again, 2026-10-15
 
 Decided with the user on 2026-10-15, before 0.4.0's tag. Six directories moved: `stdlib/`, `libs/` and `shell/` under `src/`, `emacs/` under `editors/`, and `proposals/` and `man/` under `docs/`. The rule is `development.md`'s: `src/` holds the Ernest code a release ships, `erl/` the Erlang it ships, `editors/` the editor modes, and everything else serves the repository.

@@ -31,7 +31,9 @@ installation_test_() ->
 %% is a regression test too, written on 2026-10-04 after the report's
 %% directory was found left behind, and the documents' with it; and so is
 %% that no module compiled from an application's tests is installed,
-%% written after the runtime's test helper `ern_waits` was found shipped.
+%% written after the runtime's test helper `ern_waits` was found shipped;
+%% and so is that no source of the standard library is installed, written
+%% on 2026-10-15 when the log's *The Layout Completed* stopped installing it.
 install() ->
     {ok, VersionText} = file:read_file("../VERSION"),
     Version = string:trim(VersionText),
@@ -42,6 +44,7 @@ install() ->
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
     ?assertEqual([], debug_information(Base ++ "/a")),
     ?assertEqual([], test_modules(filelib:wildcard(Base ++ "/a/lib/ernest/erl/*/ebin/*.beam"))),
+    ?assertNot(filelib:is_dir(Base ++ "/a/lib/ernest/src")),
     Documents = Base ++ "/a/share/doc/ernest/",
     {ok, Installed} = file:read_file(Documents ++ "README.md"),
     ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
