@@ -123,6 +123,7 @@ The people behind the type theory, the languages and the reports Ernest draws on
 - P. Naur
 - D. Oxley
 - A. J. Perlis
+- Jeremy Pierre
 - Louis Pilfold
 - K. M. Pitman
 - Jonathan Rees
