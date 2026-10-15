@@ -2911,6 +2911,38 @@ Principle 3 turns an omission into a statement. Exhaustiveness makes you say wha
 
 ## 12. Frequently asked questions
 
+**It looks like Gleam. What differs?**
+
+The syntax is near, and that is where the likeness ends. In Ernest the process is the language: a function's type names the mailbox of the process it runs in, a `receive` is checked against that mailbox's type, a request carries its `Reply`, and `spawn`, `monitor` and `Address.call` are the prelude's, so the compiler reaches all of them (§4). Nodes are the language too: a node lists its peers by key, a spawn carries its function's code to a peer that lacks it, and a running program replaces a module beside its earlier versions (§8, report §8.7, report §11.2). A function generic in a type names what it needs of that type, `needs a.compare`, and the type's one `compare` is supplied (§7.3). The likeness is not an accident: Ernest took its line comment and `todo` from that syntax and left the rest aside on purpose, each form weighed on its five principles (§11). Ernest compiles to the Erlang runtime, OTP 29, and to nothing else.
+
+**Why not Erlang with Dialyzer, or Elixir?**
+
+A type in Ernest is inferred for every expression and refused before the program runs, and it reaches what Erlang's types do not: the mailbox, so that a message a process does not take is a compile error and not a message that waits for ever, and the border to another node, so that a value that cannot leave its node is stopped where it would be sent (§4.1, §8.4). There are no exceptions, no links, no registered names, no atoms and no behaviors, each replaced by one thing the type checker sees (§10). What an Erlang programmer knows otherwise carries over, and a `foreign fn` calls any Erlang function directly (§8.3).
+
+**Why one mailbox per process, and not several typed channels?**
+
+A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out. A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, which turns that source's messages into the process's own as they arrive, written where the reader sees it (§4.1, report §6.5). The process's protocol is one type, read in one place, and a channel is a value: a list of messages, sent anywhere.
+
+**Can I call Erlang, and what happens at the border?**
+
+A `foreign fn` names an Erlang function and declares its Ernest type, and a `foreign type` names a value Ernest holds without looking inside (§8.3, report §4.7). The foreign side promises the declared types: a return value that breaks the promise faults the caller when the call returns, and a message from foreign code is checked by a process the runtime puts in front of the exposed address, before it reaches the process behind, so that a compiled `receive` never sees a value of the wrong shape (report §8.4). Everything else is Ernest's own: the standard library stands on the host's functions through such declarations (§8.5).
+
+**Does it compile to JavaScript, or anything but BEAM?**
+
+No. Ernest is a language for the Erlang runtime, OTP 29, and the runtime is part of what the report states: processes, mailboxes, monitors, nodes and the border to Erlang are its own (report §10). A second target would be a second runtime to state, and nothing in the language asks for one.
+
+**Why do peers list each other, over TLS, with no mesh?**
+
+A node knows a peer by a name, a public key and an address in its own configuration, and accepts a connection from a listed key alone, under the name that key gives it (report §8.3, §8.7). Two nodes have at most one connection, opened by the first operation that needs it, so a program's nodes talk where the program says and nowhere else, and a node that is not listed is not there. There is no port mapper and no cookie: the key is the identity, and the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
+
+**Why can't a function or a socket cross to another node?**
+
+A function's code lives on the node that compiled it, and a socket is open on the node that opened it, so a value of either type is *bound* to its node, and so is any value that holds one (report §3.11). The compiler refuses the operation that would start such a value on its way, a `send` through a service or a spawn's capture, at the type, so a program never learns at run time that its message could not be sent (§8.4). Work on a peer is a process spawned there, which carries its captured values and, where the peer lacks it, its function's code by hash (§8.1).
+
+**How is code replaced in a running program, and why not old and new code?**
+
+A process replaces its own loop by a message in its type that carries the new function, and switches with a tail call, so the replacement is a line of the program and the type says when it may arrive (§4.6, report §6.10). A module reloaded in the shell gets a version beside its earlier ones, each named, so that a process still running the old version runs it to its end and a value of an old type prints as that version's (report §11.2). Across nodes a definition is known by the hash of its form, so two nodes agree on a function by its content and not by a module's name and a count of two (report §8.7).
+
 **Is there a type class, an interface or a trait?**
 
 No. A function that needs an operation of a type it is generic in names the type's member, `needs a.compare`, and a call writes nothing, since a type has one `compare` and the compiler supplies it; code written once over several representations takes a record the program declares and fills from a representation's module, `Operations(..Set)` (§7.3). Nothing is inferred and nothing is declared an instance.

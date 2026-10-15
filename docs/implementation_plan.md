@@ -476,7 +476,12 @@ the same commit; then the log; then the code, by an agent from the settled repor
    adds* and the README's lines the test holds equal to it among them; and `docs/man/` at the release.
 3. **A library that waits**, the guide's §4.4 passage,
    [`guide_passage.md`](proposals/kill_darlings/guide_passage.md), after the queue, and §8.1's
-   *Many at once* pointing at it, checked by `make test-guide`.
+   *Many at once* pointing at it, checked by `make test-guide`. The guide's §12 then gains three
+   questions items 1 and 2 answer: why a function that receives carries `receiving M` and one that
+   only sends carries nothing; whether a forgotten answer is caught (`None` at the deadline, a fault
+   where the callee ends, `Fault("deadlock")` where nothing else can run, and `callForever` waiting
+   on a callee that lives on); and why the compiler is so strict with no warnings, its examples
+   without the refusal of a print in a pure function.
 
 The tour's library `Mailbox`, `drained(keep)` and `refilled(messages)`, two functions over the
 language as it stands, is MVP 3.3's, written where its rolling upgrade needs it (the proposal's
