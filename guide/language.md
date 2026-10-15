@@ -1698,7 +1698,7 @@ What must survive a fault lives in the process that does not fault: here the lis
 
 ### 6.5 A service
 
-A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. It is not a registry: the name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration.
+A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. It is not a registry: the name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration. It needs none, because `restarting` keeps the process's address across its faults: the binding is made once and stays good, where a registry exists to find the new process behind an old name.
 
 ```ernest
 export type CounterMsg = Add(amount : Int, reply : Reply(Int))
@@ -2936,7 +2936,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A function says in its type whether it may send or receive (§3.4).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
-- There are no registered names, and addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, through a service binding, a top-level binding that holds one (§6.5), or, from another node, by the name it is offered under (§8.2).
+- There are no registered names, and none are needed: a registry exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5). Addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, through a service binding, a top-level binding that holds one (§6.5), or, from another node, by the name it is offered under (§8.2).
 - There are no atoms in the language: constructors are the tags. `Foreign.atom` makes one for a foreign call.
 - There are no OTP behaviors. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
@@ -2970,7 +2970,7 @@ Nodes are the language too: a node lists its peers by key, a spawn carries code 
 
 **Where are `gen_server` and the supervisors?**
 
-In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries its `Reply`, which `Address.call` waits on with a deadline (§4.4). A process that must come back is started with `restarting`, which restarts it in place so that its address holds (§6.5), and a supervision tree is the standard library's `Supervisor`, its children restarted in place (§6.6).
+In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries its `Reply`, which `Address.call` waits on with a deadline (§4.4). A process that must come back is started with `restarting`, which restarts it in place so that its address holds, and that is why there is no registry: a service is a top-level binding that holds the address, made once and good for the program's life (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place (§6.6).
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (§4.6), and a module reloaded or brought by a peer runs beside its earlier versions (report §11.2). In a rolling upgrade the messages a process has not yet taken move with the work: `Mailbox.drained(keep)` takes them from its mailbox in arrival order, as a list, and the new process puts them into its own with `Mailbox.refilled(messages)`, behind what it already holds; the library is MVP 3.3's, planned with the tour and not yet written.
 
