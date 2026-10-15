@@ -422,6 +422,19 @@ day's changes, each passing alone at its usual time: `one_node` in the deploymen
 derived from what it waits for, and the phase runs no more side by side than the machine
 carries, measured before the tag.
 
+**Before the tag: the shell and a private mailbox type.** Found 2026-10-15 by use. With `count`
+exported and its mailbox type `Msg` kept private, which the report's rule on exported declarations
+allows (§4.2), the input `let p = spawn(fn() = Plain.count(0))` faults the shell and ends it with
+status 70, `ern_descriptor:descriptor/3`'s `case_clause` on `undefined`: the compiled interface
+tells the descriptor nothing of a type the module keeps private, while `:type` of the same
+expression answers `Address(Plain.Msg)` and the binding works once the type is exported. The shape
+of the fix: the interface carries every type's description for the descriptor's use, a private
+type staying private to names, so the shell binds and prints `p : Address(Plain.Msg)` and the
+checker in front of an exposed address keeps its check of each message; whether a compiled program
+reaches the same fault, through `Io.show` of such a value or an address of a private type exposed
+to foreign code, is probed first; a regression test in the shell's tests. Nothing routes around
+it meanwhile: the README's counter exports its type because its reader sends `Counter.Inc`.
+
 ---
 
 ## MVP 3.26 (kill darlings), about four weeks

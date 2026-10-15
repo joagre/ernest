@@ -10,9 +10,9 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition. What Ernest adds is where the parts meet:
 
-- **The mailbox in the function's type.** A process receives one type of message, and a function that receives says which, `with CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads.
-- **Code known by its hash.** A definition is known by the hash of its form, so a module has as many versions as it has had, each named apart, and a running process takes a new version of its function as a message. A spawn carries its function to a peer that lacks it, so any node can run anything: a bare node joins with no program of its own, and work is placed where there is room, with no deployment first.
-- **A distribution built for a WAN.** A node lists its peers by name, public key and address, accepts a connection from a listed key alone, and opens one TLS connection to a peer when an operation first needs it. No mesh and no port mapper: the key is the identity, and two nodes on two networks are the ordinary case.
+- **The mailbox in the function's type.** A message no clause matches waits in a mailbox for ever, and nothing says so until it does. In Ernest a process receives one type of message, and a function that receives says which, `with CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads.
+- **Code known by its hash.** A module is loaded by name, two versions at a time, and a function sent to a node that lacks its module fails there. In Ernest a definition is known by the hash of its form. A module has as many versions as it has had, each named apart, and a running process takes a new version of its function as a message. A spawn carries its function to a peer that lacks it, with every definition it reaches, so any node can run anything: a bare node joins with no program of its own, and work is placed where there is room, with no deployment first.
+- **A distribution built for a WAN.** A cluster, as the runtime has it, is a set of nodes on one trusted network, each connected to every other and all sharing one secret. In Ernest a node lists its peers by name, public key and address, accepts a connection from a listed key alone, and opens one TLS connection to a peer when an operation first needs it. No mesh and no port mapper: the key is the identity, and a laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Little else.** Two concepts, five principles, one way for each thing, and a report of three files that is the whole language.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
@@ -63,6 +63,21 @@ fn count(total : Int) : Unit with CounterMsg =
     }
 
 send(counter, Upgrade(next = countTwice))
+```
+
+In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it: here `Counter.Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused with the reason.
+
+```
+> let old = spawn(fn() = Counter.count(0))
+old : Address(Counter.Msg)
+> :reload
+Counter, compiled again
+Counter.Msg changed: the binding old is of its previous version, Counter$1.Msg
+> let new = spawn(fn() = Counter.count(0))
+new : Address(Counter.Msg)
+> send(old, Counter.Reset)
+input 4:1:11: the argument does not fit send: expected Counter$1.Msg, found Counter.Msg
+  = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
 ```
 
 The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every one it reaches, before the process starts. `foo` may be a bare node, started with a configuration and no program:
