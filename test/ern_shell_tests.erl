@@ -2813,7 +2813,7 @@ commands_mirror_test() ->
     [Paragraph | _] = binary:split(Rest, <<"\n\n**">>),
     {match, Listed} = re:run(Paragraph, "^- `:([a-z]+)", [multiline, global,
                                                          {capture, all_but_first, binary}]),
-    {ok, Source} = file:read_file("../shell/shell/command.ern"),
+    {ok, Source} = file:read_file("../src/shell/shell/command.ern"),
     [_, AfterList] = binary:split(Source, <<"export let commands =">>),
     [List | _] = binary:split(AfterList, <<")]\n">>),
     {match, Named} = re:run(List, "Command\\(name = \"([a-z]+)\"",
@@ -3549,7 +3549,7 @@ refused_load_kills_holder() ->
 %% report §11.2, §6.10: a function of a previous version that a process
 %% holds in its state, and not in its code, keeps running that version
 %% through further reloads, since a reload unloads nothing. A regression
-%% test of the experiment of 2026-10-07 (proposals/nodes_and_code/
+%% test of the experiment of 2026-10-07 (docs/proposals/nodes_and_code/
 %% experiments/code_update/), where the host's check of a process's code
 %% did not see such a function, and the reload that purged its version left
 %% it to fail at its next call

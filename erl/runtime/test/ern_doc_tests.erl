@@ -1,6 +1,6 @@
 %% The documentation rules of report §2.2 and Appendix E.0 shape rule 6, checked
 %% over every standard library module written in Ernest, every library
-%% under libs/, which keeps the standard library's discipline (plan, MVP
+%% under src/libs/, which keeps the standard library's discipline (plan, MVP
 %% 2.7), and the fictive module that docs/module_doc_template.md shows.
 -module(ern_doc_tests).
 
@@ -10,13 +10,13 @@
 
 -define(ROOT, "../../..").
 
-%% The modules checked: the template, every file under stdlib/, and every
-%% library's top module under libs/.
+%% The modules checked: the template, every file under src/stdlib/, and every
+%% library's top module under src/libs/.
 modules() ->
     [{['Template'], filename:join(?ROOT, "test/programs/template.ern")}
      | [{ern_namespace:namespace([filename:basename(File, ".ern")]), File}
-        || File <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
-               ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern")),
+        || File <- filelib:wildcard(filename:join(?ROOT, "src/stdlib/*.ern"))
+               ++ filelib:wildcard(filename:join(?ROOT, "src/libs/*/*.ern")),
            %% an editor's lock file beside a source, `.#name.ern`, is no module
            not lists:prefix(".#", filename:basename(File))]].
 
@@ -403,8 +403,10 @@ shipped(Tag, Relative) ->
 
 %% Where the releases held a module that has moved since: the template
 %% was examples/template.ern until it went among the programs kept for the
-%% tests.
+%% tests, and the standard library and the libraries stood at the top,
+%% stdlib/ and libs/, until they went under src/ after 0.3.1.
 released("test/programs/template.ern") -> "examples/template.ern";
+released("src/" ++ Relative) -> Relative;
 released(Relative) -> Relative.
 
 declaration_key(#fn_declaration{} = Declaration) -> {"fn", hd(declaration_names(Declaration))};

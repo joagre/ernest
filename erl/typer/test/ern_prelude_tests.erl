@@ -134,7 +134,7 @@ primitives(Body) ->
     end.
 
 stdlib_file(Namespace) ->
-    filename:join("../../../stdlib", ern_namespace:module_path(Namespace) ++ ".ern").
+    filename:join("../../../src/stdlib", ern_namespace:module_path(Namespace) ++ ".ern").
 
 %% Each foreign fn under the name the report gives it.
 foreign_names(Declarations) ->
@@ -227,20 +227,20 @@ set_and_map_words_test() ->
           [?assert(lists:member([Module, list_to_atom(Word)], Exported)) || [Word] <- Words]
       end, [{"set", 'Set'}, {"map", 'Map'}]).
 
-%% report Appendix G: every library under libs/ has a section, and each
+%% report Appendix G: every library under src/libs/ has a section, and each
 %% section's signatures and types are the library's compiled interface,
 %% as Appendix E's are the standard library's
 libraries_test() ->
     %% Appendix G is the report's last, so its section runs to the report's
     %% end
     Sections = libraries(section("## Appendix G.", none)),
-    Dirs = [filename:basename(Dir) || Dir <- filelib:wildcard("../../../libs/*"),
+    Dirs = [filename:basename(Dir) || Dir <- filelib:wildcard("../../../src/libs/*"),
                                       filelib:is_dir(Dir)],
     ?assertEqual(lists:sort(Dirs), lists:sort([Library || {Library, _, _} <- Sections])),
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     lists:foreach(
       fun({Library, Namespace, Body}) ->
-          SourceFile = filename:join(["../../../libs", Library, Library ++ ".ern"]),
+          SourceFile = filename:join(["../../../src/libs", Library, Library ++ ".ern"]),
           {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Library,
                                                     Library ++ ".erc"])),
           {ok, #{interface := #interface{namespace = Namespace, types = Types,

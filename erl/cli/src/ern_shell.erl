@@ -1,5 +1,5 @@
 %% The shell's front end (report §11.2, plan MVP 2.6): the toolchain behind
-%% the foreign interface the shell in `shell/` calls. An input is a module
+%% the foreign interface the shell in `src/shell/` calls. An input is a module
 %% of its own, `$Input<n>`, checked against the load path and the session,
 %% compiled, and run in a process of its own; the value is printed by E.1's
 %% printer, which `Io.debug` uses, over the descriptor of the input's type.

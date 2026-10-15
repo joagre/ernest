@@ -1,5 +1,5 @@
 %% The installation and the release archive, each made by make, and the
-%% toolchain run where they put it (proposals/install/install.md). Run from
+%% toolchain run where they put it (docs/proposals/install/install.md). Run from
 %% this directory by its Makefile, never beside ern_manual_tests: make
 %% writes the manual pages under ../build/stdlib, which those tests write
 %% too. The helpers that run a command are ern_integration_tests'.
@@ -12,7 +12,7 @@
 installation_test_() ->
     {inorder, [{timeout, 300, fun install/0}, {timeout, 300, fun release/0}]}.
 
-%% proposals/install/install.md: make install writes the tree under a
+%% docs/proposals/install/install.md: make install writes the tree under a
 %% prefix, bin/ern a relative link to its launcher; the prefix moved to
 %% another place runs there, `ern`, the shell, a program that runs another
 %% through the helper, and `ern doc --man`, and `man` finds ern(1), a
@@ -117,7 +117,7 @@ install() ->
             ok = file:change_mode(Base ++ "/closed", 8#755)
     end.
 
-%% proposals/install/install.md: make release writes the archive, the staged tree with
+%% docs/proposals/install/install.md: make release writes the archive, the staged tree with
 %% the helper as its C source, a Makefile and a README; its make compiles
 %% the helper, and its make install installs under a prefix, where a
 %% program that runs another through the helper runs, and its make

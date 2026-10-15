@@ -14,9 +14,9 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 ## Where we are
 
-**MVP 3.2 is in progress.** Its items 1 to 9 are done, code crossing with a spawn, the bare node,
-`Code`, the pick and the deployment guide, and its item 10, Ernest 0.4.0, waits for the user's
-word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects; and, decided on 2026-10-14, MVP 3.26 whole, two subtractions from the type system, since a release for others should not ship a mark the next release removes (the log's *Kill Darlings*). MVP 3.26 starts on the user's word, and the speed changes and the tests' defects run beside it, by agents, since neither waits on the other. The split of `make test`, taken early from MVP 3.9, is done.
+**MVP 3.2 is in progress.** Its items 1 to 10 are done, code crossing with a spawn, the bare
+node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
+Ernest 0.4.0, waits for the user's word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects; and, decided on 2026-10-14, MVP 3.26 whole, two subtractions from the type system, since a release for others should not ship a mark the next release removes (the log's *Kill Darlings*). MVP 3.26 starts on the user's word, and the speed changes and the tests' defects run beside it, by agents, since neither waits on the other. The split of `make test`, taken early from MVP 3.9, is done.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -31,10 +31,10 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 1 | the chain: parser, types, BEAM | 2026-09-18 | tag `mvp1` | the log's entries of 2026-09-17 and 2026-09-18; [`architecture.md`](architecture.md) |
 | MVP 2 | the rest of the report on one node | 2026-09-19 | | the log's entries of 2026-09-19 |
 | MVP 2.5 | a complete standard library | 2026-09-20 | | *The Erlang Standard Library, Read for Ernest*, *Fs by Its Structure, and the Table*, *One Token for the Project* |
-| MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](../proposals/emacs/emacs_mode.md) |
+| MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](proposals/emacs/emacs_mode.md) |
 | The report read as a Wirth report | the report read against Wirth's register and §0, about thirty issues decided one at a time | 2026-09-23 and 2026-09-24 | | the log's entries of those two days, one an issue |
 | MVP 2.61 | the guide as the user's document | 2026-09-24, out of order | | the log's entries of 2026-09-24 |
-| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](../proposals/shell/shell_design.md); the log's entries from 2026-09-20 to 2026-09-25 |
+| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](proposals/shell/shell_design.md); the log's entries from 2026-09-20 to 2026-09-25 |
 | `libs/markdown` | a CommonMark renderer, now under MVP 4.1 | 2026-09-25 | | Appendix G.2 |
 | The code read back after the shell | every line of Ernest and Erlang read for the principles, clumsiness and defects | 2026-09-25 | | *The Code Read Back* |
 | MVP 2.65 | the language and the toolchain read back | 2026-09-26 | | *The Report Read Cold, Its Plain Half* to *The Closing of Step 10*; the log's entries of 2026-09-25 and 2026-09-26 |
@@ -53,11 +53,11 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | 2026-10-05 | tag `v0.3.1` | MVP 2.99d's entries |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | 2026-10-06 | | *MVP 2.99d's First Measurements*, *The Prelude Measured*, *The Library Stands on the Host*, *The Emitted Code Measured*, *Spawn Keeps Its Wait*, *Kept Only for Speed, Taken Out*, *Fs.removeAll Removed*; [`otp_bugs.md`](otp_bugs.md) |
 | The shell shows a bracket's match | a closing bracket stands the cursor on its match, ahead of MVP 4.3 | 2026-10-06 | | *The Shell Shows a Bracket's Match* |
-| MVP 3.0 | peers: one program on several nodes, by its proposal | 2026-10-09 | | [`mvp3.0.md`](../proposals/nodes_and_code/mvp3.0.md); *The Carrier*, *Addresses, Messages and Monitors Across Nodes*, *Calls Across Nodes*, *A Node's End and Its Reload*, *The Module Peer*, *Load and Balancer*, *The Module Json*, *The Tests Wait on What They Mean*, *The Milestones After 3.0, Weighed Again*, *The Plan Rewritten from the Split Proposals*, *MVP 3.0's Findings Decided* |
-| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | 2026-10-10 | | [`mvp3.1.md`](../proposals/nodes_and_code/mvp3.1.md); *The Canonical Form, Built*, *The Code Table, Built*, *The Spawn by Hash, Built*, *The Shell's Reload by Hash, Built*, *Termination Told, Built*, *Standing and the Refusal, Built*, *What MVP 3.1 Costs, Measured*, *MVP 3.1 Read*, *MVP 3.1 Done*, *The Feedback Pass Before MVP 3.2*, *A Milestone for Placing Work by Load*, *The Back End Last* |
-| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](../proposals/balancer/suggestion.md); *Placing Work by Name* |
-| MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | items 1 to 9 done by 2026-10-13; item 10, the release, waits for the user's word | | below |
-| MVP 3.26 | kill darlings: the reply's obligation goes, and the mark on every function that acts, `with` becoming `receiving`; before MVP 3.2's item 10, the tag | decided 2026-10-14 with the user; `proposals/kill_darlings/` is the specification | | below |
+| MVP 3.0 | peers: one program on several nodes, by its proposal | 2026-10-09 | | [`mvp3.0.md`](proposals/nodes_and_code/mvp3.0.md); *The Carrier*, *Addresses, Messages and Monitors Across Nodes*, *Calls Across Nodes*, *A Node's End and Its Reload*, *The Module Peer*, *Load and Balancer*, *The Module Json*, *The Tests Wait on What They Mean*, *The Milestones After 3.0, Weighed Again*, *The Plan Rewritten from the Split Proposals*, *MVP 3.0's Findings Decided* |
+| MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | 2026-10-10 | | [`mvp3.1.md`](proposals/nodes_and_code/mvp3.1.md); *The Canonical Form, Built*, *The Code Table, Built*, *The Spawn by Hash, Built*, *The Shell's Reload by Hash, Built*, *Termination Told, Built*, *Standing and the Refusal, Built*, *What MVP 3.1 Costs, Measured*, *MVP 3.1 Read*, *MVP 3.1 Done*, *The Feedback Pass Before MVP 3.2*, *A Milestone for Placing Work by Load*, *The Back End Last* |
+| MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](proposals/balancer/suggestion.md); *Placing Work by Name* |
+| MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | items 1 to 10 done by 2026-10-15; item 11, the release, waits for the user's word | | below |
+| MVP 3.26 | kill darlings: the reply's obligation goes, and the mark on every function that acts, `with` becoming `receiving`; before MVP 3.2's item 11, the tag | decided 2026-10-14 with the user; `docs/proposals/kill_darlings/` is the specification | | below |
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
@@ -71,9 +71,9 @@ finished milestone is a row of the table below, its reasons in the log entries t
 
 ## MVP 3.2 (code with a spawn), about four weeks
 
-Designed in [`mvp3.2.md`](../proposals/nodes_and_code/mvp3.2.md), split from `mvp3.1.md` on
+Designed in [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md), split from `mvp3.1.md` on
 2026-10-09 and read through with the user the same day; its reasons are
-[`code.md`](../proposals/nodes_and_code/code.md)'s sections 1, 3 and 5. It stands on MVP 3.1
+[`code.md`](proposals/nodes_and_code/code.md)'s sections 1, 3 and 5. It stands on MVP 3.1
 and changes nothing of it. The proposal is the specification and this list the order. What the
 milestone gives: a spawn whose function the peer lacks ships the lacking definitions of its
 reach, as canonical forms, verified, compiled and loaded on the peer before the process
@@ -351,7 +351,13 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    and which are shown alone, the service manager's unit and the `kill` lines among the latter, and
    its numbers are one machine's, said so, until MVP 3.27 (the log's *The Report for Code with a
    Spawn*).
-10. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
+10. **The repository laid out again.** Done 2026-10-15. `stdlib/`, `libs/` and `shell/` moved
+   under `src/`, `emacs/` under `editors/`, and `proposals/` and `man/` under `docs/`; `erl/`,
+   `tools/` and the rest stay where they were. The rule is `development.md`'s: `src/` holds the
+   Ernest a release ships, `erl/` the Erlang it ships, `editors/` the editor modes, and the rest
+   serves the repository. The installation mirrors the clone, so only the installer's list of
+   paths changed (the log's *The Repository Laid Out Again*).
+11. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
    MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
    the deployment guide, and the argument's over `soundness.md`'s section 7; and, decided
@@ -359,10 +365,10 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    E.28 and the guide's chapter 8 against §0, since this milestone wrote its rules under build
    pressure and reversed two, the whole principles review being MVP 3.9's full review's to hold;
    every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
-   exported declaration that appeared since 0.3.1, the pages in `man/`, the notes, which say what a
+   exported declaration that appeared since 0.3.1, the pages in `docs/man/`, the notes, which say what a
    program written for 0.3.1 changes and what the shell does not yet do beside a node, attach to it
    with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0, but tables in `libs/markdown`, decided with the user the same day, the log's *Tables in `libs/markdown`*; reopened 2026-10-14 for MVP 3.26 alone, the log's *Kill Darlings*, whose two subtractions the notes then state: `with` written `receiving` where a function receives and nowhere else, and no `!`), the README rewritten from
-   `proposals/scratch/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
+   `docs/proposals/scratch/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
    changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
 
@@ -390,10 +396,10 @@ One command over several roots was refused the same day (the log's *Later*).
 
 **Before the tag: the installation.** `make install` installs every `.md` under `report/`,
 `guide/` and `tour/`, by directory and not by a list of files, so that a document for a user of
-Ernest is installed by where it stands; `docs/`, `proposals/` and `CLAUDE.md` are the project's
+Ernest is installed by where it stands; `docs/`, the proposals among it, and `CLAUDE.md` are the project's
 and stay out (decided with the user on 2026-10-13, the log's *Every User's Document Installed*).
 Today `guide/deployment.md`, which an operator reads on a server, is not installed.
-`proposals/install/install.md`'s listing changes with it, and the install test's check that every
+`docs/proposals/install/install.md`'s listing changes with it, and the install test's check that every
 link of an installed document resolves covers the deployment guide's.
 
 **Before the tag: the programs tests.** The intermittent fault of `ern doc --man` is fixed: a
@@ -417,10 +423,10 @@ carries, measured before the tag.
 ## MVP 3.26 (kill darlings), about four weeks
 
 Decided with the user on 2026-10-14 (the log's *Kill Darlings*). The specification is
-[`proposals/kill_darlings/proposal.md`](../proposals/kill_darlings/proposal.md), its findings
-[`findings.md`](../proposals/kill_darlings/findings.md), and its programs the three pairs under
+[`docs/proposals/kill_darlings/proposal.md`](proposals/kill_darlings/proposal.md), its findings
+[`findings.md`](proposals/kill_darlings/findings.md), and its programs the three pairs under
 `programs/`, each as today and as it will be. Two subtractions from the type system, built before
-MVP 3.2's item 10, which reopens the decision of 2026-10-13 that nothing more goes into 0.4.0:
+MVP 3.2's item 11, which reopens the decision of 2026-10-13 that nothing more goes into 0.4.0:
 a release that is for others does not ship a mark the next release removes, every 0.4.0 program
 would otherwise break at 0.5.0 on each `with` line, and the tour would teach processes twice. The
 tag slips about three weeks. MVP 3.2's five speed changes before the tag run meanwhile, by agents,
@@ -463,9 +469,9 @@ the same commit; then the log; then the code, by an agent from the settled repor
    and the checker; every Ernest source, about 1,670 lines that write `with`, the compiler naming
    the rest, the proposals' programs the tests run among them; the catalog of diagnostics; the
    guide as the proposal's section 7 and the findings' item 6 say, the front page's *What Ernest
-   adds* and the README's lines the test holds equal to it among them; and `man/` at the release.
+   adds* and the README's lines the test holds equal to it among them; and `docs/man/` at the release.
 3. **A library that waits**, the guide's §4.4 passage,
-   [`guide_passage.md`](../proposals/kill_darlings/guide_passage.md), after the queue, and §8.1's
+   [`guide_passage.md`](proposals/kill_darlings/guide_passage.md), after the queue, and §8.1's
    *Many at once* pointing at it, checked by `make test-guide`.
 
 The tour's library `Mailbox`, `drained(keep)` and `refilled(messages)`, two functions over the
@@ -484,14 +490,14 @@ dial and its loss, on one LAN and across the two, each a median over runs with i
 beside item 7's. What differs goes into the log beside item 7's numbers and, where a sentence of the
 deployment guide quotes a number, into the guide, which is written before this milestone on one
 machine's numbers and says so; and it decides whether the push's two choices hold under a burst
-across a wire, as `proposals/placement/push.md`'s section 5 asks. It runs when the user's machines
+across a wire, as `docs/proposals/placement/push.md`'s section 5 asks. It runs when the user's machines
 are ready, and the release waits for it only where the machines come first.
 
 1. **The machines.** The four nodes' configuration directories and keys, made with `ern config` and
    listed as peers across the machines, a script that starts and stops them, and the measuring
    programs of `make bench` run between them, the node on the separate LAN last.
 2. **The numbers.** Item 7's tables again across machines, and the push's experiment of
-   `proposals/placement/push.md`'s section 5; the log's paragraph beside item 7's; `docs/memory.md`
+   `docs/proposals/placement/push.md`'s section 5; the log's paragraph beside item 7's; `docs/memory.md`
    where a measured fact changes; the deployment guide's numbers for two nodes and for code across
    nodes corrected from them.
 
@@ -518,7 +524,7 @@ test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordere
   long, sends them all below. §11.6 says so first, then `ern format` and its tests, then `make
   format` lays every source and example out once, so that the tour is written in the layout
   it keeps.
-- **Second, the library `Mailbox`** under `libs/`, decided with the user on 2026-10-14 (the
+- **Second, the library `Mailbox`** under `src/libs/`, decided with the user on 2026-10-14 (the
   log's *Kill Darlings*): `drained(keep)`, every message of the caller's mailbox that `keep` says,
   in arrival order, by a selective receive with `after 0`, and `refilled(messages)`, which puts
   them into the caller's own mailbox behind what it holds; a channel is a `List(m)`, a value sent
@@ -584,7 +590,7 @@ shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping o
 binding read is the node's, a process listed is the node's and a function called runs there without
 the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
 reload code on the node, as `erl -remsh` attaches to an Erlang node. The shell's design does not
-assume it runs on the node whose code it evaluates (`proposals/shell/shell_design.md`). Nothing of
+assume it runs on the node whose code it evaluates (`docs/proposals/shell/shell_design.md`). Nothing of
 it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
 it.
 
@@ -598,7 +604,7 @@ it.
    About a day, first in the milestone since it touches `ern_build`, the runner and §11 alone.
    The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
    what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
-2. **The design**, discussed with the user first in `proposals/shell/attached.md` (begun
+2. **The design**, discussed with the user first in `docs/proposals/shell/attached.md` (begun
    2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell
    --config-dir ops --attach name` to a listed peer over the carrier, never a process number or an
    address, since a node is reached by its key (decided 2026-10-13); a session's namespace of its
@@ -630,8 +636,8 @@ Ernest written here, and is discussed before any code goes around it (decided wi
 
 A library not yet written waits, and is written when our work needs it, MVP 3.0 and 3.1 among
 that work, when someone asks for it, or when we want it, decided 2026-09-25 (the log's
-*Libraries As They Are Wanted*). Each is an Ernest source root under `libs/<name>/` that a
-program adds with `--load-path`, with `stdlib/`'s test discipline, documented in one pass to
+*Libraries As They Are Wanted*). Each is an Ernest source root under `src/libs/<name>/` that a
+program adds with `--load-path`, with `src/stdlib/`'s test discipline, documented in one pass to
 [`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
 user, and a section in the appendix of libraries. Own repositories come later, when there is a
 package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilization`,
@@ -683,7 +689,7 @@ on 2026-10-13: the operating system's and not the language's, one isolated conta
 with limits on time, memory, processes and network, running the plain shell behind a
 pseudo-terminal, nothing kept when the visitor leaves, and `:clear` the container started again. One
 node for every visitor with sandboxed sessions attached to it was weighed on 2026-10-13 and set
-aside (`proposals/shell/attached.md`): a language-level sandbox is buildable but never the one wall,
+aside (`docs/proposals/shell/attached.md`): a language-level sandbox is buildable but never the one wall,
 since a visitor who exhausts the machine's memory ends every session on the node, and the container
 costs little and needs nothing of the language; the attached shell, MVP 4.0, is the operator's
 alone. The site's pages are written in Markdown and rendered by `libs/markdown`. The site's

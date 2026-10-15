@@ -9,7 +9,7 @@ The report's rules and the guide judged on §0, and §0 on what it decided. It r
 
 ## How it runs
 
-As the full review's readers run ([`full_review.md`](full_review.md), *How it runs*): each reader a session of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `erl/` and `stdlib/`, as what is built and never as what is right.
+As the full review's readers run ([`full_review.md`](full_review.md), *How it runs*): each reader a session of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `erl/` and `src/stdlib/`, as what is built and never as what is right.
 
 ## The readers
 

@@ -357,8 +357,8 @@ units_from_forms_alone() ->
     Programs = "../../../test/programs",
     Roots = [{Programs, filelib:wildcard(Programs ++ "/*.ern"), []},
              {Programs ++ "/modules", ern_build:sources(Programs ++ "/modules"), []},
-             {"../../../stdlib", ern_build:sources("../../../stdlib"), []},
-             {"../../../shell", ern_build:sources("../../../shell"),
+             {"../../../src/stdlib", ern_build:sources("../../../src/stdlib"), []},
+             {"../../../src/shell", ern_build:sources("../../../src/shell"),
               ["../../../build/libs/ansi", "../../../build/libs/markdown"]}],
     %% every program, every module of the library and both of the shell
     [?assertEqual(length(Files), units_from_forms(SourceRoot, Files, LoadPath))

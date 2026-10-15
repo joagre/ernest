@@ -2190,10 +2190,10 @@ Reach for an operations record where code written once must keep the representat
 
 A service with state needs none of the three: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
-**For the curious: how `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in the file, and `:doc OrderedSet` lists it:
+**For the curious: how `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `src/stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in the file, and `:doc OrderedSet` lists it:
 
 ```ernest-fragment
-// stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
+// src/stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
 export abstract type Set(a) = Set(List(a))
 
 export fn fromList(list : List(a)) : Set(a) needs a.compare =
@@ -2860,7 +2860,7 @@ At a terminal the history is kept in `$HOME/.ernest/history`. When the shell sta
 
 ### 9.4 Emacs
 
-`emacs/ernest-mode.el` highlights Ernest, indents it as `ern format` lays it out (report §11.6), and lets `M-x compile` with `ern build` jump to each error. [`emacs/README.md`](../emacs/README.md) says how to load it, and [`proposals/emacs/emacs_mode.md`](../proposals/emacs/emacs_mode.md) what it leaves to your own configuration.
+`editors/emacs/ernest-mode.el` highlights Ernest, indents it as `ern format` lays it out (report §11.6), and lets `M-x compile` with `ern build` jump to each error. [`editors/emacs/README.md`](../editors/emacs/README.md) says how to load it, and [`docs/proposals/emacs/emacs_mode.md`](../docs/proposals/emacs/emacs_mode.md) what it leaves to your own configuration.
 
 ### 9.5 Running a program as a service
 

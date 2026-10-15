@@ -50,7 +50,7 @@ stdlib_build_sets_its_copy_aside() ->
     true = code:add_pathz(Installed),
     try
         ?assertEqual(0, ern_build:compile("ern build", [{build_root, Installed}],
-                                          "../../../stdlib", standard_error)),
+                                          "../../../src/stdlib", standard_error)),
         ?assert(lists:member(Installed, code:get_path()))
     after
         code:del_path(Installed)
@@ -73,7 +73,7 @@ stdlib_order_test_() ->
     {timeout, 120, fun stdlib_order/0}.
 
 stdlib_order() ->
-    SourceRoot = ern_build:absolute("../../../stdlib"),
+    SourceRoot = ern_build:absolute("../../../src/stdlib"),
     BuildRoot = ern_build:absolute("../../../build/stdlib"),
     Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot)
                || File <- ern_build:sources(SourceRoot)],
@@ -760,14 +760,14 @@ capture(Owner, Acc) ->
 
 %% report §11.1, §11.2: `ern run` checks a module against the installed
 %% standard library whatever the working directory, the library's own
-%% source root among them. A regression test: run from `stdlib/`, every
+%% source root among them. A regression test: run from `src/stdlib/`, every
 %% program was refused as compiled against another standard library
 run_in_the_stdlib_root_test() ->
     Dir = tmp(),
     File = write(Dir, "hello.ern", hello()),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     {ok, Cwd} = file:get_cwd(),
-    ok = file:set_cwd("../../../stdlib"),
+    ok = file:set_cwd("../../../src/stdlib"),
     try
         ?assertEqual(0, ern_err(["run", filename:join(Dir, "hello.erc")]))
     after
@@ -1213,7 +1213,7 @@ stdlib_root_test_() ->
 
 stdlib_root() ->
     Dir = tmp(),
-    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", "../../../stdlib"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", "../../../src/stdlib"])),
     ?assert(filelib:is_regular(Dir ++ "/build/bool.erc")),
     write(Dir, "src/bool.ern", "export fn not(b : Bool) : Bool = b\n"),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/b2", Dir ++ "/src"])).
@@ -1222,14 +1222,15 @@ stdlib_root() ->
 %% compiled with that root, the default for it; another root is an error
 stdlib_file_takes_its_root_test() ->
     Dir = tmp(),
-    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir, "../../../stdlib/optional.ern"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir,
+                                 "../../../src/stdlib/optional.ern"])),
     %% report §11.1: and builds into build/stdlib, where its dependencies are
-    ?assertEqual(0, ern_cli:ern(["doc", "../../../stdlib/float.ern"])),
+    ?assertEqual(0, ern_cli:ern(["doc", "../../../src/stdlib/float.ern"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
                                     "# Ernest module Float")),
     ?assert(filelib:is_regular(Dir ++ "/optional.erc")),
     ?assertEqual(1, ern_cli:ern(["build", "--source-root", "../../..", "--build-root", Dir,
-                                 "../../../stdlib/optional.ern"])).
+                                 "../../../src/stdlib/optional.ern"])).
 
 %% report §11.2: a failed test's text prints as it was written (a
 %% regression test: text outside ASCII printed as its UTF-8 bytes)
@@ -2336,7 +2337,8 @@ prelude_pages_follow_code() ->
     BuildRoot = tmp(),
     Document = fun(Args) ->
                    ?assertEqual(0, ern_cli:ern(["doc" | Args]
-                                               ++ ["--build-root", BuildRoot, "../../../stdlib"]))
+                                               ++ ["--build-root", BuildRoot,
+                                                   "../../../src/stdlib"]))
                end,
     Ahead = os:system_time(second) + 3600,
     Prelude = write(BuildRoot, "prelude.md", "kept\n"),
@@ -2376,7 +2378,7 @@ doc_man_utf8_test_() ->
      fun() ->
          BuildRoot = filename:join(tmp(), "build"),
          ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", BuildRoot,
-                                      "../../../stdlib"])),
+                                      "../../../src/stdlib"])),
          Pages = filelib:wildcard(filename:join(BuildRoot, "**/*.3ern")),
          ?assert(lists:member(filename:join(BuildRoot, "Ernest.Prelude.3ern"), Pages)),
          [?assertMatch({Page, true}, {Page, is_list(unicode:characters_to_list(Bytes))})
@@ -2423,7 +2425,7 @@ prelude_page_test_() ->
 
 prelude_page() ->
     Dir = tmp(),
-    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", Dir, "../../../stdlib"])),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", Dir, "../../../src/stdlib"])),
     {ok, Index} = file:read_file(filename:join(Dir, "index.md")),
     ?assertMatch(<<"# Modules\n\n- [Prelude](prelude.md)\n", _/binary>>, Index),
     {ok, Page} = file:read_file(filename:join(Dir, "prelude.md")),
@@ -2488,8 +2490,8 @@ mvp_refusals_listed_test() ->
     %% a pattern that finds nothing would otherwise pass
     ?assertEqual([<<"x is not here yet; it arrives in MVP 9">>],
                  Find("fail(\"x is not here yet; it arrives in MVP 9\")")),
-    Sources = filelib:wildcard("../../*/src/*.erl") ++ filelib:wildcard("../../../shell/*.ern")
-        ++ filelib:wildcard("../../../shell/shell/*.ern"),
+    Sources = filelib:wildcard("../../*/src/*.erl") ++ filelib:wildcard("../../../src/shell/*.ern")
+        ++ filelib:wildcard("../../../src/shell/shell/*.ern"),
     %% a name the wildcard matches may not be a readable file: an editor's
     %% lock is a dangling symlink beside the file it locks, and a person
     %% with a source open should not see a red suite

@@ -11,14 +11,14 @@ APPS = utils lexer parser format typer runtime emitter cli json
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 
 # Every Ernest source of the repository, which `make format` lays out and
-# the Emacs mode's tests read (report §11.6, proposals/emacs/emacs_mode.md).
-ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
-		test/*/*.ern test/programs/modules/*.ern test/programs/modules/*/*.ern libs/*/*.ern \
-		tools/*.ern proposals/operations/programs/*.ern \
-		proposals/nodes_and_code/experiments/code_update/*/*.ern \
-		proposals/nodes_and_code/experiments/code_update/*/*/*.ern
+# the Emacs mode's tests read (report §11.6, docs/proposals/emacs/emacs_mode.md).
+ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples/*.ern \
+		test/*/*.ern test/programs/modules/*.ern test/programs/modules/*/*.ern \
+		src/libs/*/*.ern tools/*.ern docs/proposals/operations/programs/*.ern \
+		docs/proposals/nodes_and_code/experiments/code_update/*/*.ern \
+		docs/proposals/nodes_and_code/experiments/code_update/*/*/*.ern
 
-# The Ernest trees, stdlib/, libs/, shell/ and tools/, are built by `ern build`
+# The Ernest trees, src/stdlib/, src/libs/, src/shell/ and tools/, are built by `ern build`
 # every time, and its own rule decides what in each to compile again, by the
 # sources' and the interfaces' hashes (report §11.1): make keeps no stamp of
 # its own, whose times would disagree with the sources' contents. A copy of
@@ -48,38 +48,39 @@ $(EXEC): erl/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
 	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -Werror -o $@ $<
 
-# The standard library written in Ernest: stdlib/ compiled by ern build into
-# build/stdlib under its Erlang module name, where the tools put it on the
-# code path and the checker reads its interface (plan, MVP 2.5). ern build
-# recompiles what a changed compiler changes (report §11.1). A copy under
-# the Erlang name whose module the sweep removed is removed with it.
+# The standard library written in Ernest: src/stdlib/ compiled by ern build
+# into build/stdlib under its Erlang module name, where the tools put it on
+# the code path and the checker reads its interface (plan, MVP 2.5). ern
+# build recompiles what a changed compiler changes (report §11.1). A copy
+# under the Erlang name whose module the sweep removed is removed with it.
 stdlib:
-	@bin/ern build --build-root build/stdlib stdlib
+	@bin/ern build --build-root build/stdlib src/stdlib
 	@for f in build/stdlib/*.erc; do b=build/stdlib/ern@$$(basename $$f .erc).beam; \
 	  cmp -s $$f $$b || cp $$f $$b; done
 	@for b in build/stdlib/ern@*.beam; do m=$${b#build/stdlib/ern@}; \
 	  [ -f build/stdlib/$${m%.beam}.erc ] || rm -f $$b; done
 
-# The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
-# own, compiled into build/libs/<name>, which a program adds with
+# The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
+# its own, compiled into build/libs/<name>, which a program adds with
 # --load-path. libs/ansi is compiled first, since libs/markdown writes
 # its styles with it (report Appendix G.3). A library whose directory is
 # gone has its build removed with it, as the standard library's copies are.
 LIB_PATH = --load-path build/libs/ansi --load-path build/libs/markdown
 libs: stdlib
-	@bin/ern build --source-root libs/ansi --build-root build/libs/ansi libs/ansi
-	@for d in libs/*/; do n=$$(basename $$d); [ $$n = ansi ] && continue; \
+	@bin/ern build --source-root src/libs/ansi --build-root build/libs/ansi src/libs/ansi
+	@for d in src/libs/*/; do n=$$(basename $$d); [ $$n = ansi ] && continue; \
 	  bin/ern build --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n $$d \
 	  || exit 1; done
-	@for d in build/libs/*/; do [ -d "libs/$$(basename $$d)" ] || rm -rf "$$d"; done
+	@for d in build/libs/*/; do [ -d "src/libs/$$(basename $$d)" ] || rm -rf "$$d"; done
 
-# The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
-# by ern build into build/shell, where `ern shell` finds it on the code path.
+# The shell, written in Ernest (report §11.2, plan MVP 2.6): src/shell/
+# compiled by ern build into build/shell, where `ern shell` finds it on the
+# code path.
 # It renders documentation with libs/markdown, and styles it with
 # libs/ansi, which it is compiled against and which ship beside it. A copy
 # whose module is gone is removed, as the standard library's are.
 shell: stdlib libs
-	@bin/ern build $(LIB_PATH) --build-root build/shell shell
+	@bin/ern build $(LIB_PATH) --build-root build/shell src/shell
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; b=build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; \
 	  cmp -s $$f $$b || cp $$f $$b; done
@@ -92,7 +93,7 @@ shell: stdlib libs
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
 doc: all
-	@bin/ern doc --build-root build/stdlib stdlib
+	@bin/ern doc --build-root build/stdlib src/stdlib
 
 # The manual pages (report §11, §11.4): the prelude's and every standard
 # library module's, beside the modules' .erc in build/stdlib, each
@@ -106,8 +107,8 @@ doc: all
 # which reads build/stdlib after `ern doc` has written there. A page is
 # written whole or not at all.
 manual: stdlib libs tools
-	@bin/ern doc --man --build-root build/stdlib stdlib
-	@for d in libs/*/; do n=$$(basename $$d); \
+	@bin/ern doc --man --build-root build/stdlib src/stdlib
+	@for d in src/libs/*/; do n=$$(basename $$d); \
 	  bin/ern doc --man --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n \
 	  $$d || exit 1; done
 	@$(MAKE) -s build/man/ern.1
@@ -122,29 +123,30 @@ build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 	@mv $@.new $@
 
 # Every page: the manual pages make writes, and main's pages as CommonMark
-# in man/, which GitHub shows and a release commits (docs/release_review.md,
-# step 5): the prelude's and the standard library's under man/stdlib, with
-# the index ern doc writes (report §11.4); each library's under
-# man/libs/<name>, with an index linking them; and an index over the two,
-# which links the report's §11 for ern itself. Each index is its
-# directory's README.md, which GitHub shows when the directory is opened.
-# They are written into build/pages and replace man/ whole, so a page whose
-# module has gone goes.
+# in docs/man/, which GitHub shows and a release commits
+# (docs/release_review.md, step 5): the prelude's and the standard
+# library's under docs/man/stdlib, with the index ern doc writes (report
+# §11.4); each library's under docs/man/libs/<name>, with an index linking
+# them; and an index over the two, which links the report's §11 for ern
+# itself, two directories up. Each index is its directory's README.md,
+# which GitHub shows when the directory is opened. They are written into
+# build/pages and replace docs/man/ whole, so a page whose module has gone
+# goes.
 man: all
 	@rm -rf build/pages
-	@bin/ern doc --build-root build/pages/stdlib stdlib
-	@for d in libs/*/; do n=$$(basename $$d); \
+	@bin/ern doc --build-root build/pages/stdlib src/stdlib
+	@for d in src/libs/*/; do n=$$(basename $$d); \
 	  bin/ern doc --source-root $$d --load-path build/libs/ansi --build-root build/pages/libs/$$n \
 	  $$d || exit 1; done
-	@rm -rf man && mkdir man
+	@rm -rf docs/man && mkdir docs/man
 	@cd build/pages && find . -name '*.md' ! -name index.md | tar cf - -T - \
-	  | (cd ../../man && tar xf -)
-	@cp build/pages/stdlib/index.md man/stdlib/README.md
+	  | (cd ../../docs/man && tar xf -)
+	@cp build/pages/stdlib/index.md docs/man/stdlib/README.md
 	@{ printf '# Libraries\n\n'; \
-	  for d in libs/*/; do n=$$(basename $$d); \
+	  for d in src/libs/*/; do n=$$(basename $$d); \
 	    sed -n "s|^- \[\(.*\)\](\(.*\))\$$|- [\1]($$n/\2), \`libs/$$n\`|p" \
 	      build/pages/libs/$$n/index.md; done; \
-	} > man/libs/README.md
+	} > docs/man/libs/README.md
 	@v=$$(cat VERSION); { \
 	  printf '# The manual pages\n\n'; \
 	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the last '; \
@@ -154,12 +156,12 @@ man: all
 	  printf 'own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
 	  printf 'shows a module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
 	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
-	  printf -- '- [The libraries under `libs/`](libs/README.md)\n'; \
-	  printf -- '- [`ern`, the toolchain and its shell](../report/toolchain.md#11-toolchain), '; \
+	  printf -- '- [The libraries under `src/libs/`](libs/README.md)\n'; \
+	  printf -- '- [`ern`, the toolchain and its shell](../../report/toolchain.md#11-toolchain), '; \
 	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n'; \
-	} > man/README.md
+	} > docs/man/README.md
 
-# The installation (proposals/install/install.md): the toolchain's tree under
+# The installation (docs/proposals/install/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
 # pages, the documents and the Emacs mode under $(PREFIX)/share, each path
 # after $(DESTDIR), which a packager passes. make install stages the tree
@@ -181,7 +183,7 @@ uninstall:
 # The release archive, build/release/ern-$(VERSION).tar.gz: the tree make
 # install stages, the helper as its C source, which the archive's own make
 # compiles where it is installed, and a Makefile and a README of its own
-# from tools/release (proposals/install/install.md).
+# from tools/release (docs/proposals/install/install.md).
 release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
 
@@ -190,7 +192,7 @@ release: all
 tools: libs
 	@bin/ern build $(LIB_PATH) --build-root build/tools tools
 
-# Terminal.width's table in stdlib/terminal.ern, from the Unicode
+# Terminal.width's table in src/stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
 # a directory holding EastAsianWidth.txt, emoji-data.txt and
 # UnicodeData.txt, as OTP's source tree has in lib/stdlib/uc_spec.
@@ -300,7 +302,7 @@ service: all
 bench: all
 	@$(MAKE) -C test bench
 
-# The Emacs mode's tests (proposals/emacs/emacs_mode.md). It is an editor and not
+# The Emacs mode's tests (docs/proposals/emacs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test-full` will run and not have built. `format` runs
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to
@@ -321,10 +323,10 @@ test-emacs: all
 
 # One Emacs test, each in an Emacs of its own, so they run side by side.
 $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
-	@cd emacs && $(EMACS) -Q -batch -l test/$*.el $(EMACS_CORPUS)
+	@cd editors/emacs && $(EMACS) -Q -batch -l test/$*.el $(EMACS_CORPUS)
 
 $(TYPING_PARTS): emacs-test-typing-%:
-	@cd emacs && PARTS=4 PART=$* $(EMACS) -Q -batch -l test/typing.el $(EMACS_CORPUS)
+	@cd editors/emacs && PARTS=4 PART=$* $(EMACS) -Q -batch -l test/typing.el $(EMACS_CORPUS)
 
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
@@ -430,7 +432,7 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
+EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 
 .PHONY: all $(APP_BUILDS) stdlib libs shell tools manual man test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \

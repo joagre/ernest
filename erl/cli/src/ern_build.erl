@@ -636,8 +636,7 @@ build_root(Options, SourceRoot) ->
     case proplists:get_value(build_root, Options) of
         undefined ->
             case is_stdlib_root(SourceRoot) of
-                true -> absolute(filename:join([filename:dirname(stdlib_root()), "build",
-                                                "stdlib"]));
+                true -> absolute(filename:join([tree(), "build", "stdlib"]));
                 false -> SourceRoot
             end;
         Given -> absolute(Given)
@@ -662,12 +661,16 @@ set_aside_installed_stdlib(SourceRoot, BuildRoot) ->
 is_stdlib_root(SourceRoot) ->
     absolute(SourceRoot) =:= stdlib_root().
 
-%% Report §4.2: the standard library's source root, `stdlib/` beside the
-%% toolchain's `erl/`, found from where this module was loaded.
+%% Report §4.2: the standard library's source root, `src/stdlib/` in the
+%% toolchain's tree.
 stdlib_root() ->
+    absolute(filename:join([tree(), "src", "stdlib"])).
+
+%% The toolchain's tree, the checkout or an installation's lib/ernest, found
+%% from where this module was loaded, its erl/cli/ebin.
+tree() ->
     Here = absolute(code:which(?MODULE)),
-    Repo = filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))),
-    absolute(filename:join(Repo, "stdlib")).
+    filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))).
 
 %% Report §4.2: the namespaces a module may not take, the prelude's and the
 %% standard library's.

@@ -602,7 +602,7 @@ offer_test() ->
 %% a service at a table is refused, and so is a spawn whose function captures
 %% one
 ets_table_bound_test() ->
-    {ok, Ets} = file:read_file("../../../libs/ets/ets.ern"),
+    {ok, Ets} = file:read_file("../../../src/libs/ets/ets.ern"),
     {ok, _, Interface, _} = ern_typecheck:check_string(['Ets'], Ets),
     Refusal = fun(Text) ->
                       {ok, Declarations} = ern_parser:parse_string(Text),

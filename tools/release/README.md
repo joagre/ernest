@@ -33,7 +33,7 @@ Each path below is under the prefix, `/usr/local` unless another was given, and 
 - `share/doc/ernest/report/` holds the report, the language's definition, which everything else defers to, in three files: `language.md`, `toolchain.md` and `library.md`.
 - `share/emacs/site-lisp/ernest-mode.el` is the Emacs mode.
 
-The repository, https://github.com/joagre/ernest, holds what an installation does not: the examples and the documents the guide links to, the toolchain's source, and `emacs/README.md`, which says how to turn the Emacs mode on.
+The repository, https://github.com/joagre/ernest, holds what an installation does not: the examples and the documents the guide links to, the toolchain's source, and `editors/emacs/README.md`, which says how to turn the Emacs mode on.
 
 ## License
 

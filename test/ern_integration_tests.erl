@@ -2,7 +2,7 @@
 %% test programs built and run, their output compared as a multiset of lines with
 %% expected/<name>.out, since prints from different processes interleave
 %% by scheduling; the launcher, the signals and the streams; `Os`; the
-%% libraries' tests; and proposals/operations/programs/. Run from this
+%% libraries' tests; and docs/proposals/operations/programs/. Run from this
 %% directory by its Makefile. The helpers that run a command and build are
 %% exported for ern_manual_tests and ern_install_tests, the manual pages'
 %% tests and the installation's, which run as parts of their own.
@@ -682,7 +682,7 @@ make_dir(Dir) ->
         Other -> Other
     end.
 
-%% report §11, proposals/install/install.md: the launcher needs `iconv` to read the
+%% report §11, docs/proposals/install/install.md: the launcher needs `iconv` to read the
 %% working directory's name, and names it where the path has none. A
 %% regression test: every working directory was refused as not UTF-8
 launcher_names_a_missing_iconv_test() ->
@@ -827,7 +827,7 @@ closed_pipe() ->
                end,
     [?assertEqual({Job, <<"141">>}, {Job, StatusOf(Job)})
      || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
-                "doc " ++ filename:absname("../stdlib/list.ern"), "shell < /dev/null"]],
+                "doc " ++ filename:absname("../src/stdlib/list.ern"), "shell < /dev/null"]],
     ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")),
     {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; echo 1 | " ++ Ern ++ " shell"
                 " 2> err; echo $? > status ) | true'"),
@@ -1330,7 +1330,7 @@ modules() ->
     {0, Output} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Output)).
 
-%% report §4.9, §3.5, §5.6, Appendix E.25, E.26, proposals/operations/operations.md: the
+%% report §4.9, §3.5, §5.6, Appendix E.25, E.26, docs/proposals/operations/operations.md: the
 %% note's three programs, its directory built as a source root over the
 %% standard library's ordered set and map, each print what the note says, in
 %% order. Written after the code, which they were built against first.
@@ -1340,7 +1340,8 @@ operations_test_() ->
     {timeout, 120, fun operations/0}.
 
 operations() ->
-    {0, _} = sh("../bin/ern build --build-root build/operations ../proposals/operations/programs"),
+    {0, _} = sh("../bin/ern build --build-root build/operations"
+                " ../docs/proposals/operations/programs"),
     lists:foreach(fun(Name) ->
                       {0, Output} = sh("../bin/ern run build/operations/" ++ Name ++ ".erc"),
                       {ok, Expected} = file:read_file("expected/operations/" ++ Name ++ ".out"),

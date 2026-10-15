@@ -990,7 +990,8 @@ examples_parse_test_() ->
 ernest_files() ->
     Found = filelib:wildcard("../../../examples/**/*.ern")
         ++ filelib:wildcard("../../../test/programs/**/*.ern")
-        ++ filelib:wildcard("../../../stdlib/*.ern") ++ filelib:wildcard("../../../libs/*/*.ern"),
+        ++ filelib:wildcard("../../../src/stdlib/*.ern")
+        ++ filelib:wildcard("../../../src/libs/*/*.ern"),
     [File || File <- Found, hd(filename:basename(File)) =/= $.].
 
 %% report §1, Appendix A: the grammar fragments in the sections are Appendix

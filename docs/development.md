@@ -18,13 +18,15 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`proposals/`](../proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](../proposals/shell/shell_design.md), of the Emacs major mode, [`emacs_mode.md`](../proposals/emacs/emacs_mode.md), and of the installation, [`install.md`](../proposals/install/install.md).
-- **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
-- **[`emacs/README.md`](../emacs/README.md)**: how to install the Emacs mode.
+- **[`proposals/`](proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](proposals/shell/shell_design.md), of the Emacs major mode, [`emacs_mode.md`](proposals/emacs/emacs_mode.md), and of the installation, [`install.md`](proposals/install/install.md).
+- **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
+- **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode.
 
-The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 4.1.
+The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 4.1.
 
 ## The layout of the repository
+
+`src/` holds the Ernest code a release ships, the standard library, the libraries and the shell; `erl/` holds the Erlang it ships; `editors/` holds the editor modes; everything else serves the repository. `report/` and `guide/` stand at the top, since they are the language, where `docs/` is the project talking about itself, the manual pages and the proposals among its documents.
 
 ```
 VERSION            the toolchain's version, read at build time
@@ -43,14 +45,18 @@ assets/            the logo the README, the guide and a release show, light and 
                    512-pixel avatar, and the social preview GitHub's settings take,
                    with a note on each
 docs/              the documents listed above, and this one
-proposals/         what is designed, a directory for each proposal: the proposal, the
+docs/proposals/    what is designed, a directory for each proposal: the proposal, the
                    reasons for it, what other systems do, and its experiments or
                    programs; tentative until decided, and kept as a record once built
+docs/man/          the pages as CommonMark, which make man writes from main and a
+                   release commits: the prelude's and the standard library's under
+                   stdlib/, each library's under libs/, an index in each and one over
+                   them, each its directory's README.md
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists in the order to read them
 erl/               the toolchain, as Erlang applications: lexer, parser, format,
                    typer, runtime, emitter, cli, utils, which holds the vendored
-                   getopt, and json, the primitives of libs/json; each has src/, include/, ebin/ and test/, and the runtime
+                   getopt, and json, the primitives of src/libs/json; each has src/, include/, ebin/ and test/, and the runtime
                    also c_src/, the helper ern_exec's C source, and priv/, where make
                    builds it
 test/              what spans applications: the integration, nodes, deployment guide,
@@ -68,22 +74,18 @@ test/              what spans applications: the integration, nodes, deployment g
                    bench/, input/, layout/, load/, service/, session/, stdin/ and
                    terminal/, the programs and inputs tests run
 bin/               ern, the launcher, a POSIX sh script
-stdlib/            the standard library as Ernest source
-shell/             the shell as Ernest source; its README.md guides a reader
-                   through the code
-emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
-libs/              the first-party libraries, each a source root a program adds
+src/stdlib/        the standard library as Ernest source
+src/libs/          the first-party libraries, each a source root a program adds
                    with --load-path: ansi, ets, json, markdown, which needs ansi,
                    proxy and utilization
+src/shell/         the shell as Ernest source; its README.md guides a reader
+                   through the code
+editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release; and
                    release/ holds the archive's own Makefile and README.md
-man/               the pages as CommonMark, which make man writes from main and a
-                   release commits: the prelude's and the standard library's under
-                   stdlib/, each library's under libs/, an index in each and one over
-                   them, each its directory's README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
                    in stdlib/ from make doc; pages/ from make man; release/ from
@@ -99,7 +101,7 @@ Beyond what the README's *Installing* needs, `make test-full` needs python3, whi
 
 ```
 make              build the helper, compile every application into its ebin/, then
-                  stdlib/, libs/, shell/ and tools/, and write each manual page
+                  src/stdlib/, src/libs/, src/shell/ and tools/, and write each manual page
                   that is missing or older than what it is made from
 make test         build, then the unit tests of every application and the document
                   and style tests, side by side: the light run, a minute or two
@@ -128,7 +130,7 @@ make test-typed   well-typed programs generated, checked, compiled and run in on
                   hand a reply on, changed so that the checker must refuse them;
                   ERN_SEED=n runs a failing seed again
 make test-shell   the shell's sessions and the terminal
-make test-emacs   the Emacs mode's tests (proposals/emacs/emacs_mode.md)
+make test-emacs   the Emacs mode's tests (docs/proposals/emacs/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test-full, whose
                   test-integration builds their programs and the benchmark's
 make service      a program run by the host's service manager, a user's systemd or
@@ -151,18 +153,19 @@ make bench        what each of a few operations costs in Ernest beside the same
                   test-full
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
-make man          write every page: the manual pages make writes, and man/, main's pages
+make man          write every page: the manual pages make writes, and docs/man/, main's pages
                   as CommonMark, the standard library's, the prelude's and each
                   library's, with their indexes (docs/release_review.md)
 make manual       the manual pages alone, which make also writes: each module's beside
                   its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
                   build/man/ern.1, which man -l shows
 make install      install under PREFIX, /usr/local by default, within DESTDIR if one
-                  is given (proposals/install/install.md)
+                  is given (docs/proposals/install/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
-                  stdlib/, shell/ and libs/; its first run builds build/dialyzer.plt
+                  src/stdlib/, src/shell/ and src/libs/; its first run builds
+                  build/dialyzer.plt
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
 make sections     list the report sections no test cites
@@ -190,7 +193,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the Erlang of one application | `make test-erl APP=<app>`, then `make test`; the parser and the formatter `make test-grammar` too, the checker and the emitter `make test-typed` |
 | the runtime | `make test`, `make test-integration` |
 | nodes, or the deployment guide | `make test`, `make test-nodes`, `make test-deployment` |
-| the standard library, or a library under `libs/` | `make test`, `make test-integration` |
+| the standard library, or a library under `src/libs/` | `make test`, `make test-integration` |
 | the shell | `make test`, `make test-shell` |
 | the installation, the release, or the manual pages | `make test-install`, which runs `test-manual` first; the pages alone `make test-manual` |
 | the Emacs mode | `make test-emacs` |
@@ -211,7 +214,7 @@ bin/ern run examples/hello.erc                    # hello, world
 bin/ern build --build-root build/modules test/programs/modules  # a tree, in dependency order
 bin/ern run build/modules/main.erc                # loads net/http.erc by namespace
 bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
-bin/ern doc stdlib/list.ern                       # the module's documentation as CommonMark
+bin/ern doc src/stdlib/list.ern                   # the module's documentation as CommonMark
 bin/ern build --short-errors examples/hello.ern   # the first line of each error only
 bin/ern config                                    # ./.ernest with a key pair
 bin/ern reload --config-dir node                  # the node running from node/ reads its ernest.conf again
@@ -229,7 +232,7 @@ bin/ern build --load-path build/libs/ets --build-root build/app app
 bin/ern run --load-path build/libs/ets build/app/main.erc
 ```
 
-The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](../proposals/shell/shell_design.md) says how it is built.
+The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](proposals/shell/shell_design.md) says how it is built.
 
 ## What the toolchain accepts
 

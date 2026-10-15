@@ -46,8 +46,9 @@
 %% scripts and headers it once left unread
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
-                "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
-                "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern", "tools/*.ern",
+                "src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
+                "test/**/*.ern", "test/*.py", "editors/emacs/*.el", "editors/emacs/test/*.el",
+                "src/libs/**/*.ern", "tools/*.ern",
                 "tools/*.sh", "tools/*.escript", "bin/ern", "erl/*/include/*.hrl", "Makefile",
                 "test/Makefile", "erl/*/src/Makefile", "erl/app.mk", "tools/release/Makefile"],
     Files = [File || File <- ern_repository:files(Patterns),
@@ -64,10 +65,10 @@ line_length_test() ->
 no_tab_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "erl/*/c_src/*.c",
                 "test/*.erl",
-                "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
-                "test/*.py", "emacs/*.el", "emacs/test/*.el", "emacs/test/broken/*.ern",
-                "libs/**/*.ern", "libs/*/*.md", "tools/*.ern", "tools/*.sh", "bin/ern", "*.md",
-                "docs/*.md"],
+                "src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
+                "test/**/*.ern", "test/*.py", "editors/emacs/*.el", "editors/emacs/test/*.el",
+                "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
+                "tools/*.ern", "tools/*.sh", "bin/ern", "*.md", "docs/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -94,7 +95,7 @@ american_spelling() ->
     Unread = ["LICENSE", "THIRD_PARTY_LICENSES" | borrowed()],
     ?assert(length(Unread) > 2),
     Files = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
-                     not lists:prefix("proposals/", File),
+                     not lists:prefix("docs/proposals/", File),
                      not lists:member(File, Unread),
                      filelib:is_regular(filename:join(?ROOT, File))],
     ?assert(length(Files) > 300),
@@ -225,9 +226,10 @@ write_formatted() ->
 
 %% The modules the Ernest style guide governs.
 modules() ->
-    Patterns = ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "libs/**/*.ern",
-                "tools/*.ern", "test/**/*.ern", "proposals/operations/programs/*.ern",
-                "proposals/nodes_and_code/experiments/code_update/**/*.ern"],
+    Patterns = ["src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
+                "src/libs/**/*.ern", "tools/*.ern", "test/**/*.ern",
+                "docs/proposals/operations/programs/*.ern",
+                "docs/proposals/nodes_and_code/experiments/code_update/**/*.ern"],
     Modules = [File || File <- ern_repository:files(Patterns),
                        not lists:prefix("test/build/", File)],
     ?assert(length(Modules) > 20),
@@ -337,16 +339,16 @@ module_name_test() ->
                                                  ++ ").")]),
     %% unique across the repository, which the directory no longer disambiguates
     ?assertEqual([], Names -- lists:usort(Names)),
-    Sources = lists:usort(ern_repository:files(["stdlib/**/*.ern"])),
+    Sources = lists:usort(ern_repository:files(["src/stdlib/**/*.ern"])),
     ?assert(length(Sources) > 10),
     ?assertEqual([], [File || File <- Sources, not compiled_as(File)]).
 
-%% emacs/README.md: the lines an init file needs are in the README and in
-%% the header of emacs/ernest-mode.el, which is installed alone, and the two
-%% give the same lines in the same order
+%% editors/emacs/README.md: the lines an init file needs are in the README
+%% and in the header of editors/emacs/ernest-mode.el, which is installed
+%% alone, and the two give the same lines in the same order
 emacs_installation_test() ->
-    Readme = ern_repository:read("emacs/README.md"),
-    Mode = ern_repository:read("emacs/ernest-mode.el"),
+    Readme = ern_repository:read("editors/emacs/README.md"),
+    Mode = ern_repository:read("editors/emacs/ernest-mode.el"),
     Blocks = tl(binary:split(Readme, <<"```elisp\n">>, [global])),
     FromReadme = lists:append([lines(hd(binary:split(Block, <<"```">>))) || Block <- Blocks]),
     [_, AfterHead] = binary:split(Mode, <<";;; Installation:\n">>),
@@ -359,14 +361,14 @@ emacs_installation_test() ->
 lines(Text) ->
     [Line || Line <- binary:split(Text, <<"\n">>, [global]), Line =/= <<>>].
 
-%% proposals/emacs/emacs_mode.md: the Emacs mode restates §2.4's reserved words, but
+%% docs/proposals/emacs/emacs_mode.md: the Emacs mode restates §2.4's reserved words, but
 %% true and false, which it paints as constants, and a subset of §2.6's
 %% symbols, so a test keeps the two equal. It found `=>`
 %% and `do`, which the mode painted and the language does not have.
 %% report §2.4, Appendix A
 emacs_mode_mirrors_the_lexer_test() ->
     Lexer = unicode:characters_to_list(ern_repository:read("erl/lexer/src/ern_lexer.erl")),
-    Mode = unicode:characters_to_list(ern_repository:read("emacs/ernest-mode.el")),
+    Mode = unicode:characters_to_list(ern_repository:read("editors/emacs/ernest-mode.el")),
     ?assertEqual(lists:sort(atoms_of(Lexer, "-define(RESERVED,")),
                  lists:sort(strings_of(Mode, "(defconst ernest-reserved-words"))),
     Symbols = strings_of(Lexer, "-define(SYMBOLS,"),
@@ -375,13 +377,13 @@ emacs_mode_mirrors_the_lexer_test() ->
     ?assert(length(Painted) > 5),
     ?assertEqual([], Painted -- Symbols).
 
-%% proposals/emacs/emacs_mode.md: the Emacs mode restates how tightly each binary
+%% docs/proposals/emacs/emacs_mode.md: the Emacs mode restates how tightly each binary
 %% operator binds, which places a line an operator opens, so a test keeps
 %% its table equal to the parser's. Written with the table.
 %% report §2.6
 emacs_mode_mirrors_the_parser_test() ->
     Parser = unicode:characters_to_list(ern_repository:read("erl/parser/src/ern_parser.erl")),
-    Mode = unicode:characters_to_list(ern_repository:read("emacs/ernest-mode.el")),
+    Mode = unicode:characters_to_list(ern_repository:read("editors/emacs/ernest-mode.el")),
     {match, InParser} = re:run(Parser, "^precedence\\('([^']+)'\\) -> \\{([0-9]+),",
                                [global, multiline, {capture, all_but_first, list}]),
     {match, InMode} = re:run(body(Mode, "(defconst ernest--precedence"),

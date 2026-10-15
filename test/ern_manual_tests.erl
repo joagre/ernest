@@ -22,8 +22,8 @@ manual_pages_test_() ->
 
 manual_pages() ->
     _ = ern_integration_tests:succeed("../bin/ern doc --man --build-root ../build/stdlib "
-                                      "../stdlib"),
-    Modules = [filename:basename(File, ".ern") || File <- filelib:wildcard("../stdlib/*.ern")],
+                                      "../src/stdlib"),
+    Modules = [filename:basename(File, ".ern") || File <- filelib:wildcard("../src/stdlib/*.ern")],
     Pages = ["../build/stdlib/Ernest." ++ ern_namespace:text(ern_namespace:namespace([Module]))
              ++ ".3ern" || Module <- Modules]
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],

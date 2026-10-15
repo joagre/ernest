@@ -8,7 +8,7 @@ The rules build on widely accepted guides and state only the repository's own ru
 - No file holds a tab, but a Makefile *(tested)*.
 - A line of code is at most 100 characters; prose in markdown may be longer *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.
-- The spelling is American English, in prose, names and messages alike: `color`, `behavior`, `initialize`, `utilization`, `catalog`, `license`, `gray`, `center`. A name of the host's or of another system's keeps its own, `-behaviour`, `LICENSE`, `prefers-color-scheme`, and a quotation its author's. The test reads every tracked file of text but a proposal under `proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*.
+- The spelling is American English, in prose, names and messages alike: `color`, `behavior`, `initialize`, `utilization`, `catalog`, `license`, `gray`, `center`. A name of the host's or of another system's keeps its own, `-behaviour`, `LICENSE`, `prefers-color-scheme`, and a quotation its author's. The test reads every tracked file of text but a proposal under `docs/proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*.
 
 ### Names
 
@@ -33,7 +33,7 @@ Code is read more often than written, mostly by someone else, so a name is writt
 
 For the toolchain under `erl/`.
 
-- **Every module is `ern_<thing>`**, `<thing>` unique across the repository and not repeating its application, which its directory names; a vendored file keeps its upstream name. A module compiled from Ernest is `ern@<namespace>`, the path with `@` for `/` (report §11.1): `stdlib/io.ern` is `ern@io`. The log's *One Token for the Project* says why.
+- **Every module is `ern_<thing>`**, `<thing>` unique across the repository and not repeating its application, which its directory names; a vendored file keeps its upstream name. A module compiled from Ernest is `ern@<namespace>`, the path with `@` for `/` (report §11.1): `src/stdlib/io.ern` is `ern@io`. The log's *One Token for the Project* says why.
 - **One `-export` list at the top**, in the order the functions appear *(tested)*.
 - **`-spec` on every exported function** *(tested)*; a type shared between modules is a `-type` of its owner.
 - **A shared record lives in `include/*.hrl`**, any other in its module. The only macros are the few constants that need a name.
@@ -49,7 +49,7 @@ The runtime's helper, `erl/runtime/c_src/ern_exec.c`, is C99 and compiles with `
 
 ## Ernest
 
-For every Ernest source and every Ernest block of the report and the guide. The layout `ern format` writes, and what else it keeps and changes, is report §11.6's: `make test` holds every source to it, `make format` restores it, and the Emacs mode indents as it does ([`emacs_mode.md`](../proposals/emacs/emacs_mode.md)). The writer decides the rest:
+For every Ernest source and every Ernest block of the report and the guide. The layout `ern format` writes, and what else it keeps and changes, is report §11.6's: `make test` holds every source to it, `make format` restores it, and the Emacs mode indents as it does ([`emacs_mode.md`](proposals/emacs/emacs_mode.md)). The writer decides the rest:
 
 - **Top-down**: types, then the module's service bindings, then `main` or the exported functions, each followed directly by its helpers; a helper several share goes with its first user or in a utilities section at the bottom.
 - **A block holds more than one statement**; one expression is written bare *(tested)*.

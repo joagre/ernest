@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 14 October 2026.
+Revision of 15 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -1544,7 +1544,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **span** — a stretch of source a diagnostic underlines, the erroneous one with `^` and one the message depends on with `-` and its label. §11.5.
 - **`spawn`** — `spawn(f)`, starts a new process; `spawnMonitored(f, wrap)` starts one monitored from its start. §6.2.
 - **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give. §6.9.
-- **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
+- **standard library** — the modules under `src/stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
 - **start number** — the number the host gives each start of a node, carried in every address of its processes, so that an address of an earlier start is dead. §8.7.
 - **startup file** — a file of the shell's inputs, run when the shell starts. §11.2.
 - **statement** — a part of a block, an expression, a `let`, or a `fn`. §5.4.

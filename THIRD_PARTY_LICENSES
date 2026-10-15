@@ -48,8 +48,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Unicode Character Database
 
-  Path:     stdlib/terminal.ern, the table between its two generated-table
-            marker lines, written by tools/unicode_width.escript
+  Path:     src/stdlib/terminal.ern, the table between its two
+            generated-table marker lines, written by
+            tools/unicode_width.escript
   Upstream: https://www.unicode.org/Public/17.0.0/ucd/ (EastAsianWidth.txt,
             emoji-data.txt, UnicodeData.txt), as OTP 29 vendors them in
             lib/stdlib/uc_spec
@@ -101,8 +102,8 @@ authorization of the copyright holder.
 
 Lucide icons
 
-  Path:     proposals/site/docroot/assets/img/icons/LICENSE, and the SVG
-            icons beside it
+  Path:     docs/proposals/site/docroot/assets/img/icons/LICENSE, and the
+            SVG icons beside it
   Upstream: https://github.com/lucide-icons/lucide
   Copied:   2026-10-10, with the website proposal's first design
   License:  ISC License; the icons derived from Feather also under the MIT

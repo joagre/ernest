@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 14 October 2026.
+Revision of 15 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -114,7 +114,7 @@ export fn main() : Unit with Never = {
 
 ## Appendix E. Standard Library
 
-E.0 is normative; a function enters this appendix by its rules before it enters `stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.size : (List(a!)) -> Int` takes no list that holds a reply, and `List.map` takes one. A module's own types are written there without its namespace.
+E.0 is normative; a function enters this appendix by its rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.size : (List(a!)) -> Int` takes no list that holds a reply, and `List.map` takes one. A module's own types are written there without its namespace.
 
 The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
@@ -820,7 +820,7 @@ Code.running : (a!) -> List(Address(m)) with n+ // a form (§3.11): f a top-leve
 
 ## Appendix G. Libraries
 
-Informative. The libraries this project writes, each a directory under `libs/` and a source root of its own, which a program adds to its load path when it is compiled and when it is run (§11.1, §11.2). An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name: under `/usr/local`, where Ernest is installed by default, `ern build --load-path /usr/local/lib/ernest/build/libs/json main.ern` compiles a program with `libs/json`, and `ern run --load-path /usr/local/lib/ernest/build/libs/json main.erc` runs it. None is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere follows Appendix D and is not listed here.
+Informative. The libraries this project writes, each a directory under `src/libs/` and a source root of its own, which a program adds to its load path when it is compiled and when it is run (§11.1, §11.2). An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name: under `/usr/local`, where Ernest is installed by default, `ern build --load-path /usr/local/lib/ernest/build/libs/json main.ern` compiles a program with `libs/json`, and `ern run --load-path /usr/local/lib/ernest/build/libs/json main.erc` runs it. None is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere follows Appendix D and is not listed here.
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 

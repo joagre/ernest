@@ -1,0 +1,109 @@
+;;; editing.el --- What the mode gives beyond color and indentation  -*- lexical-binding: t; -*-
+
+;; Moving over declarations, `imenu', naming the declaration point is in,
+;; and the regexp `M-x compile' reads `ern build' with.  Run from `editors/emacs/':
+;;
+;;     emacs -Q -batch -l test/editing.el
+
+;;; Code:
+
+(require 'compile)
+(require 'imenu)
+(add-to-list 'load-path (expand-file-name "."))
+(require 'ernest-mode)
+
+(defvar ernest-editing--failures 0)
+
+(defun ernest-editing--want (what got want)
+  "Check that WHAT came out as GOT, which should be WANT."
+  (unless (equal got want)
+    (setq ernest-editing--failures (1+ ernest-editing--failures))
+    (message "FAIL %s is %S, wanted %S" what got want)))
+
+(with-temp-buffer
+  (insert-file-contents "../../src/stdlib/list.ern")
+  (ernest-mode)
+  ;; the declaration point is in, from the middle of a body
+  (goto-char (point-min))
+  (search-forward "head :: rest -> if index == 0")
+  (ernest-editing--want "the declaration at the cursor" (ernest-current-defun) "get")
+  ;; C-M-a from there lands on its own line
+  (ernest-beginning-of-defun)
+  (ernest-editing--want "beginning-of-defun"
+                        (buffer-substring (point) (+ (point) 18)) "export fn get(list")
+  ;; C-M-a with a negative count moves forward, to the next declaration
+  (save-excursion
+    (ernest-beginning-of-defun -1)
+    (ernest-editing--want "beginning-of-defun -1"
+                          (and (bolp) (looking-at-p "export fn ")
+                               (not (looking-at-p "export fn get(")))
+                          t))
+  ;; C-M-e stops before the next declaration's doc block
+  (ernest-end-of-defun)
+  (forward-line -1)
+  (ernest-editing--want "end-of-defun" (string-trim (thing-at-point 'line t)) "}")
+  ;; imenu finds every exported function
+  (let* ((index (let ((imenu-generic-expression ernest-imenu-generic-expression))
+                  (imenu--generic-function ernest-imenu-generic-expression)))
+         (names (mapcar #'car (cdr (assoc "Function" index)))))
+    (dolist (want '("get" "map" "sort" "forEach"))
+      (unless (member want names)
+        (setq ernest-editing--failures (1+ ernest-editing--failures))
+        (message "FAIL imenu has no %s" want)))))
+
+;; an operator a type declares is a declaration like any other, report
+;; section 4.8 and Appendix A's DeclName
+(with-temp-buffer
+  (insert-file-contents "../../src/stdlib/int.ern")
+  (ernest-mode)
+  (goto-char (point-min))
+  (search-forward "export fn Int.+(")
+  (end-of-line)
+  (ernest-editing--want "the declaration at an operator" (ernest-current-defun) "Int.+")
+  (let* ((index (imenu--generic-function ernest-imenu-generic-expression))
+         (names (mapcar #'car (cdr (assoc "Function" index)))))
+    (dolist (want '("Int.+" "Int.-" "abs"))
+      (unless (member want names)
+        (setq ernest-editing--failures (1+ ernest-editing--failures))
+        (message "FAIL imenu has no %s" want)))))
+
+;; a raw string's line in column zero is not a declaration, though it
+;; opens with `fn'
+(with-temp-buffer
+  (insert "let usage = `ern file.erc\nfn fake() = 1\n`\n\nfn real(x : Int) : Int =\n"
+          "    x\n")
+  (ernest-mode)
+  (goto-char (point-max))
+  (ernest-editing--want "the declaration after a raw string" (ernest-current-defun) "real")
+  (ernest-beginning-of-defun 2)
+  (ernest-editing--want "C-M-a over a raw string" (looking-at-p "let usage") t)
+  (goto-char (point-min))
+  (ernest-end-of-defun)
+  (ernest-editing--want "C-M-e over a raw string" (line-number-at-pos) 4)
+  (let ((names (mapcar #'car (cdr (assoc "Function" (imenu--generic-function
+                                                      ernest-imenu-generic-expression))))))
+    (ernest-editing--want "imenu over a raw string" names '("real"))))
+
+;; the diagnostic `ern build' prints, read the way `M-x compile' reads it
+(let* ((entry (assq 'ernest compilation-error-regexp-alist-alist))
+       (re (nth 1 entry))
+       (line "/home/a person/src/ernest/src/stdlib/list.ern:2:13: unknown name y"))
+  (ernest-editing--want "the error regexp is registered" (and entry t) t)
+  (ernest-editing--want "compilation-error-regexp-alist names it"
+                        (and (memq 'ernest compilation-error-regexp-alist) t) t)
+  (if (not (string-match re line))
+      (progn (setq ernest-editing--failures (1+ ernest-editing--failures))
+             (message "FAIL the error regexp does not match %S" line))
+    (ernest-editing--want "the file" (match-string 1 line)
+                          "/home/a person/src/ernest/src/stdlib/list.ern")
+    (ernest-editing--want "the line" (match-string 2 line) "2")
+    (ernest-editing--want "the column" (match-string 3 line) "13"))
+  ;; the source gutter under a diagnostic is not a file name
+  (ernest-editing--want "a gutter line" (string-match re "1 | fn f(a:1:2: x)") nil))
+
+(message "%s" (if (zerop ernest-editing--failures)
+                  "editing: all checks passed"
+                (format "editing: %d checks failed" ernest-editing--failures)))
+(unless (zerop ernest-editing--failures) (kill-emacs 1))
+
+;;; editing.el ends here

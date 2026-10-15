@@ -1,5 +1,5 @@
 #!/bin/sh
-# The installation (proposals/install/install.md). Its jobs:
+# The installation (docs/proposals/install/install.md). Its jobs:
 #
 #   install.sh stage DIR                    the installation's tree from the checkout
 #   install.sh install DIR DESTDIR PREFIX   a staged tree installed
@@ -47,7 +47,7 @@ stage() {
     rm -rf "$stage"
     tree=$stage/lib/ernest
     cd "$repo"
-    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec stdlib/*.ern \
+    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec src/stdlib/*.ern \
              build/stdlib/*.erc build/stdlib/ern@*.beam \
              $(find build/shell build/libs -type f \( -name '*.erc' -o -name '*.beam' \) | sort)
     do
@@ -93,7 +93,7 @@ stage() {
              share/doc/ernest/; do
         echo "$d" >> "$tree/installed"
     done
-    shared emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
+    shared editors/emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
     chmod -R u=rwX,go=rX "$stage"
 }
 

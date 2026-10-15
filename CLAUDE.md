@@ -25,9 +25,9 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`README.md`](README.md) | what Ernest is and where to begin |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
-| `proposals/shell/shell_design.md`, `proposals/install/install.md`, [`proposals/emacs/emacs_mode.md`](proposals/emacs/emacs_mode.md) | each its component's design; a design note changes when its component does |
-| [`shell/README.md`](shell/README.md) | how the shell's code reads |
-| [`emacs/README.md`](emacs/README.md) | how to install the Emacs mode |
+| `docs/proposals/shell/shell_design.md`, `docs/proposals/install/install.md`, [`docs/proposals/emacs/emacs_mode.md`](docs/proposals/emacs/emacs_mode.md) | each its component's design; a design note changes when its component does |
+| [`src/shell/README.md`](src/shell/README.md) | how the shell's code reads |
+| [`editors/emacs/README.md`](editors/emacs/README.md) | how to install the Emacs mode |
 | [`docs/module_doc_template.md`](docs/module_doc_template.md) | the worked example of a documented module, held equal to `ern doc`'s output by a test |
 | [`docs/release_review.md`](docs/release_review.md) | what a release runs to be ready |
 | [`docs/full_review.md`](docs/full_review.md) | the review of every area whole, run seldom |
@@ -36,15 +36,15 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/soundness.md`](docs/soundness.md) | the argument that a well-typed program does not go wrong |
 | [`docs/otp_bugs.md`](docs/otp_bugs.md) | the defects found in OTP, each a report ready for OTP's tracker, until a release Ernest requires has its fix |
 | [`test/diagnostics.md`](test/diagnostics.md) | the catalog of diagnostics, which `make diagnostics` writes |
-| [`man/`](man/) | the pages as CommonMark, which `make man` writes from `main` |
+| [`docs/man/`](docs/man/) | the pages as CommonMark, which `make man` writes from `main` |
 | [`assets/README.md`](assets/README.md) | the logo files |
 | [`tools/release/README.md`](tools/release/README.md) | what a reader of the release archive, or of an installation, needs first |
 | [`docs/language_feedback.md`](docs/language_feedback.md) | what writing Ernest has felt against the principles, each line until a plan item decides it |
 | `findings.md` in `docs/`, while a review's findings are open | the findings, each line until a plan item decides it; it goes when every line is done, dropped or planned |
 
-**Proposals.** [`proposals/`](proposals/) holds what is designed, a directory for each: the proposal, its reasons, what other systems do, and its experiments or programs. Each directory's `README.md` says what its files are and which is current. Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not. A built proposal is kept as the record of its design, its status line saying so, and does not change again, a component's design note excepted; a program under it that the tests still run follows the library's names, since the tests hold it to the library and not to the proposal. `proposals/scratch/` holds a copy written for one reader outside the project, in that reader's terms, citing nothing; nothing points at it, and it goes when its reader is done. A `scratch/` directory inside a proposal's own directory, untracked, is the user's own thinking: no session edits it, commits it or builds on it.
+**Proposals.** [`docs/proposals/`](docs/proposals/) holds what is designed, a directory for each: the proposal, its reasons, what other systems do, and its experiments or programs. Each directory's `README.md` says what its files are and which is current. Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not. A built proposal is kept as the record of its design, its status line saying so, and does not change again, a component's design note excepted; a program under it that the tests still run follows the library's names, since the tests hold it to the library and not to the proposal. `docs/proposals/scratch/` holds a copy written for one reader outside the project, in that reader's terms, citing nothing; nothing points at it, and it goes when its reader is done. A `scratch/` directory inside a proposal's own directory, untracked, is the user's own thinking: no session edits it, commits it or builds on it.
 
-**Restating.** Only a teaching document restates: the guide and `shell/README.md` restate what they teach. Where a list must live in two places, a test keeping the two equal is welcome, not required.
+**Restating.** Only a teaching document restates: the guide and `src/shell/README.md` restate what they teach. Where a list must live in two places, a test keeping the two equal is welcome, not required.
 
 **Where a sentence goes.** Decide the owner before you write. What will be built and when goes in the plan; why goes in the log; a paragraph that does both is split at that line. A decision the user must see goes in the plan, in one sentence, with the report section that states it and the log entry that argues it, since the user reads the plan and not the log. A finished milestone in the plan is a row of its table of milestones, naming the log entries that argue it.
 
@@ -68,7 +68,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 ## Design
 
 - **Prefer minimal, direct implementations** over speculative abstraction.
-- **Judge features on the principles.** A feature enters or stays out by the five principles, and a standard library function by E.0's four admission rules, weighed one by one. How many programs ask for it decides nothing: the log names the principle that decided, and a "Later" entry its verdict and what would change it, never a count of programs. A library under `libs/` is not a feature of the language: write one when our work needs it, when someone asks for it, or when we want it.
+- **Judge features on the principles.** A feature enters or stays out by the five principles, and a standard library function by E.0's four admission rules, weighed one by one. How many programs ask for it decides nothing: the log names the principle that decided, and a "Later" entry its verdict and what would change it, never a count of programs. A library under `src/libs/` is not a feature of the language: write one when our work needs it, when someone asks for it, or when we want it.
 - **Bring options, not defenses.** When a simplification seems to conflict with a principle, first check whether the principle is being applied too dogmatically.
 - **The tools are fast.** A job with nothing to do ends in about the time the host takes to start, and one with work spends its time on that work. A slow tool is a defect: measure it, and fix it at its cause or plan it with a date (the log's *Slow Tools Are Defects*). Every run of a tool or a target is timed against its work; one that costs more is named to the user in the same message, not waited out.
 - **What Ernest adds to a host operation costs a fraction of it.** A check, a count or a table row around a native call never costs a multiple of the call; an operation Erlang makes without a message makes none in Ernest; only a system process, and the runtime at a spawn or a monitor (§10), costs a message by design. No scan on an operation's path grows with anything but the operation's own input. Keep the runtime readable: a cost goes by needing less, never by a trick. `make bench` measures it.
