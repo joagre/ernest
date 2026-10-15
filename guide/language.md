@@ -133,7 +133,7 @@ These rules come from one design, and most of its parts exist already. The Erlan
 - **A distribution built for a WAN.** A node lists its peers by name, public key and address, accepts a connection from a listed key alone, and opens one TLS connection to a peer when an operation first needs it. No mesh and no port mapper: the key is the identity, and two nodes on two networks are the ordinary case.
 - **Little else.** Two concepts, five principles, one way for each thing, and a report of three files that is the whole language.
 
-The first two refusals above are the first bullet at work. The other two bullets show as programs too, taught in §4.6 and §8; here only the shape matters.
+The first refusal above is the first bullet at work, and the fourth is principle 3's (§11). The second and third bullets show as programs too, taught in §4.6 and §8; here only the shape matters.
 
 **Code known by its hash.** The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old version runs on wherever a process still runs it:
 
