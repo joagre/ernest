@@ -17,7 +17,9 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
 
-**The mailbox in the type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`:
+## The four, in code
+
+**The mailbox in the function's type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`:
 
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
@@ -89,7 +91,7 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 }
 ```
 
-**Built for a WAN.** A node is a program started with a configuration directory. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name the key gives it, and is opened over TLS when an operation first needs it:
+**A distribution built for a WAN.** A node is a program started with a configuration directory. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name the key gives it, and is opened over TLS when an operation first needs it:
 
 ```json
 {
@@ -105,6 +107,8 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
   "services": {}
 }
 ```
+
+## Where it stands
 
 It is young. Programs run on one node and across nodes; 0.4.0, the first release with nodes, is the plan's next tag, and where the project stands is "Where we are" in the [plan](docs/implementation_plan.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan's MVP 3.9 says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
