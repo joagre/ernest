@@ -38,7 +38,7 @@ docs/man/          the pages as CommonMark, which make man writes from main and 
                    stdlib/, each library's under libs/, an index in each and one over
                    them, each its directory's README.md
 examples/          Ernest programs written for a reader of the language, which
-                   examples/README.md lists in the order to read them
+                   examples/README.md lists by topic
 erl/               the toolchain, as Erlang applications: shared, the three modules
                    beneath every stage; lexer, parser, formatter, checker, runtime and
                    emitter; cli, which holds the vendored getopt; and json, the

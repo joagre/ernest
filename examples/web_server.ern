@@ -197,24 +197,13 @@ fn withCookie(response : Response, name : String, value : String) : Response =
     Response(..response,
              headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
 
+// The errors the program says in its own words, and the rest as the
+// library shows them.
 fn errorText(error : Io.Error) : String =
     match error {
-        Io.NotFound -> "no such file"
-      | Io.Denied -> "permission denied"
-      | Io.Refused -> "refused"
-      | Io.Closed -> "closed"
-      | Io.Timeout -> "timed out"
-      | Io.NotATerminal -> "not a terminal"
-      | Io.NotAFile -> "not a regular file"
-      | Io.Exists -> "exists"
-      | Io.NotUtf8(_) -> "not UTF-8"
-      | Io.Invalid -> "invalid argument"
-      | Io.NotListed -> "no peer listed"
-      | Io.Unreachable -> "unreachable"
-      | Io.NotOffered -> "not offered"
-      | Io.OtherType -> "offered at another type"
-      | Io.NotLoaded -> "not loaded"
+        Io.Denied -> "permission denied"
       | Io.Other(text) -> text
+      | _ -> Io.show(error)
     }
 
 //

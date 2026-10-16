@@ -1,3 +1,11 @@
-before: apples 3, next id 3, audit [1: put apples; 2: put pears]
-Services.store:37 faulted, restarted: the store was corrupted
-after the restart: apples none, next id 1, audit []
+apples: 3
+pears: 5
+apples: 2
+audit: #1 add apples 3, #2 add pears 5, #3 take apples 1
+take apples 5: no answer
+Services.store:65 faulted, restarted: apples: cannot take 5 of 2
+apples: 0
+audit: none
+pears: 2
+commands: add KEY COUNT, take KEY COUNT, count KEY, audit
+audit: #1 add pears 2

@@ -20,21 +20,17 @@
 %% A program kept for the tests, compiled into test/build.
 -define(BUILD_PROGRAM, "--source-root fixtures/programs --build-root build ").
 
-%% The examples that end of themselves, and the programs kept for the tests.
--define(EXAMPLES, ["hello", "services", "word_count", "shout", "typed_channels",
-                   "typed_channels_nodes", "upgrade_tool"]).
+%% The examples that end of themselves given nothing, and the programs kept
+%% for the tests. Every other example is built and run, or connected to, by
+%% a test of its own below, snake but played by ern_terminal_tests.
+-define(EXAMPLES, ["hello", "typed_channels_nodes"]).
 -define(PROGRAMS, ["counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser"]).
 
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
-%% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns),
-%% §5.5 (kv_parser), §4.4 (stack), Appendix E.22 (services), §4.9 and §5.6
-%% (word_count), Appendix E.18 (shout), §6.1, §6.3, §6.5, §6.6
-%% (typed_channels), §8.7 (typed_channels_nodes, run alone, which is no
-%% node, its find answering NotListed), §6.10 and Appendix E.28
-%% (upgrade_tool, run alone, which moves a counter of its own and has no
-%% peer); typed_channels and typed_channels_nodes are regression tests
-%% written with them, which run none of the refused lines their comments
-%% quote
+%% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns), §5.5 (kv_parser),
+%% §4.4 (stack), §8.7 (typed_channels_nodes, run alone, which is no node,
+%% its find answering NotListed); typed_channels_nodes is a regression
+%% test written with it
 %% Each program is compiled and run apart from the others, so they run in
 %% parallel (plan, MVP 2.6).
 programs_test_() ->
@@ -110,6 +106,63 @@ snake_own_tests_test_() ->
          ?assertEqual(2, length([Line || Line <- Lines,
                                          binary:match(Line, <<": passed">>) =/= nomatch]))
      end}.
+
+%% report §6.5, §6.6, §6.9, Appendix E.22: services reads a command a line
+%% from standard input and ends at its end; a take of more than the store
+%% holds faults the store, the call waiting on it answering nothing, and
+%% RestForOne restarts it with the two services spawned after it, each
+%% reached by its name and answering from its first state, the restart's
+%% line on standard error naming the store's declaration; a line that is no
+%% command is answered with the commands. A regression test, written with
+%% the example. After the fault the input asks the store first, which
+%% answers once its group has restarted whole (Appendix E.22); a command
+%% that asks the audit before the restart is done is not covered
+services_test_() ->
+    {timeout, 60, fun services/0}.
+
+services() ->
+    0 = build(?BUILD ++ "../examples/services.ern"),
+    {0, Output} = sh("../bin/ern run build/services.erc < fixtures/input/services.in"),
+    ?assertEqual(expected("services"), unstamped(lines(Output))).
+
+%% report §3.5, §4.9, §5.6, Appendix E.3, E.26: word_count counts the words
+%% of the file its command line names in both maps, the ordered map's
+%% alphabetically and the hash map's in an order E.3 leaves unspecified,
+%% so the two lines are compared as sets of counts; with no file it says
+%% how it is called, status 2, and a file it cannot read is named on
+%% standard error, status 1. A regression test, written with the example
+word_count_test_() ->
+    {timeout, 60, fun word_count/0}.
+
+word_count() ->
+    0 = build(?BUILD ++ "../examples/word_count.ern"),
+    {0, Output} = sh("../bin/ern run build/word_count.erc fixtures/input/words.txt"),
+    [<<"by hash: ", Hashed/binary>>, <<"in order: ", Ordered/binary>>, Frequent] =
+        binary:split(Output, <<"\n">>, [global, trim]),
+    ?assertEqual(<<"and 1, cat 1, dog 1, log 1, mat 1, on 2, sat 2, the 4">>, Ordered),
+    ?assertEqual(lists:sort(binary:split(Ordered, <<", ">>, [global])),
+                 lists:sort(binary:split(Hashed, <<", ">>, [global]))),
+    ?assertEqual(<<"most frequent: the, sat">>, Frequent),
+    ?assertEqual({2, <<"usage: word_count file\n">>}, sh("../bin/ern run build/word_count.erc")),
+    ?assertEqual({1, <<"word_count: fixtures/input/absent.txt: NotFound\n">>},
+                 sh("../bin/ern run build/word_count.erc fixtures/input/absent.txt")).
+
+%% report §6.10, §8.7, §11.1, Appendix E.28: the upgrade example's two
+%% builds of one module, each built as a directory, as its first comment
+%% builds it; the second, run alone, which is no node, moves a counter of
+%% its own and has no peer. The first is a node's counter, which
+%% ern_deployment_tests runs beside the second's tool. A regression test,
+%% written with the example
+upgrade_example_test_() ->
+    {timeout, 60, fun upgrade_example/0}.
+
+upgrade_example() ->
+    [0 = build("--build-root build/upgrade/" ++ Build ++ " ../examples/upgrade/" ++ Build)
+     || Build <- ["v1", "v2"]],
+    ?assert(filelib:is_regular("build/upgrade/v1/counter.erc")),
+    {0, Output} = sh("../bin/ern run build/upgrade/v2/counter.erc"),
+    ?assertEqual(lists:sort([<<"here: 1 moved">>, <<"inc 3">>, <<"total: Some(5)">>]),
+                 unstamped(lines(Output))).
 
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are
@@ -382,6 +435,47 @@ web_server() ->
     after
         os:cmd("kill " ++ integer_to_list(OsPid)),
         try port_close(Server) catch _:_ -> true end
+    end.
+
+%% report Appendix E.18, §8.6: shout listens on the port the system gives
+%% it, which it prints, answers each line a client sends in capitals, a
+%% connection's lines one after another, and serves until it is stopped. A
+%% regression test, written when the example became a server; it does not
+%% cover a line that arrives in parts, a line that is no UTF-8 text, nor a
+%% connection silent past the server's minute
+shout_test_() ->
+    {timeout, 60, fun shout/0}.
+
+shout() ->
+    0 = build(?BUILD ++ "../examples/shout.ern"),
+    Server = open_port({spawn, "../bin/ern run build/shout.erc"},
+                       [exit_status, stderr_to_stdout, binary]),
+    {os_pid, OsPid} = erlang:port_info(Server, os_pid),
+    try
+        Port = listening_port(Server, <<>>),
+        {ok, Socket} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false},
+                                                           {packet, line}], 5000),
+        ok = gen_tcp:send(Socket, <<"hello\n">>),
+        ?assertEqual({ok, <<"HELLO\n">>}, gen_tcp:recv(Socket, 0, 5000)),
+        ok = gen_tcp:send(Socket, <<"ernest\n">>),
+        ?assertEqual({ok, <<"ERNEST\n">>}, gen_tcp:recv(Socket, 0, 5000)),
+        gen_tcp:close(Socket)
+    after
+        os:cmd("kill " ++ integer_to_list(OsPid)),
+        try port_close(Server) catch _:_ -> true end
+    end.
+
+%% The port a server the port runs says it listens on, once its line has
+%% arrived whole; 30 seconds bound a failure, as said_line/3's do.
+listening_port(Server, Said) ->
+    case re:run(Said, "listening on 127\\.0\\.0\\.1:([0-9]+)\n",
+                [{capture, all_but_first, list}]) of
+        {match, [Digits]} ->
+            list_to_integer(Digits);
+        nomatch ->
+            receive {Server, {data, Bytes}} -> listening_port(Server, <<Said/binary, Bytes/binary>>)
+            after 30000 -> erlang:error({not_said, Said})
+            end
     end.
 
 %% Until the program the port runs has written Line; 30 seconds bound a

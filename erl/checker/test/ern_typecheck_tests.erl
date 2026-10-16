@@ -2815,7 +2815,7 @@ modules_example_test() ->
 
 %% report Appendix B, examples/ and test/fixtures/programs/
 examples_test_() ->
-    Files = [File || File <- filelib:wildcard("../../../examples/*.ern")
+    Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
                                  ++ filelib:wildcard("../../../test/fixtures/programs/*.ern"),
                      hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     %% report §11.1, Appendix G: the libraries' interfaces, as an example

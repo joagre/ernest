@@ -1,11 +1,20 @@
 //
 // Three services under one supervisor
 //
-// A store, a source of ids, and an audit log, each a service the module
-// declares, started under one supervisor (report Appendix E.22). The program
-// corrupts the store on purpose. Under the strategy RestForOne the store is
-// restarted, and so are the two services started after it; each service is
-// still reached by the same name, and each answers from its first state.
+// A stock of named things, kept by three services the module declares and
+// starts under one supervisor (report Appendix E.22): a store of the stock,
+// a source of ids, and an audit log of the changes. It reads a command a
+// line from standard input, and ends at the end of its input:
+//
+//     add KEY COUNT     puts COUNT more of KEY in stock
+//     take KEY COUNT    takes COUNT of KEY out of stock
+//     count KEY         says how many of KEY are in stock
+//     audit             lists the changes made, each with its id
+//
+// A take of more than the stock holds is a change the store cannot take,
+// and it faults. Under the strategy RestForOne the store is restarted, and
+// so are the two services started after it; each is still reached by the
+// same name, and each answers from its first state.
 //
 // What to look at:
 //
@@ -13,37 +22,65 @@
 //   any function of the module reaches it by name (report §6.5).
 // - A restart keeps the address and loses the state, so a client needs no
 //   new address after a fault (report §6.9).
+// - A call waiting on the store when it faults ends with no answer, and one
+//   made after it is answered once the group has restarted whole (report
+//   §6.6, Appendix E.22).
 // - The line the restart writes on standard error names the service and the
 //   line of its declaration.
 //
-// Run it from this directory:
+// Run it from this directory, and type a command a line:
 //
 //     ern build services.ern
 //     ern run services.erc
 //
+// For example, `add apples 3`, then `take apples 5`, then `count apples`.
+//
+
+//
+// Types
+//
 
 type StoreMsg =
-    Put(key : String, value : Int)
-  | Get(key : String, reply : Reply(Optional(Int)))
-  | Corrupt
+    Change(key : String, by : Int, reply : Reply(Int))
+  | Get(key : String, reply : Reply(Int))
 
 type IdMsg = NextId(reply : Reply(Int))
 
 type AuditMsg = Record(String) | Entries(reply : Reply(List(String)))
+
+// A line of input, read as a command.
+type Command =
+    Add(key : String, count : Int)
+  | Take(key : String, count : Int)
+  | Count(String)
+  | Audit
+
+//
+// Services
+//
 
 let services : Address(Supervisor.Msg) =
     spawn(Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 10000)))
 
 let store : Address(StoreMsg) = spawn(Supervisor.child(services, fn() = storing(Map.empty)))
 
-fn storing(items : Map(String, Int)) : Unit receiving StoreMsg =
+// The stock of each key. A change that would leave less than none of a key
+// is one the store cannot take, and it faults.
+fn storing(stock : Map(String, Int)) : Unit receiving StoreMsg =
     receive {
-        Put(key = key, value = value) -> storing(Map.put(items, key, value))
-      | Get(key = key, reply = reply) -> {
-            answer(reply, Map.get(items, key));
-            storing(items)
+        Change(key = key, by = by, reply = reply) -> {
+            let held = inStock(stock, key);
+            if held + by < 0 then
+                fault(key <> ": cannot take " <> Int.toString(-by) <> " of " <> Int.toString(held))
+            else {
+                answer(reply, held + by);
+                storing(Map.put(stock, key, held + by))
+            }
         }
-      | Corrupt -> fault("the store was corrupted")
+      | Get(key = key, reply = reply) -> {
+            answer(reply, inStock(stock, key));
+            storing(stock)
+        }
     }
 
 let ids : Address(IdMsg) = spawn(Supervisor.child(services, fn() = counting(1)))
@@ -67,42 +104,73 @@ fn recording(entries : List(String)) : Unit receiving AuditMsg =
         }
     }
 
-export fn main() : Unit = {
-    put("apples", 3);
-    put("pears", 5);
-    report("before");
-    send(store, Corrupt);
-    report("after the restart")
-}
+//
+// Program
+//
 
-fn put(key : String, value : Int) : Unit = {
-    let id = Address.callForever(ids, fn(reply) = NextId(reply = reply));
-    send(store, Put(key = key, value = value));
-    send(audit, Record(Int.toString(id) <> ": put " <> key))
-}
-
-fn report(label : String) : Unit = {
-    let apples = match stored("apples") {
-        Some(count) -> Int.toString(count)
-      | None -> "none"
-    };
-    let entries = Address.callForever(audit, fn(reply) = Entries(reply = reply));
-    let id = Address.callForever(ids, fn(reply) = NextId(reply = reply));
-    Io.println(label
-                   <> ": apples "
-                   <> apples
-                   <> ", next id "
-                   <> Int.toString(id)
-                   <> ", audit ["
-                   <> String.join(entries, "; ")
-                   <> "]")
-}
-
-// The store's value for a key. A call waiting on the store when it faults ends (report
-// §6.6), and one made again is answered once its group has restarted whole (Appendix
-// E.22), so the services asked after it answer from their first state too.
-fn stored(key : String) : Optional(Int) =
-    match Address.call(store, fn(reply) = Get(key = key, reply = reply), 1000) {
-        Some(value) -> value
-      | None -> stored(key)
+export fn main() : Unit =
+    match Io.readLine() {
+        None -> Unit // end of input
+      | Some(line) -> {
+            match parsed(line) {
+                Some(command) -> obey(command, String.trim(line))
+              | None -> Io.println("commands: add KEY COUNT, take KEY COUNT, count KEY, audit")
+            };
+            main()
+        }
     }
+
+fn obey(command : Command, line : String) : Unit =
+    match command {
+        Add(key = key, count = count) -> change(key, count, line)
+      | Take(key = key, count = count) -> change(key, -count, line)
+      | Count(key) -> match Address.call(store, fn(reply) = Get(key = key, reply = reply), 5000) {
+            Some(held) -> Io.println(key <> ": " <> Int.toString(held))
+          | None -> Io.println(line <> ": no answer")
+        }
+      | Audit -> Io.println("audit: " <> audited(asked(audit, fn(reply) = Entries(reply = reply))))
+    }
+
+// A change to a key's stock, recorded with an id once the store has taken it.
+fn change(key : String, by : Int, line : String) : Unit =
+    match Address.call(store, fn(reply) = Change(key = key, by = by, reply = reply), 5000) {
+        Some(held) -> {
+            let id = asked(ids, fn(reply) = NextId(reply = reply));
+            send(audit, Record("#" <> Int.toString(id) <> " " <> line));
+            Io.println(key <> ": " <> Int.toString(held))
+        }
+      | None -> Io.println(line <> ": no answer")
+    }
+
+// A service's answer, asked again where none came: a service that restarts
+// while it is asked answers nothing (report §6.6), and its new run answers
+// the next.
+fn asked(service : Address(m), request : (Reply(a)) -> m) : a =
+    match Address.call(service, request, 1000) {
+        Some(value) -> value
+      | None -> asked(service, request)
+    }
+
+//
+// Pure code
+//
+
+// The command a line writes, or None where it writes none.
+fn parsed(line : String) : Optional(Command) =
+    match String.words(line) {
+        ["add", key, count] -> Optional.map(counted(count), fn(n) = Add(key = key, count = n))
+      | ["take", key, count] -> Optional.map(counted(count), fn(n) = Take(key = key, count = n))
+      | ["count", key] -> Some(Count(key))
+      | ["audit"] -> Some(Audit)
+      | _ -> None
+    }
+
+// A count as a line writes it, in digits alone.
+fn counted(text : String) : Optional(Int) =
+    if List.all(String.toList(text), Char.isAsciiDigit) then String.toInt(text) else None
+
+fn inStock(stock : Map(String, Int), key : String) : Int =
+    Optional.withDefault(Map.get(stock, key), 0)
+
+fn audited(entries : List(String)) : String =
+    if List.isEmpty(entries) then "none" else String.join(entries, ", ")

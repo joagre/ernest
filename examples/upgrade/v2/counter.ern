@@ -1,0 +1,112 @@
+//
+// An upgrade, the second build: the counter and its tool
+//
+// A counter moved to new code while it runs, its total kept, by the
+// program's own message (report §6.10): Code.running lists the processes
+// that run the old loop, and each is sent the Upgrade by which it switches
+// to the new one with a tail call. This file is the counter's second build,
+// the same module, Counter, as its first, ../v1/counter.ern: `count` stands
+// as the first build wrote it, and `count2`, which says each Inc, and the
+// tool, `main`, are new. Nothing of the runtime orders the upgrade: the list
+// is the program's, and so is the order it sends in.
+//
+// What to look at:
+//
+// - `count` and its message type are written as the first build writes
+//   them, so each has one hash in both builds, and `Code.running(count)`
+//   finds the processes the first build started (report §8.7, Appendix
+//   E.28).
+// - `moving` spawns on a peer a process that moves the peer's counters and
+//   tells the tool how many it moved. The spawn carries to a peer of the
+//   first build what its function names that the peer lacks, `count2`,
+//   `moved` and `ToolMsg` among it (report §8.7).
+// - A peer the tool could not start on is said with its failure, a value,
+//   and passed over.
+//
+// Alone it is no node: it moves a counter of its own, and has no peer. As
+// nodes, a counter of the first build runs on b, and the tool runs on a.
+// Make a and b with ern config, each listing the other, b with its address
+// (guide §8.1); then, from examples/,
+//
+//     ern build upgrade/v1
+//     ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &
+//     ern build upgrade/v2
+//     ern run --config-dir a upgrade/v2/counter.erc
+//     ern stop --config-dir b
+//
+
+type CounterMsg =
+    Inc(Int)
+  | Get(reply : Reply(Int))
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
+
+// What a process spawned on a peer tells the tool: the peer, and how many of its processes
+// it moved.
+type ToolMsg = Moved(node : String, count : Int)
+
+// The tool: a counter of its own moved, and then every peer's.
+export fn main() : Unit receiving ToolMsg = {
+    let counter = spawn(fn() = count(0));
+    send(counter, Inc(2));
+    // the call is answered from count, so the counter runs count when Code.running looks
+    let _ = Address.call(counter, fn(reply) = Get(reply = reply), 1000);
+    Io.println("here: " <> Int.toString(moved()) <> " moved");
+    send(counter, Inc(3));
+    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 1000)));
+    let me = self();
+    told(List.size(List.filter(Peer.peers(), fn(node) = moving(node, me))))
+}
+
+// The counter's loop, as the first build wrote it.
+fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+    }
+
+// The second build's loop, which says each Inc.
+fn count2(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) -> {
+            Io.println("inc " <> Int.toString(amount));
+            count2(total + amount)
+        }
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count2(total)
+        }
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+    }
+
+// Every process of this node that runs count sent its Upgrade, and how many there were.
+fn moved() : Int = {
+    let old = Code.running(count);
+    List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)));
+    List.size(old)
+}
+
+// Whether a process started on the peer to move its counters, which tells the tool how many
+// it moved; a peer it could not start on is said, and passed over.
+fn moving(node : String, tool : Address(ToolMsg)) : Bool =
+    match Peer.spawn(node, fn() = send(tool, Moved(node = node, count = moved())), 5000) {
+        Right(_) -> true
+      | Left(failure) -> {
+            Io.println(node <> ": " <> Io.show(failure));
+            false
+        }
+    }
+
+// Each peer's report, as it comes, until every peer asked has told.
+fn told(left : Int) : Unit receiving ToolMsg =
+    if left == 0 then
+        Unit
+    else receive {
+        Moved(node = node, count = count) -> {
+            Io.println(node <> ": " <> Int.toString(count) <> " moved");
+            told(left - 1)
+        }
+    }

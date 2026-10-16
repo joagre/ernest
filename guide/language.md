@@ -2893,7 +2893,7 @@ The questions a reader brings, from the likeness to Gleam to where the superviso
 
 ## 14. Reading further
 
-The programs under [`examples/`](../examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](../examples/README.md) lists them in an order to read them, with what each shows. Four of the larger:
+The programs under [`examples/`](../examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](../examples/README.md) lists them by topic, with what each shows. Four of the larger:
 
 - [`examples/snake.ern`](../examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](../examples/repl.ern) — small read-eval-print loop; errors as `Either` values through the lexer, the parser and the evaluator, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.

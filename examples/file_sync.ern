@@ -17,8 +17,8 @@
 //   stored only inside the directory.
 //
 // Both directories are served on one node. Each side knows its peer only by
-// an address, so the same code would keep a directory on another node in
-// step, once Ernest has peers.
+// an address, and an address reaches a process on another node as it
+// reaches one on this (report §6.5, §8.7).
 //
 // Run it from this directory, in a directory of its own:
 //
@@ -200,24 +200,15 @@ fn snapshot(entries : List(Fs.Entry)) : Map(Path, Int) =
 fn conflictPath(path : Path) : Path =
     Path(Path.toString(path) <> ".conflict")
 
+// The errors the program says in its own words, and the rest as the
+// library shows them.
 fn errorText(error : Io.Error) : String =
     match error {
         Io.NotFound -> "no such file"
       | Io.Denied -> "permission denied"
-      | Io.Refused -> "refused"
-      | Io.Closed -> "closed"
-      | Io.Timeout -> "timed out"
-      | Io.NotATerminal -> "not a terminal"
       | Io.NotAFile -> "not a regular file"
-      | Io.Exists -> "exists"
-      | Io.NotUtf8(_) -> "not UTF-8"
-      | Io.Invalid -> "invalid argument"
-      | Io.NotListed -> "no peer listed"
-      | Io.Unreachable -> "unreachable"
-      | Io.NotOffered -> "not offered"
-      | Io.OtherType -> "offered at another type"
-      | Io.NotLoaded -> "not loaded"
-      | Io.Other(text) -> text
+      | Io.Timeout -> "timed out"
+      | _ -> Io.show(error)
     }
 
 //

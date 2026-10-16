@@ -109,7 +109,7 @@ through, rewritten to its shape B and decided, and MVP 3.25 was built before thi
 1, on which nothing here depends (the log's *Placing Work by Name*).
 
 **Third, before item 1, an example of typed channels.** Written on 2026-10-10 (the log's *The
-Typed-Channels Example*): `examples/typed_channels.ern`, a counter whose mailbox has one type, met
+Typed-Channels Example*): `examples/typed_channels.ern`, an answer of `guide/faq.md` since 2026-10-16, a counter whose mailbox has one type, met
 with four doubts a reader may have of a typed channel, each answered in a line of `main` under a
 numbered comment with the refused line quoted beside it in the compiler's words, a send of another
 type, a reply answered twice, a clause that cannot run; and `examples/typed_channels_nodes.ern`, the
@@ -271,7 +271,7 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    stack holds a frame of `f` within the 64 frames the host keeps, the runtime keeping twelve from
    its start, which E.21 promised and nothing set, and 64 from the first call (§10). An example may
    begin with declarations (E.0 shape rule 6), so `Code`'s page shows §6.10's pattern.
-   `examples/upgrade_tool.ern`, the proposal's tool, moves a counter's processes alone and on every
+   `examples/upgrade_tool.ern`, now `examples/upgrade/`, the proposal's tool, moves a counter's processes alone and on every
    peer. §11.1 names `Code.load` as the way a build reaches a running node. Found and decided (the
    log's *The Report for Code with a Spawn*): a type that carries `Upgrade` holds a function and is
    bound to its node (§3.11), so a service upgraded by §6.10's pattern is offered through an adapted
@@ -343,7 +343,7 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    the lines a spawn can leave; builds on one floor, a fix from a shell, a service moved by the
    upgrade tool; looking in from a shell beside a node, with what an attached shell will add (MVP
    4.0); the catalog of what a node says, each line with its cause and the operator's move; and a
-   deployment end to end as a runbook over `examples/upgrade_tool.ern`. The tests run the guide:
+   deployment end to end as a runbook over `examples/upgrade_tool.ern`, now `examples/upgrade/`. The tests run the guide:
    `test/ern_deployment_tests.erl` reads the guide's consoles and runs sections 1, 5.3 and 8 on real
    nodes, the runbook step by step with every quoted line checked, the refusals of a held
    `ernest.pid`, an existing directory and a node's own key, the statuses 0, `Os.exit`'s and 143, a
@@ -407,7 +407,15 @@ why, what it does not do going to the log, and the Emacs note keeps its table of
 pointer changed in the same commit; the log's old paths stay as history. `docs/proposals/` goes one
 proposal at a time (MVP 3.9).
 
-**Before the tag: the examples.** Decided 2026-10-16 (the log's *The Examples Are Programs*). A
+**Before the tag: the examples.** Done 2026-10-16 (the log's *The Examples Are Programs*):
+`shout.ern` prints the port the system gave it and answers a connection's lines until the client
+closes it; `services.ern` keeps a stock by `add`, `take`, `count` and `audit` read a line each, a
+take of more than the stock faulting the store; the typed-channels example's doubts are
+`guide/faq.md`'s *What does a typed mailbox catch*; `examples/upgrade/` holds `v1/` and `v2/`, each
+built as a directory, which the deployment guide's §5.3 and section 8 run from `examples/`, and
+whose `count` and its type hash alike in both; `word_count.ern` counts a file's words; `tally.ern`'s
+last clause shows the rest by `Io.show` as the other two now do; the emitter's run of `services`
+went, since it reads standard input, its golden file written again. Decided 2026-10-16. A
 new reader's first Ernest program on disk is one of `examples/`, so each is a program its reader
 would want to have written, and nothing in one is shaped by the test that runs it. Five change.
 `shout.ern` serves until stopped and is talked to with `nc` from another terminal, its three
@@ -417,16 +425,16 @@ guide, its four doubts an answer in the guide's §12 or a passage of chapter 4, 
 kept; `typed_channels_nodes.ern` stays. `upgrade_tool.ern` becomes `examples/upgrade/`, the same
 module `Counter` in `v1/`, the counter alone, and `v2/`, the counter with `count2` and the tool, so
 that a reader diffs the two builds and the peers at the first build lack `count2` when the tool's
-spawn arrives (§8.7); the deployment guide's §5.3 and its runbook of section 6 build `v1` for the
+spawn arrives (§8.7); the deployment guide's §5.3 and its runbook of section 8 build `v1` for the
 counters and `v2` for the tool, and `test/ern_deployment_tests.erl` runs it so. `word_count.ern`
 counts the words of a file named on the command line and prints each map's counts, the assertion
 line gone. Three fixes beside: the README's order is by topic and says so, not by size; every
 command runs from `examples/`; `file_sync.ern`'s "once Ernest has peers" goes. The `errorText` of
 sixteen clauses in `file_sync.ern` and `web_server.ern` shrinks to the errors each program says in
-its own words with `Io.show` for the rest, as `tally.ern` writes it; whether `Io.Error` gets its
-text in Appendix E is feedback item 113, decided with the user. The tests build every example as
+its own words with `Io.show` for the rest, as `tally.ern` writes it; feedback item 113 decides that
+`Io.Error` gets no text of its own in Appendix E. The tests build every example as
 now, run each that ends of itself, and connect to each server, `shout.ern` and `web_server.ern`,
-reading one answer, which no test did.
+reading one answer, which only `web_server.ern`'s test did.
 
 **Before the tag: the programs tests.** Done 2026-10-16 (the log's *The Programs Tests' Bounds*):
 the install test split, each part bound by the first's own time; a timed-out run's read-only

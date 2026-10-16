@@ -1,8 +1,8 @@
 //
 // Typed channels across nodes
 //
-// The counter of typed_channels.ern on a node of its own, b, reached from
-// another node, a, as a service. Node b runs serve, which offers the
+// A counter whose mailbox has one type, on a node of its own, b, reached
+// from another node, a, as a service. Node b runs serve, which offers the
 // counter as the service; node a runs main, which finds it and calls it.
 //
 // Run it from this directory. Alone it is no node, and its find answers

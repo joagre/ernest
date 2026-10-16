@@ -1,0 +1,45 @@
+//
+// An upgrade, the first build: a counter
+//
+// A counter's first build, run as a node's own process. Its second build,
+// ../v2/counter.ern, is the same module, Counter, with a new loop and a tool
+// that moves this build's counters to it while they run, their totals kept.
+// Diff the two directories to see what the second build adds.
+//
+// What to look at:
+//
+// - The message type carries `Upgrade`, by which a process that runs
+//   `count` is handed its new loop, and switches to it with a tail call
+//   (report §6.10).
+// - The second build writes `count` and its message type as this build
+//   does, so a definition of either has one hash in both builds, by which
+//   the second build's tool finds the processes this build started (report
+//   §8.7, §11.1).
+//
+// Run it from examples/ as a node, b, made with ern config (guide §8.1);
+// the second build's first comment runs the tool beside it, and then stops
+// it:
+//
+//     ern build upgrade/v1
+//     ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &
+//
+
+type CounterMsg =
+    Inc(Int)
+  | Get(reply : Reply(Int))
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
+
+// The node's entry point, run with --main: its own process is a counter.
+export fn serve() : Unit receiving CounterMsg =
+    count(0)
+
+// The counter's loop.
+fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+    }

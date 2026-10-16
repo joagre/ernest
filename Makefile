@@ -13,6 +13,7 @@ JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 # Every Ernest source of the repository, which `make format` lays out and
 # the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
 ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples/*.ern \
+		examples/upgrade/*/*.ern \
 		test/fixtures/*/*.ern test/fixtures/programs/modules/*.ern \
 		test/fixtures/programs/modules/*/*.ern \
 		src/libs/*/*.ern tools/*.ern docs/proposals/operations/programs/*.ern \

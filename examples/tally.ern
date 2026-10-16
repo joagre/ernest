@@ -19,10 +19,10 @@
 // - `Tally` is a record, read by field, `tally.words`, and summed with an
 //   operator it declares, `Tally.+` (report §4.8).
 //
-// Run it from the repository's root, on two of the examples:
+// Run it from this directory, on two of the examples:
 //
-//     ern build examples/tally.ern
-//     ern run examples/tally.erc examples/hello.ern examples/tally.ern
+//     ern build tally.ern
+//     ern run tally.erc hello.ern tally.ern
 //
 
 type Tally = Tally(lines : Int, words : Int, bytes : Int)
@@ -72,13 +72,14 @@ fn read(name : String) : Either(String, Tally) = {
     }
 }
 
-// A program says an error in its own words.
+// The errors the program says in its own words, and the rest as the
+// library shows them.
 fn errorText(error : Io.Error) : String =
     match error {
         Io.NotFound -> "no such file"
       | Io.Denied -> "permission denied"
       | Io.NotAFile -> "not a regular file"
-      | _ -> "cannot be read"
+      | _ -> Io.show(error)
     }
 
 fn measured(text : String, size : Int) : Tally =

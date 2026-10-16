@@ -1,0 +1,10 @@
+add apples 3
+add pears 5
+take apples 1
+audit
+take apples 5
+count apples
+audit
+add pears 2
+sell pears 1
+audit

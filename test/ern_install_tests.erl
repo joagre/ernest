@@ -84,7 +84,8 @@ install() ->
                  lists:sort(filelib:wildcard("**/*.md", Documents))),
     ?assertEqual([], dead_links(Documents)),
     ?assert(links_to(Documents ++ "guide/language.md", "/blob/main/examples/repl.ern")),
-    ?assert(links_to(Documents ++ "guide/deployment.md", "/blob/main/examples/upgrade_tool.ern")),
+    ?assert(links_to(Documents ++ "guide/deployment.md",
+                     "/blob/main/examples/upgrade/v2/counter.ern")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     %% report §8.7: an installation of the repository's build is no release,
@@ -218,7 +219,7 @@ release() ->
     Tag = "v" ++ string:trim(binary_to_list(Version)),
     ?assert(links_to(Documents ++ "guide/language.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
     ?assert(links_to(Documents ++ "guide/deployment.md",
-                     "/blob/" ++ Tag ++ "/examples/upgrade_tool.ern")),
+                     "/blob/" ++ Tag ++ "/examples/upgrade/v2/counter.ern")),
     Ern = Base ++ "/p/bin/ern",
     %% report §8.7: a release's version text is VERSION's alone
     ?assertEqual({0, <<"ern ", (string:trim(Version))/binary, "\n">>},

@@ -622,8 +622,9 @@ one_form_two_definitions_test() ->
     ?assertEqual(<<"Twice.watched:5\n">>, iolist_to_binary(Out)).
 
 %%
-%% The test programs, hello and services run and print what their headers
-%% promise
+%% The test programs and hello run and print what their headers promise;
+%% services reads its commands from standard input, and runs in
+%% ern_integration_tests
 %%
 
 %% report Appendix B
@@ -634,9 +635,7 @@ examples_test_() ->
                 {"pingpong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
                 {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n4\n">>},
-                {"kv_parser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
-                {"services", <<"before: apples 3, next id 3, audit [1: put apples; 2: put pears]\n"
-                               "after the restart: apples none, next id 1, audit []\n">>}],
+                {"kv_parser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>}],
     [{Base, fun() ->
                 {Namespace, Source} = example(Base),
                 ?assertEqual({ok, Output}, run(Namespace, Source))

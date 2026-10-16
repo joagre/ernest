@@ -36,6 +36,14 @@ A process receives values of one type, so a `receive` is a `match` over that typ
 
 A `receive` reads the mailbox of the process the function runs in, and a mailbox takes messages of one type, so the function runs only in a process whose mailbox is of that type. `receiving M` is that fact in the function's type, and the compiler refuses to run the function anywhere else: as the function a `spawn` starts with a mailbox of another type, or as a guard, which runs while a message is selected (report §3.9, report §6.1). A send needs no such fact. What it sends is in the address, `Address(M)`, and it reads nothing of the sender's mailbox; neither does a spawn, an answer, or a call, which waits on its reply and not on the caller's mailbox. So a function that only sends runs in any process, stands wherever one receiving `M` is expected, and says nothing, since a type carries what keeps messages safe and nothing of what a function does (report §0, principle 5).
 
+**What does a typed mailbox catch, and what does it not?**
+
+A message is checked at both ends against the mailbox's one type. A `receive` is checked against it, and a clause that cannot run is refused: in the counter of the guide's §4.1, `Inc(_) -> count(total)` after `Inc(amount)` is refused with `this clause can never match` (report §6.3). A `send` is checked against the type its address carries, and `send(counter, "increment")` is refused with `the argument does not fit send: expected CounterMsg, found String` (the guide's §0, report §6.5).
+
+An address has no subtyping. A client written to send something else, a `Tick` that only ticks, is given an address of its own type, `adapted(counter, fn(Tick) = Inc(1))`, an `Address(Tick)` whose messages reach the counter as `Inc(1)` (the guide's §5.5, report §6.5).
+
+The reply is the run's to check. A request carries a `Reply`, which is answered once: a second answer is no error the compiler sees, and is dropped as it runs, the caller keeping the first (the guide's §4.2, report §6.6). An answer never made is the next question's.
+
 **Is a forgotten answer caught?**
 
 Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). The caller is caught by what it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault that names how the callee ended (report §6.6). Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6). What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).

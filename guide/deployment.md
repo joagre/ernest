@@ -187,18 +187,18 @@ A shell started with a configuration directory is a node, `ern shell --config-di
 
 ### 5.3 A service moved to new code
 
-A running service is moved to new code by the program's own message, never by the runtime: the service's loop has a clause for the message that hands it its new function, and a tool lists the processes on the old function and sends each one (report §6.10, Appendix E.28). How a service is written to take it is the language guide's chapter 8; the operator runs the tool. [`examples/upgrade_tool.ern`](../examples/upgrade_tool.ern) is one, the counter's second build with the tool in it: built once, it runs on a node of its own and spawns on every peer a process that moves the peer's counters and says how many it moved.
+A running service is moved to new code by the program's own message, never by the runtime: the service's loop has a clause for the message that hands it its new function, and a tool lists the processes on the old function and sends each one (report §6.10, Appendix E.28). How a service is written to take it is the language guide's chapter 8; the operator runs the tool. The example `examples/upgrade/` is one module, `Counter`, in two builds: the first, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern), is the counter alone, which section 8 starts on the peers, and the second, [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), the counter with a new loop and the tool. Run from `examples/`, with counters of the first build on the peers, the second runs on a node of its own and spawns on every peer a process that moves the peer's counters and says how many it moved.
 
 ```console
-$ ern build upgrade_tool.ern
-$ ern run --config-dir a upgrade_tool.erc
+$ ern build upgrade/v2
+$ ern run --config-dir a upgrade/v2/counter.erc
 here: 1 moved
 inc 3
 total: Some(5)
 b: 1 moved
 ```
 
-The tool moves a counter of its own first, which on its new loop says each `Inc` it takes, `inc 3`, then spawns on each peer a process that moves the peer's and reports, one line a peer; a peer it could not start on is a line with the failure, `c: Unreachable`. The spawn carries `count2`, the new loop, to a peer still at the first build, which keeps it. A program may also load a build itself at run time, `Code.load` from its own load path, and list what runs an old function with `Code.running`, which the tool uses (report Appendix E.28).
+The tool moves a counter of its own first, which on its new loop says each `Inc` it takes, `inc 3`, then spawns on each peer a process that moves the peer's and reports, one line a peer; a peer it could not start on is a line with the failure, `c: Unreachable`. The spawn carries `count2`, the new loop, to a peer at the first build, which lacks it and keeps it. A program may also load a build itself at run time, `Code.load` from its own load path, and list what runs an old function with `Code.running`, which the tool uses (report Appendix E.28).
 
 ## 6. Looking in
 
@@ -259,7 +259,7 @@ Lines that begin with a site and `faulted`, with no peer named, are the program'
 
 ## 8. A deployment, end to end
 
-Three nodes on one machine, a counter served on two of them and a tool that moves both to new code while they run, all from [`examples/upgrade_tool.ern`](../examples/upgrade_tool.ern), whose `serve` is the counter's old loop and whose `main` is the tool. Every step shows the command and what each node says; the move when a step fails is in section 7.
+Three nodes on one machine, a counter served on two of them and a tool that moves both to new code while they run, all from the two builds of section 5.3's example, `upgrade/v1`, whose `serve` is the counter's old loop, and `upgrade/v2`, whose `main` is the tool. Every step is run from `examples/` and shows the command and what each node says; the move when a step fails is in section 7.
 
 **Make the three directories.** On one machine they take three ports; across machines each would be `8654` on its own host.
 
@@ -271,12 +271,12 @@ $ ern config --config-dir c
 
 Each prints its key. Make a fourth, `ops`, for the shell of a later step. Edit `a/ernest.conf` to list `b` and `c` with their keys and addresses, `127.0.0.1:8655` and `127.0.0.1:8656`, and set `b`'s and `c`'s `listen` to those ports, since on one machine the three cannot share `8654`; edit `b/ernest.conf` and `c/ernest.conf` to list `a` and `ops` with their keys and no address, since those two dial them and they never dial back; and remove `listen` from `ops/ernest.conf`, since a shell only dials. Each node then lists exactly who may connect to it and whom it may reach.
 
-**Build and start the counters.** `serve` runs the counter's old loop, `count`, as the node's own process:
+**Build and start the counters.** The first build is the counter alone, and its `serve` runs the counter's loop, `count`, as the node's own process:
 
 ```console
-$ ern build upgrade_tool.ern
-$ ern run --config-dir b --main UpgradeTool.serve upgrade_tool.erc &
-$ ern run --config-dir c --main UpgradeTool.serve upgrade_tool.erc &
+$ ern build upgrade/v1
+$ ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &
+$ ern run --config-dir c --main Counter.serve upgrade/v1/counter.erc &
 ```
 
 Each says nothing until a peer connects, since `listen` has a fixed port. The counters wait.
@@ -288,7 +288,7 @@ $ ern shell --config-dir ops
 > Peer.computeAt("b", fn() = Process.live(), 5000)
 ```
 
-`b` says `the peer ops connected` as the shell dials it, and the list holds the counter's process, whose `Process.status` names its site in `UpgradeTool.serve`.
+`b` says `the peer ops connected` as the shell dials it, and the list holds the counter's process, whose `Process.status` names its site in `Counter.serve`.
 
 **Reload a configuration.** Add a peer to `b`'s file, and reload:
 
@@ -298,10 +298,11 @@ $ ern reload --config-dir b
 
 `b` says `ernest.conf was read again` and `the peer d was added`. Nothing connects until an operation reaches for `d`.
 
-**Move the counters to new code.** Run the tool on `a`:
+**Move the counters to new code.** Build the second, which adds the new loop, `count2`, and the tool, and run the tool on `a`:
 
 ```console
-$ ern run --config-dir a upgrade_tool.erc
+$ ern build upgrade/v2
+$ ern run --config-dir a upgrade/v2/counter.erc
 here: 1 moved
 inc 3
 total: Some(5)
@@ -309,7 +310,7 @@ b: 1 moved
 c: 1 moved
 ```
 
-`a` moves a counter of its own first, then dials `b` and `c`, each saying `the peer a connected`; on each it spawns a process that lists the counters on the old loop and sends each its message, and the spawn carries `count2`, which the peers lack, with it. The two peers' lines come in the order they answer. The counters go on with their totals, on the new code, and `a` ends with status 0, each peer saying `the peer a ended`.
+`a` moves a counter of its own first, then dials `b` and `c`, each saying `the peer a connected`; on each it spawns a process that lists the counters on the old loop and sends each its message, and the spawn carries `count2`, which the peers at the first build lack, with it. The two peers' lines come in the order they answer. The counters go on with their totals, on the new code, and `a` ends with status 0, each peer saying `the peer a ended`.
 
 **Stop in order.**
 

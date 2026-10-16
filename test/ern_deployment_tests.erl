@@ -19,8 +19,9 @@
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(GUIDE, "../guide/deployment.md").
-%% The program the guide's sections 5.3 and 8 build and run.
--define(EXAMPLE, "../examples/upgrade_tool.ern").
+%% The program the guide's sections 1.3, 5.3 and 8 build and run, its two
+%% builds, `v1` and `v2`, one module.
+-define(EXAMPLE, "../examples/upgrade").
 %% The modules whose tests provoke the lines the guide quotes.
 -define(PROVOKING, ["ern_deployment_tests.erl", "ern_nodes_tests.erl"]).
 
@@ -29,14 +30,15 @@
 %%
 
 %% guide/deployment.md, section 8; report §8.7, §11.2, §11.3, §11.8: three
-%% directories made, each printing its key; the counters built and started
-%% on b and c, which say nothing until a peer connects; a shell beside them,
-%% from ops, whose compute lists b's processes, the counter's among them
-%% with its site in UpgradeTool.serve, b saying that ops connected; b
-%% reloaded with a peer added, which it says; the tool run on a, which
-%% prints the lines the console shows, the peers' in the order they answer,
-%% ends with status 0, and connects to b and c, each saying so and saying
-%% that a ended; and b and c stopped, each saying nothing of a wait, ending
+%% directories made, each printing its key; the counters of the example's
+%% first build built and started on b and c, which say nothing until a peer
+%% connects; a shell beside them, from ops, whose compute lists b's
+%% processes, the counter's among them with its site in Counter.serve, b
+%% saying that ops connected; b reloaded with a peer added, which it says;
+%% the second build built and its tool run on a, which prints the lines the
+%% console shows, the peers' in the order they answer, each moved though it
+%% lacked the new loop, ends with status 0, and connects to b and c, each
+%% saying so and saying that a ended; and b and c stopped, each saying nothing of a wait, ending
 %% with status 143, and the shell saying that b ended. The guide's
 %% directories are relative, and the test runs the commands from the
 %% directory that holds them, the ports the harness's. It does not cover
@@ -47,7 +49,7 @@ runbook_test_() ->
 runbook(Base) ->
     [Directories, Started, Reloaded, Moved, Stopped] = consoles("## 8."),
     [Inputs] = [[Input || "> " ++ Input <- Lines] || {"## 8." ++ _, "", Lines} <- blocks()],
-    {ok, _} = file:copy(?EXAMPLE, filename:join(Base, "upgrade_tool.ern")),
+    ok = copied(Base),
     %% the shell's directory is made as the others are, which the step says
     %% and its console does not show
     [] = ran(Base, Directories ++ [{"config --config-dir ops", []}]),
@@ -72,7 +74,7 @@ runbook(Base) ->
     ern_nodes_tests:says(B, "the peer ops connected"),
     true = port_command(Shell, "Peer.computeAt(\"b\", fn() = List.map(Process.live(),"
                                " Process.status), 5000)\n"),
-    ern_nodes_tests:prints(Ops, "Some(Status(site = \"UpgradeTool.serve\""),
+    ern_nodes_tests:prints(Ops, "Some(Status(site = \"Counter.serve\""),
     %% a peer added to b's file, and the reload
     [] = ran(Base, [{"config --config-dir d", []}]),
     ern_nodes_tests:lists(B, [{"a", A, none}, {"ops", Ops, none},
@@ -121,15 +123,14 @@ runbook(Base) ->
 %% `listen` refused, the configuration kept; `ern stop` returns once the
 %% node has ended by termination; and `ern stop` and `ern reload` fail
 %% where no node runs, the file gone or held by none. The guide's paths
-%% are the harness's, and its counter's `Counter.serve` the upgrade tool's
-%% old loop, `UpgradeTool.serve`. It does not cover `kill -HUP`, a second
-%% `ern stop` while the first waits, which ern_nodes_tests' stop_waits
-%% covers, nor a directory another user owns or may write. Its limit is
-%% the sum of its twenty waits, each bounded by the harness's time for one
-%% wait: thirteen jobs, two ports that answer, two lines, two nodes' ends
-%% and what the first said; written on 2026-10-16, after its limit of
-%% 120 s, a number of its own, ran out under the full run's load on
-%% 2026-10-13.
+%% are the harness's, and its counter the example's first build. It does
+%% not cover `kill -HUP`, a second `ern stop` while the first waits, which
+%% ern_nodes_tests' stop_waits covers, nor a directory another user owns
+%% or may write. Its limit is the sum of its twenty waits, each bounded by
+%% the harness's time for one wait: thirteen jobs, two ports that answer,
+%% two lines, two nodes' ends and what the first said; written on
+%% 2026-10-16, after its limit of 120 s, a number of its own, ran out under
+%% the full run's load on 2026-10-13.
 one_node_test_() ->
     ern_nodes_tests:nodes_test({waits, 20}, fun one_node/1).
 
@@ -138,11 +139,10 @@ one_node(Base) ->
     [[{Run, []}]] = consoles("### 1.3"),
     Dir = filename:join(Base, "b"),
     PidFile = filename:join(Dir, "ernest.pid"),
-    {ok, _} = file:copy(?EXAMPLE, filename:join(Base, "upgrade_tool.ern")),
-    ?assertEqual({0, "", ""}, job(Base, "build upgrade_tool.ern")),
+    ok = copied(Base),
+    ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
     Paths = [{"/etc/counter/b", Dir},
-             {"/srv/counter/build/counter.erc", filename:join(Base, "upgrade_tool.erc")},
-             {"Counter.serve", "UpgradeTool.serve"}],
+             {"/srv/counter/build/counter.erc", filename:join(Base, "upgrade/v1/counter.erc")}],
     %% the directory
     [] = ran(Base, [{mapped(Config, Paths), Key}]),
     ?assertEqual(8#700, mode(Dir)),
@@ -252,27 +252,29 @@ statuses(Base) ->
 %% Section 5.3, a service moved to new code
 %%
 
-%% guide/deployment.md, section 5.3; report §6.10, §8.7, Appendix E.28:
-%% the console's build, and the tool run on a beside a counter on b, which
-%% prints the lines it shows; and the tool run again with a peer listed
-%% that nothing answers, which is a line with the failure. It does not
-%% cover a build loaded with `Code.load`
-upgrade_tool_test_() ->
-    ern_nodes_tests:nodes_test(90, fun upgrade_tool/1).
+%% guide/deployment.md, section 5.3; report §6.10, §8.7, §11.1, Appendix
+%% E.28: a counter of the example's first build on b, as section 8 starts
+%% it, and the console's build of the second and its tool run on a, which
+%% prints the lines it shows, b's counter moved though b lacked the new
+%% loop; and the tool run again with a peer listed that nothing answers,
+%% which is a line with the failure. It does not cover a build loaded with
+%% `Code.load`
+upgrade_test_() ->
+    ern_nodes_tests:nodes_test(90, fun upgrade/1).
 
-upgrade_tool(Base) ->
+upgrade(Base) ->
     [[Build, {Tool, _} = Moved]] = consoles("### 5.3"),
-    {ok, _} = file:copy(?EXAMPLE, filename:join(Base, "upgrade_tool.ern")),
+    ok = copied(Base),
     PortB = ern_nodes_tests:free_port(),
     A = ern_nodes_tests:made(Base, "a", none),
     B = ern_nodes_tests:made(Base, "b", PortB),
     C = ern_nodes_tests:made(Base, "c", none),
     ern_nodes_tests:lists(A, [{"b", B, PortB}]),
     ern_nodes_tests:lists(B, [{"a", A, none}]),
-    [] = ran(Base, [Build]),
-    {_, WaitB} = node(Base, "run --config-dir b --main UpgradeTool.serve upgrade_tool.erc"),
+    ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
+    {_, WaitB} = node(Base, "run --config-dir b --main Counter.serve upgrade/v1/counter.erc"),
     answering(PortB),
-    [] = ran(Base, [Moved]),
+    [] = ran(Base, [Build, Moved]),
     ern_nodes_tests:lists(A, [{"b", B, PortB}, {"c", C, ern_nodes_tests:free_port()}]),
     {_, Again} = node(Base, Tool),
     ?assertEqual(0, Again()),
@@ -520,6 +522,15 @@ section(Lines, Heading) ->
 %%
 %% The guide read, and its consoles run
 %%
+
+%% The example's two builds copied under Base, where the guide's commands,
+%% run from `examples/`, find them.
+copied(Base) ->
+    lists:foreach(fun(Build) ->
+                      Source = filename:join([Base, "upgrade", Build, "counter.ern"]),
+                      ok = filelib:ensure_dir(Source),
+                      {ok, _} = file:copy(filename:join([?EXAMPLE, Build, "counter.ern"]), Source)
+                  end, ["v1", "v2"]).
 
 guide_lines() ->
     {ok, Text} = file:read_file(?GUIDE),
