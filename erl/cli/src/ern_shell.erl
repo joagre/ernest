@@ -94,10 +94,14 @@
 %% printed_name: the name the input's module prints with (input_names/0).
 %% A module a load or a reload brings: its namespace, the unit it is, its
 %% compiled form, the hash of the source it was compiled from (§11.2),
-%% whether the session compiled it from that source, or loaded its form,
-%% and whether its unit is made from that form's forms as it is installed,
-%% a compiled module loaded beside another unit of its name.
--record(compiled, {namespace, unit, beam, source_hash, from_source = false, from_forms = false}).
+%% whether its source is the session's, the session compiling it or taking
+%% its current compiled form, or it is a library's, whose form alone the
+%% session has; whether its unit is made from that form's forms as it is
+%% installed, a compiled module loaded beside another unit of its name;
+%% and the file of the current compiled form `:load` took in place of
+%% compiling its source, or none.
+-record(compiled, {namespace, unit, beam, source_hash, from_source = false, from_forms = false,
+                   erc = none}).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -1993,9 +1997,10 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                     Sources = with_sources(Session, [{Namespace, File}], []),
                     case compile_in_order(Session, Sources) of
                         {ok, CompiledModules} ->
-                            Lines = [[ern_namespace:text(Compiled), ", compiled from ",
-                                      relative(SourceFile, Session)]
-                                     || {Compiled, SourceFile} <- lists:reverse(Sources)],
+                            Lines = [loaded_line(Session, Compiled)
+                                     || {Loaded, _} <- lists:reverse(Sources),
+                                        Compiled <- [lists:keyfind(Loaded, #compiled.namespace,
+                                                                   CompiledModules)]],
                             with_needed(Session, CompiledModules,
                                         unicode:characters_to_binary(lists:join("\n", Lines)));
                         {error, Failed} ->
@@ -2485,9 +2490,10 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
 %% (reached_inputs/2), the bindings it leaves of a previous version, a
 %% binding's fault, and the modules without a source; and the session with
 %% each version counted. Every unit it loaded, All, was evaluated; Compiled
-%% were compiled from their sources.
+%% were compiled from their sources, or are a module loaded for the first
+%% time whose current compiled form the reload took, as `:load` takes it.
 reload_done(Before, After, {All, Compiled}, Faulted, SourcelessLines) ->
-    Lines = [compiled_line(Before, Namespace) || #compiled{namespace = Namespace} <- Compiled],
+    Lines = [compiled_line(Before, Module) || Module <- Compiled],
     Reloaded = [Namespace || #compiled{namespace = Namespace} <- Compiled,
                              is_map_key(Namespace, Before#session.source_hashes)],
     {Versioned, Previous} = versioned(Before, After, Reloaded),
@@ -2498,14 +2504,22 @@ reload_done(Before, After, {All, Compiled}, Faulted, SourcelessLines) ->
                ++ Faulted ++ SourcelessLines}}.
 
 %% Report §11.2: a module the session had loaded, compiled again, and one it
-%% had not, which a changed module has come to use, compiled from its
-%% source as `:load` compiles it.
-compiled_line(#session{source_hashes = Loaded}, Namespace) when is_map_key(Namespace, Loaded) ->
+%% had not, which a changed module has come to use, loaded as `:load` loads
+%% it.
+compiled_line(#session{source_hashes = Loaded}, #compiled{namespace = Namespace})
+  when is_map_key(Namespace, Loaded) ->
     unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled again"]);
-compiled_line(Session, Namespace) ->
+compiled_line(Session, Compiled) ->
+    unicode:characters_to_binary(loaded_line(Session, Compiled)).
+
+%% Report §11.2: what `:load` says of a module whose source it holds: the
+%% file of the current compiled form it took, `Greet, from greet.erc`, or
+%% the source it compiled, `Greet, compiled from greet.ern`.
+loaded_line(Session, #compiled{namespace = Namespace, erc = none}) ->
     {ok, File} = source_of(Session, Namespace),
-    unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled from ",
-                                  relative(File, Session)]).
+    [ern_namespace:text(Namespace), ", compiled from ", relative(File, Session)];
+loaded_line(Session, #compiled{namespace = Namespace, erc = Erc}) ->
+    [ern_namespace:text(Namespace), ", from ", relative(Erc, Session)].
 
 %% Report §11.2: a reloaded module's binding that faulted, after which the
 %% bindings the reload left as they were keep what the previous version
@@ -2588,11 +2602,12 @@ compile_in_order(#session{source_root = SourceRoot, units = Units} = Session, Se
                         || Diagnostic <- Diagnostics])]}
     end.
 
-%% Report §11.2: one module of a `:load`, compiled where every module it
-%% uses did, and said not to be loaded where one did not; the build's
-%% advice to compile that one first does not apply in the shell.
-compiled_in_order(Session, #build_module{namespace = Namespace, file = File,
-                                         dependencies = Dependencies},
+%% Report §11.2: one module of a `:load`, its current compiled form taken
+%% or the module compiled, where every module it uses did, and said not to
+%% be loaded where one did not; the build's advice to compile that one
+%% first does not apply in the shell.
+compiled_in_order(Session, #build_module{namespace = Namespace,
+                                         dependencies = Dependencies} = Module,
                   {Interfaces, Units, Failed}) ->
     case [Dependency || Dependency <- Dependencies, lists:member(Dependency, Failed)] of
         [Dependency | _] ->
@@ -2602,7 +2617,7 @@ compiled_in_order(Session, #build_module{namespace = Namespace, file = File,
                                                  " does not compile\n"]),
             {{Namespace, {error, Text}}, {Interfaces, Units, [Namespace | Failed]}};
         [] ->
-            case compile_unit(Session, Namespace, File, Interfaces, Units) of
+            case taken_or_compiled(Session, Module, Interfaces, Units) of
                 {ok, #compiled{unit = Unit, beam = Beam}} = Ok ->
                     {ok, #{interface := Interface}} = ern_interface:read(Beam),
                     {{Namespace, Ok}, {Interfaces#{Namespace => Interface},
@@ -2610,6 +2625,107 @@ compiled_in_order(Session, #build_module{namespace = Namespace, file = File,
                 Error ->
                     {{Namespace, Error}, {Interfaces, Units, [Namespace | Failed]}}
             end
+    end.
+
+%% Report §11.2: a module the session has not loaded is its current
+%% compiled form where one qualifies (current_form/4), the unit
+%% compiled_unit/3 gives a compiled form, and else compiled from its
+%% source. A module it has loaded, which a reload compiles again, is
+%% compiled.
+taken_or_compiled(#session{source_hashes = Loaded} = Session,
+                  #build_module{namespace = Namespace, file = File} = Module, Interfaces, Units) ->
+    Taken = case is_map_key(Namespace, Loaded) of
+                true -> none;
+                false -> current_form(Session, Module, Interfaces, Units)
+            end,
+    case Taken of
+        {ok, Erc, Beam, Hash} ->
+            case compiled_unit(Namespace, Beam, Hash) of
+                {ok, Compiled} -> {ok, Compiled#compiled{from_source = true, erc = Erc}};
+                Error -> Error
+            end;
+        _ ->
+            compile_unit(Session, Namespace, File, Interfaces, Units)
+    end.
+
+%% Report §11.2: a compiled form of the module, beside its source or on the
+%% load path, compiled from that source and as new as it, against the
+%% interfaces the session holds, and calling no module the session holds
+%% at a unit of another name than its own, a reload's version among them,
+%% since the form calls each module it uses by its own; the candidates are
+%% tried in the load path's order, the source root last, and the first that
+%% qualifies is taken, with its file and the hash of the source it records.
+%% The interfaces it is held to are those a compile would check it against:
+%% Interfaces, and for a module it uses that the session has not loaded,
+%% the one its compiled form on the load path holds. None where none
+%% qualifies, or where a module it uses is found nowhere, which compiling
+%% it reports.
+current_form(#session{source_root = SourceRoot} = Session,
+             #build_module{namespace = Namespace, dependencies = Dependencies} = Module,
+             Interfaces, Units) ->
+    try ern_build:dependency_interfaces(Namespace, Dependencies, Interfaces,
+                                        load_path(Session), SourceRoot) of
+        DependencyInterfaces ->
+            Against = {lists:sort([{Dependency, ern_interface:hash(Interface)}
+                                   || {Dependency, Interface} <- DependencyInterfaces]),
+                       [Interface || {_, Interface} <- DependencyInterfaces],
+                       ern_build:stdlib_hash()},
+            case [Dependency || {Dependency, _} <- DependencyInterfaces,
+                                is_map_key(Dependency, Units)] of
+                [] -> first_current_form(load_path(Session), Module, Against);
+                _ -> none
+            end
+    catch
+        throw:{cli_error, _} -> none
+    end.
+
+first_current_form([], _Module, _Against) ->
+    none;
+first_current_form([Root | Roots], Module, Against) ->
+    case qualified_form(Root, Module, Against) of
+        {ok, _, _, _} = Found -> Found;
+        none -> first_current_form(Roots, Module, Against)
+    end.
+
+%% The compiled form at the module's path under Root, where it qualifies:
+%% as new as the source, to the second, as `ern doc` compares a page's
+%% times (§11.4); of this module, compiled from this source by the path it
+%% records from Root; and compiled against the interfaces and the standard
+%% library of Against. A file that cannot be read is none, and the module
+%% is compiled from its source.
+qualified_form(Root, #build_module{namespace = Namespace, file = File} = Module, Against) ->
+    Erc = filename:join(Root, ern_build:module_path(Namespace) ++ ".erc"),
+    case {modified(Erc), modified(File)} of
+        {{ok, Written}, {ok, Edited}} when Written >= Edited ->
+            case file:read_file(Erc) of
+                {ok, Beam} -> compiled_against(Root, Erc, Beam, Module, Against);
+                {error, _} -> none
+            end;
+        _ ->
+            none
+    end.
+
+compiled_against(Root, Erc, Beam, #build_module{namespace = Namespace, file = File},
+                 {DependencyHashes, DependencyInterfaces, StdlibHash}) ->
+    case ern_interface:read(Beam) of
+        {ok, #{interface := #interface{namespace = Namespace}, source_path := SourcePath,
+               source_hash := Hash} = Chunk} ->
+            Source = filename:join(Root, unicode:characters_to_list(SourcePath)),
+            case ern_build:absolute(Source) =:= ern_build:absolute(File)
+                andalso ern_build:is_compiled_against(Chunk, DependencyHashes,
+                                                      DependencyInterfaces, StdlibHash) of
+                true -> {ok, Erc, Beam, Hash};
+                false -> none
+            end;
+        _ ->
+            none
+    end.
+
+%% A file's last modification, in seconds, as the host gives it.
+modified(File) ->
+    case file:read_file_info(File, [{time, posix}]) of
+        {ok, #file_info{mtime = Time}} -> {ok, Time};
+        {error, _} -> error
     end.
 
 %% Report §11.2, §11.1: the loaded modules, outside those compiled, that

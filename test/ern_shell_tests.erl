@@ -3680,7 +3680,11 @@ compiled_beside_the_shells_own() ->
 
 %% report §11.2, §8.7: on a node, `:load` of a module whose source compiles
 %% to the code the node holds of it from its build takes that unit as it
-%% is, and makes no second one. Written after the code (MVP 3.1's item 5)
+%% is, and makes no second one; and so does `:load` of a module whose
+%% current compiled form it takes, which compiles nothing. Hello's source
+%% is given a time after its build's, so that it is compiled. Written after
+%% the code (MVP 3.1's item 5); the taken form's half on 2026-10-16, after
+%% the code, a regression test
 node_takes_its_build_unit_test_() ->
     {timeout, 60, fun node_takes_its_build_unit/0}.
 
@@ -3691,18 +3695,94 @@ node_takes_its_build_unit() ->
     ok = filelib:ensure_path(Build),
     ok = file:write_file(filename:join(Build, "greet.ern"),
                          "export let greeting : String = \"hi\"\n"),
+    Hello = filename:join(Build, "hello.ern"),
+    ok = file:write_file(Hello, "export let hello : String = \"hello\"\n"),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Build ++ " " ++ Build),
+    ok = file:write_file_info(Hello, #file_info{mtime = os:system_time(second) + 60},
+                              [{time, posix}]),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile,
                          ["foreign fn held(name : Foreign.Term) : Bool =\n"
                           "    \"erlang:module_loaded/1\"\n"
                           ":load Greet\nGreet.greeting\n"
-                          "held(Foreign.term(Foreign.atom(\"ern@greet$2\")))\n"]),
+                          "held(Foreign.term(Foreign.atom(\"ern@greet$2\")))\n"
+                          ":load Hello\nHello.hello\n"
+                          "held(Foreign.term(Foreign.atom(\"ern@hello$2\")))\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Build ++ " --load-path " ++ Build)
                              ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from greet.erc\n"
+                                                "> \"hi\" : String\n> false : Bool\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Hello, compiled from hello.ern\n"
+                                                "> \"hello\" : String\n> false : Bool\n">>)).
+
+%% report §11.2: `:load` takes no compiled form compiled from another
+%% source: with a deployed build on the load path, whose greet.erc is newer
+%% than the source root's greet.ern but was compiled from the build's own,
+%% the source root's is compiled; and a form on the load path compiled from
+%% the source root's source, other.erc, is taken. A regression test for the
+%% other source, written 2026-10-16, after the code: the sentence first
+%% written would have loaded the deployed greet.erc
+load_takes_no_form_of_another_source_test_() ->
+    {timeout, 60, fun load_takes_no_form_of_another_source/0}.
+
+load_takes_no_form_of_another_source() ->
+    Dir = scratch("ern_load_other_source_"),
+    Source = filename:join(Dir, "src"),
+    Build = filename:join(Dir, "build"),
+    [ok = filelib:ensure_path(Root) || Root <- [Source, Build]],
+    Fix = filename:join(Source, "greet.ern"),
+    ok = file:write_file(Fix, "export let greeting : String = \"the fix\"\n"),
+    ok = file:write_file(filename:join(Build, "greet.ern"),
+                         "export let greeting : String = \"deployed\"\n"),
+    Other = filename:join(Source, "other.ern"),
+    ok = file:write_file(Other, "export let other : String = \"built from the source root\"\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Build),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Source ++ " --build-root " ++ Build
+                        ++ " " ++ Other),
+    Past = os:system_time(second) - 60,
+    [ok = file:write_file_info(File, #file_info{mtime = Past}, [{time, posix}])
+     || File <- [Fix, Other]],
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Greet\nGreet.greeting\n:load Other\nOther.other\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
+                                   ++ " --load-path " ++ Build) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from greet.ern\n"
-                                                "> \"hi\" : String\n> false : Bool\n">>)).
+                                                "> \"the fix\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Other, from ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"/build/other.erc\n"
+                                                "> \"built from the source root\" : String\n">>)).
+
+%% report §11.2: `:load` takes no compiled form that calls a module the
+%% session holds at a reload's version: D's form is taken, a comment added
+%% to its source and D reloaded, which changes no hash M's form references,
+%% and M, whose form beside its source is as new as it and compiled against
+%% D's interface, is compiled, so that it reads D's binding from D's second
+%% version, as the session does; the form would read the first's. A
+%% regression test for the reloaded module, written 2026-10-16, after the
+%% code
+load_takes_no_form_calling_a_reloaded_module_test_() ->
+    {timeout, 60, fun load_takes_no_form_calling_a_reloaded_module/0}.
+
+load_takes_no_form_calling_a_reloaded_module() ->
+    Dir = scratch("ern_load_reloaded_"),
+    Stamp = "export let stamp : Int = Clock.monotonicMicros()\n",
+    ok = file:write_file(filename:join(Dir, "d.ern"), ["// D's stamp.\n", Stamp]),
+    ok = file:write_file(filename:join(Dir, "m.ern"), "export fn stamp() : Int = D.stamp\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load D\n",
+                                     write_source(Dir, "d.ern",
+                                                  ["// D's stamp, of a second version.\n",
+                                                   Stamp]),
+                                     ":reload\n",
+                                     ":load M\n",
+                                     "M.stamp() == D.stamp\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < "
+                             ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"D, from d.erc\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"D, compiled again\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"M, compiled from m.ern\n> true : Bool\n">>)).
 
 %% report §8.6, §11.2, Appendix E.23: in the shell a program is told of its
 %% end as one `ern run` runs is: a subscriber an input spawned is told when

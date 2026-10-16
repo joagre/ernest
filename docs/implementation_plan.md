@@ -384,8 +384,8 @@ Again*): `ern doc` reads a module's current `.erc` and compiles nothing where ev
 current, `index.md` is written only where its text differs, `make man` writes beside the build's
 `.erc`s, and the Makefile runs its independent builds and docs side by side; a no-op `make` is
 3.1 s, `make man` 4.3 s, `make test-install` 42.6 s. The fifth, `:load` taking a current `.erc`
-(§11.2), is built next, its sentence corrected on 2026-10-16 to a form compiled from that source
-and calling no module the session holds at a reload's version. Then `make diagnostics`, which
+(§11.2), is done 2026-10-16 too, its sentence corrected the same day to a form compiled from that
+source and calling no module the session holds at a unit other than its own. Then `make diagnostics`, which
 starts the host once for each of its 283 rejected examples and takes about 125 s, builds them in
 one host or side by side, before the tag.
 

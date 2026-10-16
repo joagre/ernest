@@ -14,7 +14,7 @@
          segment/1,
          module_path/1, compile_order/2, compile_order/3, source_root/3, build_root/2,
          is_stdlib_root/1, stdlib_hash/0,
-         dependency_interfaces/5, load_path/1, compiler_modules/0,
+         dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          sweep_pages/5, compile_source/5, compile_source/6, absolute/1, relative/2, write_whole/2,
          write_output/2, write_output/3, read/1, make_dirs/1, refused/2, fail/1]).
 
@@ -928,32 +928,43 @@ load_path(Options) ->
     [absolute(Dir) || {load_path, Dir} <- Options].
 
 %% Report §11.1: whether a .erc is current, and its interface where it is:
-%% current when the source and its path from the build root, every
-%% dependency's interface, the standard library's interfaces, and the
-%% build of the compiler, which Against holds, are those the .erc was built
-%% from. Beside the hashes of the interfaces it was compiled against, the
-%% hash of each other module's definition its forms reference is compared
-%% with the hash that module's interface now holds, so that a change
-%% confined to a dependency's bodies recompiles a dependent whose forms name
-%% what changed.
+%% current when the source and its path from the build root, and the build
+%% of the compiler, which Against holds with the standard library's hash,
+%% are those the .erc was built from, and it was compiled against the
+%% dependencies' interfaces and the standard library as they are.
 current(Erc, SourceHash, SourcePath, DependencyHashes,
         #{stdlib := StdlibHash, compiler := CompilerBuild}, DependencyInterfaces) ->
     case read_erc(Erc) of
         {ok, #{interface := Interface, source_hash := SourceHash, source_path := SourcePath,
-               deps := RecordedHashes, references := References, compiler := CompilerBuild,
-               stdlib := StdlibHash}} ->
-            Identities = lists:foldl(fun(#interface{identities = Held}, Acc) ->
-                                         maps:merge(Acc, Held)
-                                     end, #{}, DependencyInterfaces),
-            Unchanged = [Hash || {QualifiedName, Hash} <- References,
-                                 maps:get(QualifiedName, Identities, undefined) =:= Hash],
-            case lists:sort(RecordedHashes) =:= DependencyHashes
-                andalso length(Unchanged) =:= length(References) of
+               compiler := CompilerBuild} = Chunk} ->
+            case is_compiled_against(Chunk, DependencyHashes, DependencyInterfaces,
+                                     StdlibHash) of
                 true -> {true, Interface};
                 false -> false
             end;
         _ -> false
     end.
+
+%% Report §11.1, §11.2: whether a compiled module, as its interface chunk
+%% records it, was compiled against these interfaces of the modules it
+%% uses, whose hashes DependencyHashes holds in order, and against this
+%% standard library. Beside the hashes of the interfaces, the hash of each
+%% other module's definition its forms reference is compared with the hash
+%% that module's interface now holds, so that a change confined to a
+%% dependency's bodies counts for a dependent whose forms name what
+%% changed, and for no other.
+-spec is_compiled_against(ern_interface:chunk(), [{[atom()], binary()}], [#interface{}],
+                          binary() | none) -> boolean().
+is_compiled_against(#{deps := RecordedHashes, references := References, stdlib := StdlibHash},
+                    DependencyHashes, DependencyInterfaces, StdlibHash) ->
+    Identities = lists:foldl(fun(#interface{identities = Held}, Acc) -> maps:merge(Acc, Held) end,
+                             #{}, DependencyInterfaces),
+    lists:sort(RecordedHashes) =:= DependencyHashes
+        andalso lists:all(fun({QualifiedName, Hash}) ->
+                              maps:get(QualifiedName, Identities, undefined) =:= Hash
+                          end, References);
+is_compiled_against(_, _, _, _) ->
+    false.
 
 %% Report §11.1: the modules whose code shapes a .erc: those that compile,
 %% and every module of the toolchain they call, which a test holds them to.

@@ -3210,7 +3210,9 @@ shell_node(Base) ->
     stop(Store, WaitStore),
     {DeskOut, _} = said(Desk),
     {_, StoreErr} = said(Store),
-    has(DeskOut, "Greet, compiled from greet.ern"),
+    %% report §11.2: greet.erc stands beside its source and is as new as it,
+    %% so the load takes it and compiles nothing
+    has(DeskOut, "Greet, from greet.erc"),
     ?assertEqual(nomatch, string:find(StoreErr, "was not loaded")).
 
 %% report §8.7, §11.2: a shell that is a node over a build answers a peer

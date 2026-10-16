@@ -118,7 +118,7 @@ Eighteen, grouped by role:
 
 | Role                 | Words                                                  |
 |----------------------|--------------------------------------------------------|
-| Types                | `type`, `abstract`, `receiving`, `foreign`             |
+| Types                | `type`, `abstract`, `with`, `foreign`                  |
 | Pattern matching     | `match`, `when`, `receive`, `after`, `as`, `or`        |
 | Control flow         | `if`, `then`, `else`                                   |
 | Bindings             | `fn`, `let`                                            |
