@@ -16,7 +16,11 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 **MVP 3.2 is in progress.** Its items 1 to 10 are done, code crossing with a spawn, the bare
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
-Ernest 0.4.0, waits for the user's word. Before the tag, in MVP 3.2 below: five changes for the tools' speed, decided on 2026-10-13, and the programs tests' defects; and, decided on 2026-10-14, MVP 3.26 whole, two subtractions from the type system, since a release for others should not ship a mark the next release removes (the log's *Kill Darlings*). MVP 3.26 starts on the user's word, and the speed changes and the tests' defects run beside it, by agents, since neither waits on the other. The split of `make test`, taken early from MVP 3.9, is done.
+Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
+(2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Before the
+tag, in MVP 3.2 below, five paragraphs remain: the reaper and the runtime's own processes, the
+gateway's worker across a loss, `make diagnostics`, the deployment tests' `answering/1`, and the
+shell on a private mailbox type.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -56,6 +60,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.0 | peers: one program on several nodes, by its proposal | 2026-10-09 | | [`mvp3.0.md`](proposals/nodes_and_code/mvp3.0.md); *The Carrier*, *Addresses, Messages and Monitors Across Nodes*, *Calls Across Nodes*, *A Node's End and Its Reload*, *The Module Peer*, *Load and Balancer*, *The Module Json*, *The Tests Wait on What They Mean*, *The Milestones After 3.0, Weighed Again*, *The Plan Rewritten from the Split Proposals*, *MVP 3.0's Findings Decided* |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | 2026-10-10 | | [`mvp3.1.md`](proposals/nodes_and_code/mvp3.1.md); *The Canonical Form, Built*, *The Code Table, Built*, *The Spawn by Hash, Built*, *The Shell's Reload by Hash, Built*, *Termination Told, Built*, *Standing and the Refusal, Built*, *What MVP 3.1 Costs, Measured*, *MVP 3.1 Read*, *MVP 3.1 Done*, *The Feedback Pass Before MVP 3.2*, *A Milestone for Placing Work by Load*, *The Back End Last* |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](proposals/balancer/suggestion.md); *Placing Work by Name* |
+| MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | items 1 to 10 done by 2026-10-15; item 11, the release, waits for the user's word | | below |
 | MVP 3.26 | kill darlings: the reply's obligation goes, and the mark on every function that acts, `with` becoming `receiving`; before MVP 3.2's item 11, the tag | decided 2026-10-14 with the user; `docs/proposals/kill_darlings/` is the specification | | below |
 | MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first | | below |
