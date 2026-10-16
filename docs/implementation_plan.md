@@ -390,9 +390,9 @@ current, `index.md` is written only where its text differs, `make man` writes be
 `.erc`s, and the Makefile runs its independent builds and docs side by side; a no-op `make` is
 3.1 s, `make man` 4.3 s, `make test-install` 42.6 s. The fifth, `:load` taking a current `.erc`
 (§11.2), is done 2026-10-16 too, its sentence corrected the same day to a form compiled from that
-source and calling no module the session holds at a unit other than its own. Then `make diagnostics`, which
-starts the host once for each of its 283 rejected examples and takes about 125 s, builds them in
-one host or side by side, before the tag.
+source and calling no module the session holds at a unit other than its own. `make diagnostics`, which started
+the host once for each of the catalog's 261 rejected examples, 98.7 s, builds them in the running
+host since 2026-10-16 evening, 7.6 s, of which the no-op `make` it depends on is 3 s.
 
 **Before the tag: the installation.** Done 2026-10-16 (the log's *The Programs Tests' Bounds*):
 `make install` installs every `.md` under `report/`, `guide/` and `tour/` by directory, so
@@ -407,8 +407,9 @@ second phase running its areas one after another, each at the host's schedulers,
 `replaced` bound by the sum of their waits, and `exchange`'s missing answer a deadline too short
 under load, its sender's waits now the test's own; the deployment harness's two unbounded waits
 bounded. Left: about sixty limits in the nodes tests are numbers of their own, derived in MVP 3.27
-once each test's waits are bounded; and `answering/1` in the deployment tests polls `connect` in
-a tight loop while a node starts, fixed before the tag.
+once each test's waits are bounded; and `answering/1` in the deployment tests, which polled `connect` in a
+tight loop while a node started, waits since 2026-10-16 evening between attempts as long as it has
+waited so far, since the port's answering is the only sign a node that names its port gives.
 
 **Before the tag: the reaper and the runtime's own processes.** Done 2026-10-16 (the log's *The
 Runtime's Own Processes*): the reaper traps exits and holds them, and so does the clock for an

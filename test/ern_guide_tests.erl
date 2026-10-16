@@ -215,8 +215,7 @@ check({rejected, #{files := [{Name, Code}], shown := Shown} = Unit}) ->
     ok = write(File, Code),
     %% built in this node, the file named as a build started in Dir names it
     Status = ern_cli:ern(["build", "--source-root", Dir, File], group_leader()),
-    Output = binary:replace(unicode:characters_to_binary(?capturedOutput),
-                            list_to_binary(Dir ++ "/"), <<>>, [global]),
+    Output = named_from(Dir, unicode:characters_to_binary(?capturedOutput)),
     ok = file:del_dir_r(Dir),
     ?assertMatch({1, _}, {Status, Output}),
     %% rejected for its own reason, not for a slip in the example
@@ -476,14 +475,33 @@ consoled([<<>>, <<"```console">> | Rest], Console) ->
 consoled(After, Console) ->
     [<<>> | Console] ++ rewrite(After).
 
-%% What `ern build` prints for a program, in a directory of its own.
+%% What `ern build example.ern` prints for a program, in a directory of its
+%% own: built in this node, as the catalog's test builds it (check/1), so
+%% that the catalog costs its compiling and not a host's start for each
+%% program. The build's output and its errors go to one file, in the order
+%% they are written, as a console shows them; the group leader is put back
+%% however the build ends, so that a failure of ern's own is seen.
 printed(Code) ->
     Dir = tmp(),
-    ok = write(filename:join(Dir, "example.ern"), Code),
-    {_, Output} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern")
-                     ++ " build example.ern"),
+    File = filename:join(Dir, "example.ern"),
+    ok = write(File, Code),
+    Printed = filename:join(Dir, "printed"),
+    {ok, Device} = file:open(Printed, [write, {encoding, utf8}]),
+    Leader = group_leader(),
+    true = group_leader(Device, self()),
+    try ern_cli:ern(["build", "--source-root", Dir, File], Device)
+    after
+        true = group_leader(Leader, self())
+    end,
+    ok = file:close(Device),
+    {ok, Output} = file:read_file(Printed),
     ok = file:del_dir_r(Dir),
-    Output.
+    named_from(Dir, Output).
+
+%% Report §11.5: a build's output, Dir's path taken out, so that each file
+%% is named as a build started in Dir names it.
+named_from(Dir, Output) ->
+    binary:replace(Output, list_to_binary(Dir ++ "/"), <<>>, [global]).
 
 %% A fresh directory of the check's own, named by the run and a count so
 %% that no earlier run's is read, and removed once the check has what it

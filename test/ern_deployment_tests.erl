@@ -635,19 +635,33 @@ mapped(Words, Paths) ->
                               end, Words, Paths)).
 
 %% Report §8.7: a node listens only once its initializers have their
-%% values, and where `listen` names a port says nothing of it; what shows
-%% that it listens is that the port answers, asked until it does, the
-%% harness's time for one wait bounding a failure.
+%% values, and where `listen` names a port says nothing of it, nor does
+%% the guide's counter print anything, and its `ernest.pid` is written
+%% before its initializers run; what shows that it listens is that the
+%% port answers, asked until it does, the harness's time for one wait
+%% bounding a failure.
 answering(Port) ->
-    answering(Port, erlang:monotonic_time(millisecond) + ern_nodes_tests:wait_ms()).
+    Asked = erlang:monotonic_time(millisecond),
+    answering(Port, Asked, Asked + ern_nodes_tests:wait_ms()).
 
-answering(Port, Deadline) ->
-    Left = Deadline - erlang:monotonic_time(millisecond),
+%% A refusal comes at once, so the next ask waits as long as the node has
+%% been waited for so far, and at least the one millisecond of the host's
+%% timer, within which the first refusal comes: however long the node
+%% takes to listen, it is seen within that time again, and the asks grow
+%% with the logarithm of that time, not with the time, as asks without a
+%% pause would, which keep a core busy while the node starts.
+answering(Port, Asked, Deadline) ->
+    Now = erlang:monotonic_time(millisecond),
+    Left = Deadline - Now,
     Left > 0 orelse erlang:error({not_answering, Port}),
     case gen_tcp:connect({127, 0, 0, 1}, Port, [], Left) of
-        {ok, Socket} -> gen_tcp:close(Socket);
-        {error, econnrefused} -> answering(Port, Deadline);
-        {error, timeout} -> erlang:error({not_answering, Port})
+        {ok, Socket} ->
+            gen_tcp:close(Socket);
+        {error, econnrefused} ->
+            receive after min(max(Now - Asked, 1), Left) -> ok end,
+            answering(Port, Asked, Deadline);
+        {error, timeout} ->
+            erlang:error({not_answering, Port})
     end.
 
 listening(Dir, Port) ->

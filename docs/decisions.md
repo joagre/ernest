@@ -7919,6 +7919,8 @@ The fifth change, `:load` taking a current `.erc`, stopped on its sentence. §11
 
 Found on the way, planned before the tag: `make diagnostics` takes about 125 s, since it starts the host once for each of its 283 rejected examples, about 0.44 s of start for milliseconds of compiling; the shape of the fix is to build them in one host, or side by side.
 
+**`make diagnostics`, the evening.** The catalog's 261 rejected examples were each built by a host of their own, 0.38 s a start, 98.7 s in all; they are built now in the running host through the compiler's own entry, the one the catalog's test already calls, standard output and the error device written to one file so that the order is the old one, and the catalog came out byte for byte the same before and after: 7.6 s, of which the no-op `make` the target depends on is 3 s and the 261 builds 3.6 s, 14 ms each. Side by side was not taken, since the plain form is fast enough and code kept only for speed goes. What the change leaves uncovered is `bin/ern build`'s own printing of a diagnostic, its device and its non-ASCII text, which only a run by hand held to the catalog; one integration test runs it on one example, planned with the shell's defect before the tag.
+
 ## The Programs Tests' Bounds, 2026-10-16
 
 The plan's defects of the programs tests, decided on 2026-10-13 and 2026-10-14, built on 2026-10-16, each bound derived from what it waits for and none chosen (CLAUDE.md's *No fixed sleep*).
@@ -7932,6 +7934,8 @@ The full run's second phase, the shell's tests and the five program parts, ran s
 The installation installs every `.md` under `report/`, `guide/` and `tour/` by directory, a link rewritten from as many directories up as the document stands down, so `guide/deployment.md`, `why.md` and `faq.md` are installed as `language.md` is (the log's *Every User's Document Installed*). The install test's link check had read only the top directory since the guide and the report moved below it, and the installed guide had six dead links no test saw; it reads every depth now.
 
 Left, planned: about sixty limits in the nodes tests are still numbers of their own, each to be derived as these were once its waits are bounded, in MVP 3.27 where the tests run across machines; and `answering/1` polls `connect` in a tight loop while a node starts, which costs a core, fixed before the tag.
+
+**`answering/1`, the evening.** The deployment tests' wait for a node to listen called `connect` again at each refusal, about eight thousand times a second, a core busy while the node started. A node that names its port writes nothing when it listens (§8.7), its `ernest.pid` is written before the carrier listens, and a port of 0, which `bound_port/1` reads, would break the runbook's check of a node's first line; so the port's answering stays the sign, and the wait between attempts is derived from what it waits for: as long as the harness has waited so far, at least the host timer's millisecond, never past the deadline, so a start of a second and a half costs about twelve attempts and the node is noticed at most its own start time late.
 
 ## §0 Read Again, 2026-10-16
 
