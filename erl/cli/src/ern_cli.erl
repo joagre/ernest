@@ -1560,21 +1560,23 @@ load(Namespace, LoadPath, Loaded) ->
 %% Reader is the program, which loads the modules a module uses, or the
 %% node, which reads every module of its load path (§8.7).
 load(Namespace, LoadPath, Loaded, Reader) ->
-    load(Namespace, none, LoadPath, Loaded, {Reader, ern_build:stdlib_hash()}).
+    load(Namespace, [], LoadPath, Loaded, {Reader, ern_build:stdlib_hash()}).
 
-%% Needer is the module that uses Namespace, or none for one loaded for
-%% itself.
-load(Namespace, Needer, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
+%% Waiting are the modules whose loads wait on Namespace's, the one that
+%% uses it first, and none for one loaded for itself.
+load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     case lists:member(ErlangModule, Loaded) of
         true ->
             Loaded;
         false ->
-            File = compiled_file(Namespace, Needer, LoadPath, Reader),
+            no_cycle(Namespace, Waiting),
+            File = compiled_file(Namespace, Waiting, LoadPath, Reader),
             Beam = ern_build:read(File),
             #{deps := DependencyHashes} = Chunk = held_chunk(Namespace, File, Beam),
             Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
-                                      load(Dependency, Namespace, LoadPath, Acc, Reading)
+                                      load(Dependency, [Namespace | Waiting], LoadPath, Acc,
+                                           Reading)
                                   end, Loaded, DependencyHashes),
             %% report §11.2: a module compiled against another interface of a
             %% module it uses, or of the standard library, is refused, not run
@@ -1614,6 +1616,20 @@ loaded_unit(ErlangModule, File, Beam) ->
             end
     end.
 
+%% Report §11.1, §4.1: a module whose load waits on its own load uses
+%% itself through the modules between, a cycle, which no build holds and
+%% which a build's files may hold all the same where each was compiled
+%% against another form of the other; it is refused as `ern build`
+%% refuses one, naming its modules, before anything runs.
+no_cycle(Namespace, Waiting) ->
+    case lists:member(Namespace, Waiting) of
+        true ->
+            {Between, _} = lists:splitwith(fun(User) -> User =/= Namespace end, Waiting),
+            ern_build:fail(ern_build:module_cycle([Namespace | Between]));
+        false ->
+            ok
+    end.
+
 %% Report §8.7: every compiled module on the load path loaded, as the
 %% modules a program uses are, with the same checks, and none initialized.
 whole_build(LoadPath) ->
@@ -1630,7 +1646,7 @@ whole_build(LoadPath) ->
 %% load path. One the path lacks is named with the module that uses it;
 %% report §8.7: and, for a node, with the rule that makes a module the
 %% program does not use its need.
-compiled_file(Namespace, Needer, LoadPath, Reader) ->
+compiled_file(Namespace, Waiting, LoadPath, Reader) ->
     Relative = ern_build:module_path(Namespace) ++ ".erc",
     case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
                    filelib:is_regular(Found)] of
@@ -1638,11 +1654,11 @@ compiled_file(Namespace, Needer, LoadPath, Reader) ->
             Found;
         [] ->
             ern_build:fail(["cannot find module ", ern_namespace:text(Namespace), " (", Relative,
-                            ")", needed_by(Needer), " on the load path", read_by(Reader)])
+                            ")", needed_by(Waiting), " on the load path", read_by(Reader)])
     end.
 
-needed_by(none) -> "";
-needed_by(Needer) -> [", which ", ern_namespace:text(Needer), " needs,"].
+needed_by([]) -> "";
+needed_by([User | _]) -> [", which ", ern_namespace:text(User), " needs,"].
 
 read_by(program) -> "";
 read_by(node) -> ": a node reads every module of its load path".

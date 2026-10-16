@@ -12,8 +12,8 @@
 -export([compile/4, compile_in_memory/5, modules_of/3, compiled_in_order/3, report_errors/4,
          shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2, module_of/3, shape/2,
          segment/1,
-         module_path/1, compile_order/2, compile_order/3, source_root/3, build_root/2,
-         is_stdlib_root/1, stdlib_hash/0,
+         module_path/1, compile_order/2, compile_order/3, module_cycle/1, source_root/3,
+         build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
          relative/2, write_whole/2, write_output/2, write_output/3, read/1, make_dirs/1,
@@ -77,8 +77,17 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                          true -> none;
                          false -> stdlib_hash()
                      end,
-        {Failed, Compiled} = built(order(Parsed), Unparsed, {SourceRoot, DependencyRoots, Emit,
-                                                             StdlibHash}),
+        %% report §11.1, §4.1: a cycle through the load path's modules is
+        %% refused as one among the sources is
+        BuildNamespaces = [Namespace || #build_module{namespace = Namespace} <- Modules],
+        Outside = fun(Namespace) ->
+                      case lists:member(Namespace, BuildNamespaces) of
+                          true -> [];
+                          false -> recorded_uses(Namespace, DependencyRoots, SourceRoot)
+                      end
+                  end,
+        {Failed, Compiled} = built(order(Parsed, Outside), Unparsed,
+                                   {SourceRoot, DependencyRoots, Emit, StdlibHash}),
         case [{Failure, Diagnostics} || {_, Failure, Diagnostics} <- Failed] of
             [] ->
                 IsDirectory andalso Emit =:= erc
@@ -411,8 +420,12 @@ segment(Component) ->
 module_path(Namespace) ->
     ern_namespace:module_path(Namespace).
 
-%% Parse every module, find its dependencies, and order them; a cycle is
-%% an error naming the modules in it (§11.1).
+%% Parse every module, find its dependencies, and order them; a cycle among
+%% them is an error naming the modules in it (§11.1). What a module of the
+%% load path records that it uses is not read here: the shell, which
+%% orders what a load compiles so, refuses a cycle through the load path as
+%% it places the modules (ern_shell), and `ern doc` of one file makes a
+%% page and no build.
 -spec compile_order([#build_module{}], file:filename()) -> [#build_module{}].
 compile_order(Modules, SourceRoot) ->
     compile_order(Modules, SourceRoot, []).
@@ -447,6 +460,12 @@ parse_all(Modules, SourceRoot, DependencyRoots) ->
 %% The parsed modules in an order where each follows those it uses; a
 %% cycle is an error naming the modules in it (§11.1).
 order(Parsed) ->
+    order(Parsed, fun(_) -> [] end).
+
+%% The same, the graph holding beside the parsed modules every module they
+%% use outside them, directly or through another, with the modules Outside
+%% answers that it uses, so that a cycle through those is found too.
+order(Parsed, Outside) ->
     %% the graph is tables of this process's, deleted whether or not the
     %% order is found
     Graph = digraph:new(),
@@ -456,11 +475,13 @@ order(Parsed) ->
                               end, Parsed),
                 lists:foreach(fun(#build_module{namespace = Namespace,
                                                 dependencies = Dependencies}) ->
-                                  lists:foreach(fun(Dependency) ->
-                                                    digraph:add_vertex(Graph, Dependency),
-                                                    digraph:add_edge(Graph, Dependency, Namespace)
-                                                end, Dependencies)
+                                  uses(Graph, Namespace, Dependencies)
                               end, Parsed),
+                Seen = maps:from_keys([Namespace || #build_module{namespace = Namespace} <- Parsed],
+                                      true),
+                outside_uses(Graph, [Dependency
+                                     || #build_module{dependencies = Dependencies} <- Parsed,
+                                        Dependency <- Dependencies], Outside, Seen),
                 topsort(Graph)
             after
                 digraph:delete(Graph)
@@ -469,16 +490,40 @@ order(Parsed) ->
                                   || #build_module{namespace = Namespace} = Module <- Parsed]),
     [maps:get(Namespace, ByNamespace) || Namespace <- Order, is_map_key(Namespace, ByNamespace)].
 
+%% The edges from each module Namespace uses to it.
+uses(Graph, Namespace, Dependencies) ->
+    lists:foreach(fun(Dependency) ->
+                      digraph:add_vertex(Graph, Dependency),
+                      digraph:add_edge(Graph, Dependency, Namespace)
+                  end, Dependencies).
+
+%% Each module outside the parsed ones with what it uses, as Outside
+%% answers it, and each of those in turn, once; Seen holds the parsed
+%% modules and those done.
+outside_uses(_Graph, [], _Outside, _Seen) ->
+    ok;
+outside_uses(Graph, [Namespace | Rest], Outside, Seen) when is_map_key(Namespace, Seen) ->
+    outside_uses(Graph, Rest, Outside, Seen);
+outside_uses(Graph, [Namespace | Rest], Outside, Seen) ->
+    Dependencies = Outside(Namespace),
+    uses(Graph, Namespace, Dependencies),
+    outside_uses(Graph, Dependencies ++ Rest, Outside, Seen#{Namespace => true}).
+
 topsort(Graph) ->
     case digraph_utils:topsort(Graph) of
         false ->
             [Cycle | _] = digraph_utils:cyclic_strong_components(Graph),
-            fail("module cycle: "
-                 ++ lists:join(", ",
-                               [ern_namespace:text(Namespace) || Namespace <- lists:sort(Cycle)]));
+            fail(module_cycle(Cycle));
         Sorted ->
             Sorted
     end.
+
+%% Report §11.1: a cycle among modules as the build, the runner and the
+%% shell report it, its modules in order.
+-spec module_cycle([[atom()]]) -> string().
+module_cycle(Cycle) ->
+    Names = [ern_namespace:text(Namespace) || Namespace <- lists:sort(Cycle)],
+    lists:flatten(["module cycle: ", lists:join(", ", Names)]).
 
 %% One module parsed alone, its namespace checked against its parent's
 %% source as it stands.
@@ -887,13 +932,12 @@ dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyR
     case Interfaces of
         #{Dependency := Interface} -> {Dependency, Interface};
         _ ->
-            Relative = module_path(Dependency) ++ ".erc",
-            Found = [{Dir, Candidate} || Dir <- DependencyRoots,
-                                         Candidate <- [filename:join(Dir, Relative)],
-                                         filelib:is_regular(Candidate)],
-            {Dir, Erc} = case Found of
-                             [First | _] -> First;
-                             [] -> {BuildRoot, filename:join(BuildRoot, Relative)}
+            {Dir, Erc} = case compiled_found(Dependency, DependencyRoots) of
+                             none ->
+                                 {BuildRoot,
+                                  filename:join(BuildRoot, module_path(Dependency) ++ ".erc")};
+                             Found ->
+                                 Found
                          end,
             case read_erc(Erc) of
                 {ok, #{interface := Interface} = Chunk} ->
@@ -910,6 +954,37 @@ dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyR
                     fail("compile " ++ ern_namespace:text(Dependency) ++ " first, which "
                          ++ ern_namespace:text(User) ++ " uses: " ++ shown(Erc) ++ ": " ++ Error)
             end
+    end.
+
+%% Report §11.1: the first root of DependencyRoots that holds a module's
+%% compiled form, with the form's path under it, or none.
+compiled_found(Namespace, DependencyRoots) ->
+    Relative = module_path(Namespace) ++ ".erc",
+    case [{Dir, Candidate} || Dir <- DependencyRoots, Candidate <- [filename:join(Dir, Relative)],
+                              filelib:is_regular(Candidate)] of
+        [First | _] -> First;
+        [] -> none
+    end.
+
+%% Report §11.1, §4.1: the modules a module outside the build uses, as its
+%% compiled form records them, the form found as dependency_interface/5
+%% finds it; none for a module whose form no root holds, does not read or
+%% is stale, which is no module, and which the build refuses where a
+%% module of its own uses it.
+recorded_uses(Namespace, DependencyRoots, SourceRoot) ->
+    case compiled_found(Namespace, DependencyRoots) of
+        {Dir, Erc} ->
+            case read_erc(Erc) of
+                {ok, #{deps := DependencyHashes} = Chunk} ->
+                    case gone(Chunk, Dir, SourceRoot) of
+                        false -> [Dependency || {Dependency, _} <- DependencyHashes];
+                        _ -> []
+                    end;
+                _ ->
+                    []
+            end;
+        none ->
+            []
     end.
 
 %% Report §11.1: a .erc under the root Dir is stale when the source it

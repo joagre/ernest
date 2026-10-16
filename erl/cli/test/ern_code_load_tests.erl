@@ -280,6 +280,32 @@ other_interface_test() ->
     built(Dir, "main.ern"),
     ?assertEqual([<<"Left(Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
 
+%% Appendix E.28, report §4.1, §11.1: a module of a cycle through the load
+%% path is Invalid, whichever of its modules is loaded: Plug.A uses Plug.B,
+%% and B, compiled against an earlier A that used nothing, uses A. A
+%% regression test, written after the fix: the load faulted its caller
+%% with the host's badkey, placing B before the A it uses
+load_path_cycle_test() ->
+    Dir = tmp(),
+    [Lib, App, Earlier] = [filename:join(Dir, Leaf) || Leaf <- ["lib", "app", "earlier"]],
+    write(Lib, "plug/b.ern", "export fn twice(x : Int) : Int = x * 2\n"),
+    built(Lib, "plug/b.ern"),
+    A = write(App, "plug/a.ern", "export fn four() : Int = Plug.B.twice(2)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", App, "--load-path", Lib, A])),
+    write(Earlier, "plug/a.ern", "export fn four() : Int = 4\n"),
+    built(Earlier, "plug/a.ern"),
+    B = write(Lib, "plug/b.ern", "export fn twice(x : Int) : Int = x * 2\n\n"
+                                 "export fn eight() : Int = Plug.A.four() * 2\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Lib, "--load-path", Earlier, B])),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit = {\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ App ++ "/plug/a.erc\"))));\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/b.erc\"))))\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Invalid)">>, <<"Left(Invalid)">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib, "--load-path", App])).
+
 %% Appendix E.28, report §11.2: a module the node holds other code of
 %% loads beside it, a unit of a name of its own made from its forms, and
 %% what the node ran before keeps running the code it had; loaded again,

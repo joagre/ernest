@@ -93,6 +93,29 @@ list_test() ->
     ?assertEqual([2, 3, 4], List(range)(2, 4)),
     ?assertEqual([], List(range)(3, 2)).
 
+%% report Appendix E.2, §4.9: minimumBy and maximumBy answer the element
+%% whose key is least or greatest by the key type's compare, which the
+%% compiler supplies after the arguments the program writes, None for the
+%% empty list, and the first of the elements whose keys are equal; the key
+%% is called once for each element, in order. A key that is a tuple's field
+%% picks the tuple. Written after the code
+minimum_and_maximum_by_test() ->
+    List = ern_named:functions('ern@list'),
+    Compare = ern_named:function('ern@int', compare),
+    Itself = fun(X) -> X end,
+    ?assertEqual({'None', 'None'},
+                 {List(minimumBy)([], Itself, Compare), List(maximumBy)([], Itself, Compare)}),
+    ?assertEqual({{'Some', 7}, {'Some', 7}},
+                 {List(minimumBy)([7], Itself, Compare), List(maximumBy)([7], Itself, Compare)}),
+    Ages = [{bo, 3}, {ann, 1}, {cy, 3}, {di, 1}],
+    Age = fun({_, Years}) -> Years end,
+    ?assertEqual({{'Some', {ann, 1}}, {'Some', {bo, 3}}},
+                 {List(minimumBy)(Ages, Age, Compare), List(maximumBy)(Ages, Age, Compare)}),
+    Seen = fun(X) -> put(keyed, [X | get(keyed)]), X end,
+    put(keyed, []),
+    ?assertEqual({'Some', 1}, List(minimumBy)([3, 1, 2], Seen, Compare)),
+    ?assertEqual([3, 1, 2], lists:reverse(get(keyed))).
+
 %% report §8.4: foreign code receives a Map as a map from each key's term to
 %% its value's term, and a Set as {set, S}, S a version 2 set, which is a map
 %% from each element to []. A regression test, written after the report

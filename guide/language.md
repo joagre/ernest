@@ -2298,9 +2298,9 @@ A rule of the program's own is a function over `Peer.utilizations()`, the utiliz
 ```ernest
 // least.ern
 export fn computed(n : Int) : Either(Io.Error, Int) =
-    match List.sort(Peer.utilizations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
-        #(name, _, _) :: _ -> Peer.computeAt(name, fn() = heavy(n), 5000)
-      | [] -> Right(heavy(n))
+    match List.minimumBy(Peer.utilizations(), fn(#(_, utilization, _)) = utilization) {
+        Some(#(name, _, _)) -> Peer.computeAt(name, fn() = heavy(n), 5000)
+      | None -> Right(heavy(n))
     }
 
 fn heavy(n : Int) : Int =

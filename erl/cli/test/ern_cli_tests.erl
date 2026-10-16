@@ -1578,6 +1578,49 @@ module_cycle_leaves_no_table_test() ->
     ?assertEqual(1, build_err(Args)),
     ?assertEqual(Tables, length(ets:all())).
 
+%% Three roots: lib holds B, src holds A, which uses B, built into build,
+%% and earlier holds an A that uses nothing. B is compiled first alone, and
+%% A against it.
+load_path_cycle_roots(Dir) ->
+    [Library, Source, Build, Earlier] =
+        [filename:join(Dir, Leaf) || Leaf <- ["lib", "src", "build", "earlier"]],
+    write(Library, "b.ern", "export fn twice(x : Int) : Int = x * 2\n"),
+    ?assertEqual(0, build_err(["--source-root", Library, Library])),
+    write(Source, "a.ern", "export fn main() : Unit = Io.println(Int.toString(B.twice(2)))\n"),
+    ?assertEqual(0, build_err(["--source-root", Source, "--build-root", Build, "--load-path",
+                               Library, Source])),
+    write(Earlier, "a.ern", "export fn main() : Unit = Io.println(\"earlier\")\n"),
+    ?assertEqual(0, build_err(["--source-root", Earlier, Earlier])),
+    write(Library, "b.ern", "export fn twice(x : Int) : Int = x * 2\n\n"
+                            "export fn run() : Unit = A.main()\n"),
+    {Library, Source, Build, Earlier}.
+
+%% report §11.1, §4.1: a cycle through the load path's modules is refused
+%% as one among the sources is, naming its modules, and no build holds one:
+%% B, which uses A, is refused against the A of build, which uses B, and A
+%% is refused against that B once B is compiled against an A that does
+%% not. A regression test, written after the fix: both builds were made,
+%% the build reading no dependency a load-path module records
+load_path_cycle_refused_test() ->
+    {Library, Source, Build, Earlier} = load_path_cycle_roots(tmp()),
+    ?assertEqual(1, build_err(["--source-root", Library, "--load-path", Build, Library])),
+    ?assertEqual(0, build_err(["--source-root", Library, "--load-path", Earlier, Library])),
+    ?assertEqual(1, build_err(["--source-root", Source, "--build-root", Build, "--load-path",
+                               Library, Source])),
+    ?assertEqual(<<"ern build: module cycle: A, B\nern build: module cycle: A, B\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.1, §11.2, §4.1: `ern run` of a module whose files hold a cycle,
+%% each compiled against another form of the other, which no build saw
+%% whole, refuses it as `ern build` does before anything runs. A regression
+%% test, written after the fix: the run loaded the modules for ever, one
+%% using the other, and never ended; eunit's time bounds the test
+run_of_a_load_path_cycle_refused_test() ->
+    {Library, _Source, Build, Earlier} = load_path_cycle_roots(tmp()),
+    ?assertEqual(0, build_err(["--source-root", Library, "--load-path", Earlier, Library])),
+    ?assertEqual(1, ern_err(["run", "--load-path", Library, filename:join(Build, "a.erc")])),
+    ?assertEqual(<<"ern run: module cycle: A, B\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.1: a module is recompiled when its source, a dependency's
 %% interface, the hash of a definition its forms reference, the standard
 %% library's interfaces, or the compiler changed, and not when a

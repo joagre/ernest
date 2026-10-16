@@ -2279,9 +2279,8 @@ dependency_placed(#session{source_hashes = Loaded} = Session, Dependency,
     case lists:member(Dependency, Waiting) of
         true ->
             {Cycle, _} = lists:splitwith(fun(Namespace) -> Namespace =/= Dependency end, Waiting),
-            Names = [ern_namespace:text(Namespace) || Namespace <- [Dependency | Cycle]],
-            {cycle, unicode:characters_to_binary(["module cycle: ",
-                                                  lists:join(", ", lists:sort(Names)), "\n"])};
+            {cycle, unicode:characters_to_binary([ern_build:module_cycle([Dependency | Cycle]),
+                                                  "\n"])};
         false ->
             case Sources of
                 #{Dependency := Module} -> {ok, compiled_in_order(Session, Module, Placing)};

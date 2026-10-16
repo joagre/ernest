@@ -9,9 +9,10 @@
 %% under that root and then on the run's load path (ern_cli:load_path/0),
 %% each verified against its hashes (ern_canonical:is_verified/1) and
 %% checked against the interfaces it was compiled against and the standard
-%% library the node holds. Each becomes a unit of the node's (§11.2): the
-%% node's own where the node holds that very code under its Erlang name and
-%% each module it uses is its own too; else a unit of its Erlang name,
+%% library the node holds, and a module of a cycle among them refused
+%% (§4.1). Each becomes a unit of the node's (§11.2): the node's own where
+%% the node holds that very code under its Erlang name and each module it
+%% uses is its own too; else a unit of its Erlang name,
 %% loaded from its file, where the host holds no code of the name and each
 %% module it uses is under its own Erlang name; and else a unit made from
 %% its forms by the back end (ern_compile:from_compiled/5), of its Erlang
@@ -90,7 +91,7 @@ reach(Path) ->
     #found{namespace = Namespace} = Module = found(File, any),
     Root = root(File, Namespace),
     LoadPath = lists:uniq([Root | ern_cli:load_path()]),
-    {Order, _} = with_dependencies(Module, LoadPath, {[], #{Namespace => Module}}),
+    {Order, _} = with_dependencies(Module, LoadPath, [Namespace], {[], #{Namespace => Module}}),
     Reach = lists:reverse(Order),
     lists:foreach(fun(Found) -> same_interfaces(Found, Reach) end, Reach),
     Reach.
@@ -109,15 +110,21 @@ root(File, Namespace) ->
 
 %% Module's dependencies, each found on the load path and its own
 %% dependencies before it, in Order, the last first; Seen by namespace.
-with_dependencies(#found{chunk = #{deps := Dependencies}} = Module, LoadPath, {Order, Seen}) ->
+%% Waiting are the modules whose dependencies are being found, Module
+%% first. Appendix E.28, report §4.1, §11.1: a dependency among them uses
+%% itself through the modules between, a cycle, and is `Invalid`.
+with_dependencies(#found{chunk = #{deps := Dependencies}} = Module, LoadPath, Waiting,
+                  {Order, Seen}) ->
     {Order1, Seen1} =
-        lists:foldl(fun({Dependency, _}, {AccOrder, AccSeen}) when is_map_key(Dependency,
-                                                                              AccSeen) ->
-                            {AccOrder, AccSeen};
-                       ({Dependency, _}, {AccOrder, AccSeen}) ->
-                            Found = found(compiled_file(Dependency, LoadPath), Dependency),
-                            with_dependencies(Found, LoadPath,
-                                              {AccOrder, AccSeen#{Dependency => Found}})
+        lists:foldl(fun({Dependency, _}, {AccOrder, AccSeen}) ->
+                            case lists:member(Dependency, Waiting) of
+                                true -> refuse('Invalid');
+                                false when is_map_key(Dependency, AccSeen) -> {AccOrder, AccSeen};
+                                false ->
+                                    Found = found(compiled_file(Dependency, LoadPath), Dependency),
+                                    with_dependencies(Found, LoadPath, [Dependency | Waiting],
+                                                      {AccOrder, AccSeen#{Dependency => Found}})
+                            end
                     end, {Order, Seen}, Dependencies),
     {[Module | Order1], Seen1}.
 

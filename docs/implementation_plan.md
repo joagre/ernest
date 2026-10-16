@@ -18,8 +18,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-16) but one, the shell's refusal of a
-module cycle through the load path; item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-17); item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -539,7 +538,8 @@ check of this start is a check of this run there, the runner's run number beside
 runner's purge of an earlier run's code is the stated case. Regression tests for all three. Built
 before the tag.
 
-**Before the tag: `List.minimumBy` and `maximumBy`.** Decided with the user on 2026-10-17
+**Before the tag: `List.minimumBy` and `maximumBy`.** Done 2026-10-17 (the log's *Before the Tag, the
+Last Builds*): one fold each, the guide's `least.ern` using `minimumBy`. Decided with the user on 2026-10-17
 (`docs/language_feedback.md`'s entry 107): admitted under E.0's vocabulary rule, since a sequence's
 smallest by a key is what a reader looks for in one call and the guide's `least.ern` wrote the sort
 and the head around their absence. `List.minimumBy : (List(a), (a) -> k) -> Optional(a) needs
@@ -547,8 +547,10 @@ k.compare` and `maximumBy` likewise, `None` of an empty list, the first of equal
 `List.sort` in Appendix E.2 with their pages, written with the code since the listings are held to
 the compiler; the guide's `least.ern` then uses `minimumBy`. Built before the tag.
 
-**Before the tag: a module cycle through the load path.** The shell's half done 2026-10-17 (the
-log's *Before the Tag, the Last Builds*): the shell refuses the cycle with its modules' names, where a
+**Before the tag: a module cycle through the load path.** Done 2026-10-17 whole (the log's *Before
+the Tag, the Last Builds*): the build reads the load path's recorded dependencies and refuses a
+cycle in its words, `ern run` and a node's start refuse one before anything runs (§11.2), and
+`Code.load` answers `Left(Invalid)` (E.28). The shell's half first: the shell refuses the cycle with its modules' names, where a
 cycle through a source module loaded silently and one between two compiled forms recursed for ever.
 The build found three more, planned here: `ern build` accepts a cycle through the load path, against
 §11.1, since it reads no recorded dependency of a load-path module, and `ern run` of such a program

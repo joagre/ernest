@@ -1152,10 +1152,10 @@ completion_test_() ->
 
 completion() ->
     Steps = [{expect, "> "},
-             {send, hex("List.ma") ++ "09"},          % Tab: one candidate
-             {expect, "List.map"},
-             {send, hex("([1], fn(n) = n * 2)\r")},
-             {expect, "[2] : List(Int)"},
+             {send, hex("List.rev") ++ "09"},         % Tab: one candidate
+             {expect, "List.reverse"},
+             {send, hex("([1, 2])\r")},
+             {expect, "[2, 1] : List(Int)"},
              {send, hex("List.fil") ++ "09"},         % Tab: what they share
              {expect, "> List.filter"},
              {send, "09"},                            % Tab again: the listing
@@ -1167,7 +1167,7 @@ completion() ->
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the completed name ran
-    ?assertMatch({_, _}, binary:match(Text, <<"[2] : List(Int)">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"[2, 1] : List(Int)">>)),
     %% the line being typed is still there, completed to what they share
     ?assert(lists:any(fun(Line) -> binary:match(Line, <<"> List.filter">>) =/= nomatch end, Lines)),
     %% and the listing went with the next key, leaving the transcript
@@ -2860,24 +2860,30 @@ reload_names_no_library() ->
 %% that uses it is a cycle, which `:load` refuses as `ern build` refuses
 %% one, naming the two, and loads nothing: the module from its source, and
 %% the other from its compiled form alone. A regression test, written after
-%% the fix: the first was loaded, and the second never ended
+%% the fix: the first was loaded, and the second never ended. B is compiled
+%% against a form of A that does not use it, since `ern build` refuses the
+%% cycle where it reads A's that does
 load_path_cycle_test_() ->
     {timeout, 60, fun load_path_cycle/0}.
 
 load_path_cycle() ->
     Dir = scratch("ern_load_path_cycle_"),
-    [Library, Source, Build] = [filename:join(Dir, Leaf) || Leaf <- ["lib", "src", "build"]],
-    [ok = filelib:ensure_path(Path) || Path <- [Library, Source, Build]],
+    [Library, Source, Build, Earlier] =
+        [filename:join(Dir, Leaf) || Leaf <- ["lib", "src", "build", "earlier"]],
+    [ok = filelib:ensure_path(Path) || Path <- [Library, Source, Build, Earlier]],
     Twice = "export fn twice(x : Int) : Int = x * 2\n",
     ok = file:write_file(filename:join(Library, "b.ern"), Twice),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " " ++ Library),
     ok = file:write_file(filename:join(Source, "a.ern"), "export fn four() : Int = B.twice(2)\n"),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Source ++ " --build-root " ++ Build
                         ++ " --load-path " ++ Library ++ " " ++ Source),
-    %% B compiled again, against A, which it uses in turn
+    %% B compiled again, against an earlier A, which the A of the build
+    %% uses in turn
+    ok = file:write_file(filename:join(Earlier, "a.ern"), "export fn four() : Int = 4\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Earlier ++ " " ++ Earlier),
     ok = file:write_file(filename:join(Library, "b.ern"),
                          [Twice, "\nexport fn eight() : Int = A.four() * 2\n"]),
-    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " --load-path " ++ Build
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " --load-path " ++ Earlier
                         ++ " " ++ Library),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load A\nA.four()\n:load B\nB.eight()\n1 + 1\n"),

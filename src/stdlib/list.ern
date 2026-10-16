@@ -471,6 +471,55 @@ foreign fn sorted(isLessOrEqual : (a, a) -> Bool receiving e,
                   list : List(a)) : List(a) receiving e =
     "lists:sort/2"
 
+/// The element whose `key` is the least by the key type's `compare`, or `None`
+/// for the empty list. Of elements whose keys `compare` calls `Equal`, the
+/// first is answered. `key` is called once for each element, in order.
+///
+/// ### Examples
+///
+/// The shortest word, and the first of the two longest:
+///
+/// ```ernest
+/// #(List.minimumBy(["pear", "fig", "kiwi"], String.size),
+///   List.maximumBy(["pear", "fig", "kiwi"], String.size))
+/// // => #(Some("fig"), Some("pear"))
+/// ```
+///
+/// since 0.4.0
+export fn minimumBy(list : List(a),
+                    key : (a) -> k receiving e) : Optional(a) receiving e needs k.compare =
+    extremeBy(list, key, Less)
+
+/// The element whose `key` is the greatest by the key type's `compare`, or
+/// `None` for the empty list. Of elements whose keys `compare` calls `Equal`,
+/// the first is answered. `key` is called once for each element, in order.
+///
+/// since 0.4.0
+export fn maximumBy(list : List(a),
+                    key : (a) -> k receiving e) : Optional(a) receiving e needs k.compare =
+    extremeBy(list, key, Greater)
+
+// Report Appendix E.2: one fold, each element's key found once and held
+// beside the element chosen so far, which a later element replaces only
+// where its key is `beyond` that one's, so that the first of equals stays.
+fn extremeBy(list : List(a),
+             key : (a) -> k receiving e,
+             beyond : Ordering) : Optional(a) receiving e needs k.compare =
+    match list {
+        [] -> None
+      | head :: rest -> {
+            let #(chosen, _) =
+                foldLeft(rest, #(head, key(head)), fn(#(_, chosenKey) as acc, element) = {
+                    let elementKey = key(element);
+                    if k.compare(elementKey, chosenKey) == beyond then
+                        #(element, elementKey)
+                    else
+                        acc
+                });
+            Some(chosen)
+        }
+    }
+
 /// The pairs of the elements at each index of both lists. The longer list's
 /// extra elements are left out.
 ///
