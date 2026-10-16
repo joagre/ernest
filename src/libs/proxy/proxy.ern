@@ -68,13 +68,13 @@ type Msg(m) = Message(m) | Went(Down)
 ///     send(Proxy.start(service, 5000), 1)
 /// }
 /// ```
-export fn start(service : Peer.Service(m), ms : Int) : Address(m) with n = {
-    let caller = Process.fromAddress(self());
-    let proxy = spawn(fn() : Unit with Msg(m) = {
+export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
+    let caller = Process.current();
+    let proxy = spawn(fn() : Unit receiving Msg(m) = {
         monitor(caller, Went);
         // where a message goes while the service has never been found: a
         // process that has ended, at which a message is lost (report §6.2)
-        let nowhere : Address(m) = spawn(fn() : Unit with m = Unit);
+        let nowhere : Address(m) = spawn(fn() = Unit);
         let #(address, present) = found(service, ms, nowhere);
         held(service, ms, caller, shared(address, present))
     });
@@ -86,7 +86,9 @@ export fn start(service : Peer.Service(m), ms : Int) : Address(m) with n = {
 // `away`, where the service was last, which may have ended. A service
 // offered at another type is no absence, and no later find mends it: the
 // process faults.
-fn found(service : Peer.Service(m), ms : Int, away : Address(m)) : #(Address(m), Bool) with Msg(m) =
+fn found(service : Peer.Service(m),
+         ms : Int,
+         away : Address(m)) : #(Address(m), Bool) receiving Msg(m) =
     match Peer.find(service, ms) {
         Right(address) -> {
             monitor(Process.fromAddress(address), Went);
@@ -100,7 +102,7 @@ fn found(service : Peer.Service(m), ms : Int, away : Address(m)) : #(Address(m),
 // The target a find gave, each message that came while the find was under
 // way sent to it first, so that one find is under way at a time: the
 // messages the mailbox holds now, none waited for.
-fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) with Msg(m) =
+fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) receiving Msg(m) =
     receive {
         Message(message) -> {
             send(address, message);
@@ -114,7 +116,7 @@ fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) with Msg(m
 fn held(service : Peer.Service(m),
         ms : Int,
         caller : Process,
-        target : #(Address(m), Bool)) : Unit with Msg(m) =
+        target : #(Address(m), Bool)) : Unit receiving Msg(m) =
     receive {
         Message(message) -> match target {
             #(address, true) -> {
@@ -168,7 +170,7 @@ let away =
 let endsWithItsCaller =
     Test.Case(name = "a proxy's process ends with the process that started it", run = fn() = {
         let me = self();
-        let starter = spawn(fn() : Unit with Unit = {
+        let starter = spawn(fn() : Unit receiving Unit = {
             let service : Peer.Service(Probe) = Peer.service("probe");
             send(me, Started(Process.fromAddress(start(service, 100))));
             receive {

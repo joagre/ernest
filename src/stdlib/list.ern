@@ -135,7 +135,7 @@ export fn removeAt(list : List(a), index : Int) : List(a) =
 
 /// The list of `f(x)` for each element `x`, in order. `f` is called for the
 /// elements from the first.
-export fn map(list : List(a), f : (a) -> b with e) : List(b) with e =
+export fn map(list : List(a), f : (a) -> b receiving e) : List(b) receiving e =
     match list {
         [] -> []
       | head :: rest -> f(head) :: map(rest, f)
@@ -149,7 +149,7 @@ export fn map(list : List(a), f : (a) -> b with e) : List(b) with e =
 /// List.filter([1, 2, 3, 4], fn(n) = n > 2)
 /// // => [3, 4]
 /// ```
-export fn filter(list : List(a), keep : (a) -> Bool with e) : List(a) with e =
+export fn filter(list : List(a), keep : (a) -> Bool receiving e) : List(a) receiving e =
     match list {
         [] -> []
       | head :: rest -> if keep(head) then head :: filter(rest, keep) else filter(rest, keep)
@@ -164,7 +164,7 @@ export fn filter(list : List(a), keep : (a) -> Bool with e) : List(a) with e =
 /// List.filterMap(["1", "x", "3"], String.toInt)
 /// // => [1, 3]
 /// ```
-export fn filterMap(list : List(a), f : (a) -> Optional(b) with e) : List(b) with e =
+export fn filterMap(list : List(a), f : (a) -> Optional(b) receiving e) : List(b) receiving e =
     match list {
         [] -> []
       | head :: rest -> match f(head) {
@@ -183,7 +183,7 @@ export fn filterMap(list : List(a), f : (a) -> Optional(b) with e) : List(b) wit
 /// List.foldLeft([1, 2, 3], 0, fn(sum, n) = sum + n)
 /// // => 6
 /// ```
-export fn foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with e =
+export fn foldLeft(list : List(a), acc : b, step : (b, a) -> b receiving e) : b receiving e =
     match list {
         [] -> acc
       | head :: rest -> foldLeft(rest, step(acc, head), step)
@@ -200,7 +200,7 @@ export fn foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with 
 /// List.foldRight(["a", "b"], "", fn(acc, text) = text <> acc)
 /// // => "ab"
 /// ```
-export fn foldRight(list : List(a), acc : b, step : (b, a) -> b with e) : b with e =
+export fn foldRight(list : List(a), acc : b, step : (b, a) -> b receiving e) : b receiving e =
     match list {
         [] -> acc
       | head :: rest -> step(foldRight(rest, acc, step), head)
@@ -218,7 +218,7 @@ export fn foldRight(list : List(a), acc : b, step : (b, a) -> b with e) : b with
 /// ```
 ///
 /// since 0.4.0
-export fn forEach(list : List(a), f : (a) -> Unit with e) : Unit with e =
+export fn forEach(list : List(a), f : (a) -> Unit receiving e) : Unit receiving e =
     match list {
         [] -> Unit
       | head :: rest -> {
@@ -236,7 +236,7 @@ export fn forEach(list : List(a), f : (a) -> Unit with e) : Unit with e =
 /// #(List.any([1, 2], fn(n) = n > 1), List.all([1, 2], fn(n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(list : List(a), test : (a) -> Bool with e) : Bool with e =
+export fn any(list : List(a), test : (a) -> Bool receiving e) : Bool receiving e =
     match list {
         [] -> false
       | head :: rest -> if test(head) then true else any(rest, test)
@@ -244,7 +244,7 @@ export fn any(list : List(a), test : (a) -> Bool with e) : Bool with e =
 
 /// `true` when `test` holds for every element, and for the empty list.
 /// `test` is not called after the first element it fails for.
-export fn all(list : List(a), test : (a) -> Bool with e) : Bool with e =
+export fn all(list : List(a), test : (a) -> Bool receiving e) : Bool receiving e =
     match list {
         [] -> true
       | head :: rest -> if test(head) then all(rest, test) else false
@@ -258,7 +258,7 @@ export fn all(list : List(a), test : (a) -> Bool with e) : Bool with e =
 /// List.find([1, 2, 3], fn(n) = n > 1)
 /// // => Some(2)
 /// ```
-export fn find(list : List(a), test : (a) -> Bool with e) : Optional(a) with e =
+export fn find(list : List(a), test : (a) -> Bool receiving e) : Optional(a) receiving e =
     match list {
         [] -> None
       | head :: rest -> if test(head) then Some(head) else find(rest, test)
@@ -348,7 +348,7 @@ export fn dropLast(list : List(a), count : Int) : List(a) =
 /// List.span([1, 2, 3, 1], fn(n) = n < 3)
 /// // => #([1, 2], [3, 1])
 /// ```
-export fn span(list : List(a), test : (a) -> Bool with e) : #(List(a), List(a)) with e =
+export fn span(list : List(a), test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e =
     match list {
         [] -> #([], [])
       | head :: rest -> if test(head) then {
@@ -367,7 +367,8 @@ export fn span(list : List(a), test : (a) -> Bool with e) : #(List(a), List(a)) 
 /// List.partition([1, 2, 3, 4], fn(n) = n % 2 == 0)
 /// // => #([2, 4], [1, 3])
 /// ```
-export fn partition(list : List(a), test : (a) -> Bool with e) : #(List(a), List(a)) with e =
+export fn partition(list : List(a),
+                    test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e =
     match list {
         [] -> #([], [])
       | head :: rest -> {
@@ -443,7 +444,7 @@ export fn reverse(list : List(a)) : List(a) =
 /// List.sort([3, 1, 2], Int.compare)
 /// // => [1, 2, 3]
 /// ```
-export fn sort(list : List(a), compare : (a, a) -> Ordering with e) : List(a) with e = {
+export fn sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(a) receiving e = {
     let ordered = sorted(fn(left, right) = isInOrder(left, right, compare), indexed(list));
     let #(_, elements) = unzip(ordered);
     elements
@@ -456,7 +457,7 @@ export fn sort(list : List(a), compare : (a, a) -> Ordering with e) : List(a) wi
 // sort reads a sorted list as one run (E.0 rule 1).
 fn isInOrder(left : #(Int, a),
              right : #(Int, a),
-             compare : (a, a) -> Ordering with e) : Bool with e = {
+             compare : (a, a) -> Ordering receiving e) : Bool receiving e = {
     let #(leftIndex, leftElement) = left;
     let #(rightIndex, rightElement) = right;
     match compare(leftElement, rightElement) {
@@ -466,7 +467,8 @@ fn isInOrder(left : #(Int, a),
     }
 }
 
-foreign fn sorted(isLessOrEqual : (a, a) -> Bool with e, list : List(a)) : List(a) with e =
+foreign fn sorted(isLessOrEqual : (a, a) -> Bool receiving e,
+                  list : List(a)) : List(a) receiving e =
     "lists:sort/2"
 
 /// The pairs of the elements at each index of both lists. The longer list's
@@ -510,7 +512,7 @@ export fn unzip(pairs : List(#(a, b))) : #(List(a), List(b)) =
 /// List.flatMap([1, 2], fn(n) = [n, n * 10])
 /// // => [1, 10, 2, 20]
 /// ```
-export fn flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e =
+export fn flatMap(list : List(a), f : (a) -> List(b) receiving e) : List(b) receiving e =
     match list {
         [] -> []
       | head :: rest -> f(head) <> flatMap(rest, f)
@@ -539,7 +541,8 @@ export fn range(first : Int, last : Int) : List(Int) =
 /// List.tryMap(["1", "x"], fn(s) = Either.fromOptional(String.toInt(s), s))
 /// // => Left("x")
 /// ```
-export fn tryMap(list : List(a), step : (a) -> Either(e, b) with x) : Either(e, List(b)) with x =
+export fn tryMap(list : List(a),
+                 step : (a) -> Either(e, b) receiving x) : Either(e, List(b)) receiving x =
     match list {
         [] -> Right([])
       | head :: rest -> {
@@ -562,7 +565,7 @@ export fn tryMap(list : List(a), step : (a) -> Either(e, b) with x) : Either(e, 
 /// ```
 export fn tryFold(list : List(a),
                   acc : b,
-                  step : (b, a) -> Either(e, b) with x) : Either(e, b) with x =
+                  step : (b, a) -> Either(e, b) receiving x) : Either(e, b) receiving x =
     match list {
         [] -> Right(acc)
       | head :: rest -> {

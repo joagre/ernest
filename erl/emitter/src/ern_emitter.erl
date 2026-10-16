@@ -427,7 +427,7 @@ members_taken(Needs, Context) ->
 %% member, the descriptor, after their argument, and pass it to the host.
 foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
                                             scheme = {scheme, Quantified,
-                                                      {arrow, ParamTypes, Effect, ResultType},
+                                                      {arrow, ParamTypes, _Effect, ResultType},
                                                       Requirement},
                                             host_module = HostModule,
                                             host_function = HostFunction,
@@ -440,7 +440,7 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
     {Variables, Context2} = named_variables(Prefixes, Context1),
     {Args, Members} = lists:split(length(ParamTypes),
                                   [erl_syntax:variable(Variable) || Variable <- Variables]),
-    {Body, Context3} = foreign_body({HostModule, HostFunction}, {ParamTypes, Effect, ResultType},
+    {Body, Context3} = foreign_body({HostModule, HostFunction}, {ParamTypes, ResultType},
                                     Args, Members, Context2),
     Clause = at(Source, erl_syntax:clause(Args ++ Members, none, [Body])),
     Function = at(Source, erl_syntax:function(erl_syntax:atom(function_name(Position)), [Clause])),
@@ -448,34 +448,29 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
 
 %% Report §8.4: a foreign function's body, its arguments exposed to the
 %% host, the call, and its return checked.
-foreign_body({HostModule, HostFunction}, {ParamTypes, Effect, ResultType}, Args, Members,
-             Context) ->
+foreign_body({HostModule, HostFunction}, {ParamTypes, ResultType}, Args, Members, Context) ->
     {Exposed, Context1} = lists:mapfoldl(fun exposed/2, Context, lists:zip(ParamTypes, Args)),
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                                   Exposed ++ Members),
     {Try, Context2} = foreign_call(Call, HostModule, HostFunction, length(Exposed ++ Members),
-                                   {Effect, ParamTypes}, Context1),
+                                   Context1),
     foreign_return(Try, ParamTypes, ResultType, Context2).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: a foreign call in progress can still deliver, so
-%% it is counted while it runs. A standard library function with no
-%% mailbox type of its own waits on no process, and is not: one that is
-%% pure, and one whose effect is only a function's it is given, which runs
-%% as Ernest and is counted as Ernest is, so that a deadlock in it is found
-%% (Appendix E.0 rule 1). Nor is one whose implementation its runtime
-%% module lists as waiting on no process, read function by function
-%% (`ern_rt`'s `-waits_on_nothing`), since the count would cost a multiple
-%% of the call.
-foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes},
+%% it is counted while it runs. A standard library function's
+%% implementation that may wait on a process is listed so by its runtime
+%% module (`-waits`), read function by function, and is counted; every
+%% other one waits on no process, or waits only in a function it is given,
+%% which runs as Ernest and is counted as Ernest is, so that a deadlock in
+%% it is found, and is not, since the count would cost a multiple of the
+%% call (Appendix E.0 rule 1).
+foreign_call(Call, HostModule, HostFunction, Arity,
              #emit_context{unit = #unit{standard = Standard}} = Context) ->
-    Uncounted = Standard
-        andalso (waits_on_nothing(Effect, ParamTypes)
-                 orelse is_listed_waiting_on_nothing(HostModule, HostFunction, Arity)),
-    Counted = case Uncounted of
-                  true -> Call;
-                  false -> call_remote(ern_rt, in_foreign,
-                                       [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
+    Counted = case not Standard orelse is_listed_waiting(HostModule, HostFunction, Arity) of
+                  true -> call_remote(ern_rt, in_foreign,
+                                      [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])]);
+                  false -> Call
               end,
     {[Class, Error, Trace], Context1} = named_variables(["Class", "Error", "Trace"], Context),
     Raised = call_remote(ern_boundary, raised,
@@ -488,20 +483,15 @@ foreign_call(Call, HostModule, HostFunction, Arity, {Effect, ParamTypes},
                                 none, [Raised]),
     {erl_syntax:try_expr([Counted], [Handler]), Context1}.
 
-is_listed_waiting_on_nothing(HostModule, HostFunction, Arity) ->
+is_listed_waiting(HostModule, HostFunction, Arity) ->
     case code:ensure_loaded(HostModule) of
         {module, HostModule} ->
             Attributes = HostModule:module_info(attributes),
             lists:member({HostFunction, Arity},
-                         lists:append(proplists:get_all_values(waits_on_nothing, Attributes)));
+                         lists:append(proplists:get_all_values(waits, Attributes)));
         _ ->
             false
     end.
-
-waits_on_nothing(pure, _ParamTypes) -> true;
-waits_on_nothing({variable, _} = Variable, ParamTypes) ->
-    lists:member(Variable, type_variables(ParamTypes));
-waits_on_nothing(_, _) -> false.
 
 %% Report §8.4: the foreign call's return checked. The standard library's
 %% is the runtime's own, and not checked; a type variable of the result
@@ -1742,8 +1732,8 @@ checked_type({tuple, Elements}, Context) ->
 checked_type({arrow, Params, Effect, Result}, Context) ->
     {tfn, [checked_type(Param, Context) || Param <- Params], checked_type(Effect, Context),
      checked_type(Result, Context)};
-checked_type(pure, _) ->
-    pure.
+checked_type(none, _) ->
+    none.
 
 %% A type reference's qualified name, as the module prints it: the unit's
 %% own type's declaration's, the link's for another unit's, and a name's
@@ -2010,7 +2000,7 @@ described({variable, Number}, _, {Holes, _}, _) ->
         true -> {hole, Number};
         false -> any
     end;
-described(pure, _, _, _) -> any;
+described(none, _, _, _) -> any;
 described({tuple, Elements}, Seen, Scope, Context) ->
     {tuple, all_described(Elements, Seen, Scope, Context)};
 described({arrow, Params, _, Result}, Seen, Scope, Context) ->

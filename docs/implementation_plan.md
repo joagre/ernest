@@ -455,7 +455,9 @@ the same commit; then the log; then the code, by an agent from the settled repor
    `examples/typed_channels.ern`'s comment on a reply answered twice changes to what is then
    true. Code changes nowhere else: the three programs' `_today` and `_after` files differ by
    no line under this item.
-2. **The mark on every action goes.** `receiving M` in place of `with M`, on a function that
+2. **The mark on every action goes.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraph
+   *Item 2's code half*), but for what the build found, decided the same day as item 2b below.
+   `receiving M` in place of `with M`, on a function that
    receives, calls `self`, asks for a message to be delivered into its mailbox, or calls one that
    does, and no mark on any other action. The report's §0, §2.3's reserved words, §3.9, where
    the process-only restriction survives for a `receive` with an `after` clause alone, printed
@@ -472,6 +474,16 @@ the same commit; then the log; then the code, by an agent from the settled repor
    the rest, the proposals' programs the tests run among them; the catalog of diagnostics; the
    guide as the proposal's section 7 and the findings' item 6 say, the front page's *What Ernest
    adds* and the README's lines the test holds equal to it among them; and `docs/man/` at the release.
+2b. **What item 2's build found** (decided 2026-10-16, the log's *Kill Darlings*, its paragraph
+   *Item 2's code half*), built before 2a. §4.6 generalizes a top-level `let` whose initializer is
+   a call where its type, read through the fields of the declared types it names, holds no function
+   type, no foreign type, no address and no reply, so that `Map.empty` and `Set.empty` are the
+   values Appendix E lists; the checker exempts the two by name meanwhile, marked INTERIM, and the
+   walk of the type replaces it, with tests of a call whose type holds an address, a function, a
+   foreign type, and none of the four. The function of an adapted address made on this node is
+   applied, for a message from another node, in a process the gateway starts for the message
+   (§6.5, §8.7), where the gateway applied it itself, with a test of one that calls. A `receive`
+   whose patterns fix no type is process-only (§3.9), which the checker does and a test cites.
 2a. **The held replies go** (decided 2026-10-16, the log's *Kill Darlings*, its paragraph *Held
    replies*). With a reply a value, the spawner keeps its copy of a reply its function captured and
    can answer the caller with the failure a spawn on a peer gives it, which the runtime's ending of

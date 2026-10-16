@@ -34,7 +34,7 @@
 %% DeclName: name is an ident or a userop atom; member_of is the typename
 %% prefix of a type member (`fn Distance.+`), else undefined.
 %% result_type/effect: the annotation; result_type = undefined means none,
-%% result_type given with effect = undefined means pure. requirement: the
+%% result_type given with effect = undefined receives nothing. requirement: the
 %% #member{}s its `needs` names, report §4.9, [] where it has none. scheme:
 %% set by the checker.
 -record(member, {span, member_of, name, type}).
@@ -67,7 +67,7 @@
 -record(t_var, {span, name, equality = false}).
 -record(t_tuple, {span, elements}).
 -record(t_fn, {span, params, result_type, effect}).
-%% effect = undefined means pure.
+%% effect = undefined: the function type receives nothing (report §3.4).
 
 %%
 %% Expressions

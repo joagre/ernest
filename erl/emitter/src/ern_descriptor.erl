@@ -62,7 +62,7 @@ descriptor({tvar, Id}, _Seen, #scope{holes = Holes}) ->
         true -> {hole, Id};
         false -> any
     end;
-descriptor(pure, _, _) -> any;
+descriptor(none, _, _) -> any;
 descriptor({ttuple, Elements}, Seen, Scope) ->
     {tuple, descriptors(Elements, Seen, Scope)};
 descriptor({tfn, Params, _, Result}, Seen, Scope) ->

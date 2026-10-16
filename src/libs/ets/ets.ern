@@ -75,10 +75,10 @@ export foreign type Table(k=, v)
 /// A fresh empty table, owned by the calling process. It lives until that
 /// process ends or the table is closed. The types of its keys and values
 /// are those of its first use, or of an annotation.
-export fn new() : Table(k, v) with m =
+export fn new() : Table(k, v) =
     rawNew(Foreign.atom("ernest"), [Foreign.atom("set"), Foreign.atom("public")])
 
-foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) with m =
+foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) =
     "ets:new/2"
 
 /// Puts the value at that key, replacing any entry the key had. The table
@@ -88,12 +88,12 @@ foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, 
 ///
 /// Faults on a table that has ended. The cause names the host's function:
 /// `foreign function ets:insert/2 raised error:badarg`.
-export fn put(table : Table(k, v), key : k, value : v) : Unit with m = {
+export fn put(table : Table(k, v), key : k, value : v) : Unit = {
     let _ = rawInsert(table, #(key, value));
     Unit
 }
 
-foreign fn rawInsert(table : Table(k, v), entry : #(k, v)) : Bool with m =
+foreign fn rawInsert(table : Table(k, v), entry : #(k, v)) : Bool =
     "ets:insert/2"
 
 /// The value at that key, or `None` where the table has no entry for it.
@@ -102,13 +102,13 @@ foreign fn rawInsert(table : Table(k, v), entry : #(k, v)) : Bool with m =
 ///
 /// Faults on a table that has ended. The cause names the host's function:
 /// `foreign function ets:lookup/2 raised error:badarg`.
-export fn get(table : Table(k, v), key : k) : Optional(v) with m =
+export fn get(table : Table(k, v), key : k) : Optional(v) =
     match rawLookup(table, key) {
         [#(_, value)] -> Some(value)
       | _ -> None
     }
 
-foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
+foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) =
     "ets:lookup/2"
 
 /// `true` when the table has an entry with that key.
@@ -117,7 +117,7 @@ foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
 ///
 /// Faults on a table that has ended. The cause names the host's function:
 /// `foreign function ets:member/2 raised error:badarg`.
-export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
+export foreign fn contains(table : Table(k, v), key : k) : Bool =
     "ets:member/2"
 
 /// Removes the entry at that key. Removing a key the table does not hold
@@ -127,12 +127,12 @@ export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
 ///
 /// Faults on a table that has ended. The cause names the host's function:
 /// `foreign function ets:delete/2 raised error:badarg`.
-export fn remove(table : Table(k, v), key : k) : Unit with m = {
+export fn remove(table : Table(k, v), key : k) : Unit = {
     let _ = rawDelete(table, key);
     Unit
 }
 
-foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
+foreign fn rawDelete(table : Table(k, v), key : k) : Bool =
     "ets:delete/2"
 
 /// The number of entries.
@@ -140,13 +140,13 @@ foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
 /// ### Errors
 ///
 /// Faults on a table that has ended, with the cause `the table has ended`.
-export fn size(table : Table(k, v)) : Int with m =
+export fn size(table : Table(k, v)) : Int =
     match Foreign.toInt(rawInfo(table, Foreign.atom("size"))) {
         Some(count) -> count
       | None -> fault("the table has ended")
     }
 
-foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term with m =
+foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term =
     "ets:info/2"
 
 /// Removes every entry. The table itself stays, empty, and is used as
@@ -168,12 +168,12 @@ foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term with
 /// }
 /// // => []
 /// ```
-export fn clear(table : Table(k, v)) : Unit with m = {
+export fn clear(table : Table(k, v)) : Unit = {
     let _ = rawDeleteAllObjects(table);
     Unit
 }
 
-foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool with m =
+foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool =
     "ets:delete_all_objects/1"
 
 /// Ends the table and frees what it held. Every operation on it afterwards
@@ -195,12 +195,12 @@ foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool with m =
 ///     Ets.close(table)
 /// }
 /// ```
-export fn close(table : Table(k, v)) : Unit with m = {
+export fn close(table : Table(k, v)) : Unit = {
     let _ = rawDeleteTable(table);
     Unit
 }
 
-foreign fn rawDeleteTable(table : Table(k, v)) : Bool with m =
+foreign fn rawDeleteTable(table : Table(k, v)) : Bool =
     "ets:delete/1"
 
 /// The entries as pairs, in unspecified order. The list is a copy: a later
@@ -210,5 +210,5 @@ foreign fn rawDeleteTable(table : Table(k, v)) : Bool with m =
 ///
 /// Faults on a table that has ended. The cause names the host's function:
 /// `foreign function ets:tab2list/1 raised error:badarg`.
-export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
+export foreign fn toList(table : Table(k, v)) : List(#(k, v)) =
     "ets:tab2list/1"

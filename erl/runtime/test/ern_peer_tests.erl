@@ -231,7 +231,7 @@ faulty_fields_test() ->
 %% the host's as no run in progress
 no_run_test() ->
     Unit = 'ern@peerquiet',
-    Hashes = loaded(['Peerquiet'], "export fn quiet() : Unit with Never = Unit\n"),
+    Hashes = loaded(['Peerquiet'], "export fn quiet() : Unit = Unit\n"),
     true = register(ern_gateway, self()),
     try
         Alias = erlang:alias(),
@@ -253,13 +253,13 @@ no_run_test() ->
 
 -define(REACHING,
         "let greeting : String = \"hello\"\n"
-        "export fn speak() : Unit with Never = Io.println(greeting)\n"
-        "export fn quiet() : Unit with Never = Unit\n"
-        "export fn twice() : Unit with Never = speak()\n"
-        "foreign fn missing() : Unit with m = \"ern_peer_tests_absent:f/0\"\n"
-        "export fn calls() : Unit with Never = missing()\n"
-        "export fn later(n : Int) : Either(Io.Error, Address(Never)) with m =\n"
-        "    Peer.spawn(\"p\", fn() : Unit with Never = { let _ = n + 1; Unit }, 100)\n").
+        "export fn speak() : Unit = Io.println(greeting)\n"
+        "export fn quiet() : Unit = Unit\n"
+        "export fn twice() : Unit = speak()\n"
+        "foreign fn missing() : Unit = \"ern_peer_tests_absent:f/0\"\n"
+        "export fn calls() : Unit = missing()\n"
+        "export fn later(n : Int) : Either(Io.Error, Address(Never)) =\n"
+        "    Peer.spawn(\"p\", fn() = { let _ = n + 1; Unit }, 100)\n").
 
 %% report §8.7: a spawn from a peer starts a function this node holds by its
 %% identity, a top-level function by its hash, a lambda by its definition's
@@ -336,16 +336,16 @@ spawn_by_identity_test() ->
 
 -define(HELD,
         "export type Ask = Ask(Reply(Int))\n"
-        "export fn alone(peer : String) : Unit with Ask = receive {\n"
+        "export fn alone(peer : String) : Unit receiving Ask = receive {\n"
         "    Ask(reply) -> {\n"
-        "        let _ = Peer.spawn(peer, fn() : Unit with Never = answer(reply, 1), 1000);\n"
+        "        let _ = Peer.spawn(peer, fn() = answer(reply, 1), 1000);\n"
         "        alone(peer)\n"
         "    }\n"
         "}\n"
         "export type Watched = Request(Ask) | Ended(Down)\n"
-        "export fn whole(peer : String) : Unit with Watched = receive {\n"
+        "export fn whole(peer : String) : Unit receiving Watched = receive {\n"
         "    Request(ask) -> {\n"
-        "        let _ = Peer.spawnMonitored(peer, fn() : Unit with Never =\n"
+        "        let _ = Peer.spawnMonitored(peer, fn() =\n"
         "                                        match ask { Ask(reply) -> answer(reply, 2) },\n"
         "                                    fn(down) = Ended(down), 1000);\n"
         "        whole(peer)\n"
@@ -393,7 +393,7 @@ failed_spawn_ends_replies_test() ->
         "let greeting : String = \"hello\"\n"
         "export fn answer() : Int = 42\n"
         "export fn divided() : Int = 1 / List.size([])\n"
-        "export fn waits() : Int with Int = receive { n -> n }\n"
+        "export fn waits() : Int receiving Int = receive { n -> n }\n"
         "export fn greet() : String = greeting\n").
 
 %% report §8.7, §11.2, Appendix E.21: a compute from a peer, its frame noted
@@ -476,8 +476,8 @@ computed_here_test() ->
 
 -define(RESTARTED,
         "type Start = First | AfterFault | Asked\n"
-        "foreign fn cause() : Start with m = \"ern_rt:start_cause/0\"\n"
-        "export fn flaky() : Int with Never = match cause() { First -> fault(\"first\")"
+        "foreign fn cause() : Start = \"ern_rt:start_cause/0\"\n"
+        "export fn flaky() : Int = match cause() { First -> fault(\"first\")"
         " | _ -> 42 }\n"
         "export fn divided() : Int = 1 / List.size([])\n").
 
@@ -628,7 +628,7 @@ group_binding_test() ->
                     "type T = T(Int)\n"
                     "let zero : T = T(0)\n"
                     "fn T.compare(a : T, b : T) : Ordering = if a == zero then Less else Equal\n"
-                    "export fn ordered() : Unit with Never = { let _ = T(1) < T(2); Unit }\n"),
+                    "export fn ordered() : Unit = { let _ = T(1) < T(2); Unit }\n"),
     Self = self(),
     Main = fun() ->
                true = register(ern_gateway, self()),
@@ -654,13 +654,13 @@ group_binding_test() ->
 %% spawn sends, read from the module's forms, each capture known by the
 %% value its `let` bound. A regression test, written after the code
 spawn_captures_in_order_test() ->
-    Text = "export fn start(peer : String) : Unit with m = {\n"
+    Text = "export fn start(peer : String) : Unit = {\n"
            "    let b = \"B\";\n"
            "    let a = \"A\";\n"
            "    let n = 6;\n"
-           "    let _ = Peer.spawn(peer, fn() : Unit with Never =\n"
+           "    let _ = Peer.spawn(peer, fn() =\n"
            "                                 Io.println(a <> b <> Int.toString(n)), 100);\n"
-           "    fn local() : Unit with Never = Io.println(b <> a);\n"
+           "    fn local() : Unit = Io.println(b <> a);\n"
            "    let _ = Peer.spawn(peer, local, 100);\n"
            "    Unit\n"
            "}\n",

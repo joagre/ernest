@@ -19,7 +19,7 @@ fn sum(list : List(a), zero : a) : a needs a.+ =
 fn doubled(list : List(a)) : List(a) needs a.+ =
     List.map(list, fn(x) = x + x)
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Io.show(total([1, 2, 3])));
     Io.println(Io.show(total([1.5, 2.5])));
     Io.println(Io.show(total([Money(1), Money(2)])));

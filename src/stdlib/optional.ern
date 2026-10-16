@@ -74,7 +74,7 @@ export fn withDefault(optional : Optional(a), default : a) : a =
     }
 
 /// `Some(f(x))` for `Some(x)`, or `None` for `None`, where `f` is not called.
-export fn map(optional : Optional(a), f : (a) -> b with e) : Optional(b) with e =
+export fn map(optional : Optional(a), f : (a) -> b receiving e) : Optional(b) receiving e =
     match optional {
         Some(value) -> Some(f(value))
       | None -> None
@@ -82,7 +82,8 @@ export fn map(optional : Optional(a), f : (a) -> b with e) : Optional(b) with e 
 
 /// `f(x)` for `Some(x)`, or `None` for `None`, where `f` is not called. It
 /// chains steps each of which may find nothing, as `<-` does in a block.
-export fn andThen(optional : Optional(a), f : (a) -> Optional(b) with e) : Optional(b) with e =
+export fn andThen(optional : Optional(a),
+                  f : (a) -> Optional(b) receiving e) : Optional(b) receiving e =
     match optional {
         Some(value) -> f(value)
       | None -> None

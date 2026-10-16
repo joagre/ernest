@@ -47,26 +47,26 @@ basic_inference_test() ->
     ?assertEqual("(Int) -> Int", type_of("export fn double(n) = n * 2", double)),
     ?assertEqual("(a) -> a", type_of("export fn id(x) = x", id)),
     ?assertEqual("(a, b) -> a", type_of("export fn first(x, y) = x", first)),
-    ?assertEqual("((a) -> b with e, a) -> b with e",
+    ?assertEqual("((a) -> b receiving e, a) -> b receiving e",
                  type_of("export fn apply(f, x) = f(x)", apply)),
     ?assertEqual("(Int) -> Int",
                  type_of("export fn fact(n : Int) : Int = if n == 0 then 1 else n * fact(n - 1)",
                          fact)),
-    ?assertEqual("((a) -> b with e, a, a) -> #(b, b) with e",
+    ?assertEqual("((a) -> b receiving e, a, a) -> #(b, b) receiving e",
                  type_of("export fn map2(f, x, y) = #(f(x), f(y))", map2)),
     ?assertEqual("() -> List(a)", type_of("export fn namedEmpty() = { let xs = []; xs }",
                                           namedEmpty)).
 
 %% report §3.9, §11.5: a parameter's function type whose effect variable
 %% occurs nowhere else admits a function with any mailbox type, and one
-%% with none, and the variable is printed; a result's is pure, and is not.
-%% A regression test, written after the code: the variable was made pure
-%% at generalization, and an impure argument was refused
+%% with none, and the variable is printed; a result's is none, and is not.
+%% A regression test, written after the code: the variable was made none
+%% at generalization, and an argument that receives was refused
 lone_effect_variable_test() ->
-    Ignore = "export fn ignore(f : () -> Unit with e) : Int = 5\n"
-             "fn impure() : Unit with Int = receive { _ -> Unit }\n",
-    ?assertEqual("(() -> Unit with e) -> Int", type_of(Ignore, ignore)),
-    ?assertEqual(ok, ok(Ignore ++ "fn g() : Int = ignore(impure)\n"
+    Ignore = "export fn ignore(f : () -> Unit receiving e) : Int = 5\n"
+             "fn receiver() : Unit receiving Int = receive { _ -> Unit }\n",
+    ?assertEqual("(() -> Unit receiving e) -> Int", type_of(Ignore, ignore)),
+    ?assertEqual(ok, ok(Ignore ++ "fn g() : Int = ignore(receiver)\n"
                                   "fn h() : Int = ignore(fn() = Unit)\n")),
     ?assertEqual("() -> (a) -> #(a, a)", type_of("export fn pair() = fn(x) = #(x, x)", pair)).
 
@@ -75,62 +75,65 @@ constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a=, a=) -> Bool", type_of("export fn equal(a, b) = a == b", equal)),
     ?assertEqual("(a) -> a", type_of("export fn identity(x) = x", identity)).
 
-%% report §3.9: a foreign fn whose effect is its own is process-only; one
-%% whose effect is a parameter's callback's is effect-polymorphic
+%% report §3.9: a foreign fn whose mailbox type is a variable of its own
+%% is process-only; one whose mailbox type is a parameter's callback's is
+%% effect-polymorphic
 foreign_effect_test() ->
-    Own = "foreign fn tick(n : Int) : Int with m = \"erlang:abs/1\"\n"
-          "export fn pure() : Int = tick(1)\n",
+    Own = "foreign fn tick(n : Int) : Int receiving m = \"erlang:abs/1\"\n"
+          "export fn plain() : Int = tick(1)\n",
     {error, [#diagnostic{message = Message} | _]} = ern_typecheck:check_string(['M'], Own),
-    ?assertEqual("tick needs a process, and pure is pure", Message),
-    Callback = "foreign fn each(xs : List(a), f : (a) -> Unit with e) : Unit with e ="
+    ?assertEqual("tick needs a mailbox, and plain receives nothing", Message),
+    Callback = "foreign fn each(xs : List(a), f : (a) -> Unit receiving e) : Unit receiving e ="
                " \"lists:foreach/2\"\n"
-               "export fn pure(xs : List(Int)) : Unit = each(xs, fn(x) = Unit)\n"
-               "export fn inProcess(xs : List(Int)) : Unit with m ="
+               "export fn plain(xs : List(Int)) : Unit = each(xs, fn(x) = Unit)\n"
+               "export fn inProcess(xs : List(Int)) : Unit ="
                " each(xs, fn(x) = Io.println(Int.toString(x)))\n",
     ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['M'], Callback)).
 
 %% report §3.9: a type argument is a value position only where its
 %% parameter occurs in a value position of the type's fields, so a variable
-%% that occurs in H(e) and after `with` ranges over the mailbox types and
-%% pure, and `run` holds a pure callback and one with a mailbox alike. The
-%% argument of a type whose parameter is a field is a value position, and
-%% the rule reaches through another type's fields and a type's own. `run`
-%% was process-only, and a pure caller was refused.
+%% that occurs in H(e) and after `receiving` ranges over the mailbox types
+%% and none, and `run` holds a callback that receives nothing and one that
+%% receives alike. The argument of a type whose parameter is a field is a
+%% value position, and the rule reaches through another type's fields and a
+%% type's own. `run` was process-only, and a caller that receives nothing
+%% was refused.
 effect_only_type_argument_test() ->
-    Source = "export type H(e) = H(f : (Int) -> Unit with e)\n"
-             "export fn run(h : H(e), x : Int) : Unit with e = h.f(x)\n",
-    ?assertEqual(ok, ok(Source ++ "fn usePure() : Unit = run(H(f = fn(x) = Unit), 1)\n"
-                        "fn useBox(a : Address(Int)) : Unit with Int ="
-                        " run(H(f = fn(x) = send(a, x)), 1)\n")),
+    Source = "export type H(e) = H(f : (Int) -> Unit receiving e)\n"
+             "export fn run(h : H(e), x : Int) : Unit receiving e = h.f(x)\n",
+    ?assertEqual(ok, ok(Source ++ "fn usePlain() : Unit = run(H(f = fn(x) = Unit), 1)\n"
+                        "fn useBox(a : Address(Int)) : Unit receiving Int ="
+                        " run(H(f = fn(x) = receive { n -> send(a, x + n) }), 1)\n")),
     %% and prints as an effect variable does, in the module's own state
     {ok, _, #interface{values = Values}, Env} =
-        check("export type H(e) = H(f : (Int) -> Unit with e)\n"
+        check("export type H(e) = H(f : (Int) -> Unit receiving e)\n"
               "export fn run(h, x : Int) = { let H(f = g) = h; g(x) }\n"),
-    ?assertEqual("(H(e), Int) -> Unit with e",
+    ?assertEqual("(H(e), Int) -> Unit receiving e",
                  ern_types:format_scheme(maps:get(['M', run], Values),
                                          ern_typecheck:type_state(Env))),
     ?assertEqual(ok, ok(Source ++ "type K(e) = K(h : H(e)) | L(k : K(e))\n"
-                        "fn go(k : K(e)) : Unit with e ="
+                        "fn go(k : K(e)) : Unit receiving e ="
                         " match k { K(h = h) -> run(h, 1) | L(k = k2) -> go(k2) }\n"
-                        "fn usePure() : Unit = go(L(k = K(h = H(f = fn(x) = Unit))))\n")),
-    ?assertEqual("run needs a process, and usePure is pure",
-                 refusal("type V(e) = V(f : (Int) -> Unit with e, v : e)\n"
-                         "fn run(h : V(e), x : Int) : Unit with e = h.f(x)\n"
-                         "fn usePure() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
+                        "fn usePlain() : Unit = go(L(k = K(h = H(f = fn(x) = Unit))))\n")),
+    ?assertEqual("run needs a mailbox, and usePlain receives nothing",
+                 refusal("type V(e) = V(f : (Int) -> Unit receiving e, v : e)\n"
+                         "fn run(h : V(e), x : Int) : Unit receiving e = h.f(x)\n"
+                         "fn usePlain() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
 %% report §3.9: a type argument whose parameter occurs in no field of its
 %% type is a value position, as `m` of `Peer.Service(m)`: a variable that
-%% stands there and after `with` ranges over types alone, so a function
-%% with it is no pure caller's, and it prints as a value variable. A
+%% stands there and after `receiving` ranges over types alone, so a
+%% function with it is no caller's that receives nothing, and it prints as
+%% a value variable. A
 %% regression test of the principles review's K7 (2026-10-09): the report
 %% left such a parameter in no position, and the checker took it for an
-%% effect position, accepting usePure and printing P(e)
+%% effect position, accepting usePlain and printing P(e)
 phantom_type_argument_test() ->
     Source = "type P(e) = P(n : Int)\n"
-             "fn run(p : P(e), f : (Int) -> Unit with e) : Unit with e = f(p.n)\n",
-    ?assertEqual("run needs a process, and usePure is pure",
-                 refusal(Source ++ "fn usePure() : Unit = run(P(n = 1), fn(x) = Unit)\n")),
-    ?assertEqual(ok, ok(Source ++ "fn useBox(a : Address(Int)) : Unit with Int ="
+             "fn run(p : P(e), f : (Int) -> Unit receiving e) : Unit receiving e = f(p.n)\n",
+    ?assertEqual("run needs a mailbox, and usePlain receives nothing",
+                 refusal(Source ++ "fn usePlain() : Unit = run(P(n = 1), fn(x) = Unit)\n")),
+    ?assertEqual(ok, ok(Source ++ "fn useBox(a : Address(Int)) : Unit receiving Int ="
                         " run(P(n = 1), fn(x) = send(a, x))\n")),
     ?assertEqual("the body does not have the declared result type: expected Int, found P(a)",
                  refusal("type P(e) = P(n : Int)\n"
@@ -138,69 +141,74 @@ phantom_type_argument_test() ->
                          "fn f() : Int = make()\n")).
 
 %% report §5.4, §0 principle 3: `let _ = e` discards a value whatever `e`
-%% is, a pure one among them, since the `_` shows it unused, and a pure call
-%% may still fault; an expression statement not of type Unit is refused. A
+%% is, a call's that acts on nothing among them, since the `_` shows it
+%% unused, and such a call may still fault; an expression statement not of type Unit is refused. A
 %% test of the full review's P6 (2026-10-04), which found the toolchain
 %% already accepting it and the report silent
 discard_whatever_test() ->
     ?assertEqual(ok, ok("fn checked(n : Int) : Int = if n < 0 then fault(\"negative\") else n\n"
-                        "fn f(n : Int) : Unit with m = {\n"
+                        "fn f(n : Int) : Unit receiving m = {\n"
                         "    let _ = 5;\n    let _ = checked(n);\n    let _ = self();\n"
                         "    Unit\n}\n")),
     ?assertEqual("this statement's value is discarded: expected Unit, found Int",
                  refusal("fn f() : Unit = {\n    5;\n    Unit\n}\n")).
 
-%% report §3.9, §6.9, §9.5: `restarting` is process-only, though its effect
-%% is its function's, since a restart empties the process's mailbox and
-%% ends the calls waiting on it: the function it returns is never pure,
-%% and a process's body takes it as before. A regression test of the full
-%% review's K2 (2026-10-04): a pure function restarted its process
-restarting_is_process_only_test() ->
+%% report §3.9, §6.9, §9.5: `restarting`'s mailbox type is its function's,
+%% none for a function that receives nothing, which restarts in any process
+%% and is called from a function that receives nothing; one that receives
+%% makes its caller receive. A regression test, 2026-10-16, written after
+%% the code: it was process-only, a restart emptying the mailbox, until the
+%% mark on every action went (§6.9 restarts the process it runs in)
+restarting_takes_the_function_s_mailbox_test() ->
     Limit = "RestartLimit(restarts = 1, within = 1000)",
-    ?assertEqual("run needs a process, and tryIt is pure",
-                 refusal("fn tryIt(n : Int) : Int = {\n"
-                         "    let run = restarting(" ++ Limit ++ ", fn() = Unit);\n"
-                         "    run();\n    n\n}\n")),
-    ?assertEqual("the callee needs a process, and tryIt is pure",
-                 refusal("fn tryIt() : Unit = restarting(" ++ Limit ++ ", fn() = Unit)()\n")),
-    ?assertEqual(ok, ok("fn serve() : Unit with Never =\n"
-                        "    restarting(" ++ Limit ++ ", fn() : Unit with Never = Unit)()\n"
-                        "fn start() : Unit with m = {\n"
+    ?assertEqual(ok, ok("fn tryIt(n : Int) : Int = {\n"
+                        "    let run = restarting(" ++ Limit ++ ", fn() = Unit);\n"
+                        "    run();\n    n\n}\n")),
+    ?assertEqual(ok, ok("fn tryIt() : Unit = restarting(" ++ Limit ++ ", fn() = Unit)()\n")),
+    ?assertEqual("the callee needs a mailbox, and tryIt receives nothing",
+                 refusal("fn tryIt() : Unit = restarting(" ++ Limit ++ ","
+                         " fn() = receive { after 1 -> Unit })()\n")),
+    ?assertEqual(ok, ok("fn serve() : Unit =\n"
+                        "    restarting(" ++ Limit ++ ", fn() = Unit)()\n"
+                        "fn start() : Unit = {\n"
                         "    let _ = spawn(restarting(" ++ Limit ++ ", fn() = Unit));\n"
                         "    Unit\n}\n")).
 
-%% report §3.9: a pure function stands where one with a mailbox type is
-%% expected, whether it is named, declared, annotated, a parameter, a
-%% field, or a call's result, and in either order beside one that sends;
-%% one with a mailbox type never stands where a pure one is expected.
-%% Found by the cold read (its 1.1): a named pure function was refused
-%% where the same function written in place was accepted
-pure_stands_for_a_mailbox_test() ->
-    Types = "type Msg = Add(Int) | Up(next : (Int) -> Unit with Msg)\n"
+%% report §3.9: a function that receives nothing stands where one with a
+%% mailbox type is expected, whether it is named, declared, annotated, a
+%% parameter, a field, or a call's result, and in either order beside one
+%% that receives; one that receives never stands where one that receives
+%% nothing is expected. Found by the cold read (its 1.1): a named function
+%% that received nothing was refused where the same function written in
+%% place was accepted
+receiving_nothing_stands_for_a_mailbox_test() ->
+    Types = "type Msg = Add(Int) | Up(next : (Int) -> Unit receiving Msg)\n"
             "type Hook = Hook(run : (Int) -> Unit)\n"
             "fn done(n : Int) : Unit = Unit\n"
             "fn quiet(n) = Unit\n"
             "fn later() : (Int) -> Unit = done\n"
             "fn both(f, g) = { f(1); g(2) }\n",
     Main = fun(Body) ->
-               Types ++ "fn main() : Unit with Msg = { let a = self(); " ++ Body ++ "; Unit }\n"
+               Types ++ "fn main() : Unit receiving Msg = { let a = self(); " ++ Body
+                   ++ "; Unit }\n"
            end,
     ?assertEqual(ok, ok(Main("let _ = Up(next = done)"))),
     ?assertEqual(ok, ok(Main("let _ = Up(next = quiet)"))),
     ?assertEqual(ok, ok(Main("let _ = Up(next = later())"))),
     ?assertEqual(ok, ok(Main("let h = Hook(run = done); let _ = Up(next = h.run)"))),
-    ?assertEqual(ok, ok(Main("both(done, fn(x) = send(a, Add(x)))"))),
-    ?assertEqual(ok, ok(Main("both(fn(x) = send(a, Add(x)), done)"))),
+    ?assertEqual(ok, ok(Main("both(done, fn(x) = receive { Add(n) -> send(a, Add(x + n)) })"))),
+    ?assertEqual(ok, ok(Main("both(fn(x) = receive { Add(n) -> send(a, Add(x + n)) }, done)"))),
     ?assertEqual(ok, ok(Main("let _ = spawn(fn() = done(1))"))),
     ?assertEqual(ok, ok(Types ++ "fn wrap(f : (Int) -> Unit) : Msg = Up(next = f)\n")),
     %% a field selected before its record's type is known, and called in a
     %% process; a regression test: the selection, resolved after the call,
-    %% was not opened, and the pure field was refused
+    %% was not opened, and the field that receives nothing was refused
     ?assertEqual(ok, ok(Main("List.forEach([Hook(run = done)],"
-                             " fn(h) = { send(a, Add(1)); h.run(1) })"))),
-    ?assertEqual("field run: a function that runs in a process where a pure one is needed",
-                 refusal(Main("let _ = Hook(run = fn(x) = send(a, Add(x)))"))),
-    %% and a pure function still prints as pure
+                             " fn(h) = { let _ = receive { n -> n }; h.run(1) })"))),
+    ?assertEqual("field run: a function that receives where one that receives nothing is"
+                 " needed",
+                 refusal(Main("let _ = Hook(run = fn(x) = receive { after 1 -> Unit })"))),
+    %% and a function that receives nothing prints without a mailbox type
     ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) : Unit = Unit", done)).
 
 %% report §5.9, §6.3: a clause or an alternative that can match nothing
@@ -213,7 +221,7 @@ redundant_clause_test() ->
     ?assertEqual(Never, refusal("fn f(x : Optional(Int)) : Int ="
                                 " match x { Some(n) -> n | None -> 0 | Some(1) -> 1 }")),
     ?assertEqual(Never, refusal("fn f(x : Int) : Int = match x { n -> n | 0 -> 1 }")),
-    ?assertEqual(Never, refusal("fn f() : Int with Int = receive { n -> n | 5 -> 1 }")),
+    ?assertEqual(Never, refusal("fn f() : Int receiving Int = receive { n -> n | 5 -> 1 }")),
     ?assertEqual(Never,
                  refusal("fn f(b : Bool) : Int = match b { true -> 1 | false -> 2 | _ -> 3 }")),
     ?assertEqual("this alternative can never match",
@@ -346,9 +354,10 @@ user_type_operators_test() ->
 
 %% report §4.8: a member named by an operator has the type (T, T) -> R for
 %% its type T, T.compare the type (T, T) -> Ordering, and T.negate the type
-%% (T) -> R, each pure; another shape is an error at the declaration, where
-%% a wrong arity, a wrong parameter, and a wrong result of compare were
-%% reported at a use, and a member with a mailbox effect was accepted. The
+%% (T) -> R, each receiving nothing; another shape is an error at the
+%% declaration, where a wrong arity, a wrong parameter, and a wrong result
+%% of compare were reported at a use, and a member with a mailbox type was
+%% accepted. The
 %% type's arguments may be any, the same in both parameters.
 operator_member_shape_test() ->
     Vec = "export type Vec = Vec(Int)\n",
@@ -360,14 +369,21 @@ operator_member_shape_test() ->
                  refusal(Vec ++ "export fn Vec.+(Vec(a), b : Int) : Vec = Vec(a + b)\n")),
     ?assertEqual("Vec.* must have the type (Vec, Vec) -> Int, not (Int, Vec) -> Int",
                  refusal(Vec ++ "export fn Vec.*(a : Int, Vec(b)) : Int = a * b\n")),
-    ?assertEqual("Vec.- must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with Never",
-                 refusal(Vec ++ "export fn Vec.-(Vec(a), Vec(b)) : Vec with Never = Vec(a - b)\n")),
-    ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with m+",
-                 refusal(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) : Vec with m ="
-                         " { let _ = receive { n -> n }; Vec(a + b) }\n")),
+    ?assertEqual("Vec.- must have the type (Vec, Vec) -> Vec,"
+                 " not (Vec, Vec) -> Vec receiving Never",
+                 refusal(Vec ++ "export fn Vec.-(Vec(a), Vec(b)) : Vec receiving Never ="
+                         " Vec(a - b)\n")),
+    ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec receiving m+",
+                 refusal(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) : Vec receiving m ="
+                         " { receive { after 1 -> Unit }; Vec(a + b) }\n")),
+    %% a member may send and print, as a guard may (§4.8, §5.9)
+    ?assertEqual(ok, ok("export type Note = Note(Int)\n"
+                        "export fn Note.+(Note(a), Note(b)) : Note ="
+                        " { Io.println(\"added\"); Note(a + b) }\n")),
     {error, [#diagnostic{help = Help} | _]} =
         check(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) : Int = a - b\n"),
-    ?assertEqual("compare takes two values of its type, returns an Ordering, and is pure", Help),
+    ?assertEqual("compare takes two values of its type, returns an Ordering, and receives nothing",
+                 Help),
     %% the type's arguments are any, one in both parameters
     Box = "export type Box(a) = Box(List(a))\n",
     ?assertEqual(ok, ok(Box ++ "export fn Box.<>(Box(a), Box(b)) = Box(a <> b)\n")),
@@ -484,7 +500,7 @@ bound_type_test() ->
     Env = ern_typecheck:prelude_env(),
     Binds = fun(Type) -> ern_bound:binds(Type, Env) end,
     Int = {tcon, ['Int'], []},
-    Function = {tfn, [Int], pure, Int},
+    Function = {tfn, [Int], none, Int},
     ?assertEqual(false, Binds(Int)),
     ?assertEqual(false, Binds({tcon, ['List'], [{tcon, ['String'], []}]})),
     ?assertEqual(false, Binds({tcon, ['Address'], [Int]})),
@@ -517,7 +533,7 @@ bound_type_test() ->
 %% recursive one once, with its arguments in place of its parameters
 bound_declared_type_test() ->
     Source = "export type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))\n"
-             "export type Job = Job(run : () -> Unit with Never)\n",
+             "export type Job = Job(run : () -> Unit receiving Never)\n",
     ?assertEqual(ok, peer_ok(Source ++ "export let service : Peer.Service(Tree(Int)) ="
                                         " Peer.service(\"tree\")\n")),
     ?assertEqual("Peer.service names a service at Tree(Job), which is bound to its node, since"
@@ -559,12 +575,12 @@ offer_test() ->
     Source = "export type Msg = Add(Int)\n"
              "export let service : Peer.Service(Msg) = Peer.service(\"counter\")\n",
     ?assertEqual(ok, peer_ok(Source ++ "fn serve(counter : Address(Msg)) :"
-                                       " Either(Process, Unit) with m ="
+                                       " Either(Process, Unit) ="
                                        " Peer.offer(service, counter)\n")),
     ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Int)) :"
-                                               " Either(Process, Unit) with m ="
+                                               " Either(Process, Unit) ="
                                                " Peer.offer(service, counter)\n")),
-    ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Msg)) : Unit with m ="
+    ?assertMatch({error, _}, peer_ok(Source ++ "fn serve(counter : Address(Msg)) : Unit ="
                                                " Peer.offer(service, counter)\n")).
 
 %% report §3.11, §3.8, Appendix G.1: a library's resource is a foreign type,
@@ -586,57 +602,57 @@ ets_table_bound_test() ->
                          " Peer.service(\"t\")\n")),
     ?assertEqual("the function Peer.spawn starts captures table, whose type Ets.Table(Int, Int)"
                  " is bound to its node, since it holds a value of the foreign type Ets.Table",
-                 Refusal("fn f(table : Ets.Table(Int, Int)) : Unit with m = {\n"
-                         ++ spawning("", "fn() : Unit with Never = { let _ = table; Unit }"))).
+                 Refusal("fn f(table : Ets.Table(Int, Int)) : Unit = {\n"
+                         ++ spawning("", "fn() : Unit receiving Never = { let _ = table; Unit }"))).
 
 %% report §3.11: the function a spawn on a peer starts is a lambda written
 %% in the definition, at the spawn or bound by a `let` the spawn names, a
 %% `fn` declared in the definition, or a declaration's name, and what the
 %% lambda or the `fn` captures crosses
 spawn_function_test() ->
-    Head = "fn work(x : Int) : Unit with Never = Unit\n"
-           "fn f(x : Int) : Unit with m = {\n",
-    ?assertEqual(ok, peer_ok(Head ++ spawning("", "fn() : Unit with Never = work(x)"))),
-    ?assertEqual(ok, peer_ok(Head ++ spawning("let job = fn() : Unit with Never = work(x);\n    ",
-                                              "job"))),
-    ?assertEqual(ok, peer_ok("fn run() : Unit with Never = Unit\n"
-                             "fn f() : Unit with m = {\n" ++ spawning("", "run"))),
+    Head = "fn work(x : Int) : Unit receiving Never = Unit\n"
+           "fn f(x : Int) : Unit = {\n",
+    ?assertEqual(ok, peer_ok(Head ++ spawning("", "fn() : Unit receiving Never = work(x)"))),
+    ?assertEqual(ok, peer_ok(Head ++ spawning("let job = fn() : Unit receiving Never ="
+                                              " work(x);\n    ", "job"))),
+    ?assertEqual(ok, peer_ok("fn run() : Unit receiving Never = Unit\n"
+                             "fn f() : Unit = {\n" ++ spawning("", "run"))),
     ?assertEqual(ok, peer_ok("type Msg = Died(Down)\n"
-                             "fn run() : Unit with Never = Unit\n"
-                             "fn f() : Unit with Msg = {\n"
+                             "fn run() : Unit receiving Never = Unit\n"
+                             "fn f() : Unit receiving Msg = {\n"
                              "    let _ = Peer.spawnMonitored(\"p\", run, Died, 5000);\n"
                              "    Unit\n"
                              "}\n")),
     %% a local fn, whose captures are checked as a lambda's. A regression
     %% test: one was refused as a function that came as a value
-    ?assertEqual(ok, peer_ok("fn f(x : Int) : Unit with m = {\n"
-                             ++ spawning("fn run() : Unit with Never = { let _ = x; Unit };\n"
+    ?assertEqual(ok, peer_ok("fn f(x : Int) : Unit = {\n"
+                             ++ spawning("fn run() : Unit receiving Never = { let _ = x; Unit };\n"
                                          "    ", "run"))),
     ?assertEqual("the function Peer.spawn starts captures g, a function, which is bound to its"
                  " node",
-                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
-                              ++ spawning("fn run() : Unit with Never = { let _ = g(1); Unit };\n"
-                                          "    ", "run"))),
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit = {\n"
+                              ++ spawning("fn run() : Unit receiving Never ="
+                                          " { let _ = g(1); Unit };\n    ", "run"))),
     %% a function that came as a value: a parameter, a top-level `let`, a
     %% call's result, and a `let` of a lambda that a later binding of the
     %% name hides
     ?assertEqual("Peer.spawn starts job, a function that came as a value, whose captures the"
                  " compiler does not see",
-                 peer_refusal("fn f(job : () -> Unit with Never) : Unit with m = {\n"
+                 peer_refusal("fn f(job : () -> Unit receiving Never) : Unit = {\n"
                               ++ spawning("", "job"))),
     ?assertEqual("Peer.spawn starts run, a top-level `let`, whose value may hold captures the"
                  " compiler does not see",
-                 peer_refusal("let run : () -> Unit with Never = fn() = Unit\n"
-                              "fn f() : Unit with m = {\n" ++ spawning("", "run"))),
+                 peer_refusal("let run : () -> Unit receiving Never = fn() = Unit\n"
+                              "fn f() : Unit = {\n" ++ spawning("", "run"))),
     ?assertEqual("Peer.spawn starts a function written where the compiler sees what it"
                  " captures: a declaration's name, or a lambda or a `fn` written in this"
                  " definition",
-                 peer_refusal("fn make() : () -> Unit with Never = fn() = Unit\n"
-                              "fn f() : Unit with m = {\n" ++ spawning("", "make()"))),
+                 peer_refusal("fn make() : () -> Unit receiving Never = fn() = Unit\n"
+                              "fn f() : Unit = {\n" ++ spawning("", "make()"))),
     ?assertEqual("Peer.spawn starts job, a function that came as a value, whose captures the"
                  " compiler does not see",
-                 peer_refusal("fn f(jobs : List(() -> Unit with Never)) : Unit with m = {\n"
-                              ++ spawning("let job = fn() : Unit with Never = Unit;\n"
+                 peer_refusal("fn f(jobs : List(() -> Unit receiving Never)) : Unit = {\n"
+                              ++ spawning("let job = fn() : Unit receiving Never = Unit;\n"
                                           "    let _ = match jobs { [] -> Unit"
                                           " | job :: _ -> { let _ = Peer.spawn(\"p\", job,"
                                           " 5000); Unit } };\n    ", "job"))),
@@ -651,14 +667,14 @@ spawn_function_test() ->
 %% written after the code, which refused the lambda with a message that
 %% read false of it
 peer_spawn_reply_test() ->
-    Worker = "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
-    Head = Worker ++ "fn f(r : Reply(Int)) : Unit with m = {\n",
-    ?assertEqual(ok, peer_ok(Head ++ spawning("", "fn() : Unit with Never = worker(r)"))),
-    ?assertEqual(ok, peer_ok(Head ++ spawning("let job = fn() : Unit with Never = worker(r);\n"
+    Worker = "fn worker(r : Reply(Int)) : Unit receiving Never = answer(r, 1)\n",
+    Head = Worker ++ "fn f(r : Reply(Int)) : Unit = {\n",
+    ?assertEqual(ok, peer_ok(Head ++ spawning("", "fn() : Unit receiving Never = worker(r)"))),
+    ?assertEqual(ok, peer_ok(Head ++ spawning("let job = fn() : Unit receiving Never = worker(r);\n"
                                               "    ", "job"))),
     ?assertEqual(ok, peer_ok("type Msg = Died(Down)\n" ++ Worker
-                             ++ "fn f(r : Reply(Int)) : Unit with Msg = {\n"
-                                "    let job = fn() : Unit with Never = worker(r);\n"
+                             ++ "fn f(r : Reply(Int)) : Unit receiving Msg = {\n"
+                                "    let job = fn() : Unit receiving Never = worker(r);\n"
                                 "    let _ = Peer.spawnMonitored(\"p\", job, Died, 5000);\n"
                                 "    Unit\n"
                                 "}\n")).
@@ -672,31 +688,31 @@ peer_spawn_reply_test() ->
 %% (MVP 3.1's item 4)
 spawn_restarting_and_members_test() ->
     Limit = "let limit = RestartLimit(restarts = 1, within = 1000);\n    ",
-    ?assertEqual(ok, peer_ok("fn run() : Unit with Never = Unit\n"
-                             "fn f() : Unit with m = {\n"
+    ?assertEqual(ok, peer_ok("fn run() : Unit receiving Never = Unit\n"
+                             "fn f() : Unit = {\n"
                              ++ spawning(Limit, "restarting(limit, run)"))),
-    ?assertEqual(ok, peer_ok("fn f(x : Int) : Unit with m = {\n"
-                             ++ spawning(Limit, "restarting(limit, fn() : Unit with Never ="
+    ?assertEqual(ok, peer_ok("fn f(x : Int) : Unit = {\n"
+                             ++ spawning(Limit, "restarting(limit, fn() : Unit receiving Never ="
                                                 " { let _ = x; Unit })"))),
     ?assertEqual("the function Peer.spawn starts captures g, a function, which is bound to its"
                  " node",
-                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
-                              ++ spawning(Limit, "restarting(limit, fn() : Unit with Never ="
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit = {\n"
+                              ++ spawning(Limit, "restarting(limit, fn() : Unit receiving Never ="
                                                  " { let _ = g(1); Unit })"))),
     ?assertEqual("Peer.spawn starts a function written where the compiler sees what it"
                  " captures: a declaration's name, or a lambda or a `fn` written in this"
                  " definition",
-                 peer_refusal("fn run() : Unit with Never = Unit\n"
-                              "fn f() : Unit with m = {\n"
+                 peer_refusal("fn run() : Unit receiving Never = Unit\n"
+                              "fn f() : Unit = {\n"
                               ++ spawning(Limit, "restarting(limit, restarting(limit, run))"))),
     ?assertEqual("Peer.spawn starts a function that uses a.show, a member of the requirement in"
                  " force, which is a function bound to its node",
-                 peer_refusal("fn f(x : a) : Unit with Never needs a.show = {\n"
-                              ++ spawning("", "fn() : Unit with Never = {"
+                 peer_refusal("fn f(x : a) : Unit receiving Never needs a.show = {\n"
+                              ++ spawning("", "fn() : Unit receiving Never = {"
                                               " let y : a = fault(\"no\");"
                                               " Io.println(Io.show(y)) }"))),
-    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n"
-                             ++ spawning("", "fn() : Unit with Never = {"
+    ?assertEqual(ok, peer_ok("fn f() : Unit = {\n"
+                             ++ spawning("", "fn() : Unit receiving Never = {"
                                              " fn shown(v : b) : String needs b.show = Io.show(v);"
                                              " Io.println(shown(1)) }"))).
 
@@ -716,12 +732,12 @@ stated_errors_test() ->
                                  {binary:match(Section, list_to_binary(Message)), Message})
              end,
     Stated(Serialization,
-           peer_refusal("fn g(f : () -> Unit with Never) : Unit with m = {\n"
+           peer_refusal("fn g(f : () -> Unit receiving Never) : Unit = {\n"
                         ++ spawning("", "f"))),
     Stated(Serialization, peer_refusal("fn g() : Unit = { let start = Peer.spawn; Unit }\n")),
     Stated(Serialization,
-           peer_refusal("fn f(x : a) : Unit with Never needs a.show = {\n"
-                        ++ spawning("", "fn() : Unit with Never = {"
+           peer_refusal("fn f(x : a) : Unit receiving Never needs a.show = {\n"
+                        ++ spawning("", "fn() : Unit receiving Never = {"
                                         " let y : a = fault(\"no\"); Io.println(Io.show(y)) }"))),
     Stated(Construction,
            refusal("type Point = Point(x : Int, y : Int)\n"
@@ -735,27 +751,29 @@ spawn_captures_test() ->
     %% use's effect (§3.9) and not the one its parameter declares
     ?assertEqual("the function Peer.spawn starts captures g, a function, which is bound to its"
                  " node",
-                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
-                              ++ spawning("", "fn() : Unit with Never = { let _ = g(1); Unit }"))),
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit = {\n"
+                              ++ spawning("", "fn() : Unit receiving Never ="
+                                              " { let _ = g(1); Unit }"))),
     ?assertEqual("the function Peer.spawn starts captures socket, whose type"
                  " Address(Tcp.SocketMsg) is bound to its node, since it holds the address of a"
                  " socket",
-                 peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit with m = {\n"
-                              ++ spawning("", "fn() : Unit with Never = { let _ = socket; Unit"
+                 peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit = {\n"
+                              ++ spawning("", "fn() : Unit receiving Never = { let _ = socket; Unit"
                                               " }"))),
     ?assertEqual("the function Peer.spawn starts captures x, whose type a holds a type"
                  " variable",
-                 peer_refusal("fn f(x : a) : Unit with m = {\n"
-                              ++ spawning("", "fn() : Unit with Never = { let _ = [x]; Unit }"))),
+                 peer_refusal("fn f(x : a) : Unit = {\n"
+                              ++ spawning("", "fn() : Unit receiving Never ="
+                                              " { let _ = [x]; Unit }"))),
     %% a local fn captured by the lambda is a function
     ?assertEqual("the function Peer.spawn starts captures helper, a function, which is bound to"
                  " its node",
-                 peer_refusal("fn f() : Unit with m = {\n"
-                              ++ spawning("fn helper() : Unit with Never = Unit;\n    ",
-                                          "fn() : Unit with Never = helper()"))),
-    ?assertEqual(ok, peer_ok("fn work(x : Int) : Unit with Never = Unit\n"
-                             "fn f(n : Int) : Unit with m = {\n"
-                             ++ spawning("", "fn() : Unit with Never = {"
+                 peer_refusal("fn f() : Unit = {\n"
+                              ++ spawning("fn helper() : Unit receiving Never = Unit;\n    ",
+                                          "fn() : Unit receiving Never = helper()"))),
+    ?assertEqual(ok, peer_ok("fn work(x : Int) : Unit receiving Never = Unit\n"
+                             "fn f(n : Int) : Unit = {\n"
+                             ++ spawning("", "fn() : Unit receiving Never = {"
                                              " let local = fn(y : Int) : Int = y + n;"
                                              " work(local(1)) }"))).
 
@@ -766,25 +784,25 @@ spawn_captures_test() ->
 %% bound. A regression test: §6.10's spawn of a lambda with no annotation
 %% was refused
 spawn_mailbox_test() ->
-    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n" ++ spawning("", "fn() = Unit"))),
-    {ok, Typed} = typed_peer("fn idle() : Unit with m = receive { after 1 -> Unit }\n"
-                             "fn f() : Unit with m = {\n" ++ spawning("", "idle")),
+    ?assertEqual(ok, peer_ok("fn f() : Unit = {\n" ++ spawning("", "fn() = Unit"))),
+    {ok, Typed} = typed_peer("fn idle() : Unit receiving m = receive { after 1 -> Unit }\n"
+                             "fn f() : Unit = {\n" ++ spawning("", "idle")),
     ?assertEqual(["Address(Never)"],
                  [ern_types:format(Answer, ern_types:new())
                   || #fn_declaration{name = f, body = Body} <- Typed,
                      #e_call{callee = #e_var{name = spawn}, type = {tcon, ['Either'], [_, Answer]}}
                          <- calls(Body)]),
     ?assertEqual("Peer.spawn starts a process whose mailbox type a is not known whole here",
-                 peer_refusal("fn f() : Either(Io.Error, Address(a)) with m ="
+                 peer_refusal("fn f() : Either(Io.Error, Address(a)) ="
                               " Peer.spawn(\"p\", fn() = Unit, 5000)\n")),
     ?assertEqual("Peer.spawn starts a process whose mailbox type Msg is bound to its node,"
                  " since it holds a function",
                  peer_refusal("type Msg = Up(f : (Int) -> Int)\n"
-                              "fn loop() : Unit with Msg = receive { Up(f = _) -> loop() }\n"
-                              "fn f() : Unit with m = {\n" ++ spawning("", "loop"))),
+                              "fn loop() : Unit receiving Msg = receive { Up(f = _) -> loop() }\n"
+                              "fn f() : Unit = {\n" ++ spawning("", "loop"))),
     ?assertEqual(ok, peer_ok("type Msg = Add(Int)\n"
-                             "fn loop() : Unit with Msg = receive { Add(_) -> loop() }\n"
-                             "fn f() : Unit with m = {\n" ++ spawning("", "loop"))).
+                             "fn loop() : Unit receiving Msg = receive { Add(_) -> loop() }\n"
+                             "fn f() : Unit = {\n" ++ spawning("", "loop"))).
 
 %% A function body that computes Function by Form, `Peer.computeAt` on the
 %% peer `p` or `Peer.compute` on a peer the node picks, and drops what the
@@ -811,45 +829,45 @@ compute_function_test() ->
 
 compute_function(Form) ->
     Head = "fn work(x : Int) : Int = x\n"
-           "fn f(x : Int) : Unit with m = {\n",
+           "fn f(x : Int) : Unit = {\n",
     ?assertEqual(ok, peer_ok(Head ++ computing(Form, "", "fn() = work(x)"))),
     ?assertEqual(ok, peer_ok(Head ++ computing(Form, "let job = fn() = work(x);\n    ", "job"))),
     ?assertEqual(ok, peer_ok("fn run() : Int = 42\n"
-                             "fn f() : Unit with m = {\n" ++ computing(Form, "", "run"))),
+                             "fn f() : Unit = {\n" ++ computing(Form, "", "run"))),
     ?assertEqual("the function " ++ Form ++ " runs captures g, a function, which is bound to"
                  " its node",
-                 peer_refusal("fn f(g : (Int) -> Int) : Unit with m = {\n"
+                 peer_refusal("fn f(g : (Int) -> Int) : Unit = {\n"
                               ++ computing(Form, "", "fn() = g(1)"))),
     ?assertEqual("the function " ++ Form ++ " runs captures socket, whose type"
                  " Address(Tcp.SocketMsg) is bound to its node, since it holds the address of a"
                  " socket",
-                 peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit with m = {\n"
+                 peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit = {\n"
                               ++ computing(Form, "", "fn() = { let _ = socket; 1 }"))),
     ?assertEqual("the function " ++ Form ++ " runs captures x, whose type a holds a type"
                  " variable",
-                 peer_refusal("fn f(x : a) : Unit with m = {\n"
+                 peer_refusal("fn f(x : a) : Unit = {\n"
                               ++ computing(Form, "", "fn() = { let _ = [x]; 1 }"))),
     ?assertEqual(Form ++ " runs job, a function that came as a value, whose captures the"
                  " compiler does not see",
-                 peer_refusal("fn f(job : () -> Int) : Unit with m = {\n"
+                 peer_refusal("fn f(job : () -> Int) : Unit = {\n"
                               ++ computing(Form, "", "job"))),
     ?assertEqual(Form ++ " runs a function that uses a.show, a member of the requirement"
                  " in force, which is a function bound to its node",
-                 peer_refusal("fn f(x : a) : Unit with Never needs a.show = {\n"
+                 peer_refusal("fn f(x : a) : Unit receiving Never needs a.show = {\n"
                               ++ computing(Form, "", "fn() = { let y : a = fault(\"no\");"
                                                      " Io.show(y) }"))),
     ?assertEqual(Form ++ " starts a process whose mailbox type Msg is bound to its node,"
                  " since it holds a function",
                  peer_refusal("type Msg = Up(f : (Int) -> Int)\n"
-                              "fn loop() : Int with Msg = receive { Up(f = _) -> loop() }\n"
-                              "fn f() : Unit with m = {\n" ++ computing(Form, "", "loop"))),
+                              "fn loop() : Int receiving Msg = receive { Up(f = _) -> loop() }\n"
+                              "fn f() : Unit = {\n" ++ computing(Form, "", "loop"))),
     ?assertEqual(Form ++ " starts a process whose mailbox type a is not known whole here",
-                 peer_refusal("fn f(other : Address(a)) : Unit with m = {\n"
+                 peer_refusal("fn f(other : Address(a)) : Unit = {\n"
                               ++ computing(Form, "", "fn() = { let me : Address(a) = self();"
                                                      " 1 }"))),
     Limit = "let limit = RestartLimit(restarts = 1, within = 1000);\n    ",
-    ?assertEqual(ok, peer_ok("fn run() : Unit with Never = Unit\n"
-                             "fn f() : Unit with m = {\n"
+    ?assertEqual(ok, peer_ok("fn run() : Unit receiving Never = Unit\n"
+                             "fn f() : Unit = {\n"
                              ++ computing(Form, Limit, "restarting(limit, run)"))),
     ?assertEqual(Form ++ " is called where it is named, so that the compiler sees the"
                  " function it starts",
@@ -869,57 +887,60 @@ compute_as_value_help_test() ->
                  Help("Peer.computeAt")).
 
 %% report §3.11, Appendix E.28: Code.running names a top-level `fn` of any
-%% arity whose result type is Unit and whose
-%% mailbox type, read from its declaration, holds no type variable, and the
-%% call is List(Address(m)), m that mailbox type, so a send over the list
-%% is checked against it; a local, a lambda, a top-level `let`, a foreign
+%% arity whose result type is Unit and whose mailbox type, read from its
+%% declaration, holds no type variable where it has one, and the call is
+%% List(Address(m)), m that mailbox type, so a send over the list is
+%% checked against it, and a variable nothing fixes for a function that
+%% receives nothing; a local, a lambda, a top-level `let`, a foreign
 %% declaration and the prelude's name are refused, so are a result type
-%% other than Unit, a pure function and a mailbox type that holds a type
-%% variable, and Code.running is called where it is named. A regression
-%% test, written after the code
+%% other than Unit and a mailbox type that holds a type variable, and
+%% Code.running is called where it is named. A regression test, written
+%% after the code; a function that receives nothing was refused until
+%% 2026-10-16
 code_running_test() ->
     Loop = "type Msg = Stop\n"
-           "fn loop(n : Int, name : String) : Unit with Msg = receive { Stop -> Unit }\n",
+           "fn loop(n : Int, name : String) : Unit receiving Msg = receive { Stop -> Unit }\n",
     Listing = fun(Function) ->
-                  "fn f() : Unit with m = {\n    let _ = Code.running(" ++ Function ++ ");\n"
+                  "fn f() : Unit = {\n    let _ = Code.running(" ++ Function ++ ");\n"
                   "    Unit\n}\n"
               end,
-    ?assertEqual(ok, peer_ok(Loop ++ "fn f() : Unit with m =\n"
+    ?assertEqual(ok, peer_ok(Loop ++ "fn f() : Unit =\n"
                              "    List.forEach(Code.running(loop), fn(p) = send(p, Stop))\n")),
-    ?assertEqual(ok, peer_ok(Loop ++ "fn f() : List(Address(Msg)) with m = Code.running(loop)\n")),
+    ?assertEqual(ok, peer_ok(Loop ++ "fn f() : List(Address(Msg)) = Code.running(loop)\n")),
     ?assertMatch({error, _},
-                 peer_ok(Loop ++ "fn f() : Unit with m =\n"
+                 peer_ok(Loop ++ "fn f() : Unit =\n"
                          "    List.forEach(Code.running(loop), fn(p) = send(p, 1))\n")),
     %% a recursive declaration names itself
-    ?assertEqual(ok, peer_ok("fn again() : Unit with Int =\n"
+    ?assertEqual(ok, peer_ok("fn again() : Unit receiving Int =\n"
                              "    receive { _ -> List.forEach(Code.running(again), fn(p) ="
                              " send(p, 1)) }\n")),
     ?assertEqual("Code.running lists the processes that run a declaration, and g is a local,"
                  " whose function is no declaration",
-                 peer_refusal(Loop ++ "fn f() : Unit with m = {\n    let g = loop;\n"
+                 peer_refusal(Loop ++ "fn f() : Unit = {\n    let g = loop;\n"
                               "    let _ = Code.running(g);\n    Unit\n}\n")),
     ?assertEqual("Code.running lists the processes that run a declaration, named where the call"
                  " is written",
-                 peer_refusal(Loop ++ Listing("fn() : Unit with Msg = loop(1, \"a\")"))),
+                 peer_refusal(Loop ++ Listing("fn() : Unit receiving Msg = loop(1, \"a\")"))),
     ?assertEqual("Code.running lists the processes that run a declaration, and g is a top-level"
                  " `let`, whose value is no declaration",
                  peer_refusal("let g : (Int) -> Int = fn(n) = n\n" ++ Listing("g"))),
     ?assertEqual("Code.running lists the processes that run a declaration, and outside is a"
                  " foreign declaration, which has no hash",
-                 peer_refusal("foreign fn outside() : Unit with Int = \"m:f/0\"\n"
+                 peer_refusal("foreign fn outside() : Unit receiving Int = \"m:f/0\"\n"
                               ++ Listing("outside"))),
     ?assertEqual("Code.running lists the processes that run a declaration, and spawn is the"
                  " prelude's, which no module declares",
                  peer_refusal(Listing("spawn"))),
     ?assertEqual("Code.running lists the processes that run g, whose result type is Int, not"
                  " Unit",
-                 peer_refusal("fn g() : Int with Int = receive { n -> n }\n" ++ Listing("g"))),
-    ?assertEqual("Code.running lists the processes that run g, which is pure and names no"
-                 " mailbox type",
-                 peer_refusal("fn g() : Unit = Unit\n" ++ Listing("g"))),
+                 peer_refusal("fn g() : Int receiving Int = receive { n -> n }\n" ++ Listing("g"))),
+    ?assertEqual(ok, peer_ok("fn g() : Unit = Io.println(\"g\")\n" ++ Listing("g"))),
+    ?assertEqual(ok, peer_ok("fn g() : Unit = Unit\n"
+                             "fn f() : Unit = List.forEach(Code.running(g), kill)\n")),
     ?assertEqual("Code.running lists the processes that run g, whose mailbox type m holds a"
                  " type variable",
-                 peer_refusal("fn g() : Unit with m = Io.println(\"g\")\n" ++ Listing("g"))),
+                 peer_refusal("fn g() : Unit receiving m = receive { after 1 -> Unit }\n"
+                              ++ Listing("g"))),
     ?assertEqual("Code.running is called where it is named, so that the compiler sees the"
                  " declaration it names",
                  peer_refusal("fn f() : Unit = { let r = Code.running; Unit }\n")).
@@ -932,7 +953,7 @@ code_running_test() ->
 %% Either(Io.Error, a), a the result type; for both forms, on a peer named
 %% and on one the node picks. A regression test, written after the code;
 %% the function with a mailbox type a regression of its own: the
-%% declaration's effect variable, which occurs once, was taken for pure,
+%% declaration's effect variable, which occurs once, was taken for none,
 %% and the compute refused every function with a mailbox type
 compute_result_test() ->
     lists:foreach(fun compute_result/1,
@@ -941,22 +962,23 @@ compute_result_test() ->
 compute_result({Form, Name, Position}) ->
     ?assertEqual(Form ++ " answers a value of type (Int) -> Int, which is bound to its"
                  " node, since it holds a function",
-                 peer_refusal("fn f() : Unit with m = {\n"
+                 peer_refusal("fn f() : Unit = {\n"
                               ++ computing(Form, "", "fn() = fn(n : Int) = n + 1"))),
     ?assertEqual(Form ++ " answers a value of type Address(Tcp.SocketMsg), which is bound"
                  " to its node, since it holds the address of a socket",
                  peer_refusal("fn socket() : Address(Tcp.SocketMsg) = fault(\"none\")\n"
-                              "fn f() : Unit with m = {\n"
+                              "fn f() : Unit = {\n"
                               ++ computing(Form, "", "fn() = socket()"))),
     ?assertEqual(Form ++ " answers a value of type List(a), which holds a type variable,"
                  " so whether it crosses is not known here",
-                 peer_refusal("fn f() : Unit with m = {\n" ++ computing(Form, "", "fn() = []"))),
-    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n"
-                             ++ computing(Form, "", "fn() : Int with Int = receive { n -> n }"))),
-    ?assertEqual(ok, peer_ok("fn f() : Unit with m = {\n"
+                 peer_refusal("fn f() : Unit = {\n" ++ computing(Form, "", "fn() = []"))),
+    ?assertEqual(ok, peer_ok("fn f() : Unit = {\n"
+                             ++ computing(Form, "",
+                                          "fn() : Int receiving Int = receive { n -> n }"))),
+    ?assertEqual(ok, peer_ok("fn f() : Unit = {\n"
                              ++ computing(Form, "", "fn() = { Io.println(\"here\"); 42 }"))),
-    {ok, Typed} = typed_peer("fn idle() : Int with m = receive { after 1 -> 7 }\n"
-                             "fn f() : Unit with m = {\n" ++ computing(Form, "", "idle")),
+    {ok, Typed} = typed_peer("fn idle() : Int receiving m = receive { after 1 -> 7 }\n"
+                             "fn f() : Unit = {\n" ++ computing(Form, "", "idle")),
     [{Answer, Function}] = [{Answer, lists:nth(Position, Params)}
                             || #fn_declaration{name = f, body = Body} <- Typed,
                                #e_call{callee = #e_var{name = Called, type = CalleeType},
@@ -1065,16 +1087,16 @@ reply_is_a_value_test() ->
          "fn f(q : Req) : Int = match q { Get(reply = _) as whole -> 1 | Stop -> 0 }",
          "fn f(a : Ask) : Int = a.n",
          "fn f(a : Ask) : Ask = Ask(..a, n = 2)",
-         "fn f(r : Reply(Int), c : Bool) : Bool with m = c && { answer(r, 1); true }",
-         "fn f(r : Reply(Int), t : String) : Optional(Unit) with m =\n"
+         "fn f(r : Reply(Int), c : Bool) : Bool = c && { answer(r, 1); true }",
+         "fn f(r : Reply(Int), t : String) : Optional(Unit) =\n"
          "    { let n <- String.toInt(t); answer(r, n); Some(Unit) }",
-         "fn f(r : Reply(Int)) : Unit with m = { fn go() : Unit with m = answer(r, 1); go() }",
-         "fn f(r : Reply(Int)) : Unit with m = List.forEach([1, 2], fn(x) = answer(r, x))",
+         "fn f(r : Reply(Int)) : Unit = { fn go() : Unit = answer(r, 1); go() }",
+         "fn f(r : Reply(Int)) : Unit = List.forEach([1, 2], fn(x) = answer(r, x))",
          "let none : List(Reply(Int)) = []",
          "fn f(r : Reply(Int)) : Map(Int, Reply(Int)) = Map.put(Map.empty, 1, r)",
          "fn f(rs : List(Reply(Int))) : Int = List.size(rs)",
          "fn f(r : Reply(Int)) : Foreign.Term = Foreign.term(r)",
-         "fn f(r : Reply(Int)) : Unit with m = { answer(r, 1); answer(r, 2) }",
+         "fn f(r : Reply(Int)) : Unit = { answer(r, 1); answer(r, 2) }",
          "fn f(r : Reply(Int)) : Unit = Unit"],
     [?assertEqual({Program, ok}, {Program, ok(Source ++ Program)}) || Program <- Programs],
     ?assertEqual("(a) -> #(a, a)", type_of("export fn dup(x) = #(x, x)", dup)).
@@ -1146,7 +1168,7 @@ show_needs_a_known_type_test() ->
                  refusal_and_help("fn f() : String = Io.show([])")),
     ?assertEqual("the type Optional(a) is not known whole here, and Io.debug writes a value by"
                  " its type",
-                 refusal("fn f() : Unit with m = { let _ = Io.debug(None); Unit }")),
+                 refusal("fn f() : Unit = { let _ = Io.debug(None); Unit }")),
     ?assertEqual(ok, ok("fn f() : String = { let xs : List(Int) = []; Io.show(xs) }")),
     ?assertEqual(ok, ok("fn f() : String = Io.show(fn(n : Int) = n)")),
     ?assertEqual(ok, ok("fn f(xs : List(Int)) : List(String) = List.map(xs, Io.show)")).
@@ -1175,7 +1197,7 @@ unit_implementation_test() ->
     ?assertEqual("the implementation names ern@net@http, a unit of Ernest's, whose functions"
                  " are named by their position",
                  refusal("foreign fn get(n : Int) : Int = \"ern@net@http:get/1\"")),
-    ?assertEqual(ok, ok("foreign fn time() : Int with m = \"ern_rt:now/0\"")).
+    ?assertEqual(ok, ok("foreign fn time() : Int = \"ern_rt:now/0\"")).
 
 %% report §8.4, Appendix E.12: `Foreign.term` gives its value by the type at
 %% which the name is used, which is known whole there: on a type variable,
@@ -1203,7 +1225,7 @@ foreign_from_at_a_known_type_test() ->
                          "    List.map(xs, Foreign.term)")),
     ?assertEqual(ok, ok("fn give(xs : List(Int)) : List(Foreign.Term) =\n"
                         "    List.map(xs, Foreign.term)")),
-    ?assertEqual(ok, ok("fn give(f : (Int) -> Int with e) : Foreign.Term = Foreign.term(f)")).
+    ?assertEqual(ok, ok("fn give(f : (Int) -> Int receiving e) : Foreign.Term = Foreign.term(f)")).
 
 %% report §3.8, §3.10: a `Foreign` value has the runtime's exact equality,
 %% directly or inside another value, whatever term foreign code made, a
@@ -1266,98 +1288,111 @@ map_key_equality_test() ->
 %% Effects (report §3.9, §6.1)
 %%
 
-%% report §0, §3.9, §6.1: a function that acts through its process names its
-%% mailbox in its type, and one that does not is pure
+%% report §0, §3.9, §6.1: a function that receives names its mailbox in
+%% its type, and one that does not, which may send and print, names none;
+%% a callback that receives makes its caller receive
 effects_test() ->
-    ?assertEqual("() -> Unit with e+", type_of("export fn main() = Io.println(\"x\")", main)),
-    ?assertEqual("() -> Unit with Never",
-                 type_of("export fn main() : Unit with Never = Io.println(\"x\")", main)),
-    ?assertEqual("Io.println needs a process, and main is pure",
-                 refusal("fn main() : Unit = Io.println(\"x\")")),
-    ?assertEqual("() -> Address(a) with a", type_of("export fn me() = self()", me)),
-    ?assertEqual("(Address(a), a) -> Unit with e+",
-                 type_of("export fn wrap(a, v) = send(a, v)", wrap)),
-    %% an effect used nowhere else is pure
+    ?assertEqual("() -> Unit", type_of("export fn main() = Io.println(\"x\")", main)),
+    ?assertEqual("() -> Unit receiving Never",
+                 type_of("export fn main() : Unit receiving Never = Io.println(\"x\")", main)),
+    ?assertEqual(ok, ok("fn main() : Unit = Io.println(\"x\")")),
+    ?assertEqual("() -> Address(a) receiving a", type_of("export fn me() = self()", me)),
+    ?assertEqual("(Address(a), a) -> Unit", type_of("export fn wrap(a, v) = send(a, v)", wrap)),
+    ?assertEqual("(Address(Int)) -> Unit",
+                 type_of("export fn mark(a) = { kill(spawn(fn() = Unit)); send(a, 1) }", mark)),
+    %% an effect used nowhere else is none
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn inc(xs) = List.map(xs, fn(x) = x + 1)", inc)),
-    ?assertEqual("(List(String)) -> Unit with e+",
+    ?assertEqual("(List(String)) -> Unit",
                  type_of("export fn say(xs) = List.forEach(xs, fn(x) = Io.println(x))", say)),
-    ?assertEqual(ok, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
-                        "fn gb() : Unit with B = Unit\nfn ha() : Unit with A = ga()")),
-    ?assertMatch({error, [_]}, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
-                                  "fn gb() : Unit with B = Unit\n"
+    ?assertEqual("(List(Int)) -> Unit receiving e+",
+                 type_of("export fn wait(xs) ="
+                         " List.forEach(xs, fn(x) = receive { after x -> Unit })", wait)),
+    ?assertEqual(ok, ok("type A = A\ntype B = B\n"
+                        "fn ga() : Unit receiving A = receive { A -> Unit }\n"
+                        "fn gb() : Unit receiving B = receive { B -> Unit }\n"
+                        "fn ha() : Unit receiving A = ga()")),
+    ?assertMatch({error, [_]}, ok("type A = A\ntype B = B\n"
+                                  "fn ga() : Unit receiving A = receive { A -> Unit }\n"
+                                  "fn gb() : Unit receiving B = receive { B -> Unit }\n"
                                   "fn both() = { ga(); gb() }")).
 
 %% report §6.1, §6.3, §6.8, §7.2: a missing reply is `after` in receive; a
-%% receive makes its function process-only, one with only `after` too
+%% receive with only `after` makes its function process-only
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
-              "export fn counter(n : Int) : Unit with CounterMsg = receive {\n"
+              "export fn counter(n : Int) : Unit receiving CounterMsg = receive {\n"
               "    Inc(k) -> counter(n + k)\n"
               "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}",
-    ?assertEqual("(Int) -> Unit with M.CounterMsg", type_of(Counter, counter)),
-    ?assertEqual("`receive` needs a process, and f is pure",
+    ?assertEqual("(Int) -> Unit receiving M.CounterMsg", type_of(Counter, counter)),
+    ?assertEqual("`receive` needs a mailbox, and f receives nothing",
                  refusal("fn f() : Unit = receive { after 1 -> Unit }")),
-    ?assertEqual(ok, ok("fn f() : Unit with Never = receive { after 1 -> Unit }")),
+    ?assertEqual(ok, ok("fn f() : Unit receiving Never = receive { after 1 -> Unit }")),
     %% an after-only receive, inferred, is process-only (a regression case,
     %% added after the checker conformed)
-    ?assertEqual("(Int) -> Unit with e+",
+    ?assertEqual("(Int) -> Unit receiving e+",
                  type_of("export fn sleep(ms : Int) = receive { after ms -> Unit }", sleep)),
-    ?assertEqual("sleep needs a process, and p is pure",
+    ?assertEqual("sleep needs a mailbox, and p receives nothing",
                  refusal("fn sleep(ms : Int) = receive { after ms -> Unit }\n"
                          "fn p() : Unit = sleep(1)")),
     ?assertEqual("f is declared with mailbox Never and cannot receive",
-                 refusal("fn f() : Unit with Never = receive { Unit -> Unit }")),
-    ?assertEqual("(a) -> Unit with e+",
+                 refusal("fn f() : Unit receiving Never = receive { Unit -> Unit }")),
+    ?assertEqual("(a) -> Unit receiving e+",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
 %% report §6.2, §4.6
 spawn_test() ->
-    ?assertEqual(ok, ok("fn work() : Unit with Never = Unit\n"
-                        "fn main() : Unit with Never = { let _ = spawn(fn() = work());"
+    ?assertEqual(ok, ok("fn work() : Unit = Unit\n"
+                        "fn main() : Unit = { let _ = spawn(fn() = work());"
                         " Unit }")),
-    %% a callback written pure is spawned as any pure function is (report §3.9)
-    ?assertEqual(ok, ok("fn main() : Unit with Never = {"
+    %% a callback written without `receiving` is spawned as any function
+    %% that receives nothing is (report §3.9)
+    ?assertEqual(ok, ok("fn main() : Unit = {"
                         " let _ = spawn(fn() : Unit = Unit); Unit }")),
     %% an address nothing sends to keeps its mailbox type open (report §4.6)
     ?assertEqual(ok, ok("fn work() = Unit\n"
-                        "fn main() : Unit with Never = { let a = spawn(fn() = work());"
+                        "fn main() : Unit = { let a = spawn(fn() = work());"
                         " Unit }")).
 
-%% report §4.5, §3.9, §11.5: a pure result annotation on an effect-polymorphic
-%% function makes its callback pure, and the error names the side that is
-%% pure: a process function passed where a pure one is needed; in a
+%% report §4.5, §3.9, §11.5: a result annotation without `receiving` on an
+%% effect-polymorphic function makes its callback one that receives
+%% nothing, and the error names the side that receives: a function that
+%% receives passed where one that receives nothing is needed; in a
 %% parameter's parameter the two swap, since there the callee hands the
-%% function over. A pure one passed where a process is needed is no error
-%% since the cold read's 1.1. A regression test, written after the fix; it
-%% does not cover a result's function, nor the shell's rendering of the
-%% message.
+%% function over. One that receives nothing passed where one that receives
+%% is needed is no error since the cold read's 1.1. A regression test,
+%% written after the fix; it does not cover a result's function, nor the
+%% shell's rendering of the message.
 effect_mismatch_direction_test() ->
-    ?assertEqual("the argument does not fit apply: a function that runs in a process where a"
-                 " pure one is needed",
+    ?assertEqual("the argument does not fit apply: a function that receives where one that"
+                 " receives nothing is needed",
                  refusal("fn apply(f, x) : Int = f(x)\n"
-                         "fn g(a : Address(Int)) : Int with m ="
-                         " apply(fn(y) = { send(a, y); y }, 1)")),
-    ?assertEqual("the value does not have the declared type: a function that runs in a process"
-                 " where a pure one is needed",
-                 refusal("fn g() : Int with Never = {"
-                         " let k : (Int) -> Int = fn(y) = { Io.println(\"x\"); y }; k(1) }")),
-    %% h hands k a process function, and k's parameter must be pure
-    ?assertEqual("the argument does not fit h: a function that runs in a process where a"
-                 " pure one is needed",
-                 refusal("fn h(k : ((Int) -> Int with m) -> Int) : Int with m ="
+                         "fn g() : Int receiving m ="
+                         " apply(fn(y) = receive { after 1 -> y }, 1)")),
+    ?assertEqual("the value does not have the declared type: a function that receives where one"
+                 " that receives nothing is needed",
+                 refusal("fn g() : Int receiving m = {"
+                         " let k : (Int) -> Int = fn(y) = receive { after 1 -> y }; k(1) }")),
+    %% h hands k a function that receives, and k's parameter must receive
+    %% nothing
+    ?assertEqual("the argument does not fit h: a function that receives where one that"
+                 " receives nothing is needed",
+                 refusal("fn h(k : ((Int) -> Int receiving m) -> Int) : Int receiving m ="
                          " { let _ = self(); k(fn(x) = x) }\n"
-                         "fn g() : Int with Never = h(fn(f : (Int) -> Int) : Int = f(1))")),
+                         "fn g() : Int receiving n = h(fn(f : (Int) -> Int) : Int = f(1))")),
     ?assertEqual(ok, ok("fn apply(f, x) : Int = f(x)\nfn g() : Int = apply(fn(y) = y + 1, 1)")).
 
-%% report §5.9
-guards_are_pure_test() ->
+%% report §5.9: a guard receives nothing, and may send and print
+guards_receive_nothing_test() ->
     ?assertEqual(ok, ok("fn f(n : Int) = match n { k when k > 0 -> 1 | _ -> 0 }")),
     ?assertMatch("a guard is a Bool: " ++ _,
                  refusal("fn f(n : Int) = match n { k when k -> 1 | _ -> 0 }")),
-    ?assertEqual("Io.println needs a process, and a guard is pure",
-                 refusal("fn f(n : Int) : Int with Never = match n {"
-                         " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }")).
+    ?assertEqual(ok, ok("fn f(n : Int) : Int = match n {"
+                        " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }")),
+    ?assertEqual("wait needs a mailbox, and a guard receives nothing",
+                 refusal("fn wait() : Bool receiving m = receive { after 1 -> true }\n"
+                         "fn f(n : Int) : Int receiving Never = match n {"
+                         " k when wait() -> 1 | _ -> 0 }")).
 
 %%
 %% Patterns and blocks
@@ -1456,7 +1491,7 @@ statement_is_unit_test() ->
     {error, [#diagnostic{help = Help} | _]} = check(Check ++ "fn f() = { check(-1); 1 }"),
     ?assertEqual("`let _ = ...` discards it on purpose", Help),
     ?assertEqual(ok, ok(Check ++ "fn f() = { let _ = check(-1); 1 }")),
-    ?assertEqual(ok, ok("fn f(a : Address(Int)) : Int with m = { send(a, 1); 2 }")),
+    ?assertEqual(ok, ok("fn f(a : Address(Int)) : Int = { send(a, 1); 2 }")),
     %% a statement whose type is still open is settled at Unit
     ?assertEqual(ok, ok("fn f() : Int = { fault(\"later\"); 1 }")).
 
@@ -1517,9 +1552,9 @@ bind_arrow_test() ->
 %% label printed a fresh instance, `t` as `a` and `m` as `e`
 declared_names_in_labels_test() ->
     #diagnostic{labels = CallLabels} =
-        diagnostic("fn g(x : Int, y : t) : t with m = {\n    let _ = self();\n    y\n}\n"
-                   "fn f() : Unit with Int = g(\"x\", Unit)\n"),
-    ?assertMatch([{_, "g : (Int, t) -> t with m+"}], CallLabels),
+        diagnostic("fn g(x : Int, y : t) : t receiving m = {\n    let _ = self();\n    y\n}\n"
+                   "fn f() : Unit receiving Int = g(\"x\", Unit)\n"),
+    ?assertMatch([{_, "g : (Int, t) -> t receiving m+"}], CallLabels),
     #diagnostic{labels = FillLabels} =
         diagnostic("type Ops(s) = Ops(size : (s) -> Bool)\n"
                    "fn f() : Ops(Set(Int)) = Ops(..Set)\n"),
@@ -1794,10 +1829,10 @@ block_let_annotation_variables_test() ->
 
 %% report §3.4
 with_binds_to_the_nearest_arrow_test() ->
-    ?assertEqual("(Int) -> (Int) -> Int with Never",
-                 type_of("export fn f(a : Int) : (Int) -> Int with Never = fn(b) = a + b", f)),
-    ?assertEqual("(Int) -> ((Int) -> Int) with Never",
-                 type_of("export fn f(a : Int) : ((Int) -> Int) with Never = fn(b) = a + b",
+    ?assertEqual("(Int) -> (Int) -> Int receiving Never",
+                 type_of("export fn f(a : Int) : (Int) -> Int receiving Never = fn(b) = a + b", f)),
+    ?assertEqual("(Int) -> ((Int) -> Int) receiving Never",
+                 type_of("export fn f(a : Int) : ((Int) -> Int) receiving Never = fn(b) = a + b",
                          f)).
 
 %% report §5.9: the alternatives of a clause bind the same variables at the
@@ -2014,44 +2049,49 @@ toplevel_let_test() ->
     ?assertEqual("the value does not have the declared type: expected Float, found Int",
                  refusal("let pi : Float = 3")),
     %% report §4.6, §6.8: an initializer is a body of mailbox type Never,
-    %% which may print, spawn and send, and may not receive
+    %% which may print, spawn and send, and receives no message
     ?assertEqual("Unit", type_of("export let x = Io.println(\"a\")", x)),
     ?assertEqual("Address(Int)",
                  type_of("export let s : Address(Int) =\n"
-                         "    spawn(fn() : Unit with Int = receive { n -> Unit })", s)),
+                         "    spawn(fn() : Unit receiving Int = receive { n -> Unit })", s)),
     ?assertEqual("a top-level initializer runs with mailbox Never and cannot receive",
                  refusal("let x = receive { n -> n }")),
-    %% report §3.9, §4.6: one whose initializer calls a process-only function
-    %% is not generalized, so a variable left in its type is an error, where
-    %% a pure one generalizes
+    %% report §3.9, §4.6: one whose initializer is a call is not generalized,
+    %% whatever the call does, so a variable left in its type is an error,
+    %% where a value generalizes
     ?assertEqual("the type of s is not determined (Address(a)), and a top-level `let` whose"
-                 " initializer calls a process-only function is not generalized;"
-                 " annotate it",
+                 " initializer is no value is not generalized; annotate it",
                  refusal("export let s = spawn(fn() = Unit)")),
-    ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)).
+    ?assertEqual("the type of empty is not determined (List(a)), and a top-level `let` whose"
+                 " initializer is no value is not generalized; annotate it",
+                 refusal("export let empty = List.reverse([])")),
+    ?assertEqual("List(Int)", type_of("export let some = List.reverse([1])", some)),
+    %% a constructor applied to values, a tuple and a list of them are values
+    ?assertEqual("Optional(List(a))", type_of("export let none = Some([])", none)),
+    ?assertEqual("#(List(a), Optional(b))", type_of("export let pair = #([], None)", pair)),
+    ?assertEqual("List(Optional(a))", type_of("export let nones = [None, None]", nones)).
 
-%% report §3.9, §4.6: an initializer calls a process-only function where
-%% its evaluation does, through a helper that calls what it is given, through
-%% a function a call returns, and through a function passed by name; a
-%% lambda it builds and does not call is generalized. Regression tests,
-%% written with the type system's argument (2026-10-04), which rests on
-%% them: a process generalized over its mailbox type would answer one
-%% caller with another's value
-effectful_initializer_test() ->
+%% report §3.9, §4.6: an initializer that is or holds a call is not
+%% generalized, a spawn through a helper that calls what it is given, through
+%% a function a call returns, and through a function passed by name among
+%% them; a lambda it builds and does not call is generalized. Regression
+%% tests, written with the type system's argument (2026-10-04), which rests
+%% on them: a process generalized over its mailbox type would answer one
+%% caller with another's value. Kept for the value restriction, 2026-10-16
+initializer_call_not_generalized_test() ->
     Cell = "type Cell(a) = Put(a) | Get(reply : Reply(a))\n"
-           "fn cell(v : a) : Unit with Cell(a) = receive {\n"
+           "fn cell(v : a) : Unit receiving Cell(a) = receive {\n"
            "    Put(x) -> cell(x)\n  | Get(reply = r) -> { answer(r, v); cell(v) } }\n"
            "fn apply(f) = f()\n"
            "fn make() = fn() = spawn(fn() = cell(None))\n"
            "fn start() = spawn(fn() = cell(None))\n",
     Refused = "the type of shared is not determined (Address(Cell(Optional(a)))), and a"
-              " top-level `let` whose initializer calls a process-only function is not"
-              " generalized; annotate it",
+              " top-level `let` whose initializer is no value is not generalized; annotate it",
     ?assertEqual(Refused, refusal(Cell ++ "let shared = spawn(fn() = cell(None))")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(fn() = spawn(fn() = cell(None)))")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = make()()")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
-    ?assertEqual("() -> Address(a) with a", type_of("export let me = fn() = self()", me)).
+    ?assertEqual("() -> Address(a) receiving a", type_of("export let me = fn() = self()", me)).
 
 %% report §3.5, §4.8, §11.5: a field is selected where every constructor has
 %% it, of one type; a type found later in the definition serves, one never
@@ -2094,7 +2134,8 @@ constructors_test() ->
 errors_of_a_block_test() ->
     ?assertEqual(["the argument does not fit Io.println: expected String, found Int",
                   "the argument does not fit Io.println: expected String, found Int"],
-                 refusals("fn f() : Unit with Never = { Io.println(1); Io.println(2); Unit }")),
+                 refusals("fn f() : Unit receiving Never ="
+                          " { Io.println(1); Io.println(2); Unit }")),
     ?assertEqual(["the value does not have the declared type: expected Int, found String",
                   "the value does not have the declared type: expected Int, found String"],
                  refusals("fn f() : Int = { let a : Int = \"x\"; let b : Int = \"y\"; a + b }")),
@@ -2136,7 +2177,7 @@ named_fields_named_test() ->
 named_constructor_as_function_test() ->
     ?assertEqual("Stop has named fields; write fn(reply) = Stop(reply = reply)",
                  refusal("type Stop = Stop(reply : Reply(Unit))\n"
-                         "fn f() : Unit with Stop = Os.termination(Stop)\n")),
+                         "fn f() : Unit receiving Stop = Os.termination(Stop)\n")),
     Point = "type Point = Point(x : Int, y : Int)\n"
             "fn made(make : (Int, Int) -> Point) : Point = make(1, 2)\n",
     ?assertEqual("Point has named fields; write fn(x, y) = Point(x = x, y = y)",
@@ -2285,13 +2326,15 @@ field_matched_twice_test() ->
                  refusal("type Req = Get(reply : Reply(Int)) | Stop\n"
                          "fn f(r) = match r { Get(reply = a, reply = b) -> Unit | Stop -> Unit }")).
 
-%% report §4.7, §3.9: a foreign function with an effect of its own is
-%% process-only, and pure code cannot call it
+%% report §4.7, §3.9: a foreign function whose mailbox type is a variable
+%% of its own is process-only, and a function that receives nothing cannot
+%% call it
 foreign_effect_process_only_test() ->
-    ?assertEqual("tick needs a process, and f is pure",
-                 refusal("foreign fn tick() : Unit with m = \"m:tick/0\"\nfn f() : Unit = tick()")),
-    ?assertEqual(ok, ok("foreign fn tick() : Unit with m = \"m:tick/0\"\n"
-                        "fn f() : Unit with Never = tick()")).
+    ?assertEqual("tick needs a mailbox, and f receives nothing",
+                 refusal("foreign fn tick() : Unit receiving m = \"m:tick/0\"\n"
+                         "fn f() : Unit = tick()")),
+    ?assertEqual(ok, ok("foreign fn tick() : Unit receiving m = \"m:tick/0\"\n"
+                        "fn f() : Unit receiving Never = tick()")).
 
 %% report §3.9: a lambda's annotation variables: the definition's are in
 %% scope and rigid, and a new one means every type, which only a lambda
@@ -2350,10 +2393,10 @@ abstract_types_as_types_test() ->
 %% report §3.8
 foreign_types_test() ->
     Table = "export foreign type Table(k, v)\n"
-            "foreign fn rawNew(name : String) : Table(k, v) with m = \"ets:new/1\"\n",
+            "foreign fn rawNew(name : String) : Table(k, v) = \"ets:new/1\"\n",
     ?assertEqual("(M.Table(Int, String)) -> M.Table(Int, String)",
                  type_of(Table ++ "export fn id(t : Table(Int, String)) = t", id)),
-    ?assertEqual("() -> M.Table(a, b) with e+",
+    ?assertEqual("() -> M.Table(a, b)",
                  type_of(Table ++ "export fn new() = rawNew(\"t\")", new)),
     %% no constructors: nothing to construct or match on
     ?assertEqual("unknown constructor Table", refusal(Table ++ "fn f() = Table(1)")),
@@ -2401,9 +2444,11 @@ prelude_values_test() ->
                                                        || Part <- QualifiedName])),
                       ?assertEqual(ok, ok("export let v = " ++ Name))
                   end, ern_prelude:values()),
-    %% the process primitives are process-only, the stdlib combinators are not
-    ?assertEqual("send needs a process, and f is pure",
-                 refusal("fn f(a : Address(Int)) : Unit = send(a, 1)")),
+    %% the process primitives that receive name the caller's mailbox, those
+    %% that act on another process and the stdlib combinators do not
+    ?assertEqual(ok, ok("fn f(a : Address(Int)) : Unit = send(a, 1)")),
+    ?assertEqual("self needs a mailbox, and f receives nothing",
+                 refusal("fn f() : Unit = { let _ = self(); Unit }")),
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
     %% report §9.7: the prelude binds no system reference
@@ -2488,13 +2533,13 @@ interface_test() ->
     ?assertMatch(#interface{namespace = ['Net', 'Http']}, Interface),
     ?assertEqual([['Net', 'Http', parse]], maps:keys(Interface#interface.values)),
     ?assertEqual([['Net', 'Http', 'Request']], maps:keys(Interface#interface.types)),
-    Main = "export fn main() : Unit with Never = match Net.Http.parse(\"GET /\") {\n"
+    Main = "export fn main() : Unit = match Net.Http.parse(\"GET /\") {\n"
            "    Some(Net.Http.Request(method = method, path = path)) ->"
            " Io.println(method <> \" \" <> path)\n"
            "  | None -> Io.println(\"bad request\")\n}",
     {ok, MainDeclarations} = ern_parser:parse_string(Main),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], MainDeclarations, [Interface])),
-    ?assertMatch({error, [#diagnostic{span = {1, 44, _}, message = "unknown name Net.Http.parse"}]},
+    ?assertMatch({error, [#diagnostic{span = {1, 33, _}, message = "unknown name Net.Http.parse"}]},
                  ern_typecheck:check(['Main'], MainDeclarations, [])),
     Private = "fn f() = Net.Http.private()",
     {ok, PrivateDeclarations} = ern_parser:parse_string(Private),
@@ -2543,11 +2588,11 @@ typed_ast_test() ->
 %% abstract type, whose values cross and whose constructors do not, is not
 exported_types_test() ->
     ?assertEqual("start is exported and its type names Msg, which this module keeps private",
-                 refusal("type Msg = Ping\nexport fn start() : Address(Msg) with m ="
+                 refusal("type Msg = Ping\nexport fn start() : Address(Msg) ="
                          " spawn(fn() = Unit)")),
     ?assertEqual("Holder is exported and its type names Hidden, which this module keeps private",
                  refusal("type Hidden = Hidden(Int)\nexport type Holder = Holder(Hidden)")),
-    ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() : Address(Msg) with m ="
+    ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() : Address(Msg) ="
                         " spawn(fn() = Unit)")),
     %% an abstract type is how a value crosses without its constructors, and
     %% its fields may name a private type, since they do not cross
@@ -2555,7 +2600,7 @@ exported_types_test() ->
     ?assertEqual(ok, ok("type Hidden = Hidden(Int)\nexport abstract type Box = B(Hidden)\n"
                         "export fn box(n) = B(Hidden(n))")),
     %% the effect names no value: an entry point's mailbox type may be private
-    ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() : Unit with Msg ="
+    ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() : Unit receiving Msg ="
                         " receive { Ping -> Unit }")).
 
 %% report §4.2
@@ -2606,11 +2651,11 @@ local_fn_shadowed_binding_test() ->
                        " y + x }\n")).
 
 %% report §5.4, §3.4: a local fn's annotation shapes its type before any
-%% use, so a pure local fn may be used before its declaration in a process
-%% body
+%% use, so a local fn that receives nothing may be used before its
+%% declaration in a process body
 local_fn_annotation_before_use_test() ->
     ?assertMatch({ok, _, _, _},
-                 check("fn m() : Int with Never = { let b = 5; let early = k();"
+                 check("fn m() : Int receiving Never = { let b = 5; let early = k();"
                        " fn k() : Int = b + 1; early }\n")).
 
 %% report §4.2: `Prelude.X` is the prelude's X past a module's own X, as a
@@ -2630,12 +2675,12 @@ prelude_namespace_test() ->
                          size)),
     ?assertEqual("() -> Reason",
                  type_of(Shadow ++ "export fn other() = Prelude.Fault(\"x\")", other)),
-    ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) : Unit with m ="
+    ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) : Unit ="
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
     ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Fault")),
     ?assertEqual("Prelude.Io.println is written only where the module hides Io.println",
-                 refusal("fn f() : Unit with m = Prelude.Io.println(\"x\")")),
+                 refusal("fn f() : Unit = Prelude.Io.println(\"x\")")),
     ?assertEqual("Prelude.Stack.other: Prelude takes one name the prelude declares, as"
                  " `Prelude.Some`, or a name of the prelude's or the standard library's"
                  " namespaces, as `Prelude.Io.println`",
@@ -2658,10 +2703,10 @@ prelude_only_where_hidden_test() ->
     ?assertEqual(Refused("Some"), refusal("fn f() : Optional(Int) = Prelude.Some(1)")),
     ?assertEqual(Refused("Reason"), refusal("fn f(w : Prelude.Reason) : Int = 0")),
     ?assertEqual(Refused("send"),
-                 refusal("fn f(a : Address(Int)) : Unit with m = Prelude.send(a, 1)")),
+                 refusal("fn f(a : Address(Int)) : Unit = Prelude.send(a, 1)")),
     ?assertEqual(Refused("List.size"), refusal("fn f() : Int = Prelude.List.size([1])")),
     %% a parameter hides a prelude value as a declaration does
-    ?assertEqual(ok, ok("fn f(send : Int, a : Address(Int)) : Unit with m ="
+    ?assertEqual(ok, ok("fn f(send : Int, a : Address(Int)) : Unit ="
                         " Prelude.send(a, send)")).
 
 %% report §11.5, §4.2: a type prints as the module writes it: its own and
@@ -2697,31 +2742,34 @@ variable_names_test() ->
     ?assertEqual("(a=, a=) -> Bool",
                  type_of("export fn eq(x : a, y : a) : Bool = x == y", eq)),
     ?assertEqual("() -> Map(a=, b)", type_of("export fn empty() = Map.empty", empty)),
-    ?assertEqual("(b, (b) -> a with e) -> a with e",
+    ?assertEqual("(b, (b) -> a receiving e) -> a receiving e",
                  type_of("export fn ap(x : b, f) = f(x)", ap)),
-    ?assertEqual("((a) -> a with e, a) -> a with e",
-                 type_of("export fn twice(f : (a) -> a with e, x : a) : a with e = f(f(x))",
-                         twice)).
+    ?assertEqual("((a) -> a receiving e, a) -> a receiving e",
+                 type_of("export fn twice(f : (a) -> a receiving e, x : a) : a receiving e ="
+                         " f(f(x))", twice)).
 
 %% report §4.5, §3.9: a `fn` whose result annotation writes an effect
-%% variable that names no parameter's effect, and whose body acts through
-%% no process, is refused, the pure signature being the one spelling; a
-%% variable a parameter's effect names, or one the body makes process-only,
-%% stands; a restriction the body breaks is named first. A regression test
-%% of the full review's P12 (2026-10-04); the restriction's case is a
-%% regression test written after the code, 2026-10-16, the reply's it
-%% replaced having gone with §6.6's obligation
+%% variable that names no parameter's mailbox type, and whose body
+%% receives nothing, is refused, the signature without `receiving` being the
+%% one spelling, a body that sends among them; a variable a parameter's
+%% mailbox type names, or one the body makes process-only, stands; a
+%% restriction the body breaks is named first. A regression test of the
+%% full review's P12 (2026-10-04); the restriction's case is a regression
+%% test written after the code, 2026-10-16, the reply's it replaced having
+%% gone with §6.6's obligation
 needless_effect_test() ->
-    ?assertEqual({"k acts through no process, and `with m` names no parameter's effect",
-                  "write k's type without `with`: it is pure"},
-                 refusal_and_help("fn k() : Int with m = 5")),
-    ?assertEqual(ok, ok("fn apply(f : () -> Unit with m) : Unit with m = f()\n"
-                        "fn tell(a : Address(Int)) : Unit with m = send(a, 1)\n"
+    ?assertEqual({"k receives nothing, and `receiving m` names no parameter's mailbox type",
+                  "write k's type without `receiving`"},
+                 refusal_and_help("fn k() : Int receiving m = 5")),
+    ?assertEqual("tell receives nothing, and `receiving m` names no parameter's mailbox type",
+                 refusal("fn tell(a : Address(Int)) : Unit receiving m = send(a, 1)\n")),
+    ?assertEqual(ok, ok("fn apply(f : () -> Unit receiving m) : Unit receiving m = f()\n"
+                        "fn pause(ms : Int) : Unit receiving m = receive { after ms -> Unit }\n"
                         "fn k() : Int = 5\n")),
     ?assertEqual("(Int) -> Int does not support equality (it contains a function, an address"
                  " or a reply), which equal requires of its first argument",
                  refusal("fn equal(a, b) = a == b\n"
-                         "fn k(f : (Int) -> Int) : Bool with m = equal(f, f)")).
+                         "fn k(f : (Int) -> Int) : Bool receiving m = equal(f, f)")).
 
 %% report §4.8: an operator is resolved in its definition, and a local fn
 %% and a lambda a block `let` binds are definitions of their own, since
@@ -2755,17 +2803,17 @@ pipe_type_test() ->
     ?assertMatch("the argument does not fit String.size: expected String, found Int",
                  refusal("fn n() = 1 |> String.size")).
 
-%% report §6.8: a `with Never` root is called only where the mailbox is
-%% Never; a polymorphic helper is called from either
+%% report §6.8: a `receiving Never` root is called only where the mailbox
+%% is Never; a helper that receives nothing is called from either
 never_root_test() ->
-    Root = "fn root() : Unit with Never = Io.println(\"x\")\n",
+    Root = "fn root() : Unit receiving Never = Io.println(\"x\")\n",
     ?assertEqual("root needs mailbox Never, and the mailbox here is Msg",
-                 refusal("type Msg = Go\n" ++ Root ++ "fn p() : Unit with Msg = root()")),
-    ?assertEqual(ok, ok(Root ++ "fn q() : Unit with Never = root()")),
-    ?assertEqual("() -> Unit with Never", type_of(Root ++ "export fn r() = root()", r)),
-    ?assertEqual(ok, ok("type Msg = Go\nfn helper() : Unit with m = Io.println(\"x\")\n"
-                        "fn p() : Unit with Msg = helper()\n"
-                        "fn q() : Unit with Never = helper()")).
+                 refusal("type Msg = Go\n" ++ Root ++ "fn p() : Unit receiving Msg = root()")),
+    ?assertEqual(ok, ok(Root ++ "fn q() : Unit receiving Never = root()")),
+    ?assertEqual("() -> Unit receiving Never", type_of(Root ++ "export fn r() = root()", r)),
+    ?assertEqual(ok, ok("type Msg = Go\nfn helper() : Unit = Io.println(\"x\")\n"
+                        "fn p() : Unit receiving Msg = helper()\n"
+                        "fn q() : Unit receiving Never = helper()")).
 
 %%
 %% Error placement (report §11.5)
@@ -2853,31 +2901,39 @@ differing_part_test() ->
     ?assertEqual("the types differ at Int and String", Diagnostic#diagnostic.help),
     ?assertEqual(undefined, (diagnostic("fn f() = 1 + \"x\"\n"))#diagnostic.help).
 
-%% report §11.5, §3.4: an effect error names the callee and what is pure,
-%% labels the annotation that made it pure, and says what to do
+%% report §11.5, §3.4: an effect error names the `receive`, the `self` or
+%% the callee that receives, and the function or the guard whose type names
+%% no mailbox, labels the annotation that made it so, and says what to do
 effect_placement_test() ->
-    Pure = diagnostic("fn main() : Unit = Io.println(\"x\")\n"),
-    ?assertEqual("Io.println needs a process, and main is pure", Pure#diagnostic.message),
-    ?assertEqual({1, 20, {1, 35}}, Pure#diagnostic.span),
-    ?assertEqual([{{1, 13, {1, 17}}, "`: Unit` with no `with` declares main pure"}],
-                 Pure#diagnostic.labels),
-    ?assertEqual("give main a mailbox type with `with`", Pure#diagnostic.help),
-    Guard = diagnostic("fn f(n : Int) : Int with Never = match n {"
-                       " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }\n"),
-    ?assertEqual([{{1, 51, {1, 74}}, "a guard is pure (§5.9)"}], Guard#diagnostic.labels),
+    Self = diagnostic("fn main() : Unit = { let _ = self(); Unit }\n"),
+    ?assertEqual("self needs a mailbox, and main receives nothing", Self#diagnostic.message),
+    ?assertEqual({1, 30, {1, 36}}, Self#diagnostic.span),
+    ?assertEqual([{{1, 13, {1, 17}},
+                   "`: Unit` without `receiving` declares that main receives nothing"}],
+                 Self#diagnostic.labels),
+    ?assertEqual("give main its mailbox type with `receiving`", Self#diagnostic.help),
+    Guard = diagnostic("fn wait() : Bool receiving m = receive { after 1 -> true }\n"
+                       "fn f(n : Int) : Int receiving Never = match n {"
+                       " k when wait() -> 1 | _ -> 0 }\n"),
+    ?assertEqual("wait needs a mailbox, and a guard receives nothing", Guard#diagnostic.message),
+    ?assertEqual([{{2, 56, {2, 62}}, "a guard receives nothing (§5.9)"}],
+                 Guard#diagnostic.labels),
     ?assertEqual("compute the value before the match", Guard#diagnostic.help),
     Receive = diagnostic("fn f() : Unit = receive { after 1 -> Unit }\n"),
-    ?assertEqual("`receive` needs a process, and f is pure", Receive#diagnostic.message),
-    ?assertEqual("give f a mailbox type with `with`", Receive#diagnostic.help),
-    Declared = diagnostic("type Msg = Go\nfn root() : Unit with Never = Io.println(\"x\")\n"
-                          "fn p() : Unit with Msg = root()\n"),
-    ?assertEqual([{{3, 20, {3, 23}}, "p is declared `with Msg` here"}], Declared#diagnostic.labels),
+    ?assertEqual("`receive` needs a mailbox, and f receives nothing", Receive#diagnostic.message),
+    ?assertEqual("give f its mailbox type with `receiving`", Receive#diagnostic.help),
+    Declared = diagnostic("type Msg = Go\n"
+                          "fn root() : Unit receiving Never = receive { after 1 -> Unit }\n"
+                          "fn p() : Unit receiving Msg = root()\n"),
+    ?assertEqual([{{3, 25, {3, 28}}, "p is declared `receiving Msg` here"}],
+                 Declared#diagnostic.labels),
     ?assertEqual(undefined, Declared#diagnostic.help),
     %% a lambda's own annotation is the origin inside it
-    Lambda = diagnostic("fn f() : Unit with Never ="
-                        " { let g = fn() : Unit = Io.println(\"x\"); g() }\n"),
-    ?assertEqual("Io.println needs a process, and the lambda is pure", Lambda#diagnostic.message),
-    ?assertEqual("give the lambda a mailbox type with `with`", Lambda#diagnostic.help).
+    Lambda = diagnostic("fn f() : Unit receiving Never ="
+                        " { let g = fn() : Unit = receive { after 1 -> Unit }; g() }\n"),
+    ?assertEqual("`receive` needs a mailbox, and the lambda receives nothing",
+                 Lambda#diagnostic.message),
+    ?assertEqual("give the lambda its mailbox type with `receiving`", Lambda#diagnostic.help).
 
 %% report §11.5, §3.4: a regression test. After a local fn or an annotated
 %% lambda, an effect error in the enclosing function names that function
@@ -2886,21 +2942,22 @@ effect_placement_test() ->
 %% expression, which effect_placement_test and the bitstring tests reach.
 effect_origin_is_restored_after_a_nested_definition_test() ->
     AfterFn = diagnostic("fn f() : Unit = { fn g() : Int = 1; receive { after 1 -> Unit } }\n"),
-    ?assertEqual("`receive` needs a process, and f is pure", AfterFn#diagnostic.message),
-    ?assertEqual([{{1, 10, {1, 14}}, "`: Unit` with no `with` declares f pure"}],
+    ?assertEqual("`receive` needs a mailbox, and f receives nothing", AfterFn#diagnostic.message),
+    ?assertEqual([{{1, 10, {1, 14}},
+                   "`: Unit` without `receiving` declares that f receives nothing"}],
                  AfterFn#diagnostic.labels),
     AfterLambda = diagnostic("fn f() : Unit ="
-                             " { let g = fn(x : Int) : Int = x; Io.println(\"x\") }\n"),
-    ?assertEqual("Io.println needs a process, and f is pure", AfterLambda#diagnostic.message),
-    ?assertEqual("give f a mailbox type with `with`", AfterLambda#diagnostic.help).
+                             " { let g = fn(x : Int) : Int = x; let _ = self(); Unit }\n"),
+    ?assertEqual("self needs a mailbox, and f receives nothing", AfterLambda#diagnostic.message),
+    ?assertEqual("give f its mailbox type with `receiving`", AfterLambda#diagnostic.help).
 
 %% report §11.5: an unannotated lambda's mailbox is its own, so an effect
 %% error inside it labels no annotation, not the enclosing definition's.
 %% A regression test: the label named `main is declared with Never`, or
 %% `run` pure, where neither annotation had fixed the lambda's mailbox.
 effect_origin_of_an_unannotated_lambda_test() ->
-    Helpers = "fn g() : Unit with String = Unit\nfn h() : Unit with Int = Unit\n",
-    InNever = diagnostic(Helpers ++ "fn main() : Unit with Never ="
+    Helpers = "fn g() : Unit receiving String = Unit\nfn h() : Unit receiving Int = Unit\n",
+    InNever = diagnostic(Helpers ++ "fn main() : Unit ="
                          " { let k = fn() = { g(); h() }; Unit }\n"),
     ?assertEqual("h needs mailbox Int, and the mailbox here is String", InNever#diagnostic.message),
     ?assertEqual([], InNever#diagnostic.labels),
@@ -2908,16 +2965,18 @@ effect_origin_of_an_unannotated_lambda_test() ->
     ?assertEqual([], InPure#diagnostic.labels).
 
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
-%% once its operand type is known, calls its member, which is pure, in a
-%% process body and a pure one alike, for a top-level and a local fn. It
-%% was written against a member with a mailbox effect, which §4.8 now
-%% refuses at its declaration (operator_member_shape_test). Not covered:
-%% `negate`, which takes the same path.
-deferred_operator_calls_a_pure_member_test() ->
+%% once its operand type is known, calls its member, which receives
+%% nothing, in a process body and in one that receives nothing alike, for a
+%% top-level and a local fn. It was written against a member with a
+%% mailbox effect, which §4.8 now refuses at its declaration
+%% (operator_member_shape_test). Not covered: `negate`, which takes the
+%% same path.
+deferred_operator_calls_its_member_test() ->
     Source = "type V = V(Int)\nfn V.+(V(a), V(b)) : V = V(a + b)\n",
     ?assertEqual(ok,
-                 ok(Source ++ "fn f(x, y) : V with Never = { let z = x + y; let V(_) = x; z }\n")),
-    ?assertEqual(ok, ok(Source ++ "fn f() : V with Never = {\n"
+                 ok(Source ++ "fn f(x, y) : V receiving Never ="
+                    " { let z = x + y; let V(_) = x; z }\n")),
+    ?assertEqual(ok, ok(Source ++ "fn f() : V receiving Never = {\n"
                         "    fn g(x, y) = { let z = x + y; let V(_) = x; z };\n"
                         "    g(V(1), V(2))\n"
                         "}\n")),
@@ -2940,7 +2999,7 @@ comparison_reported_where_it_stands_test() ->
 address_key_at_first_operation_test() ->
     {error, [#diagnostic{span = Span} | _]} =
         check("type Msg = Go\n"
-              "fn main() : Unit with Msg = {\n"
+              "fn main() : Unit receiving Msg = {\n"
               "    let m = Map.put(Map.empty, self(), 1);\n"
               "    Io.println(Int.toString(Map.size(m)))\n"
               "}\n"),
@@ -3036,7 +3095,7 @@ bitstring_specifier_kinds_test() ->
                  ern_bitspec:spec([])).
 
 %% report §5.11: a pattern binds each segment at its type; a size sees the
-%% earlier segments and is pure; a segment pattern is a variable, `_`, or
+%% earlier segments and receives nothing; a segment pattern is a variable, `_`, or
 %% a literal; a sizeless rest is last; a match needs a final wildcard
 bitstring_pattern_test() ->
     ?assertEqual("(Bytes) -> Optional(#(Int, Bytes, Bytes))",
@@ -3048,9 +3107,9 @@ bitstring_pattern_test() ->
                          " Some(#(c, x)) | _ -> None }", f)),
     ?assertEqual("the size of a segment: expected Int, found Bytes",
                  refusal("fn f(b : Bytes) = match b { <<n:bytes, x:size(n)>> -> x | _ -> 0 }")),
-    ?assertEqual("Io.println needs a process, and a size expression is pure",
-                 refusal("fn f(b : Bytes) : Int with Never = match b {"
-                         " <<x:size({ Io.println(\"a\"); 8 })>> -> x | _ -> 0 }")),
+    ?assertEqual("`receive` needs a mailbox, and a size expression receives nothing",
+                 refusal("fn f(b : Bytes) : Int receiving Never = match b {"
+                         " <<x:size(receive { after 1 -> 8 })>> -> x | _ -> 0 }")),
     ?assertEqual("a segment pattern is a variable, `_`, or a literal",
                  refusal("fn f(b : Bytes) = match b { <<Some(x)>> -> x | _ -> 0 }")),
     ?assertEqual("a `bytes` segment without a size takes the rest, so it is the last segment",
@@ -3067,14 +3126,14 @@ bitstring_pattern_test() ->
 receive_guard_test() ->
     Source = "type Msg = N(Int) | Stop\n",
     ?assertEqual(ok, ok(Source ++ "fn big(k : Int) : Bool = k > 100\n"
-                        "fn loop(limit : Int, go : Bool) : Unit with Msg = receive {"
+                        "fn loop(limit : Int, go : Bool) : Unit receiving Msg = receive {"
                         " N(k) when (k > limit || k == -1) && go && k != 7 -> loop(limit, go)"
                         " | Stop -> Unit | N(_) -> Unit }")),
     ?assertEqual(ok, ok(Source ++ "fn big(k : Int) : Bool = k > 100\n"
                         "fn f(m : Msg) : Unit ="
                         " match m { N(k) when big(k) -> Unit | _ -> Unit }")),
     Diagnostic = diagnostic(Source ++ "fn big(k : Int) : Bool = k > 100\n"
-                            "fn loop() : Unit with Msg ="
+                            "fn loop() : Unit receiving Msg ="
                             " receive { N(k) when big(k) -> Unit | _ -> Unit }"),
     ?assertEqual("a `receive` guard combines `true`, `false`, Bool variables, and comparisons"
                  " with `!`, `&&`, and `||`, and calls nothing", Diagnostic#diagnostic.message),
@@ -3086,7 +3145,7 @@ receive_guard_test() ->
 %% variables and literals
 receive_guard_forms_test() ->
     Head = "type Msg = N(Int) | F(Float) | O(Ordering)\n"
-           "fn loop(flag : Bool) : Unit with Msg = receive { ",
+           "fn loop(flag : Bool) : Unit receiving Msg = receive { ",
     Tail = " -> Unit | _ -> Unit }",
     Accepted = ["N(_) when true", "N(_) when false", "N(_) when flag", "N(_) when !flag",
                 "N(k) when !(k > 1)", "N(k) when !(!(k == 1)) && !flag || !false",
@@ -3100,7 +3159,7 @@ receive_guard_forms_test() ->
 %% a regression test: such a binding was refused
 receive_guard_refused_test() ->
     Head = "type Msg = N(Int)\nlet limit = 5\nlet ready = true\n"
-           "fn loop(flag : Bool, go : Bool, m : Int) : Unit with Msg = receive { ",
+           "fn loop(flag : Bool, go : Bool, m : Int) : Unit receiving Msg = receive { ",
     Tail = " -> Unit | _ -> Unit }",
     Operand = "a comparison in a `receive` guard compares variables, literals, and nullary"
               " constructors",
@@ -3122,7 +3181,7 @@ receive_guard_ordering_test() ->
                  refusal("export type Vec = Vec(Int)\n"
                          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n"
                          "type M = Go(Vec)\n"
-                         "fn loop() : Unit with M = receive { Go(v) when v < Vec(0) -> Unit"
+                         "fn loop() : Unit receiving M = receive { Go(v) when v < Vec(0) -> Unit"
                          " | _ -> Unit }")).
 
 %% report §5.11: a size in a pattern is a variable, a literal, or +, -, *
@@ -3227,7 +3286,7 @@ requirement_variable_test() ->
     %% an effect variable's own message: a regression test
     ?assertEqual({"e is an effect variable, and a requirement names a type variable in a value"
                   " position", undefined},
-                 refusal_and_help("fn f(x : a) : a with e needs e.compare = x")),
+                 refusal_and_help("fn f(x : a) : a receiving e needs e.compare = x")),
     ?assertEqual(ok, ok("fn f() : List(a) needs a.compare = []")).
 
 %% report §4.9, §11.5: a requirement names a variable's member once, the
@@ -3519,11 +3578,11 @@ recursive_group_at_parameters_test() ->
 %% since watching needs no permission to send. Written after the code
 monitor_takes_a_process_test() ->
     Source = "type M = Died(Down)\n",
-    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Int)) : Unit with M ="
+    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Int)) : Unit receiving M ="
                         " monitor(Process.fromAddress(a), Died)")),
-    ?assertEqual(ok, ok(Source ++ "fn f(p : Process) : Unit with M = monitor(p, Died)")),
+    ?assertEqual(ok, ok(Source ++ "fn f(p : Process) : Unit receiving M = monitor(p, Died)")),
     ?assertEqual("the argument does not fit monitor: expected Process, found Address(Int)",
-                 refusal(Source ++ "fn f(a : Address(Int)) : Unit with M = monitor(a, Died)")).
+                 refusal(Source ++ "fn f(a : Address(Int)) : Unit receiving M = monitor(a, Died)")).
 
 %% report Appendix E.24, §11.2: a test's run has the mailbox type of the
 %% test's process, so one that receives infers Test.Case of its message
@@ -3533,7 +3592,7 @@ test_case_mailbox_test() ->
     ?assertEqual(ok, ok("type Go = Go\n"
                         "let waits = Test.Case(name = \"waits\", run = fn() = {\n"
                         "    let me = self();\n"
-                        "    let _ = spawn(fn() : Unit with Never = send(me, Go));\n"
+                        "    let _ = spawn(fn() : Unit receiving Never = send(me, Go));\n"
                         "    receive { Go -> Test.Passed }\n"
                         "})\n"
                         "fn f(t : Test.Case(Go)) : String = t.name\n"

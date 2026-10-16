@@ -372,8 +372,8 @@ type_text({tfn, Params, Effect, Result}, Namespace, Names) ->
     ParamsText = [type_text(Param, Namespace, Names) || Param <- Params],
     Arrow = "(" ++ lists:join(", ", ParamsText) ++ ") -> " ++ type_text(Result, Namespace, Names),
     case Effect of
-        pure -> Arrow;
-        _ -> Arrow ++ " with " ++ type_text(Effect, Namespace, Names)
+        none -> Arrow;
+        _ -> Arrow ++ " receiving " ++ type_text(Effect, Namespace, Names)
     end.
 
 %% report §3.1, §9.1, §9.2: the built-in types and their arities

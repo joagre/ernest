@@ -75,17 +75,14 @@
 
 -export_type([address/0]).
 
-%% Report §8.6: the functions here behind a standard library primitive
-%% with a mailbox type of its own that wait on no process, each read so:
-%% a table, the process dictionary, a persistent term or the host's clock,
-%% a send that waits for nothing, and the host's answer of how another
-%% process stands, which it gives though that process waits. The emitter
-%% counts no call of them as foreign code, since the count would cost a
-%% multiple of the call (CLAUDE.md's cost rule).
--waits_on_nothing([arguments/0, system_process/1, now/0, monotonic/0, monotonic_micros/0,
-                   processes/0,
-                   spawn_order/1, start_cause/0, faults/1, status/1, ask_restart/1,
-                   is_restarting/0, on_this_node/1, termination/1]).
+%% Report §8.6: the function here behind a standard library primitive
+%% that may wait on a process, which the emitter counts as foreign code
+%% while it runs: Os.exit waits for the program's end. Every other one
+%% waits on no process, a table, the process dictionary, a persistent term
+%% or the host's clock read, a send that waits for nothing, or the host's
+%% answer of how another process stands, and is not counted, since the
+%% count would cost a multiple of the call (CLAUDE.md's cost rule).
+-waits([exit_program/1]).
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
@@ -93,8 +90,9 @@
 -define(PROCESSES, ern_processes).
 %% report §6.6, §6.9: each pending call, {Caller, Callee, Reply}, so that a
 %% callee that restarts ends the calls waiting on it; a process makes one
-%% call at a time, since a message's function and an adapted address's are
-%% pure, so its row is found and removed by its own pid
+%% call at a time, since a call that a request or an adapted address's
+%% function makes ends before the call it is made for is noted (call/4), so
+%% its row is found and removed by its own pid
 -define(CALLS, ern_calls).
 %% the same calls by callee, {{Callee, Caller}, Reply}, ordered, so that a
 %% restart reads its own callers and no other process's calls
@@ -210,29 +208,44 @@ send(Address, Message) ->
 %% by an earlier start of this node is dead, and a message to it is
 %% dropped, its function not applied, whether it came from a peer's frame
 %% or a send here.
-deliver({adapted, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
+deliver(Address, Message) ->
+    sent(adapted_way(Address, Message)).
+
+%% The way a message goes, an adapted address's functions of this node
+%% applied first, in the sender, so that a call that one of them makes ends
+%% before the call it is applied for begins (call/4): the address and the
+%% message that reach it, a fault for the target, or nothing where the
+%% address is of an earlier start.
+adapted_way({adapted, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
     case is_of_this_start(Maker) of
         true ->
             try Function(Message) of
-                Adapted -> deliver(Target, Adapted)
+                Adapted -> adapted_way(Target, Adapted)
             catch
                 Class:Error:Stack ->
                     {'Fault', Cause} = reason(fault_exit_reason(Class, Error, Stack)),
-                    process_of(Target) ! {'$ern_fault', Cause}
+                    {fault, process_of(Target), Cause}
             end;
         false ->
-            ok
+            dropped
     end;
+adapted_way(Address, Message) ->
+    {Address, Message}.
+
+sent(dropped) ->
+    ok;
+sent({fault, Pid, Cause}) ->
+    Pid ! {'$ern_fault', Cause};
 %% report §6.5, §8.7: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, which applies the
 %% function there
-deliver({adapted, _, _, Maker} = Address, Message) ->
+sent({{adapted, _, _, Maker} = Address, Message}) ->
     erlang:send({ern_gateway, node(Maker)},
                 {ern_frame, erlang:self(), {adapted, Address, Message}});
 %% report §8.4: a message to a foreign address crosses into foreign code
-deliver({foreign, Pid, Descriptor, Bound}, Message) ->
+sent({{foreign, Pid, Descriptor, Bound}, Message}) ->
     Pid ! ern_boundary:expose(Descriptor, Message, Bound);
-deliver(Pid, Message) ->
+sent({Pid, Message}) ->
     Pid ! Message.
 
 %% Report §8.7: whether a process of this node's name is of this start: a
@@ -361,12 +374,16 @@ call(Address, Request, Ms, Check) ->
     %% made and delivered
     Deadline = deadline(Ms),
     line_guard(Address),
-    Reply = pending(Address),
+    {Callee, Reply} = watched(Address),
     %% settled however the call ends, a fault of the message's function or
     %% of the callee among the ways, which a process restarted in place
-    %% outlives (§6.9)
+    %% outlives (§6.9); report §6.6, §6.5: the request is made, and the
+    %% adapted address's functions applied, before the call is noted, so
+    %% that a call either makes, printing among them, ends first
     Answer = try
-                 deliver(Address, Request(Reply)),
+                 Way = adapted_way(Address, Request(Reply)),
+                 pending(Callee, Reply),
+                 sent(Way),
                  timed(),
                  try waited_answer(Reply, Deadline, Check) after untimed() end
              after
@@ -411,10 +428,13 @@ call_forever(Address, Request) ->
 -spec call_forever(address(), fun((reply()) -> term()), check()) -> term().
 call_forever(Address, Request, Check) ->
     line_guard(Address),
-    Reply = pending(Address),
-    %% settled however the call ends, as call/4's is
+    {Callee, Reply} = watched(Address),
+    %% settled however the call ends, and noted once its request is made,
+    %% as call/4's is
     Answer = try
-                 deliver(Address, Request(Reply)),
+                 Way = adapted_way(Address, Request(Reply)),
+                 pending(Callee, Reply),
+                 sent(Way),
                  receive
                      {Reply, answered, Value} -> {answered, Value};
                      {Reply, unnoted, Value} -> closed(erlang:self()), {answered, Value};
@@ -476,19 +496,20 @@ end_with_program() ->
     receive after infinity -> ok end.
 
 %% A call's monitor of the process behind the address, whose alias is the
-%% reply's, and the call noted against that process, so that its restart
-%% ends the call; report §8.7: for a process of another node, noted on that
-%% node too, by a note to its gateway, sent before the request so that it
-%% arrives first.
-pending(Address) ->
+%% reply's (watched/1); and, once the request is made, the call noted
+%% against that process, so that its restart ends the call; report §8.7:
+%% for a process of another node, noted on that node too, by a note to its
+%% gateway, sent before the request so that it arrives first (pending/2).
+watched(Address) ->
     Callee = process_of(Address),
-    Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
+    {Callee, erlang:monitor(process, Callee, [{alias, demonitor}])}.
+
+pending(Callee, Reply) ->
     ets:insert(?CALLS, {erlang:self(), Callee, Reply}),
     ets:insert(?CALLEES, {{Callee, erlang:self()}, Reply}),
     node(Callee) =:= node()
         orelse erlang:send({ern_gateway, node(Callee)},
-                           {ern_frame, erlang:self(), {call_waits, Callee, Reply}}),
-    Reply.
+                           {ern_frame, erlang:self(), {call_waits, Callee, Reply}}).
 
 %% The call is over: its rows go, its monitor and with it the alias go, and
 %% every answer that came before them, after a restart's word, say, is not
@@ -2380,10 +2401,12 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% peer failed no process will answer (not_started/1), and the end goes on
 %% without the subscriber, which lives, saying so (§8.6).
 tell(Runner, Launch, Subscriber, Address) ->
-    Reply = pending(Address),
+    {Callee, Reply} = watched(Address),
     Ended = make_ref(),
     monitor(Subscriber, fun(_Down) -> Ended end),
-    deliver(Address, Reply),
+    Way = adapted_way(Address, Reply),
+    pending(Callee, Reply),
+    sent(Way),
     How = receive
               {Reply, answered, _} -> <<"answered">>;
               {Reply, _} -> <<"answered">>;

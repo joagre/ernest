@@ -3,13 +3,13 @@
 /// the experiment's clients are processes, the same in every version.
 export type Msg = Say(String) | Hear(reply : Reply(Optional(String)))
 
-export fn start(port : Int) : Address(Msg) with n =
+export fn start(port : Int) : Address(Msg) =
     spawn(fn() = match Tcp.connect("127.0.0.1", port, 1000) {
         Right(socket) -> talking(socket)
       | Left(_) -> fault("cannot connect")
     })
 
-fn talking(socket : Address(Tcp.SocketMsg)) : Unit with Msg =
+fn talking(socket : Address(Tcp.SocketMsg)) : Unit receiving Msg =
     receive {
         Say(text) -> {
             let _ = Tcp.write(socket, String.toUtf8(text), 1000);
@@ -24,8 +24,8 @@ fn talking(socket : Address(Tcp.SocketMsg)) : Unit with Msg =
         }
     }
 
-export fn say(client : Address(Msg), text : String) : Unit with n =
+export fn say(client : Address(Msg), text : String) : Unit =
     send(client, Say(text))
 
-export fn hear(client : Address(Msg)) : Optional(String) with n =
+export fn hear(client : Address(Msg)) : Optional(String) =
     Address.callForever(client, fn(reply) = Hear(reply = reply))

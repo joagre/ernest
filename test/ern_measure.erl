@@ -63,7 +63,7 @@ main([File]) ->
     halt(0).
 
 %% Every exported function, each as the interface of its module states it:
-%% #{module, name, display, scheme, kind}, kind being `pure`, `process`
+%% #{module, name, display, scheme, kind}, kind being `none`, `process`
 %% for a function whose effect is process-only or a mailbox type, and
 %% `value` for a top-level binding, which is no function and is left out.
 -spec entries() -> [map()].
@@ -89,11 +89,11 @@ kind(_, _, _) ->
 
 %% Report §3.9: an effect variable that is process-only, and a mailbox
 %% type, need a process; an effect variable a callback brings does not.
-effect_kind(pure, _) -> pure;
+effect_kind(none, _) -> none;
 effect_kind({tvar, Id}, Quantified) ->
     case lists:member(process_only, proplists:get_value(Id, Quantified, [])) of
         true -> process;
-        false -> pure
+        false -> none
     end;
 effect_kind(_, _) -> process.
 
@@ -167,7 +167,7 @@ row(#{display := Display} = Entry, Sizes, Mode, Types, Scenarios, Counter) ->
     case {maps:get(kind, Entry), lists:keyfind(Name, 1, Scenarios)} of
         {_, {Name, Scenario}} -> Entry#{outcome => scenario(Scenario, Mode, Counter)};
         {process, false} -> Entry#{outcome => not_listed};
-        {pure, false} -> Entry#{outcome => pure_row(Entry, Sizes, Mode, Types, Counter)}
+        {none, false} -> Entry#{outcome => pure_row(Entry, Sizes, Mode, Types, Counter)}
     end.
 
 %% A pure function at each size: its time, the host's where hosts/0 names

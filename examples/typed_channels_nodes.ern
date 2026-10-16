@@ -24,7 +24,7 @@ type CounterMsg = Add(Int) | Get(reply : Reply(Int))
 let service : Peer.Service(CounterMsg) = Peer.service("counter")
 
 // Node a's entry point: the counter found on b, and called across the nodes.
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Peer.find(service, 5000) {
         Right(counter) -> {
             send(counter, Add(2));
@@ -37,7 +37,7 @@ export fn main() : Unit with Never =
 
 // Node b's entry point, run with --main: its own process, offered as the service, is the
 // counter.
-export fn serve() : Unit with CounterMsg = {
+export fn serve() : Unit receiving CounterMsg = {
     match Peer.offer(service, self()) {
         Right(Unit) -> Io.println("offered")
       | Left(holder) -> Io.println("the service is held by " <> Io.show(holder))
@@ -45,7 +45,7 @@ export fn serve() : Unit with CounterMsg = {
     count(0)
 }
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount) -> count(total + amount)
       | Get(reply = reply) -> {

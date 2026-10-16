@@ -3,19 +3,20 @@
 /// message, and takes one message of its own, `Upgrade`, which hands the
 /// state to new code. Written for the counter experiment, on one node, with
 /// no envelope tag yet, since no protocol changes here.
-export type Envelope(m, s) = Message(m) | Upgrade(next : (s) -> Unit with Envelope(m, s))
+export type Envelope(m, s) = Message(m) | Upgrade(next : (s) -> Unit receiving Envelope(m, s))
 
 /// What a service binding holds: the loop's own address, which takes an
 /// `Upgrade`, and the clients' address, which takes the protocol alone.
 export type Handle(m, s) = Handle(loop : Address(Envelope(m, s)), clients : Address(m))
 
-export fn start(init : () -> s with Envelope(m, s),
-                step : (s, m) -> s with Envelope(m, s)) : Handle(m, s) with n = {
+export fn start(init : () -> s receiving Envelope(m, s),
+                step : (s, m) -> s receiving Envelope(m, s)) : Handle(m, s) receiving n = {
     let loop = spawn(fn() = run(step, init()));
     Handle(loop = loop, clients = via(loop, Message))
 }
 
-export fn run(step : (s, m) -> s with Envelope(m, s), state : s) : Unit with Envelope(m, s) =
+export fn run(step : (s, m) -> s receiving Envelope(m, s),
+              state : s) : Unit receiving Envelope(m, s) =
     receive {
         Message(message) -> run(step, step(state, message))
       | Upgrade(next = next) -> next(state)
@@ -29,7 +30,7 @@ export fn address(handle : Handle(m, s)) : Address(m) =
 
 /// New code behind an unchanged protocol and state type (row C1): the loop
 /// goes on with `step` over the state it holds.
-export fn upgrade(handle : Handle(m, s), step : (s, m) -> s with Envelope(m, s)) : Unit with n =
+export fn upgrade(handle : Handle(m, s), step : (s, m) -> s receiving Envelope(m, s)) : Unit =
     match handle {
         Handle(loop = loop) -> send(loop, Upgrade(next = fn(state) = run(step, state)))
     }
@@ -41,10 +42,10 @@ export fn upgrade(handle : Handle(m, s), step : (s, m) -> s with Envelope(m, s))
 /// successor's address. `forward` sends the translated message, or answers a
 /// retired or changed request itself.
 export fn replace(old : Handle(m, s),
-                  forward : (m, Address(m2)) -> Unit with Envelope(m, s),
+                  forward : (m, Address(m2)) -> Unit receiving Envelope(m, s),
                   successor : Handle(m2, s2),
                   migrate : (s) -> s2,
-                  step : (s2, m2) -> s2 with Envelope(m2, s2)) : Unit with n =
+                  step : (s2, m2) -> s2 receiving Envelope(m2, s2)) : Unit =
     match old {
         Handle(loop = loop) -> match successor {
             Handle(loop = next, clients = clients) -> send(loop, Upgrade(next = fn(state) = {
@@ -55,7 +56,10 @@ export fn replace(old : Handle(m, s),
     }
 
 fn forwarding(successor : Address(m2),
-              forward : (m, Address(m2)) -> Unit with Envelope(m, s)) : Unit with Envelope(m, s) =
+              forward : (m,
+                         Address(m2)) -> Unit receiving Envelope(m,
+                                                                 s)) : Unit receiving Envelope(m,
+                                                                                               s) =
     receive {
         Message(message) -> {
             forward(message, successor);

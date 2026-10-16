@@ -4,12 +4,12 @@
 // §8.2).
 //
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Optional.withDefault(Io.readLine(), "none"));
     copyRest(0)
 }
 
-fn copyRest(count : Int) : Unit with Never =
+fn copyRest(count : Int) : Unit =
     match Io.read() {
         None -> Io.println("bytes " <> Int.toString(count))
       | Some(bytes) -> {

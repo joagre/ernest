@@ -13,7 +13,7 @@ type Msg = Served(Down)
 
 // Port 0 asks the system for a free port, which the listener then names,
 // so that nothing else listening on a fixed one is in the way.
-export fn main() : Unit with Msg =
+export fn main() : Unit receiving Msg =
     match Tcp.listen("127.0.0.1", 0) {
         Left(_) -> Io.printlnError("cannot listen")
       | Right(listener) -> {
@@ -49,7 +49,7 @@ export fn main() : Unit with Msg =
     }
 
 // The round trips stop at the first write or read that fails.
-fn roundTrips(socket : Address(Tcp.SocketMsg), left : Int) : Either(Io.Error, Unit) with m =
+fn roundTrips(socket : Address(Tcp.SocketMsg), left : Int) : Either(Io.Error, Unit) =
     if left <= 0 then
         Right(Unit)
     else {
@@ -58,7 +58,7 @@ fn roundTrips(socket : Address(Tcp.SocketMsg), left : Int) : Either(Io.Error, Un
         roundTrips(socket, left - 1)
     }
 
-fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
     match Tcp.accept(listener, 5000) {
         Right(socket) -> echo(socket)
       | Left(_) -> Unit
@@ -67,7 +67,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
 // A socket lives until it is closed, so the server closes the one whose
 // connection has ended, which a read or a write tells it (report Appendix
 // E.18).
-fn echo(socket : Address(Tcp.SocketMsg)) : Unit with Never =
+fn echo(socket : Address(Tcp.SocketMsg)) : Unit =
     match Tcp.read(socket, 5000) {
         Right(bytes) -> match Tcp.write(socket, bytes, 5000) {
             Right(_) -> echo(socket)

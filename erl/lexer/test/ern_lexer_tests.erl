@@ -32,10 +32,15 @@ control_character_test() ->
 
 %% report §2.4
 reserved_words_test() ->
-    ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
+    ?assertEqual([type, abstract, receiving, foreign, match, 'when', 'receive', 'after', 'or',
                   as, 'if', then, 'else', fn, 'let', export],
-                 tokens("type abstract with foreign match when receive after or as "
+                 tokens("type abstract receiving foreign match when receive after or as "
                         "if then else fn let export")).
+
+%% report §2.4: `with`, the mark's word before `receiving`, is an identifier
+%% (a regression test, 2026-10-16; it covers the lexer alone)
+with_is_an_identifier_test() ->
+    ?assertEqual([{ident, with}], tokens("with")).
 
 %% report §2.4: `needs`, `derives`, `compare`, `negate` and `show` are
 %% identifiers, which the parser reads as Appendix A's words where they
@@ -317,9 +322,9 @@ token_spans_test() ->
 
 %% report Appendix B, the language guide §1
 hello_program_test() ->
-    Source = "export fn main() : Unit with Never = Io.println(\"hello, world\")",
-    ?assertEqual([export, fn, {ident, main}, '(', ')', ':', {typename, 'Unit'}, with,
-                  {typename, 'Never'}, '=', {typename, 'Io'}, '.', {ident, println}, '(',
+    Source = "export fn main() : Unit = Io.println(\"hello, world\")",
+    ?assertEqual([export, fn, {ident, main}, '(', ')', ':', {typename, 'Unit'},
+                  '=', {typename, 'Io'}, '.', {ident, println}, '(',
                   {string, <<"hello, world">>}, ')'],
                  tokens(Source)).
 

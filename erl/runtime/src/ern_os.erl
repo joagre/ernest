@@ -13,6 +13,11 @@
 -export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
          umask/0, working_directory/0]).
 
+%% Report §8.6: Os's host facts and its working directory read a port and
+%% the host's file server, so the emitter counts them as foreign code while
+%% they run.
+-waits([host/0, working_directory/0]).
+
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
 %% process traps the exits and forgets what the runtime recorded of a

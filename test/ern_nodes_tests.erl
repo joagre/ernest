@@ -137,11 +137,11 @@ digest(Dir) ->
 program(Root) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "node.ern"), <<"
-foreign fn connect(node : Foreign.Term) : Bool with m = \"net_kernel:connect_node/1\"
-foreign fn frame(node : Foreign.Term) : Unit with m = \"ern_nodes_frame:send/1\"
-foreign fn site(node : Foreign.Term, hash : String) : Unit with m = \"ern_nodes_frame:site/2\"
+foreign fn connect(node : Foreign.Term) : Bool = \"net_kernel:connect_node/1\"
+foreign fn frame(node : Foreign.Term) : Unit = \"ern_nodes_frame:send/1\"
+foreign fn site(node : Foreign.Term, hash : String) : Unit = \"ern_nodes_frame:site/2\"
 
-export fn main() : Unit with Unit =
+export fn main() : Unit receiving Unit =
     match Os.arguments {
         [\"connect\", peer] -> Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))))
       | [\"frame\", peer] -> {
@@ -168,7 +168,7 @@ export fn main() : Unit with Unit =
     }
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
-fn held() : Unit with Unit = receive { _ -> held() }
+fn held() : Unit receiving Unit = receive { _ -> held() }
 ">>),
     ok = file:write_file(filename:join(Root, "ern_nodes_frame.erl"), <<"
 -module(ern_nodes_frame).
@@ -823,7 +823,7 @@ missing_module(Base) ->
     Build = filename:join(Base, "build"),
     ok = filelib:ensure_path(Source),
     [ok = file:write_file(filename:join(Source, File), Text)
-     || {File, Text} <- [{"main.ern", "export fn main() : Unit with Never = Io.println(\"ran\")\n"},
+     || {File, Text} <- [{"main.ern", "export fn main() : Unit = Io.println(\"ran\")\n"},
                          {"user.ern", "export fn twice(n : Int) : Int = Extra.double(n)\n"},
                          {"extra.ern", "export fn double(n : Int) : Int = n * 2\n"}]],
     0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
@@ -887,7 +887,7 @@ os_exit(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "exits.ern"),
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    Io.println(Io.show(Either.map(Fs.list(Path(\"" ++ A ++ "\"), 1000),\n"
                          "                                  fn(entries) = List.size(entries))));\n"
                          "    Os.exit(3)\n"
@@ -933,7 +933,7 @@ refused_after_start(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "prog.ern"),
-                         "export fn main() : Unit with Never = Io.println(\"ran\")\n"),
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
     ok = file:write_file(filename:join(Root, "uses.ern"), "export fn f() : Int = Used.g()\n"),
     ok = file:write_file(filename:join(Root, "used.ern"), "export fn g() : Int = 1\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
@@ -962,7 +962,7 @@ carrier_not_started(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "prog.ern"),
-                         "export fn main() : Unit with Never = Io.println(\"ran\")\n"),
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
     Program = filename:join(Root, "prog.erc"),
     Out = filename:join(Base, "out"),
@@ -990,7 +990,7 @@ no_deadlock(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "waits.ern"),
-                         "export fn main() : Unit with Int = {\n"
+                         "export fn main() : Unit receiving Int = {\n"
                          "    Io.println(\"waiting\");\n"
                          "    receive { n -> Unit }\n"
                          "}\n"),
@@ -1123,14 +1123,14 @@ export let service : Peer.Service(Msg) = Peer.service(\"handover\")
 
 type Newcomer = Asked(Msg) | Ended(Down)
 
-export fn main() : Unit with Unit = {
+export fn main() : Unit receiving Unit = {
     let first = spawn(fn() = serve());
     Io.println(\"taken: \" <> Io.show(Peer.offer(service, first)));
     let _ = spawn(fn() = newcomer(Process.fromAddress(first)));
     held()
 }
 
-fn serve() : Unit with Msg =
+fn serve() : Unit receiving Msg =
     receive {
         Which(reply) -> {
             answer(reply, \"first\");
@@ -1138,7 +1138,7 @@ fn serve() : Unit with Msg =
         }
     }
 
-fn newcomer(first : Process) : Unit with Newcomer = {
+fn newcomer(first : Process) : Unit receiving Newcomer = {
     let address = adapted(self(), Asked);
     match Peer.offer(service, address) {
         Left(holder) -> {
@@ -1153,7 +1153,7 @@ fn newcomer(first : Process) : Unit with Newcomer = {
     serving()
 }
 
-fn serving() : Unit with Newcomer =
+fn serving() : Unit receiving Newcomer =
     receive {
         Asked(Which(reply)) -> {
             answer(reply, \"newcomer\");
@@ -1163,13 +1163,13 @@ fn serving() : Unit with Newcomer =
     }
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
-fn held() : Unit with Unit = receive { _ -> held() }
+fn held() : Unit receiving Unit = receive { _ -> held() }
 "/utf8>>),
     ok = file:write_file(filename:join(Root, "client.ern"), <<"
 // Report §8.7: the client finds the server's service, calls it and kills
 // it, and once the test says the service is taken finds it again.
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Peer.find(Server.service, 10000) {
         Right(first) -> {
             Io.println(\"first: \" <> asked(first));
@@ -1185,7 +1185,7 @@ export fn main() : Unit with Never =
       | Left(failure) -> Io.println(\"first: \" <> Io.show(failure))
     }
 
-fn asked(service : Address(Server.Msg)) : String with m =
+fn asked(service : Address(Server.Msg)) : String =
     Io.show(Address.call(service, fn(reply) = Server.Which(reply), 10000))
 "/utf8>>),
     0 = ern_cli:ern(["build", Root], group_leader()),
@@ -1276,12 +1276,12 @@ squares(Base) ->
 
 type Msg = Square(n : Int, reply : Reply(Int))
 
-export fn main() : Unit with Unit =
+export fn main() : Unit receiving Unit =
     match Os.arguments {
         [\"ask\", peer] -> {
             let service = spawn(fn() = serve(peer));
             Io.println(\"answered here: \" <> asked(service, 7));
-            let there = Peer.spawn(peer, fn() : Unit with Never =
+            let there = Peer.spawn(peer, fn() =
                 Io.println(\"answered there: \" <> asked(service, 8)), 5000);
             Io.println(\"spawned there: \" <> Io.show(Either.isRight(there)));
             held()
@@ -1298,10 +1298,10 @@ export fn main() : Unit with Unit =
         }
     }
 
-fn serve(peer : String) : Unit with Msg =
+fn serve(peer : String) : Unit receiving Msg =
     receive {
         Square(n = n, reply = reply) -> {
-            match Peer.spawn(peer, fn() : Unit with Never = answer(reply, n * n), 5000) {
+            match Peer.spawn(peer, fn() = answer(reply, n * n), 5000) {
                 Right(_) -> Unit
               | Left(failure) -> Io.println(\"no spawn: \" <> Io.show(failure))
             };
@@ -1309,22 +1309,22 @@ fn serve(peer : String) : Unit with Msg =
         }
     }
 
-fn asked(service : Address(Msg), n : Int) : String with m =
+fn asked(service : Address(Msg), n : Int) : String =
     Io.show(Address.call(service, fn(reply) = Square(n = n, reply = reply), 10000))
 
 // A process that faults, spawned here, and then a fault of its own.
-fn spawning() : Unit with Never = {
-    let _ = spawn(fn() : Unit with Never = divided());
+fn spawning() : Unit = {
+    let _ = spawn(fn() = divided());
     divided()
 }
 
-fn divided() : Unit with Never = {
+fn divided() : Unit = {
     let _ = 1 / List.size([]);
     Unit
 }
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
-fn held() : Unit with Unit = receive { _ -> held() }
+fn held() : Unit receiving Unit = receive { _ -> held() }
 "/utf8>>),
     0 = ern_cli:ern(["build", Root], group_leader()),
     PortB = free_port(),
@@ -1403,18 +1403,18 @@ compute_on_peer(Base) ->
     [has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
                  "divided: Fault(\"division by zero\")",
-                 "reported here: Desk.faulted:107 division by zero false",
+                 "reported here: Desk.faulted:106 division by zero false",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
                  " error:badarg\")",
-                 "reported here: Desk.faulted:107 foreign function erlang:binary_to_integer/1"
+                 "reported here: Desk.faulted:106 foreign function erlang:binary_to_integer/1"
                  " raised error:badarg true",
                  "killed: Left(Other(\"Killed\"))", "timed out: Left(Timeout)",
                  "with the store's end: Left(Other(\"ProgramEnd\"))"]],
-    ?assertEqual(1, length(string:split(Err, "Desk.faulted:107 faulted: division by zero\n", all))
+    ?assertEqual(1, length(string:split(Err, "Desk.faulted:106 faulted: division by zero\n", all))
                     - 1),
-    has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
+    has(Err, "Desk.faulted:106 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:531 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:530 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
@@ -1659,7 +1659,7 @@ stop_waits(Base) ->
 
 type Msg = Terminating(Reply(Unit))
 
-export fn main() : Unit with Msg = {
+export fn main() : Unit receiving Msg = {
     Os.termination(Terminating);
     Io.println(\"subscribed\");
     receive {
@@ -1802,35 +1802,35 @@ twins(Dir, Changed) ->
             "\n"
             "export let shape : Peer.Service(Shape) = Peer.service(\"shape\")\n"
             "\n"
-            "export fn same() : Unit with Never = Io.println(\"same ran\")\n"
+            "export fn same() : Unit = Io.println(\"same ran\")\n"
             "\n"
-            "export fn changed() : Unit with Never = Io.println(\"", Said, "\")\n"
+            "export fn changed() : Unit = Io.println(\"", Said, "\")\n"
             "\n"
-            "export fn worked() : Unit with Never = Io.println(\"restarting ran\")\n"
+            "export fn worked() : Unit = Io.println(\"restarting ran\")\n"
             "\n"
-            "foreign fn absent() : Unit with m = \"ern_twins_host:absent/0\"\n"
+            "foreign fn absent() : Unit = \"ern_twins_host:absent/0\"\n"
             "\n"
-            "export fn callsAbsent() : Unit with Never = absent()\n"],
+            "export fn callsAbsent() : Unit = absent()\n"],
     Aside = "// Report §8.7: a binding the server's program never runs, beside a\n"
             "// function that names no binding.\n"
             "\n"
             "let note : String = \"never run on the server\"\n"
             "\n"
-            "export fn tell() : Unit with Never = Io.println(note)\n"
+            "export fn tell() : Unit = Io.println(note)\n"
             "\n"
-            "export fn quiet() : Unit with Never = Io.println(\"quiet ran\")\n",
+            "export fn quiet() : Unit = Io.println(\"quiet ran\")\n",
     Server = "// Report §8.7: a process as each of Twin's services, until the node ends.\n"
              "\n"
-             "export fn main() : Unit with Unit = {\n"
-             "    let pinged = spawn(fn() : Unit with Twin.Msg = answered());\n"
+             "export fn main() : Unit receiving Unit = {\n"
+             "    let pinged = spawn(fn() : Unit receiving Twin.Msg = answered());\n"
              "    let _ = Peer.offer(Twin.stable, pinged);\n"
-             "    let shaped = spawn(fn() : Unit with Twin.Shape = held());\n"
+             "    let shaped = spawn(fn() : Unit receiving Twin.Shape = held());\n"
              "    let _ = Peer.offer(Twin.shape, shaped);\n"
              "    Io.println(\"offered\");\n"
              "    held()\n"
              "}\n"
              "\n"
-             "fn answered() : Unit with Twin.Msg = receive {\n"
+             "fn answered() : Unit receiving Twin.Msg = receive {\n"
              "    Twin.Ping(reply) -> {\n"
              "        answer(reply, 42);\n"
              "        answered()\n"
@@ -1838,10 +1838,10 @@ twins(Dir, Changed) ->
              "}\n"
              "\n"
              "// Until the node is stopped: a node waiting for ever is no deadlock.\n"
-             "fn held() : Unit with m = receive { _ -> held() }\n",
+             "fn held() : Unit receiving m = receive { _ -> held() }\n",
     Asker = "// Report §8.7: the finds and the spawns on the server, each answer a line.\n"
             "\n"
-            "export fn main() : Unit with Never =\n"
+            "export fn main() : Unit =\n"
             "    match Os.arguments {\n"
             "        [server] -> {\n"
             "            found(server);\n"
@@ -1851,7 +1851,7 @@ twins(Dir, Changed) ->
             "      | _ -> Unit\n"
             "    }\n"
             "\n"
-            "fn found(server : String) : Unit with Never = {\n"
+            "fn found(server : String) : Unit = {\n"
             "    let stable = match Peer.find(Twin.stable, 5000) {\n"
             "        Right(address) ->\n"
             "            Io.show(Address.call(address, fn(reply) = Twin.Ping(reply), 5000))\n"
@@ -1861,7 +1861,7 @@ twins(Dir, Changed) ->
             "    Io.println(\"shape: \" <> started(Peer.find(Twin.shape, 5000)))\n"
             "}\n"
             "\n"
-            "fn spawned(server : String) : Unit with Never = {\n"
+            "fn spawned(server : String) : Unit = {\n"
             "    Io.println(\"same: \" <> started(Peer.spawn(server, Twin.same, 5000)));\n"
             "    Io.println(\"changed: \" <> started(Peer.spawn(server, Twin.changed, 5000)));\n"
             "    Io.println(\"binding: \" <> started(Peer.spawn(server, Aside.tell, 5000)));\n"
@@ -1872,14 +1872,14 @@ twins(Dir, Changed) ->
             "\n"
             "// The same in both builds, so that its lambdas and local fns have one\n"
             "// identity on both nodes.\n"
-            "fn captured(server : String) : Unit with Never = {\n"
+            "fn captured(server : String) : Unit = {\n"
             "    let n = 6;\n"
             "    let lambda = Peer.spawn(server,\n"
-            "                            fn() : Unit with Never =\n"
+            "                            fn() =\n"
             "                                Io.println(\"lambda ran \" <> Int.toString(n * 7)),\n"
             "                            5000);\n"
             "    Io.println(\"lambda: \" <> started(lambda));\n"
-            "    fn local() : Unit with Never =\n"
+            "    fn local() : Unit =\n"
             "        Io.println(\"local ran \" <> Int.toString(n + 37));\n"
             "    Io.println(\"local: \" <> started(Peer.spawn(server, local, 5000)));\n"
             "    let limit = RestartLimit(restarts = 1, within = 1000);\n"
@@ -1980,22 +1980,22 @@ exchanged(Base) ->
              "\n"
              "let note : String = \"never run on the receiver\"\n"
              "\n"
-             "export fn told() : Unit with Never = Io.println(note)\n"
+             "export fn told() : Unit = Io.println(note)\n"
              "\n"
-             "export foreign fn only() : Unit with m = \"ern_sender_host:only/0\"\n"
+             "export foreign fn only() : Unit = \"ern_sender_host:only/0\"\n"
              "\n"
-             "export fn callsOnly() : Unit with Never = only()\n"
+             "export fn callsOnly() : Unit = only()\n"
              "\n"
-             "export fn plain() : Unit with Never = Io.println(Io.show(Count(1)))\n"
+             "export fn plain() : Unit = Io.println(Io.show(Count(1)))\n"
              "\n"
              "export fn counted() : Count = Count(2)\n"
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
              "\n"
-             "export fn raises() : Unit with Never = Io.println(Int.toString(parsed(\"x\")))\n"
+             "export fn raises() : Unit = Io.println(Int.toString(parsed(\"x\")))\n"
              "\n"
-             "export fn spawner() : Unit with Never = {\n"
-             "    let child = spawn(fn() : Unit with Int =\n"
+             "export fn spawner() : Unit = {\n"
+             "    let child = spawn(fn() : Unit receiving Int =\n"
              "        receive { _ -> fault(\"the child\") });\n"
              "    let site = match Process.status(Process.fromAddress(child)) {\n"
              "        Some(status) -> status.site\n"
@@ -2005,21 +2005,21 @@ exchanged(Base) ->
              "    send(child, 1)\n"
              "}\n"
              "\n"
-             "export foreign fn yielded() : Unit with m = \"erlang:yield/0\"\n"
+             "export foreign fn yielded() : Unit = \"erlang:yield/0\"\n"
              "\n"
-             "export foreign fn collected() : Bool with m = \"erlang:garbage_collect/0\"\n"
+             "export foreign fn collected() : Bool = \"erlang:garbage_collect/0\"\n"
              "\n"
-             "foreign fn miscounted() : Count with m = \"erlang:yield/0\"\n"
+             "foreign fn miscounted() : Count = \"erlang:yield/0\"\n"
              "\n"
-             "export fn counts() : Unit with Never = { let _ = miscounted(); Unit }\n"
+             "export fn counts() : Unit = { let _ = miscounted(); Unit }\n"
              "\n"
-             "export foreign fn absent() : Unit with m = \"lists:ern_absent_function/0\"\n",
+             "export foreign fn absent() : Unit = \"lists:ern_absent_function/0\"\n",
     Sender = "// Report §8.7, §6.6: spawns and a compute of functions the receiver\n"
              "// lacks, and calls whose replies a failed spawn held, each answer a line.\n"
              "\n"
              "type Ask = Ask(Reply(Int))\n"
              "\n"
-             "export fn main() : Unit with Down =\n"
+             "export fn main() : Unit receiving Down =\n"
              "    match Os.arguments {\n"
              "        [receiver, _] -> {\n"
              "            let plain = Peer.spawn(receiver, Lacked.plain, limit());\n"
@@ -2038,7 +2038,7 @@ exchanged(Base) ->
              "    }\n"
              "\n"
              "// Spawns and computes of what the receiver lacks that run there.\n"
-             "fn received(receiver : String) : Unit with Down = {\n"
+             "fn received(receiver : String) : Unit receiving Down = {\n"
              "    Io.println(\"raises: \" <> outcome(Peer.spawn(receiver, Lacked.raises,"
              " limit())));\n"
              "    let spawner = Peer.spawn(receiver, Lacked.spawner, limit());\n"
@@ -2057,11 +2057,11 @@ exchanged(Base) ->
              "\n"
              "// A call whose reply a failed spawn on peer held ends at once: Address.call\n"
              "// answers None, and callForever faults.\n"
-             "fn ended(peer : String) : Unit with Down = {\n"
-             "    let server = spawn(fn() : Unit with Ask = serve(peer));\n"
+             "fn ended(peer : String) : Unit receiving Down = {\n"
+             "    let server = spawn(fn() : Unit receiving Ask = serve(peer));\n"
              "    let called = Address.call(server, fn(reply) = Ask(reply), limit());\n"
              "    Io.println(\"call \" <> peer <> \": \" <> Io.show(called));\n"
-             "    let _ = spawnMonitored(fn() : Unit with Never = {\n"
+             "    let _ = spawnMonitored(fn() = {\n"
              "        let _ = Address.callForever(server, fn(reply) = Ask(reply));\n"
              "        Unit\n"
              "    }, fn(down) = down);\n"
@@ -2071,9 +2071,9 @@ exchanged(Base) ->
              "    }\n"
              "}\n"
              "\n"
-             "fn serve(peer : String) : Unit with Ask = receive {\n"
+             "fn serve(peer : String) : Unit receiving Ask = receive {\n"
              "    Ask(reply) -> {\n"
-             "        let spawned = Peer.spawn(peer, fn() : Unit with Never = {\n"
+             "        let spawned = Peer.spawn(peer, fn() = {\n"
              "            Lacked.told();\n"
              "            answer(reply, 1)\n"
              "        }, limit());\n"
@@ -2100,12 +2100,12 @@ exchanged(Base) ->
     Receiver = "// Report §8.7: a node that waits, its build holding nothing of the\n"
                "// sender's.\n"
                "\n"
-               "export fn main() : Unit with Unit = {\n"
+               "export fn main() : Unit receiving Unit = {\n"
                "    Io.println(\"ready\");\n"
                "    held()\n"
                "}\n"
                "\n"
-               "fn held() : Unit with m = receive { _ -> held() }\n",
+               "fn held() : Unit receiving m = receive { _ -> held() }\n",
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{SenderDir, "lacked.ern", Lacked}, {SenderDir, "sender.ern", Sender},
                               {ReceiverDir, "receiver.ern", Receiver}]],
@@ -2231,13 +2231,13 @@ bare_build(Base) ->
              "    \"hello\"\n"
              "}\n"
              "\n"
-             "export fn greet() : Unit with Never = Io.println(greeting)\n",
+             "export fn greet() : Unit = Io.println(greeting)\n",
     Source = "// Report §8.7: work placed on a bare node, which holds no definition of\n"
              "// this program's until a spawn or a compute brings it there.\n"
              "\n"
              "type Note = Offered\n"
              "\n"
-             "export fn main() : Unit with Note =\n"
+             "export fn main() : Unit receiving Note =\n"
              "    match Os.arguments {\n"
              "        [bare, \"exit\"] -> exits(bare)\n"
              "      | [bare, interval] -> placed(bare, Optional.withDefault(String.toInt(interval),"
@@ -2247,8 +2247,8 @@ bare_build(Base) ->
              "\n"
              "// Spawns, computes, a find, a utilization and a pick, each answer a line;\n"
              "// the bare node tells its utilization every interval.\n"
-             "fn placed(bare : String, interval : Int) : Unit with Note = {\n"
-             "    let counter = Peer.spawn(bare, fn() : Unit with Int = counts(0), 5000);\n"
+             "fn placed(bare : String, interval : Int) : Unit receiving Note = {\n"
+             "    let counter = Peer.spawn(bare, fn() : Unit receiving Int = counts(0), 5000);\n"
              "    Io.println(\"spawn: \" <> outcome(counter));\n"
              "    match counter {\n"
              "        Right(address) -> send(address, 1)\n"
@@ -2258,7 +2258,8 @@ bare_build(Base) ->
              "    Io.println(\"entry shown: \" <> Io.show(Peer.computeAt(bare, entryShown,"
              " 5000)));\n"
              "    let told = self();\n"
-             "    let offering = Peer.spawn(bare, fn() : Unit with Int = offers(told), 5000);\n"
+             "    let offering = Peer.spawn(bare, fn() : Unit receiving Int = offers(told),"
+             " 5000);\n"
              "    Io.println(\"offering: \" <> outcome(offering));\n"
              "    match offering {\n"
              "        Right(_) -> receive {\n"
@@ -2289,7 +2290,7 @@ bare_build(Base) ->
              "\n"
              "// Report §8.6: the bare node ended by a process spawned on it, once it\n"
              "// is sent the status.\n"
-             "fn exits(bare : String) : Unit with Note =\n"
+             "fn exits(bare : String) : Unit receiving Note =\n"
              "    match Peer.spawn(bare, exiting, 5000) {\n"
              "        Right(address) -> {\n"
              "            send(address, 3);\n"
@@ -2298,11 +2299,11 @@ bare_build(Base) ->
              "      | Left(failure) -> Io.println(\"exit: \" <> Io.show(failure))\n"
              "    }\n"
              "\n"
-             "fn exiting() : Unit with Int = receive {\n"
+             "fn exiting() : Unit receiving Int = receive {\n"
              "    status -> Os.exit(status)\n"
              "}\n"
              "\n"
-             "fn counts(total : Int) : Unit with Int = receive {\n"
+             "fn counts(total : Int) : Unit receiving Int = receive {\n"
              "    n -> {\n"
              "        Io.println(\"counted \" <> Int.toString(total + n));\n"
              "        counts(total + n)\n"
@@ -2313,7 +2314,7 @@ bare_build(Base) ->
              "\n"
              "// Report §8.7: until the node holds the bare node's utilization, read\n"
              "// again at each of its intervals, at which alone the table changes.\n"
-             "fn heard(bare : String, interval : Int) : Unit with m =\n"
+             "fn heard(bare : String, interval : Int) : Unit receiving m =\n"
              "    if List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == bare) then\n"
              "        Unit\n"
              "    else\n"
@@ -2323,13 +2324,13 @@ bare_build(Base) ->
              "\n"
              "// Whether the bare node's entry process is among its live processes, by\n"
              "// its site.\n"
-             "fn entryShown() : Bool with m = {\n"
+             "fn entryShown() : Bool = {\n"
              "    let sites = List.filterMap(Process.live(), fn(process) =\n"
              "        Optional.map(Process.status(process), fn(status) = status.site));\n"
              "    List.contains(sites, \"bare node\")\n"
              "}\n"
              "\n"
-             "fn offers(told : Address(Note)) : Unit with Int = {\n"
+             "fn offers(told : Address(Note)) : Unit receiving Int = {\n"
              "    let service : Peer.Service(Int) = Peer.service(\"counter\");\n"
              "    match Peer.offer(service, self()) {\n"
              "        Right(_) -> send(told, Offered)\n"
@@ -2338,14 +2339,14 @@ bare_build(Base) ->
              "    counts(0)\n"
              "}\n"
              "\n"
-             "fn divides() : Unit with Never = {\n"
+             "fn divides() : Unit = {\n"
              "    let _ = 1 / List.size([]);\n"
              "    Unit\n"
              "}\n"
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
              "\n"
-             "fn raises() : Unit with Never = Io.println(Int.toString(parsed(\"x\")))\n"
+             "fn raises() : Unit = Io.println(Int.toString(parsed(\"x\")))\n"
              "\n"
              "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
              "    match spawned {\n"
@@ -2487,9 +2488,9 @@ beyond_reach(Base) ->
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
              "\n"
-             "foreign fn only() : Unit with m = \"ern_probe_host:only/0\"\n"
+             "foreign fn only() : Unit = \"ern_probe_host:only/0\"\n"
              "\n"
-             "export fn main() : Unit with Never = {\n"
+             "export fn main() : Unit = {\n"
              "    valued();\n"
              "    Io.println(\"valued itself: \" <> outcome(Peer.spawn(\"b\", valued, 5000)));\n"
              "    beside();\n"
@@ -2498,16 +2499,16 @@ beyond_reach(Base) ->
              "\n"
              "// A lambda that uses neither the binding nor the foreign function\n"
              "// its definition names.\n"
-             "fn valued() : Unit with Never = {\n"
+             "fn valued() : Unit = {\n"
              "    Io.println(\"config: \" <> Int.toString(config + parsed(\"1\")));\n"
-             "    let lambda = fn() : Unit with Never = Io.println(\"the lambda ran\");\n"
+             "    let lambda = fn() = Io.println(\"the lambda ran\");\n"
              "    Io.println(\"valued: \" <> outcome(Peer.spawn(\"b\", lambda, 5000)))\n"
              "}\n"
              "\n"
              "// A lambda beside a foreign function whose module the bare node lacks.\n"
-             "fn beside() : Unit with Never = {\n"
+             "fn beside() : Unit = {\n"
              "    only();\n"
-             "    let lambda = fn() : Unit with Never = Io.println(\"the other lambda ran\");\n"
+             "    let lambda = fn() = Io.println(\"the other lambda ran\");\n"
              "    Io.println(\"beside: \" <> outcome(Peer.spawn(\"b\", lambda, 5000)))\n"
              "}\n"
              "\n"
@@ -2570,14 +2571,14 @@ relay(Base) ->
              "\n"
              "type Note = Relayed\n"
              "\n"
-             "foreign fn only() : Unit with m = \"ern_relay_host:only/0\"\n"
+             "foreign fn only() : Unit = \"ern_relay_host:only/0\"\n"
              "\n"
-             "export fn main() : Unit with Note = {\n"
+             "export fn main() : Unit receiving Note = {\n"
              "    let told = self();\n"
-             "    let relay = fn() : Unit with Never = {\n"
-             "        let first = fn() : Unit with Never = Io.println(\"relayed to c1\");\n"
+             "    let relay = fn() = {\n"
+             "        let first = fn() = Io.println(\"relayed to c1\");\n"
              "        Io.println(\"c1: \" <> outcome(Peer.spawn(\"c1\", first, 5000)));\n"
-             "        let second = fn() : Unit with Never = Io.println(\"relayed to c2\");\n"
+             "        let second = fn() = Io.println(\"relayed to c2\");\n"
              "        Io.println(\"c2: \" <> outcome(Peer.spawn(\"c2\", second, 5000)));\n"
              "        send(told, Relayed)\n"
              "    };\n"
@@ -2593,7 +2594,7 @@ relay(Base) ->
              "}\n"
              "\n"
              "// A function that calls a foreign function whose module a and c1 hold.\n"
-             "fn usesOnly() : Unit with Never = {\n"
+             "fn usesOnly() : Unit = {\n"
              "    only();\n"
              "    Io.println(\"only ran\")\n"
              "}\n"
@@ -2668,18 +2669,18 @@ fix_from_shell(Base) ->
                "\n"
                "fn middle(x : Int) : Int = aside(fn() = leaf(x)) + 1\n"
                "\n"
-               "export fn top() : Unit with Never = Io.println(Int.toString(middle(1)))\n"
+               "export fn top() : Unit receiving Never = Io.println(Int.toString(middle(1)))\n"
                "\n"
                "// What no fix changes, beneath whose frame the fix runs.\n"
                "export fn aside(f : () -> Int) : Int = f() + 0\n"
                "\n"
                "// The old build's node, which waits for what is spawned on it.\n"
-               "export fn main() : Unit with Unit = {\n"
+               "export fn main() : Unit receiving Unit = {\n"
                "    Io.println(\"serving\");\n"
                "    held()\n"
                "}\n"
                "\n"
-               "fn held() : Unit with Unit = receive { _ -> held() }\n"]
+               "fn held() : Unit receiving Unit = receive { _ -> held() }\n"]
           end,
     ok = file:write_file(filename:join(Root, "fix.ern"),
                          unicode:characters_to_binary(Fix("fn leaf(x : Int) : Int = x * 2\n"))),
@@ -2722,13 +2723,13 @@ lost_build(Root) ->
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
              "\n"
-             "export fn main() : Unit with Never =\n"
+             "export fn main() : Unit =\n"
              "    match Os.arguments {\n"
              "        [bare] -> late(bare)\n"
              "      | _ -> Unit\n"
              "    }\n"
              "\n"
-             "fn late(bare : String) : Unit with Never = {\n"
+             "fn late(bare : String) : Unit = {\n"
              "    Io.println(\"dialed: \" <> outcome(Peer.utilization(bare, 5000)));\n"
              "    Io.println(\"late: \" <> outcome(Peer.spawn(bare, waits, 1)));\n"
              "    let again = Peer.spawn(bare, waits, 5000);\n"
@@ -2740,7 +2741,7 @@ lost_build(Root) ->
              "}\n"
              "\n"
              "// A process that raises once it is sent a number.\n"
-             "fn waits() : Unit with Int = receive {\n"
+             "fn waits() : Unit receiving Int = receive {\n"
              "    n -> Io.println(Int.toString(parsed(\"x\") + n))\n"
              "}\n"
              "\n"
@@ -2939,7 +2940,7 @@ shell_service(Base) ->
     edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
     Declared = "type T = T(Int)\nlet service : Peer.Service(T) = Peer.service(\"t\")\n",
     Offered = fun(Node) ->
-                  ["let server : Address(T) = spawn(fn() : Unit with T =\n"
+                  ["let server : Address(T) = spawn(fn() : Unit receiving T =\n"
                    "    receive {\n"
                    "        T(n) -> Io.println(\"", Node, " got \" <> Int.toString(n))\n"
                    "    })\n"
@@ -2994,7 +2995,7 @@ shell_binding_spawned(Base) ->
     B = made(Base, "b", none),
     lists(A, [{"b", B, none}]),
     lists(B, [{"a", A, PortA}]),
-    Typed = "let x = 5\nfn f() : Unit with Never = Io.println(\"x is \" <> Int.toString(x))\n",
+    Typed = "let x = 5\nfn f() : Unit = Io.println(\"x is \" <> Int.toString(x))\n",
     {InputA, WaitA} = shell_started(A, Root),
     true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
     prints(A, "typed"),
@@ -3044,8 +3045,8 @@ shell_compute(Base) ->
                                     "fn alone() : Int = 6 * 9\n",
                                     "Peer.computeAt(\"worker\", alone, 5000)\n",
                                     "type Count = Count(Int)\n",
-                                    "foreign fn wrong() : Count with m = \"erlang:yield/0\"\n",
-                                    "fn counts() : Unit with Never = {\n"
+                                    "foreign fn wrong() : Count = \"erlang:yield/0\"\n",
+                                    "fn counts() : Unit receiving Never = {\n"
                                     "    Io.println(\"counting\");\n"
                                     "    let _ = wrong();\n"
                                     "    Unit\n"
@@ -3092,7 +3093,7 @@ shell_offered_adapted(Base) ->
     {InputA, WaitA} = shell_started(A, Root),
     true = port_command(InputA,
                         [Declared,
-                         "let store : Address(Int) = spawn(fn() : Unit with Int =\n"
+                         "let store : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { n -> Io.println(\"a got \" <> Int.toString(n)) })\n",
                          "Peer.offer(service, adapted(store, fn(t) = match t { T(n) -> n }))\n",
                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
@@ -3135,7 +3136,7 @@ shell_peer_fault(Base) ->
     B = made(Base, "b", none),
     lists(A, [{"b", B, none}]),
     lists(B, [{"a", A, PortA}]),
-    Typed = "fn divided() : Unit with Never = {\n"
+    Typed = "fn divided() : Unit = {\n"
             "    Io.println(\"dividing\");\n"
             "    let _ = 1 / List.size([]);\n"
             "    Unit\n"
@@ -3174,11 +3175,11 @@ shell_node(Base) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "greet.ern"),
                          "let greeting : String = \"hello from the shell's load\"\n\n"
-                         "export fn hello() : Unit with Never = Io.println(greeting)\n"),
+                         "export fn hello() : Unit = Io.println(greeting)\n"),
     ok = file:write_file(filename:join(Root, "store.ern"),
                          "// A spawn on the shell's node once a line comes.\n"
                          "\n"
-                         "export fn main() : Unit with Unit = {\n"
+                         "export fn main() : Unit receiving Unit = {\n"
                          "    Io.println(\"ready\");\n"
                          "    let _ = Io.readLine();\n"
                          "    let spawned = match Peer.spawn(\"desk\", Greet.hello, 5000) {\n"
@@ -3189,7 +3190,7 @@ shell_node(Base) ->
                          "    held()\n"
                          "}\n"
                          "\n"
-                         "fn held() : Unit with m = receive { _ -> held() }\n"),
+                         "fn held() : Unit receiving m = receive { _ -> held() }\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
     PortStore = free_port(),
     Store = made(Base, "store", PortStore),
@@ -3200,7 +3201,8 @@ shell_node(Base) ->
     prints(Store, "ready"),
     {DeskInput, WaitDesk} = shell_started(Desk, Root),
     true = port_command(DeskInput, ":load Greet\n"
-                                   "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+                                   "Peer.spawn(\"store\","
+                                   " fn() : Unit receiving Never = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "go\n"),
     prints(Store, "spawned: Right"),
@@ -3241,9 +3243,9 @@ shell_node_versions(Base) ->
                  "\n"
                  "export type Msg = Greet(String)\n"
                  "\n"
-                 "let greeter : Address(Msg) = spawn(fn() : Unit with Msg = greeted(0))\n"
+                 "let greeter : Address(Msg) = spawn(fn() : Unit receiving Msg = greeted(0))\n"
                  "\n"
-                 "fn greeted(count : Int) : Unit with Msg =\n"
+                 "fn greeted(count : Int) : Unit receiving Msg =\n"
                  "    receive {\n"
                  "        Greet(who) -> {\n"
                  "            Io.println(who <> \" greeted \" <> Int.toString(count));\n"
@@ -3251,23 +3253,23 @@ shell_node_versions(Base) ->
                  "        }\n"
                  "    }\n"
                  "\n"
-                 "export fn greet(who : String) : Unit with Never = send(greeter, Greet(who))\n"
+                 "export fn greet(who : String) : Unit = send(greeter, Greet(who))\n"
                  "\n"
-                 "export fn hello() : Unit with Never = greet(\"hello\")\n"
+                 "export fn hello() : Unit = greet(\"hello\")\n"
                  "\n"
-                 "export fn wave() : Unit with Never = greet(\"wave\")\n",
+                 "export fn wave() : Unit = greet(\"wave\")\n",
                  Other]
             end,
     ok = file:write_file(filename:join(Root, "greet.ern"), Greet("")),
     ok = file:write_file(filename:join(Root, "store.ern"),
                          "// A spawn on the shell's node of the function each line names.\n"
                          "\n"
-                         "export fn main() : Unit with Unit = {\n"
+                         "export fn main() : Unit receiving Unit = {\n"
                          "    Io.println(\"ready\");\n"
                          "    spawning()\n"
                          "}\n"
                          "\n"
-                         "fn spawning() : Unit with m =\n"
+                         "fn spawning() : Unit =\n"
                          "    match Io.readLine() {\n"
                          "        Some(\"wave\") -> told(\"wave\", Peer.spawn(\"desk\", Greet.wave,"
                          " 5000))\n"
@@ -3277,7 +3279,7 @@ shell_node_versions(Base) ->
                          "    }\n"
                          "\n"
                          "fn told(name : String, spawned : Either(Io.Error, Address(Never)))"
-                         " : Unit with m = {\n"
+                         " : Unit = {\n"
                          "    let answer = match spawned {\n"
                          "        Right(_) -> \"Right\"\n"
                          "      | Left(failure) -> Io.show(failure)\n"
@@ -3288,7 +3290,7 @@ shell_node_versions(Base) ->
     0 = ern_cli:ern(["build", Root], group_leader()),
     Changed = fun(Text) ->
                   ok = file:write_file(filename:join(Source, "greet.ern"),
-                                       Greet(["\nexport fn other() : Unit with Never ="
+                                       Greet(["\nexport fn other() : Unit ="
                                               " Io.println(\"", Text, "\")\n"]))
               end,
     Changed("another function"),
@@ -3303,7 +3305,7 @@ shell_node_versions(Base) ->
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+                        "Peer.spawn(\"store\", fn() : Unit receiving Never = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
     prints(Store, "first: NotLoaded"),
@@ -3353,19 +3355,19 @@ shell_node_reach(Base) ->
     [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
     Greet = "let greeting : String = \"hello from the greeter\"\n"
             "\n"
-            "export fn hello() : Unit with Never = Io.println(greeting)\n",
-    Caller = "export fn call() : Unit with Never = Greet.hello()\n",
+            "export fn hello() : Unit = Io.println(greeting)\n",
+    Caller = "export fn call() : Unit = Greet.hello()\n",
     ok = file:write_file(filename:join(Root, "greet.ern"), Greet),
     ok = file:write_file(filename:join(Root, "caller.ern"), Caller),
     ok = file:write_file(filename:join(Root, "store.ern"),
                          "// A spawn on the shell's node of Caller.call at each line.\n"
                          "\n"
-                         "export fn main() : Unit with Unit = {\n"
+                         "export fn main() : Unit receiving Unit = {\n"
                          "    Io.println(\"ready\");\n"
                          "    spawning()\n"
                          "}\n"
                          "\n"
-                         "fn spawning() : Unit with m =\n"
+                         "fn spawning() : Unit =\n"
                          "    match Io.readLine() {\n"
                          "        Some(name) -> {\n"
                          "            let spawned = Peer.spawn(\"desk\", Caller.call, 5000);\n"
@@ -3379,7 +3381,7 @@ shell_node_reach(Base) ->
                          "      | None -> Unit\n"
                          "    }\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
-    Other = "\nexport fn other() : Unit with Never = Io.println(\"other\")\n",
+    Other = "\nexport fn other() : Unit = Io.println(\"other\")\n",
     ok = file:write_file(filename:join(Source, "greet.ern"), [Greet, Other]),
     ok = file:write_file(filename:join(Source, "caller.ern"), Caller),
     PortStore = free_port(),
@@ -3395,7 +3397,7 @@ shell_node_reach(Base) ->
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+                        "Peer.spawn(\"store\", fn() : Unit receiving Never = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
     prints(Store, "first: NotLoaded"),
@@ -3433,9 +3435,10 @@ refused_build_load(Base) ->
                          "\n"
                          "export type Msg = Greet(String)\n"
                          "\n"
-                         "let greeter : Address(Msg) = spawn(fn() : Unit with Msg = greeted(0))\n"
+                         "let greeter : Address(Msg) = spawn(fn() : Unit receiving Msg ="
+                         " greeted(0))\n"
                          "\n"
-                         "fn greeted(count : Int) : Unit with Msg =\n"
+                         "fn greeted(count : Int) : Unit receiving Msg =\n"
                          "    receive {\n"
                          "        Greet(who) -> {\n"
                          "            Io.println(who <> \" greeted \" <> Int.toString(count));\n"
@@ -3443,16 +3446,16 @@ refused_build_load(Base) ->
                          "        }\n"
                          "    }\n"
                          "\n"
-                         "export fn hello() : Unit with Never = send(greeter, Greet(\"hello\"))\n"),
+                         "export fn hello() : Unit = send(greeter, Greet(\"hello\"))\n"),
     ok = file:write_file(filename:join(Root, "store.ern"),
                          "// A spawn on the shell's node of Greet.hello at each line.\n"
                          "\n"
-                         "export fn main() : Unit with Unit = {\n"
+                         "export fn main() : Unit receiving Unit = {\n"
                          "    Io.println(\"ready\");\n"
                          "    spawning()\n"
                          "}\n"
                          "\n"
-                         "fn spawning() : Unit with m =\n"
+                         "fn spawning() : Unit =\n"
                          "    match Io.readLine() {\n"
                          "        Some(name) -> {\n"
                          "            let spawned = Peer.spawn(\"desk\", Greet.hello, 5000);\n"
@@ -3481,7 +3484,7 @@ refused_build_load(Base) ->
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        "Peer.spawn(\"store\", fn() : Unit with Never = Unit, 5000)\n"),
+                        "Peer.spawn(\"store\", fn() : Unit receiving Never = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "before\n"),
     prints(Store, "before: NotLoaded"),
@@ -3528,17 +3531,17 @@ adapted_fault(Base) ->
                          "\n"
                          "let service : Peer.Service(Int) = Peer.service(\"work\")\n"
                          "\n"
-                         "export fn main() : Unit with Unit =\n"
+                         "export fn main() : Unit receiving Unit =\n"
                          "    match Os.arguments {\n"
                          "        [\"make\"] -> make()\n"
                          "      | _ -> sending()\n"
                          "    }\n"
                          "\n"
-                         "fn make() : Unit with Unit = {\n"
+                         "fn make() : Unit receiving Unit = {\n"
                          "    let maker = self();\n"
                          "    let worker = spawn(restarting(RestartLimit(restarts = 3,"
                          " within = 60000),\n"
-                         "                                  fn() : Unit with Msg = {\n"
+                         "                                  fn() : Unit receiving Msg = {\n"
                          "                                      send(maker, Unit);\n"
                          "                                      work()\n"
                          "                                  }));\n"
@@ -3547,7 +3550,7 @@ adapted_fault(Base) ->
                          "    runs(1)\n"
                          "}\n"
                          "\n"
-                         "fn runs(count : Int) : Unit with Unit =\n"
+                         "fn runs(count : Int) : Unit receiving Unit =\n"
                          "    receive {\n"
                          "        _ -> {\n"
                          "            Io.println(\"run \" <> Int.toString(count));\n"
@@ -3555,7 +3558,7 @@ adapted_fault(Base) ->
                          "        }\n"
                          "    }\n"
                          "\n"
-                         "fn work() : Unit with Msg =\n"
+                         "fn work() : Unit receiving Msg =\n"
                          "    receive {\n"
                          "        Work(n) -> {\n"
                          "            Io.println(\"took \" <> Int.toString(n));\n"
@@ -3563,7 +3566,7 @@ adapted_fault(Base) ->
                          "        }\n"
                          "    }\n"
                          "\n"
-                         "fn sending() : Unit with Unit =\n"
+                         "fn sending() : Unit receiving Unit =\n"
                          "    match Peer.find(service, 5000) {\n"
                          "        Right(work) -> {\n"
                          "            Io.println(\"found\");\n"
@@ -3572,7 +3575,7 @@ adapted_fault(Base) ->
                          "      | Left(failure) -> Io.println(Io.show(failure))\n"
                          "    }\n"
                          "\n"
-                         "fn sent(work : Address(Int)) : Unit with Unit =\n"
+                         "fn sent(work : Address(Int)) : Unit receiving Unit =\n"
                          "    match Io.readLine() {\n"
                          "        Some(\"zero\") -> {\n"
                          "            send(work, 0);\n"
@@ -3796,7 +3799,7 @@ pick_build(Base) ->
              "// wait;\n"
              "// and a node that lists no peer picks none.\n"
              "\n"
-             "export fn main() : Unit with Unit =\n"
+             "export fn main() : Unit receiving Unit =\n"
              "    match Os.arguments {\n"
              "        [\"s\", interval] -> picks(Optional.withDefault(String.toInt(interval), 0))\n"
              "      | [\"alone\"] -> alone()\n"
@@ -3809,7 +3812,7 @@ pick_build(Base) ->
              "// Where a compute ran: the node's arguments, which name it.\n"
              "fn ran() : List(String) = Os.arguments\n"
              "\n"
-             "fn picks(interval : Int) : Unit with Unit = {\n"
+             "fn picks(interval : Int) : Unit receiving Unit = {\n"
              "    Io.println(\"before a telling: \" <> Io.show(Peer.compute(ran, 5000)));\n"
              "    let set1 = Peer.computeAt(\"p1\", fn() = Peer.setUtilization(0.9), 5000);\n"
              "    Io.println(\"p1 set: \" <> Io.show(set1));\n"
@@ -3834,7 +3837,8 @@ pick_build(Base) ->
              "// Report §8.7: until the node holds the utilization given of the peer\n"
              "// named, read again every interval, the time between the peer's\n"
              "// tellings, at which alone the table changes.\n"
-             "fn heard(name : String, utilization : Float, interval : Int) : Unit with m =\n"
+             "fn heard(name : String, utilization : Float, interval : Int) :"
+             " Unit receiving m =\n"
              "    if List.any(Peer.utilizations(), fn(#(peer, held, _)) ="
              " peer == name && held == utilization) then\n"
              "        Unit\n"
@@ -3843,13 +3847,13 @@ pick_build(Base) ->
              "            after interval -> heard(name, utilization, interval)\n"
              "        }\n"
              "\n"
-             "fn alone() : Unit with Unit = {\n"
+             "fn alone() : Unit receiving Unit = {\n"
              "    Io.println(\"no peer: \" <> Io.show(Peer.compute(ran, 5000)));\n"
              "    Io.println(\"no utilization: \" <> Io.show(Peer.utilizations()))\n"
              "}\n"
              "\n"
              "// Until the node is stopped: a node waiting for ever is no deadlock.\n"
-             "fn waits() : Unit with Unit =\n"
+             "fn waits() : Unit receiving Unit =\n"
              "    receive {\n"
              "        _ -> waits()\n"
              "    }\n",
@@ -4225,9 +4229,9 @@ upgraded_builds(Base) ->
     Count = "export type CounterMsg =\n"
             "    Inc(Int)\n"
             "  | Get(reply : Reply(Int))\n"
-            "  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)\n"
+            "  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)\n"
             "\n"
-            "export fn count(total : Int) : Unit with CounterMsg =\n"
+            "export fn count(total : Int) : Unit receiving CounterMsg =\n"
             "    receive {\n"
             "        Inc(amount) -> count(total + amount)\n"
             "      | Get(reply = reply) -> {\n"
@@ -4245,7 +4249,7 @@ upgraded_builds(Base) ->
             "\n"
             "// Two counters spawned, and the entry process a third, offered through\n"
             "// an adapted address of its own.\n"
-            "export fn serve() : Unit with CounterMsg = {\n"
+            "export fn serve() : Unit receiving CounterMsg = {\n"
             "    let _ = spawn(fn() = count(10));\n"
             "    let _ = spawn(fn() = count(20));\n"
             "    let _ = Peer.offer(public, adapted(self(), fn(message) = match message {\n"
@@ -4257,7 +4261,7 @@ upgraded_builds(Base) ->
             "}\n",
     Count2 = "\n"
              "// The second build's loop, which says each total it reaches.\n"
-             "export fn count2(total : Int) : Unit with CounterMsg =\n"
+             "export fn count2(total : Int) : Unit receiving CounterMsg =\n"
              "    receive {\n"
              "        Inc(amount) -> {\n"
              "            Io.println(\"count2 \" <> Int.toString(total + amount));\n"
@@ -4274,13 +4278,13 @@ upgraded_builds(Base) ->
              "// module there.\n"
              "export let start : Int = 100\n"
              "\n"
-             "export fn fromStart() : Unit with Int =\n"
+             "export fn fromStart() : Unit receiving Int =\n"
              "    receive {\n"
              "        n -> Io.println(\"from start \" <> Int.toString(start + n))\n"
              "    }\n",
     Tool = "type Report = Moved(count : Int, left : Int)\n"
            "\n"
-           "export fn main() : Unit with Report =\n"
+           "export fn main() : Unit receiving Report =\n"
            "    match Os.arguments {\n"
            "        [node, bare, path] -> {\n"
            "            served(\"before\");\n"
@@ -4294,7 +4298,7 @@ upgraded_builds(Base) ->
            "// Report §6.10, §6.5: the counter found as the service it offers, at a\n"
            "// type without Upgrade, added to through its adapted address and asked\n"
            "// its total, before its upgrade and after it.\n"
-           "fn served(moment : String) : Unit with m =\n"
+           "fn served(moment : String) : Unit =\n"
            "    match Peer.find(Counter.public, 5000) {\n"
            "        Right(counter) -> {\n"
            "            send(counter, Counter.Add(4));\n"
@@ -4308,7 +4312,7 @@ upgraded_builds(Base) ->
            "// Report §6.10: every process on the peer that runs count moved to\n"
            "// count2 and asked for its total, which count2 answers, and then how\n"
            "// many still run count.\n"
-           "fn moved(node : String) : Unit with Report = {\n"
+           "fn moved(node : String) : Unit receiving Report = {\n"
            "    let tool = self();\n"
            "    match Peer.spawn(node, fn() = upgrade(tool), 5000) {\n"
            "        Right(_) -> receive {\n"
@@ -4320,7 +4324,7 @@ upgraded_builds(Base) ->
            "    }\n"
            "}\n"
            "\n"
-           "fn upgrade(tool : Address(Report)) : Unit with m = {\n"
+           "fn upgrade(tool : Address(Report)) : Unit = {\n"
            "    let old = Code.running(Counter.count);\n"
            "    List.forEach(old, fn(process) =\n"
            "        send(process, Counter.Upgrade(migrate = fn(n) = n, next = Counter.count2)));\n"
@@ -4334,14 +4338,14 @@ upgraded_builds(Base) ->
            "// Appendix E.28: a function whose reach names a binding the bare node\n"
            "// never ran, refused before Code.load loads its module there and run\n"
            "// after.\n"
-           "fn loaded(bare : String, path : String) : Unit with m = {\n"
+           "fn loaded(bare : String, path : String) : Unit = {\n"
            "    Io.println(\"before load: \" <> started(bare));\n"
            "    let loading = Peer.computeAt(bare, fn() = Code.load(Path(path)), 5000);\n"
            "    Io.println(\"load: \" <> Io.show(loading));\n"
            "    Io.println(\"after load: \" <> started(bare))\n"
            "}\n"
            "\n"
-           "fn started(bare : String) : String with m =\n"
+           "fn started(bare : String) : String =\n"
            "    match Peer.spawn(bare, Counter.fromStart, 5000) {\n"
            "        Right(_) -> \"Right\"\n"
            "      | Left(failure) -> Io.show(failure)\n"

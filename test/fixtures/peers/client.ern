@@ -4,13 +4,13 @@
 // stopped an add is sent through it too, which is dropped: the counter of
 // the node started again counts from 0, and answers 0.
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let counter = Proxy.start(Counter.service, 2000);
     Io.println("proxy started");
     List.forEach(["first", "away", "back", "other"], fn(label) = ask(counter, label))
 }
 
-fn ask(counter : Address(Counter.Msg), label : String) : Unit with m = {
+fn ask(counter : Address(Counter.Msg), label : String) : Unit = {
     let _ = Io.readLine();
     if label == "away" then send(counter, Counter.Add(5)) else Unit;
     let answered = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 3000);

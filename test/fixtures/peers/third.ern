@@ -3,8 +3,8 @@
 // other slot the address of a process of its own, a node the desk does not
 // list.
 
-export fn main() : Unit with Unit = {
-    let echo = spawn(fn() : Unit with Int = echoes());
+export fn main() : Unit receiving Unit = {
+    let echo = spawn(fn() : Unit receiving Int = echoes());
     send(Shared.found(Counter.echoSlot), Slot.Put(echo));
     let counter = Slot.take(Shared.found(Counter.counterSlot));
     send(counter, Counter.Add(10));
@@ -12,7 +12,7 @@ export fn main() : Unit with Unit = {
     wait()
 }
 
-fn echoes() : Unit with Int =
+fn echoes() : Unit receiving Int =
     receive {
         n -> {
             Io.println("the echo got " <> Int.toString(n));
@@ -21,7 +21,7 @@ fn echoes() : Unit with Int =
     }
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
-fn wait() : Unit with Unit =
+fn wait() : Unit receiving Unit =
     receive {
         _ -> wait()
     }

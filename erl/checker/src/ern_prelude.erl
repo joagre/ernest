@@ -7,7 +7,7 @@
 %% compiled interfaces, stdlib_interfaces/0.
 -module(ern_prelude).
 
--export([equality_params/1, builtin_types/0, declared_types/0, process_only/0, values/0,
+-export([equality_params/1, builtin_types/0, declared_types/0, values/0,
          parameters/1, member_types/0, docs/0, stdlib_interfaces/0]).
 
 -include_lib("checker/include/ern_types.hrl").
@@ -139,7 +139,10 @@ builtin_types() ->
       ### Examples
 
       ```ernest
-      spawn(fn() : Unit with Never = Io.println("hello"))
+      {
+          let silent : Address(Never) = spawn(fn() = Io.println("hello"));
+          kill(silent)
+      }
       ```
       """/utf8>>},
      {'Process', 0,
@@ -250,7 +253,7 @@ declared_types() ->
     ///
     /// ```ernest
     /// {
-    ///     let worker = spawn(fn() : Unit with Never = Unit);
+    ///     let worker = spawn(fn() = Unit);
     ///     monitor(Process.fromAddress(worker), fn(d : Down) = d);
     ///     receive { Down(reason = r, site = _) -> r }
     /// }
@@ -306,21 +309,12 @@ declared_types() ->
     type Path = Path(String)
     """.
 
-%% The primitives among values/0 whose effect variable is process-only and
-%% stands in no value position (report §3.9); one that stands in a value
-%% position, `self`'s, `monitor`'s and `spawnMonitored`'s, is process-only
-%% by that alone, which signature_scheme marks.
--spec process_only() -> [[atom()]].
-process_only() ->
-    [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [kill],
-     [restarting]].
-
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).
 -spec values() -> [{[atom()], string(), binary() | module}].
 values() ->
     [%% §9.4 built-in functions
-     {[self], "() -> Address(m) with m",
+     {[self], "() -> Address(m) receiving m",
       <<"""
       The address of the calling process. A process gives it to another that
       is to answer or tell it something: `let me = self()`, then
@@ -331,12 +325,12 @@ values() ->
       ```ernest
       {
           let me = self();
-          let _ = spawn(fn() : Unit with Never = send(me, "ready"));
+          let _ = spawn(fn() = send(me, "ready"));
           receive { s -> s }
       }
       ```
       """/utf8>>},
-     {[send], "(Address(a), a) -> Unit with m",
+     {[send], "(Address(a), a) -> Unit",
       <<"""
       Puts `message` in the mailbox of the process at `address`, and returns at
       once, without waiting for it to be received.
@@ -351,15 +345,15 @@ values() ->
       send(self(), 42)
       ```
       """/utf8>>},
-     {[spawn], "(() -> Unit with n) -> Address(n) with m",
+     {[spawn], "(() -> Unit receiving n) -> Address(n)",
       <<"""
       Starts a process that runs `f`, and answers its address. The process
       runs beside the caller, on this node, and `spawn` returns at once.
 
-      The address takes the messages `f`'s mailbox type names. A process that
-      receives nothing says so with `with Never` on its function: `spawn(fn() :
-      Unit with Never = Io.println("hi"))` (report §6.2). The process ends when
-      `f` returns, faults, or is killed.
+      The address takes the messages `f`'s mailbox type names. A function that
+      receives nothing is spawned as any other, `spawn(fn() = Io.println("hi"))`,
+      and what is sent to its address waits unread (report §6.2). The process
+      ends when `f` returns, faults, or is killed.
 
       ### Examples
 
@@ -370,7 +364,7 @@ values() ->
       spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
       ```
       """/utf8>>},
-     {[spawnMonitored], "(() -> Unit with n, (Down) -> m) -> Address(n) with m",
+     {[spawnMonitored], "(() -> Unit receiving n, (Down) -> m) -> Address(n) receiving m",
       <<"""
       Starts a process as `spawn` does, and watches it from its first moment:
       `wrap(d)` is put in the caller's mailbox when it ends, `d` the `Down`
@@ -380,7 +374,7 @@ values() ->
       ### Examples
 
       ```ernest
-      spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d)
+      spawnMonitored(fn() = Unit, fn(d : Down) = d)
       ```
       """/utf8>>},
      %% §9.5 process functions
@@ -405,7 +399,7 @@ values() ->
 
       since 0.4.0
       """/utf8>>},
-     {['Address', call], "(Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n",
+     {['Address', call], "(Address(m), (Reply(a)) -> m, Int) -> Optional(a)",
       <<"""
       Asks the process at `address` and waits for its answer: `Some(answer)`,
       or `None` where none came within `ms` milliseconds.
@@ -431,7 +425,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {['Address', callForever], "(Address(m), (Reply(a)) -> m) -> a with n",
+     {['Address', callForever], "(Address(m), (Reply(a)) -> m) -> a",
       <<"""
       Asks as `Address.call` does, and waits for the answer without a deadline,
       answering the answer itself. A process asked that lives and never
@@ -459,7 +453,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {[answer], "(Reply(a), a) -> Unit with m",
+     {[answer], "(Reply(a), a) -> Unit",
       <<"""
       Answers a request: sends `value` to the caller waiting on `reply`.
 
@@ -473,7 +467,7 @@ values() ->
       spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
       ```
       """/utf8>>},
-     {[restarting], "(RestartLimit, () -> Unit with n) -> () -> Unit with n",
+     {[restarting], "(RestartLimit, () -> Unit receiving n) -> () -> Unit receiving n",
       <<"""
       A function that runs `f`, and runs it again in the same process each time
       it faults. A program spawns what it answers: `spawn(restarting(limit, f))`.
@@ -500,12 +494,15 @@ values() ->
       seconds:
 
       ```ernest
-      spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Int = receive {
-          n -> Io.println(Int.toString(100 / n))
-      }))
+      {
+          let limit = RestartLimit(restarts = 3, within = 5000);
+          spawn(restarting(limit, fn() : Unit receiving Int = receive {
+              n -> Io.println(Int.toString(100 / n))
+          }))
+      }
       ```
       """/utf8>>},
-     {[monitor], "(Process, (Down) -> m) -> Unit with m",
+     {[monitor], "(Process, (Down) -> m) -> Unit receiving m",
       <<"""
       Watches a process: `wrap(d)` is put in the caller's mailbox when
       `process` ends, `d` the `Down` that says how.
@@ -525,7 +522,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {[kill], "(Address(a)) -> Unit with m",
+     {[kill], "(Address(a)) -> Unit",
       <<"""
       Ends the process at `address`. Its monitors see the reason `Killed`.
 

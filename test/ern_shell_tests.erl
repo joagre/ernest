@@ -154,9 +154,9 @@ doc_types_as_the_shell_prints() ->
     ok = file:write_file(InputFile, ":doc Fs.stat\n:type Fs.stat\n:doc Fs.Entry\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"    Fs.stat(path : Path, ms : Int) :"
-                                                " Either(Io.Error, Fs.Entry) with m+\n">>)),
+                                                " Either(Io.Error, Fs.Entry)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Fs.stat : (Path, Int) ->"
-                                                " Either(Io.Error, Fs.Entry) with m+\n">>)),
+                                                " Either(Io.Error, Fs.Entry)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"    type Entry = Entry(path : Path,">>)).
 
 %% report §11.2: a `let` of the name `it` or `declarations` binds that name
@@ -221,7 +221,7 @@ program() ->
                      {send, hex("Address.call(c, fn(r) = Counter.Get(reply = r), 1000)\r")},
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
-                     {expect, "Counter.start : () -> Address(Counter.Msg) with m"},
+                     {expect, "Counter.start : () -> Address(Counter.Msg)\n"},
                      {send, hex("spawn(fn() = Counter.boom())\r")},
                      {expect, "input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
@@ -323,7 +323,7 @@ reload_sources_named_test_() ->
 reload_sources_named() ->
     Dir = fresh_home(),
     ok = file:write_file(filename:join(Dir, "main.ern"),
-                         "export fn main() : Unit with Never =\n    Io.println(\"hi\")\n"),
+                         "export fn main() : Unit =\n    Io.println(\"hi\")\n"),
     ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn two() : Int =\n    \"x\"\n"),
     Ern = filename:absname("../bin/ern"),
     {0, _} = ern_pty:sh("cd " ++ Dir ++ " && " ++ Ern ++ " build --build-root build main.ern"),
@@ -431,14 +431,14 @@ prelude_shown() ->
                                     ":doc Prelude.List.size\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Text))
-     || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m+">>,
+     || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit receiving n) -> Address(n)">>,
                  <<"Ernest prelude">>, <<"Starts a process that runs">>,
                  <<"List.size(list : List(a)) : Int">>,
                  %% report §9.4, §9.6: every prelude function, `Io.show`,
                  %% `Io.debug` and `String.compare` among them; a regression
                  %% test, the listing left them out
                  <<"\nIo.show : (a) -> String needs a.show\n">>,
-                 <<"\nIo.debug : (a) -> a with m+ needs a.show\n">>,
+                 <<"\nIo.debug : (a) -> a needs a.show\n">>,
                  <<"\nString.compare : (String, String) -> Ordering\n">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
@@ -486,7 +486,7 @@ load_and_reload_dependents() ->
     ok = file:write_file(filename:join(Dir, "src/geo/shape.ern"),
                          "export fn area(n : Int) : Int = n * n\n"),
     ok = file:write_file(filename:join(Dir, "src/main.ern"),
-                         "export fn main() : Unit with Never =\n"
+                         "export fn main() : Unit =\n"
                          "    Io.println(Int.toString(Geo.Shape.area(3)))\n"),
     Write = fun(Text) ->
                 ["let _ = Fs.write(Path(\"src/geo/shape.ern\"), String.toUtf8(\"", Text,
@@ -605,7 +605,7 @@ line_mode_status_and_streams() ->
      || Said <- [<<"to standard error">>, <<"fault: division by zero">>,
                  <<"unknown name nope">>]],
     ok = file:write_file(filename:join(Dir, "init.ern"),
-                         "let bad : Int = 1 / 0\n\nexport fn main() : Unit with Never =\n"
+                         "let bad : Int = 1 / 0\n\nexport fn main() : Unit =\n"
                          "    Io.println(\"hi\")\n"),
     Ern = filename:absname("../bin/ern"),
     {0, _} = ern_pty:sh("cd " ++ Dir ++ " && " ++ Ern ++ " build init.ern"),
@@ -768,12 +768,12 @@ fault_while_typing_test_() ->
 fault_while_typing() ->
     Pipe = scratch_name("ern_typing_"),
     [] = os:cmd("mkfifo " ++ Pipe),
-    Late = "spawn(fn() : Unit with Never = { let _ = Os.run(Os.Command(program = \"cat\","
+    Late = "spawn(fn() = { let _ = Os.run(Os.Command(program = \"cat\","
            " arguments = [\"" ++ Pipe ++ "\"], input = <<>>), 60000); let _ = 1 / 0; Unit })\r",
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex(Late)},
-                     {expect, "Address(Never)"},
+                     {expect, "Address(a)"},
                      {expect, "> "},
                      {send, hex("abc")},
                      {expect, "abc"},
@@ -805,7 +805,7 @@ reader_and_screen_ends_test_() ->
     {timeout, 90, fun reader_and_screen_ends/0}.
 
 reader_and_screen_ends() ->
-    Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool with m ="
+    Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool ="
            " \"erlang:exit/2\"\r",
     Ending = fun(Site) ->
                  "{ let found = List.filter(Process.live(), fn(p) = match Process.status(p) {"
@@ -1310,7 +1310,8 @@ shift_tab() ->
                 30, " --size 60x90"),
     %% the brief under the line: the declaration, the sentence, the version
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map(list : List(a),"
-                                               " f : (a) -> b with e) : List(b) with e\r\n"
+                                               " f : (a) -> b receiving e) :"
+                                               " List(b) receiving e\r\n"
                                                "The list of f(x) for each element x, in order.\r\n"
                                                "Since 0.1.0.">>)),
     %% then the page, under the line in its place, rendered: the heading as
@@ -1319,8 +1320,8 @@ shift_tab() ->
                                                "    List.map(list : List(a)">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"```">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map([1], \r\n"
-                                               "List.map(list : List(a), f : (a) -> b with e)"
-                                               " : List(b) with e">>)),
+                                               "List.map(list : List(a), f : (a) -> b receiving e)"
+                                               " : List(b) receiving e">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\n:faults         the faults reported since"
                                                " the session began\r\n">>)).
@@ -1477,7 +1478,8 @@ shift_tab_color() ->
                {send, "03"},
                {send, "04"}],
               30),
-    ?assertMatch({_, _}, binary:match(Raw, <<"list : List(a), \e[36mf : (a) -> b with e\e[39m)">>)),
+    ?assertMatch({_, _},
+                 binary:match(Raw, <<"list : List(a), \e[36mf : (a) -> b receiving e\e[39m)">>)),
     %% the first argument marked after `let` and `:type`, the second in the
     %% declaration's body; a repaint may write a row twice, so each is looked
     %% for, not counted
@@ -1790,12 +1792,12 @@ input_module_unloaded() ->
     InputFile = scratch_file("ern_unload_"),
     CountLoaded = "List.size(loadedModules())\n",
     ok = file:write_file(InputFile, [
-        "foreign fn loadedModules() : List(Foreign.Term) with m = \"code:all_loaded/0\"\n",
+        "foreign fn loadedModules() : List(Foreign.Term) = \"code:all_loaded/0\"\n",
         CountLoaded, [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 50)],
         CountLoaded,
         "fn(x : Int) : Int = x + 1\n",
         "it(41)\n",
-        "let late = spawn(fn() : Unit with Unit = {"
+        "let late = spawn(fn() : Unit receiving Unit = {"
         " let _ = receive { _ -> Unit }; Io.println(\"late\") })\n",
         "{ monitor(Process.fromAddress(late), fn(d) = d); send(late, Unit);"
         " receive { _ -> Unit } }\n"]),
@@ -1818,7 +1820,7 @@ input_numbers_reused_test_() ->
 input_numbers_reused() ->
     InputFile = scratch_file("ern_atoms_"),
     Info = "info(Foreign.atom(\"atom_count\"))\n",
-    ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int with m ="
+    ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int ="
                                      " \"erlang:system_info/1\"\n", Info,
                                      [["1 + ", integer_to_list(Index), "\n"]
                                       || Index <- lists:seq(1, 200)],
@@ -1840,13 +1842,13 @@ lambda_sent_kept() ->
     InputFile = scratch_file("ern_lambda_sent_"),
     ok = file:write_file(InputFile,
                          ["type Msg = Keep(f : (Int) -> Int) | Call(n : Int, reply : Reply(Int))\n",
-                          "fn server(f : (Int) -> Int) : Unit with Msg =\n",
+                          "fn server(f : (Int) -> Int) : Unit receiving Msg =\n",
                           "    receive {\n",
                           "        Keep(f = g) -> server(g)\n",
                           "      | Call(n = n, reply = r) -> { answer(r, f(n)); server(f) }\n",
                           "    }\n",
                           "let s : Address(Msg) =\n",
-                          "    spawn(fn() : Unit with Msg = server(fn(n) = n))\n",
+                          "    spawn(fn() : Unit receiving Msg = server(fn(n) = n))\n",
                           "send(s, Keep(f = fn(n) = n * 10))\n",
                           [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
                           "Address.callForever(s, fn(r) = Call(n = 4, reply = r))\n"]),
@@ -1866,11 +1868,11 @@ redeclared_function_kept_test_() ->
 
 redeclared_function_kept() ->
     InputFile = scratch_file("ern_redeclared_kept_"),
-    Served = "fn served() : Unit with Msg = serve(f)\n",
+    Served = "fn served() : Unit receiving Msg = serve(f)\n",
     ok = file:write_file(InputFile,
                          ["fn f(n : Int) : Int = n + 1\n",
                           "type Msg = Apply(n : Int, reply : Reply(Int))\n",
-                          "fn serve(g : (Int) -> Int) : Unit with Msg =\n",
+                          "fn serve(g : (Int) -> Int) : Unit receiving Msg =\n",
                           "    receive {\n",
                           "        Apply(n = n, reply = r) -> { answer(r, g(n)); serve(g) }\n",
                           "    }\n",
@@ -1896,7 +1898,7 @@ expressions_leave_no_code_test_() ->
 expressions_leave_no_code() ->
     InputFile = scratch_file("ern_code_"),
     Code = "memory(Foreign.atom(\"code\"))\n",
-    ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
+    ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int ="
                                      " \"erlang:memory/1\"\n",
                                      [["1 + ", integer_to_list(Index), "\n"]
                                       || Index <- lists:seq(1, 50)],
@@ -1938,9 +1940,9 @@ expressions_again_leave_no_code() ->
     InputFile = scratch_file("ern_again_"),
     Code = "memory(Foreign.atom(\"code\"))\n",
     Spawn = "spawn(idle)\n",
-    ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
+    ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int ="
                                      " \"erlang:memory/1\"\n",
-                                     "fn idle() : Unit with Never = Unit\n",
+                                     "fn idle() : Unit = Unit\n",
                                      [[lists:duplicate(100, Spawn), Code] || _ <- lists:seq(1, 3)],
                                      lists:duplicate(200, Spawn), Code]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
@@ -1963,13 +1965,13 @@ declarations_kept_while_reached() ->
                                      "let h = f\n",
                                      "type T = A(Int) | B\n",
                                      "let a = A(7)\n",
-                                     "fn later() : Unit with Unit = {"
+                                     "fn later() : Unit receiving Unit = {"
                                      " receive { _ -> Unit };"
                                      " Io.println(\"old code ran\") }\n",
                                      "let old = spawn(later)\n",
                                      "fn f(n : Int) : Int = n * 100\n",
                                      "type T = C\n",
-                                     "fn later() : Unit with Never = Unit\n",
+                                     "fn later() : Unit = Unit\n",
                                      [["1 + ", integer_to_list(Index), "\n"]
                                       || Index <- lists:seq(1, 30)],
                                      "g(1)\n", "h(3)\n", "a\n", "f(1)\n",
@@ -2306,18 +2308,18 @@ effect_variable_test_() ->
 effect_variable() ->
     InputFile = scratch_file("ern_eff_"),
     ok = file:write_file(InputFile, "receive { after 300 -> 5 }\n"
-                                    "let h = fn() = Io.println(\"x\")\n"
+                                    "let h = fn() = receive { after 1 -> Io.println(\"x\") }\n"
                                     "h()\n"
                                     "let f = fn(x : Int) = x + 1\n"
                                     "f(2)\n"
-                                    "fn g() : Int with e = receive { after 5 -> 5 }\n"
+                                    "fn g() : Int receiving e = receive { after 5 -> 5 }\n"
                                     ":type g\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 5 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> h : () -> Unit with e+\n> x\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> h : () -> Unit receiving e+\n> x\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> f : (Int) -> Int\n> 3 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> g : () -> Int with e+\n"
-                                                "> g : () -> Int with e+\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"> g : () -> Int receiving e+\n"
+                                                "> g : () -> Int receiving e+\n">>)).
 
 %% report §11.2, §11.5: an input whose binding's type it does not settle is
 %% refused at the whole binding, and an address with the mailbox its spawned
@@ -2332,8 +2334,8 @@ unsettled_binding() ->
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n">>,
-                 <<"annotate the binding, `let p : Address(T) = ...`, or write the spawned"
-                   " function's mailbox, `fn() : Unit with Never = ...`">>]].
+                 <<"annotate the binding, `let p : Address(T) = ...`, or give the spawned"
+                   " function its mailbox type, `fn() : Unit receiving T = ...`">>]].
 
 %% report §4.6, §11.2: a lambda bound by `let` at the prompt is generalized
 %% as in a block, its restrictions with it, and another value bound by `let`
@@ -2404,7 +2406,7 @@ non_entry_main_test_() ->
 non_entry_main() ->
     Dir = scratch("ern_main_"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
-                         "export fn main() : Int with m = { Io.println(\"spawned\"); 3 }\n"),
+                         "export fn main() : Int = { Io.println(\"spawned\"); 3 }\n"),
     ok = file:write_file(filename:join(Dir, "in"), "1 + 1\n"),
     {0, _} = ern_pty:sh(
         "../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir ++ " "
@@ -2419,7 +2421,7 @@ non_entry_main() ->
         "HOME=" ++ Dir ++ " ../bin/ern shell --main Main.main " ++ Erc
         ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
-                                                 " () -> Int with m+">>)).
+                                                 " () -> Int">>)).
 
 %% report §11.2: a holder of what an input bound is freed once nothing
 %% reads it, and kept while a declared function reads it; the names it
@@ -2452,10 +2454,10 @@ reload_keeps_previous_versions() ->
     Dir = scratch("ern_reload_versions_"),
     Counter = fun(Start) ->
                   ["export type Msg = Get(reply : Reply(Int))\n",
-                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "fn serve(n : Int) : Unit receiving Msg =\n",
                    "    receive { Get(reply = r) -> { answer(r, n); serve(n) } }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit with Msg = serve(", integer_to_list(Start), "))\n"]
+                   "    spawn(fn() : Unit receiving Msg = serve(", integer_to_list(Start), "))\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
     InputFile = filename:join(Dir, "session.in"),
@@ -2502,7 +2504,7 @@ reload_reaches_session_declarations() ->
                           "fn shadowed() : Int = 7\n",
                           "fn broken() : Int = Net.Shape.gone()\n",
                           "type Msg = Ask(reply : Reply(Int))\n",
-                          "fn loop() : Unit with Msg =\n",
+                          "fn loop() : Unit receiving Msg =\n",
                           "    receive { Ask(reply = r) -> { answer(r, viaFn()); loop() } }\n",
                           "let p : Address(Msg) = spawn(loop)\n",
                           "viaFn()\n",
@@ -2538,11 +2540,11 @@ reload_version_sites() ->
     Dir = scratch("ern_reload_sites_"),
     Counter = fun(Start) ->
                   ["export type Msg = Get(reply : Reply(Int)) | Terminating(Reply(Unit))\n",
-                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "fn serve(n : Int) : Unit receiving Msg =\n",
                    "    receive { Get(reply = r) -> { answer(r, n); serve(n) }",
                    " | Terminating(reply) -> answer(reply, Unit) }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit with Msg = { Os.termination(Terminating); serve(",
+                   "    spawn(fn() : Unit receiving Msg = { Os.termination(Terminating); serve(",
                    integer_to_list(Start), ") })\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
@@ -2581,14 +2583,14 @@ reload_keeps_the_type_checked_under() ->
     Counter = fun(Reset, Start) ->
                   ["export type Msg = Inc(Int) | Get(reply : Reply(Int))",
                    [" | Reset" || Reset], "\n",
-                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "fn serve(n : Int) : Unit receiving Msg =\n",
                    "    receive {\n",
                    "        Inc(by) -> serve(n + by)\n",
                    "      | Get(reply = r) -> { answer(r, n); serve(n) }\n",
                    ["      | Reset -> serve(0)\n" || Reset],
                    "    }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit with Msg = serve(", integer_to_list(Start), "))\n"]
+                   "    spawn(fn() : Unit receiving Msg = serve(", integer_to_list(Start), "))\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(false, 1)),
     InputFile = filename:join(Dir, "session.in"),
@@ -2701,14 +2703,14 @@ reload_brings_a_type_back() ->
     Counter = fun(Reset) ->
                   ["export type Msg = Inc(Int) | Get(reply : Reply(Int))",
                    [" | Reset" || Reset], "\n",
-                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "fn serve(n : Int) : Unit receiving Msg =\n",
                    "    receive {\n",
                    "        Inc(by) -> serve(n + by)\n",
                    "      | Get(reply = r) -> { answer(r, n); serve(n) }\n",
                    ["      | Reset -> serve(0)\n" || Reset],
                    "    }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit with Msg = serve(1))\n"]
+                   "    spawn(fn() : Unit receiving Msg = serve(1))\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(false)),
     InputFile = filename:join(Dir, "session.in"),
@@ -2752,7 +2754,7 @@ type_declared_again() ->
     InputFile = scratch_file("ern_type_again_"),
     ok = file:write_file(InputFile,
                          "type Msg = A | B\n"
-                         "let p : Address(Msg) = spawn(fn() : Unit with Msg =\n"
+                         "let p : Address(Msg) = spawn(fn() : Unit receiving Msg =\n"
                          "    receive { B -> Io.println(\"got B\") | A -> Unit })\n"
                          "type Msg = A | B\n"
                          "send(p, B)\n"
@@ -2842,7 +2844,7 @@ fault_subscriber() ->
                                      "1 + 1\n",
                                      "let r = restarting(RestartLimit(restarts = 1,"
                                      " within = 60000),"
-                                     " fn() : Unit with Never = Io.println(Int.toString("
+                                     " fn() = Io.println(Int.toString("
                                      "1 / List.size([]))))\n",
                                      "{ let _ = spawnMonitored(r, fn(d) = d);"
                                      " receive { d -> d } }\n",
@@ -2904,10 +2906,10 @@ one_name_type() ->
                                     ":type List.map([1], fn(x) = x)\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _},
-                 binary:match(Output, <<"Io.readLine : () -> Optional(String) with m+\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"spawn : (() -> Unit with n) -> Address(n)"
-                                                " with m+\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"<function> : () -> Optional(String) with m+\n">>)),
+                 binary:match(Output, <<"Io.readLine : () -> Optional(String)\n">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"spawn : (() -> Unit receiving n) -> Address(n)\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"<function> : () -> Optional(String)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
 
 %% report §11.2, §11.4: every name that completes after `:doc` has
@@ -2973,7 +2975,7 @@ session_names() ->
     InputFile = scratch_file("ern_names_"),
     Wait = "receive { n -> Io.println(Int.toString(n)) }",
     ok = file:write_file(InputFile, ["fn main() : Int = 1\n", "main()\n",
-                                     "fn start() : Address(Int) with m = spawn(fn() = ", Wait,
+                                     "fn start() : Address(Int) = spawn(fn() = ", Wait,
                                      ")\n", "start()\n", "spawn(fn() = ", Wait, ")\n",
                                      ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
@@ -3093,7 +3095,8 @@ node_shell() ->
                                      write_source(Dir, "greet.ern",
                                                   "export fn hello() : String = \"hello\"\n"),
                                      ":reload\nGreet.hello()\nOther.x\nPeer.peers()\n"
-                                     "Peer.spawn(\"far\", fn() : Unit with Never = Unit, 100)\n"
+                                     "Peer.spawn(\"far\","
+                                     " fn() : Unit receiving Never = Unit, 100)\n"
                                      "type T = T(Int)\n"
                                      "let service : Peer.Service(T) = Peer.service(\"t\")\n"
                                      "let boxed : Peer.Service(List(Optional(T))) ="
@@ -3187,11 +3190,11 @@ front_end_test_() ->
 %% nothing outside a call. On a name, its page and beside it the version
 %% it appeared in, its own or its module's
 signature() ->
-    ?assertEqual({'Some', {<<"List.map(list : List(a), ">>, <<"f : (a) -> b with e">>,
-                           <<") : List(b) with e">>}},
+    ?assertEqual({'Some', {<<"List.map(list : List(a), ">>, <<"f : (a) -> b receiving e">>,
+                           <<") : List(b) receiving e">>}},
                  ern_shell:signature(<<"List.map([1], ">>)),
     ?assertEqual({'Some', {<<"send(address : Address(a), ">>, <<"message : a">>,
-                           <<") : Unit with m+">>}},
+                           <<") : Unit">>}},
                  ern_shell:signature(<<"send(a, ">>)),
     ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
     %% a callee that is no function has no signature; a regression test,
@@ -3402,7 +3405,7 @@ killed_binding_test_() ->
 killed_binding() ->
     Dir = scratch("ern_killed_binding_"),
     ok = file:write_file(filename:join(Dir, "k.ern"),
-                         "export let w : Address(Int) = spawn(fn() : Unit with Int =\n"
+                         "export let w : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { _ -> Unit })\n"
                          "export let x : Unit = kill(self())\n"),
     InputFile = filename:join(Dir, "session.in"),
@@ -3435,7 +3438,7 @@ load_keeps_what_bindings_open() ->
                           "    Right(number) -> number\n",
                           "  | Left(error) -> fault(Io.show(error))\n",
                           "}\n\n",
-                          "fn serve() : Unit with Never = match Tcp.accept(listener, 60000) {\n",
+                          "fn serve() : Unit = match Tcp.accept(listener, 60000) {\n",
                           "    Right(socket) -> {\n",
                           "        let _ = Tcp.write(socket, String.toUtf8(\"hello\"), 1000);\n",
                           "        Tcp.close(socket);\n",
@@ -3472,7 +3475,7 @@ refused_load_kills() ->
     Dir = scratch("ern_refused_load_"),
     Server = fun(Broken) ->
                  ["let worker : Address(Int) =\n",
-                  "    spawn(fn() : Unit with Int =\n",
+                  "    spawn(fn() : Unit receiving Int =\n",
                   "        receive { n -> Io.println(Int.toString(n)) })\n",
                   "\nexport let broken : Int = ", Broken, "\n"]
              end,
@@ -3510,7 +3513,7 @@ refused_load_kills_holder() ->
                           "export type Msg = Tick\n\n",
                           "type HubMsg = Join(Address(Msg)) | Each\n\n",
                           "let hub : Address(HubMsg) = spawn(fn() = hubbed([]))\n\n",
-                          "fn hubbed(runners : List(Address(Msg))) : Unit with HubMsg =\n",
+                          "fn hubbed(runners : List(Address(Msg))) : Unit receiving HubMsg =\n",
                           "    receive {\n",
                           "        Join(runner) -> hubbed(runner :: runners)\n",
                           "      | Each -> {\n",
@@ -3518,11 +3521,11 @@ refused_load_kills_holder() ->
                           "            hubbed(runners)\n",
                           "        }\n",
                           "    }\n\n",
-                          "export fn start(step : (Int) -> Int) : Unit with m =\n",
+                          "export fn start(step : (Int) -> Int) : Unit =\n",
                           "    send(hub, Join(spawn(fn() = stepping(step, 0))))\n\n",
-                          "export fn tick() : Unit with m =\n",
+                          "export fn tick() : Unit =\n",
                           "    send(hub, Each)\n\n",
-                          "fn stepping(step : (Int) -> Int, count : Int) : Unit with Msg =\n",
+                          "fn stepping(step : (Int) -> Int, count : Int) : Unit receiving Msg =\n",
                           "    receive {\n",
                           "        Tick -> {\n",
                           "            Io.println(\"stepped to \" <> Int.toString(step(count)));\n",
@@ -3559,9 +3562,9 @@ held_function_keeps_its_version() ->
     Dir = scratch("ern_held_function_"),
     ok = file:write_file(filename:join(Dir, "runner.ern"),
                          ["export type Msg = Step(Int) | Total(reply : Reply(Int))\n\n",
-                          "export fn start(step : (Int, Int) -> Int) : Address(Msg) with m =\n",
+                          "export fn start(step : (Int, Int) -> Int) : Address(Msg) =\n",
                           "    spawn(fn() = loop(step, 0))\n\n",
-                          "fn loop(step : (Int, Int) -> Int, n : Int) : Unit with Msg =\n",
+                          "fn loop(step : (Int, Int) -> Int, n : Int) : Unit receiving Msg =\n",
                           "    receive {\n",
                           "        Step(k) -> loop(step, step(n, k))\n",
                           "      | Total(reply = reply) -> {\n",
@@ -3626,8 +3629,8 @@ compiled_beside_another() ->
          ok = file:write_file(filename:join(Build, "greet.ern"),
                               ["export fn hello() : String = \"", Name, "\"\n"
                                "\n"
-                               "export fn crash() : Unit with Never = {\n"
-                               "    let _ = spawn(fn() : Unit with Never = fault(\"crashed\"));\n"
+                               "export fn crash() : Unit = {\n"
+                               "    let _ = spawn(fn() = fault(\"crashed\"));\n"
                                "    Unit\n"
                                "}\n"]),
          ok = file:write_file(filename:join(Build, "other.ern"), "export let x : Int = 1\n"),
@@ -3794,7 +3797,8 @@ shell_told_of_the_end() ->
     InputFile = scratch_file("ern_told_"),
     ok = file:write_file(InputFile,
                          ["type Msg = Terminating(Reply(Unit))\n",
-                          "fn keeper() : Unit with Msg = { Os.termination(Terminating); receive {",
+                          "fn keeper() : Unit receiving Msg = { Os.termination(Terminating);"
+                          " receive {",
                           " Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }",
                           " } }\n",
                           "spawn(keeper)\n:quit\n"]),
@@ -3807,7 +3811,7 @@ shell_told_of_the_end() ->
 
 demo(Value) ->
     ["export fn answer() : Int = ", integer_to_list(Value), "\n\n",
-     "export fn tick() : Unit with Unit = {\n",
+     "export fn tick() : Unit receiving Unit = {\n",
      "    Clock.alarm(50, fn(_) = Unit);\n",
      "    receive { _ -> Unit };\n",
      "    tick()\n",
@@ -3877,10 +3881,10 @@ load_evaluates_bindings() ->
     Dir = scratch("ern_load_bindings_"),
     Counter = fun(Start) ->
                   ["export type Msg = Get(reply : Reply(Int))\n",
-                   "fn serve(n : Int) : Unit with Msg =\n",
+                   "fn serve(n : Int) : Unit receiving Msg =\n",
                    "    receive { Get(reply = r) -> { answer(r, n); serve(n) } }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit with Msg = serve(", integer_to_list(Start), "))\n",
+                   "    spawn(fn() : Unit receiving Msg = serve(", integer_to_list(Start), "))\n",
                    "export let base = ", integer_to_list(Start), " * 10\n"]
               end,
     Ask = "Address.callForever(Counter.service, fn(r) = Counter.Get(reply = r))\n",
@@ -4030,7 +4034,7 @@ failed_load_leaves_nothing() ->
     Dir = scratch("ern_failed_load_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          ["let worker : Address(Unit) = spawn(fn() = loop())\n",
-                          "fn loop() : Unit with Unit = receive { _ -> loop() }\n",
+                          "fn loop() : Unit receiving Unit = receive { _ -> loop() }\n",
                           "export let late : Int = 1 / List.size([])\n"]),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load Bad\n:processes\n"),
@@ -4158,11 +4162,11 @@ fields_by_module() ->
 %% position as the checker does, so a variable found only there is an
 %% effect variable. A regression test: the shell printed under the
 %% prelude's state alone, which knows no module's types, and the printer
-%% named a variable `e` only after `with`, so it was `a`
+%% named a variable `e` only after `receiving`, so it was `a`
 browse_effect_parameter() ->
     Dir = scratch("ern_hooks_"),
     ok = file:write_file(filename:join(Dir, "hooks.ern"),
-                         "export type H(e) = H(f : (Int) -> Unit with e)\n"
+                         "export type H(e) = H(f : (Int) -> Unit receiving e)\n"
                          "export fn drop(h) = { let H(f = _) = h; Unit }\n"),
     try
         Session = with_loaded(Dir, [<<"Hooks">>]),

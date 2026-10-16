@@ -90,7 +90,7 @@ type Ranges = Empty | Branch(low : Int, high : Int, width : Width, below : Range
 // bound at each start.
 let reference : Address(Msg) = system(Foreign.atom("terminal"))
 
-foreign fn system(name : Foreign.Term) : Address(Msg) with m =
+foreign fn system(name : Foreign.Term) : Address(Msg) =
     "ern_rt:system_process/1"
 
 /// Sends the caller every key pressed from now on, and every change of the
@@ -111,7 +111,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 ///
 /// Faults where a line or bytes have been read from the terminal, with the
 /// cause `the terminal is already read as lines`.
-export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
+export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) receiving m = {
     let address = adapted(self(), wrap);
     Address.callForever(reference, fn(reply) = Subscribe(address = address, reply = reply))
 }
@@ -128,7 +128,7 @@ export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
 ///   | Right(Terminal.Size(rows = rows)) -> rows
 /// }
 /// ```
-export foreign fn size() : Either(Io.Error, Size) with m =
+export foreign fn size() : Either(Io.Error, Size) =
     "ern_tty:size/0"
 
 /// The columns `text` takes at a terminal, counted by grapheme, for lining text

@@ -21,7 +21,8 @@ export let tally : Service.Handle(TallyMsg, Int) = {
     Service.Handle(loop = loop, clients = via(loop, Service.Message))
 }
 
-export fn tallyStep(count : Int, message : TallyMsg) : Int with Service.Envelope(TallyMsg, Int) =
+export fn tallyStep(count : Int,
+                    message : TallyMsg) : Int receiving Service.Envelope(TallyMsg, Int) =
     match message {
         Tally -> count + 1
       | Tallied(reply = reply) -> {
@@ -31,10 +32,10 @@ export fn tallyStep(count : Int, message : TallyMsg) : Int with Service.Envelope
       | Break -> fault("the tally was broken")
     }
 
-export fn tallied(handle : Service.Handle(TallyMsg, Int)) : Int with n =
+export fn tallied(handle : Service.Handle(TallyMsg, Int)) : Int receiving n =
     Address.callForever(Service.address(handle), fn(reply) = Tallied(reply = reply))
 
-fn counting(count : Int) : Unit with CountMsg =
+fn counting(count : Int) : Unit receiving CountMsg =
     receive {
         Inc -> counting(count + 1)
       | Count(reply = reply) -> {
@@ -44,7 +45,7 @@ fn counting(count : Int) : Unit with CountMsg =
       | Crash -> fault("the counter was crashed")
     }
 
-fn echoing() : Unit with EchoMsg =
+fn echoing() : Unit receiving EchoMsg =
     receive {
         Echo(text = text, reply = reply) -> {
             answer(reply, text);
@@ -52,8 +53,8 @@ fn echoing() : Unit with EchoMsg =
         }
     }
 
-export fn inc(address : Address(CountMsg)) : Unit with n =
+export fn inc(address : Address(CountMsg)) : Unit =
     send(address, Inc)
 
-export fn count(address : Address(CountMsg)) : Int with n =
+export fn count(address : Address(CountMsg)) : Int =
     Address.callForever(address, fn(reply) = Count(reply = reply))

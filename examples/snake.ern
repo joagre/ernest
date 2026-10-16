@@ -61,7 +61,7 @@ type GameMsg = Ticked | Played(Input) | Joined(Int)
 // Program
 //
 
-export fn main() : Unit with GameMsg = {
+export fn main() : Unit receiving GameMsg = {
     // report §8.2: the board is the window the program was given. It keeps
     // that size: a `Resized` is ignored, the snake and the apples being
     // placed for the board they are on.
@@ -102,7 +102,7 @@ let tickMs = 100
 // Each tick is due at a deadline on the monotonic clock, and its alarm
 // waits what is left of it, so that the time a tick's work takes does not
 // put off the ticks after it (report Appendix E.15).
-fn game(world : World, deadline : Int) : Unit with GameMsg = {
+fn game(world : World, deadline : Int) : Unit receiving GameMsg = {
     Clock.alarm(Int.max(deadline - Clock.monotonic(), 0), fn(_) = Ticked);
     receive {
         Ticked -> {
@@ -115,7 +115,7 @@ fn game(world : World, deadline : Int) : Unit with GameMsg = {
 }
 
 // Drain the mailbox of input without blocking; at most `count` per tick.
-fn drain(world : World, count : Int) : World with GameMsg =
+fn drain(world : World, count : Int) : World receiving GameMsg =
     if count == 0 then
         world
     else receive {
@@ -124,7 +124,7 @@ fn drain(world : World, count : Int) : World with GameMsg =
     }
 
 // One process per player: translates keys into Input.
-fn steering(id : Int, game : Address(GameMsg)) : Unit with Terminal.Event =
+fn steering(id : Int, game : Address(GameMsg)) : Unit receiving Terminal.Event =
     receive {
         Terminal.Escape or Terminal.Interrupt -> send(game, Played(Leave(id)))
       | event -> {
@@ -149,7 +149,7 @@ fn directionOf(event : Terminal.Event) : Optional(Direction) =
 // The board: the window the program was given, two rows kept for the
 // status line and the line feed after it, and a size to fall back on
 // where there is no terminal.
-fn board() : #(Int, Int) with m =
+fn board() : #(Int, Int) =
     match Terminal.size() {
         Left(_) -> #(40, 20)
       | Right(Terminal.Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)

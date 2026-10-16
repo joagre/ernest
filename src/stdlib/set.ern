@@ -87,7 +87,7 @@ export foreign fn remove(set : Set(a), element : a) : Set(a) =
 /// List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)), Int.compare)
 /// // => [10, 20]
 /// ```
-export foreign fn map(set : Set(a), f : (a) -> b with e) : Set(b) with e =
+export foreign fn map(set : Set(a), f : (a) -> b receiving e) : Set(b) receiving e =
     "ern_set:map/2"
 
 /// The set of the elements `keep` answers `true` for.
@@ -98,7 +98,7 @@ export foreign fn map(set : Set(a), f : (a) -> b with e) : Set(b) with e =
 /// Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 /// // => [3]
 /// ```
-export foreign fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
+export foreign fn filter(set : Set(a), keep : (a) -> Bool receiving e) : Set(a) receiving e =
     "ern_set:filter/2"
 
 /// The set of the values `f` answers `Some` for; an element `f` answers `None`
@@ -110,7 +110,7 @@ export foreign fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with 
 /// Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
 /// // => [1]
 /// ```
-export fn filterMap(set : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e =
+export fn filterMap(set : Set(a), f : (a) -> Optional(b) receiving e) : Set(b) receiving e =
     fromList(List.filterMap(toList(set), f))
 
 /// The elements folded into one value. `step(acc, x)` is called with the given
@@ -126,7 +126,7 @@ export fn filterMap(set : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e
 /// ```
 ///
 /// since 0.4.0
-export fn fold(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
+export fn fold(set : Set(a), acc : b, step : (b, a) -> b receiving e) : b receiving e =
     List.foldLeft(toList(set), acc, step)
 
 /// Calls `f` for each element, for its effect, in unspecified order.
@@ -139,7 +139,7 @@ export fn fold(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
 /// ```
 ///
 /// since 0.4.0
-export fn forEach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
+export fn forEach(set : Set(a), f : (a) -> Unit receiving e) : Unit receiving e =
     List.forEach(toList(set), f)
 
 /// `true` when `test` holds for at least one element, and `false` for the empty
@@ -151,11 +151,11 @@ export fn forEach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
 /// #(Set.any(Set.fromList([1]), fn(n) = n > 0), Set.all(Set.fromList([1]), fn(n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(set : Set(a), test : (a) -> Bool with e) : Bool with e =
+export fn any(set : Set(a), test : (a) -> Bool receiving e) : Bool receiving e =
     List.any(toList(set), test)
 
 /// `true` when `test` holds for every element, and for the empty set.
-export fn all(set : Set(a), test : (a) -> Bool with e) : Bool with e =
+export fn all(set : Set(a), test : (a) -> Bool receiving e) : Bool receiving e =
     List.all(toList(set), test)
 
 /// An element `test` holds for, or `None` where there is none. Where it holds
@@ -167,7 +167,7 @@ export fn all(set : Set(a), test : (a) -> Bool with e) : Bool with e =
 /// Set.find(Set.fromList([1, 2]), fn(n) = n > 1)
 /// // => Some(2)
 /// ```
-export fn find(set : Set(a), test : (a) -> Bool with e) : Optional(a) with e =
+export fn find(set : Set(a), test : (a) -> Bool receiving e) : Optional(a) receiving e =
     List.find(toList(set), test)
 
 /// The set of the list's elements, each once.

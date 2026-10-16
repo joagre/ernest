@@ -8,7 +8,7 @@ export type Msg2 = Add2(Int) | Total2(reply : Reply(Int)) | Reset
 
 export let counter : Service.Handle(Msg2, Int) = Service.start(fn() = 0, step)
 
-export fn step(total : Int, message : Msg2) : Int with Service.Envelope(Msg2, Int) =
+export fn step(total : Int, message : Msg2) : Int receiving Service.Envelope(Msg2, Int) =
     match message {
         Add2(amount) -> total + amount
       | Total2(reply = reply) -> {
@@ -19,17 +19,17 @@ export fn step(total : Int, message : Msg2) : Int with Service.Envelope(Msg2, In
     }
 
 /// An old message to the new service: each constructor to its namesake.
-export fn forward(message : Msg, to : Address(Msg2)) : Unit with Service.Envelope(Msg, Int) =
+export fn forward(message : Msg, to : Address(Msg2)) : Unit receiving Service.Envelope(Msg, Int) =
     match message {
         Add(amount) -> send(to, Add2(amount))
       | Total(reply = reply) -> send(to, Total2(reply = reply))
     }
 
-export fn add(amount : Int) : Unit with n =
+export fn add(amount : Int) : Unit receiving n =
     send(Service.address(counter), Add2(amount))
 
-export fn reset() : Unit with n =
+export fn reset() : Unit receiving n =
     send(Service.address(counter), Reset)
 
-export fn total() : Int with n =
+export fn total() : Int receiving n =
     Address.callForever(Service.address(counter), fn(reply) = Total2(reply = reply))

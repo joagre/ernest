@@ -47,7 +47,7 @@ export let nothing = Completion(word = "", candidates = [])
 /// at the cursor, the parser being given the text before the word: with
 /// the word there it has been read already, and what may stand at the
 /// cursor is what may stand in its place.
-export fn completion(line : String, cursor : Int) : #(Completion, String) with m = {
+export fn completion(line : String, cursor : Int) : #(Completion, String) = {
     let typedWord = word(String.slice(line, 0, cursor));
     if String.startsWith(line, ":") && cursor <= Shell.Command.wordEnd(line) then {
         // the command's word as far as the cursor, as a name's is: what
@@ -78,7 +78,7 @@ export fn completion(line : String, cursor : Int) : #(Completion, String) with m
 // session declares, the modules in scope, and the prelude's names that no
 // module qualifies, its constructors aside, which are mostly the messages
 // of system processes and complete from a letter.
-fn namesFor(typedWord : String) : List(Name) with m = {
+fn namesFor(typedWord : String) : List(Name) = {
     let all = withNamespaces(names());
     if !String.isEmpty(typedWord) then
         all <> fields(typedWord)
@@ -123,7 +123,7 @@ fn withSpace(completion : Completion, takes : Bool) : Completion =
 // takes, and after another command nothing. An expression's names are
 // the parser's to choose, as at the start of a line; anything else is
 // one word, the argument's first.
-fn argument(line : String, cursor : Int, typedWord : String) : Completion with m = {
+fn argument(line : String, cursor : Int, typedWord : String) : Completion = {
     let end = Shell.Command.wordEnd(line);
     let wordIndex = cursor - String.size(typedWord);
     let before = String.slice(line, end, wordIndex);
@@ -160,7 +160,7 @@ fn argumentSlot(completes : Shell.Command.Completes) : Slot =
       | _ -> Anything
     }
 
-fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List(Name) with m =
+fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List(Name) =
     match completes {
         // a module is listed by its name alone, since every candidate here
         // is a module; the namespaces they are in, `Http` for
@@ -184,7 +184,7 @@ fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List
 // root a directory at a time: the one the typed word's finished segments
 // name, so that a large root is never walked whole. A directory is a
 // namespace and a `.ern` file a module, each named by §11.1's path shape.
-fn sourceModules(typedWord : String) : List(Name) with m = {
+fn sourceModules(typedWord : String) : List(Name) = {
     let finished = List.dropLast(String.split(typedWord, "."), 1);
     // a finished segment that is no namespace's names no directory
     let directory =
@@ -226,30 +226,30 @@ let listMs = 5000
 // Report §11.2: every name completion may reach, as the session stands.
 // Reading the compiled interfaces is the host's; the matching is
 // `Shell.Complete`'s.
-foreign fn names() : List(Name) with m =
+foreign fn names() : List(Name) =
     "ern_shell:names/0"
 
 // Report §11.2: the names the session declares, which `:forget` takes;
 // the session is the front end's to hold.
-foreign fn sessionNames() : List(Name) with m =
+foreign fn sessionNames() : List(Name) =
     "ern_shell:session_names/0"
 
 // Report §11.2: the source root `:load` compiles from.
-foreign fn sourceRoot() : String with m =
+foreign fn sourceRoot() : String =
     "ern_shell:source_root/0"
 
 // Report §11.2: every name the session declares, as it is written.
-foreign fn sessionTexts() : List(String) with m =
+foreign fn sessionTexts() : List(String) =
     "ern_shell:session_texts/0"
 
 // Report §11.2: what may stand at the cursor, which the parser knows,
 // since it says what it wanted where it stopped.
-foreign fn slot(before : String) : Slot with m =
+foreign fn slot(before : String) : Slot =
     "ern_shell:slot/1"
 
 // Report §11.2, §3.5: the fields the value before the last `.` selects,
 // named as typed and listed with their types.
-foreign fn fields(typedWord : String) : List(Name) with m =
+foreign fn fields(typedWord : String) : List(Name) =
     "ern_shell:fields/1"
 
 // Report §11.1, §4.2: the namespace segment a path component names, asked

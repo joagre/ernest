@@ -3,8 +3,8 @@
 /// A `Process` is the identity of a process. It has equality, so it keys a
 /// `Map` and is an element of a `Set`, and it has no order. Nothing can be sent
 /// to it: an address is what a process is reached by, and a `Process` only says
-/// which one. `fromAddress` gives the process behind an address, and `monitor`
-/// watches one.
+/// which one. `current` gives the running process, `fromAddress` the process
+/// behind an address, and `monitor` watches one.
 ///
 /// `status`, `live` and `faults` show what runs, for a program that watches
 /// itself. What they say of a live process is a snapshot, which may have
@@ -16,10 +16,7 @@
 /// The caller is among the processes the runtime runs:
 ///
 /// ```ernest
-/// {
-///     let me = Process.fromAddress(self());
-///     List.contains(Process.live(), me)
-/// }
+/// List.contains(Process.live(), Process.current())
 /// // => true
 /// ```
 ///
@@ -36,7 +33,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Optional.map(Process.status(Process.fromAddress(self())), fn(status) = status.activity)
+/// Optional.map(Process.status(Process.current()), fn(status) = status.activity)
 /// // => Some(Running)
 /// ```
 ///
@@ -64,7 +61,7 @@ export type Activity = Running | Receiving | Calling
 /// ### Examples
 ///
 /// ```ernest
-/// Process.FaultReport(process = Process.fromAddress(self()),
+/// Process.FaultReport(process = Process.current(),
 ///                     site = "Main.worker:3",
 ///                     cause = "division by zero",
 ///                     restarted = false,
@@ -92,18 +89,33 @@ export type FaultReport =
 export foreign fn fromAddress(address : Address(m)) : Process =
     "ern_rt:process_of/1"
 
+/// The running process, for a function that needs its identity and not its
+/// mailbox; `self` gives its address. It is the process `fromAddress(self())`
+/// gives.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.current() == Process.fromAddress(self())
+/// // => true
+/// ```
+///
+/// since 0.4.0
+export foreign fn current() : Process =
+    "erlang:self/0"
+
 /// A snapshot of the process, or `None` once it has ended, and for a process on
 /// another node.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Optional.isSome(Process.status(Process.fromAddress(self())))
+/// Optional.isSome(Process.status(Process.current()))
 /// // => true
 /// ```
 ///
 /// since 0.4.0
-export foreign fn status(process : Process) : Optional(Status) with m =
+export foreign fn status(process : Process) : Optional(Status) =
     "ern_rt:status/1"
 
 /// The processes the runtime started that have not ended, in unspecified order:
@@ -116,7 +128,7 @@ export foreign fn status(process : Process) : Optional(Status) with m =
 /// List.isEmpty(Process.live())
 /// // => false
 /// ```
-export foreign fn live() : List(Process) with m =
+export foreign fn live() : List(Process) =
     "ern_rt:processes/0"
 
 /// Puts `wrap(report)` in the caller's mailbox for every fault of every process
@@ -130,8 +142,8 @@ export foreign fn live() : List(Process) with m =
 /// ```ernest
 /// Process.faults(fn(report) = report)
 /// ```
-export fn faults(wrap : (FaultReport) -> m) : Unit with m =
+export fn faults(wrap : (FaultReport) -> m) : Unit receiving m =
     subscribe(adapted(self(), wrap))
 
-foreign fn subscribe(address : Address(FaultReport)) : Unit with m =
+foreign fn subscribe(address : Address(FaultReport)) : Unit =
     "ern_rt:faults/1"

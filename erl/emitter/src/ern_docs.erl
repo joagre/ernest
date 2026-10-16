@@ -209,14 +209,14 @@ syntax_text(#t_var{name = Name, equality = true}) -> [atom_to_list(Name), "="];
 syntax_text(#t_tuple{elements = Elements}) ->
     ["#(", lists:join(", ", [syntax_text(Element) || Element <- Elements]), ")"];
 syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
-    %% report §3.4: a function-typed result under an outer `with` keeps its
-    %% parentheses, so that the `with` is the outer arrow's
+    %% report §3.4: a function-typed result under an outer `receiving` keeps
+    %% its parentheses, so that the `receiving` is the outer arrow's
     ResultText = case {Result, Effect} of
                      {#t_fn{}, Outer} when Outer =/= undefined -> ["(", syntax_text(Result), ")"];
                      _ -> syntax_text(Result)
                  end,
     ["(", lists:join(", ", [syntax_text(Param) || Param <- Params]), ") -> ", ResultText,
-     case Effect of undefined -> ""; _ -> [" with ", syntax_text(Effect)] end].
+     case Effect of undefined -> ""; _ -> [" receiving ", syntax_text(Effect)] end].
 
 %% The name as the program writes it.
 shown_name(undefined, Name) -> Name;

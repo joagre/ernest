@@ -6,8 +6,9 @@ export let catalog : Service.Handle(Msg, Map(String, Goods.Item)) = Service.star
 
 export fn step(items : Map(String, Goods.Item),
                message : Msg) : Map(String,
-                                    Goods.Item) with Service.Envelope(Msg,
-                                                                      Map(String, Goods.Item)) =
+                                    Goods.Item) receiving Service.Envelope(Msg,
+                                                                           Map(String,
+                                                                               Goods.Item)) =
     match message {
         Add(item) -> Map.put(items, item.name, item)
       | Find(name = name, reply = reply) -> {

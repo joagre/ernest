@@ -4,10 +4,10 @@
 /// input a line or a few bytes at a time, and to turn a value into text with
 /// `show`.
 ///
-/// **It needs a process.** Standard output, standard error and standard input
-/// are each a system process of the runtime, so printing is a message: a
-/// function that prints carries a mailbox effect, `with m`, and pure code
-/// cannot print. `show` alone is pure.
+/// **Printing is a message.** Standard output, standard error and standard
+/// input are each a system process of the runtime, so printing sends that
+/// process a message; a function that prints receives nothing, and its type
+/// names no mailbox.
 ///
 /// **Pace.** A write returns once its stream has taken the bytes, and waits
 /// while the stream is behind, so a program is held to the pace of what reads
@@ -110,7 +110,7 @@ let stderr : Address(OutMsg) = system(Foreign.atom("stderr"))
 
 let stdin : Address(StdinMsg) = system(Foreign.atom("stdin"))
 
-foreign fn system(name : Foreign.Term) : Address(a) with m =
+foreign fn system(name : Foreign.Term) : Address(a) =
     "ern_rt:system_process/1"
 
 /// Writes the string to standard output, as it is, without a line feed.
@@ -126,15 +126,15 @@ foreign fn system(name : Foreign.Term) : Address(a) with m =
 /// }
 /// // => Unit
 /// ```
-export fn print(text : String) : Unit with m =
+export fn print(text : String) : Unit =
     writeTo(stdout, String.toUtf8(text))
 
 /// Writes the string to standard output, and a line feed after it.
-export fn println(text : String) : Unit with m =
+export fn println(text : String) : Unit =
     writeTo(stdout, String.toUtf8(text <> "\n"))
 
 // The bytes to a stream, once it has taken them.
-fn writeTo(stream : Address(OutMsg), bytes : Bytes) : Unit with m =
+fn writeTo(stream : Address(OutMsg), bytes : Bytes) : Unit =
     Address.callForever(stream, fn(reply) = Write(bytes = bytes, reply = reply))
 
 /// Writes the string to standard error, as it is, without a line feed. Standard
@@ -153,11 +153,11 @@ fn writeTo(stream : Address(OutMsg), bytes : Bytes) : Unit with m =
 /// }
 /// // => Unit
 /// ```
-export fn printError(text : String) : Unit with m =
+export fn printError(text : String) : Unit =
     writeTo(stderr, String.toUtf8(text))
 
 /// Writes the string to standard error, and a line feed after it.
-export fn printlnError(text : String) : Unit with m =
+export fn printlnError(text : String) : Unit =
     writeTo(stderr, String.toUtf8(text <> "\n"))
 
 /// The next line of standard input, without its line feed, or `None` at the end
@@ -183,7 +183,7 @@ export fn printlnError(text : String) : Unit with m =
 ///   | None -> Io.println("no more input")
 /// }
 /// ```
-export fn readLine() : Optional(String) with m =
+export fn readLine() : Optional(String) =
     Address.callForever(stdin, fn(reply) = ReadLine(reply = reply))
 
 /// What has arrived on standard input, at least one byte, or `None` at the end
@@ -205,7 +205,7 @@ export fn readLine() : Optional(String) with m =
 ///   | None -> 0
 /// }
 /// ```
-export fn read() : Optional(Bytes) with m =
+export fn read() : Optional(Bytes) =
     Address.callForever(stdin, fn(reply) = Read(reply = reply))
 
 /// Writes the bytes to standard output, as they are.
@@ -218,7 +218,7 @@ export fn read() : Optional(Bytes) with m =
 /// Io.write(<<104, 105, 10>>)
 /// // => Unit
 /// ```
-export fn write(bytes : Bytes) : Unit with m =
+export fn write(bytes : Bytes) : Unit =
     writeTo(stdout, bytes)
 
 /// Writes the bytes to standard error, as they are, as `printError` writes a
@@ -234,13 +234,13 @@ export fn write(bytes : Bytes) : Unit with m =
 /// ```
 ///
 /// since 0.2.0
-export fn writeError(bytes : Bytes) : Unit with m =
+export fn writeError(bytes : Bytes) : Unit =
     writeTo(stderr, bytes)
 
 /// The value as Ernest writes it: a number, a string or a constructor as its
 /// literal is written, `Some("a")`, a named constructor's fields in their
 /// declared order, an address as `<address 84>`, and a function as
-/// `<function>`. It is pure.
+/// `<function>`.
 ///
 /// `show` writes a value by its type, which the compiler knows at a call:
 /// `Io.show([1, 2])` writes a `List(Int)`. In a function generic in a type `a`,
@@ -260,5 +260,5 @@ export foreign fn show(value : a) : String =
 /// Writes the value to standard error as `show` writes it, with a line feed,
 /// and answers the value, so it wraps an expression where it stands: `let n =
 /// Io.debug(f(x))`. Like `show`, a generic function needs `a.show` to use it.
-export foreign fn debug(value : a) : a with m =
+export foreign fn debug(value : a) : a =
     "ern_io:debug/1"

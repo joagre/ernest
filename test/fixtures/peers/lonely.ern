@@ -3,5 +3,5 @@
 
 let greeting : String = "never initialized on the store"
 
-export fn speak() : Unit with Never =
+export fn speak() : Unit =
     Io.println(greeting)

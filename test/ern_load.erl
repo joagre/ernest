@@ -59,10 +59,10 @@ launch(Name) ->
 %% builds a function value, keeps its code while the session runs (report
 %% §11.2): the code the user wrote, and no growth for nothing.
 inputs() ->
-    ["foreign fn mark(round : Int) : Unit with m = \"ern_load:mark/1\"\n",
+    ["foreign fn mark(round : Int) : Unit = \"ern_load:mark/1\"\n",
      "fn f(n : Int) : Int = n * 2\n",
      "type Shape = Circle(Int) | Square(Int)\n",
-     "fn spawned() : Unit with Never = Io.println(\"spawned\")\n",
+     "fn spawned() : Unit = Io.println(\"spawned\")\n",
      [[[[[Input, "\n"] || Input <- round_inputs(integer_to_list(Step))]
         || Step <- lists:seq(1, 12)],
        ":type f\n:bindings\n:doc List.map\n:faults\n",

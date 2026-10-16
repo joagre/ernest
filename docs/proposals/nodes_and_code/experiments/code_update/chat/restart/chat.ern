@@ -17,16 +17,16 @@ export let room : Address(RoomMsg) = spawn(fn() = chatting([]))
 /// The acceptor owns the listener, which ends with it (Appendix E.18).
 let acceptor : Address(AcceptorMsg) = spawn(listening)
 
-export fn port() : Int with n =
+export fn port() : Int =
     Address.callForever(acceptor, fn(reply) = Port(reply = reply))
 
-fn listening() : Unit with AcceptorMsg =
+fn listening() : Unit receiving AcceptorMsg =
     match Tcp.listen("127.0.0.1", 0) {
         Right(listener) -> accepting(listener, 1)
       | Left(_) -> fault("cannot listen")
     }
 
-fn accepting(listener : Address(Tcp.ListenerMsg), count : Int) : Unit with AcceptorMsg =
+fn accepting(listener : Address(Tcp.ListenerMsg), count : Int) : Unit receiving AcceptorMsg =
     receive {
         Port(reply = reply) -> {
             answer(reply, match Tcp.port(listener) {
@@ -49,13 +49,13 @@ fn accepting(listener : Address(Tcp.ListenerMsg), count : Int) : Unit with Accep
         }
     }
 
-fn connected(conn : Conn) : Unit with ConnMsg = {
+fn connected(conn : Conn) : Unit receiving ConnMsg = {
     let me = self();
     let _ = spawn(fn() = reading(conn.socket, me));
     serving(conn)
 }
 
-fn serving(conn : Conn) : Unit with ConnMsg =
+fn serving(conn : Conn) : Unit receiving ConnMsg =
     receive {
         Read(bytes) -> {
             match String.fromUtf8(bytes) {
@@ -71,7 +71,7 @@ fn serving(conn : Conn) : Unit with ConnMsg =
       | Closed -> send(conn.room, Leave(Process.fromAddress(self())))
     }
 
-fn reading(socket : Address(Tcp.SocketMsg), connection : Address(ConnMsg)) : Unit with m =
+fn reading(socket : Address(Tcp.SocketMsg), connection : Address(ConnMsg)) : Unit =
     match Tcp.read(socket, 600000) {
         Right(bytes) -> {
             send(connection, Read(bytes));
@@ -81,7 +81,7 @@ fn reading(socket : Address(Tcp.SocketMsg), connection : Address(ConnMsg)) : Uni
       | Left(_) -> send(connection, Closed)
     }
 
-fn chatting(members : List(Member)) : Unit with RoomMsg =
+fn chatting(members : List(Member)) : Unit receiving RoomMsg =
     receive {
         Join(member) -> chatting(member :: members)
       | Leave(process) -> chatting(List.filter(members, fn(member) = member.process != process))
@@ -95,7 +95,7 @@ fn chatting(members : List(Member)) : Unit with RoomMsg =
         }
     }
 
-fn broadcast(members : List(Member), message : ConnMsg) : Unit with m =
+fn broadcast(members : List(Member), message : ConnMsg) : Unit =
     match members {
         [] -> Unit
       | member :: rest -> {

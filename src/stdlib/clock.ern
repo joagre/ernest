@@ -11,9 +11,9 @@
 /// the one before is handled. A restart of the process that set an alarm
 /// cancels it (report §6.9).
 ///
-/// **It needs a process.** The clock is a system process of the runtime (report
-/// §8.2): every function here carries a mailbox effect, `with m`, and is called
-/// from a process, not from a pure function.
+/// **Alarms arrive in the mailbox.** An alarm is delivered into the caller's
+/// mailbox, so `alarm` and `alarmAt` carry `receiving m`, the caller's mailbox
+/// type; reading the time names no mailbox (report §6.1).
 ///
 /// ## Examples
 ///
@@ -41,12 +41,12 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Foreign.atom("clock"))
 
-foreign fn system(name : Foreign.Term) : Address(Msg) with m =
+foreign fn system(name : Foreign.Term) : Address(Msg) =
     "ern_rt:system_process/1"
 
 /// The time now, in milliseconds since the epoch, 1970-01-01 UTC. It moves when
 /// the host's clock is set; `monotonic` measures a duration.
-export foreign fn now() : Int with m =
+export foreign fn now() : Int =
     "ern_rt:now/0"
 
 /// Milliseconds since a moment the runtime chose, which never go back, so the
@@ -63,7 +63,7 @@ export foreign fn now() : Int with m =
 /// }
 /// // => true
 /// ```
-export foreign fn monotonic() : Int with m =
+export foreign fn monotonic() : Int =
     "ern_rt:monotonic/0"
 
 /// Microseconds by the clock `monotonic` reads, which never go back, for a
@@ -80,7 +80,7 @@ export foreign fn monotonic() : Int with m =
 /// ```
 ///
 /// since 0.4.0
-export foreign fn monotonicMicros() : Int with m =
+export foreign fn monotonicMicros() : Int =
     "ern_rt:monotonic_micros/0"
 
 /// Puts `wrap(time)` in the caller's mailbox after `ms` milliseconds, `time`
@@ -92,7 +92,7 @@ export foreign fn monotonicMicros() : Int with m =
 /// ```ernest
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
-export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
+export fn alarm(ms : Int, wrap : (Int) -> m) : Unit receiving m = {
     let address = adapted(self(), wrap);
     let request = fn(reply) = Alarm(ms = ms, address = address, reply = reply);
     Address.callForever(reference, request)
@@ -106,7 +106,7 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
 /// ```ernest
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
-export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit with m = {
+export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit receiving m = {
     let address = adapted(self(), wrap);
     let request = fn(reply) = AlarmAt(time = time, address = address, reply = reply);
     Address.callForever(reference, request)

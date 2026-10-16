@@ -73,8 +73,9 @@ Code in that layout:
     fn respond(request : Request,
                session : SessionId,
                cookies : List(Cookie),
-               body : String) : Bytes with Msg =
-        Response(status = statusOk, headers = [], body = body)
+               body : String,
+               status : Int) : Bytes =
+        Response(status = status, headers = [], body = body)
             |> withCookie("sid", sessionIdText(session))
             |> render
 
@@ -97,7 +98,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Interface**: a compiled module's interface (§11.1), `#interface{}`. Not `Iface`, `I`.
 - **Scheme**: a type scheme (§3.9), as the code has it, and beside it a declaration's requirement (§4.9), which no instance has.
 - **Annotation**: a type the source writes. Not `Ann`; an AST record's `type` field holds one of the four things it holds today, each named.
-- **Effect**: the `with` part of a function type, a mailbox type or an effect variable (§3.9, §6.1). Not `E`, `Eff`, `EffT`, `MailboxT`.
+- **Effect**: the `receiving` part of a function type, a mailbox type or an effect variable, or `none` where the function type receives nothing (§3.9, §6.1, Appendix H). Not `E`, `Eff`, `EffT`, `MailboxT`, nor `pure` for none.
 - **Constructor**: a constructor (§3.5, §5.6); many are `constructors`. Not `Cs`, `CI`, `cons`; `cons` is `::` alone.
 - **MemberOf**: the type a member belongs to, `Stack` of `fn Stack.push` (§4.8), a declaration's `member_of`; of `a.compare` (§4.9), the type variable `a`. Not `Owner`, which is a resource's process.
 - **Member**: a type's member (§4.5), `compare`, `negate` or an operator; one a requirement names is a `#member{}`, and one a body writes an `#e_member{}`. Not `Method`, `Op`.

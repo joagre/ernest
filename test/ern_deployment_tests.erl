@@ -223,7 +223,7 @@ statuses(Base) ->
     ok = file:write_file(filename:join(Base, "statuses.ern"),
                          "// guide/deployment.md, section 1.4: a node's exit statuses.\n"
                          "\n"
-                         "export fn main() : Unit with Never =\n"
+                         "export fn main() : Unit =\n"
                          "    match Os.arguments {\n"
                          "        [\"exit\"] -> Os.exit(3)\n"
                          "      | [\"fault\"] -> Io.println(Int.toString(10 / ratio()))\n"
@@ -333,7 +333,7 @@ refused_code(Base) ->
     [{ok, _} = compile:file(filename:join(Root, Module), [{outdir, Root}])
      || Module <- ["ern_nodes_client", "ern_deployment_taker"]],
     %% a function whose form references a definition by a hash no node holds
-    Form = {function, {scheme, [], {arrow, [], pure, {applied, {named, ['Int']}, []}}, []}, [],
+    Form = {function, {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
             none, none, [], {var, {hash, <<77:256>>}, []}},
     Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
     Frame = filename:join(Base, "frame"),

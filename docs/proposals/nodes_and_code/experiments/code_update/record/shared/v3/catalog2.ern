@@ -7,8 +7,9 @@ export let catalog : Service.Handle(Msg, Map(String, Goods2.Item)) = Service.sta
 
 export fn step(items : Map(String, Goods2.Item),
                message : Msg) : Map(String,
-                                    Goods2.Item) with Service.Envelope(Msg,
-                                                                       Map(String, Goods2.Item)) =
+                                    Goods2.Item) receiving Service.Envelope(Msg,
+                                                                            Map(String,
+                                                                                Goods2.Item)) =
     match message {
         Add(item) -> Map.put(items, item.name, item)
       | Find(name = name, reply = reply) -> {
@@ -23,8 +24,8 @@ export fn migrate(items : Map(String, Goods.Item)) : Map(String, Goods2.Item) =
 /// A message of version 1 to the catalog of version 2; a find is asked of
 /// the new catalog and its answer given back as version 1's item.
 export fn forward(message : Catalog.Msg,
-                  to : Address(Msg)) : Unit with Service.Envelope(Catalog.Msg,
-                                                                  Map(String, Goods.Item)) =
+                  to : Address(Msg)) : Unit receiving Service.Envelope(Catalog.Msg,
+                                                                       Map(String, Goods.Item)) =
     match message {
         Catalog.Add(item) -> send(to, Add(Goods2.fromV1(item)))
       | Catalog.Find(name = name, reply = reply) -> {

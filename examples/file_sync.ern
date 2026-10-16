@@ -45,7 +45,7 @@ type SyncMsg =
 // Program
 //
 
-export fn main() : Unit with SyncMsg = {
+export fn main() : Unit receiving SyncMsg = {
     let me = self();
     let peer = spawn(fn() = start(Path("b")));
     send(peer, Link(me));
@@ -58,7 +58,7 @@ export fn main() : Unit with SyncMsg = {
 //
 
 // Waiting phase: receive the peer's address, then the loop.
-fn start(directory : Path) : Unit with SyncMsg =
+fn start(directory : Path) : Unit receiving SyncMsg =
     receive {
         Link(peer) -> {
             send(self(), Ticked);
@@ -67,11 +67,13 @@ fn start(directory : Path) : Unit with SyncMsg =
     }
 
 // The sync process: one per directory.
-fn syncer(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit with SyncMsg =
+fn syncer(directory : Path,
+          peer : Address(SyncMsg),
+          seen : Map(Path, Int)) : Unit receiving SyncMsg =
     receive {
         Ticked -> {
             let me = self();
-            let _ = spawn(fn() : Unit with Never = send(me, Listed(Fs.list(directory, 10000))));
+            let _ = spawn(fn() = send(me, Listed(Fs.list(directory, 10000))));
             listing(directory, peer, seen)
         }
       | Put(path = path, modified = modified, bytes = bytes, reply = reply) ->
@@ -83,7 +85,9 @@ fn syncer(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Un
 // Between the listing's start and Listed, a Put waits in the mailbox and is
 // stored after it, so that the snapshot the listing gives does not lose the
 // time of a file stored meanwhile.
-fn listing(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit with SyncMsg = {
+fn listing(directory : Path,
+           peer : Address(SyncMsg),
+           seen : Map(Path, Int)) : Unit receiving SyncMsg = {
     let tick = fn() = Clock.alarm(5000, fn(_) = Ticked);
     receive {
         Listed(Right(entries)) -> {
@@ -110,7 +114,7 @@ fn store(directory : Path,
          path : Path,
          modified : Int,
          bytes : Bytes,
-         reply : Reply(Ack)) : Map(Path, Int) with SyncMsg =
+         reply : Reply(Ack)) : Map(Path, Int) =
     if !isName(path) then {
         // shown as a value, so that no character of it reaches the terminal
         // as a control
@@ -136,7 +140,7 @@ fn isName(path : Path) : Bool =
 // beside it as a conflict. The file takes the peer's modification time,
 // which the next listing then finds as it was recorded, so that a file
 // stored is not sent back.
-fn writer(path : Path, bytes : Bytes, modified : Int, reply : Reply(Ack)) : Unit with n = {
+fn writer(path : Path, bytes : Bytes, modified : Int, reply : Reply(Ack)) : Unit = {
     let isNewerHere = match Fs.stat(path, 10000) {
         Right(entry) -> entry.modified > modified
       | Left(_) -> false
@@ -150,8 +154,7 @@ fn writer(path : Path, bytes : Bytes, modified : Int, reply : Reply(Ack)) : Unit
 }
 
 // One process per changed file: reads and sends to the peer.
-fn pusher(peer : Address(SyncMsg),
-          Change(path = path, modified = modified) : Change) : Unit with n =
+fn pusher(peer : Address(SyncMsg), Change(path = path, modified = modified) : Change) : Unit =
     match Fs.read(path, 10000) {
         Right(bytes) -> match Path.name(path) {
             Some(name) -> push(peer, Path(name), modified, bytes)
@@ -160,7 +163,7 @@ fn pusher(peer : Address(SyncMsg),
       | Left(error) -> Io.println("cannot read " <> Path.toString(path) <> ": " <> errorText(error))
     }
 
-fn push(peer : Address(SyncMsg), path : Path, modified : Int, bytes : Bytes) : Unit with n =
+fn push(peer : Address(SyncMsg), path : Path, modified : Int, bytes : Bytes) : Unit =
     match Address.call(peer,
                        fn(reply) =
                            Put(path = path, modified = modified, bytes = bytes, reply = reply),

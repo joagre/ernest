@@ -87,13 +87,13 @@ literal_bytes_test() ->
 %% form, of the encoding or of the version changes it
 literal_hashes_test() ->
     Expected = [{"fn f() : Int = 42",
-                 "884886a2011edc73fd3fad627628c517ba5078826eb4146a040ef32cda95e66c"},
+                 "06e0d532756daad7696dbb85d1c8ddd6196c6b2550eee12b7973ff5b262fa83a"},
                 {"fn f() : Float = 1.5",
-                 "40ed17e11d0db7ba568c8dcd0b6a9697c42b24a873ed44098dd4309ec269b4a8"},
+                 "e20e0999cfb8f5a3f9c66dfbdf68edd5f6575ede60bf4ef1e3bc62ac0199492f"},
                 {"fn f() : String = \"hé\"",
-                 "32e8e498d0c55b72d64bb8f13e25eef54795cb967730ef7c92534e7a9a09ad79"},
+                 "1a77341274ca2323e41d3a14a4945760e4244c679ac12b6f32586774027a2a9a"},
                 {"fn f() : Char = 'é'",
-                 "cae0cc4fc423257f8f74fe3e8b0a6f896ad9203d354ded5a67360e77565cad43"}],
+                 "2de727da1e107b1dee9366569e8450a18a851f81da914f8532b61d7635f9cce4"}],
     [?assertEqual({Text, list_to_binary(Hex)},
                   {Text, binary:encode_hex(hash(Text, f), lowercase)})
      || {Text, Hex} <- Expected],
@@ -121,7 +121,7 @@ type_hashes_test() ->
 %% its operand's type
 function_form_test() ->
     Int = applied('Int'),
-    Expected = {function, {scheme, [], {arrow, [Int], pure, Int}, []},
+    Expected = {function, {scheme, [], {arrow, [Int], none, Int}, []},
                 [{param, {local, 1}, Int}], Int, none, [],
                 {operator, '+', {var, {local, 1}, []}, {literal, int, 1}, {runtime, Int}}},
     ?assertEqual(Expected, form("fn inc(x : Int) : Int = x + 1", inc)),
@@ -197,7 +197,7 @@ group_form_test() ->
     Text = "fn even(n : Int) : Bool = if n == 0 then true else odd(n - 1)\n"
            "fn odd(n : Int) : Bool = if n == 0 then false else even(n - 1)\n",
     Member = fun(Answer, Other) ->
-                 {function, {scheme, [], {arrow, [Int], pure, Bool}, []},
+                 {function, {scheme, [], {arrow, [Int], none, Bool}, []},
                   [{param, {local, 1}, Int}], Bool, none, [],
                   {'if', {operator, '==', {var, {local, 1}, []}, {literal, int, 0}, runtime},
                    {literal, bool, Answer},
@@ -321,8 +321,8 @@ renamed_type_test() ->
 %% then a binding's and a foreign function's held their own
 session_namespace_test() ->
     Text = "type Msg = A(Int)\nlet k : Peer.Service(Msg) = Peer.service(\"k\")\n"
-           "foreign fn now() : Int with m = \"erlang:system_time/0\"\n"
-           "fn later() : Int with m = now() + x\n",
+           "foreign fn now() : Int = \"erlang:system_time/0\"\n"
+           "fn later() : Int = now() + x\n",
     Session = ['$Session'],
     Canonical = fun(Namespace, Holder) ->
                     {ok, Declarations} = ern_parser:parse_string(Text),
@@ -466,7 +466,7 @@ standard_library_by_name_test() ->
     ?assert(holds({var, {named, ['List', map]}, []}, form(Text, inc))),
     ?assert(holds({applied, {named, ['Optional']}, [applied('Int')]}, form(Text, first))),
     ?assert(holds({var, {named, [self]}, []},
-                  form("fn me() : Address(Never) with Never = self()", me))).
+                  form("fn me() : Address(Never) receiving Never = self()", me))).
 
 %% report §8.7, Appendix H: a reference to another module's definition is
 %% its hash, which the module's interface holds; a change to its body
@@ -497,7 +497,7 @@ foreign_test() ->
     ?assertEqual([later], [lists:last(QualifiedName)
                            || #definition{qualified_name = QualifiedName} <- Definitions]),
     Int = applied('Int'),
-    ?assert(holds({var, {foreign, ['T', now], {scheme, [], {arrow, [], pure, Int}, []}}, []},
+    ?assert(holds({var, {foreign, ['T', now], {scheme, [], {arrow, [], none, Int}, []}}, []},
                   form(Text, later))),
     ?assertEqual(foreign, maps:get(['T', now], Interface#interface.identities)),
     ?assertEqual(foreign, maps:get(['T', 'Handle'], Interface#interface.identities)),
@@ -510,7 +510,7 @@ type_reference_test() ->
     Text = "type Box(a) = Box(a)\nfn open(b : Box(a)) : a = match b { Box(x) -> x }\n",
     BoxHash = hash(Text, 'Box'),
     Box = {applied, {hash, BoxHash}, [{variable, 1}]},
-    {function, {scheme, [{1, _}], {arrow, [Box], pure, {variable, 1}}, []},
+    {function, {scheme, [{1, _}], {arrow, [Box], none, {variable, 1}}, []},
      [{param, {local, 1}, Box}], {variable, 1}, none, [],
      {match, {var, {local, 1}, []},
       [{clause, {construct, {constructor, {hash, BoxHash}, 1}, {positional, {local, 2}}}, none,
@@ -526,7 +526,7 @@ type_reference_test() ->
 %% compared two forms that differed in their schemes already
 types_the_back_end_reads_test() ->
     Text = "type Msg = Get(Reply(Int))\n"
-           "fn ask(a : Address(Msg)) : Optional(Int) with Never = Address.call(a, Get, 100)\n",
+           "fn ask(a : Address(Msg)) : Optional(Int) receiving Never = Address.call(a, Get, 100)\n",
     ?assert(holds({var, {named, ['Address', call]}, [], applied('Int')}, form(Text, ask))),
     Squared = fun(Type) ->
                       {operator, '*', {var, {local, 1}, []}, {var, {local, 1}, []},
@@ -549,7 +549,7 @@ local_requirement_test() ->
            "    fn less(p : a, q : a) : Bool needs a.compare = p < q;\n"
            "    match xs { x :: y :: _ -> less(x, y) | _ -> true }\n"
            "}\n",
-    {block, [{function, {scheme, [], {arrow, [{variable, 1}, {variable, 1}], pure, _},
+    {block, [{function, {scheme, [], {arrow, [{variable, 1}, {variable, 1}], none, _},
                          [{1, compare}]},
               _, _, _, _, _} | _]} = element(7, form(Text, sorted)).
 

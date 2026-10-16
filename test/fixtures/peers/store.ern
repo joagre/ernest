@@ -8,7 +8,7 @@
 let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
-fn count(total : Int) : Unit with Counter.Msg =
+fn count(total : Int) : Unit receiving Counter.Msg =
     receive {
         Counter.Add(amount) -> count(total + amount)
       | Counter.Get(reply = reply) -> {
@@ -17,10 +17,10 @@ fn count(total : Int) : Unit with Counter.Msg =
         }
     }
 
-export fn main() : Unit with Unit = {
+export fn main() : Unit receiving Unit = {
     Io.println("the store's peers: " <> Io.show(Shared.listed()));
     let me = self();
-    let _ = spawn(fn() : Unit with Process.FaultReport = {
+    let _ = spawn(fn() : Unit receiving Process.FaultReport = {
         Process.faults(fn(report) = report);
         send(me, Unit);
         reports()
@@ -30,13 +30,13 @@ export fn main() : Unit with Unit = {
     };
     let _ = Peer.offer(Counter.service, counter);
     let _ = Peer.offer(Counter.adder, adapted(counter, fn(n) = Counter.Add(n)));
-    let _ = Peer.offer(Counter.victim, spawn(fn() : Unit with Int = receive {
+    let _ = Peer.offer(Counter.victim, spawn(fn() : Unit receiving Int = receive {
         _ -> Unit
     }));
     let _ = Peer.offer(Census.service, spawn(fn() = Census.serve()));
     let _ = Peer.offer(Counter.counterSlot, spawn(fn() = Slot.serve(None)));
     let _ = Peer.offer(Counter.echoSlot, spawn(fn() = Slot.serve(None)));
-    let fragile = spawn(fn() : Unit with Int = receive {
+    let fragile = spawn(fn() : Unit receiving Int = receive {
         _ -> Unit
     });
     let _ = Peer.offer(Counter.fragile, fragile);
@@ -49,7 +49,7 @@ export fn main() : Unit with Unit = {
                                     fn() = Calls.serve())));
     let _ = Peer.offer(Calls.sleeper, spawn(fn() = Calls.serve()));
     let _ = Peer.offer(Calls.doomed, spawn(fn() = Calls.serve()));
-    let echoer = spawn(fn() : Unit with Counter.EchoMsg = echoes());
+    let echoer = spawn(fn() : Unit receiving Counter.EchoMsg = echoes());
     let _ = Peer.offer(Counter.echo, echoer);
     let _ = Peer.offer(Counter.echoAdapted, adapted(echoer, fn(back) = Counter.Ping(back)));
     let _ = Peer.offer(Counter.adapter, spawn(fn() = adapts()));
@@ -59,7 +59,7 @@ export fn main() : Unit with Unit = {
 }
 
 // Each fault of the store's processes, as its subscriber is told of it.
-fn reports() : Unit with Process.FaultReport =
+fn reports() : Unit receiving Process.FaultReport =
     receive {
         report -> {
             Io.println("the store's subscriber: " <> report.cause);
@@ -69,7 +69,7 @@ fn reports() : Unit with Process.FaultReport =
 
 // The processes the desk's computes start here, each monitored once it
 // says so, before it is answered, and how each ended.
-fn watching() : Unit with Counter.WatcherMsg =
+fn watching() : Unit receiving Counter.WatcherMsg =
     receive {
         Counter.Watch(process = process, label = label, reply = reply) -> {
             monitor(process, fn(down) = Counter.Ended(label = label, down = down));
@@ -83,12 +83,12 @@ fn watching() : Unit with Counter.WatcherMsg =
     }
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
-fn wait() : Unit with Unit =
+fn wait() : Unit receiving Unit =
     receive {
         _ -> wait()
     }
 
-fn adapts() : Unit with Counter.AdapterMsg =
+fn adapts() : Unit receiving Counter.AdapterMsg =
     receive {
         Counter.Adapt(target = target, reply = reply) -> {
             answer(reply, adapted(target, fn(n) = n * 2));
@@ -96,7 +96,7 @@ fn adapts() : Unit with Counter.AdapterMsg =
         }
     }
 
-fn echoes() : Unit with Counter.EchoMsg =
+fn echoes() : Unit receiving Counter.EchoMsg =
     receive {
         Counter.Ping(back) -> {
             send(back, 1);

@@ -1,7 +1,7 @@
 // Report §8.6, §8.7: finds the counter while its node's end waits, adds to
 // it and asks it.
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Peer.find(Counter.service, 5000) {
         Right(counter) -> {
             send(counter, Counter.Add(3));

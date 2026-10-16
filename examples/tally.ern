@@ -34,7 +34,7 @@ fn Tally.+(left : Tally, right : Tally) : Tally =
 
 let nothing : Tally = Tally(lines = 0, words = 0, bytes = 0)
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Os.arguments {
         [] -> {
             Io.printlnError("usage: tally file...");
@@ -52,7 +52,7 @@ export fn main() : Unit with Never =
     }
 
 // The file's tally, printed, or why it could not be read, on standard error.
-fn tallied(name : String) : Either(String, Tally) with m =
+fn tallied(name : String) : Either(String, Tally) =
     match read(name) {
         Right(tally) -> {
             Io.println(line(tally, name));
@@ -64,7 +64,7 @@ fn tallied(name : String) : Either(String, Tally) with m =
         }
     }
 
-fn read(name : String) : Either(String, Tally) with m = {
+fn read(name : String) : Either(String, Tally) = {
     let bytes <- Either.mapLeft(Fs.read(Path(name), 5000), errorText);
     match String.fromUtf8(bytes) {
         Some(text) -> Right(measured(text, Bytes.size(bytes)))

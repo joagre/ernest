@@ -399,16 +399,8 @@ abstract_declaration([{abstract, Position} | Rest], Doc, Export) ->
                                    [Token | _] -> fail(position(Token),
                                                        "expected `type` after `abstract`")
                                end,
-    case Rest1 of
-        [{with, WithPosition} | _] ->
-            %% report §4.4: the module is an abstract type's boundary, so
-            %% there is no list of the definitions that may see inside it
-            fail(WithPosition, "an abstract type has no signature: every definition of its module"
-                               " may use its constructors, so leave out `with { ... }`");
-        _ ->
-            spanned({#abstract_declaration{span = Position, doc = Doc, export = Export,
-                                           declaration = TypeDeclaration}, Rest1})
-    end.
+    spanned({#abstract_declaration{span = Position, doc = Doc, export = Export,
+                                   declaration = TypeDeclaration}, Rest1}).
 
 fn_declaration([{fn, Position} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
@@ -556,14 +548,14 @@ optional_result_type([{'->', Position} | _]) ->
 optional_result_type([{':', _} | Rest]) ->
     {Type, Rest1} = type(Rest),
     case Rest1 of
-        [{with, Position} | Rest2] ->
-            %% Appendix A: a function type's `with` is its own, so the
-            %% function's effect after one is written around the type in
-            %% parentheses, the one spelling (principle 2)
+        [{receiving, Position} | Rest2] ->
+            %% Appendix A: a function type's `receiving` is its own, so the
+            %% function's mailbox type after one is written around the type
+            %% in parentheses, the one spelling (principle 2)
             not is_bare_effectful_function(Type, Rest) orelse
-                fail(Position, "a second `with` after a function type's own",
-                     "write the function's effect after the type in parentheses,"
-                     " : ((A) -> B with M) with N"),
+                fail(Position, "a second `receiving` after a function type's own",
+                     "write the function's mailbox type after the type in parentheses,"
+                     " : ((A) -> B receiving M) receiving N"),
             {Effect, Rest3} = type(Rest2),
             {Type, Effect, Rest3};
         _ ->
@@ -572,7 +564,7 @@ optional_result_type([{':', _} | Rest]) ->
 optional_result_type(Tokens) ->
     {undefined, undefined, Tokens}.
 
-%% Whether the type is a function type with a `with` of its own, written
+%% Whether the type is a function type with a `receiving` of its own, written
 %% without parentheses around it: it begins where the annotation does.
 is_bare_effectful_function(#t_fn{span = {Line, Column, _}, effect = Effect}, [First | _]) ->
     {FirstLine, FirstColumn, _} = ern_diagnostic:span(position(First)),
@@ -704,11 +696,11 @@ listed_type(Tokens) ->
 parenthesized(Position, Params, [{'->', _} | Rest]) ->
     {ResultType, Rest1} = type(Rest),
     case Rest1 of
-        [{with, WithPosition} | Rest2] ->
+        [{receiving, ReceivingPosition} | Rest2] ->
             not is_bare_effectful_function(ResultType, Rest) orelse
-                fail(WithPosition, "a second `with` after a function type's own",
-                     "write the function's effect after its result in parentheses,"
-                     " (A) -> ((B) -> C with M) with N"),
+                fail(ReceivingPosition, "a second `receiving` after a function type's own",
+                     "write the function's mailbox type after its result in parentheses,"
+                     " (A) -> ((B) -> C receiving M) receiving N"),
             {Effect, Rest3} = type(Rest2),
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType,
                            effect = Effect}, Rest3});

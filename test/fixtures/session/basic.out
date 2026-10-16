@@ -59,7 +59,7 @@ push : (Stack, Int) -> Stack
 x : Int
 zero : () -> Int
 > 1 + 2 : Int
-> Io.println : (String) -> Unit with m+
+> Io.println : (String) -> Unit
 > Io.show : (a) -> String needs a.show
 > depth 10
 length 100
@@ -71,10 +71,10 @@ timing off
 1 | x
   | ^
 > the session declares no nosuchname
-> Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
+> Optional.andThen : (Optional(a), (a) -> Optional(b) receiving e) -> Optional(b) receiving e
 Optional.isNone : (Optional(a)) -> Bool
 Optional.isSome : (Optional(a)) -> Bool
-Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
+Optional.map : (Optional(a), (a) -> b receiving e) -> Optional(b) receiving e
 Optional.withDefault : (Optional(a), a) -> a
 > String.trim
 

@@ -12,7 +12,7 @@ export let counter : Service.Handle(Msg, Count) = Service.start(fn() = Count(tot
 export fn migrate(total : Int) : Count =
     Count(total = total, adds = 0)
 
-export fn step(count : Count, message : Msg) : Count with Service.Envelope(Msg, Count) =
+export fn step(count : Count, message : Msg) : Count receiving Service.Envelope(Msg, Count) =
     match message {
         Add(amount) -> Count(total = count.total + amount, adds = count.adds + 1)
       | Total(reply = reply) -> {
@@ -21,8 +21,8 @@ export fn step(count : Count, message : Msg) : Count with Service.Envelope(Msg, 
         }
     }
 
-export fn add(amount : Int) : Unit with n =
+export fn add(amount : Int) : Unit receiving n =
     send(Service.address(counter), Add(amount))
 
-export fn total() : Int with n =
+export fn total() : Int receiving n =
     Address.callForever(Service.address(counter), fn(reply) = Total(reply = reply))

@@ -34,7 +34,7 @@ export let startup : Optional(Path) = Optional.map(directory, fn(path) = path <>
 /// write and enter, where it is there, once its startup file has been
 /// checked as it was found, so that no one else can change what a later
 /// session runs. One whose mode cannot be set is left as it stands.
-export fn keepOwn() : Unit with m =
+export fn keepOwn() : Unit =
     match directory {
         None -> Unit
       | Some(path) -> {
@@ -50,7 +50,7 @@ export type Unkept = Unreadable(Io.Error) | Linked | NotOwn
 
 /// The inputs of the sessions before this one, newest first. A file that
 /// holds more than the last thousand is trimmed to them as it is read.
-export fn read() : Either(Unkept, List(String)) with m =
+export fn read() : Either(Unkept, List(String)) =
     match file {
         None -> Right([])
       | Some(path) -> {
@@ -64,7 +64,7 @@ export fn read() : Either(Unkept, List(String)) with m =
 // link, or anything but a regular file of the user's own, unkept, so that
 // what is typed goes nowhere but the directory made its owner's alone. No
 // file yet is a first session's.
-fn held(path : Path) : Either(Unkept, Bool) with m =
+fn held(path : Path) : Either(Unkept, Bool) =
     match Fs.readLink(path, fileMs) {
         Left(Io.NotFound) -> Right(false)
       | Left(error) -> Left(Unreadable(error))
@@ -78,7 +78,7 @@ fn held(path : Path) : Either(Unkept, Bool) with m =
         }
     }
 
-fn readFile(path : Path) : Either(Io.Error, List(String)) with m =
+fn readFile(path : Path) : Either(Io.Error, List(String)) =
     match Fs.read(path, fileMs) {
         Left(error) -> Left(error)
       | Right(bytes) -> {
@@ -91,7 +91,7 @@ fn readFile(path : Path) : Either(Io.Error, List(String)) with m =
 // first session, and its owner's alone to read, write and enter, so that no
 // one else reads what was typed, before the file is read, written or
 // trimmed.
-fn makeDirectory(path : Path) : Either(Io.Error, Unit) with m =
+fn makeDirectory(path : Path) : Either(Io.Error, Unit) =
     match Path.parent(path) {
         None -> Right(Unit)
       | Some(directory) -> {
@@ -112,7 +112,7 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
 
 // Newest first is the order the editor walks; the file is oldest first,
 // as a person reading it expects.
-fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) with m = {
+fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then
         Right(List.reverse(inputs))
@@ -127,7 +127,7 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
 // over it, so that it is written whole or not at all, under a name no other
 // session writes at once: the first of `history.new1`, `history.new2` and
 // on that `makeFile` makes, since it refuses one that exists.
-fn replace(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) with m = {
+fn replace(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) = {
     let beside = Path.withExtension(path, "new" <> Int.toString(attempt));
     match Fs.makeFile(beside, bytes, fileMs) {
         Left(Io.Exists) -> replace(path, bytes, attempt + 1)
@@ -147,7 +147,7 @@ fn text(inputs : List(String)) : String =
 
 /// One input, appended as the shell takes it, to the file `read` has made
 /// the directory of.
-export fn add(input : String) : Either(Io.Error, Unit) with m =
+export fn add(input : String) : Either(Io.Error, Unit) =
     match file {
         None -> Right(Unit)
       | Some(path) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), fileMs)

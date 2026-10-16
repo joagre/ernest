@@ -259,7 +259,7 @@ block_test() ->
 %% report §4.5, Appendix A's Return: a result annotation is written `: T`
 %% in a declaration, a foreign one and a lambda, and `->` after the
 %% parameters is refused with the spelling that replaces it (§11); a
-%% function type keeps its arrow, and a `with` after one is the type's
+%% function type keeps its arrow, and a `receiving` after one is the type's
 result_annotation_test() ->
     ?assertMatch([#fn_declaration{result_type = #t_named{name = 'Int'}}],
                  declarations("fn f(x : Int) : Int = x")),
@@ -272,24 +272,24 @@ result_annotation_test() ->
     ?assertEqual(Said, expression_refusal("fn(x) -> Int = x")),
     ?assertMatch([#fn_declaration{result_type = #t_fn{effect = #t_named{name = 'M'}},
                                   effect = undefined}],
-                 declarations("fn f() : (Int) -> Int with M = g")),
+                 declarations("fn f() : (Int) -> Int receiving M = g")),
     ?assertMatch([#fn_declaration{result_type = #t_fn{effect = undefined},
                                   effect = #t_named{name = 'M'}}],
-                 declarations("fn f() : ((Int) -> Int) with M = g")),
-    %% Appendix A: a second `with` after a function type's own is refused,
-    %% the function's effect written around the type in parentheses. A
-    %% regression test: `(A) -> B with M with N` was a second spelling of
-    %% it
-    ?assertEqual("a second `with` after a function type's own",
-                 refusal("fn f() : (Int) -> Int with M with N = g")),
-    ?assertEqual("a second `with` after a function type's own",
-                 expression_refusal("fn() : (Int) -> Int with M with N = g")),
+                 declarations("fn f() : ((Int) -> Int) receiving M = g")),
+    %% Appendix A: a second `receiving` after a function type's own is
+    %% refused, the function's mailbox type written around the type in
+    %% parentheses. A regression test: `(A) -> B receiving M receiving N`
+    %% was a second spelling of it
+    ?assertEqual("a second `receiving` after a function type's own",
+                 refusal("fn f() : (Int) -> Int receiving M receiving N = g")),
+    ?assertEqual("a second `receiving` after a function type's own",
+                 expression_refusal("fn() : (Int) -> Int receiving M receiving N = g")),
     ?assertMatch([#fn_declaration{result_type = #t_fn{effect = #t_named{name = 'M'}},
                                   effect = #t_named{name = 'N'}}],
-                 declarations("fn f() : ((Int) -> Int with M) with N = g")),
+                 declarations("fn f() : ((Int) -> Int receiving M) receiving N = g")),
     %% and in a function type's own result alike
-    ?assertEqual("a second `with` after a function type's own",
-                 refusal("fn f(g : () -> (Int) -> Int with M with N) = g")).
+    ?assertEqual("a second `receiving` after a function type's own",
+                 refusal("fn f(g : () -> (Int) -> Int receiving M receiving N) = g")).
 
 %% report §2.4, §11.5: a reserved word where a name, a type or a pattern
 %% stands is said to be reserved and to name nothing, `true` and `false`
@@ -317,7 +317,7 @@ lambda_test() ->
                  expression("fn(x) = x + 1")),
     ?assertMatch(#e_lambda{params = [], result_type = #t_named{name = 'Unit'},
                            effect = #t_named{name = 'Never'}, body = #e_constructor{name = 'Unit'}},
-                 expression("fn() : Unit with Never = Unit")),
+                 expression("fn() : Unit receiving Never = Unit")),
     %% the body extends to the enclosing delimiter
     ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_binop{operator = '+'}}]},
                  expression("List.map(xs, fn(x) = x + 1)")),
@@ -537,16 +537,16 @@ types_test() ->
                  type_of("() -> Unit")),
     ?assertMatch(#t_fn{params = [#t_named{name = 'A'}, #t_named{name = 'B'}],
                        result_type = #t_named{name = 'C'}, effect = #t_named{name = 'M'}},
-                 type_of("(A, B) -> C with M")),
+                 type_of("(A, B) -> C receiving M")),
     ?assertMatch(#t_named{name = 'Int'}, type_of("(Int)")),
-    %% with binds to the nearest arrow
+    %% receiving binds to the nearest arrow
     ?assertMatch(#t_fn{result_type = #t_fn{effect = #t_named{name = 'M'}}, effect = undefined},
-                 type_of("(A) -> (B) -> C with M")),
+                 type_of("(A) -> (B) -> C receiving M")),
     ?assertMatch(#t_fn{result_type = #t_fn{effect = undefined}, effect = #t_named{name = 'M'}},
-                 type_of("(A) -> ((B) -> C) with M")),
+                 type_of("(A) -> ((B) -> C) receiving M")),
     ?assertMatch(#t_fn{params = [#t_fn{params = [#t_var{name = a}], result_type = #t_var{name = b},
                                        effect = #t_var{name = e}}, #t_var{name = a}]},
-                 type_of("((a) -> b with e, a) -> b with e")).
+                 type_of("((a) -> b receiving e, a) -> b receiving e")).
 
 %%
 %% Declarations
@@ -572,7 +572,7 @@ type_declaration_test() ->
                                                                   #field{name = seen}]}}]},
                  declaration("type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))")),
     #type_declaration{constructors = [#constructor{name = 'Upgrade', fields = {named, Fields}}]} =
-        declaration("type M = Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with M)"),
+        declaration("type M = Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving M)"),
     ?assertMatch([#field{annotation = #t_fn{}}, #field{annotation = #t_fn{effect = #t_named{}}}],
                  Fields).
 
@@ -584,11 +584,7 @@ abstract_declaration_test() ->
                                            #type_declaration{name = 'Stack', params = [a],
                                                              constructors =
                                                                  [#constructor{name = 'Stack'}]}},
-                 declaration("export abstract type Stack(a) = Stack(List(a))")),
-    ?assertMatch({error, #diagnostic{message = "an abstract type has no signature: every definition"
-                                               " of its module may use its constructors, so leave"
-                                               " out `with { ... }`"}},
-                 ern_parser:parse_string("abstract type S = S(Int) with {\n    e : S\n}\n")).
+                 declaration("export abstract type Stack(a) = Stack(List(a))")).
 
 %% report §4.5
 fn_declaration_test() ->
@@ -596,7 +592,7 @@ fn_declaration_test() ->
                                  result_type = #t_named{name = 'Unit'},
                                  effect = #t_named{name = 'Never'},
                                  body = #e_call{}, doc = undefined},
-                 declaration("export fn main() : Unit with Never = Io.println(\"hi\")")),
+                 declaration("export fn main() : Unit receiving Never = Io.println(\"hi\")")),
     ?assertMatch(#fn_declaration{name = double,
                                  params = [#param{pattern = #p_var{name = n},
                                                   annotation = #t_named{name = 'Int'}}],
@@ -651,8 +647,8 @@ foreign_declaration_test() ->
                                          result_type = #t_named{name = 'Bool'},
                                          effect = #t_var{name = m},
                                          implementation = <<"ets:member/2">>},
-                 declaration("export foreign fn member(t : Table(k, v), key : k) : Bool with m"
-                             " = \"ets:member/2\"")),
+                 declaration("export foreign fn member(t : Table(k, v), key : k) : Bool"
+                             " receiving m = \"ets:member/2\"")),
     ?assertMatch(#foreign_fn_declaration{name = atom, effect = undefined},
                  declaration("foreign fn atom(name : String) : Foreign.Term ="
                              " \"erlang:binary_to_atom/1\"")).
@@ -742,9 +738,9 @@ several_declarations_test() ->
     ?assertMatch([#type_declaration{}, #fn_declaration{name = main},
                   #fn_declaration{name = counter}],
                  declarations("type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
-                              "export fn main() : Unit with m = { let c = spawn(fn() = counter(0));"
+                              "export fn main() : Unit = { let c = spawn(fn() = counter(0));"
                               " send(c, Inc(5)) }\n"
-                              "fn counter(n : Int) : Unit with CounterMsg = receive {\n"
+                              "fn counter(n : Int) : Unit receiving CounterMsg = receive {\n"
                               "    Inc(k) -> counter(n + k)\n"
                               "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}")).
 
@@ -1109,7 +1105,7 @@ requirement_test() ->
     #fn_declaration{requirement = [#member{member_of = a, name = compare},
                                    #member{member_of = b, name = '+'},
                                    #member{member_of = a, name = show}]} =
-        declaration("fn f(x : a, y : b) : a with m needs a.compare, b.+, a.show = x"),
+        declaration("fn f(x : a, y : b) : a receiving m needs a.compare, b.+, a.show = x"),
     #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
     ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show"
                  " (§4.8, E.1)",

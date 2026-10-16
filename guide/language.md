@@ -35,16 +35,16 @@ Beside the guide: [Why Ernest](why.md), the argument for the design with a progr
 
 ## 0. What the compiler refuses
 
-Ernest is a functional language for concurrent programs, built on two ideas. A pure function computes a value from its arguments and does nothing else, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that sends or receives says so in its type, and runs only in a process. Every other rule says how the two appear in each other's code.
+Ernest is a functional language for concurrent programs, built on two ideas. A function computes a value from its arguments, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that receives says so in its type, and runs only in a process whose mailbox takes what it receives. Every other rule says how the two appear in each other's code.
 
-The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Three follow, each as a program and what `ern build`, the compiler, says about it.
+The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Two follow, each as a program and what `ern build`, the compiler, says about it.
 
 **A message the process does not take.** The counter receives `CounterMsg`, so the address `spawn` returns takes a `CounterMsg` and nothing else.
 
 ```ernest-rejected
 type CounterMsg = Inc(Int) | Get(Reply(Int))
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply) -> {
@@ -53,7 +53,7 @@ fn count(total : Int) : Unit with CounterMsg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, "increment")
 }
@@ -64,36 +64,16 @@ $ ern build message.ern
 message.ern:14:19: the argument does not fit send: expected CounterMsg, found String
 13 |     let counter = spawn(fn() = count(0));
 14 |     send(counter, "increment")
-   |     ---- send : (Address(a), a) -> Unit with m+
+   |     ---- send : (Address(a), a) -> Unit
    |                   ^^^^^^^^^^^
 ```
 
-An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labeled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, `Reply`, `answer`, and `with`, are taught in §1 to §4; here only the errors matter.
-
-
-**Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `: Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
-
-```ernest-rejected
-fn area(width : Int, height : Int) : Int = {
-    Io.println("computing an area");
-    width * height
-}
-```
-
-```console
-$ ern build area.ern
-area.ern:2:5: Io.println needs a process, and area is pure
-1 | fn area(width : Int, height : Int) : Int = {
-  |                                      --- `: Int` with no `with` declares area pure
-2 |     Io.println("computing an area");
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: give area a mailbox type with `with`
-```
+An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labeled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, `Reply`, `answer`, and `receiving`, are taught in §1 to §4; here only the errors matter.
 
 **A failure dropped.** `Fs.write` returns `Either(Io.Error, Unit)`: the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
 ```ernest-rejected
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
     Io.println("saved")
 }
@@ -102,13 +82,13 @@ export fn main() : Unit with Never = {
 ```console
 $ ern build notes.ern
 notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(Io.Error, Unit)
-1 | export fn main() : Unit with Never = {
+1 | export fn main() : Unit = {
 2 |     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, four things with a program for each, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the third is principle 3's (§11).
+These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, four things with a program for each, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the second is principle 3's (§11).
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
@@ -117,7 +97,7 @@ Sections 1 to 8 are eight stages: run a program, compute with values, pass behav
 A program is a module that exports a function `main`. Put this line in `hello.ern`, a file named by lowercase words joined by `_` (§7.1):
 
 ```ernest
-export fn main() : Unit with Never =
+export fn main() : Unit =
     Io.println("hello, world")
 ```
 
@@ -137,13 +117,11 @@ hello, world
 
 `: Unit` is the result type, written after the parameters as a parameter's type is written after its name. `Unit` is a type with one value, also written `Unit`, the result of a function whose work is its effect.
 
-`with Never` names the mailbox. A function that sends or receives runs in a process, whose mailbox takes one type of message, and its type says which with `with`. `main` runs in the process the program starts it in, the *entry process*. `Never` is the type with no values, so a process whose mailbox is `Never` receives nothing, which suits a `main` that only sends.
-
-A function a process starts with that never receives, such as `main`, is written `with Never`, and one that only sends, such as `Io.println`, is written `with m`, a type variable, so that a process with any mailbox may call it. Types may also be left out, and the compiler infers them (§3.3).
+`main` runs in the process the program starts it in, the *entry process*. A function that receives messages says so after its result type, `receiving` and the type it receives (§3.4, §4.1); one that only sends, as `main` does here through `Io.println`, says nothing, as in ML and Erlang. Types may also be left out, and the compiler infers them (§3.3).
 
 `Io.println` sends its text to standard output's process, which the runtime provides and `Io` alone reaches. `Io.printlnError` sends to standard error's, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
-`Io.debug(x)` prints any value as its literal or construction is written, where it has one, to standard error, and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function. `Io.show(x)` is the text it prints, and is pure (report Appendix E.1).
+`Io.debug(x)` prints any value as its literal or construction is written, where it has one, to standard error, and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. `Io.show(x)` is the text it prints (report Appendix E.1).
 
 ### 1.2 The shell
 
@@ -177,7 +155,7 @@ At a terminal the shell edits the line with Readline's Emacs keys, stands the cu
 A program's first input is its command line. An entry point takes no arguments: the words after the module on `ern run`'s line are `Os.arguments`, a list of strings. The shell's command line is its own, and in the shell `Os.arguments` is the empty list.
 
 ```ernest
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Os.arguments {
         [] -> {
             Io.printlnError("usage: greet name...");
@@ -200,7 +178,7 @@ hello, Grace
 A program the host has is run with `Os.run`, which gives it its input and answers its exit status and what it wrote once it has ended, or an `Io.Error` where it could not start. Its name is found as the host finds a command, and each argument reaches it as it is, with no shell between:
 
 ```ernest
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Os.run(Os.Command(program = "echo", arguments = ["hi"], input = <<>>), 5000) {
         Right(finished) -> Io.print(Optional.withDefault(String.fromUtf8(finished.stdout), ""))
       | Left(error) -> Io.printlnError(Io.show(error))
@@ -217,7 +195,7 @@ hi
 `Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
 
 ```ernest
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Io.readLine() {
         Some(line) -> {
             Io.println(String.toUpper(line));
@@ -237,21 +215,21 @@ Standard input is read as UTF-8, and a line that is not faults the process that 
 
 ### 1.4 Prediction exercise
 
-Consider two variations on hello-world, (a) with no annotation:
+Consider hello-world (a) with no annotation:
 
 ```ernest
 export fn main() =
     Io.println("hello, world")
 ```
 
-and (b) with `: Unit`:
+and (b) with `: Unit`, as §1 writes it:
 
-```ernest-rejected
+```ernest
 export fn main() : Unit =
     Io.println("hello, world")
 ```
 
-Which of these compile?
+Which of these compile, and what type does each give `main`?
 
 ## 2. Compute with immutable values
 
@@ -284,7 +262,7 @@ number : String
 
 ### 2.2 Bindings and blocks
 
-A name begins with a lowercase letter or `_`, and eighteen words are reserved and name nothing: `type`, `abstract`, `with`, `foreign`, `match`, `when`, `receive`, `after`, `as`, `or`, `if`, `then`, `else`, `fn`, `let`, `export`, `true` and `false` (report §2.4). At the prompt, as in a block, `let` binds a name:
+A name begins with a lowercase letter or `_`, and eighteen words are reserved and name nothing: `type`, `abstract`, `receiving`, `foreign`, `match`, `when`, `receive`, `after`, `as`, `or`, `if`, `then`, `else`, `fn`, `let`, `export`, `true` and `false` (report §2.4). At the prompt, as in a block, `let` binds a name:
 
 ```console
 $ ern shell
@@ -431,7 +409,7 @@ type Money = Money(Int)
 fn Money.compare(Money(left), Money(right)) : Ordering =
     Int.compare(left, right)
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     Io.println(if Money(3) < Money(5) then "cheaper" else "not cheaper")
 ```
 
@@ -501,7 +479,7 @@ A guard after the alternatives sees the shared variables. The same works in `rec
 
 `as` binds the whole value beside its parts: `Some(x) as present` binds `x` to the payload and `present` to the whole `Optional`.
 
-A guard is a pure `Bool` expression. A guard that is `false` passes to the next clause; one that faults faults the process. A guarded clause does not count toward coverage, so a `match` with guards usually ends in an unguarded clause.
+A guard is a `Bool` expression that receives nothing. A guard that is `false` passes to the next clause; one that faults faults the process. A guarded clause does not count toward coverage, so a `match` with guards usually ends in an unguarded clause.
 
 ### 2.7 `if` and `<-`
 
@@ -559,16 +537,15 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program writes an `Io.Error` with `Io.show`, as a value, `Other("address already in use")`, or in its own words by a `match` over its constructors.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
 
-Four more rules concern processes, and are for after §4:
+Three more rules concern processes, and are for after §4:
 
-- **Pure where the result depends on the arguments alone.** A function that reads or changes what is outside its arguments while it runs carries `with m`: one that reaches a system process, one that spawns, as `Supervisor.group` does, one that asks the runtime about its processes, as `Process.live` does, one that reads the time, as `Clock.monotonic` does, and one that reads the node's peers, as `Peer.peers` does (report Appendix E.0 shape rule 5). Every function that calls a function it takes is as pure as the function it is given (§3.5).
 - **A system process is used through its module**, never by `send`.
 - **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. `Timeout` is `Io.Error`'s, whichever module answers it, `Peer.find` among them. There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
-- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message is pure, and the one that takes it, `Clock.alarm` or `Terminal.subscribe`, acts through a process all the same. `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
+- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§3.4). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
-**Marks in a printed type.** A printed type marks what the compiler infers of a type variable, and an annotation writes no mark. `k=` needs equality (§2.5): `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. `m+` is a process-only effect variable (§3.5) that stands only after `with`, never as the type of a value: `send : (Address(a), a) -> Unit with m+`, and a function of yours that calls `send` prints so too. An effect variable that is also a callback's result type, `monitor`'s `(Down) -> m`, is a type, so never pure, and is printed without the mark. The one mark a program writes is `=` on a foreign declaration's type variable, since the compiler cannot see what the Erlang compares (§8.3, report §11.5).
+**Marks in a printed type.** A printed type marks what the compiler infers of a type variable, and an annotation writes no mark. `k=` needs equality (§2.5): `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. The one mark a program writes is `=` on a foreign declaration's type variable, since the compiler cannot see what the Erlang compares (§8.3, report §11.5).
 
 ### 2.10 A word counter, by hand
 
@@ -675,9 +652,9 @@ Without a source that fixes the type, `value + value` is a type error, and `(val
 
 **What is polymorphic.** A polymorphic name may be used at one type here and at another there.
 
-- A `fn` and a top-level `let` are polymorphic.
+- A `fn` is polymorphic.
+- A top-level `let` is polymorphic where its initializer is a value: a literal, a name, a lambda, or a constructor applied to values, `let empty = []`. One whose initializer calls a function, `spawn` or any other, has the type the call gives.
 - A `let` in a block is polymorphic only where it binds a lambda. Any other `let` in a block has one type.
-- A top-level `let` whose initializer calls a function that needs a process, `spawn`, `send`, `Address.call` or `Io.println` among them (§3.5), is not polymorphic either.
 
 ```console
 $ ern shell
@@ -696,11 +673,11 @@ input 2:1:46: the argument does not fit one: expected List(Int), found List(Stri
 
 **A type nothing settles.** After `let xs = []` in a block, the element type of `xs` is settled by an annotation, by a later use in the block, or by `xs` reaching the block's result. Where nothing settles it, with `xs` never read, the type stays open and the block compiles. A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled, by an annotation where nothing else settles them (report §4.6).
 
-### 3.4 Pure functions and functions with a mailbox effect
+### 3.4 Functions that receive
 
-A function whose type has no `with` is *pure*. It cannot send, receive, spawn, ask for its own address, or call a `foreign fn` that has an effect. A function with `with M` may act through a process whose mailbox takes `M`.
+A function whose type has `receiving M` receives from the mailbox of the process it runs in, whose type is `M`: it runs a `receive`, asks for its own address with `self`, asks for a message to be delivered into its mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function whose type has no `receiving` receives nothing and runs in any process. Either may send, spawn, print, or call another process (§4).
 
-Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `fault("...")` has every type and faults when it is reached. The `with` says only that a function acts through a process, not whether it can fault (§6).
+Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `fault("...")` has every type and faults when it is reached. `receiving` says only that a function receives, not whether it can fault (§6).
 
 ### 3.5 Higher-order and effect polymorphism
 
@@ -709,13 +686,11 @@ fn apply(f, x) =
     f(x)
 ```
 
-The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. Written out, it is `fn apply(f : (a) -> b with e, x : a) : b with e = f(x)`. An annotation without the `with e`, `f : (a) -> b`, takes a pure function only. `List.map`, `List.forEach`, and every other function of the standard library that calls a function it takes are the same.
+The inferred type is `((a) -> b receiving e, a) -> b receiving e`: `apply` receives where the function it is given receives, so `apply(f, x)` receives nothing when `f` receives nothing. Written out, it is `fn apply(f : (a) -> b receiving e, x : a) : b receiving e = f(x)`. An annotation without the `receiving e`, `f : (a) -> b`, takes only a function that receives nothing. `List.map`, `List.forEach`, and every other function of the standard library that calls a function it takes are the same.
 
-An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
+An effect variable may stand for a mailbox type or for none. One that also appears inside `Address`, as in `self : () -> Address(m) receiving m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-**Process-only.** The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
-
-A printed type marks a process-only effect variable `+` (§2.9): `:type send` prints `send : (Address(a), a) -> Unit with m+`, and each place the variable stands is marked, `restarting : (RestartLimit, () -> Unit with n+) -> () -> Unit with n+`.
+**A timed wait.** A `receive` with an `after` clause alone waits on the mailbox and reads no type from it: `fn pause(ms) = receive { after ms -> Unit }`. Its effect variable is *process-only*, never none, since the wait is on a mailbox, and a printed type marks it `+`, `pause : (Int) -> Unit receiving e+` (report §3.9, report §11.5).
 
 ### 3.6 The word counter as functions
 
@@ -775,7 +750,7 @@ A process holds state, receives messages, and answers requests. This section bui
 ```ernest
 type CounterMsg = Inc(Int) | Get(Reply(Int))
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply) -> {
@@ -791,7 +766,7 @@ fn count(total : Int) : Unit with CounterMsg =
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit with n`, and the address an `Address(n)`. A pure function fits wherever one with a mailbox type is expected, so a pure function is spawned too, and the first `send` to its address fixes `n`. Where nothing fixes it, the process receives nothing and its mailbox type is `Never`, one rule for every process: one spawned here or on a peer (§8.1), and `main` (§1.1). A process may say so itself, `spawn(fn() : Unit with Never = work())`, and its address is then an `Address(Never)`, to which nothing can be sent.
+**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit receiving n`, and the address an `Address(n)`. A function that receives nothing fits wherever one with a mailbox type is expected, so it is spawned as any other, and the first `send` to its address fixes `n`. Where nothing fixes it, the process receives nothing and its mailbox type is `Never`, one rule for every process: one spawned here or on a peer (§8.1), and `main` (§1.1). An annotation may say so, `let worker : Address(Never) = spawn(fn() = work())`, and nothing can be sent to that address.
 
 A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3); the shell shows the open type and keeps `it` as it was:
 
@@ -816,7 +791,7 @@ A reply is a value. A server that cannot answer yet keeps it until it can, as an
 ```ernest
 type Inbox = Data(Int) | Wake
 
-fn waitForData() : Optional(Int) with Inbox =
+fn waitForData() : Optional(Int) receiving Inbox =
     receive {
         Data(n) -> Some(n)
       | after 1000 -> None
@@ -837,7 +812,7 @@ Synchronous request-reply, used from the caller side:
 $ ern shell
 Ernest 0.3.1. :help for the commands, :quit to leave.
 > :type Address.call
-Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n+
+Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 ```
 
 `Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, reply = reply)`. The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
@@ -853,7 +828,7 @@ type MainMsg = Took(Int)
 
 // Items no one has asked for yet, and the replies of the callers waiting for
 // an item.
-fn queueing(items : List(Int), waiting : List(Reply(Int))) : Unit with QueueMsg =
+fn queueing(items : List(Int), waiting : List(Reply(Int))) : Unit receiving QueueMsg =
     receive {
         Put(item) -> match waiting {
             reply :: rest -> {
@@ -871,7 +846,7 @@ fn queueing(items : List(Int), waiting : List(Reply(Int))) : Unit with QueueMsg 
         }
     }
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     let queue = spawn(fn() = queueing([], []));
     let me = self();
     let _ = spawn(fn() = send(me, Took(take(queue))));
@@ -882,7 +857,7 @@ export fn main() : Unit with MainMsg = {
 }
 
 // Waits for an item, for as long as it takes.
-fn take(queue : Address(QueueMsg)) : Int with m =
+fn take(queue : Address(QueueMsg)) : Int =
     Address.callForever(queue, fn(reply) = Take(reply = reply))
 ```
 
@@ -905,7 +880,7 @@ type ProducerMsg = Credit(Int)
 fn produce(consumer : Address(ConsumerMsg),
            next : Int,
            last : Int,
-           credit : Int) : Unit with ProducerMsg =
+           credit : Int) : Unit receiving ProducerMsg =
     if next > last then
         send(consumer, Last)
     else if credit == 0 then receive {
@@ -916,7 +891,7 @@ fn produce(consumer : Address(ConsumerMsg),
     }
 
 // Takes the items, granting ten more each time it has taken ten.
-fn consume(producer : Address(ProducerMsg), taken : Int, sum : Int) : Unit with ConsumerMsg =
+fn consume(producer : Address(ProducerMsg), taken : Int, sum : Int) : Unit receiving ConsumerMsg =
     receive {
         Item(value) -> {
             if (taken + 1) % 10 == 0 then send(producer, Credit(10)) else Unit;
@@ -925,9 +900,9 @@ fn consume(producer : Address(ProducerMsg), taken : Int, sum : Int) : Unit with 
       | Last -> Io.println("sum " <> Int.toString(sum))
     }
 
-export fn main() : Unit with ConsumerMsg = {
+export fn main() : Unit receiving ConsumerMsg = {
     let me = self();
-    let producer = spawn(fn() : Unit with ProducerMsg = produce(me, 1, 100, 0));
+    let producer = spawn(fn() : Unit receiving ProducerMsg = produce(me, 1, 100, 0));
     send(producer, Credit(10));
     consume(producer, 0, 0)
 }
@@ -951,7 +926,7 @@ The counter of §4.1 with a `main` that uses it, in `counter.ern`:
 ```ernest
 type CounterMsg = Inc(Int) | Get(Reply(Int))
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply) -> {
@@ -960,7 +935,7 @@ fn count(total : Int) : Unit with CounterMsg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
@@ -992,9 +967,9 @@ The counter of §4.5 gains an `Upgrade` constructor. The program is three parts 
 type CounterMsg =
     Inc(Int)
   | Get(Reply(Int))
-  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply) -> {
@@ -1011,7 +986,7 @@ A replacement loop that doubles each increment:
 
 ```ernest
 // counter.ern
-fn countTwice(total : Int) : Unit with CounterMsg =
+fn countTwice(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> countTwice(total + 2 * amount)
       | Get(reply) -> {
@@ -1026,7 +1001,7 @@ And a `main` that upgrades after the first `Get`:
 
 ```ernest
 // counter.ern
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
@@ -1060,7 +1035,7 @@ A tally is a process that holds the counts and adds to them. `words.ern` continu
 // words.ern, continued
 export type TallyMsg = Add(Map(String, Int)) | Top(limit : Int, reply : Reply(List(#(String, Int))))
 
-export fn tally(counts : Map(String, Int)) : Unit with TallyMsg =
+export fn tally(counts : Map(String, Int)) : Unit receiving TallyMsg =
     receive {
         Add(more) -> tally(Map.fold(more, counts, add))
       | Top(limit = limit, reply = reply) -> {
@@ -1095,7 +1070,7 @@ A `send` is `Unit`, which the shell does not print.
 ```ernest
 type CounterMsg = Inc(Int) | Get(Reply(Int))
 
-fn relay(counter : Address(CounterMsg)) : Unit with CounterMsg =
+fn relay(counter : Address(CounterMsg)) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> {
             send(counter, Inc(amount));
@@ -1123,7 +1098,7 @@ type PongMsg = Ping(round : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     let opponent = spawnMonitored(fn() = pong(), PongDone);
     let _ = spawn(fn() = ping(opponent, 3));
     receive {
@@ -1131,7 +1106,7 @@ export fn main() : Unit with MainMsg = {
     }
 }
 
-fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
+fn ping(opponent : Address(PongMsg), round : Int) : Unit =
     if round == 0 then
         send(opponent, Stop)
     else {
@@ -1145,7 +1120,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
         }
     }
 
-fn pong() : Unit with PongMsg =
+fn pong() : Unit receiving PongMsg =
     receive {
         Ping(round = round, reply = reply) -> {
             Io.println("pong " <> Int.toString(round));
@@ -1156,7 +1131,7 @@ fn pong() : Unit with PongMsg =
     }
 ```
 
-`ping` never receives, so its mailbox `m` is any type; it must be a real one, since `Address.call` runs only in a process (§3.5).
+`ping` receives nothing, and calls and sends all the same, so its type names no mailbox (§3.4).
 
 `main` starts pong with `spawnMonitored`, which §5.2 explains, so that a `PongDone` arrives when pong ends, and waits for it. Had `main` returned at once, the program would have ended before the two had played, since returning from `main` ends every process (§4.5).
 
@@ -1168,9 +1143,9 @@ The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages fro
 $ ern shell
 Ernest 0.3.1. :help for the commands, :quit to leave.
 > :type monitor
-monitor : (Process, (Down) -> m) -> Unit with m
+monitor : (Process, (Down) -> m) -> Unit receiving m
 > :type spawnMonitored
-spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
+spawnMonitored : (() -> Unit receiving n, (Down) -> m) -> Address(n) receiving m
 ```
 
 ```ernest-prelude
@@ -1189,16 +1164,16 @@ type MainMsg = Result(from : Process, value : Int) | Died(Down)
 fn work(job : Int) : Int =
     job * job
 
-fn worker(parent : Address(MainMsg), job : Int) : Unit with Never =
-    send(parent, Result(from = Process.fromAddress(self()), value = work(job)))
+fn worker(parent : Address(MainMsg), job : Int) : Unit =
+    send(parent, Result(from = Process.current(), value = work(job)))
 
-fn runWorker(job : Int) : Optional(Int) with MainMsg = {
+fn runWorker(job : Int) : Optional(Int) receiving MainMsg = {
     let me = self();
     let child = spawnMonitored(fn() = worker(me, job), Died);
     waitFor(Process.fromAddress(child))
 }
 
-fn waitFor(child : Process) : Optional(Int) with MainMsg =
+fn waitFor(child : Process) : Optional(Int) receiving MainMsg =
     receive {
         Result(from = w, value = v) when w == child -> Some(v)
       // the Down came before the result; a worker that returned has sent it, so go on waiting
@@ -1207,13 +1182,13 @@ fn waitFor(child : Process) : Optional(Int) with MainMsg =
       | _ -> waitFor(child)
     }
 
-fn report(job : Int) : Unit with MainMsg =
+fn report(job : Int) : Unit receiving MainMsg =
     match runWorker(job) {
         Some(v) -> Io.println("job " <> Int.toString(job) <> ": " <> Int.toString(v))
       | None -> Io.println("job " <> Int.toString(job) <> ": the worker died")
     }
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     report(1);
     report(2)
 }
@@ -1239,7 +1214,7 @@ A fault in one process does not affect another, apart from the cases §6.3 lists
 $ ern shell
 Ernest 0.3.1. :help for the commands, :quit to leave.
 > :type kill
-kill : (Address(a)) -> Unit with m+
+kill : (Address(a)) -> Unit
 ```
 
 `kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](../examples/repl.ern) kills an evaluation that runs too long.
@@ -1266,10 +1241,10 @@ adapted : (Address(b), (a) -> b) -> Address(a)
 ```ernest
 type GameMsg = Done(Either(String, Int)) | Tick(Int)
 
-fn worker(report : Address(Either(String, Int))) : Unit with m =
+fn worker(report : Address(Either(String, Int))) : Unit =
     send(report, Right(42))
 
-fn startWorker() : Unit with GameMsg = {
+fn startWorker() : Unit receiving GameMsg = {
     let me = self();
     let _ = spawn(fn() = worker(adapted(me, Done)));
     receive {
@@ -1300,7 +1275,7 @@ A `0` sent to `halves(t)` faults the process `t` names, with `division by zero`,
 ```ernest
 type ChatMsg = Line(Optional(String)) | Said(String)
 
-fn reader(listener : Address(Optional(String))) : Unit with m = {
+fn reader(listener : Address(Optional(String))) : Unit = {
     let line = Io.readLine();
     send(listener, line);
     match line {
@@ -1309,13 +1284,13 @@ fn reader(listener : Address(Optional(String))) : Unit with m = {
     }
 }
 
-fn chat() : Unit with ChatMsg = {
+fn chat() : Unit receiving ChatMsg = {
     let me = self();
     let _ = spawn(fn() = reader(adapted(me, Line)));
     talk()
 }
 
-fn talk() : Unit with ChatMsg =
+fn talk() : Unit receiving ChatMsg =
     receive {
         Line(Some(text)) -> {
             Io.println("you: " <> text);
@@ -1352,12 +1327,12 @@ type World = World(score : Int)
 fn step(world : World) : World =
     World(score = world.score + 1)
 
-fn game(state : World) : Unit with GameMsg = {
+fn game(state : World) : Unit receiving GameMsg = {
     Clock.alarm(100, Tick);
     waitForTick(state)
 }
 
-fn waitForTick(state : World) : Unit with GameMsg =
+fn waitForTick(state : World) : Unit receiving GameMsg =
     receive {
         Tick(_) -> game(step(state))
       | Input(_) -> waitForTick(state)
@@ -1376,7 +1351,7 @@ Several texts are counted at once, by a worker each, and the tally totals them. 
 // words.ern, continued
 type MainMsg = Counted(Map(String, Int)) | Died(Down)
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     let totals = spawn(fn() = tally(Map.empty));
     countAll(totals, ["the cat and the hat", "the bat and the ball", "a cat"]);
     match Address.call(totals, fn(reply) = Top(limit = 3, reply = reply), 1000) {
@@ -1385,7 +1360,7 @@ export fn main() : Unit with MainMsg = {
     }
 }
 
-fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit with MainMsg = {
+fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit receiving MainMsg = {
     let me = self();
     List.forEach(texts, fn(text) = {
         let _ = spawnMonitored(fn() = send(me, Counted(count(text))), Died);
@@ -1394,7 +1369,7 @@ fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit with MainMs
     collect(totals, List.size(texts))
 }
 
-fn collect(totals : Address(TallyMsg), left : Int) : Unit with MainMsg =
+fn collect(totals : Address(TallyMsg), left : Int) : Unit receiving MainMsg =
     if left == 0 then
         Unit
     else receive {
@@ -1455,7 +1430,7 @@ fn show(result : Either(String, Config)) : String =
       | Left(reason) -> "no config: " <> reason
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(show(parse("8080", "4")));
     Io.println(show(parse("8080", "four")))
 }
@@ -1476,7 +1451,7 @@ Between processes a failure is part of the protocol. A request whose work can fa
 ```ernest
 type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
 
-fn parsing() : Unit with ParserMsg =
+fn parsing() : Unit receiving ParserMsg =
     receive {
         Parse(text = text, reply = reply) -> {
             answer(reply, Either.fromOptional(String.toInt(text), text <> " is not a number"));
@@ -1484,14 +1459,14 @@ fn parsing() : Unit with ParserMsg =
         }
     }
 
-fn outcome(parser : Address(ParserMsg), text : String) : String with m =
+fn outcome(parser : Address(ParserMsg), text : String) : String =
     match Address.call(parser, fn(reply) = Parse(text = text, reply = reply), 1000) {
         Some(Right(n)) -> "parsed " <> Int.toString(n)
       | Some(Left(reason)) -> "refused: " <> reason
       | None -> "no answer"
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let parser = spawn(fn() = parsing());
     Io.println(outcome(parser, "42"));
     Io.println(outcome(parser, "forty-two"))
@@ -1516,10 +1491,10 @@ type MainMsg = WorkerDied(Down)
 fn average(total : Int, count : Int) : Int =
     total / count
 
-fn worker(count : Int) : Unit with Never =
+fn worker(count : Int) : Unit =
     Io.println(Int.toString(average(100, count)))
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     let _ = spawnMonitored(fn() = worker(0), WorkerDied);
     receive {
         WorkerDied(Down(reason = Fault(cause), site = site)) ->
@@ -1535,7 +1510,7 @@ Faults.main:10 faulted: division by zero
 the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
-`average` is pure and still faults, as §3.4 says a pure function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it. Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
+`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it. Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
 
 Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
@@ -1546,7 +1521,7 @@ A worker need not guard against what it did not expect. It faults, and the proce
 ```ernest
 type SupervisorMsg = Result(Int) | Ended(Down)
 
-fn supervise(jobs : List(Int)) : Unit with SupervisorMsg =
+fn supervise(jobs : List(Int)) : Unit receiving SupervisorMsg =
     match jobs {
         [] -> Io.println("all jobs done")
       | job :: rest -> {
@@ -1560,7 +1535,7 @@ fn supervise(jobs : List(Int)) : Unit with SupervisorMsg =
 // The worker's answer, or the fault that ended it. A worker that returned
 // has sent its answer, so after its end the answer is taken too, whichever
 // arrived first, and neither is left for the next worker.
-fn outcome() : String with SupervisorMsg =
+fn outcome() : String receiving SupervisorMsg =
     receive {
         Ended(Down(reason = Fault(cause), site = _)) -> "failed, " <> cause
       | Ended(_) -> receive {
@@ -1568,7 +1543,7 @@ fn outcome() : String with SupervisorMsg =
         }
     }
 
-export fn main() : Unit with SupervisorMsg =
+export fn main() : Unit receiving SupervisorMsg =
     supervise([4, 0, 5])
 ```
 
@@ -1597,11 +1572,11 @@ export let counter : Address(CounterMsg) = start()
 
 // A counter, restarted in place after a fault. A test calls it for a
 // counter of its own.
-export fn start() : Address(CounterMsg) with m =
+export fn start() : Address(CounterMsg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
 // The counter's loop, which faults on a negative amount.
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount = amount, reply = reply) -> if amount < 0 then
             fault("a negative amount")
@@ -1611,7 +1586,7 @@ fn count(total : Int) : Unit with CounterMsg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let add =
         fn(amount) = Address.call(counter, fn(reply) = Add(amount = amount, reply = reply), 1000);
     Io.println(Io.show(add(2)));
@@ -1651,7 +1626,7 @@ let visits : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0)
 
 let sales : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0)))
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount = amount, reply = reply) -> if amount < 0 then
             fault("a negative amount")
@@ -1661,10 +1636,10 @@ fn count(total : Int) : Unit with CounterMsg =
         }
     }
 
-fn add(counter : Address(CounterMsg), amount : Int) : Optional(Int) with m =
+fn add(counter : Address(CounterMsg), amount : Int) : Optional(Int) =
     Address.call(counter, fn(reply) = Add(amount = amount, reply = reply), 1000)
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Io.show(add(visits, 2)) <> " " <> Io.show(add(sales, 5)));
     Io.println(Io.show(add(visits, -1)));
     Io.println(Io.show(add(visits, 1)) <> " " <> Io.show(add(sales, 1)))
@@ -1731,7 +1706,7 @@ export fn parse(text : String) : Optional(Request) =
 
 ```ernest
 // main.ern  (namespace Main)
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Net.Http.parse("GET /") {
         Some(Net.Http.Request(method = method, path = path)) -> Io.println(method <> " " <> path)
       | None -> Io.println("bad request")
@@ -1779,7 +1754,7 @@ type Reported = Reported(Int)
 
 let answersBack = Test.Case(name = "a worker answers back", run = fn() = {
     let me = self();
-    let _ = spawn(fn() : Unit with Never = send(me, Reported(add(1, 1))));
+    let _ = spawn(fn() = send(me, Reported(add(1, 1))));
     receive {
         Reported(n) -> Test.equal(n, 2)
     }
@@ -1793,7 +1768,7 @@ adds two: passed
 a worker answers back: passed
 ```
 
-`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test's `run` is `() -> Test.Result with m`: it runs in a process whose mailbox type is `m`, as an entry point does (report §8.1), so it may spawn, send, call and receive. `addsTwo` receives nothing and leaves `m` open, and `ern test` runs it with `Never`; `answersBack` receives a `Reported`, so its type is `Test.Case(Reported)`, which nothing writes. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2). Given a directory, `ern test build` runs the tests of every module compiled under it, each module's name on a line before what it writes, and passes over a module that has none.
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test's `run` is `() -> Test.Result receiving m`: it runs in a process whose mailbox type is `m`, as an entry point does (report §8.1), so it may spawn, send, call and receive. `addsTwo` receives nothing and leaves `m` open, and `ern test` runs it with `Never`; `answersBack` receives a `Reported`, so its type is `Test.Case(Reported)`, which nothing writes. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2). Given a directory, `ern test build` runs the tests of every module compiled under it, each module's name on a line before what it writes, and passes over a module that has none.
 
 **Documenting a module.** A `///` block, on lines of its own, documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 shape rule 6, and [`docs/module_doc_template.md`](../docs/module_doc_template.md) shows it on an example module.
 
@@ -1870,7 +1845,7 @@ fn largestOf(list : List(a)) : Optional(a) needs a.compare =
 fn sorted(list : List(a)) : List(a) needs a.compare =
     List.sort(list, a.compare)
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Int.toString(largest(3, [8, 5])));
     Io.println(largest("pear", ["fig", "apple"]));
     Io.println(Io.show(largestOf([1.5, 0.5])));
@@ -1922,10 +1897,10 @@ type Date = Date(year : Int, month : Int, day : Int) derives compare
 fn sum(first : a, rest : List(a)) : a needs a.+ =
     List.foldLeft(rest, first, a.+)
 
-fn shown(list : List(a)) : Unit with m needs a.show =
+fn shown(list : List(a)) : Unit needs a.show =
     List.forEach(list, fn(x) = Io.println(Io.show(x)))
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Int.toString(sum(1, [2, 3])));
     Io.println(Float.toString(sum(0.5, [1.5])));
     let dates = [Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)];
@@ -1953,7 +1928,7 @@ Date(year = 2026, month = 10, day = 2)
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let small = OrderedSet.fromList([3, 1, 3]);
     let both = OrderedSet.union(small, OrderedSet.fromList([2]));
     Io.println(Io.show(OrderedSet.toList(both)));
@@ -1990,7 +1965,7 @@ type Descending = Descending(Int)
 fn Descending.compare(Descending(left) : Descending, Descending(right) : Descending) : Ordering =
     Int.compare(right, left)
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let up = OrderedSet.fromList([1]);
     let down = OrderedSet.fromList([Descending(1)]);
     Io.println(Int.toString(OrderedSet.size(OrderedSet.union(up, down))))
@@ -2022,7 +1997,7 @@ fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List
     operations.toList(operations.intersection(operations.fromList(list),
                                               operations.fromList(other)))
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Io.show(common([4, 2, 3], [3, 4, 5], ordered)));
     Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], hashed))))
 }
@@ -2053,7 +2028,7 @@ fn circle(radius : Float) : Shape =
 fn square(side : Float) : Shape =
     Shape(name = "square", area = fn() = side * side)
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     List.forEach([circle(1.0), square(2.0)],
                  fn(shape) = Io.println(shape.name <> ": " <> Float.toString(shape.area())))
 ```
@@ -2085,7 +2060,7 @@ fn hashed(set : Set(a)) : Bag(a) =
         put = fn(x) = hashed(Set.put(set, x)),
         toList = fn() = Set.toList(set))
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     List.forEach([ordered(OrderedSet.empty), hashed(Set.empty)], fn(bag) = {
         let filled = List.foldLeft([2, 1, 2], bag, fn(acc, x) = acc.put(x));
         Io.println(Io.show(#(List.size(filled.toList()), filled.contains(1))))
@@ -2144,7 +2119,7 @@ fn has(list : List(a), element : a) : Bool needs a.compare =
         }
     }
 
-export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
+export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e needs b.compare =
     fromList(List.map(list, f))
 ```
 
@@ -2177,7 +2152,7 @@ Work runs on a peer by the peer's name. `Peer.computeAt(name, f, ms)` runs `f` i
 fn heavy(a : Int, b : Int) : Int =
     a * a + b * b
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Peer.computeAt("foo", fn() = heavy(3, 4), 5000) {
         Right(value) -> Io.println("foo computed " <> Int.toString(value))
       | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
@@ -2239,7 +2214,7 @@ The compiler must see what the function captures, so the function a compute or a
 
 ```ernest
 // placed.ern
-export fn computed(n : Int) : Either(Io.Error, Int) with m =
+export fn computed(n : Int) : Either(Io.Error, Int) =
     match Peer.compute(fn() = heavy(n), 5000) {
         Left(Io.Unreachable) or Left(Io.NotListed) -> Right(heavy(n))
       | result -> result
@@ -2257,7 +2232,7 @@ A rule of the program's own is a function over `Peer.utilizations()`, the utiliz
 
 ```ernest
 // least.ern
-export fn computed(n : Int) : Either(Io.Error, Int) with m =
+export fn computed(n : Int) : Either(Io.Error, Int) =
     match List.sort(Peer.utilizations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(a, b)) {
         #(name, _, _) :: _ -> Peer.computeAt(name, fn() = heavy(n), 5000)
       | [] -> Right(heavy(n))
@@ -2277,7 +2252,7 @@ type Piece = Piece(n : Int, value : Either(Io.Error, Int))
 
 type GatherMsg = Computed(Piece) | Ended(Down)
 
-fn gathered(numbers : List(Int)) : List(Piece) with GatherMsg = {
+fn gathered(numbers : List(Int)) : List(Piece) receiving GatherMsg = {
     let me = self();
     List.forEach(numbers, fn(n) = {
         let _ = spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = Placed.computed(n)))),
@@ -2291,7 +2266,7 @@ fn gathered(numbers : List(Int)) : List(Piece) with GatherMsg = {
 // that message, so the gather ends once every helper has ended and each one
 // that returned has been heard from. owed counts the helpers that returned
 // and whose piece has not come; it is below 0 while a piece is ahead of its end.
-fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) with GatherMsg =
+fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) receiving GatherMsg =
     if running == 0 && owed == 0 then
         pieces
     else receive {
@@ -2300,7 +2275,7 @@ fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) with Ga
       | Ended(_) -> gather(running - 1, owed, pieces)
     }
 
-export fn main() : Unit with GatherMsg =
+export fn main() : Unit receiving GatherMsg =
     gathered([3, 1, 2])
         |> List.sort(fn(a, b) = Int.compare(a.n, b.n))
         |> List.forEach(fn(piece) =
@@ -2329,7 +2304,7 @@ type Msg = Computed(Int)
 fn heavy(n : Int) : Int =
     n * n
 
-export fn main() : Unit with Msg = {
+export fn main() : Unit receiving Msg = {
     let me = self();
     let _ = spawn(fn() = send(me, Computed(heavy(5))));
     Io.println("asked");
@@ -2354,7 +2329,7 @@ type Msg = Computed(Int)
 fn heavy(n : Int) : Int =
     n * n
 
-export fn main() : Unit with Msg = {
+export fn main() : Unit receiving Msg = {
     let me = self();
     match Peer.spawn("foo", fn() = send(me, Computed(heavy(5))), 5000) {
         Right(_) -> receive {
@@ -2398,7 +2373,7 @@ let counter : Address(Msg) = spawn(fn() = {
 // and counting on from the count kept. Where a process holds the service,
 // the counter waits for its end, its requests waiting in its mailbox, and
 // offers again, so that it reads the count the holder kept last.
-fn serve() : Unit with Msg =
+fn serve() : Unit receiving Msg =
     match Peer.offer(Counter.service, adapted(self(), Request)) {
         Right(_) -> count(kept())
       | Left(holder) -> {
@@ -2410,7 +2385,7 @@ fn serve() : Unit with Msg =
         }
     }
 
-fn count(total : Int) : Unit with Msg =
+fn count(total : Int) : Unit receiving Msg =
     receive {
         Request(Counter.Add(amount)) -> count(total + amount)
       | Request(Counter.Get(reply = reply)) -> {
@@ -2429,7 +2404,7 @@ fn count(total : Int) : Unit with Msg =
 // The count at the last end, read from the file `count`: 0 where there is
 // none, at the first start, and a fault where it holds no number, since
 // nothing of the store's wrote it.
-fn kept() : Int with m =
+fn kept() : Int =
     match Fs.read(Path("count"), 1000) {
         Right(bytes) -> match Optional.andThen(String.fromUtf8(bytes), String.toInt) {
             Some(total) -> total
@@ -2441,12 +2416,12 @@ fn kept() : Int with m =
 
 // The count written beside the file `count` and renamed over it, so that
 // the file holds the old count or the new, whole.
-fn keep(total : Int) : Either(Io.Error, Unit) with m = {
+fn keep(total : Int) : Either(Io.Error, Unit) = {
     let _ <- Fs.write(Path("count.new"), String.toUtf8(Int.toString(total)), 1000);
     Fs.rename(Path("count.new"), Path("count"), 1000)
 }
 
-export fn main() : Unit with Ended = {
+export fn main() : Unit receiving Ended = {
     monitor(Process.fromAddress(counter), Ended);
     receive {
         Ended(_) -> Unit
@@ -2456,7 +2431,7 @@ export fn main() : Unit with Ended = {
 
 ```ernest
 // desk.ern
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Peer.find(Counter.service, 5000) {
         Right(counter) -> {
             send(counter, Counter.Add(5));
@@ -2471,7 +2446,7 @@ export fn main() : Unit with Never =
 
 ```ernest
 // board.ern
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let counter = Proxy.start(Counter.service, 5000);
     send(counter, Counter.Add(5));
     match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
@@ -2522,13 +2497,13 @@ A find that answers `OtherType`, the service offered at another type, faults the
 // ets.ern
 export foreign type Table(k=, v)
 
-export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
+export foreign fn toList(table : Table(k, v)) : List(#(k, v)) =
     "ets:tab2list/1"
 ```
 
 External callers write `Ets.Table` and `Ets.toList`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:tab2list/1`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7). A `foreign fn` whose Erlang compares the values of a type variable marks the variable the same way, once, in its parameters, the one mark a program writes (§2.9): `foreign fn member(element : a=, list : List(a)) : Bool = "lists:member/2"` cannot be given a function.
 
-The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
+The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. A `foreign fn` declared without `receiving` is trusted neither to receive from the calling process's mailbox nor to deliver into it, and nothing checks that (report §4.7).
 
 In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, fault, Cause, Trace}` for a runtime failure or a foreign raise, `{ern, killed}` and `{ern, program_end}` among them, which Erlang code that monitors it reads; report §8.4 lists them all.
 
@@ -2541,7 +2516,7 @@ A value crosses to another node as a value, and some cannot: a function, a forei
 The listener below is a resource, so the lambda that captures it cannot be spawned on `alice`:
 
 ```ernest-rejected
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Tcp.listen("127.0.0.1", 7000) {
         Right(listener) -> {
             let _ = Peer.spawn("alice", fn() = serve(listener), 5000);
@@ -2550,7 +2525,7 @@ export fn main() : Unit with Never =
       | Left(error) -> Io.printlnError("cannot listen: " <> Io.show(error))
     }
 
-fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> Tcp.close(socket)
       | Left(_) -> Unit
@@ -2576,13 +2551,13 @@ A shim is a `foreign fn` over the host (report Appendix F). Where the host's fun
 // ets.ern
 export foreign type Table(k=, v)
 
-export fn get(table : Table(k, v), key : k) : Optional(v) with m =
+export fn get(table : Table(k, v), key : k) : Optional(v) =
     match rawLookup(table, key) {
         [#(_, value)] -> Some(value)
       | _ -> None
     }
 
-foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
+foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) =
     "ets:lookup/2"
 ```
 
@@ -2610,10 +2585,10 @@ The Ernest `foreign fn` binds to that helper, and the term it returns is already
 
 ```ernest
 // store.ern (namespace Store)
-export foreign fn lookup(key : String) : Either(String, Int) with m =
+export foreign fn lookup(key : String) : Either(String, Int) =
     "store_helper:lookup/1"
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match lookup("answer") {
         Right(n) -> Io.println("found " <> Int.toString(n))
       | Left(reason) -> Io.println(reason)
@@ -2679,13 +2654,13 @@ Bytes arrive in pieces that need not end where a line ends, so what follows the 
 ```ernest
 type Session = Arrived(Optional(Bytes)) | Tick(Int)
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Tcp.listen("127.0.0.1", 7000) {
         Right(listener) -> serve(listener)
       | Left(error) -> Io.printlnError("cannot listen: " <> Io.show(error))
     }
 
-fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             let talker = spawn(fn() = session(socket));
@@ -2697,7 +2672,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     }
 
 // The session waits on its mailbox, and its reader on the socket.
-fn session(socket : Address(Tcp.SocketMsg)) : Unit with Session = {
+fn session(socket : Address(Tcp.SocketMsg)) : Unit receiving Session = {
     let me = self();
     let _ = spawn(fn() = reader(socket, adapted(me, Arrived)));
     Clock.alarm(10000, Tick);
@@ -2706,7 +2681,7 @@ fn session(socket : Address(Tcp.SocketMsg)) : Unit with Session = {
 
 // What the socket gives, and None once the connection has gone, sent to an
 // address that knows nothing of the session's mailbox.
-fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes))) : Unit with Never =
+fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes))) : Unit =
     match Tcp.read(socket, 60000) {
         Right(bytes) -> {
             send(recipient, Some(bytes));
@@ -2716,7 +2691,7 @@ fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes)))
       | Left(_) -> send(recipient, None)
     }
 
-fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit with Session =
+fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session =
     receive {
         Arrived(Some(bytes)) -> {
             let parts = Bytes.split(rest <> bytes, <<10>>);
@@ -2827,7 +2802,7 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 
 §0 also says how Ernest stands to the runtime beneath it: a rule of the host is Ernest's only where the report states it as Ernest's own, and where the report is silent the runtime carries the host's rule without letting it show.
 
-Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
+Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; `export` says what crosses a module's boundary; `receiving` says a function receives from its process's mailbox; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 ## 12. Frequently asked questions
 
@@ -2835,11 +2810,11 @@ The questions a reader brings, from the likeness to Gleam to where the superviso
 
 ## 13. Answers to the exercises
 
-**§1.4.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `: Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
+**§1.4.** Both compile, and both give `main` the type `() -> Unit`. `Io.println` sends to standard output's process, and a function that only sends receives nothing, so its type names no mailbox; inference finds in (a) the type (b) writes. A `main` that waited on its own mailbox, `receive { after 10 -> Unit }`, would compile as (a) and need `receiving` in (b) (§3.4).
 
 **§2.11.** (a) and (d) compile. Every constructor of `Shape` has `name`, with one type, so `s.name` reads it whichever built `s`. (b) is refused: a `Dot` has no `radius`, and the compiler does not take the programmer's word that `s` is a `Circle`. (c) is refused for the same reason: `..s` would copy `name` from a `Circle`, and `s` may be a `Dot`, so `..` is allowed only on a type with one constructor. (d) asks which constructor built `s` and reads `radius` only in the clause where it is there; a pattern may leave out the fields it does not need.
 
-**§3.7.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
+**§3.7.** `map2`'s inferred type is `((a) -> b receiving e, a, a) -> #(b, b) receiving e`. The call binds `a = Int`, `b = Unit`, and `e` to none: the function only sends, so it receives nothing, and nor does the call.
 
 **§4.8.** (a) No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone. (b) The counter answers: the relay sends the `Get` on with its reply, and the counter answers it as it answers any `Get`. With `answer(reply, 0)` after the `send` the program still compiles, and the reply is answered twice: the caller gets the answer that comes first, most likely the relay's `0`, since the counter answers only once it has taken the `Get`, and the other is dropped (§4.2). Nothing checks it, so a relay leaves the answer to the process it hands the reply to. (c) The type gains `Reset(Reply(Int))`, and `count` the clause `Reset(reply) -> { answer(reply, total); count(0) }`. Without the clause the program still compiles. A `receive` takes the messages its clauses match and leaves the others in the mailbox (§4.3), so the `Reset` waits there for a clause that never comes: its caller's `Address.call` answers `None` at its deadline, and the counter goes on serving `Inc` and `Get`. A `match` must cover its type; a `receive` need not, and a protocol's new request is the programmer's to give a clause.
 

@@ -164,8 +164,9 @@ example_mains(Namespace, Examples) ->
                 ['Io'] -> "println(show(";
                 _ -> "Io.println(Io.show("
             end,
-    [iolist_to_binary(["export fn docMain", integer_to_list(Number), "() : Unit with Never =\n    ",
-                       Print, "docExample", integer_to_list(Number), "()))\n"])
+    [iolist_to_binary(["export fn docMain", integer_to_list(Number),
+                       "() : Unit receiving Never =\n    ", Print, "docExample",
+                       integer_to_list(Number), "()))\n"])
      || {Number, _, _} <- Examples].
 
 %% A module the outside examples run in, of the namespace Namespace,

@@ -279,7 +279,7 @@ links_to(Document, AddressEnd) ->
 
 %% A program that runs another through the runtime's helper (Appendix E.23).
 runs_echo() ->
-    "export fn main() : Unit with Never = match Os.run(Os.Command(\n"
+    "export fn main() : Unit = match Os.run(Os.Command(\n"
     "    program = \"echo\", arguments = [\"hi\"], input = <<>>), 5000) {\n"
     "    Right(Os.Finished(stdout = out)) -> Io.print(Optional.withDefault(\n"
     "        String.fromUtf8(out), \"\"))\n"

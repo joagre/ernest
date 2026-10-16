@@ -131,7 +131,7 @@ pure_program(Size) ->
     Value = generate(Type, #{vars => [], helpers => Helpers}, Size),
     Text = [?DECLARATIONS, [[helper_text(Helper), "\n\n"] || Helper <- Helpers],
             "fn value() : ", type_text(Type), " =\n    ", expression_text(Value), "\n\n",
-            "export fn main() : Unit with m = Io.println(Io.show(value()))\n"],
+            "export fn main() : Unit = Io.println(Io.show(value()))\n"],
     Expected = try evaluate(Value, #{}, Helpers) of
                    Result -> {ok, <<(show(Result))/binary, "\n">>}
                catch throw:{fault, Cause} -> {{fault, Cause}, <<>>}
@@ -188,7 +188,7 @@ process_shape(worker, Scope, Helpers, Size) ->
     Type = any_type(1),
     {Value, Result} = faultless(Type, Scope, Helpers, Size),
     Body = ["type Main = Done(", type_text(Type), ")\n\n",
-            "export fn main() : Unit with Main = {\n",
+            "export fn main() : Unit receiving Main = {\n",
             "    let me = self();\n",
             "    let _ = spawn(fn() = send(me, Done(", expression_text(Value), ")));\n",
             "    receive { Done(value) -> Io.println(Io.show(value)) }\n",
@@ -198,7 +198,7 @@ process_shape(worker, Scope, Helpers, Size) ->
 process_shape(server, Scope, Helpers, Size) ->
     Sent = [faultless(int, Scope, Helpers, Size) || _ <- lists:seq(1, rand:uniform(3))],
     Body = ["type Request = Add(Int) | Total(reply : Reply(Int))\n\n",
-            "fn serve(total : Int) : Unit with Request =\n",
+            "fn serve(total : Int) : Unit receiving Request =\n",
             "    receive {\n",
             "        Add(amount) -> serve(total + amount)\n",
             "      | Total(reply = reply) -> {\n",
@@ -206,7 +206,7 @@ process_shape(server, Scope, Helpers, Size) ->
             "            serve(total)\n",
             "        }\n",
             "    }\n\n",
-            "export fn main() : Unit with m = {\n",
+            "export fn main() : Unit = {\n",
             "    let server = spawn(fn() = serve(0));\n",
             [["    send(server, Add(", expression_text(Value), "));\n"] || {Value, _} <- Sent],
             "    match Address.call(server, fn(reply) = Total(reply = reply), 5000) {\n",
@@ -221,7 +221,7 @@ process_shape(timeout, Scope, Helpers, Size) ->
     Type = any_type(1),
     {Value, Result} = faultless(Type, Scope, Helpers, Size),
     Body = ["type Main = Done(", type_text(Type), ")\n\n",
-            "export fn main() : Unit with Main =\n",
+            "export fn main() : Unit receiving Main =\n",
             "    receive {\n",
             "        Done(value) -> Io.println(Io.show(value))\n",
             "      | after ", integer_to_list(rand:uniform(5) - 1), " -> {\n",
@@ -234,7 +234,7 @@ process_shape(timeout, Scope, Helpers, Size) ->
 process_shape(deadlock, Scope, Helpers, Size) ->
     {Value, _} = faultless(int, Scope, Helpers, Size),
     Body = ["type Main = Done(Int)\n\n",
-            "export fn main() : Unit with Main = {\n",
+            "export fn main() : Unit receiving Main = {\n",
             "    let expected = ", expression_text(Value), ";\n",
             "    receive { Done(value) -> Io.println(Io.show(value == expected)) }\n",
             "}\n"],

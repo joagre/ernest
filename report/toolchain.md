@@ -397,7 +397,7 @@ Whatever the standard library or the prelude declares, a definition or a foreign
 {arrow, Types, Effect, Type}
 ```
 
-A type applied to its arguments names its constructor's reference, `{applied, {named, ['Int']}, []}` for `Int`. An arrow's `Effect` is `pure` or a type.
+A type applied to its arguments names its constructor's reference, `{applied, {named, ['Int']}, []}` for `Int`. An arrow's `Effect` is `none` or a type.
 
 **The walk.** The walk visits a term's parts in the order the term lists them, depth first. Locals are numbered from 1 in each definition in the order the walk binds them, as parameters, in patterns and as local functions. A block binds its local functions' names, in the order they are declared, as the walk enters it, and then walks its statements. A use of a local is the number of the binding in scope. A pattern's alternatives bind the numbers its first alternative gave. A size in a bitstring pattern names the locals in scope where the pattern begins and those its bitstring's earlier segments bind.
 

@@ -4,7 +4,7 @@ The argument for the design, in four claims and a program for each. [*Programmin
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition. What Ernest adds is where the parts meet:
 
-- **The mailbox in the function's type.** A message no clause matches waits in a mailbox for ever, and nothing says so until it does. In Ernest a process receives one type of message, and a function that receives says which, `with CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads. A service is a top-level binding of such an address, which `restarting` keeps good across the process's faults, so there is no registry: a server is reached by writing its name.
+- **The mailbox in the function's type.** A message no clause matches waits in a mailbox for ever, and nothing says so until it does. In Ernest a process receives one type of message, and a function that receives says which, `receiving CounterMsg`. An address carries the same type, so every `send` is checked against the mailbox it reaches, and every `receive` against the mailbox it reads. A service is a top-level binding of such an address, which `restarting` keeps good across the process's faults, so there is no registry: a server is reached by writing its name.
 - **Code known by its hash.** A module is loaded by name, two versions at a time, and a function sent to a node that lacks its module fails there. In Ernest a definition is known by the hash of its form. A module has as many versions as it has had, each named apart, and a running process takes a new version of its function as a message. A spawn carries its function to a peer that lacks it, with every definition it reaches, so any node can run anything: a bare node joins with no program of its own, and work is placed where there is room, with no deployment first.
 - **A distribution built for a WAN.** A cluster, as the runtime has it, is a set of nodes on one trusted network, each connected to every other and all sharing one secret. In Ernest a node lists its peers by name, public key and address, accepts a connection from a listed key alone, and opens one TLS connection to a peer when an operation first needs it. No mesh and no port mapper: the key is the identity, and a laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Little else.** Two concepts, five principles, one way for each thing, and a report of three files that is the whole language.
@@ -18,7 +18,7 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 ```ernest
 type CounterMsg = Inc(Int) | Get(Reply(Int))
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply) -> {
@@ -27,7 +27,7 @@ fn count(total : Int) : Unit with CounterMsg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
@@ -38,7 +38,7 @@ export fn main() : Unit with Never = {
 }
 ```
 
-`main` receives nothing, `with Never`, and spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+`main` receives nothing, so its type names no mailbox, and it spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 **Code known by its hash.** The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old version runs on wherever a process still runs it:
 
@@ -46,9 +46,9 @@ export fn main() : Unit with Never = {
 type CounterMsg =
     Inc(Int)
   | Get(Reply(Int))
-  | Upgrade(next : (Int) -> Unit with CounterMsg)
+  | Upgrade(next : (Int) -> Unit receiving CounterMsg)
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply) -> {

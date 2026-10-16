@@ -17,7 +17,7 @@ export type Msg =
 
 export let service : Peer.Service(Msg) = Peer.service("census")
 
-export fn serve() : Unit with Msg =
+export fn serve() : Unit receiving Msg =
     receive {
         Value(_) -> serve()
       | Count(reply = reply) -> {
@@ -30,8 +30,8 @@ export fn serve() : Unit with Msg =
         }
     }
 
-foreign fn atoms() : Int with m =
+foreign fn atoms() : Int =
     "ern_peers_host:atoms/0"
 
-foreign fn notes(callee : Process) : Int with m =
+foreign fn notes(callee : Process) : Int =
     "ern_peers_host:notes/1"

@@ -402,7 +402,7 @@ result_type(_, undefined, _, _) ->
 result_type(Symbol, ResultType, undefined, Code) ->
     [space(), token(Symbol), space(), type(ResultType, Code)];
 result_type(Symbol, ResultType, Effect, Code) ->
-    [space(), token(Symbol), space(), type(ResultType, Code), space(), token(with), space(),
+    [space(), token(Symbol), space(), type(ResultType, Code), space(), token(receiving), space(),
      type(Effect, Code)].
 
 annotation(undefined, _) -> [];

@@ -12,7 +12,7 @@ type PongMsg = Ping(round : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     let opponent = spawnMonitored(fn() = pong(), PongDone);
     let _ = spawn(fn() = ping(opponent, 3));
     receive {
@@ -20,7 +20,7 @@ export fn main() : Unit with MainMsg = {
     }
 }
 
-fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
+fn ping(opponent : Address(PongMsg), round : Int) : Unit =
     if round == 0 then
         send(opponent, Stop)
     else {
@@ -34,7 +34,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
         }
     }
 
-fn pong() : Unit with PongMsg =
+fn pong() : Unit receiving PongMsg =
     receive {
         Ping(round = round, reply = reply) -> {
             Io.println("pong " <> Int.toString(round));

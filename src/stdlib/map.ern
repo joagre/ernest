@@ -124,15 +124,17 @@ foreign fn withoutKey(key : k, map : Map(k, v)) : Map(k, v) =
 /// Map.get(Map.update(Map.empty, "n", fn(o) = Optional.withDefault(o, 0) + 1), "n")
 /// // => Some(1)
 /// ```
-export fn update(map : Map(k, v), key : k, f : (Optional(v)) -> v with e) : Map(k, v) with e =
+export fn update(map : Map(k, v),
+                 key : k,
+                 f : (Optional(v)) -> v receiving e) : Map(k, v) receiving e =
     put(map, key, f(get(map, key)))
 
 /// The map with each value replaced by `f(key, value)`. The keys stay as
 /// they are.
-export fn map(map : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
+export fn map(map : Map(k, v), f : (k, v) -> w receiving e) : Map(k, w) receiving e =
     mapped(f, map)
 
-foreign fn mapped(f : (k, v) -> w with e, map : Map(k, v)) : Map(k, w) with e =
+foreign fn mapped(f : (k, v) -> w receiving e, map : Map(k, v)) : Map(k, w) receiving e =
     "maps:map/2"
 
 /// The map of the entries `keep(key, value)` is `true` for.
@@ -143,10 +145,10 @@ foreign fn mapped(f : (k, v) -> w with e, map : Map(k, v)) : Map(k, w) with e =
 /// Map.toList(Map.filter(Map.fromList([#("a", 1), #("b", 2)]), fn(_, n) = n > 1))
 /// // => [#("b", 2)]
 /// ```
-export fn filter(map : Map(k, v), keep : (k, v) -> Bool with e) : Map(k, v) with e =
+export fn filter(map : Map(k, v), keep : (k, v) -> Bool receiving e) : Map(k, v) receiving e =
     filtered(keep, map)
 
-foreign fn filtered(keep : (k, v) -> Bool with e, map : Map(k, v)) : Map(k, v) with e =
+foreign fn filtered(keep : (k, v) -> Bool receiving e, map : Map(k, v)) : Map(k, v) receiving e =
     "maps:filter/2"
 
 /// The map of the entries `f(key, value)` answers `Some(w)` for, each with
@@ -158,7 +160,8 @@ foreign fn filtered(keep : (k, v) -> Bool with e, map : Map(k, v)) : Map(k, v) w
 /// Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]), fn(_, s) = String.toInt(s)))
 /// // => [#("a", 1)]
 /// ```
-export fn filterMap(map : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, w) with e =
+export fn filterMap(map : Map(k, v),
+                    f : (k, v) -> Optional(w) receiving e) : Map(k, w) receiving e =
     List.foldLeft(toList(map), empty, fn(acc, #(key, value)) = match f(key, value) {
         Some(mapped) -> put(acc, key, mapped)
       | None -> acc
@@ -177,7 +180,7 @@ export fn filterMap(map : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, 
 /// ```
 ///
 /// since 0.4.0
-export fn fold(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
+export fn fold(map : Map(k, v), acc : b, step : (b, k, v) -> b receiving e) : b receiving e =
     List.foldLeft(toList(map), acc, fn(acc, #(key, value)) = step(acc, key, value))
 
 /// Calls `f(key, value)` for each entry, for its effect, in unspecified
@@ -191,7 +194,7 @@ export fn fold(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with 
 /// ```
 ///
 /// since 0.4.0
-export fn forEach(map : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
+export fn forEach(map : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e =
     List.forEach(toList(map), fn(#(key, value)) = f(key, value))
 
 /// `true` when `test(key, value)` holds for at least one entry, and `false`
@@ -204,12 +207,12 @@ export fn forEach(map : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
 ///   Map.all(Map.fromList([#("a", 1)]), fn(_, n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(map : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
+export fn any(map : Map(k, v), test : (k, v) -> Bool receiving e) : Bool receiving e =
     List.any(toList(map), fn(#(key, value)) = test(key, value))
 
 /// `true` when `test(key, value)` holds for every entry, and for the map
 /// with no entries.
-export fn all(map : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
+export fn all(map : Map(k, v), test : (k, v) -> Bool receiving e) : Bool receiving e =
     List.all(toList(map), fn(#(key, value)) = test(key, value))
 
 /// An entry `test(key, value)` holds for, or `None` where there is none.
@@ -221,7 +224,7 @@ export fn all(map : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
 /// Map.find(Map.fromList([#("a", 1)]), fn(_, n) = n == 1)
 /// // => Some(#("a", 1))
 /// ```
-export fn find(map : Map(k, v), test : (k, v) -> Bool with e) : Optional(#(k, v)) with e =
+export fn find(map : Map(k, v), test : (k, v) -> Bool receiving e) : Optional(#(k, v)) receiving e =
     List.find(toList(map), fn(#(key, value)) = test(key, value))
 
 /// The entries of both maps. Where both have a key, the second map's value
@@ -253,12 +256,12 @@ export foreign fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) =
 /// ```
 export fn mergeWith(map : Map(k, v),
                     other : Map(k, v),
-                    f : (k, v, v) -> v with e) : Map(k, v) with e =
+                    f : (k, v, v) -> v receiving e) : Map(k, v) receiving e =
     mergedWith(f, map, other)
 
-foreign fn mergedWith(f : (k, v, v) -> v with e,
+foreign fn mergedWith(f : (k, v, v) -> v receiving e,
                       map : Map(k, v),
-                      other : Map(k, v)) : Map(k, v) with e =
+                      other : Map(k, v)) : Map(k, v) receiving e =
     "maps:merge_with/3"
 
 /// The map of those pairs. Where a key occurs more than once, its last pair

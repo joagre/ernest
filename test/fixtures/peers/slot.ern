@@ -4,7 +4,7 @@
 
 export type Msg(a) = Put(a) | Take(reply : Reply(a))
 
-export fn serve(held : Optional(a)) : Unit with Msg(a) =
+export fn serve(held : Optional(a)) : Unit receiving Msg(a) =
     match held {
         None -> receive {
             Put(value) -> serve(Some(value))
@@ -18,5 +18,5 @@ export fn serve(held : Optional(a)) : Unit with Msg(a) =
         }
     }
 
-export fn take(slot : Address(Msg(a))) : a with m =
+export fn take(slot : Address(Msg(a))) : a =
     Address.callForever(slot, fn(reply) = Take(reply = reply))

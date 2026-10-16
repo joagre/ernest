@@ -8,7 +8,7 @@
 %% the standard library's unit, so this target changes where io.ern's
 %% positions do.
 %%
-%%   export fn main() : Unit with Never = Io.println("hello, world")
+%%   export fn main() : Unit = Io.println("hello, world")
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 

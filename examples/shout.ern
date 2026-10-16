@@ -27,7 +27,7 @@
 //     ern run examples/shout.erc
 //
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     match Tcp.listen("127.0.0.1", 0) {
         Left(_) -> Io.printlnError("shout: cannot listen")
       | Right(listener) -> match Tcp.port(listener) {
@@ -46,7 +46,7 @@ export fn main() : Unit with Never =
 
 // Accepts connections for as long as the program runs, each served by a
 // process of its own.
-fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             let server = spawn(fn() = serve(socket, <<>>));
@@ -57,7 +57,7 @@ fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     }
 
 // Reads until a line has arrived, answers it in capitals, and closes.
-fn serve(socket : Address(Tcp.SocketMsg), received : Bytes) : Unit with Never =
+fn serve(socket : Address(Tcp.SocketMsg), received : Bytes) : Unit =
     match Bytes.indexOf(received, newline) {
         Some(end) -> {
             let line = Optional.withDefault(String.fromUtf8(Bytes.slice(received, 0, end)), "");
@@ -78,7 +78,7 @@ let newline : Bytes = String.toUtf8("\n")
 
 // Sends a line to the server on the port and answers its reply, or what
 // went wrong.
-fn asked(port : Int, line : String) : String with m =
+fn asked(port : Int, line : String) : String =
     match Tcp.connect("127.0.0.1", port, 5000) {
         Left(_) -> "(cannot connect)"
       | Right(socket) -> {
@@ -92,7 +92,7 @@ fn asked(port : Int, line : String) : String with m =
     }
 
 // Reads until the reply's line has arrived.
-fn replied(socket : Address(Tcp.SocketMsg), received : Bytes) : String with m =
+fn replied(socket : Address(Tcp.SocketMsg), received : Bytes) : String =
     match Bytes.indexOf(received, newline) {
         Some(end) -> Optional.withDefault(String.fromUtf8(Bytes.slice(received, 0, end)), "")
       | None -> match Tcp.read(socket, 5000) {

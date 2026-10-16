@@ -61,11 +61,11 @@ library(Dir) ->
           "    text <> \"!\"\n"),
     write(Lib, "plug/greet.ern",
           "let started : Unit = Io.println(\"Greet's bindings evaluated\")\n\n"
-          "export fn greet(name : String) : Unit with m =\n"
+          "export fn greet(name : String) : Unit =\n"
           "    Io.println(Plug.Util.shout(Plug.Util.greeting <> \" \" <> name))\n"),
     write(Lib, "plug/bad.ern",
           "let worker : Address(Int) =\n"
-          "    spawn(fn() : Unit with Int = receive {\n"
+          "    spawn(fn() : Unit receiving Int = receive {\n"
           "        n -> Io.println(Int.toString(n))\n"
           "    })\n\n"
           "let broken : Int = 1 / List.size([])\n"),
@@ -87,9 +87,9 @@ load_test() ->
     write(Dir, "lone/plug/greet.erc", element(2, file:read_file(filename:join(Lib,
                                                                          "plug/greet.erc")))),
     Main = write(Dir, "main.ern",
-                 "fn shown(path : String) : Unit with m =\n"
+                 "fn shown(path : String) : Unit =\n"
                  "    Io.println(Io.show(Code.load(Path(path))))\n\n"
-                 "export fn main() : Unit with Never = {\n"
+                 "export fn main() : Unit = {\n"
                  "    shown(\"" ++ Lib ++ "/plug/greet.erc\");\n"
                  "    shown(\"" ++ Lib ++ "/plug/greet.erc\");\n"
                  "    shown(\"" ++ Lib ++ "/plug/bad.erc\");\n"
@@ -126,7 +126,7 @@ other_interface_test() ->
     write(Lib, "plug/base.ern", "export fn one() : Int = 1\n\nexport fn three() : Int = 3\n"),
     built(Lib, "plug/base.ern"),
     Main = write(Dir, "main.ern",
-                 "export fn main() : Unit with Never =\n"
+                 "export fn main() : Unit =\n"
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/user.erc\"))))\n"),
     built(Dir, "main.ern"),
     ?assertEqual([<<"Left(Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
@@ -142,7 +142,7 @@ beside_test() ->
     write(Lib, "plug/word.ern", "export fn word() : String = \"second\"\n"),
     built(Lib, "plug/word.ern"),
     Main = write(Dir, "main.ern",
-                 "export fn main() : Unit with Never = {\n"
+                 "export fn main() : Unit = {\n"
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/word.erc\"))));\n"
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/word.erc\"))));\n"
                  "    Io.println(Plug.Word.word())\n"
@@ -207,8 +207,8 @@ running_test() ->
                  ran(filename:rootname(Main) ++ ".erc")).
 
 running_program() ->
-    "type Msg = Ping(reply : Reply(Unit)) | Stop | Upgrade(next : () -> Unit with Msg)\n\n"
-    "fn waiter() : Unit with Msg =\n"
+    "type Msg = Ping(reply : Reply(Unit)) | Stop | Upgrade(next : () -> Unit receiving Msg)\n\n"
+    "fn waiter() : Unit receiving Msg =\n"
     "    receive {\n"
     "        Ping(reply = reply) -> {\n"
     "            answer(reply, Unit);\n"
@@ -217,7 +217,7 @@ running_program() ->
     "      | Stop -> Unit\n"
     "      | Upgrade(next = next) -> next()\n"
     "    }\n\n"
-    "fn idle() : Unit with Msg =\n"
+    "fn idle() : Unit receiving Msg =\n"
     "    receive {\n"
     "        Ping(reply = reply) -> {\n"
     "            answer(reply, Unit);\n"
@@ -226,22 +226,22 @@ running_program() ->
     "      | Stop -> Unit\n"
     "      | Upgrade(next = _) -> idle()\n"
     "    }\n\n"
-    "fn bottom() : Unit with Msg = {\n"
+    "fn bottom() : Unit receiving Msg = {\n"
     "    let _ = climb(30);\n"
     "    Unit\n"
     "}\n\n"
-    "fn climb(n : Int) : Int with Msg =\n"
+    "fn climb(n : Int) : Int receiving Msg =\n"
     "    if n == 0 then {\n"
     "        idle();\n"
     "        0\n"
     "    } else 1 + descend(n - 1)\n\n"
-    "fn descend(n : Int) : Int with Msg =\n"
+    "fn descend(n : Int) : Int receiving Msg =\n"
     "    if n == 0 then {\n"
     "        idle();\n"
     "        0\n"
     "    } else 1 + climb(n - 1)\n\n"
-    "fn spawner() : Unit with Msg = {\n"
-    "    let _ = spawn(fn() : Unit with Msg = idle());\n"
+    "fn spawner() : Unit receiving Msg = {\n"
+    "    let _ = spawn(fn() : Unit receiving Msg = idle());\n"
     "    receive {\n"
     "        Ping(reply = reply) -> {\n"
     "            answer(reply, Unit);\n"
@@ -252,13 +252,13 @@ running_program() ->
     "      | Stop -> Unit\n"
     "    }\n"
     "}\n\n"
-    "fn ping(process : Address(Msg)) : Unit with m = {\n"
+    "fn ping(process : Address(Msg)) : Unit = {\n"
     "    let _ = Address.call(process, fn(reply) = Ping(reply = reply), 5000);\n"
     "    Unit\n"
     "}\n\n"
-    "fn counted(name : String, count : Int) : Unit with m =\n"
+    "fn counted(name : String, count : Int) : Unit =\n"
     "    Io.println(name <> \" \" <> Int.toString(count))\n\n"
-    "export fn main() : Unit with Down = {\n"
+    "export fn main() : Unit receiving Down = {\n"
     "    let waiting = spawn(fn() = waiter());\n"
     "    let deep = spawn(fn() = bottom());\n"
     "    let spawning = spawn(fn() = spawner());\n"
@@ -277,7 +277,7 @@ running_program() ->
     "    counted(\"waiter\", List.size(Code.running(waiter)));\n"
     "    List.forEach([deep, spawning], fn(process) = send(process, Stop))\n"
     "}\n\n"
-    "fn ended(left : Int) : Unit with Down =\n"
+    "fn ended(left : Int) : Unit receiving Down =\n"
     "    if left == 0 then\n"
     "        Unit\n"
     "    else receive {\n"

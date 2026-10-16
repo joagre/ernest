@@ -11,9 +11,9 @@
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
-  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
-export fn main() : Unit with m = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
@@ -29,7 +29,7 @@ export fn main() : Unit with m = {
     }
 }
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply = reply) -> {
@@ -39,7 +39,7 @@ fn count(total : Int) : Unit with CounterMsg =
       | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
     }
 
-fn countTwice(total : Int) : Unit with CounterMsg =
+fn countTwice(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> countTwice(total + 2 * amount)
       | Get(reply = reply) -> {

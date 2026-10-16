@@ -89,13 +89,13 @@ head_test() ->
 %% under the first, and closes on the last; one that fits stays on its line
 bracket_test() ->
     Head = "fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, "
-           "input : String, printing : Bool) : State with ShellMsg = go(state)",
+           "input : String, printing : Bool) : State receiving ShellMsg = go(state)",
     ?assertEqual([<<"fn run(state : State,">>,
                   <<"       screen : Address(ScreenMsg),">>,
                   <<"       from : String,">>,
                   <<"       line : Int,">>,
                   <<"       input : String,">>,
-                  <<"       printing : Bool) : State with ShellMsg =">>,
+                  <<"       printing : Bool) : State receiving ShellMsg =">>,
                   <<"    go(state)">>],
                  laid([Head])),
     fixed(["let point = Point(x = 1, y = 2)"]).

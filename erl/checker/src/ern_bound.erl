@@ -208,15 +208,14 @@ is_running(_) ->
 
 %% Report §3.11, Appendix E.28: the function `Code.running` names is a
 %% top-level `fn` declaration of any arity, which has a hash, whose result
-%% type is Unit and whose mailbox type holds no type variable, read from
-%% its declaration and not from this use, since every process listed has
-%% it as its mailbox type; a pure one names none. Nothing is taken as Never
-%% here.
+%% type is Unit and whose mailbox type, where it has one, holds no type
+%% variable, read from its declaration and not from this use, since every
+%% process listed has it as its mailbox type; one that receives nothing
+%% names none. Nothing is taken as Never here.
 running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}],
         {_Held, Env}) ->
     Written = ern_namespace:text(Namespace ++ [Name]),
-    Help = "name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)`"
-           " (§3.11)",
+    Help = "name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)",
     What = fun(Text) -> "Code.running lists the processes that run a declaration, and "
                             ++ Written ++ Text end,
     case Referent of
@@ -239,33 +238,26 @@ running([Function], _Context) ->
     fail(ern_ast:span(Function),
          "Code.running lists the processes that run a declaration, named where the call is"
          " written",
-         "name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)`"
-         " (§3.11)").
+         "name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)").
 
-%% The declaration's type: its result Unit, and its mailbox type known
-%% whole, neither pure nor holding a type variable.
+%% The declaration's type: its result Unit, and its mailbox type, where it
+%% has one, known whole, holding no type variable.
 declared_running(Span, {Written, Declared}, Type, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     {tfn, _, Effect, Result} = ern_types:substitute(Type, TypeState),
     Annotated = "give " ++ Written ++ " its mailbox type, `fn " ++ Declared
-        ++ "(...) : Unit with Msg = ...`: every process listed has it (§3.11)",
+        ++ "(...) : Unit receiving Msg = ...`: every process listed has it (§3.11)",
     case Result of
         {tcon, ['Unit'], []} -> ok;
         _ -> fail(Span, "Code.running lists the processes that run " ++ Written
                         ++ ", whose result type is " ++ ern_types:format(Result, TypeState)
                         ++ ", not Unit",
-                  "a process runs a function whose result type is `Unit with m` (§3.11)")
+                  "a process runs a function whose result type is `Unit` (§3.11)")
     end,
-    case Effect of
-        pure ->
-            fail(Span, "Code.running lists the processes that run " ++ Written ++ ", which is"
-                       " pure and names no mailbox type", Annotated);
-        _ ->
-            ern_types:free_variables(Effect, TypeState) =:= []
-                orelse fail(Span, "Code.running lists the processes that run " ++ Written
-                                  ++ ", whose mailbox type " ++ ern_types:format(Effect, TypeState)
-                                  ++ " holds a type variable", Annotated)
-    end.
+    ern_types:free_variables(Effect, TypeState) =:= []
+        orelse fail(Span, "Code.running lists the processes that run " ++ Written
+                          ++ ", whose mailbox type " ++ ern_types:format(Effect, TypeState)
+                          ++ " holds a type variable", Annotated).
 
 %% Report §3.11: the function the spawn or the compute starts, written
 %% where its captures are seen, each capture and the process's mailbox type
@@ -481,7 +473,8 @@ act_on_peer(Name) -> by_kind(Name, "a compute on a peer", "a spawn on a peer").
 
 here(Name) -> by_kind(Name, "run the function on this node, `f()`", "spawn on this node").
 
-annotated(Name) -> by_kind(Name, "`fn() : Int with Msg = ...`", "`fn() : Unit with Msg = ...`").
+annotated(Name) -> by_kind(Name, "`fn() : Int receiving Msg = ...`",
+                           "`fn() : Unit receiving Msg = ...`").
 
 by_kind(Name, Compute, Spawn) ->
     case is_compute(Name) of

@@ -448,7 +448,7 @@ declarations(Declarations) ->
 
 %% Report §11.2: a `let` at the prompt is a block `let`, and a block has one
 %% of them per input; a `let` beside a declaration would be a top-level
-%% `let`, which §4.6 generalizes and requires to be pure.
+%% `let`, which §4.6 generalizes where its initializer is a value.
 one_let(Span) ->
     #diagnostic{span = ern_diagnostic:span(Span),
                 message = "a `let` at the prompt is an input of its own",
@@ -592,11 +592,11 @@ undetermined(Type, Env, Binds, Typed) ->
     end.
 
 %% Report §11.2, §6.1: an address whose mailbox type is open is settled by
-%% its annotation or by the mailbox the spawned function declares, `Never`
-%% for one that receives nothing; any other type by an annotation.
+%% its annotation or by the mailbox type the spawned function declares;
+%% any other type by an annotation.
 undetermined_help({tcon, ['Address'], _}, {name, Name}) ->
-    "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) = ...`, or write the"
-    " spawned function's mailbox, `fn() : Unit with Never = ...` for one that receives nothing";
+    "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) = ...`, or give the"
+    " spawned function its mailbox type, `fn() : Unit receiving T = ...`";
 undetermined_help(_, _) ->
     "bind it with an annotation that settles the variable, as in `let xs : List(Int) = []`, or"
     " declare a function with `fn`".
@@ -3224,7 +3224,7 @@ type_names({tfn, Args, Effect, Result}) ->
 type_names({tvar, _}) ->
     [].
 
-effect_names(pure) -> [];
+effect_names(none) -> [];
 effect_names(Type) -> type_names(Type).
 
 %% Processes by their spawn sites (§6.9) and bindings by their names, the

@@ -16,12 +16,12 @@
         "    match shape { Square(s) -> s * s | Circle(r) -> 3 * r * r }\n"
         "fn isEven(n : Int) : Bool = if n == 0 then true else isOdd(n - 1)\n"
         "fn isOdd(n : Int) : Bool = if n == 0 then false else isEven(n - 1)\n"
-        "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
-        "export fn work() : Unit with Never =\n"
+        "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
+        "export fn work() : Unit =\n"
         "    { let _ = area(Square(side)); let _ = isEven(4); Unit }\n"
-        "export fn timed() : Int with m = now()\n"
-        "export fn later(n : Int) : Either(Io.Error, Address(Never)) with m =\n"
-        "    Peer.spawn(\"p\", fn() : Unit with Never = { let _ = isOdd(n); Unit }, 100)\n").
+        "export fn timed() : Int = now()\n"
+        "export fn later(n : Int) : Either(Io.Error, Address(Never)) =\n"
+        "    Peer.spawn(\"p\", fn() = { let _ = isOdd(n); Unit }, 100)\n").
 
 %% report §8.7, Appendix H: the spawner's node answers a request for a
 %% function's reach, a function's and a lambda's, from the code table and
@@ -71,8 +71,7 @@ reach_test() ->
         Work = lists:usort([Hash(Name) || Name <- [work, area, isEven, isOdd, 'Shape']]),
         Later = lists:usort([Hash(Name) || Name <- [later, isEven, isOdd]]),
         Now = {[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
-               {scheme, [{1, [process_only]}], {arrow, [], {variable, 1},
-                                                {applied, {named, ['Int']}, []}}, []},
+               {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []},
                {[<<"Exreach">>], []}},
         ?assertMatch([[{reach, _, Work, [{[<<"Exreach">>, <<"side">>], _}], []}],
                       [{reach, _, [_], [], [Now]}],
@@ -137,7 +136,7 @@ reach_test() ->
         "fn area(shape : Shape) : Int = match shape { Square(s) -> s * s * 2 | Circle(r) -> r }\n"
         "fn isEven(n : Int) : Bool = if n == 0 then true else isOdd(n - 2)\n"
         "fn isOdd(n : Int) : Bool = if n == 0 then false else isEven(n - 2)\n"
-        "export fn work() : Unit with Never =\n"
+        "export fn work() : Unit =\n"
         "    { let _ = area(Circle(5)); let _ = isOdd(4); Unit }\n").
 
 -define(HELD, "export fn held() : Int = 41 + 1\n").
@@ -228,8 +227,8 @@ received_whole_test() ->
     end.
 
 -define(LINKED,
-        "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
-        "export fn linked() : Int with m = {\n"
+        "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
+        "export fn linked() : Int = {\n"
         "    let _ = now();\n"
         "    Exheld.held() + Exbound.base\n"
         "}\n").
@@ -306,10 +305,10 @@ received_linked_test() ->
     end.
 
 -define(BEYOND,
-        "foreign fn absent() : Unit with m = \"ern_exchange_tests_nowhere:f/0\"\n"
-        "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
+        "foreign fn absent() : Unit = \"ern_exchange_tests_nowhere:f/0\"\n"
+        "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
         "let note : Int = 1\n"
-        "export fn outer() : Either(Io.Error, Int) with m = {\n"
+        "export fn outer() : Either(Io.Error, Int) = {\n"
         "    absent();\n"
         "    let _ = now() + note;\n"
         "    Peer.computeAt(\"p\", fn() = 6 * 7, 100)\n"
@@ -423,7 +422,7 @@ bound_hash(Beam) ->
 %% Other with the node's reason in a line, which the node says, and nothing
 %% of it is in the code table
 unlinked_reach_test() ->
-    Form = {function, {scheme, [], {arrow, [], pure, {applied, {named, ['Int']}, []}}, []}, [],
+    Form = {function, {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
             none, none, [], {var, {hash, <<77:256>>}, []}},
     Hash = crypto:hash(sha256, ern_canonical:bytes(ern_canonical:hashed([Form]))),
     Work = {function, Hash},
@@ -478,7 +477,7 @@ pool_test() ->
 %% which make no atom here
 not_loaded_from_reach_test() ->
     Work = {function, <<3:256>>},
-    Scheme = {scheme, [], {arrow, [], pure, {applied, {named, ['Unit']}, []}}, []},
+    Scheme = {scheme, [], {arrow, [], none, {applied, {named, ['Unit']}, []}}, []},
     Self = self(),
     Main = fun() ->
                true = register(ern_gateway, self()),
@@ -558,7 +557,7 @@ faulty_frame_test() ->
                                                [{[<<"Exfaulty">>, <<"now">>], HostModule,
                                                  <<"monotonic_time">>, {[], []}}]}])
                           end,
-               Other = setelement(2, Form, {scheme, [], {arrow, [], pure, int}, []}),
+               Other = setelement(2, Form, {scheme, [], {arrow, [], none, int}, []}),
                Faults = [fun(Ref) ->
                                  {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, [], Sources}
                          end,

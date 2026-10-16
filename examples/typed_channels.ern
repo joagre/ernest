@@ -21,7 +21,7 @@ type CounterMsg = Add(Int) | Get(reply : Reply(Int))
 // What a client that only ticks sends.
 type Tick = Tick
 
-export fn main() : Unit with m = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     // 2. A send is checked against the address's type (report §6.5), and one of another type
     // is refused, `send(counter, "2")`:
@@ -42,7 +42,7 @@ export fn main() : Unit with m = {
     // main returns here, and the program ends, the counter with it (report §8.6).
 }
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount) -> count(total + amount)
       | Get(reply = reply) -> {

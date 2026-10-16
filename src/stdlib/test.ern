@@ -42,7 +42,7 @@
 ///           run = fn() = if List.isEmpty([]) then Test.Passed else Test.Failed("not empty"))
 /// // => Case(name = "the empty list is empty", run = <function>)
 /// ```
-export type Case(m) = Case(name : String, run : () -> Result with m)
+export type Case(m) = Case(name : String, run : () -> Result receiving m)
 
 /// A test's answer: `Passed`, or `Failed` with what went wrong.
 ///

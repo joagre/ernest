@@ -8,7 +8,7 @@ type WorkMsg = Ask(reply : Reply(Int)) | Late | Stop
 
 type Msg = Ended(Down)
 
-foreign fn mark(round : Int) : Unit with m =
+foreign fn mark(round : Int) : Unit =
     "ern_load:mark/1"
 
 let rounds = 14
@@ -19,10 +19,10 @@ let keeper : Address(WorkMsg) = spawn(worker)
 
 let batch = 300
 
-export fn main() : Unit with Msg =
+export fn main() : Unit receiving Msg =
     round(1)
 
-fn round(number : Int) : Unit with Msg =
+fn round(number : Int) : Unit receiving Msg =
     if number > rounds then
         Unit
     else {
@@ -31,7 +31,7 @@ fn round(number : Int) : Unit with Msg =
         round(number + 1)
     }
 
-fn work(left : Int) : Unit with Msg =
+fn work(left : Int) : Unit receiving Msg =
     if left == 0 then
         Unit
     else {
@@ -39,7 +39,7 @@ fn work(left : Int) : Unit with Msg =
         work(left - 1)
     }
 
-fn once() : Unit with Msg = {
+fn once() : Unit receiving Msg = {
     // a call answered, then the callee monitored and killed
     let answerer = spawn(worker);
     let _ = Address.call(answerer, fn(reply) = Ask(reply = reply), 1000);
@@ -58,25 +58,27 @@ fn once() : Unit with Msg = {
     let _ = Address.call(mute, fn(reply) = Ask(reply = reply), 0);
     kill(mute);
     // a process that faults, watched from its start
-    let _ = spawnMonitored(fn() : Unit with Never = fault("on purpose"), Ended);
+    let _ = spawnMonitored(fn() = fault("on purpose"), Ended);
     receive {
         Ended(_) -> Unit
     };
     // a watch on the service by a process that ends before it
-    let _ = spawnMonitored(fn() : Unit with Msg = monitor(Process.fromAddress(keeper), Ended),
+    let _ = spawnMonitored(fn() : Unit receiving Msg = monitor(Process.fromAddress(keeper), Ended),
                            Ended);
     receive {
         Ended(_) -> Unit
     };
     // a subscription to faults that ends with its process
-    let _ = spawnMonitored(fn() : Unit with Process.FaultReport = Process.faults(fn(reply) = reply),
-                           Ended);
+    let _ =
+        spawnMonitored(fn() : Unit receiving Process.FaultReport =
+                           Process.faults(fn(reply) = reply),
+                       Ended);
     receive {
         Ended(_) -> Unit
     }
 }
 
-fn worker() : Unit with WorkMsg =
+fn worker() : Unit receiving WorkMsg =
     receive {
         Ask(reply = reply) -> {
             answer(reply, 1);
@@ -85,7 +87,7 @@ fn worker() : Unit with WorkMsg =
       | Stop -> Unit
     }
 
-fn slow() : Unit with WorkMsg =
+fn slow() : Unit receiving WorkMsg =
     receive {
         Ask(reply = reply) -> {
             receive {
@@ -97,7 +99,7 @@ fn slow() : Unit with WorkMsg =
       | Stop -> Unit
     }
 
-fn silent() : Unit with WorkMsg =
+fn silent() : Unit receiving WorkMsg =
     receive {
         Stop -> Unit
     }

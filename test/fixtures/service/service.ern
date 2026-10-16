@@ -8,13 +8,13 @@
 
 type Msg = Tick(Int)
 
-export fn main() : Unit with Msg =
+export fn main() : Unit receiving Msg =
     match Os.arguments {
         ["once", marker] -> once(Path(marker))
       | _ -> serve()
     }
 
-fn once(marker : Path) : Unit with Msg =
+fn once(marker : Path) : Unit receiving Msg =
     match Fs.stat(marker, 5000) {
         Right(_) -> serve()
       | Left(_) -> {
@@ -23,13 +23,13 @@ fn once(marker : Path) : Unit with Msg =
         }
     }
 
-fn serve() : Unit with Msg = {
+fn serve() : Unit receiving Msg = {
     Io.println("started");
-    let _ = spawn(fn() : Unit with Never = fault("on purpose"));
+    let _ = spawn(fn() = fault("on purpose"));
     tick()
 }
 
-fn tick() : Unit with Msg = {
+fn tick() : Unit receiving Msg = {
     Clock.alarm(1000, Tick);
     receive {
         Tick(_) -> tick()

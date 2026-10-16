@@ -24,16 +24,16 @@ kept(Told, Main, Options) ->
     ern_emitter_tests:run(
       ['M'],
       ["type Msg = Add(Int) | Ready(Reply(Unit)) | Terminating(Reply(Unit))\n"
-       "fn count(n : Int) : Unit with Msg = receive {\n"
+       "fn count(n : Int) : Unit receiving Msg = receive {\n"
        "    Add(k) -> count(n + k) | Ready(ready) -> { answer(ready, Unit); count(n) }\n"
        "  | Terminating(reply) -> ", Told, "\n"
        "}\n"
-       "fn keeper() : Unit with Msg = {\n"
+       "fn keeper() : Unit receiving Msg = {\n"
        "    Os.termination(Terminating);\n"
        "    count(0)\n"
        "}\n"
-       "foreign fn signal(name : Foreign.Term) : Foreign.Term with m = \"ern_rt:signal/1\"\n"
-       "fn terminate() : Unit with m = { let _ = signal(Foreign.term(Foreign.atom(\"sigterm\")));"
+       "foreign fn signal(name : Foreign.Term) : Foreign.Term = \"ern_rt:signal/1\"\n"
+       "fn terminate() : Unit = { let _ = signal(Foreign.term(Foreign.atom(\"sigterm\")));"
        " Unit }\n",
        Main],
       Options).
@@ -45,7 +45,7 @@ kept(Told, Main, Options) ->
 %% the runtime says the wait and the answer on standard error
 told_at_the_entry_process_end_test() ->
     {Result, Output} = kept(?KEEP,
-                            "export fn main() : Unit with Never = {\n"
+                            "export fn main() : Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(2));\n"
                             "    send(k, Add(3))\n"
@@ -63,10 +63,10 @@ told_at_the_entry_process_end_test() ->
 %% the subscriber goes on counting, to die with the program. A regression
 %% test, written after the code (MVP 3.2's item 3)
 subscriber_whose_spawn_failed_test() ->
-    {Result, Output} = kept("{ let _ = Peer.spawn(\"nobody\", fn() : Unit with Never ="
+    {Result, Output} = kept("{ let _ = Peer.spawn(\"nobody\", fn() ="
                             " answer(reply, Unit), 1000); Io.println(\"spawn failed\");"
                             " count(n) }",
-                            "export fn main() : Unit with Never = {\n"
+                            "export fn main() : Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(1))\n"
                             "}\n"),
@@ -81,7 +81,7 @@ subscriber_whose_spawn_failed_test() ->
 %% subscriber told first, with its status
 told_at_exit_test() ->
     {Result, Output} = kept(?KEEP,
-                            "export fn main() : Unit with Never = {\n"
+                            "export fn main() : Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(4));\n"
                             "    Os.exit(3)\n"
@@ -93,7 +93,7 @@ told_at_exit_test() ->
 %% process running on while the end waits and ending with the program
 told_at_termination_test() ->
     {Result, Output} = kept(?KEEP,
-                            "export fn main() : Unit with Unit = {\n"
+                            "export fn main() : Unit receiving Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(6));\n"
                             "    terminate();\n"
@@ -106,12 +106,12 @@ told_at_termination_test() ->
 %% a subscriber that has not answered, which the runtime says
 second_termination_ends_at_once_test() ->
     {Result, Output} = kept("held(reply)",
-                            "fn held(reply : Reply(Unit)) : Unit with Msg = receive {\n"
+                            "fn held(reply : Reply(Unit)) : Unit receiving Msg = receive {\n"
                             "    Terminating(other) -> { answer(other, Unit); held(reply) }\n"
                             "  | Add(_) -> held(reply)"
                             " | Ready(other) -> { answer(other, Unit); held(reply) }\n"
                             "}\n"
-                            "export fn main() : Unit with Unit = {\n"
+                            "export fn main() : Unit receiving Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    terminate();\n"
                             "    terminate();\n"
@@ -128,7 +128,7 @@ second_termination_ends_at_once_test() ->
 %% and the runtime says whom the wait left unanswered
 exit_while_the_end_waits_test() ->
     {Result, Output} = kept("Os.exit(7)",
-                            "export fn main() : Unit with Never = {\n"
+                            "export fn main() : Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    Unit\n"
                             "}\n"),
@@ -144,7 +144,7 @@ faulting_subscriber_is_reported_test() ->
                  Self ! {fault, Site, Cause}
              end,
     {Result, Output} = kept("{ let _ = 1 / List.size([]); answer(reply, Unit) }",
-                            "export fn main() : Unit with Never = {\n"
+                            "export fn main() : Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    Unit\n"
                             "}\n",
@@ -212,19 +212,19 @@ restarted(First) ->
     ern_emitter_tests:run(
       ['M'],
       ["type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
-       "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
+       "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
        "    Os.termination(Terminating);\n"
        "    send(main, Ready);\n"
        "    receive {\n"
        "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
        "    }\n"
        "}\n"
-       "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit with Msg = {\n"
+       "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit receiving Msg = {\n"
        "    Os.termination(Terminating);\n"
        "    send(main, Ready);\n"
        "    count(holder, 0)\n"
        "}\n"
-       "fn count(holder : Address(Msg), n : Int) : Unit with Msg = receive {\n"
+       "fn count(holder : Address(Msg), n : Int) : Unit receiving Msg = receive {\n"
        "    Add(k) -> count(holder, n + k)\n"
        "  | Terminating(reply) -> if n > 0 then ", First, " else {\n"
        "        Io.println(\"told again\");\n"
@@ -232,11 +232,11 @@ restarted(First) ->
        "        answer(reply, Unit)\n"
        "    }\n"
        "}\n"
-       "export fn main() : Unit with Msg = {\n"
+       "export fn main() : Unit receiving Msg = {\n"
        "    let me = self();\n"
-       "    let holder = spawn(fn() : Unit with Msg = hold(me));\n"
+       "    let holder = spawn(fn() : Unit receiving Msg = hold(me));\n"
        "    let limit = RestartLimit(restarts = 1, within = 5000);\n"
-       "    let k = spawn(restarting(limit, fn() : Unit with Msg = keeper(holder, me)));\n"
+       "    let k = spawn(restarting(limit, fn() : Unit receiving Msg = keeper(holder, me)));\n"
        "    send(k, Add(1));\n"
        "    receive { Ready -> Unit };\n"
        "    receive { Ready -> Unit }\n"
@@ -255,13 +255,13 @@ tellers_leave_no_monitor_test() ->
     {Result, Output} = ern_emitter_tests:run(
         "type Msg = Ready | Done | Terminating(Reply(Unit))\n"
         "type Count = Next(Reply(Int)) | Keep(Int) | Kept(Reply(Int))\n"
-        "foreign fn waits() : Int with m = \"ern_reaper_tests:reaper_words/0\"\n"
-        "fn count(n : Int, kept : Int) : Unit with Count = receive {\n"
+        "foreign fn waits() : Int = \"ern_reaper_tests:reaper_words/0\"\n"
+        "fn count(n : Int, kept : Int) : Unit receiving Count = receive {\n"
         "    Next(reply) -> { answer(reply, n); count(n + 1, kept) }\n"
         "  | Keep(words) -> count(n, words)\n"
         "  | Kept(reply) -> { answer(reply, kept); count(n, kept) }\n"
         "}\n"
-        "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
+        "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
         "    send(main, Ready);\n"
         "    receive {\n"
@@ -269,7 +269,7 @@ tellers_leave_no_monitor_test() ->
         "    }\n"
         "}\n"
         "fn keeper(counter : Address(Count), holder : Address(Msg), main : Address(Msg))"
-        " : Unit with Msg = {\n"
+        " : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
         "    send(main, Ready);\n"
         "    receive {\n"
@@ -277,7 +277,7 @@ tellers_leave_no_monitor_test() ->
         "    }\n"
         "}\n"
         "fn told(counter : Address(Count), holder : Address(Msg), reply : Reply(Unit))"
-        " : Unit with Msg = {\n"
+        " : Unit receiving Msg = {\n"
         "    let n = Address.callForever(counter, Next);\n"
         "    if n == 100 then send(counter, Keep(waits())) else Unit;\n"
         "    if n < 1100 then {\n"
@@ -289,11 +289,11 @@ tellers_leave_no_monitor_test() ->
         "        answer(reply, Unit)\n"
         "    }\n"
         "}\n"
-        "export fn main() : Unit with Msg = {\n"
+        "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
-        "    let counter = spawn(fn() : Unit with Count = count(0, 0));\n"
-        "    let holder = spawn(fn() : Unit with Msg = hold(me));\n"
-        "    let _ = spawn(restarting(Unlimited, fn() : Unit with Msg ="
+        "    let counter = spawn(fn() : Unit receiving Count = count(0, 0));\n"
+        "    let holder = spawn(fn() : Unit receiving Msg = hold(me));\n"
+        "    let _ = spawn(restarting(Unlimited, fn() : Unit receiving Msg ="
         " keeper(counter, holder, me)));\n"
         "    receive { Ready -> Unit };\n"
         "    receive { Ready -> Unit }\n"
@@ -321,7 +321,7 @@ faults(Acc) ->
 subscribed_while_the_end_waits_test() ->
     {Result, Output} = ern_emitter_tests:run(
         "type Msg = Ready | Terminating(Reply(Unit))\n"
-        "fn second(first : Address(Msg)) : Unit with Msg = {\n"
+        "fn second(first : Address(Msg)) : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
         "    send(first, Ready);\n"
         "    receive {\n"
@@ -329,12 +329,12 @@ subscribed_while_the_end_waits_test() ->
         "      | Ready -> Unit\n"
         "    }\n"
         "}\n"
-        "fn first() : Unit with Msg = {\n"
+        "fn first() : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
         "    receive {\n"
         "        Terminating(reply) -> {\n"
         "            let me = self();\n"
-        "            let _ = spawn(fn() : Unit with Msg = second(me));\n"
+        "            let _ = spawn(fn() : Unit receiving Msg = second(me));\n"
         "            receive {\n"
         "                Ready -> answer(reply, Unit)\n"
         "              | Terminating(other) -> { answer(other, Unit); answer(reply, Unit) }\n"
@@ -343,8 +343,8 @@ subscribed_while_the_end_waits_test() ->
         "      | Ready -> Unit\n"
         "    }\n"
         "}\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = spawn(fn() : Unit with Msg = Os.termination(Terminating));\n"
+        "export fn main() : Unit = {\n"
+        "    let _ = spawn(fn() : Unit receiving Msg = Os.termination(Terminating));\n"
         "    let _ = spawn(first);\n"
         "    Unit\n"
         "}\n"),
@@ -359,7 +359,7 @@ subscribed_while_the_end_waits_test() ->
 %% report §8.6: a program with no subscriber ends as before, and says
 %% nothing of a wait
 no_subscriber_says_nothing_test() ->
-    {Result, Output} = kept(?KEEP, "export fn main() : Unit with Never = Io.println(\"done\")\n"),
+    {Result, Output} = kept(?KEEP, "export fn main() : Unit = Io.println(\"done\")\n"),
     ?assertEqual(ok, Result),
     ?assertEqual(<<"done\n">>, Output).
 
@@ -382,8 +382,8 @@ waiting_for_the_end_is_no_deadlock_test() ->
     {Result, Output} = ern_emitter_tests:run(
         "type Msg = Terminating(Reply(Unit))\n"
         "foreign fn waiting(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
-        " with m = \"erlang:send/2\"\n"
-        "export fn main() : Unit with Msg = {\n"
+        " = \"erlang:send/2\"\n"
+        "export fn main() : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
         "    let _ = waiting(Foreign.term(Foreign.atom(\"ern_terminating_tests_waiter\")),"
         " Foreign.term(Foreign.atom(\"waiting\")));\n"

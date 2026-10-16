@@ -745,8 +745,8 @@ written({tfn, Params, Effect, Result}, Walk) ->
     {EffectForm, Walk2} = written(Effect, Walk1),
     {ResultForm, Walk3} = written(Result, Walk2),
     {{arrow, ParamForms, EffectForm, ResultForm}, Walk3};
-written(pure, Walk) ->
-    {pure, Walk}.
+written(none, Walk) ->
+    {none, Walk}.
 
 %% Report Appendix H: an annotation as written, its names resolved, a type
 %% variable it writes numbered by the type variable the checker resolved it
@@ -772,7 +772,7 @@ annotated(#t_tuple{elements = Elements}, Walk) ->
 annotated(#t_fn{params = Params, result_type = Result, effect = Effect}, Walk) ->
     {ParamForms, Walk1} = lists:mapfoldl(fun annotated/2, Walk, Params),
     {EffectForm, Walk2} = case Effect of
-                              undefined -> {pure, Walk1};
+                              undefined -> {none, Walk1};
                               _ -> annotated(Effect, Walk1)
                           end,
     {ResultForm, Walk3} = annotated(Result, Walk2),

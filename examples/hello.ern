@@ -1,8 +1,8 @@
 //
 // Hello world
 //
-// The smallest program: a `main` that prints a line. `with Never` says that
-// main runs in a process whose mailbox receives nothing.
+// The smallest program: a `main` that prints a line. It receives nothing,
+// so its type names no mailbox.
 //
 // Run it from this directory:
 //
@@ -10,5 +10,5 @@
 //     ern run hello.erc
 //
 
-export fn main() : Unit with Never =
+export fn main() : Unit =
     Io.println("hello, world")

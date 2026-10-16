@@ -78,7 +78,7 @@ export fn withDefault(either : Either(e, a), default : a) : a =
 
 /// `Right(f(x))` for `Right(x)`, or the `Left` as it is, where `f` is not
 /// called.
-export fn map(either : Either(e, a), f : (a) -> b with x) : Either(e, b) with x =
+export fn map(either : Either(e, a), f : (a) -> b receiving x) : Either(e, b) receiving x =
     match either {
         Right(value) -> Right(f(value))
       | Left(cause) -> Left(cause)
@@ -96,7 +96,7 @@ export fn map(either : Either(e, a), f : (a) -> b with x) : Either(e, b) with x 
 /// }
 /// // => Left("bad!")
 /// ```
-export fn mapLeft(either : Either(e, a), f : (e) -> b with x) : Either(b, a) with x =
+export fn mapLeft(either : Either(e, a), f : (e) -> b receiving x) : Either(b, a) receiving x =
     match either {
         Left(cause) -> Left(f(cause))
       | Right(value) -> Right(value)
@@ -104,7 +104,8 @@ export fn mapLeft(either : Either(e, a), f : (e) -> b with x) : Either(b, a) wit
 
 /// `f(x)` for `Right(x)`, or the `Left` as it is, where `f` is not called. It
 /// chains steps each of which may fail, as `<-` does in a block.
-export fn andThen(either : Either(e, a), f : (a) -> Either(e, b) with x) : Either(e, b) with x =
+export fn andThen(either : Either(e, a),
+                  f : (a) -> Either(e, b) receiving x) : Either(e, b) receiving x =
     match either {
         Right(value) -> f(value)
       | Left(cause) -> Left(cause)

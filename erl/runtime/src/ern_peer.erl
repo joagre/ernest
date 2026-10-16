@@ -29,10 +29,10 @@
 
 -export_type([identity/0]).
 
-%% Report §8.6: the shims that wait on no process, each a table or a
-%% persistent term read or a table written, which the emitter does not
-%% count as foreign code.
--waits_on_nothing([offer/2, peers/0, utilizations/0, set_utilization/1]).
+%% Report §8.6: the shims that wait on a peer's answer, which the emitter
+%% counts as foreign code while they run; the others, a table or a
+%% persistent term read or a table written, wait on no process.
+-waits([find/2, spawn/3, spawn_monitored/4, compute/2, compute_at/3, utilization/2]).
 
 %% A spawn waiting for its answer, {{Node, Ref}, Waiting}, by the peer's
 %% node and the spawn's reference: the waiting process. Ordered, so that a

@@ -17,7 +17,7 @@ fn product(list : List(a), num : Num(a)) : a =
 fn sumOfSquares(list : List(a), num : Num(a)) : a =
     sum(List.map(list, fn(x) = num.mul(x, x)), num)
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(Int.toString(sum([1, 2, 3], ints)));
     Io.println(Io.show(product([1.5, 2.0], floats)));
     Io.println(Int.toString(sumOfSquares([1, 2, 3], ints)))

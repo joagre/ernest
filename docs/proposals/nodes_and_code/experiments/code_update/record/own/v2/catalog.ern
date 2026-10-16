@@ -7,7 +7,8 @@ export type Msg = Add(Item) | Find(name : String, reply : Reply(Optional(Item)))
 export let catalog : Service.Handle(Msg, Map(String, Item)) = Service.start(fn() = Map.empty, step)
 
 export fn step(items : Map(String, Item),
-               message : Msg) : Map(String, Item) with Service.Envelope(Msg, Map(String, Item)) =
+               message : Msg) : Map(String,
+                                    Item) receiving Service.Envelope(Msg, Map(String, Item)) =
     match message {
         Add(item) -> Map.put(items, item.name, item)
       | Find(name = name, reply = reply) -> {

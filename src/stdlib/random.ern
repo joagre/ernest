@@ -6,7 +6,7 @@
 ///
 /// **A seed is carried.** `seed` makes a `Seed` from a number, and each draw
 /// answers a number and the seed to draw with next. There is no hidden state
-/// and no process, so every function here is pure (report Appendix E.13), and
+/// and no process, so a draw depends on its seed alone (report Appendix E.13), and
 /// the same seed gives the same sequence on every node and every version. A
 /// program that wants a sequence that differs between runs seeds from
 /// `Clock.now()`.

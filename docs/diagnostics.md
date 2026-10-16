@@ -7,27 +7,27 @@ Errors the lexer, the parser and the checker give, each with one small program t
 ### A character outside the language (§2.1)
 
 ```ernest-rejected
-export fn main() : Unit with Never = Io.println(§)
+export fn main() : Unit = Io.println(§)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:49: illegal character '§'
-1 | export fn main() : Unit with Never = Io.println(§)
-  |                                                 ^
+example.ern:1:38: illegal character '§'
+1 | export fn main() : Unit = Io.println(§)
+  |                                      ^
 ```
 
 ### A name longer than 255 characters (§2.3)
 
 ```ernest-rejected
-export fn main() : Unit with Never = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
+export fn main() : Unit = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:44: a name is at most 255 characters long
-1 | export fn main() : Unit with Never = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
-  |                                            ^
+example.ern:1:33: a name is at most 255 characters long
+1 | export fn main() : Unit = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
+  |                                 ^
 ```
 
 ### An underscore that does not stand between two digits (§2.5)
@@ -333,19 +333,6 @@ $ ern build example.ern
 example.ern:1:10: expected `type` after `abstract`
 1 | abstract fn hidden() : Int = 1
   |          ^^
-```
-
-### An abstract type with a signature (§3.6, §4.4)
-
-```ernest-rejected
-abstract type Stack = Stack(List(Int)) with { push }
-```
-
-```console
-$ ern build example.ern
-example.ern:1:40: an abstract type has no signature: every definition of its module may use its constructors, so leave out `with { ... }`
-1 | abstract type Stack = Stack(List(Int)) with { push }
-  |                                        ^^^^
 ```
 
 ### A type member without its name (§4.2)
@@ -677,7 +664,7 @@ example.ern:1:17: a block needs at least one expression
 ### Two errors of one block (§11.5)
 
 ```ernest-rejected
-fn f() : Unit with Never = {
+fn f() : Unit = {
     Io.println(1);
     Io.println(2);
     Unit
@@ -687,15 +674,15 @@ fn f() : Unit with Never = {
 ```console
 $ ern build example.ern
 example.ern:2:16: the argument does not fit Io.println: expected String, found Int
-1 | fn f() : Unit with Never = {
+1 | fn f() : Unit = {
 2 |     Io.println(1);
-  |     ---------- Io.println : (String) -> Unit with m+
+  |     ---------- Io.println : (String) -> Unit
   |                ^
 
 example.ern:3:16: the argument does not fit Io.println: expected String, found Int
 2 |     Io.println(1);
 3 |     Io.println(2);
-  |     ---------- Io.println : (String) -> Unit with m+
+  |     ---------- Io.println : (String) -> Unit
   |                ^
 ```
 
@@ -1271,10 +1258,10 @@ example.ern:3:1: Money.+ must have the type (Money, Money) -> Money, not (Money,
 2 | 
 3 | fn Money.+(a : Money, b : Int) : Money = a
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: a member named by an operator takes two values of its type and is pure
+  | = help: a member named by an operator takes two values of its type and receives nothing
 ```
 
-### A top-level `let` with an effect whose type is not determined (§4.6)
+### A top-level `let` whose initializer is no value and whose type is not determined (§4.6)
 
 ```ernest-rejected
 let box = {
@@ -1285,7 +1272,7 @@ let box = {
 
 ```console
 $ ern build example.ern
-example.ern:1:1: the type of box is not determined (List(a)), and a top-level `let` whose initializer calls a process-only function is not generalized; annotate it
+example.ern:1:1: the type of box is not determined (List(a)), and a top-level `let` whose initializer is no value is not generalized; annotate it
 1 | let box = {
   | ^^^^^^^^^^^
 ```
@@ -1440,14 +1427,14 @@ example.ern:1:16: unknown name List.count
 ### `Prelude.` before a name deeper than a prelude namespace's (§4.2)
 
 ```ernest-rejected
-fn f() : Unit with m = Prelude.Io.println("x")
+fn f() : Unit = Prelude.Io.println("x")
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:24: Prelude.Io.println is written only where the module hides Io.println
-1 | fn f() : Unit with m = Prelude.Io.println("x")
-  |                        ^^^^^^^^^^^^^^^^^^
+example.ern:1:17: Prelude.Io.println is written only where the module hides Io.println
+1 | fn f() : Unit = Prelude.Io.println("x")
+  |                 ^^^^^^^^^^^^^^^^^^
   | = help: nothing here hides it; write Io.println
 ```
 
@@ -1874,18 +1861,18 @@ example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape
   | = help: give every field of Circle
 ```
 
-### `with m` on a body that acts through no process (§4.5)
+### `receiving m` on a body that receives nothing (§4.5)
 
 ```ernest-rejected
-fn k() : Int with m = 5
+fn k() : Int receiving m = 5
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:19: k acts through no process, and `with m` names no parameter's effect
-1 | fn k() : Int with m = 5
-  |                   ^
-  | = help: write k's type without `with`: it is pure
+example.ern:1:24: k receives nothing, and `receiving m` names no parameter's mailbox type
+1 | fn k() : Int receiving m = 5
+  |                        ^
+  | = help: write k's type without `receiving`
 ```
 
 ### A module's own name written qualified where nothing hides it (§4.2)
@@ -1893,15 +1880,15 @@ example.ern:1:19: k acts through no process, and `with m` names no parameter's e
 ```ernest-rejected
 fn helper() : Int = 1
 
-export fn main() : Unit with Never = Io.println(Int.toString(Example.helper()))
+export fn main() : Unit = Io.println(Int.toString(Example.helper()))
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:62: Example.helper is written only where a binding hides helper
+example.ern:3:51: Example.helper is written only where a binding hides helper
 2 | 
-3 | export fn main() : Unit with Never = Io.println(Int.toString(Example.helper()))
-  |                                                              ^^^^^^^^^^^^^^
+3 | export fn main() : Unit = Io.println(Int.toString(Example.helper()))
+  |                                                   ^^^^^^^^^^^^^^
   | = help: nothing here hides it; write helper
 ```
 
@@ -2261,7 +2248,7 @@ example.ern:3:42: Money.compare must have the type (Money, Money) -> Ordering, n
 2 | 
 3 | fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
   |                                          ^^^
-  | = help: compare takes two values of its type, returns an Ordering, and is pure
+  | = help: compare takes two values of its type, returns an Ordering, and receives nothing
 ```
 
 ### `&&` on a value that is no Bool (§4.8)
@@ -2497,15 +2484,15 @@ example.ern:1:59: the requirement names a.compare twice
 ### A requirement on an effect variable (§4.9)
 
 ```ernest-rejected
-fn f(x : a) : a with e needs e.compare =
+fn f(x : a) : a receiving e needs e.compare =
     x
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: e is an effect variable, and a requirement names a type variable in a value position
-1 | fn f(x : a) : a with e needs e.compare =
-  |                              ^^^^^^^^^
+example.ern:1:35: e is an effect variable, and a requirement names a type variable in a value position
+1 | fn f(x : a) : a receiving e needs e.compare =
+  |                                   ^^^^^^^^^
 ```
 
 ### A binding named as a type variable of the signature (§4.9)
@@ -3187,23 +3174,28 @@ example.ern:4:14: the clauses must have one type: expected String, found Int
   |              ^
 ```
 
-### A process's function called in a guard (§5.9)
+### A function that receives, called in a guard (§5.9)
 
 ```ernest-rejected
-fn f(n : Int) : Int with m =
+fn wait() : Bool receiving m =
+    receive {
+        after 1 -> true
+    }
+
+fn f(n : Int) : Int receiving Never =
     match n {
-        k when Io.println("k") == Unit -> k
+        k when wait() -> k
       | _ -> 0
     }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:16: Io.println needs a process, and a guard is pure
-2 |     match n {
-3 |         k when Io.println("k") == Unit -> k
-  |                ^^^^^^^^^^^^^^^
-  |                ----------------------- a guard is pure (§5.9)
+example.ern:8:16: wait needs a mailbox, and a guard receives nothing
+7 |     match n {
+8 |         k when wait() -> k
+  |                ------ a guard receives nothing (§5.9)
+  |                ^^^^^^
   | = help: compute the value before the match
 ```
 
@@ -3683,39 +3675,45 @@ example.ern:3:11: a `bytes` segment without a size takes the rest, so it is the 
 ### A call that needs another mailbox (§6.1)
 
 ```ernest-rejected
-fn g() : Unit with String = Unit
+fn g() : Unit receiving String =
+    receive {
+        _ -> Unit
+    }
 
-fn f() : Unit with Int = g()
+fn f() : Unit receiving Int = g()
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:26: g needs mailbox String, and the mailbox here is Int
-2 | 
-3 | fn f() : Unit with Int = g()
-  |                    --- f is declared `with Int` here
-  |                          ^^^
+example.ern:6:31: g needs mailbox String, and the mailbox here is Int
+5 | 
+6 | fn f() : Unit receiving Int = g()
+  |                         --- f is declared `receiving Int` here
+  |                               ^^^
 ```
 
-### A call that needs a process, from a pure function (§6.1)
+### A call of a function that receives, from one that receives nothing (§6.1)
 
 ```ernest-rejected
-fn g() : Unit with String = Unit
+fn g() : Unit receiving String =
+    receive {
+        _ -> Unit
+    }
 
 fn f() : Unit = g()
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:17: g needs a process, and f is pure
-2 | 
-3 | fn f() : Unit = g()
-  |          ---- `: Unit` with no `with` declares f pure
+example.ern:6:17: g needs a mailbox, and f receives nothing
+5 | 
+6 | fn f() : Unit = g()
+  |          ---- `: Unit` without `receiving` declares that f receives nothing
   |                 ^^^
-  | = help: give f a mailbox type with `with`
+  | = help: give f its mailbox type with `receiving`
 ```
 
-### `receive` in a pure function (§6.3)
+### `receive` in a function that receives nothing (§6.3)
 
 ```ernest-rejected
 fn f() : Int =
@@ -3726,18 +3724,18 @@ fn f() : Int =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: `receive` needs a process, and f is pure
+example.ern:2:5: `receive` needs a mailbox, and f receives nothing
 1 | fn f() : Int =
-  |          --- `: Int` with no `with` declares f pure
+  |          --- `: Int` without `receiving` declares that f receives nothing
 2 |     receive {
   |     ^^^^^^^^^
-  | = help: give f a mailbox type with `with`
+  | = help: give f its mailbox type with `receiving`
 ```
 
 ### `receive` in a function of mailbox Never (§6.8)
 
 ```ernest-rejected
-fn f() : Int with Never =
+fn f() : Int receiving Never =
     receive {
         n -> n
     }
@@ -3746,11 +3744,11 @@ fn f() : Int with Never =
 ```console
 $ ern build example.ern
 example.ern:2:5: f is declared with mailbox Never and cannot receive
-1 | fn f() : Int with Never =
-  |                   ----- f is declared `with Never` here
+1 | fn f() : Int receiving Never =
+  |                        ----- f is declared `receiving Never` here
 2 |     receive {
   |     ^^^^^^^^^
-  | = help: only an `after` clause is allowed; give f another mailbox type with `with`
+  | = help: only an `after` clause is allowed; give f another mailbox type with `receiving`
 ```
 
 ### `receive` in a top-level initializer (§4.6, §6.8)
@@ -3775,7 +3773,7 @@ example.ern:2:5: a top-level initializer runs with mailbox Never and cannot rece
 ### An `after` time that is no Int (§6.3)
 
 ```ernest-rejected
-fn f() : Int with Int =
+fn f() : Int receiving Int =
     receive {
         after "soon" -> 1
     }
@@ -3816,7 +3814,7 @@ type Money = Money(Int)
 
 fn Money.compare(a : Money, b : Money) : Ordering = Equal
 
-fn f(limit : Money) : Int with Money =
+fn f(limit : Money) : Int receiving Money =
     receive {
         m when m < limit -> 1
     }
@@ -3834,7 +3832,7 @@ example.ern:7:16: a `receive` guard orders only Int, Float, String, and Char, no
 ### A `receive` guard that calls a function (§6.3)
 
 ```ernest-rejected
-fn f() : Int with Bool =
+fn f() : Int receiving Bool =
     receive {
         b when Bool.not(b) -> 1
     }
@@ -3852,7 +3850,7 @@ example.ern:3:16: a `receive` guard combines `true`, `false`, Bool variables, an
 ### A `receive` guard that compares a computed value (§6.3)
 
 ```ernest-rejected
-fn f() : Int with Int =
+fn f() : Int receiving Int =
     receive {
         n when n + 1 > 2 -> 1
     }
@@ -3921,7 +3919,7 @@ example.ern:2:17: Peer.spawn is called where it is named, so that the compiler s
 ### A spawn on a peer of a function that came as a value (§3.11)
 
 ```ernest-rejected
-fn startOn(name : String, f : () -> Unit with Never) : Unit with m = {
+fn startOn(name : String, f : () -> Unit) : Unit = {
     let _ = Peer.spawn(name, f, 1000);
     Unit
 }
@@ -3930,7 +3928,7 @@ fn startOn(name : String, f : () -> Unit with Never) : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:2:30: Peer.spawn starts f, a function that came as a value, whose captures the compiler does not see
-1 | fn startOn(name : String, f : () -> Unit with Never) : Unit with m = {
+1 | fn startOn(name : String, f : () -> Unit) : Unit = {
 2 |     let _ = Peer.spawn(name, f, 1000);
   |                              ^
   | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (§3.11)
@@ -3939,9 +3937,9 @@ example.ern:2:30: Peer.spawn starts f, a function that came as a value, whose ca
 ### A spawn on a peer of a top-level `let` (§3.11)
 
 ```ernest-rejected
-let job : () -> Unit with Never = fn() = Unit
+let job : () -> Unit = fn() = Unit
 
-fn start() : Unit with m = {
+fn start() : Unit = {
     let _ = Peer.spawn("worker", job, 1000);
     Unit
 }
@@ -3950,7 +3948,7 @@ fn start() : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:4:34: Peer.spawn starts job, a top-level `let`, whose value may hold captures the compiler does not see
-3 | fn start() : Unit with m = {
+3 | fn start() : Unit = {
 4 |     let _ = Peer.spawn("worker", job, 1000);
   |                                  ^^^
   | = help: declare it with `fn`, or write a lambda at the spawn (§3.11)
@@ -3959,9 +3957,9 @@ example.ern:4:34: Peer.spawn starts job, a top-level `let`, whose value may hold
 ### A spawn on a peer of a function a call answers (§3.11)
 
 ```ernest-rejected
-fn job() : () -> Unit with Never = fn() = Unit
+fn job() : () -> Unit = fn() = Unit
 
-fn start() : Unit with m = {
+fn start() : Unit = {
     let _ = Peer.spawn("worker", job(), 1000);
     Unit
 }
@@ -3970,7 +3968,7 @@ fn start() : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:4:34: Peer.spawn starts a function written where the compiler sees what it captures: a declaration's name, or a lambda or a `fn` written in this definition
-3 | fn start() : Unit with m = {
+3 | fn start() : Unit = {
 4 |     let _ = Peer.spawn("worker", job(), 1000);
   |                                  ^^^^^
   | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (§3.11)
@@ -3979,8 +3977,8 @@ example.ern:4:34: Peer.spawn starts a function written where the compiler sees w
 ### A capture whose type holds a type variable (§3.11, §3.9)
 
 ```ernest-rejected
-fn startWith(name : String, values : List(a)) : Unit with m = {
-    let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(Int.toString(List.size(values))),
+fn startWith(name : String, values : List(a)) : Unit = {
+    let _ = Peer.spawn(name, fn() = Io.println(Int.toString(List.size(values))),
                        1000);
     Unit
 }
@@ -3988,36 +3986,36 @@ fn startWith(name : String, values : List(a)) : Unit with m = {
 
 ```console
 $ ern build example.ern
-example.ern:2:89: the function Peer.spawn starts captures values, whose type List(a) holds a type variable
-1 | fn startWith(name : String, values : List(a)) : Unit with m = {
-2 |     let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(Int.toString(List.size(values))),
-  |                                                                                         ^^^^^^
+example.ern:2:71: the function Peer.spawn starts captures values, whose type List(a) holds a type variable
+1 | fn startWith(name : String, values : List(a)) : Unit = {
+2 |     let _ = Peer.spawn(name, fn() = Io.println(Int.toString(List.size(values))),
+  |                                                                       ^^^^^^
   | = help: a value a spawn on a peer captures has a type known whole, since a type variable could stand for one bound to its node (§3.11)
 ```
 
 ### A capture of a type bound to its node (§3.11)
 
 ```ernest-rejected
-fn startWith(name : String, describe : (Int) -> String) : Unit with m = {
-    let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(describe(1)), 1000);
+fn startWith(name : String, describe : (Int) -> String) : Unit = {
+    let _ = Peer.spawn(name, fn() = Io.println(describe(1)), 1000);
     Unit
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:66: the function Peer.spawn starts captures describe, a function, which is bound to its node
-1 | fn startWith(name : String, describe : (Int) -> String) : Unit with m = {
-2 |     let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(describe(1)), 1000);
-  |                                                                  ^^^^^^^^
+example.ern:2:48: the function Peer.spawn starts captures describe, a function, which is bound to its node
+1 | fn startWith(name : String, describe : (Int) -> String) : Unit = {
+2 |     let _ = Peer.spawn(name, fn() = Io.println(describe(1)), 1000);
+  |                                                ^^^^^^^^
   | = help: a value of a bound type never crosses to another node; give the process what crosses (§3.11)
 ```
 
 ### A spawned function that uses a member of the requirement in force (§3.11)
 
 ```ernest-rejected
-fn startWith(name : String, sample : a) : Unit with m needs a.show = {
-    let _ = Peer.spawn(name, fn() : Unit with Never = {
+fn startWith(name : String, sample : a) : Unit needs a.show = {
+    let _ = Peer.spawn(name, fn() = {
         let shown : a = fault("never");
         Io.println(Io.show(shown))
     }, 1000);
@@ -4028,31 +4026,31 @@ fn startWith(name : String, sample : a) : Unit with m needs a.show = {
 ```console
 $ ern build example.ern
 example.ern:2:30: Peer.spawn starts a function that uses a.show, a member of the requirement in force, which is a function bound to its node
-1 | fn startWith(name : String, sample : a) : Unit with m needs a.show = {
-2 |     let _ = Peer.spawn(name, fn() : Unit with Never = {
-  |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | fn startWith(name : String, sample : a) : Unit needs a.show = {
+2 |     let _ = Peer.spawn(name, fn() = {
+  |                              ^^^^^^^^
   | = help: give the process what it needs as a value it captures, or spawn on this node (§3.11)
 ```
 
 ### A spawned process whose mailbox type is not known whole (§3.11)
 
 ```ernest-rejected
-fn idle() : Unit with m =
+fn idle() : Unit receiving m =
     receive {
         after 1000 -> Unit
     }
 
-fn start() : Either(Io.Error, Address(a)) with n =
+fn start() : Either(Io.Error, Address(a)) =
     Peer.spawn("worker", idle, 1000)
 ```
 
 ```console
 $ ern build example.ern
 example.ern:7:26: Peer.spawn starts a process whose mailbox type a is not known whole here
-6 | fn start() : Either(Io.Error, Address(a)) with n =
+6 | fn start() : Either(Io.Error, Address(a)) =
 7 |     Peer.spawn("worker", idle, 1000)
   |                          ^^^^
-  | = help: give the function its mailbox type, `fn() : Unit with Msg = ...`: an instance of this definition could make the variable a type bound to its node (§3.11)
+  | = help: give the function its mailbox type, `fn() : Unit receiving Msg = ...`: an instance of this definition could make the variable a type bound to its node (§3.11)
 ```
 
 ### A spawned process whose mailbox type is bound to its node (§3.11)
@@ -4060,12 +4058,12 @@ example.ern:7:26: Peer.spawn starts a process whose mailbox type a is not known 
 ```ernest-rejected
 type Msg = Run(Address(Tcp.SocketMsg))
 
-fn serve() : Unit with Msg =
+fn serve() : Unit receiving Msg =
     receive {
         Run(_) -> serve()
     }
 
-fn start() : Unit with m = {
+fn start() : Unit = {
     let _ = Peer.spawn("worker", serve, 1000);
     Unit
 }
@@ -4074,7 +4072,7 @@ fn start() : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to its node, since it holds the address of a socket
-8 | fn start() : Unit with m = {
+8 | fn start() : Unit = {
 9 |     let _ = Peer.spawn("worker", serve, 1000);
   |                                  ^^^^^
   | = help: the spawn answers an address that may cross to another node, so its messages are values that cross (§3.11)
@@ -4083,7 +4081,7 @@ example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to
 ### A compute whose function answers a value bound to its node (§3.11)
 
 ```ernest-rejected
-fn adder() : Unit with m = {
+fn adder() : Unit = {
     let _ = Peer.compute(fn() = fn(n : Int) = n + 1, 1000);
     Unit
 }
@@ -4092,7 +4090,7 @@ fn adder() : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:2:26: Peer.compute answers a value of type (Int) -> Int, which is bound to its node, since it holds a function
-1 | fn adder() : Unit with m = {
+1 | fn adder() : Unit = {
 2 |     let _ = Peer.compute(fn() = fn(n : Int) = n + 1, 1000);
   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: the value crosses back to this node, so its type is one that crosses; answer what crosses (§3.11)
@@ -4101,7 +4099,7 @@ example.ern:2:26: Peer.compute answers a value of type (Int) -> Int, which is bo
 ### A compute whose function's result type holds a type variable (§3.11, §3.9)
 
 ```ernest-rejected
-fn empties() : Unit with m = {
+fn empties() : Unit = {
     let _ = Peer.computeAt("worker", fn() = [], 1000);
     Unit
 }
@@ -4110,7 +4108,7 @@ fn empties() : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:2:38: Peer.computeAt answers a value of type List(a), which holds a type variable, so whether it crosses is not known here
-1 | fn empties() : Unit with m = {
+1 | fn empties() : Unit = {
 2 |     let _ = Peer.computeAt("worker", fn() = [], 1000);
   |                                      ^^^^^^^^^
   | = help: give the function its result type, `fn() : Int = ...`: the value crosses back to this node, and its type is known whole where the compute is written (§3.11)
@@ -4121,12 +4119,12 @@ example.ern:2:38: Peer.computeAt answers a value of type List(a), which holds a 
 ```ernest-rejected
 type Msg = Run(Address(Tcp.SocketMsg))
 
-fn serve() : Int with Msg =
+fn serve() : Int receiving Msg =
     receive {
         Run(_) -> serve()
     }
 
-fn start() : Unit with m = {
+fn start() : Unit = {
     let _ = Peer.computeAt("worker", serve, 1000);
     Unit
 }
@@ -4135,7 +4133,7 @@ fn start() : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:9:38: Peer.computeAt starts a process whose mailbox type Msg is bound to its node, since it holds the address of a socket
-8 | fn start() : Unit with m = {
+8 | fn start() : Unit = {
 9 |     let _ = Peer.computeAt("worker", serve, 1000);
   |                                      ^^^^^
   | = help: the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses (§3.11)
@@ -4182,12 +4180,12 @@ example.ern:2:16: Code.running is called where it is named, so that the compiler
 ```ernest-rejected
 type Msg = Stop
 
-fn loop() : Unit with Msg =
+fn loop() : Unit receiving Msg =
     receive {
         Stop -> Unit
     }
 
-fn stopAll() : Unit with m = {
+fn stopAll() : Unit = {
     let f = loop;
     List.forEach(Code.running(f), fn(process) = send(process, Stop))
 }
@@ -4199,38 +4197,38 @@ example.ern:10:31: Code.running lists the processes that run a declaration, and 
  9 |     let f = loop;
 10 |     List.forEach(Code.running(f), fn(process) = send(process, Stop))
    |                               ^
-   | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+   | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
 ```
 
 ### `Code.running` of a lambda (§3.11)
 
 ```ernest-rejected
-fn listed() : Int with m =
-    List.size(Code.running(fn() : Unit with Int = Unit))
+fn listed() : Int =
+    List.size(Code.running(fn() = Unit))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:28: Code.running lists the processes that run a declaration, named where the call is written
-1 | fn listed() : Int with m =
-2 |     List.size(Code.running(fn() : Unit with Int = Unit))
-  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+1 | fn listed() : Int =
+2 |     List.size(Code.running(fn() = Unit))
+  |                            ^^^^^^^^^^^
+  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
 ```
 
 ### `Code.running` of a top-level `let` (§3.11)
 
 ```ernest-rejected
-let loop : () -> Unit with Never = fn() = Unit
+let loop : () -> Unit = fn() = Unit
 
-fn listed() : Int with m =
+fn listed() : Int =
     List.size(Code.running(loop))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:4:28: Code.running lists the processes that run a declaration, and loop is a top-level `let`, whose value is no declaration
-3 | fn listed() : Int with m =
+3 | fn listed() : Int =
 4 |     List.size(Code.running(loop))
   |                            ^^^^
   | = help: declare the function with `fn` and name it: `Code.running(count)` (§3.11)
@@ -4239,90 +4237,75 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and l
 ### `Code.running` of a foreign declaration (§3.11)
 
 ```ernest-rejected
-foreign fn waits() : Unit with Int = "erlang:yield/0"
+foreign fn waits() : Unit = "erlang:yield/0"
 
-fn listed() : Int with m =
+fn listed() : Int =
     List.size(Code.running(waits))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:4:28: Code.running lists the processes that run a declaration, and waits is a foreign declaration, which has no hash
-3 | fn listed() : Int with m =
+3 | fn listed() : Int =
 4 |     List.size(Code.running(waits))
   |                            ^^^^^
-  | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
 ```
 
 ### `Code.running` of the prelude's function (§3.11)
 
 ```ernest-rejected
-fn listed() : Int with m =
+fn listed() : Int =
     List.size(Code.running(spawn))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:28: Code.running lists the processes that run a declaration, and spawn is the prelude's, which no module declares
-1 | fn listed() : Int with m =
+1 | fn listed() : Int =
 2 |     List.size(Code.running(spawn))
   |                            ^^^^^
-  | = help: name a top-level `fn` whose result type is `Unit with m`: `Code.running(count)` (§3.11)
+  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
 ```
 
 ### `Code.running` of a function whose result type is not `Unit` (§3.11)
 
 ```ernest-rejected
-fn total() : Int with Int =
+fn total() : Int receiving Int =
     receive {
         n -> n
     }
 
-fn listed() : Int with m =
+fn listed() : Int =
     List.size(Code.running(total))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:7:28: Code.running lists the processes that run total, whose result type is Int, not Unit
-6 | fn listed() : Int with m =
+6 | fn listed() : Int =
 7 |     List.size(Code.running(total))
   |                            ^^^^^
-  | = help: a process runs a function whose result type is `Unit with m` (§3.11)
-```
-
-### `Code.running` of a pure function (§3.11)
-
-```ernest-rejected
-fn quiet() : Unit = Unit
-
-fn listed() : Int with m =
-    List.size(Code.running(quiet))
-```
-
-```console
-$ ern build example.ern
-example.ern:4:28: Code.running lists the processes that run quiet, which is pure and names no mailbox type
-3 | fn listed() : Int with m =
-4 |     List.size(Code.running(quiet))
-  |                            ^^^^^
-  | = help: give quiet its mailbox type, `fn quiet(...) : Unit with Msg = ...`: every process listed has it (§3.11)
+  | = help: a process runs a function whose result type is `Unit` (§3.11)
 ```
 
 ### `Code.running` of a function whose mailbox type holds a type variable (§3.11)
 
 ```ernest-rejected
-fn say() : Unit with m = Io.println("said")
+fn say() : Unit receiving m =
+    receive {
+        after 1 -> Unit
+    }
 
-fn listed() : Int with m =
+fn listed() : Int =
     List.size(Code.running(say))
 ```
 
 ```console
 $ ern build example.ern
-example.ern:4:28: Code.running lists the processes that run say, whose mailbox type m holds a type variable
-3 | fn listed() : Int with m =
-4 |     List.size(Code.running(say))
+example.ern:7:28: Code.running lists the processes that run say, whose mailbox type m holds a type variable
+6 | fn listed() : Int =
+7 |     List.size(Code.running(say))
   |                            ^^^
-  | = help: give say its mailbox type, `fn say(...) : Unit with Msg = ...`: every process listed has it (§3.11)
+  | = help: give say its mailbox type, `fn say(...) : Unit receiving Msg = ...`: every process listed has it (§3.11)
 ```

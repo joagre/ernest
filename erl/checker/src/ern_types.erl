@@ -21,7 +21,7 @@
 -type qualified_name() :: [atom()].
 -type restriction() :: equality | process_only.
 -type restrictions() :: [restriction()].
--type effect() :: pure | type().
+-type effect() :: none | type().
 -type type() :: {tvar, id()} | {tcon, qualified_name(), [type()]} | {ttuple, [type()]}
               | {tfn, [type()], effect(), type()}.
 
@@ -95,7 +95,7 @@ leave(#type_state{level = Level} = TypeState) -> TypeState#type_state{level = Le
 %%
 
 %% Follow bindings at the root only.
--spec resolve(type() | pure, type_state()) -> type() | pure.
+-spec resolve(type() | none, type_state()) -> type() | none.
 resolve({tvar, Id} = Type, #type_state{substitution = Substitution} = TypeState) ->
     case Substitution of
         #{Id := Bound} -> resolve(Bound, TypeState);
@@ -105,7 +105,7 @@ resolve(Type, _TypeState) ->
     Type.
 
 %% Follow bindings everywhere: the type with the substitution applied.
--spec substitute(type() | pure, type_state()) -> type() | pure.
+-spec substitute(type() | none, type_state()) -> type() | none.
 substitute(Type, TypeState) ->
     case resolve(Type, TypeState) of
         {tcon, QualifiedName, Args} ->
@@ -127,10 +127,10 @@ bind(Id, Type, #type_state{substitution = Substitution} = TypeState) ->
 %%
 
 %% Expected is the expected type and Actual the actual one; which is which
-%% decides between pure_where_process_needed and process_where_pure_needed.
+%% decides between none_where_mailbox_needed and mailbox_where_none_needed.
 %% A function's parameters are unified the other way round, since there the
 %% actual function is the one handed a value.
--spec unify(type() | pure, type() | pure, type_state()) -> {ok, type_state()} | {error, term()}.
+-spec unify(type() | none, type() | none, type_state()) -> {ok, type_state()} | {error, term()}.
 unify(Expected, Actual, TypeState) ->
     try
         {ok, unify_resolved(resolve(Expected, TypeState), resolve(Actual, TypeState), TypeState)}
@@ -141,9 +141,9 @@ unify(Expected, Actual, TypeState) ->
 unify_resolved(Type, Type, TypeState) ->
     TypeState;
 unify_resolved({tvar, Id} = Variable, Type, TypeState) ->
-    bind_variable(Id, Variable, Type, pure_where_process_needed, TypeState);
+    bind_variable(Id, Variable, Type, none_where_mailbox_needed, TypeState);
 unify_resolved(Type, {tvar, Id} = Variable, TypeState) ->
-    bind_variable(Id, Variable, Type, process_where_pure_needed, TypeState);
+    bind_variable(Id, Variable, Type, mailbox_where_none_needed, TypeState);
 unify_resolved({tcon, QualifiedName, ExpectedArgs}, {tcon, QualifiedName, ActualArgs}, TypeState)
   when length(ExpectedArgs) =:= length(ActualArgs) ->
     unify_list(ExpectedArgs, ActualArgs, TypeState);
@@ -162,10 +162,10 @@ unify_resolved({tfn, ExpectedParams, ExpectedEffect, ExpectedResult},
         false ->
             throw({unify_error, {arity, length(ExpectedParams), length(ActualParams)}})
     end;
-unify_resolved(pure, Type, _TypeState) ->
-    throw({unify_error, {pure_vs_effect, Type}});
-unify_resolved(Type, pure, _TypeState) ->
-    throw({unify_error, {pure_vs_effect, Type}});
+unify_resolved(none, Type, _TypeState) ->
+    throw({unify_error, {none_vs_mailbox, Type}});
+unify_resolved(Type, none, _TypeState) ->
+    throw({unify_error, {none_vs_mailbox, Type}});
 unify_resolved(Expected, Actual, _TypeState) ->
     throw({unify_error, {mismatch, Expected, Actual}}).
 
@@ -177,13 +177,13 @@ unify_list([Expected | ExpectedRest], [Actual | ActualRest], TypeState) ->
     unify_list(ExpectedRest, ActualRest, TypeState1).
 
 %% Binding a variable: the occurs check, the restrictions' rules, level
-%% adjustment. Pure against a process-only variable fails with Reason,
+%% adjustment. None against a process-only variable fails with Reason,
 %% which says on which side of the unification, the expected or the actual,
-%% pure stood.
-bind_variable(Id, _Variable, pure, Reason, TypeState) ->
+%% none stood.
+bind_variable(Id, _Variable, none, Reason, TypeState) ->
     case lists:member(process_only, restrictions(Id, TypeState)) of
         true -> throw({unify_error, Reason});
-        false -> bind(Id, pure, TypeState)
+        false -> bind(Id, none, TypeState)
     end;
 bind_variable(Id, _Variable, {tvar, SurvivorId}, _Reason, TypeState) ->
     %% two variables: merge the restrictions into the survivor, keep the
@@ -231,7 +231,7 @@ occurs(Id, Type, TypeState) ->
             lists:any(fun(Element) -> occurs(Id, Element, TypeState) end, Elements);
         {tfn, Params, Effect, Result} ->
             lists:any(fun(Part) -> occurs(Id, Part, TypeState) end, [Effect, Result | Params]);
-        pure -> false
+        none -> false
     end.
 
 %% Variables inside Type inherit the bound variable's level if lower, so
@@ -251,7 +251,7 @@ adjust_levels(Id, Type, #type_state{variables = Variables} = TypeState) ->
     lists:foldl(Lower, TypeState, free_variables(Type, TypeState)).
 
 %% Free variable ids of a type, in order of first occurrence.
--spec free_variables(type() | pure, type_state()) -> [id()].
+-spec free_variables(type() | none, type_state()) -> [id()].
 free_variables(Type, TypeState) ->
     lists:reverse(free_variables(Type, TypeState, [])).
 
@@ -266,7 +266,7 @@ free_variables(Type, TypeState, Acc) ->
         {tcon, _, Args} -> lists:foldl(Free, Acc, Args);
         {ttuple, Elements} -> lists:foldl(Free, Acc, Elements);
         {tfn, Params, Effect, Result} -> lists:foldl(Free, Acc, Params ++ [Effect, Result]);
-        pure -> Acc
+        none -> Acc
     end.
 
 %%
@@ -279,7 +279,7 @@ monomorphic(Type) -> #scheme{quantified = [], type = Type}.
 %% Quantify the variables of Type created at a deeper level than the
 %% current one, carrying their restrictions, every effect variable among
 %% them (report §3.9), but for a function's own effect that occurs nowhere
-%% else, outside a parameter, which is pure (elided_own_effect/3).
+%% else, outside a parameter, which is none (elided_own_effect/3).
 -spec generalize(type(), type_state()) -> {#scheme{}, type_state()}.
 generalize(Type, TypeState) -> generalize(Type, [], TypeState).
 
@@ -296,10 +296,10 @@ generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeS
     {#scheme{quantified = Quantified, type = Elided, names = Names}, TypeState}.
 
 %% Report §3.9, §11.5: a function type's own effect variable that occurs
-%% nowhere else in the type, unrestricted and not kept, is pure, in the
+%% nowhere else in the type, unrestricted and not kept, is none, in the
 %% type itself and within its result alike, since every caller binds such a
-%% variable as it binds pure; one within a parameter's type stays, since
-%% pure there would refuse a function with a mailbox type where the variable
+%% variable as it binds none; one within a parameter's type stays, since
+%% none there would refuse a function with a mailbox type where the variable
 %% admits one. Generalization and printing apply it alike.
 elided_own_effect(Type, Keep, TypeState) ->
     elided_own_effect(Type, count_variables(Type, #{}), Keep, TypeState).
@@ -310,7 +310,7 @@ elided_own_effect({tfn, Params, Effect, Result}, Counts, Keep, TypeState) ->
                    case maps:get(Id, Counts) =:= 1
                        andalso not lists:member(process_only, restrictions(Id, TypeState))
                        andalso not lists:member(Id, Keep) of
-                       true -> pure;
+                       true -> none;
                        false -> Effect
                    end;
                _ ->
@@ -329,7 +329,7 @@ count_variables({tcon, _, Args}, Counts) -> lists:foldl(fun count_variables/2, C
 count_variables({ttuple, Elements}, Counts) -> lists:foldl(fun count_variables/2, Counts, Elements);
 count_variables({tfn, Params, Effect, Result}, Counts) ->
     lists:foldl(fun count_variables/2, Counts, Params ++ [Effect, Result]);
-count_variables(pure, Counts) -> Counts.
+count_variables(none, Counts) -> Counts.
 
 effect_positions({tfn, Params, Effect, Result}, Acc) ->
     Acc1 = case Effect of {tvar, Id} -> [Id | Acc]; _ -> Acc end,
@@ -362,7 +362,7 @@ instance(#scheme{quantified = Quantified, type = Type, requirement = Requirement
      TypeState1}.
 
 %% The type with each variable Replacements names replaced by its type.
--spec replace_variables(type() | pure, #{id() => type()}) -> type() | pure.
+-spec replace_variables(type() | none, #{id() => type()}) -> type() | none.
 replace_variables({tvar, Id} = Variable, Replacements) ->
     maps:get(Id, Replacements, Variable);
 replace_variables({tcon, QualifiedName, Args}, Replacements) ->
@@ -372,8 +372,8 @@ replace_variables({ttuple, Elements}, Replacements) ->
 replace_variables({tfn, Params, Effect, Result}, Replacements) ->
     {tfn, [replace_variables(Param, Replacements) || Param <- Params],
      replace_variables(Effect, Replacements), replace_variables(Result, Replacements)};
-replace_variables(pure, _) ->
-    pure.
+replace_variables(none, _) ->
+    none.
 
 %%
 %% Printing, report §11.5. Variables are named a, b, c, ... in order of
@@ -383,8 +383,8 @@ replace_variables(pure, _) ->
 
 %% Report §11.5: the differing part of two types that do not unify, so a
 %% message shows Int against String rather than two whole function types.
--spec mismatch_pair(type() | pure, type() | pure, type_state()) ->
-          {type() | pure, type() | pure}.
+-spec mismatch_pair(type() | none, type() | none, type_state()) ->
+          {type() | none, type() | none}.
 mismatch_pair(Expected, Actual, TypeState) ->
     differing(substitute(Expected, TypeState), substitute(Actual, TypeState)).
 
@@ -419,10 +419,10 @@ first_differing(ExpectedParts, ActualParts, Whole) ->
 is_variable({tvar, _}) -> true;
 is_variable(_) -> false.
 
--spec format(type() | pure, type_state()) -> string().
+-spec format(type() | none, type_state()) -> string().
 format(Type, TypeState) ->
     %% report §11.5: a function's own effect variable that occurs nowhere
-    %% else, outside a parameter, and is not process-only, prints as pure
+    %% else, outside a parameter, and is not process-only, prints as none
     Elided = elided_own_effect(substitute(Type, TypeState), [], TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
@@ -446,7 +446,7 @@ format_pair(Expected, Actual, TypeState) ->
     {lists:flatten(ExpectedText), lists:flatten(ActualText)}.
 
 %% Variables that occur in no value position are named e, e1, ...: those
-%% after `with`, and those only in a type argument that is no value
+%% after `receiving`, and those only in a type argument that is no value
 %% position, `H(e)`; the others a, b, c, d, f, ... (report §3.9 writes `e`
 %% for effect variables).
 effect_only_variables(Type, TypeState) ->
@@ -455,7 +455,7 @@ effect_only_variables(Type, TypeState) ->
 %% The variable ids in value positions of a substituted type. Report §3.9:
 %% a type argument is a value position unless the state says its parameter
 %% occurs in no value position of the type's fields.
--spec value_variables(type() | pure, type_state()) -> [id()].
+-spec value_variables(type() | none, type_state()) -> [id()].
 value_variables(Type, #type_state{effect_params = EffectParams}) ->
     lists:usort(value_positions(Type, EffectParams, [])).
 
@@ -478,8 +478,8 @@ args_in_value(QualifiedName, Args, IsValue) ->
     end.
 
 %% The variable ids in effect positions of a substituted type, those after
-%% `with`.
--spec effect_variables(type() | pure) -> [id()].
+%% `receiving`.
+-spec effect_variables(type() | none) -> [id()].
 effect_variables(Type) -> lists:usort(effect_positions(Type, [])).
 
 value_positions({tvar, Id}, _EffectParams, Acc) ->
@@ -490,7 +490,7 @@ value_positions({ttuple, Elements}, EffectParams, Acc) ->
     value_positions_list(Elements, EffectParams, Acc);
 value_positions({tfn, Params, _Effect, Result}, EffectParams, Acc) ->
     value_positions_list(Params ++ [Result], EffectParams, Acc);
-value_positions(pure, _EffectParams, Acc) ->
+value_positions(none, _EffectParams, Acc) ->
     Acc.
 
 value_positions_list(Types, EffectParams, Acc) ->
@@ -624,11 +624,11 @@ format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
                      || {Name, Text} <- lists:zip(padded(Params, length(ParamTypes)), Shown)],
             {ResultText, Names2} = format_result(Result, Effect, SchemeState, Names1),
             EffectText = case Effect of
-                             pure ->
+                             none ->
                                  [];
                              _ ->
                                  {EffectShown, _} = format_type(Effect, SchemeState, Names2),
-                                 [" with ", EffectShown]
+                                 [" receiving ", EffectShown]
                          end,
             %% a declaration's head, whatever its parameters, writes its
             %% result after `:`; a function's type alone keeps its arrow
@@ -672,7 +672,7 @@ format_type({tvar, Id}, TypeState,
                                  false -> {Given, Names}
                              end,
             %% report §11.5: a process-only variable is marked where it
-            %% occurs in no value position, since one that does is never pure
+            %% occurs in no value position, since one that does is never none
             Restrictions = known_restrictions(Id, TypeState),
             Marks = [$= || lists:member(equality, Restrictions)]
                  ++ [$+ || lists:member(process_only, Restrictions), lists:member(Id, EffectOnly)],
@@ -691,20 +691,20 @@ format_type({tfn, Params, Effect, Result}, TypeState, Names) ->
     {ParamsText, Names1} = format_list(Params, TypeState, Names),
     {ResultText, Names2} = format_result(Result, Effect, TypeState, Names1),
     case Effect of
-        pure -> {["(", ParamsText, ") -> ", ResultText], Names2};
+        none -> {["(", ParamsText, ") -> ", ResultText], Names2};
         _ ->
             {EffectText, Names3} = format_type(Effect, TypeState, Names2),
-            {["(", ParamsText, ") -> ", ResultText, " with ", EffectText], Names3}
+            {["(", ParamsText, ") -> ", ResultText, " receiving ", EffectText], Names3}
     end;
-format_type(pure, _TypeState, Names) ->
-    {"pure", Names}.
+format_type(none, _TypeState, Names) ->
+    {"none", Names}.
 
 %% A function type in result position is parenthesized where the outer
-%% function carries an effect: the parentheses keep the result's own `with`
-%% inside them, so that the `with` after them is the outer arrow's, `(A) ->
-%% ((B) -> C) with M`; without an outer effect, `(A) -> (B) -> C with M` is
-%% the inner's (report §3.4).
-format_result({tfn, _, _, _} = Type, OuterEffect, TypeState, Names) when OuterEffect =/= pure ->
+%% function receives: the parentheses keep the result's own `receiving`
+%% inside them, so that the `receiving` after them is the outer arrow's,
+%% `(A) -> ((B) -> C) receiving M`; where the outer receives nothing, `(A)
+%% -> (B) -> C receiving M` is the inner's (report §3.4).
+format_result({tfn, _, _, _} = Type, OuterEffect, TypeState, Names) when OuterEffect =/= none ->
     {Text, Names1} = format_type(Type, TypeState, Names),
     {["(", Text, ")"], Names1};
 format_result(Type, _OuterEffect, TypeState, Names) ->
@@ -762,10 +762,10 @@ effect_variable_name(Count) -> "e" ++ integer_to_list(Count).
 format_error({arity, ExpectedCount, ActualCount}) ->
     lists:flatten(io_lib:format("a function of ~B argument~s where one of ~B was expected",
                                 [ActualCount, plural(ActualCount), ExpectedCount]));
-format_error(pure_where_process_needed) ->
-    "a pure function where one that runs in a process is needed";
-format_error(process_where_pure_needed) ->
-    "a function that runs in a process where a pure one is needed";
+format_error(none_where_mailbox_needed) ->
+    "a function that receives nothing where one that receives is needed";
+format_error(mailbox_where_none_needed) ->
+    "a function that receives where one that receives nothing is needed";
 format_error({occurs, _, _}) ->
     "a type that would contain itself".
 

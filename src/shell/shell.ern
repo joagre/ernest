@@ -133,7 +133,7 @@ let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell
 /// The shell: a session at a terminal, or one that reads lines where
 /// standard input is not a terminal or standard output has no size (report
 /// §11.2).
-export fn main() : Unit with ShellMsg = {
+export fn main() : Unit receiving ShellMsg = {
     let shell = self();
     // report §11.2: at a terminal the keys are read and a region painted;
     // elsewhere lines are read and what is said is written as it comes
@@ -207,7 +207,7 @@ export fn main() : Unit with ShellMsg = {
 // Report §11.2: where standard output has a size the reader asks for the
 // keys, and a refusal says that standard input is not a terminal (§8.2):
 // the keys, or none.
-fn readKeys(shell : Address(ShellMsg)) : Optional(Keys) with ShellMsg =
+fn readKeys(shell : Address(ShellMsg)) : Optional(Keys) receiving ShellMsg =
     match Terminal.size() {
         Left(_) -> None
       | Right(size) -> {
@@ -227,7 +227,7 @@ let colorAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 // the history file takes what is typed; a history that cannot be read is
 // said once, and not written, and so is a `HOME` that names no place for
 // it, unset or relative.
-fn history(screen : Address(ScreenMsg)) : #(List(String), Bool) with m =
+fn history(screen : Address(ScreenMsg)) : #(List(String), Bool) =
     match Shell.History.file {
         None -> {
             let why = match Os.environment("HOME") {
@@ -259,7 +259,7 @@ fn unkeptReason(unkept : Shell.History.Unkept, path : Path) : String =
 // the configuration directory's, which runs only where `--config-dir`
 // names that directory; a file both paths name runs once. Whether they are
 // there, whose they are, and what they hold, is read where they are run.
-fn startupFiles() : List(String) with m =
+fn startupFiles() : List(String) =
     match #(Optional.map(Shell.History.startup, fromWorkingDirectory), configStartup()) {
         #(Some(own), Some(configured)) -> if isSameFile(own, configured) then
             [own]
@@ -284,7 +284,7 @@ fn fromWorkingDirectory(path : Path) : String = {
 // Report §11.2: the inputs of a startup file that is the user's own to
 // run; one another user could change is said and not run. A path without a
 // directory is a file of the working directory.
-fn ownInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, String)) with m = {
+fn ownInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, String)) = {
     let path = Path(file);
     if isUsersOwn(path) && isUsersOwn(Optional.withDefault(Path.parent(path), Path("."))) then
         fileInputs(screen, file)
@@ -298,7 +298,7 @@ fn ownInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, S
 // user's own or the superuser's, whose number is 0, and writable by no one
 // beyond its owner and group. One that is not there has nothing to run,
 // and one that cannot be read is said where it is read.
-fn isUsersOwn(path : Path) : Bool with m =
+fn isUsersOwn(path : Path) : Bool =
     match Fs.stat(path, fileMs) {
         Right(entry) ->
             (entry.user == Os.user || entry.user == 0) && Int.bitAnd(entry.mode, 0o002) == 0
@@ -307,7 +307,7 @@ fn isUsersOwn(path : Path) : Bool with m =
 
 // A file that is not there is no error; one that cannot be read is said
 // and the session goes on. Each input carries the line it is on.
-fn fileInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, String)) with m =
+fn fileInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, String)) =
     match Fs.read(Path(file), fileMs) {
         Left(Io.NotFound) -> []
       | Left(error) -> {
@@ -379,7 +379,7 @@ fn trouble(error : Io.Error) : String =
 // file, which an append of nothing tries, creating a file that is not
 // there; `-` is the live region again, and nothing says where it goes now,
 // which the screen holds.
-fn output(screen : Address(ScreenMsg), argument : String) : Either(String, String) with m =
+fn output(screen : Address(ScreenMsg), argument : String) : Either(String, String) =
     if String.isEmpty(argument) then
         match Address.call(screen, fn(reply) = Locate(reply = reply), screenMs) {
             Some(Some(path)) -> Right("output goes to " <> Path.toString(path))
@@ -417,7 +417,7 @@ fn cannotWrite(path : Path, error : Io.Error) : String = {
 // line.
 fn fromFiles(state : State,
              screen : Address(ScreenMsg),
-             inputs : List(#(String, Int, String))) : Next with ShellMsg =
+             inputs : List(#(String, Int, String))) : Next receiving ShellMsg =
     match inputs {
         [] -> Continue(state)
       | #(file, line, input) :: rest -> {
@@ -439,14 +439,14 @@ fn executeQuietly(state : State,
                   screen : Address(ScreenMsg),
                   file : String,
                   line : Int,
-                  input : String) : Next with ShellMsg =
+                  input : String) : Next receiving ShellMsg =
     execute(state, screen, Startup(file = file, line = line, column = 1), input, false)
 
 fn execute(state : State,
            screen : Address(ScreenMsg),
            origin : Origin,
            input : String,
-           printing : Bool) : Next with ShellMsg =
+           printing : Bool) : Next receiving ShellMsg =
     match check(state.session, origin, input) {
         Left(text) -> {
             diagnose(screen, state.color, text);
@@ -475,7 +475,7 @@ fn await(state : State,
          checked : Checked,
          inputProcess : Address(Never),
          started : Int,
-         printing : Bool) : Next with ShellMsg = {
+         printing : Bool) : Next receiving ShellMsg = {
     let current = state.serial;
     receive {
         Done(Ok(session = session, serial = serial, value = value)) when serial == current -> {
@@ -534,7 +534,7 @@ fn await(state : State,
 fn printResult(state : State,
                screen : Address(ScreenMsg),
                checked : Checked,
-               value : Value) : Unit with m =
+               value : Value) : Unit =
     match declared(checked) {
         [] -> if isUnit(checked) then
             Unit
@@ -551,13 +551,13 @@ fn printResult(state : State,
 
 // Report §11.2: with timing on, a result is followed by the time the input
 // took.
-fn sayTime(screen : Address(ScreenMsg), settings : Settings, started : Int) : Unit with m =
+fn sayTime(screen : Address(ScreenMsg), settings : Settings, started : Int) : Unit =
     if settings.timing then
         say(screen, "(" <> Int.toString(Clock.monotonic() - started) <> " ms)")
     else
         Unit
 
-fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit with ShellMsg =
+fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg =
     receive {
         Typed(line) -> {
             send(screen, Taken);
@@ -580,7 +580,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit with ShellMsg =
 
 // Report §11.2: an input, which may have been typed while the one before it
 // ran and so waited for it.
-fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit with ShellMsg =
+fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit receiving ShellMsg =
     match String.trim(line) {
         "" -> {
             prompt(screen);
@@ -598,7 +598,7 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit with
 // Report §11.2: an input is a command or Ernest, and what is entered at
 // the prompt is counted, either, so that a typed input is named by its
 // count.
-fn submit(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg = {
+fn submit(state : State, screen : Address(ScreenMsg), input : String) : Next receiving ShellMsg = {
     let counted = State(..state, entered = state.entered + 1);
     if String.startsWith(input, ":") then
         perform(counted, screen, input)
@@ -608,7 +608,7 @@ fn submit(state : State, screen : Address(ScreenMsg), input : String) : Next wit
 
 // One input, from the reader or a line: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.
-fn evaluate(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg =
+fn evaluate(state : State, screen : Address(ScreenMsg), input : String) : Next receiving ShellMsg =
     execute(state, screen, Prompt(state.entered), input, true)
 
 // Report §11.2: what the session says as the reader's end ends it: nothing
@@ -634,7 +634,7 @@ fn screenDied(down : Down) : a =
 fn reported(state : State,
             screen : Address(ScreenMsg),
             report : Process.FaultReport,
-            wrap : (String) -> ScreenMsg) : State with m =
+            wrap : (String) -> ScreenMsg) : State =
     if Set.contains(state.own, report.process) then
         state
     else {
@@ -693,15 +693,15 @@ fn escapedChar(char : Char) : String =
     }
 
 // A diagnostic, its first line colored as a fault (report §11.2).
-fn diagnose(screen : Address(ScreenMsg), color : Markdown.Output, text : String) : Unit with m =
+fn diagnose(screen : Address(ScreenMsg), color : Markdown.Output, text : String) : Unit =
     send(screen, Said(Shell.Style.diagnostic(text, color) <> "\n"))
 
-fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
+fn say(screen : Address(ScreenMsg), text : String) : Unit =
     send(screen, Said(text <> "\n"))
 
 // Report §11.2: what the shell refuses is red, as a diagnostic's first
 // line is, and what it answers is plain.
-fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit with m =
+fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit =
     say(screen, Shell.Style.fault(placed(state, text), state.color))
 
 // Report §11.2: where the input being run came from, which its diagnostics
@@ -722,7 +722,7 @@ fn placed(state : State, text : String) : String =
     }
 
 // Lines the session says, in one message, and nothing for none.
-fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit with m =
+fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit =
     if List.isEmpty(lines) then Unit else send(screen, Said(String.join(lines, "\n") <> "\n"))
 
 //
@@ -735,7 +735,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit with m =
 
 // Report §11.2: a refusal names what was typed, each control character
 // written as its escape, as a fault's cause is.
-fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg =
+fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next =
     match Shell.Command.parse(input) {
         Left(text) -> refused(state, screen, escaped(text))
       | Right(#(action, argument)) -> obey(state, screen, action, argument, argumentColumn(input))
@@ -755,7 +755,7 @@ fn obey(state : State,
         screen : Address(ScreenMsg),
         action : Shell.Command.Action,
         argument : String,
-        column : Int) : Next with ShellMsg = {
+        column : Int) : Next = {
     let State(session = session, color = color) = state;
     match action {
         Shell.Command.Quit -> Leave
@@ -810,10 +810,7 @@ fn obey(state : State,
 
 // Report §11.2: `:type` of an expression that is not one name, checked
 // as an input is and not run.
-fn typeOf(state : State,
-          screen : Address(ScreenMsg),
-          argument : String,
-          column : Int) : Next with m =
+fn typeOf(state : State, screen : Address(ScreenMsg), argument : String, column : Int) : Next =
     match check(state.session, origin(state, column), argument) {
         Left(text) -> diagnosed(state, screen, text)
       | Right(#(session, checked)) -> if isExpression(checked) then
@@ -828,19 +825,19 @@ fn typeOf(state : State,
     }
 
 // What a command answers, a line each, and the session after it.
-fn answered(state : State, screen : Address(ScreenMsg), lines : List(String)) : Next with m = {
+fn answered(state : State, screen : Address(ScreenMsg), lines : List(String)) : Next = {
     printLines(screen, lines);
     Continue(state)
 }
 
 // Report §11.2: a command refused leaves the session as it was.
-fn refused(state : State, screen : Address(ScreenMsg), text : String) : Next with m = {
+fn refused(state : State, screen : Address(ScreenMsg), text : String) : Next = {
     refuse(state, screen, text);
     Continue(state)
 }
 
 // Report §11.2: so does a command whose input or module does not compile.
-fn diagnosed(state : State, screen : Address(ScreenMsg), text : String) : Next with m = {
+fn diagnosed(state : State, screen : Address(ScreenMsg), text : String) : Next = {
     diagnose(screen, state.color, text);
     Continue(state)
 }
@@ -850,7 +847,7 @@ fn diagnosed(state : State, screen : Address(ScreenMsg), text : String) : Next w
 fn rendered(text : String, width : Int, color : Markdown.Output) : List(String) =
     Markdown.render(Markdown.parse(text), width, color)
 
-fn screenWidth() : Int with m =
+fn screenWidth() : Int =
     match Terminal.size() {
         Right(Terminal.Size(columns = columns)) -> columns
       | Left(_) -> 80
@@ -858,7 +855,7 @@ fn screenWidth() : Int with m =
 
 // Report §11.2: the session's live processes by spawn site, the shell's own
 // left out, those its loads evaluated bindings in among them.
-fn sessionProcesses(own : Set(Process)) : List(String) with m = {
+fn sessionProcesses(own : Set(Process)) : List(String) = {
     let shells = Set.union(own, Set.fromList(evaluators()));
     let others = List.filter(Process.live(), fn(process) = !Set.contains(shells, process));
     let sites = List.map(List.filterMap(others, Process.status), fn(status) = status.site);
@@ -868,7 +865,7 @@ fn sessionProcesses(own : Set(Process)) : List(String) with m = {
 // Report §11.2: the depth and the length a value is printed to, the rows
 // of the live region, and whether a result is followed by the time its run
 // took.
-fn set(state : State, screen : Address(ScreenMsg), argument : String) : Settings with m = {
+fn set(state : State, screen : Address(ScreenMsg), argument : String) : Settings = {
     let settings = state.settings;
     if String.isEmpty(argument) then {
         printLines(screen, settingLines(settings));
@@ -914,7 +911,8 @@ fn settingLines(settings : Settings) : List(String) =
 // The screen process holds the region of `Shell.Region` and writes what
 // it answers; the region itself is pure and draws nothing. It holds too
 // where `:output` sent what programs write, since it is what appends there.
-fn screenLoop(region : Shell.Region.Region, destination : Optional(Path)) : Unit with ScreenMsg =
+fn screenLoop(region : Shell.Region.Region,
+              destination : Optional(Path)) : Unit receiving ScreenMsg =
     receive {
         Said(text) -> painted(Shell.Region.said(region, text), destination)
       | Noted(text) -> painted(Shell.Region.noted(region, text), destination)
@@ -953,7 +951,7 @@ fn screenLoop(region : Shell.Region.Region, destination : Optional(Path)) : Unit
 // What the region answered written, and the screen goes on with the
 // region it became.
 fn painted(drawn : #(Shell.Region.Region, String),
-           destination : Optional(Path)) : Unit with ScreenMsg = {
+           destination : Optional(Path)) : Unit receiving ScreenMsg = {
     let #(region, bytes) = drawn;
     write(bytes);
     screenLoop(region, destination)
@@ -961,7 +959,7 @@ fn painted(drawn : #(Shell.Region.Region, String),
 
 // Report §11.2: without a terminal there is no region, and what the screen
 // is sent is written as it comes, a note on a line of its own.
-fn plainLoop(destination : Optional(Path)) : Unit with ScreenMsg = {
+fn plainLoop(destination : Optional(Path)) : Unit receiving ScreenMsg = {
     let destination1 = receive {
         Said(text) -> {
             write(text);
@@ -1005,7 +1003,7 @@ fn plainLoop(destination : Optional(Path)) : Unit with ScreenMsg = {
 
 // Report §11.2: what a program wrote, appended where `:output` sent it;
 // where that fails, why, and what programs write goes back to the screen.
-fn appended(path : Path, text : String) : Either(String, Unit) with m =
+fn appended(path : Path, text : String) : Either(String, Unit) =
     match Fs.append(path, String.toUtf8(text), fileMs) {
         Right(_) -> Right(Unit)
       | Left(error) -> Left(cannotWrite(path, error) <> ", and output goes to the live region\n")
@@ -1013,7 +1011,7 @@ fn appended(path : Path, text : String) : Either(String, Unit) with m =
 
 // Report §11.2: on quitting, the region goes and the cursor is left on a
 // fresh line, so the terminal is as the shell found it.
-fn finish(screen : Address(ScreenMsg), text : String) : Unit with m = {
+fn finish(screen : Address(ScreenMsg), text : String) : Unit = {
     send(screen, Said(text));
     send(screen, SetHeight(0));
     send(screen, ShowInput(text = "", cursor = 0, offered = []));
@@ -1025,12 +1023,12 @@ fn finish(screen : Address(ScreenMsg), text : String) : Unit with m = {
 // the screen from its own processes, not through the session, so the
 // screen is drained first; if it does not answer within `screenMs` the
 // prompt is written anyway.
-fn prompt(screen : Address(ScreenMsg)) : Unit with m = {
+fn prompt(screen : Address(ScreenMsg)) : Unit = {
     drain(screen);
     send(screen, Said("> "))
 }
 
-fn drain(screen : Address(ScreenMsg)) : Unit with m = {
+fn drain(screen : Address(ScreenMsg)) : Unit = {
     let _ = Address.call(screen, fn(reply) = Flush(reply = reply), screenMs);
     Unit
 }
@@ -1045,7 +1043,7 @@ fn drain(screen : Address(ScreenMsg)) : Unit with m = {
 // leaves out. It holds the terminal before it subscribes, so that the
 // terminal's mode is the holder's and the interrupt a key, and once it has
 // the keys it waits for the screen it draws on.
-fn reader(shell : Address(ShellMsg)) : Unit with ReaderMsg = {
+fn reader(shell : Address(ShellMsg)) : Unit receiving ReaderMsg = {
     holdTerminal(self());
     match Terminal.subscribe(Key) {
         Right(_) -> {
@@ -1067,7 +1065,7 @@ fn reader(shell : Address(ShellMsg)) : Unit with ReaderMsg = {
 
 fn readLoop(shell : Address(ShellMsg),
             screen : Address(ScreenMsg),
-            reading : Reading) : Unit with ReaderMsg =
+            reading : Reading) : Unit receiving ReaderMsg =
     receive {
         Key(event) -> read(shell, screen, reading, event)
     }
@@ -1076,7 +1074,7 @@ fn readLoop(shell : Address(ShellMsg),
 fn read(shell : Address(ShellMsg),
         screen : Address(ScreenMsg),
         reading : Reading,
-        event : Terminal.Event) : Unit with ReaderMsg = {
+        event : Terminal.Event) : Unit receiving ReaderMsg = {
     let Reading(editing = editing, keeping = keeping) = reading;
     match event {
         // the size the event carries is not passed on: the screen asks for
@@ -1134,7 +1132,7 @@ fn read(shell : Address(ShellMsg),
 fn matching(shell : Address(ShellMsg),
             screen : Address(ScreenMsg),
             reading : Reading,
-            edited : Shell.Editor.Editing) : Unit with ReaderMsg = {
+            edited : Shell.Editor.Editing) : Unit receiving ReaderMsg = {
     let text = Shell.Editor.text(edited);
     match opening(String.slice(text, 0, Shell.Editor.cursor(edited))) {
         None -> showing(shell, screen, reading, edited)
@@ -1159,7 +1157,7 @@ fn matching(shell : Address(ShellMsg),
 fn showing(shell : Address(ShellMsg),
            screen : Address(ScreenMsg),
            reading : Reading,
-           edited : Shell.Editor.Editing) : Unit with ReaderMsg = {
+           edited : Shell.Editor.Editing) : Unit receiving ReaderMsg = {
     let hinted = hint(screen, reading, edited);
     send(screen, shownInput(edited));
     // a key that only begins a sequence, `Escape` and the `[` after
@@ -1176,9 +1174,7 @@ fn showing(shell : Address(ShellMsg),
 // Report §11.2: the first input of a session to take a second line says
 // how it is run, once, above the region rather than on the prompt, where
 // it would move the column the input is typed in.
-fn hint(screen : Address(ScreenMsg),
-        reading : Reading,
-        edited : Shell.Editor.Editing) : Bool with m =
+fn hint(screen : Address(ScreenMsg), reading : Reading, edited : Shell.Editor.Editing) : Bool =
     if reading.hinted then
         true
     else if String.contains(Shell.Editor.text(edited), "\n") then {
@@ -1227,9 +1223,7 @@ fn rowBefore(input : String, cursor : Int) : String = {
 
 // Report §11.2: an input the history keeps is appended as the shell
 // takes it.
-fn remember(screen : Address(ScreenMsg),
-            editing : Shell.Editor.Editing,
-            keeping : Bool) : Bool with m = {
+fn remember(screen : Address(ScreenMsg), editing : Shell.Editor.Editing, keeping : Bool) : Bool = {
     let line = Shell.Editor.text(editing);
     if !keeping || !Shell.Editor.keeps(editing) then
         keeping
@@ -1249,7 +1243,7 @@ fn remember(screen : Address(ScreenMsg),
 fn completing(shell : Address(ShellMsg),
               screen : Address(ScreenMsg),
               reading : Reading,
-              editing : Shell.Editor.Editing) : Unit with ReaderMsg = {
+              editing : Shell.Editor.Editing) : Unit receiving ReaderMsg = {
     let line = Shell.Editor.text(editing);
     let cursor = Shell.Editor.cursor(editing);
     if !String.startsWith(line, ":") && String.isEmpty(String.trim(rowBefore(line, cursor))) then
@@ -1277,7 +1271,7 @@ fn offering(shell : Address(ShellMsg),
             reading : Reading,
             completion : Shell.Complete.Completion,
             typedWord : String,
-            editing : Shell.Editor.Editing) : Unit with ReaderMsg = {
+            editing : Shell.Editor.Editing) : Unit receiving ReaderMsg = {
     let line = Shell.Editor.text(editing);
     let #(text, cursor) =
         Shell.Complete.applied(line, Shell.Editor.cursor(editing), typedWord, completion);
@@ -1303,7 +1297,7 @@ fn listing(completion : Shell.Complete.Completion, color : Markdown.Output) : Li
 fn documenting(shell : Address(ShellMsg),
                screen : Address(ScreenMsg),
                reading : Reading,
-               editing : Shell.Editor.Editing) : Unit with ReaderMsg = {
+               editing : Shell.Editor.Editing) : Unit receiving ReaderMsg = {
     let Reading(last = last, color = color) = reading;
     let line = Shell.Editor.text(editing);
     let cursor = Shell.Editor.cursor(editing);
@@ -1376,7 +1370,7 @@ fn isVersion(block : Markdown.Block) : Bool =
 // subscription is refused, the session reads lines itself, with no editing
 //
 
-fn lineLoop(state : State, screen : Address(ScreenMsg)) : Unit with ShellMsg = {
+fn lineLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg = {
     let state1 = reportPending(state, screen);
     prompt(screen);
     match Io.readLine() {
@@ -1394,7 +1388,7 @@ fn lineLoop(state : State, screen : Address(ScreenMsg)) : Unit with ShellMsg = {
 // Report §11.2: what faulted while the session was reading. In line mode
 // the session blocks in `Io.readLine`, so a fault is reported before the
 // next prompt instead; §6.4 leaves every other message in the mailbox.
-fn reportPending(state : State, screen : Address(ScreenMsg)) : State with ShellMsg =
+fn reportPending(state : State, screen : Address(ScreenMsg)) : State receiving ShellMsg =
     receive {
         Reported(report) -> reportPending(reported(state, screen, report, saidLine), screen)
       | ScreenDied(down) -> screenDied(down)
@@ -1404,7 +1398,7 @@ fn reportPending(state : State, screen : Address(ScreenMsg)) : State with ShellM
 // Report §11.2: in line mode, as at a terminal, an input the parser cannot
 // finish takes the next line, under the prompt `... `, and a blank line or
 // the end of input runs what there is.
-fn moreLines(screen : Address(ScreenMsg), input : String) : String with m =
+fn moreLines(screen : Address(ScreenMsg), input : String) : String =
     if continues(input) then {
         send(screen, Said("... "));
         match Io.readLine() {
@@ -1418,21 +1412,21 @@ fn moreLines(screen : Address(ScreenMsg), input : String) : String with m =
 // The front end
 //
 
-foreign fn start() : Session with m =
+foreign fn start() : Session =
     "ern_shell:start/0"
 
-foreign fn spawnProgram() : Unit with m =
+foreign fn spawnProgram() : Unit =
     "ern_shell:spawn_program/0"
 
-foreign fn load(session : Session, name : String) : Either(String, #(Session, String)) with m =
+foreign fn load(session : Session, name : String) : Either(String, #(Session, String)) =
     "ern_shell:load/2"
 
-foreign fn reload(session : Session) : Either(String, #(Session, List(String))) with m =
+foreign fn reload(session : Session) : Either(String, #(Session, List(String))) =
     "ern_shell:reload/1"
 
 // Report §11.2: the processes of the shell's own that the loads and the
 // reloads evaluated bindings in, which live while the session runs.
-foreign fn evaluators() : List(Process) with m =
+foreign fn evaluators() : List(Process) =
     "ern_shell:evaluators/0"
 
 // Report §11.2: the parser cannot finish what is typed, so another line
@@ -1449,13 +1443,13 @@ foreign fn opening(before : String) : Optional(Int) =
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
 // sentence of and then the whole of, as `:doc` shows it, and the version
 // the name appeared in.
-foreign fn documentation(name : String) : Optional(#(String, Optional(String))) with m =
+foreign fn documentation(name : String) : Optional(#(String, Optional(String))) =
     "ern_shell:documentation/1"
 
 // Report §11.2: the signature of the call the input stops inside, with the
 // parameter at the cursor marked, which `Shift-Tab` shows where no name
 // before the cursor is documented.
-foreign fn signature(before : String) : Optional(#(String, String, String)) with m =
+foreign fn signature(before : String) : Optional(#(String, String, String)) =
     "ern_shell:signature/1"
 
 // Report §11.2: an input checked against the session; a diagnostic names
@@ -1463,17 +1457,17 @@ foreign fn signature(before : String) : Optional(#(String, String, String)) with
 // and a startup file by its path and the line it starts on there.
 foreign fn check(session : Session,
                  origin : Origin,
-                 input : String) : Either(String, #(Session, Checked)) with m =
+                 input : String) : Either(String, #(Session, Checked)) =
     "ern_shell:check/3"
 
 // The host's alone: the startup file of the configuration directory
 // `--config-dir` names, which the runner was given, or none.
-foreign fn configStartup() : Optional(String) with m =
+foreign fn configStartup() : Optional(String) =
     "ern_shell:config_startup/0"
 
 // The host's alone: whether two paths name one file, by its device and its
 // node, which no `Fs.Entry` holds.
-foreign fn isSameFile(first : String, second : String) : Bool with m =
+foreign fn isSameFile(first : String, second : String) : Bool =
     "ern_shell:is_same_file/2"
 
 foreign fn typeText(checked : Checked) : String =
@@ -1482,7 +1476,7 @@ foreign fn typeText(checked : Checked) : String =
 // Report §11.2, §4.9: the type of an input that is one name, as its
 // declaration writes it, its requirement among it; none for any other
 // input, which is checked.
-foreign fn declaredType(session : Session, input : String) : Optional(String) with m =
+foreign fn declaredType(session : Session, input : String) : Optional(String) =
     "ern_shell:declared_type/2"
 
 // Report §11.2: a value of type `Unit` prints nothing.
@@ -1502,13 +1496,13 @@ foreign fn leavesItUnchanged(checked : Checked) : Bool =
 
 // The session after an input has answered, with what nothing reaches any
 // more let go (report §11.2).
-foreign fn collect(session : Session) : Session with m =
+foreign fn collect(session : Session) : Session =
     "ern_shell:collect/1"
 
 foreign fn spawnInput(session : Session,
                       checked : Checked,
                       serial : Int,
-                      address : Address(Outcome)) : Address(Never) with m =
+                      address : Address(Outcome)) : Address(Never) =
     "ern_shell:run/4"
 
 foreign fn show(value : Value, depth : Int, length : Int) : String =
@@ -1520,21 +1514,21 @@ foreign fn bindings(session : Session) : List(String) =
 foreign fn forget(session : Session, name : String) : Either(String, Session) =
     "ern_shell:forget/2"
 
-foreign fn browse(session : Session, name : String) : Either(String, List(String)) with m =
+foreign fn browse(session : Session, name : String) : Either(String, List(String)) =
     "ern_shell:browse/2"
 
-foreign fn doc(session : Session, name : String) : Either(String, String) with m =
+foreign fn doc(session : Session, name : String) : Either(String, String) =
     "ern_shell:doc/2"
 
 // The toolchain's version, which the host was built with.
 foreign fn version() : String =
     "ern_shell:version/0"
 
-foreign fn write(text : String) : Unit with m =
+foreign fn write(text : String) : Unit =
     "ern_shell:write/1"
 
-foreign fn setScreen(screen : Address(String)) : Unit with m =
+foreign fn setScreen(screen : Address(String)) : Unit =
     "ern_shell:screen/1"
 
-foreign fn holdTerminal(holder : Address(a)) : Unit with m =
+foreign fn holdTerminal(holder : Address(a)) : Unit =
     "ern_rt:hold_terminal/1"

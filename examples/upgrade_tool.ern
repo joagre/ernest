@@ -26,14 +26,14 @@
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
-  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 // What a process spawned on a peer tells the tool: the peer, and how many of its processes
 // it moved.
 type ToolMsg = Moved(node : String, count : Int)
 
 // The counter's loop as the first build wrote it.
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply = reply) -> {
@@ -44,7 +44,7 @@ fn count(total : Int) : Unit with CounterMsg =
     }
 
 // The second build's loop, which says each Inc.
-fn count2(total : Int) : Unit with CounterMsg =
+fn count2(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> {
             Io.println("inc " <> Int.toString(amount));
@@ -58,18 +58,18 @@ fn count2(total : Int) : Unit with CounterMsg =
     }
 
 // Every process of this node that runs count sent its Upgrade, and how many there were.
-fn moved() : Int with m = {
+fn moved() : Int = {
     let old = Code.running(count);
     List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)));
     List.size(old)
 }
 
 // Node b's entry point, run with --main: its own process is a counter.
-export fn serve() : Unit with CounterMsg =
+export fn serve() : Unit receiving CounterMsg =
     count(0)
 
 // The tool: a counter of its own moved, and then every peer's.
-export fn main() : Unit with ToolMsg = {
+export fn main() : Unit receiving ToolMsg = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(2));
     // the call is answered from count, so the counter runs count when Code.running looks
@@ -83,7 +83,7 @@ export fn main() : Unit with ToolMsg = {
 
 // Whether a process started on the peer to move its counters, which tells the tool how many
 // it moved; a peer it could not start on is said, and passed over.
-fn moving(node : String, tool : Address(ToolMsg)) : Bool with m =
+fn moving(node : String, tool : Address(ToolMsg)) : Bool =
     match Peer.spawn(node, fn() = send(tool, Moved(node = node, count = moved())), 5000) {
         Right(_) -> true
       | Left(failure) -> {
@@ -93,7 +93,7 @@ fn moving(node : String, tool : Address(ToolMsg)) : Bool with m =
     }
 
 // Each peer's report, as it comes, until every peer asked has told.
-fn told(left : Int) : Unit with ToolMsg =
+fn told(left : Int) : Unit receiving ToolMsg =
     if left == 0 then
         Unit
     else receive {

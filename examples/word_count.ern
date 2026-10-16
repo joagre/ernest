@@ -40,7 +40,7 @@ let ordered : Counts(OrderedMap.Map(String, Int)) = Counts(..OrderedMap)
 
 let text : String = "the cat sat on the mat and the dog sat on the log"
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let words = String.words(text);
     let inOrder = counted(words, ordered);
     let byHash = counted(words, hashed);

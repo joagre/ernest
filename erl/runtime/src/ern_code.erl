@@ -51,6 +51,11 @@
 
 -export_type([host_table/0, reach/0]).
 
+%% Report §8.6: Code.hashes reads its file through the host's file server,
+%% so the emitter counts it as foreign code while it runs; Code.running
+%% reads the host's stacks and waits on no process.
+-waits([hashes/1]).
+
 -define(TABLE, ern_code).
 %% Report §11.2: the sums of the host's counts, one row a count.
 -define(SUMS, ern_code_sums).

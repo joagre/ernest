@@ -63,14 +63,14 @@ type ReplMsg =
 // Program
 //
 
-export fn main() : Unit with ReplMsg =
+export fn main() : Unit receiving ReplMsg =
     repl(Map.empty, 0)
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value), serial : Int) : Unit with ReplMsg =
+fn repl(env : Map(String, Value), serial : Int) : Unit receiving ReplMsg =
     match Io.readLine() {
         None -> Unit // end of input
       | Some(text) -> {
@@ -84,7 +84,7 @@ fn repl(env : Map(String, Value), serial : Int) : Unit with ReplMsg =
 // serial of the last expression tried.
 fn evaluateLine(env : Map(String, Value),
                 serial : Int,
-                text : String) : #(Map(String, Value), Int) with ReplMsg =
+                text : String) : #(Map(String, Value), Int) receiving ReplMsg =
     match tokenize(text) {
         Left(BadChar(char = char, index = index)) -> {
             Io.println("illegal character "
@@ -115,11 +115,10 @@ fn evaluateLine(env : Map(String, Value),
 // kill the child if it does not answer.
 fn try(env : Map(String, Value),
        expression : Expression,
-       serial : Int) : Either(TryError, Value) with ReplMsg = {
+       serial : Int) : Either(TryError, Value) receiving ReplMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
     let child =
-        spawnMonitored(fn() : Unit with Never =
-                           send(me, Answered(serial = serial, result = eval(env, expression))),
+        spawnMonitored(fn() = send(me, Answered(serial = serial, result = eval(env, expression))),
                        fn(down) = Died(serial = serial, down = down));
     await(child, serial)
 }
@@ -129,7 +128,7 @@ fn try(env : Map(String, Value),
 // A `Down` names no process, and the child's `Process` (report Appendix
 // E.21) exists only after the spawn its wrap is made for, so the serial
 // in the message is what tells this child's news from an earlier child's.
-fn await(child : Address(Never), serial : Int) : Either(TryError, Value) with ReplMsg =
+fn await(child : Address(Never), serial : Int) : Either(TryError, Value) receiving ReplMsg =
     receive {
         Answered(serial = carried, result = result) when carried == serial ->
             Either.mapLeft(result, Eval)
@@ -141,7 +140,7 @@ fn await(child : Address(Never), serial : Int) : Either(TryError, Value) with Re
         }
     }
 
-fn show(result : Either(TryError, Value)) : Unit with ReplMsg =
+fn show(result : Either(TryError, Value)) : Unit =
     Io.println(match result {
         Right(Integer(value)) -> Int.toString(value)
       | Right(Closure()) -> "<fun>"

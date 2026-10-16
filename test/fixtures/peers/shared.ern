@@ -6,12 +6,10 @@ let peers : List(String) = Peer.peers()
 export fn listed() : List(String) =
     peers
 
-export fn tellPeers(name : String) : Either(Io.Error, Address(Never)) with m =
-    Peer.spawn(name,
-               fn() : Unit with Never = Io.println("the peers here: " <> Io.show(peers)),
-               5000)
+export fn tellPeers(name : String) : Either(Io.Error, Address(Never)) =
+    Peer.spawn(name, fn() = Io.println("the peers here: " <> Io.show(peers)), 5000)
 
-export fn found(service : Peer.Service(m)) : Address(m) with n =
+export fn found(service : Peer.Service(m)) : Address(m) =
     match Peer.find(service, 5000) {
         Right(address) -> address
       | Left(failure) -> fault(Io.show(failure))

@@ -3,7 +3,7 @@ export type Msg = Log(Goods2.Item) | Entries(reply : Reply(Int))
 
 export let audit : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
 
-export fn step(entries : Int, message : Msg) : Int with Service.Envelope(Msg, Int) =
+export fn step(entries : Int, message : Msg) : Int receiving Service.Envelope(Msg, Int) =
     match message {
         Log(_) -> entries + 1
       | Entries(reply = reply) -> {
@@ -13,7 +13,7 @@ export fn step(entries : Int, message : Msg) : Int with Service.Envelope(Msg, In
     }
 
 export fn forward(message : Audit.Msg,
-                  to : Address(Msg)) : Unit with Service.Envelope(Audit.Msg, Int) =
+                  to : Address(Msg)) : Unit receiving Service.Envelope(Audit.Msg, Int) =
     match message {
         Audit.Log(item) -> send(to, Log(Goods2.fromV1(item)))
       | Audit.Entries(reply = reply) -> send(to, Entries(reply = reply))

@@ -18,10 +18,10 @@ export type State2 =
 export let store : Service.Handle(Msg, State2) = Service.start(fn() = opened(Map.empty), step)
 
 /// The previous state's items under a listener of this process's own.
-export fn migrate(old : State) : State2 with Service.Envelope(Msg, State2) =
+export fn migrate(old : State) : State2 receiving Service.Envelope(Msg, State2) =
     opened(old.items)
 
-fn opened(items : Map(String, Int)) : State2 with Service.Envelope(Msg, State2) =
+fn opened(items : Map(String, Int)) : State2 receiving Service.Envelope(Msg, State2) =
     match Tcp.listen("127.0.0.1", 0) {
         Right(listener) -> {
             let me = via(self(), Service.Message);
@@ -33,7 +33,7 @@ fn opened(items : Map(String, Int)) : State2 with Service.Envelope(Msg, State2) 
 
 /// The node that stops, on one node: the running store hands its state to a
 /// successor started from `migrate` of it, and ends, its listener with it.
-export fn handover(old : Service.Handle(Msg, State)) : Unit with n =
+export fn handover(old : Service.Handle(Msg, State)) : Unit receiving n =
     match old {
         Service.Handle(loop = loop) -> send(loop, Service.Upgrade(next = fn(state) = {
             let successor = Service.start(fn() = migrate(state), step);
@@ -45,7 +45,7 @@ export fn handover(old : Service.Handle(Msg, State)) : Unit with n =
         }))
     }
 
-export fn step(state : State2, message : Msg) : State2 with Service.Envelope(Msg, State2) =
+export fn step(state : State2, message : Msg) : State2 receiving Service.Envelope(Msg, State2) =
     match message {
         Put(key = key, value = value) ->
             State2(items = Map.put(state.items, key, value),
@@ -65,7 +65,7 @@ export fn step(state : State2, message : Msg) : State2 with Service.Envelope(Msg
         }
     }
 
-export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int with n =
+export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int =
     match Tcp.port(listener) {
         Right(found) -> found
       | Left(_) -> 0
@@ -73,7 +73,7 @@ export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int with n =
 
 /// Answers each connection the store's size and closes it; ends when the
 /// listener does, which is when its owner does.
-export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) : Unit with m =
+export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             let size = Address.callForever(store, fn(reply) = Size(reply = reply));
@@ -85,14 +85,14 @@ export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) :
       | Left(_) -> Unit
     }
 
-export fn put(key : String, value : Int) : Unit with n =
+export fn put(key : String, value : Int) : Unit receiving n =
     send(Service.address(store), Put(key = key, value = value))
 
-export fn get(key : String) : Optional(Int) with n =
+export fn get(key : String) : Optional(Int) receiving n =
     Address.callForever(Service.address(store), fn(reply) = Get(key = key, reply = reply))
 
-export fn size(handle : Service.Handle(Msg, State2)) : Int with n =
+export fn size(handle : Service.Handle(Msg, State2)) : Int receiving n =
     Address.callForever(Service.address(handle), fn(reply) = Size(reply = reply))
 
-export fn port(handle : Service.Handle(Msg, State2)) : Int with n =
+export fn port(handle : Service.Handle(Msg, State2)) : Int receiving n =
     Address.callForever(Service.address(handle), fn(reply) = Port(reply = reply))

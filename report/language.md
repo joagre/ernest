@@ -118,7 +118,7 @@ Eighteen, grouped by role:
 
 | Role                 | Words                                                  |
 |----------------------|--------------------------------------------------------|
-| Types                | `type`, `abstract`, `with`, `foreign`                  |
+| Types                | `type`, `abstract`, `receiving`, `foreign`             |
 | Pattern matching     | `match`, `when`, `receive`, `after`, `as`, `or`        |
 | Control flow         | `if`, `then`, `else`                                   |
 | Bindings             | `fn`, `let`                                            |
@@ -201,7 +201,7 @@ TypeAtom   = { typename "." } typename [ "(" ListedType { "," ListedType } ")" ]
 ListedType = typevar "=" | Type .
 TupleType  = "#(" ListedType "," ListedType { "," ListedType } ")" .
 FnType     = "(" [ ListedType { "," ListedType } ] ")" "->" FnResult .
-FnResult   = FnType | ( TypeAtom | ParenType ) [ "with" Type ] .
+FnResult   = FnType | ( TypeAtom | ParenType ) [ "receiving" Type ] .
 ParenType  = "(" Type ")" .
 ```
 
@@ -274,7 +274,7 @@ A foreign type is bound to its node (§3.11): a value of it never crosses to ano
 
 ### 3.9 Type variables and polymorphism
 
-Types are inferred according to Hindley-Milner. A `fn` definition, a top-level `let`, and a `let` in a block that binds a name to a lambda are generalized over the type variables of their types that no name in scope around them holds; another `let` in a block is not, nor is a top-level `let` whose initializer calls a process-only function (§4.6).
+Types are inferred according to Hindley-Milner. A `fn` definition, a top-level `let`, and a `let` in a block that binds a name to a lambda are generalized over the type variables of their types that no name in scope around them holds; another `let` in a block is not, and a top-level `let` whose initializer is no value is generalized as §4.6 says.
 
 Type variables in a `fn` signature scope over the whole definition, including the annotations of lambdas, of block `let`s, and of local `fn`s within it. A type variable in an annotation means every type and is rigid. A type variable named first in a lambda's annotation or a block `let`'s belongs to that lambda or binding. Only a generalized lambda or binding may name such a variable: a lambda that is a `let`'s whole value, at top level or in a block. Naming one elsewhere is a type error: `List.map(xs, fn(x : a) = x)`. A local `fn`'s signature shares the enclosing signature's variables, and a variable named only in it is the local function's own, rigid and generalized with it as a top-level function's is.
 
@@ -288,7 +288,7 @@ An effect position is the type after `receiving`. A value position is an argumen
 
 Inference asks for an annotation at an operator whose operand type nothing in the definition fixes (§4.8), a field selection whose operand type nothing fixes (§3.5), a top-level binding that is not generalized whose type keeps a variable nothing resolves (§4.6), a `<-` whose sum type is still open (§5.5), `Io.show` or `Io.debug` at a type not known whole that no requirement names (Appendix E.1, §4.9), a fill whose record type leaves a requirement's variable undetermined (§5.6), a path in a record update through a field whose type nothing fixes (§5.6), `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), and an input at the prompt that binds a name its type does not settle (§11.2). A `Peer.spawn` or `Peer.spawnMonitored` whose function captured a value whose type holds a type variable is refused (§3.11).
 
-A `receive` with an `after` clause alone waits on its process's mailbox and reads no type from it, so the function around it, where nothing else fixes its mailbox type, is *process-only*: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is: one that sends, spawns, answers, calls, prints or reads a file names no mailbox, and a call of it adds nothing to the caller's type. A `foreign fn`'s mailbox type is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the mailbox type is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e` receives nothing when `f` does.
+A `receive` that reads no type from its process's mailbox, one with an `after` clause alone, or one whose patterns are wildcards or variables that nothing fixes, waits on the mailbox all the same, so the function around it, where nothing else fixes its mailbox type, is *process-only*: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is: one that sends, spawns, answers, calls, prints or reads a file names no mailbox, and a call of it adds nothing to the caller's type. A `foreign fn`'s mailbox type is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the mailbox type is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e` receives nothing when `f` does.
 
 A function has one mailbox type or none. A function may take a callback that receives nothing beside one that receives: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit receiving n) : Unit receiving n`, `p` receives nothing, `e` receives `n`, and the function inherits `n`. Two callbacks whose mailbox types are both variables unify to one. Two callbacks with different concrete mailbox types are a type error.
 
@@ -440,7 +440,7 @@ A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.em
 
 At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body receiving `Never` (§6.8): it may spawn, send, and call, and it receives no message, a `receive` in it having only an `after` clause.
 
-The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A binding whose initializer is a call, or holds one, has the type the call gives and is not generalized, and a type variable left in its type is a type error at the binding: `let shared = spawn(fn() = cell(None))` is refused until an annotation fixes the type of what the cell holds. A call in the body of a lambda the initializer builds and does not call is the lambda's: `let me = fn() = self()` is generalized. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
+The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A binding whose initializer is a call, or holds one, has the type the call gives. It is generalized where that type, read through the fields of the declared types it names, holds no function type, no foreign type, no address and no reply: `let empty : Map(k, v) = emptyMap()`, `emptyMap` a foreign function that answers the host's empty map. Otherwise it is not generalized, and a type variable left in its type is a type error at the binding: `let shared = spawn(fn() = cell(None))` is refused until an annotation fixes the type of what the cell holds. A call in the body of a lambda the initializer builds and does not call is the lambda's: `let me = fn() = self()` is generalized. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
 
 ### 4.7 Foreign declarations
 
@@ -566,7 +566,7 @@ Strict, left to right, arguments before the call. A callee is evaluated before i
 
 ### 5.4 Blocks
 
-`{ s1; s2; e }` is an expression whose value is its last statement, which is an expression: a block that ends in a `let` or a `fn` is refused. `;` separates statements and never appears last. A statement is a `fn` declaration, a `let` binding, or an expression evaluated for its effect. An expression that is not the last statement has type `Unit`; a value is discarded with `let _ = e` (§5.10), whatever `e` is, a pure one among them, since the `_` shows the value unused (§0, principle 3).
+`{ s1; s2; e }` is an expression whose value is its last statement, which is an expression: a block that ends in a `let` or a `fn` is refused. `;` separates statements and never appears last. A statement is a `fn` declaration, a `let` binding, or an expression evaluated for its effect. An expression that is not the last statement has type `Unit`; a value is discarded with `let _ = e` (§5.10), whatever `e` is, one that does nothing but compute among them, since the `_` shows the value unused (§0, principle 3).
 
 A `fn` declared in a block is visible throughout it, so local functions may be recursive and mutually recursive. Two `fn` declarations of one name in one block are an error. A local `fn` may not take the name of a parameter or a variable in scope where it is declared, nor of a `let` of its block. The body of a local `fn` sees the bindings in force at its declaration, and a later `let` of a name it reads does not reach it.
 
@@ -677,7 +677,7 @@ A process is an execution of a function with a mailbox type. It has a mailbox th
 
 `(A) -> B receiving M` is the type of a function whose own process's mailbox is involved, the mailbox of type `M`: it receives from it, gives out its address by `self`, asks for a message to be delivered into it, as `monitor` and `spawnMonitored` do through their wrap (§6.9, Appendix E.0 shape rule 8), or calls a function whose type names one, a prelude function of §9.4 or §9.5 or a foreign function among them. Every function runs in a process; that is not marked, and neither is what a function does through other processes or through the world: a `send`, a `spawn`, a `kill`, an `answer`, a call, printing, a file, a socket or a clock carry no mark.
 
-The mailbox type is inferred. A function that calls a function receiving `M` receives `M`. Two calls with different concrete mailbox types in one body are a type error. Calls with variable mailbox types unify. A call of a function without `receiving` contributes nothing. A `receive` with pattern clauses gives the mailbox type its patterns have; one with only `after` is process-only, as §3.9 says. A function that contains no `receive`, calls no `self`, asks for no delivery and none of whose calls determines a mailbox type receives nothing.
+The mailbox type is inferred. A function that calls a function receiving `M` receives `M`. Two calls with different concrete mailbox types in one body are a type error. Calls with variable mailbox types unify. A call of a function without `receiving` contributes nothing. A `receive` with pattern clauses gives the mailbox type its patterns have; one with only `after`, or whose patterns fix no type, is process-only, as §3.9 says. A function that contains no `receive`, calls no `self`, asks for no delivery and none of whose calls determines a mailbox type receives nothing.
 
 | Written | Meaning |
 |---|---|
@@ -715,9 +715,9 @@ Messages from one process to another are received in sending order. Between diff
 
 `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` on any node.
 
-`adapted(addr, f)`, §9.5, is an *adapted address*, `addr` seen through `f : (a) -> b`: sending `v` to `adapted(addr, f)` sends `f(v)` to `addr`. `f` is applied on the node where `adapted(addr, f)` was made: by the `send`, in the sender, when the sender is on that node, and on arrival there when it is not. A `send` that applies `f` returns once `f` has, and a sender's messages keep their order through it (§6.4), with one exception: a message to an adapted address made on another node than the sender's takes one step more, on the node that made it, and a message sent straight after it can pass it (§8.7).
+`adapted(addr, f)`, §9.5, is an *adapted address*, `addr` seen through `f : (a) -> b`: sending `v` to `adapted(addr, f)` sends `f(v)` to `addr`. `f` is applied on the node where `adapted(addr, f)` was made: by the `send`, in the sender, when the sender is on that node, and when it is not, on arrival there, in a process started for the message. A `send` that applies `f` returns once `f` has, and a sender's messages keep their order through it (§6.4), with one exception: a message to an adapted address made on another node than the sender's takes one step more, on the node that made it, and a message sent straight after it can pass it (§8.7).
 
-An adapted address crosses to another node as a reference to `f` and the values `f` captured, which cross as payload and are touched on no other node (§3.11). A `send` to it from another node carries `v` to the node where it was made, where `f` is applied and `f(v)` is sent on to `addr`, on whichever node its process is.
+An adapted address crosses to another node as a reference to `f` and the values `f` captured, which cross as payload and are touched on no other node (§3.11). A `send` to it from another node carries `v` to the node where it was made, where a process started for it applies `f` and sends `f(v)` on to `addr`, on whichever node its process is.
 
 `adapted(self(), Wrap)`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`.
 
@@ -782,9 +782,9 @@ A process replaces its code by a message in its own type that carries the new lo
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
-  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply = reply) -> {
@@ -1012,7 +1012,7 @@ A definition's *reach* is the definition with everything it references, transiti
 
 A node has one *gateway*, a process that takes every frame from every peer and hands each to a worker for the sender's node, but for a call's two notes, which it records itself, in the order they came, a compute's frame, which it records so and hands on, and a utilization, which it answers itself; the exchange's four it hands to the exchange's process. A frame the gateway cannot read is faulty, and the node ends the connection; a message to the gateway that names no process of a peer names no connection, and is dropped, which the node says.
 
-A message between nodes costs what the host's send costs; one to an adapted address made on another node than the sender's takes one step more, on the node that made it, and a message sent straight after it can pass it (§6.4, §6.5). The function of an adapted address must finish, across nodes as on one: a slow one delays what that peer sends through the gateway, and one that never finishes holds it for good.
+A message between nodes costs what the host's send costs; one to an adapted address made on another node than the sender's takes one step more, on the node that made it, and a message sent straight after it can pass it (§6.4, §6.5). The function of an adapted address runs, on arrival, in a process started for the message, which ends with it; one that never finishes holds nothing but that process.
 
 **A loss.** A connection is lost when the network breaks it, when the detector finds it silent, or when a frame is faulty. Each node is told by its own host and runs the loss for itself: it gives a `Down` with the reason `Unreachable` and an empty `site` for each monitor held on the peer's processes, ends each call waiting on one of them, and drops what waited to be sent; nothing else ends, but a process waiting in `Address.callForever` on one of them, which faults (§6.6). A node whose peer dials it anew while it believes the old connection alive runs the loss of the old one first.
 
@@ -1137,29 +1137,29 @@ type Path = Path(String) // in the runtime's syntax
 ### 9.4 Built-in functions (§6)
 
 ```
-self           : () -> Address(m) with m
-send           : (Address(a), a) -> Unit with m+
-spawn          : (() -> Unit with n) -> Address(n) with m+
-spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
+self           : () -> Address(m) receiving m
+send           : (Address(a), a) -> Unit
+spawn          : (() -> Unit receiving n) -> Address(n)
+spawnMonitored : (() -> Unit receiving n, (Down) -> m) -> Address(n) receiving m
 ```
 
 `io.ern` provides `Io.show` and `Io.debug` (Appendix E.1):
 
 ```
 Io.show        : (a) -> String needs a.show // the value as Ernest writes it, at the use's type
-Io.debug       : (a) -> a with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
+Io.debug       : (a) -> a needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
 ```
 
 ### 9.5 Process functions
 
 ```
 adapted             : (Address(b), (a) -> b) -> Address(a)
-Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n+
-Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n+
-answer              : (Reply(a), a) -> Unit with m+
-restarting          : (RestartLimit, () -> Unit with n+) -> () -> Unit with n+
-monitor             : (Process, (Down) -> m) -> Unit with m
-kill                : (Address(a)) -> Unit with m+
+Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
+Address.callForever : (Address(m), (Reply(a)) -> m) -> a
+answer              : (Reply(a), a) -> Unit
+restarting          : (RestartLimit, () -> Unit receiving n) -> () -> Unit receiving n
+monitor             : (Process, (Down) -> m) -> Unit receiving m
+kill                : (Address(a)) -> Unit
 ```
 
 ### 9.6 Operations required by the language
@@ -1241,7 +1241,7 @@ TypeAtom    = { typename "." } typename [ "(" ListedType { "," ListedType } ")" 
 ListedType  = typevar "=" | Type .
 TupleType   = "#(" ListedType "," ListedType { "," ListedType } ")" .
 FnType      = "(" [ ListedType { "," ListedType } ] ")" "->" FnResult .
-FnResult    = FnType | ( TypeAtom | ParenType ) [ "with" Type ] .
+FnResult    = FnType | ( TypeAtom | ParenType ) [ "receiving" Type ] .
 ParenType   = "(" Type ")" .
 
 Expr        = Lambda | IfExpr | BinExpr .
@@ -1286,7 +1286,7 @@ BitSpec     = "size" "(" Expr ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. After a primary, `.` and an `ident` select a field (§3.5): a lowercase first segment is a value, so `s.upper` selects, while an uppercase one begins a `QName`, `Net.Http.parse`. An `ident`, `.` and a `userop` are a type variable's member, `a.+`. An `ident`, `.` and `compare` or `negate`, `a.compare`, parse as a selection, which §4.9 makes the member in a declaration with a requirement. The expression after `..` in `Fields` names a namespace where §5.6 says so, and the parser reads one form. In a qualified name, of a value in `QName`, of a type in `TypeAtom`, or of a constructor in `AtomPat`, after each uppercase token the next token decides: `.` continues the qualification, and otherwise the segment is final. In `QName` a final `ident` names a function or a value, a `userop` an operator, and a `conname` a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, one expression or fields, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. Empty parentheses after a constructor name, or two expressions or more, are a call of its value (§5.6). `conname` and `typename` are one token class; which one a segment is follows from its position. A parenthesized list of types is an `FnType` when `->` follows its `)`, and otherwise a `ParenType` (§3). In a `ListedType`, a type variable followed by `=` is marked (§3). A `with` after a function type belongs to that type (§3), and a function type that ends in a `with` takes no second: a function's effect after a result that is a function type is written after that type in parentheses, `(A) -> ((B) -> C with M) with N`, in a `Return` as in a type, `: ((A) -> B with M) with N`. In a `receive`, a `|` followed by `after` begins its `AfterClause`.
+`binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. After a primary, `.` and an `ident` select a field (§3.5): a lowercase first segment is a value, so `s.upper` selects, while an uppercase one begins a `QName`, `Net.Http.parse`. An `ident`, `.` and a `userop` are a type variable's member, `a.+`. An `ident`, `.` and `compare` or `negate`, `a.compare`, parse as a selection, which §4.9 makes the member in a declaration with a requirement. The expression after `..` in `Fields` names a namespace where §5.6 says so, and the parser reads one form. In a qualified name, of a value in `QName`, of a type in `TypeAtom`, or of a constructor in `AtomPat`, after each uppercase token the next token decides: `.` continues the qualification, and otherwise the segment is final. In `QName` a final `ident` names a function or a value, a `userop` an operator, and a `conname` a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, one expression or fields, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. Empty parentheses after a constructor name, or two expressions or more, are a call of its value (§5.6). `conname` and `typename` are one token class; which one a segment is follows from its position. A parenthesized list of types is an `FnType` when `->` follows its `)`, and otherwise a `ParenType` (§3). In a `ListedType`, a type variable followed by `=` is marked (§3). A `receiving` after a function type belongs to that type (§3), and a function type that ends in a `receiving` takes no second: a function's mailbox type after a result that is a function type is written after that type in parentheses, `(A) -> ((B) -> C receiving M) receiving N`, in a `Return` as in a type, `: ((A) -> B receiving M) receiving N`. In a `receive`, a `|` followed by `after` begins its `AfterClause`.
 
 ## Appendix B. Examples
 
@@ -1296,9 +1296,9 @@ The counter of §6.10, with a `main` that sends it `Inc` and `Get`. §6.10 shows
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
-  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
-export fn main() : Unit with m = {
+export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
@@ -1308,7 +1308,7 @@ export fn main() : Unit with m = {
     }
 }
 
-fn count(total : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
       | Get(reply = reply) -> {
@@ -1326,7 +1326,7 @@ type PongMsg = Ping(round : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
-export fn main() : Unit with MainMsg = {
+export fn main() : Unit receiving MainMsg = {
     let opponent = spawnMonitored(fn() = pong(), PongDone);
     let _ = spawn(fn() = ping(opponent, 3));
     receive {
@@ -1334,7 +1334,7 @@ export fn main() : Unit with MainMsg = {
     }
 }
 
-fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
+fn ping(opponent : Address(PongMsg), round : Int) : Unit =
     if round == 0 then
         send(opponent, Stop)
     else {
@@ -1348,7 +1348,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
         }
     }
 
-fn pong() : Unit with PongMsg =
+fn pong() : Unit receiving PongMsg =
     receive {
         Ping(round = round, reply = reply) -> {
             Io.println("pong " <> Int.toString(round));
@@ -1359,12 +1359,12 @@ fn pong() : Unit with PongMsg =
     }
 ```
 
-A message that carries a function. `submitter` is send-only, so its mailbox type is `Never`. A worker on another node cannot be given it: `Address(WorkerMsg)` is bound to its node (§3.11).
+A message that carries a function. `submitter` only sends, so it receives nothing. A worker on another node cannot be given it: `Address(WorkerMsg)` is bound to its node (§3.11).
 
 ```ernest
 type WorkerMsg = DoWork(work : (String) -> Bytes, input : String)
 
-fn submitter(worker : Address(WorkerMsg)) : Unit with Never = {
+fn submitter(worker : Address(WorkerMsg)) : Unit = {
     send(worker, DoWork(work = String.toUtf8, input = "hello"));
     send(worker, DoWork(work = String.toUtf8, input = "world"))
 }
@@ -1477,7 +1477,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **primitive** — an operation beneath what Ernest writes: the language's, a built-in function of §9, or a named function that is no value, `Peer.spawn`; a standard library module's, one that reads or writes what the host owns, or one a function of the host does exactly, the rest of the module being Ernest over its primitives. §0, Appendix E.0.
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
-- **process-only** — a function whose effect variable is never none: one that waits with `after` alone, or a foreign function receiving a variable of its own. §3.9.
+- **process-only** — a function whose effect variable is never none: one whose `receive` fixes no type, waiting with `after` alone or matching anything, or a foreign function receiving a variable of its own. §3.9.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **raw string** — a `String` literal between backquotes, its text taken as written. §2.5.
 - **reach** — a definition with everything it references, transitively. §8.7.
@@ -1535,4 +1535,3 @@ Every technical term this report introduces, with a gloss and the section that d
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
 - **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
-- **`with`** — the mailbox-type marker on a function type, `with M`. §3.4, §6.1.

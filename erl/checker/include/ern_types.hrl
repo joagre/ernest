@@ -6,9 +6,10 @@
 %%       {tvar, id()}                          a unification variable
 %%     | {tcon, qualified_name(), [type()]}    a named type applied to arguments
 %%     | {ttuple, [type()]}                    #(A, B)
-%%     | {tfn, [type()], effect(), type()}     (A, B) -> C with M
+%%     | {tfn, [type()], effect(), type()}     (A, B) -> C receiving M
 %%
-%%   effect() :: pure | type()     the mailbox slot of an arrow; a type()
+%%   effect() :: none | type()     the mailbox slot of an arrow, none where
+%%                                 the function receives nothing; a type()
 %%                                 here is a mailbox type or a variable
 %%
 %%   qualified_name() :: [atom()]  ['Int'], ['List'], ['Net', 'Http', 'Request']
@@ -16,7 +17,7 @@
 %% Every variable has an entry in the checker's variable table keyed by id().
 %% Its restrictions are the two inferred restrictions of report §3.9:
 %% `equality` (the variable was compared with ==) and `process_only` (it
-%% may not bind to pure). A bound variable's binding lives in the
+%% may not bind to none). A bound variable's binding lives in the
 %% substitution, not in the term, so a type is read through
 %% ern_types:resolve/2 before inspection.
 %%
@@ -75,8 +76,8 @@
                            scheme}).
 %% fields: none | positional | {named, [atom()]} in canonical (sorted) order;
 %% scheme: the constructor as a value, quantified over the type's parameters:
-%% the result type for a nullary constructor, else a pure function from the
-%% field types (in canonical order) to the result type
+%% the result type for a nullary constructor, else a function that receives
+%% nothing from the field types (in canonical order) to the result type
 
 %% The declaration a name refers to, which the checker records in its
 %% #e_var{} for the emitter (report §4.2): this module's, member_of a type

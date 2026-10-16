@@ -13,7 +13,7 @@ type Snapshot = Snapshot(directory : String, seen : Int)
 
 type Shape = Circle(Int) | Square(Int) | Dot
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     Io.println(sign(-1));
     Io.println(sign(0));
     Io.println(sign(7));

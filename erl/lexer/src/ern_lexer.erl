@@ -33,7 +33,7 @@
   | {comment, position(), unicode:unicode_binary()}
   | {atom(), position()}.
 
--define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after',
+-define(RESERVED, [type, abstract, receiving, foreign, match, 'when', 'receive', 'after',
                    'or', as, 'if', then, 'else', fn, 'let', export]).
 
 %% Longest first, so that the first symbol symbol/2 finds in the list is

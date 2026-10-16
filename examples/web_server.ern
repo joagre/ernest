@@ -50,7 +50,7 @@ type SessionId = SessionId(String)
 // Program
 //
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let sessions = spawn(fn() = sessionStore());
     match Tcp.listen("127.0.0.1", 8080) {
         Right(listener) -> {
@@ -66,12 +66,12 @@ export fn main() : Unit with Never = {
 //
 
 // The session store: the visits of each session, forgotten every ten minutes.
-fn sessionStore() : Unit with SessionMsg = {
+fn sessionStore() : Unit receiving SessionMsg = {
     Clock.alarm(600000, fn(_) = Forget);
     store(Map.empty)
 }
 
-fn store(counts : Map(SessionId, Int)) : Unit with SessionMsg =
+fn store(counts : Map(SessionId, Int)) : Unit receiving SessionMsg =
     receive {
         Visit(id = id, reply = reply) -> {
             let visits = Optional.withDefault(Map.get(counts, id), 0) + 1;
@@ -84,7 +84,7 @@ fn store(counts : Map(SessionId, Int)) : Unit with SessionMsg =
 // The acceptor: one handler process per connection.
 fn acceptor(sessions : Address(SessionMsg),
             accepted : Int,
-            listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+            listener : Address(Tcp.ListenerMsg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             // the handler owns its connection, which ends with it
@@ -99,7 +99,7 @@ fn acceptor(sessions : Address(SessionMsg),
 // One process per connection: reads a request, writes a response, closes.
 fn handle(sessions : Address(SessionMsg),
           connection : Int,
-          socket : Address(Tcp.SocketMsg)) : Unit with m =
+          socket : Address(Tcp.SocketMsg)) : Unit =
     match Tcp.read(socket, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {

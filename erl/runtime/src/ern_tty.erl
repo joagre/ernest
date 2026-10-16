@@ -30,6 +30,10 @@
 
 -export([loop/2, size/0, restore/0, is_terminal/1, more/2, decode/1, flush/1]).
 
+%% Report §8.6: Terminal.size asks the host's group leader, so the emitter
+%% counts it as foreign code while it runs.
+-waits([size/0]).
+
 %% What waits for more to arrive: the characters of an escape that may
 %% still grow into a sequence, or a paste under way, its text so far
 %% reversed and a tail that may still grow into its end.

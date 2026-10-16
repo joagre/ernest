@@ -13,7 +13,7 @@ type ServerMsg = Get(reply : Reply(Int))
 
 type Point = Point(x : Int, y : Int)
 
-foreign fn systemFlag(flag : Foreign.Term, value : Int) : Int with m =
+foreign fn systemFlag(flag : Foreign.Term, value : Int) : Int =
     "erlang:system_flag/2"
 
 foreign fn parsed(text : String) : Int =
@@ -24,7 +24,7 @@ let backtraceDepth : Foreign.Term = Foreign.atom("backtrace_depth")
 fn Point.+(left : Point, right : Point) : Point =
     Point(x = left.x + right.x, y = left.y + right.y)
 
-export fn main() : Unit with Msg = {
+export fn main() : Unit receiving Msg = {
     let point = Point(x = 1, y = 2);
     let map = Map.fromList([#(1, 2), #(3, 4)]);
     let list = List.range(1, 100);
@@ -59,7 +59,7 @@ export fn main() : Unit with Msg = {
             1000000,
             fn(index) = Address.callForever(server, fn(reply) = Get(reply = reply)) + index);
     measure("spawn", 200000, fn(index) = {
-        let _ = spawn(fn() : Unit with Never = Unit);
+        let _ = spawn(fn() = Unit);
         index
     });
     // Report §9.4 to §9.6, MVP 2.99d's item 2: the rest of the prelude.
@@ -68,7 +68,7 @@ export fn main() : Unit with Msg = {
         index
     });
     measure("spawn_monitored", 200000, fn(index) = {
-        let _ = spawnMonitored(fn() : Unit with Never = Unit, fn(_) = Ping(index));
+        let _ = spawnMonitored(fn() = Unit, fn(_) = Ping(index));
         receive {
             Ping(value) -> value
         }
@@ -111,7 +111,7 @@ export fn main() : Unit with Msg = {
     measure("float_times", 10000000, fn(index) = Float.truncate(Int.toFloat(index) * 1.5));
     measure("int_divide", 10000000, fn(index) = index / 3 + index % 7);
     measure("restarting", 1000000, fn(index) = {
-        restarting(Unlimited, fn() : Unit with Msg = Unit)();
+        restarting(Unlimited, fn() = Unit)();
         index
     });
     raises([8, 12, 64]);
@@ -127,7 +127,7 @@ export fn main() : Unit with Msg = {
 // is set here, by the measuring program, and set back to the runtime's
 // after; a fault is reported on standard error, which make bench writes to
 // a file.
-fn raises(depths : List(Int)) : Unit with Msg =
+fn raises(depths : List(Int)) : Unit receiving Msg =
     List.forEach(depths, fn(depth) = {
         let _ = systemFlag(backtraceDepth, depth);
         let suffix = Int.toString(depth);
@@ -144,8 +144,8 @@ fn failedToInt(index : Int) : Int =
     Optional.withDefault(String.toInt("x"), index)
 
 // A process that faults beneath `depth` frames, its Down received.
-fn faulted(index : Int, depth : Int) : Int with Msg = {
-    let raising = fn() : Unit with Never = {
+fn faulted(index : Int, depth : Int) : Int receiving Msg = {
+    let raising = fn() = {
         let _ = deepened(depth, fn() = parsed("x"));
         Unit
     };
@@ -156,19 +156,21 @@ fn faulted(index : Int, depth : Int) : Int with Msg = {
 }
 
 // f run beneath `count` frames of this function's own, none a tail call.
-fn deepened(count : Int, f : () -> Int with m) : Int with m =
+fn deepened(count : Int, f : () -> Int receiving m) : Int receiving m =
     if count == 0 then f() else deepened(count - 1, f) + 0
 
 // The median of seven timings of `count` iterations, and their range,
 // printed as `key count median lowest highest`, in microseconds.
-fn measureRuns(key : String, count : Int, operation : (Int) -> Int with m) : Unit with m = {
+fn measureRuns(key : String,
+               count : Int,
+               operation : (Int) -> Int receiving m) : Unit receiving m = {
     let timings = List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)),
                             Int.compare);
     let at = fn(index) = Int.toString(Optional.withDefault(List.get(timings, index), 0));
     Io.println(String.join([key, Int.toString(count), at(3), at(0), at(6)], " "))
 }
 
-fn timedMicros(count : Int, operation : (Int) -> Int with m) : Int with m = {
+fn timedMicros(count : Int, operation : (Int) -> Int receiving m) : Int receiving m = {
     let started = Clock.monotonicMicros();
     let _ = loop(count, operation, 0);
     Clock.monotonicMicros() - started
@@ -176,30 +178,30 @@ fn timedMicros(count : Int, operation : (Int) -> Int with m) : Int with m = {
 
 // A process that has ended, which `monitor` reports at once and `kill`
 // leaves as it is.
-fn endedProcess() : Address(Never) with Msg = {
-    let address = spawnMonitored(fn() : Unit with Never = Unit, fn(_) = Ping(0));
+fn endedProcess() : Address(Never) receiving Msg = {
+    let address = spawnMonitored(fn() = Unit, fn(_) = Ping(0));
     receive {
         Ping(_) -> address
     }
 }
 
 // The fastest of three timings of `count` iterations, printed as `key count ms`.
-fn measure(key : String, count : Int, operation : (Int) -> Int with m) : Unit with m = {
+fn measure(key : String, count : Int, operation : (Int) -> Int receiving m) : Unit receiving m = {
     let took =
         Int.min(timed(count, operation), Int.min(timed(count, operation), timed(count, operation)));
     Io.println(key <> " " <> Int.toString(count) <> " " <> Int.toString(took))
 }
 
-fn timed(count : Int, operation : (Int) -> Int with m) : Int with m = {
+fn timed(count : Int, operation : (Int) -> Int receiving m) : Int receiving m = {
     let started = Clock.monotonic();
     let _ = loop(count, operation, 0);
     Clock.monotonic() - started
 }
 
-fn loop(count : Int, operation : (Int) -> Int with m, acc : Int) : Int with m =
+fn loop(count : Int, operation : (Int) -> Int receiving m, acc : Int) : Int receiving m =
     if count == 0 then acc else loop(count - 1, operation, acc + operation(count))
 
-fn serve() : Unit with ServerMsg =
+fn serve() : Unit receiving ServerMsg =
     receive {
         Get(reply = reply) -> {
             answer(reply, 1);

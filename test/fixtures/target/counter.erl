@@ -6,7 +6,7 @@
 %%   type CounterMsg =
 %%       Inc(Int)
 %%     | Get(reply : Reply(Int))
-%%     | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+%%     | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 %%
 %% has no code of its own; its constructors are the tuples
 %%
@@ -40,7 +40,7 @@
 
 -export(['$2'/0, '$spawned'/2]).
 
-%% export fn main() : Unit with m = {
+%% export fn main() : Unit = {
 %%     let counter = spawn(fn() = count(0));
 %%     send(counter, Inc(5));
 %%     send(counter, Inc(3));
@@ -61,7 +61,7 @@
             'ern@io':'$8'(<<"counter is not answering">>)
     end.
 
-%% fn count(total : Int) : Unit with CounterMsg = receive {
+%% fn count(total : Int) : Unit receiving CounterMsg = receive {
 %%     Inc(amount) -> count(total + amount)
 %%   | Get(reply = reply) -> { answer(reply, total); count(total) }
 %%   | Upgrade(migrate = migrate, next = next) -> next(migrate(total))

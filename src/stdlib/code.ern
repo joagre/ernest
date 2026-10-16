@@ -12,7 +12,7 @@
 /// atoms, which never fall while the node runs (report §11.2).
 ///
 /// `running` is a form, as `Peer.spawn` is: it is called where it is named, with
-/// the name of a top-level `fn` whose result type is `Unit with m`, and answers
+/// the name of a top-level `fn` whose result type is `Unit`, and answers
 /// the processes that run that function at the moment of the call (report
 /// §3.11).
 ///
@@ -26,9 +26,9 @@
 /// type CounterMsg =
 ///     Inc(Int)
 ///   | Get(reply : Reply(Int))
-///   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+///   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 ///
-/// fn count(total : Int) : Unit with CounterMsg =
+/// fn count(total : Int) : Unit receiving CounterMsg =
 ///     receive {
 ///         Inc(amount) -> count(total + amount)
 ///       | Get(reply = reply) -> {
@@ -38,7 +38,7 @@
 ///       | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
 ///     }
 ///
-/// fn count2(total : Int) : Unit with CounterMsg =
+/// fn count2(total : Int) : Unit receiving CounterMsg =
 ///     receive {
 ///         Inc(amount) -> count2(total + 2 * amount)
 ///       | Get(reply = reply) -> {
@@ -85,7 +85,7 @@
 /// Code.load(Path("nowhere/counter.erc"))
 /// // => Left(NotFound)
 /// ```
-export foreign fn load(path : Path) : Either(Io.Error, Unit) with m =
+export foreign fn load(path : Path) : Either(Io.Error, Unit) =
     "ern_code_load:load/1"
 
 /// The definitions the compiled module at `path` holds, each as its qualified
@@ -100,15 +100,15 @@ export foreign fn load(path : Path) : Either(Io.Error, Unit) with m =
 /// Code.hashes(Path("nowhere/counter.erc"))
 /// // => Left(NotFound)
 /// ```
-export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))) with m =
+export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))) =
     "ern_code:hashes/1"
 
 /// The addresses of the processes on this node whose stack holds a frame of `f`
 /// itself at the moment of the call, in unspecified order. `f` is the name of a
-/// top-level `fn` of any arity whose result type is `Unit with m`, `m` holding
-/// no type variable, so that every process listed has the mailbox type `m`. A
-/// process spawned from a lambda written in `f` runs that lambda, and is not
-/// listed. The list is a snapshot: a process may have left `f`, or ended, by
+/// top-level `fn` of any arity whose result type is `Unit`; where it receives,
+/// `receiving m`, `m` holds no type variable, and every process listed has the
+/// mailbox type `m`. A process spawned from a lambda written in `f` runs that
+/// lambda, and is not listed. The list is a snapshot: a process may have left `f`, or ended, by
 /// the time it is sent to. The host keeps at most the innermost 64 frames of a
 /// stack, so a process whose frame of `f` lies beneath them is not listed.
 /// `running` is called where it is named, and is no value (report §3.11).
@@ -116,7 +116,7 @@ export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))
 /// ### Examples
 ///
 /// ```ernest
-/// fn idle() : Unit with Int =
+/// fn idle() : Unit receiving Int =
 ///     receive {
 ///         _ -> idle()
 ///     }
@@ -124,5 +124,5 @@ export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))
 /// Code.running(idle)
 /// // => []
 /// ```
-export foreign fn running(f : a) : List(Address(m)) with n =
+export foreign fn running(f : a) : List(Address(m)) =
     "ern_code:running/1"

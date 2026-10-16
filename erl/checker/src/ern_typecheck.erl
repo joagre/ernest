@@ -2,19 +2,20 @@
 %% with levels for generalization over the AST of ern_parser, producing the
 %% same AST with every type slot filled and the module's interface.
 %%
-%% Effects are the extra slot on the arrow (report §3.9): a call to a
-%% function whose effect is pure constrains nothing; any other effect is
-%% unified with the enclosing function's effect. receive, self, and the
-%% process primitives force that effect to be a mailbox type.
+%% Effects are the extra slot on the arrow, its mailbox type (report §3.9,
+%% §6.1): a call to a function that receives nothing constrains nothing;
+%% any other effect is unified with the enclosing function's effect.
+%% receive, self, and the functions that deliver into the caller's mailbox
+%% force that effect to be a mailbox type.
 %%
 %% Per definition, after inference, as post_checks/3 runs them: what was
 %% deferred, operators, selections, `<-` and receive guards' orderings
 %% (report §4.8, §3.5, §5.5, §6.3); what each requirement is supplied with
 %% (§4.9); rigidity of annotation variables (§3.9); the order of a block's
 %% local fns and lets (§5.4, ern_scope); match exhaustiveness (ern_exhaust);
-%% the restrictions instances carry (§3.9, §3.10); and a `with m` that
-%% names no effect (§4.5). Errors are collected per definition; checking
-%% continues with the next.
+%% the restrictions instances carry (§3.9, §3.10); and a `receiving m` that
+%% names no mailbox type (§4.5). Errors are collected per definition;
+%% checking continues with the next.
 -module(ern_typecheck).
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
@@ -45,9 +46,6 @@
 %% errors
 %% let_order: the module's top-level lets in the order §8.5 evaluates
 %% them, which the emitter reads
-%% effectful: whether the definition being checked has called a
-%% process-only function; effectful_lets: the top-level lets whose
-%% initializer has, which are not generalized (report §4.6)
 %% generalizing: whether the lambda about to be inferred is a binding's
 %% whole value that is generalized, so that a type variable its annotation
 %% names first is rigid and quantified (report §3.9)
@@ -65,10 +63,9 @@
 %% or {'let', Name}
 -record(env, {namespace = [], types = #{}, constructors = #{}, globals = #{}, lets = #{},
               local_types = #{}, local_constructors = #{}, local_values = #{}, session_scope = #{},
-              locals = #{}, effect = pure, type_state, pending = [], deferred = [],
+              locals = #{}, effect = none, type_state, pending = [], deferred = [],
               annotation_variables = #{}, rigid = [], effect_origin = undefined,
-              groups = #{}, typed = [], diagnostics = [], let_order = [], effectful = false,
-              effectful_lets = [],
+              groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
               reaches = #{}, positions = #{}, foreign = #{}}).
@@ -91,9 +88,9 @@
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
-%% names (report §11.5): what is pure or has the mailbox, "f", "the
-%% lambda", "a guard", or top_let for a top-level `let`, whose mailbox is
-%% Never; the span that made it so, its label, and what to do.
+%% names (report §11.5): what receives nothing or has the mailbox, "f",
+%% "the lambda", "a guard", or top_let for a top-level `let`, whose mailbox
+%% is Never; the span that made it so, its label, and what to do.
 -record(effect_origin, {what, span, label, help}).
 
 %% The equality constraint an instance carries, checked when its
@@ -486,8 +483,7 @@ prelude_env() ->
     Env4 = Env3#env{type_state = effect_param_state(Env3)},
     Env5 = lists:foldl(fun({QualifiedName, Text, _Doc}, Acc) ->
                            {ok, Syntax} = ern_parser:parse_type(Text),
-                           ProcessOnly = lists:member(QualifiedName, ern_prelude:process_only()),
-                           {Scheme, Acc1} = signature_scheme(Syntax, ProcessOnly, Acc),
+                           {Scheme, Acc1} = signature_scheme(Syntax, Acc),
                            Acc1#env{globals = maps:put(QualifiedName, Scheme, Acc1#env.globals)}
                        end,
                        Env4#env{namespace = [], local_types = #{}, local_constructors = #{},
@@ -581,15 +577,16 @@ add_constructors(ConstructorInfos, Known) ->
                 end, Known, ConstructorInfos).
 
 %% A signature from the prelude tables: every annotation variable is
-%% generalized; effect variables of the process primitives are process-only.
-signature_scheme(Syntax, ProcessOnly, Env) ->
+%% generalized; an effect variable that also occurs in a value position is
+%% process-only (report §3.9), as `self`'s is.
+signature_scheme(Syntax, Env) ->
     TypeState1 = ern_types:enter(Env#env.type_state),
     {Type, AnnotationVariables, TypeState2} =
         annotation_type(Syntax, #{}, Env#env{type_state = TypeState1}),
     Substituted = ern_types:substitute(Type, TypeState2),
     Effects = ern_types:effect_variables(Substituted),
     Values = ern_types:value_variables(Substituted, TypeState2),
-    ProcessOnlyIds = [Id || Id <- Effects, ProcessOnly orelse lists:member(Id, Values)],
+    ProcessOnlyIds = [Id || Id <- Effects, lists:member(Id, Values)],
     TypeState3 = lists:foldl(fun(Id, Acc) ->
                                  ern_types:add_restriction({tvar, Id}, process_only, Acc)
                              end, TypeState2, ProcessOnlyIds),
@@ -604,7 +601,7 @@ signature_scheme(Syntax, ProcessOnly, Env) ->
 %%
 
 annotation_type(undefined, AnnotationVariables, Env) ->
-    {pure, AnnotationVariables, Env#env.type_state};
+    {none, AnnotationVariables, Env#env.type_state};
 annotation_type(#t_var{span = Span, name = Name, equality = true}, _, _) ->
     %% report §4.7: the mark stands in a foreign function's parameters
     %% alone, which signature_shape takes off before it comes here
@@ -1083,7 +1080,7 @@ declare_constructor(#constructor{name = Name, fields = Fields}, TypeQualifiedNam
     {FieldSpec, FieldTypes, Env1} = constructor_fields(Fields, AnnotationVariables, Env),
     Type = case FieldSpec of
                none -> Result;
-               _ -> {tfn, FieldTypes, pure, Result}
+               _ -> {tfn, FieldTypes, none, Result}
            end,
     Quantified = [{Id, []} || {tvar, Id} <- ParamVariables],
     %% report §11.5: the type's parameters print under the names its
@@ -1201,7 +1198,7 @@ run_group(Group, #env{groups = UncheckedGroups} = Env) ->
 demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
     case UncheckedGroups of
         #{QualifiedName := Group} ->
-            Clean = Env#env{locals = #{}, effect = pure, pending = [], deferred = [],
+            Clean = Env#env{locals = #{}, effect = none, pending = [], deferred = [],
                             annotation_variables = #{}, rigid = [], effect_origin = undefined,
                             inferring = [], requirement = [], signature = [],
                             definition = undefined},
@@ -1216,7 +1213,7 @@ restore_scope(Checked, Env) ->
     Checked#env{locals = Env#env.locals, effect = Env#env.effect, pending = Env#env.pending,
                 deferred = Env#env.deferred, annotation_variables = Env#env.annotation_variables,
                 rigid = Env#env.rigid, effect_origin = Env#env.effect_origin,
-                effectful = Env#env.effectful, inferring = Env#env.inferring,
+                inferring = Env#env.inferring,
                 requirement = Env#env.requirement, signature = Env#env.signature,
                 definition = Env#env.definition}.
 
@@ -1544,28 +1541,53 @@ with_requirement(Scheme, #scheme{requirement = Requirement}, TypeState) ->
                                         <- [ern_types:resolve({tvar, Id}, TypeState)]]}.
 
 %% Report §3.9, §4.6: a definition's scheme, generalized over its free
-%% variables, except a top-level let whose initializer calls a process-only
-%% function, which is not, and whose type may keep no variable.
-generalized(#let_declaration{span = Span, name = Name} = Declaration, Variable,
+%% variables, except a top-level let whose initializer is no value, which
+%% has the type its call gives, and whose type may keep no variable.
+generalized(#let_declaration{span = Span, name = Name, body = Body}, Variable,
             #env{type_state = TypeState} = Env) ->
-    case lists:member(declaration_key(Declaration), Env#env.effectful_lets) of
-        false ->
-            ern_types:generalize(Variable, TypeState);
+    %% INTERIM, until a plan item decides docs/language_feedback.md's item
+    %% 110: the standard library's Map.empty and Set.empty, whose
+    %% initializers call the host, are generalized though §4.6 generalizes
+    %% no call
+    case is_value_form(Body) orelse lists:member({Env#env.namespace, Name},
+                                                 [{['Map'], empty}, {['Set'], empty}]) of
         true ->
+            ern_types:generalize(Variable, TypeState);
+        false ->
             case ern_types:free_variables(Variable, TypeState) of
                 [] -> {ern_types:monomorphic(ern_types:substitute(Variable, TypeState)), TypeState};
                 _ -> fail(Span, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
                                 ++ ern_types:format(Variable, TypeState)
-                                ++ "), and a top-level `let` whose initializer calls a"
-                                " process-only function is not generalized; annotate it")
+                                ++ "), and a top-level `let` whose initializer is no value is"
+                                " not generalized; annotate it")
             end
     end;
 generalized(_, Variable, #env{type_state = TypeState}) ->
     ern_types:generalize(Variable, TypeState).
 
+%% Report §4.6: a value, which a top-level `let` generalizes: a literal, a
+%% name, a lambda, whose body is its own, or a constructor applied to
+%% values, the empty list, a list and a tuple among them; any other
+%% initializer is or holds a call.
+is_value_form(#e_literal{}) -> true;
+is_value_form(#e_var{}) -> true;
+is_value_form(#e_lambda{}) -> true;
+is_value_form(#e_constructor{base = Base, args = Args}) ->
+    (Base =:= undefined orelse is_value_form(Base)) andalso constructed_values(Args);
+is_value_form(#e_tuple{elements = Elements}) -> lists:all(fun is_value_form/1, Elements);
+is_value_form(#e_list{elements = Elements}) -> lists:all(fun is_value_form/1, Elements);
+is_value_form(#e_binop{operator = '::', left = Left, right = Right}) ->
+    is_value_form(Left) andalso is_value_form(Right);
+is_value_form(_) -> false.
+
+constructed_values(none) -> true;
+constructed_values({positional, Expr}) -> is_value_form(Expr);
+constructed_values({named, FieldSets}) ->
+    lists:all(fun(#field_set{expr = Expr}) -> is_value_form(Expr) end, FieldSets).
+
 %% Report §4.8: a member named by an operator has the type (T, T) -> R for
 %% its type T, T.compare the type (T, T) -> Ordering, and T.negate the type
-%% (T) -> R, each pure. T is the member's type with any type arguments, the
+%% (T) -> R, each receiving nothing. T is the member's type with any type arguments, the
 %% same in both parameters. In the module of a built-in type, the module's
 %% own operators, compare, and negate are the type's (§4.8, §9.6).
 member_shape(Declaration, #scheme{type = {tfn, Params, Effect, ResultType}} = Scheme, Env) ->
@@ -1574,11 +1596,12 @@ member_shape(Declaration, #scheme{type = {tfn, Params, Effect, ResultType}} = Sc
             ok;
         {TypeQualifiedName, Member} ->
             {Arity, Help} = case Member of
-                                negate -> {1, "negate takes one value of its type and is pure"};
+                                negate -> {1, "negate takes one value of its type and receives"
+                                              " nothing"};
                                 compare -> {2, "compare takes two values of its type, returns an"
-                                               " Ordering, and is pure"};
+                                               " Ordering, and receives nothing"};
                                 _ -> {2, "a member named by an operator takes two values of its"
-                                         " type and is pure"}
+                                         " type and receives nothing"}
                             end,
             {MemberOfType, TypeState} = case Params of
                                             [{tcon, TypeQualifiedName, _} = First | _] ->
@@ -1589,7 +1612,7 @@ member_shape(Declaration, #scheme{type = {tfn, Params, Effect, ResultType}} = Sc
                          compare -> {tcon, ['Ordering'], []};
                          _ -> ResultType
                      end,
-            Expected = {tfn, lists:duplicate(Arity, MemberOfType), pure, Result},
+            Expected = {tfn, lists:duplicate(Arity, MemberOfType), none, Result},
             case ern_types:substitute({tfn, Params, Effect, ResultType}, TypeState) =:= Expected of
                 true ->
                     ok;
@@ -1641,9 +1664,10 @@ early_compare_shape(Declaration, ResultAnnotation, {tfn, Params, _, ResultType},
             fail(ern_ast:span(ResultAnnotation),
                  ern_namespace:text([lists:last(TypeQualifiedName), compare])
                  ++ " must have the type "
-                 ++ Shown({tfn, [Self, Self], pure, {tcon, ['Ordering'], []}})
-                 ++ ", not " ++ Shown({tfn, Params, pure, ResultType}), [],
-                 "compare takes two values of its type, returns an Ordering, and is pure");
+                 ++ Shown({tfn, [Self, Self], none, {tcon, ['Ordering'], []}})
+                 ++ ", not " ++ Shown({tfn, Params, none, ResultType}), [],
+                 "compare takes two values of its type, returns an Ordering, and receives"
+                 " nothing");
         _ ->
             ok
     end.
@@ -2010,8 +2034,8 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
             _ -> annotation_type(Annotation, #{}, Env)
         end,
     %% report §4.6: a top-level initializer is a body of mailbox type Never,
-    %% which may spawn, send, and call, and may not receive
-    Env1 = Env#env{type_state = TypeState, effect = ?NEVER, effectful = false, pending = [],
+    %% which may spawn, send, and call, and receives no message
+    Env1 = Env#env{type_state = TypeState, effect = ?NEVER, pending = [],
                    deferred = [], annotation_variables = AnnotationVariables,
                    rigid = maps:to_list(AnnotationVariables),
                    definition = {'let', declaration_name(Declaration)},
@@ -2042,12 +2066,8 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
                {error, _} ->
                    Env2
            end,
-    EffectfulLets = case Env3#env.effectful of
-                        true -> [declaration_key(Declaration) | Env#env.effectful_lets];
-                        false -> Env#env.effectful_lets
-                    end,
     {Declaration#let_declaration{body = TypedBody}, post(Span, BodyType, Env3),
-     (restore_scope(Env3, Env))#env{effectful_lets = EffectfulLets}};
+     restore_scope(Env3, Env)};
 check_value(#foreign_fn_declaration{span = Span, params = Params, implementation = Implementation,
                                     implementation_span = ImplementationSpan} = Declaration,
             _Placeholder, Env) ->
@@ -2184,8 +2204,8 @@ mark_process_only(FunctionType, TypeState) ->
                 end, TypeState, Both).
 
 %% Report §11.5: the labels an error carries. A result annotation is the
-%% origin of the body's expected type; a `with` or a bare `->` is the
-%% origin of the function's effect.
+%% origin of the body's expected type; a `receiving`, or a result type
+%% without one, is the origin of the function's effect.
 %% Report §3.9, §11.5: a fn's body against its result type. An annotated
 %% one is checked against the annotation. An unannotated one is inferred
 %% against a variable of its own, since its result type is no fresh one:
@@ -2219,12 +2239,13 @@ effect_origin(_Name, undefined, undefined, _ResultType, _EffectType, _TypeState)
 effect_origin(Name, ResultAnnotation, undefined, ResultType, _EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(ResultAnnotation),
                    label = "`: " ++ ern_types:format(ResultType, TypeState)
-                           ++ "` with no `with` declares " ++ Name ++ " pure",
-                   help = "give " ++ Name ++ " a mailbox type with `with`"};
+                           ++ "` without `receiving` declares that " ++ Name
+                           ++ " receives nothing",
+                   help = "give " ++ Name ++ " its mailbox type with `receiving`"};
 effect_origin(Name, _ResultAnnotation, Effect, _ResultType, EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(Effect),
-                   label = Name ++ " is declared `with " ++ ern_types:format(EffectType, TypeState)
-                           ++ "` here"}.
+                   label = Name ++ " is declared `receiving "
+                           ++ ern_types:format(EffectType, TypeState) ++ "` here"}.
 
 declaration_name(Declaration) ->
     {MemberOf, Name} = declaration_key(Declaration),
@@ -2267,9 +2288,9 @@ post_checks(Declaration,
                         definition = Env#env.definition}}.
 
 %% Report §4.5, §3.9: a `fn` whose result annotation writes an effect
-%% variable that names no parameter's effect, and whose body acts through
-%% no process, is pure, and is written so: the variable would be pure at
-%% every call, and the printed type already leaves it out.
+%% variable that names no parameter's mailbox type, and whose body
+%% receives nothing, receives nothing, and is written so: the variable
+%% would be none at every call, and the printed type already leaves it out.
 needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
                                 effect = #t_var{span = EffectSpan, name = Written}},
                 Type, #env{type_state = TypeState}) ->
@@ -2283,9 +2304,10 @@ needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
                     ok;
                 false ->
                     Declared = local_name(MemberOf, Name),
-                    fail(EffectSpan, Declared ++ " acts through no process, and `with "
-                                     ++ atom_to_list(Written) ++ "` names no parameter's effect",
-                         [], "write " ++ Declared ++ "'s type without `with`: it is pure")
+                    fail(EffectSpan, Declared ++ " receives nothing, and `receiving "
+                                     ++ atom_to_list(Written)
+                                     ++ "` names no parameter's mailbox type",
+                         [], "write " ++ Declared ++ "'s type without `receiving`")
             end;
         _ ->
             ok
@@ -3223,9 +3245,9 @@ is_in_force(TypeVariable, Member, #env{requirement = Requirement, type_state = T
 member_arity(negate) -> 1;
 member_arity(_) -> 2.
 
-member_shape_at(compare, Type) -> {tfn, [Type, Type], pure, {tcon, ['Ordering'], []}};
-member_shape_at(negate, Type) -> {tfn, [Type], pure, Type};
-member_shape_at(_Operator, Type) -> {tfn, [Type, Type], pure, Type}.
+member_shape_at(compare, Type) -> {tfn, [Type, Type], none, {tcon, ['Ordering'], []}};
+member_shape_at(negate, Type) -> {tfn, [Type], none, Type};
+member_shape_at(_Operator, Type) -> {tfn, [Type, Type], none, Type}.
 
 %% The name a use of a declaration is reported under, a member with its
 %% type's.
@@ -3588,7 +3610,7 @@ constructor_field_type(Span, Field, Type, Shown,
             fail(Span, "not every constructor of " ++ Shown ++ " has the field "
                        ++ atom_to_list(Field) ++ ": " ++ atom_to_list(Constructor) ++ " has none");
         Index ->
-            {{tfn, FieldTypes, pure, Constructed}, TypeState1} =
+            {{tfn, FieldTypes, none, Constructed}, TypeState1} =
                 ern_types:instantiate(Scheme, Env#env.type_state),
             %% Constructed is Type's constructor applied to fresh variables
             Env1 = bound(Type, Constructed, Env#env{type_state = TypeState1}),
@@ -3783,14 +3805,15 @@ declared_scheme(Namespace, Name, Env) ->
 %% Expressions: infer(Expr, Env) -> {TypedExpr, Type, Env}
 %%
 
-%% Report §3.9: a pure function stands where one with a mailbox type is
-%% expected, so an expression whose type is a pure function type takes a
-%% fresh effect variable in its outermost arrow, which the context binds.
+%% Report §3.9: a function that receives nothing stands where one with a
+%% mailbox type is expected, so an expression whose type is a function type
+%% without one takes a fresh effect variable in its outermost arrow, which
+%% the context binds.
 open_effect(Type, TypeState) ->
     case ern_types:resolve(Type, TypeState) of
         {tfn, Params, Effect, Result} ->
             case ern_types:resolve(Effect, TypeState) of
-                pure ->
+                none ->
                     {Fresh, TypeState1} = ern_types:fresh(TypeState),
                     {{tfn, Params, Fresh, Result}, TypeState1};
                 _ -> {Type, TypeState}
@@ -3839,7 +3862,7 @@ infer(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name,
         {none, _} ->
             fail(Span, atom_to_list(Name) ++ " takes no fields");
         {positional, {positional, Arg}} ->
-            {tfn, [FieldType], pure, Constructed} = ConstructorType,
+            {tfn, [FieldType], none, Constructed} = ConstructorType,
             {TypedArg, _ArgType, Env2} = check_expr(Arg, FieldType,
                                                     "the field of " ++ atom_to_list(Name),
                                                     undefined, Env1),
@@ -3852,7 +3875,7 @@ infer(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name,
         {positional, {named, _}} ->
             fail(Span, atom_to_list(Name) ++ " has one positional field, not named fields");
         {{named, Names}, {named, FieldSets}} ->
-            {tfn, FieldTypes, pure, Constructed} = ConstructorType,
+            {tfn, FieldTypes, none, Constructed} = ConstructorType,
             Base =:= undefined orelse one_constructor(Span, ConstructorInfo, Env1),
             case fill_namespace(Base, Env1) of
                 {namespace, Namespace} ->
@@ -4035,14 +4058,15 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
     ResultOrigin = result_origin(ResultAnnotation, ResultType, Env2),
     {TypedBody, _BodyType, Env3} = check_expr(Body, ResultType, Rule, ResultOrigin, Env2),
     rigid_annotation_variables(LambdaSpan, New, Env3),
-    %% the body was checked as the annotation says; a lambda written pure
-    %% stands where one with a mailbox type is expected, as any expression
-    %% of a pure function type does (report §3.9)
+    %% the body was checked as the annotation says; a lambda written
+    %% without `receiving` stands where one with a mailbox type is
+    %% expected, as any expression of such a function type does (report
+    %% §3.9)
     {Opened, TypeState1} = open_effect(Type, Env3#env.type_state),
     {Expr#e_lambda{params = TypedParams, body = TypedBody, type = Type}, Opened,
      Env3#env{type_state = TypeState1, locals = Env#env.locals, effect = Env#env.effect,
               annotation_variables = Env#env.annotation_variables,
-              effect_origin = Env#env.effect_origin, effectful = Env#env.effectful,
+              effect_origin = Env#env.effect_origin,
               generalizing = false, rigid = Env#env.rigid}};
 infer(Expr, Env) when is_record(Expr, e_if); is_record(Expr, e_match); is_record(Expr, e_receive) ->
     {Type, TypeState} = ern_types:fresh(Env#env.type_state),
@@ -4050,15 +4074,15 @@ infer(Expr, Env) when is_record(Expr, e_if); is_record(Expr, e_match); is_record
 
 %% Report §3.11, Appendix E.28: `Code.running(f)` answers the addresses of
 %% processes whose mailbox type is f's, the effect of f where the call
-%% names it; what f may be is read once the definition is inferred
-%% (ern_bound), where a pure f is refused.
+%% names it, and a variable nothing fixes where f receives nothing; what f
+%% may be is read once the definition is inferred (ern_bound).
 running_mailbox(#e_var{referent = #remote_declaration{namespace = ['Code'],
                                                             member_of = undefined,
                                                             name = running}},
                 [Function], ResultType, #env{type_state = TypeState} = Env) ->
     case {ern_types:resolve(node_type(Function), TypeState),
           ern_types:resolve(ResultType, TypeState)} of
-        {{tfn, _, Effect, _}, {tcon, ['List'], [Address]}} when Effect =/= pure ->
+        {{tfn, _, Effect, _}, {tcon, ['List'], [Address]}} when Effect =/= none ->
             %% the call's mailbox type is a fresh variable of its scheme's
             {tcon, ['Address'], [Mailbox]} = ern_types:resolve(Address, TypeState),
             bound(Mailbox, Effect, Env);
@@ -4390,25 +4414,23 @@ argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
         false -> "the argument does not fit " ++ Name
     end.
 
-%% A callee's effect: pure constrains nothing; anything else is the
-%% enclosing function's effect.
+%% A callee's effect: one that receives nothing constrains nothing;
+%% anything else is the enclosing function's effect (report §6.1).
 use_effect(Span, Name, Effect,
            #env{type_state = TypeState, effect = Have, effect_origin = Origin} = Env) ->
     case ern_types:resolve(Effect, TypeState) of
-        pure -> Env;
-        Resolved ->
+        none -> Env;
+        _ ->
             case ern_types:unify(Have, Effect, TypeState) of
                 {ok, TypeState1} ->
-                    %% report §3.9, §4.6: a call of a process-only function,
-                    %% not one whose effect is still open
-                    Env#env{type_state = TypeState1,
-                            effectful = Env#env.effectful orelse process_only(Resolved, TypeState)};
+                    Env#env{type_state = TypeState1};
                 {error, {mismatch, _, _}} ->
                     fail(Span, Name ++ " needs mailbox " ++ ern_types:format(Effect, TypeState)
                                ++ ", and the mailbox here is " ++ ern_types:format(Have, TypeState),
                          labels(Origin), undefined);
                 {error, _Reason} ->
-                    fail(Span, Name ++ " needs a process, and " ++ what(Origin) ++ " is pure",
+                    fail(Span, Name ++ " needs a mailbox, and " ++ what(Origin)
+                               ++ " receives nothing",
                          labels(Origin), help(Origin))
             end
     end.
@@ -4420,18 +4442,15 @@ never_receives(Span, #effect_origin{what = top_let, help = Help} = Origin) ->
     fail(Span, "a top-level initializer runs with mailbox Never and cannot receive",
          labels(Origin), Help);
 never_receives(Span, #effect_origin{what = Name} = Origin) ->
-    %% report §11.5: the function named, and the `with` that fixed its
+    %% report §11.5: the function named, and the `receiving` that fixed its
     %% mailbox labeled
     fail(Span, Name ++ " is declared with mailbox Never and cannot receive", labels(Origin),
          "only an `after` clause is allowed; give " ++ Name ++ " another mailbox type with"
-         " `with`");
+         " `receiving`");
 never_receives(Span, _) ->
     fail(Span, "a function with mailbox Never cannot receive", [],
-         "only an `after` clause is allowed; give the function another mailbox type with `with`").
-
-process_only({tvar, Id}, TypeState) ->
-    lists:member(process_only, ern_types:restrictions(Id, TypeState));
-process_only(_, _) -> true.
+         "only an `after` clause is allowed; give the function another mailbox type with"
+         " `receiving`").
 
 labels(undefined) -> [];
 labels(Origins) when is_list(Origins) -> lists:append([labels(Origin) || Origin <- Origins]);
@@ -4452,7 +4471,7 @@ twice(Fields, Verb) ->
                  [{ern_diagnostic:span(First), "first " ++ Verb ++ " here"}], undefined)
     end.
 
-help(undefined) -> "give the function a mailbox type with `with`";
+help(undefined) -> "give the function its mailbox type with `receiving`";
 help(#effect_origin{help = Help}) -> Help.
 
 infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env)
@@ -4699,8 +4718,8 @@ declared_fields(QualifiedName, Args, Env) ->
 %% The enclosing function's effect must be a mailbox type here.
 mailbox_type(Span, Env) ->
     case ern_types:resolve(Env#env.effect, Env#env.type_state) of
-        pure -> fail(Span, "`receive` needs a process, and " ++ what(Env#env.effect_origin)
-                           ++ " is pure",
+        none -> fail(Span, "`receive` needs a mailbox, and " ++ what(Env#env.effect_origin)
+                           ++ " receives nothing",
                      labels(Env#env.effect_origin), help(Env#env.effect_origin));
         {tvar, _} = Variable ->
             {Mailbox, TypeState} = ern_types:fresh(Env#env.type_state, [process_only]),
@@ -4734,14 +4753,15 @@ check_clause(Kind, #clause{pattern = Pattern, guard = Guard, body = Body} = Clau
     {Clause#clause{pattern = TypedPattern, guard = TypedGuard, body = TypedBody},
      Env5#env{locals = Env#env.locals}}.
 
-%% Report §5.9: a guard is pure; a receive's is a guard expression (§6.3).
+%% Report §5.9: a guard receives nothing; a receive's is a guard
+%% expression (§6.3).
 check_guard(_Kind, undefined, Env) ->
     {undefined, Env};
 check_guard(Kind, Guard, Env) ->
     Origin = #effect_origin{what = "a guard", span = ern_ast:span(Guard),
-                            label = "a guard is pure (§5.9)",
+                            label = "a guard receives nothing (§5.9)",
                             help = "compute the value before the match"},
-    Guarded = Env#env{effect = pure, effect_origin = Origin},
+    Guarded = Env#env{effect = none, effect_origin = Origin},
     {TypedGuard, _, GuardEnv} = check_expr(Guard, ?BOOL, "a guard is a Bool", undefined, Guarded),
     GuardEnv1 = case Kind of
                     'receive' -> receive_guard(TypedGuard, GuardEnv);
@@ -5163,7 +5183,7 @@ infer_pattern(#p_constructor{span = Span, namespace = Namespace, name = Name,
         {none, _} ->
             fail(Span, atom_to_list(Name) ++ " takes no fields");
         {positional, {positional, SubPattern}} ->
-            {tfn, [FieldType], pure, Constructed} = ConstructorType,
+            {tfn, [FieldType], none, Constructed} = ConstructorType,
             {TypedSubPattern, SubType, Bindings, Env2} = infer_pattern(SubPattern, Env1),
             Env3 = unify_at(Span, FieldType, SubType, Env2, "the field of " ++ atom_to_list(Name)),
             {Pattern#p_constructor{args = {positional, TypedSubPattern}, type = Constructed},
@@ -5172,7 +5192,7 @@ infer_pattern(#p_constructor{span = Span, namespace = Namespace, name = Name,
             fail(Span, atom_to_list(Name) ++ " has one positional field; write "
                        ++ atom_to_list(Name) ++ "(p)");
         {{named, Names}, {named, FieldPatterns}} ->
-            {tfn, FieldTypes, pure, Constructed} = ConstructorType,
+            {tfn, FieldTypes, none, Constructed} = ConstructorType,
             twice([{FieldName, FieldSpan}
                    || #field_pattern{span = FieldSpan, name = FieldName} <- FieldPatterns],
                   "matched"),
@@ -5299,11 +5319,12 @@ bit_pattern(#bit_segment{span = Span, value = SegmentValue, specs = Specs} = Seg
         #p_literal{kind = Kind, value = Value} -> literal_fits(SegmentValue, Kind, Value, Spec);
         _ -> fail(ern_ast:span(SegmentValue), "a segment pattern is a variable, `_`, or a literal")
     end,
-    %% a size expression is pure and sees the earlier segments (report §5.11)
+    %% a size expression receives nothing and sees the earlier segments
+    %% (report §5.11)
     Origin = #effect_origin{what = "a size expression", span = Span,
-                            label = "a size expression is pure",
+                            label = "a size expression receives nothing",
                             help = "compute the size before the match"},
-    Scoped = bind_locals(Bindings, Env#env{effect = pure, effect_origin = Origin}),
+    Scoped = bind_locals(Bindings, Env#env{effect = none, effect_origin = Origin}),
     {TypedSpecs, Scoped1} = check_sizes(Specs, Scoped),
     lists:foreach(fun({size, SizeExpr}) -> size_shape(SizeExpr, Scoped1);
                      (_) -> ok
@@ -5909,7 +5930,7 @@ declared_text(#foreign_type_declaration{name = Name}) -> atom_to_list(Name);
 declared_text(Declaration) -> declaration_name(Declaration).
 
 scheme_type(#scheme{type = Type}, Env) -> resolve_type(Type, Env);
-scheme_type(_, _) -> pure.
+scheme_type(_, _) -> none.
 
 constructor_tcons(#type_info{constructors = Constructors}, Env) ->
     lists:append([tcons(scheme_type(Scheme, Env))
@@ -5951,8 +5972,8 @@ exported_value(_, _) -> false.
 is_value(QualifiedName, #env{lets = Lets}) ->
     maps:is_key(QualifiedName, Lets).
 
-%% A type, or an effect, which may be pure, as the substitution makes it.
--spec resolve_type(ern_types:type() | pure, env()) -> ern_types:type() | pure.
+%% A type, or an effect, which may be none, as the substitution makes it.
+-spec resolve_type(ern_types:type() | none, env()) -> ern_types:type() | none.
 resolve_type(Type, #env{type_state = TypeState}) -> ern_types:substitute(Type, TypeState).
 
 -spec node_type(tuple()) -> ern_types:type().
@@ -6049,13 +6070,14 @@ differing_help(_, _, _, _) -> undefined.
 unify_message(Rule, {mismatch, _, _}, Expected, Actual, TypeState) ->
     {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, TypeState),
     lists:flatten([Rule, ": expected ", ExpectedText, ", found ", ActualText]);
-unify_message(Rule, Reason, _, _, _) when Reason =:= pure_where_process_needed;
-                                              Reason =:= process_where_pure_needed ->
+unify_message(Rule, Reason, _, _, _) when Reason =:= none_where_mailbox_needed;
+                                              Reason =:= mailbox_where_none_needed ->
     lists:flatten([Rule, ": ", ern_types:format_error(Reason)]);
-unify_message(Rule, {pure_vs_effect, _}, Expected, Actual, TypeState) ->
+unify_message(Rule, {none_vs_mailbox, _}, Expected, Actual, TypeState) ->
     {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, TypeState),
     lists:flatten([Rule, ": expected ", ExpectedText, ", found ", ActualText,
-                   " (a pure function and one with a mailbox effect do not match)"]);
+                   " (a function that receives nothing and one that receives do not"
+                   " match)"]);
 unify_message(Rule, Reason, Expected, Actual, TypeState) ->
     lists:flatten([Rule, ": ", ern_types:format_error(Reason), " (",
                    ern_types:format(Expected, TypeState), " against ",

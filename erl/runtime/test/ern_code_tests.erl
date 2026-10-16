@@ -121,12 +121,12 @@ linkable_test() ->
 spawnable_test() ->
     Beam = loaded(['Tablespawn'],
                   "let note : Int = 1\n"
-                  "foreign fn now() : Int with m = \"erlang:monotonic_time/0\"\n"
-                  "fn noted() : Unit with Never = { let _ = note + now(); Unit }\n"
-                  "export fn calls() : Unit with Never = noted()\n"
-                  "export fn start(n : Int) : Either(Io.Error, Address(Never)) with m = {\n"
+                  "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
+                  "fn noted() : Unit = { let _ = note + now(); Unit }\n"
+                  "export fn calls() : Unit = noted()\n"
+                  "export fn start(n : Int) : Either(Io.Error, Address(Never)) = {\n"
                   "    let _ = calls;\n"
-                  "    Peer.spawn(\"p\", fn() : Unit with Never = { let _ = n; Unit }, 100)\n"
+                  "    Peer.spawn(\"p\", fn() = { let _ = n; Unit }, 100)\n"
                   "}\n"),
     Definitions = definitions(Beam),
     Unit = 'ern@tablespawn',

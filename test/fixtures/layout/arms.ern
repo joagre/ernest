@@ -47,7 +47,7 @@ fn chosen(line : String, first : Int) : Int =
       | _ -> 3
     }
 
-fn waited() : Int with Msg =
+fn waited() : Int receiving Msg =
     receive {
         Ping -> 1
       | after 2000 -> {

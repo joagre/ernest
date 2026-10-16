@@ -43,7 +43,7 @@
 /// Utilization.runQueue() >= 0
 /// // => true
 /// ```
-export fn runQueue() : Int with m =
+export fn runQueue() : Int =
     count(Foreign.atom("total_run_queue_lengths"))
 
 /// The fraction of the schedulers' time spent running processes over a
@@ -60,7 +60,7 @@ export fn runQueue() : Int with m =
 /// }
 /// // => true
 /// ```
-export fn schedulers(window : Int) : Float with m = {
+export fn schedulers(window : Int) : Float receiving m = {
     let flag = Foreign.atom("scheduler_wall_time");
     let _ = setFlag(flag, Foreign.term(true));
     let first = wallTimes(flag);
@@ -106,7 +106,7 @@ fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
 /// Utilization.cpu()
 /// // => None
 /// ```
-export fn cpu() : Optional(Float) with m =
+export fn cpu() : Optional(Float) =
     if runs("cpu_sup") then Some(cpuPercent() / 100.0) else None
 
 /// The fraction of the machine's memory in use, from 0.0 to 1.0, by the
@@ -119,7 +119,7 @@ export fn cpu() : Optional(Float) with m =
 /// Utilization.memory()
 /// // => None
 /// ```
-export fn memory() : Optional(Float) with m =
+export fn memory() : Optional(Float) =
     if runs("memsup") then {
         let data = memoryData();
         let total = valued(data, "total_memory");
@@ -151,7 +151,7 @@ fn valued(data : List(#(Foreign.Term, Int)), name : String) : Int = {
 /// Utilization.disk()
 /// // => None
 /// ```
-export fn disk() : Optional(Float) with m =
+export fn disk() : Optional(Float) =
     if runs("disksup") then
         Some(Int.toFloat(List.foldLeft(diskData(),
                                        0,
@@ -161,7 +161,7 @@ export fn disk() : Optional(Float) with m =
         None
 
 // Whether the host's service runs on the node, by its registered name.
-fn runs(service : String) : Bool with m =
+fn runs(service : String) : Bool =
     registered(Foreign.atom(service)) != Foreign.atom("undefined")
 
 //
@@ -187,26 +187,26 @@ let schedulersTakeBack =
 // The host's functions
 //
 
-foreign fn count(item : Foreign.Term) : Int with m =
+foreign fn count(item : Foreign.Term) : Int =
     "erlang:statistics/1"
 
-foreign fn wallTimes(item : Foreign.Term) : List(#(Int, Int, Int)) with m =
+foreign fn wallTimes(item : Foreign.Term) : List(#(Int, Int, Int)) =
     "erlang:statistics/1"
 
-foreign fn statistic(item : Foreign.Term) : Foreign.Term with m =
+foreign fn statistic(item : Foreign.Term) : Foreign.Term =
     "erlang:statistics/1"
 
-foreign fn setFlag(flag : Foreign.Term, value : Foreign.Term) : Bool with m =
+foreign fn setFlag(flag : Foreign.Term, value : Foreign.Term) : Bool =
     "erlang:system_flag/2"
 
-foreign fn registered(name : Foreign.Term) : Foreign.Term with m =
+foreign fn registered(name : Foreign.Term) : Foreign.Term =
     "erlang:whereis/1"
 
-foreign fn cpuPercent() : Float with m =
+foreign fn cpuPercent() : Float =
     "cpu_sup:util/0"
 
-foreign fn memoryData() : List(#(Foreign.Term, Int)) with m =
+foreign fn memoryData() : List(#(Foreign.Term, Int)) =
     "memsup:get_system_memory_data/0"
 
-foreign fn diskData() : List(#(Foreign.Term, Int, Int)) with m =
+foreign fn diskData() : List(#(Foreign.Term, Int, Int)) =
     "disksup:get_disk_data/0"

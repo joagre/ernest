@@ -36,7 +36,7 @@ let services : Address(Supervisor.Msg) =
 
 let store : Address(StoreMsg) = spawn(Supervisor.child(services, fn() = storing(Map.empty)))
 
-fn storing(items : Map(String, Int)) : Unit with StoreMsg =
+fn storing(items : Map(String, Int)) : Unit receiving StoreMsg =
     receive {
         Put(key = key, value = value) -> storing(Map.put(items, key, value))
       | Get(key = key, reply = reply) -> {
@@ -48,7 +48,7 @@ fn storing(items : Map(String, Int)) : Unit with StoreMsg =
 
 let ids : Address(IdMsg) = spawn(Supervisor.child(services, fn() = counting(1)))
 
-fn counting(next : Int) : Unit with IdMsg =
+fn counting(next : Int) : Unit receiving IdMsg =
     receive {
         NextId(reply = reply) -> {
             answer(reply, next);
@@ -58,7 +58,7 @@ fn counting(next : Int) : Unit with IdMsg =
 
 let audit : Address(AuditMsg) = spawn(Supervisor.child(services, fn() = recording([])))
 
-fn recording(entries : List(String)) : Unit with AuditMsg =
+fn recording(entries : List(String)) : Unit receiving AuditMsg =
     receive {
         Record(entry) -> recording(entries <> [entry])
       | Entries(reply = reply) -> {
@@ -67,7 +67,7 @@ fn recording(entries : List(String)) : Unit with AuditMsg =
         }
     }
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     put("apples", 3);
     put("pears", 5);
     report("before");
@@ -75,13 +75,13 @@ export fn main() : Unit with Never = {
     report("after the restart")
 }
 
-fn put(key : String, value : Int) : Unit with m = {
+fn put(key : String, value : Int) : Unit = {
     let id = Address.callForever(ids, fn(reply) = NextId(reply = reply));
     send(store, Put(key = key, value = value));
     send(audit, Record(Int.toString(id) <> ": put " <> key))
 }
 
-fn report(label : String) : Unit with m = {
+fn report(label : String) : Unit = {
     let apples = match stored("apples") {
         Some(count) -> Int.toString(count)
       | None -> "none"
@@ -101,7 +101,7 @@ fn report(label : String) : Unit with m = {
 // The store's value for a key. A call waiting on the store when it faults ends (report
 // §6.6), and one made again is answered once its group has restarted whole (Appendix
 // E.22), so the services asked after it answer from their first state too.
-fn stored(key : String) : Optional(Int) with m =
+fn stored(key : String) : Optional(Int) =
     match Address.call(store, fn(reply) = Get(key = key, reply = reply), 1000) {
         Some(value) -> value
       | None -> stored(key)

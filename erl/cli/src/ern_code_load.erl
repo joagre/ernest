@@ -35,6 +35,11 @@
 
 -export([load/1]).
 
+%% Report §8.6: Code.load reads files, loads code through the host's code
+%% server and evaluates bindings, so the emitter counts it as foreign code
+%% while it runs.
+-waits([load/1]).
+
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 

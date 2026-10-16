@@ -64,7 +64,7 @@
 ;;; checks them against the lexer's.
 
 (defconst ernest-reserved-words
-  '("type" "abstract" "with" "foreign" "match" "when" "receive" "after"
+  '("type" "abstract" "receiving" "foreign" "match" "when" "receive" "after"
     "or" "as" "if" "then" "else" "fn" "let" "export")
   "Ernest's reserved words, report §2.4, but `true' and `false'.")
 
@@ -231,10 +231,10 @@ A broken buffer, whose brackets never close, ends the walk there.")
 
 (defconst ernest--continuation-re
   (concat "\\(?:[-+*%=]\\|/[^/*]\\|<[^<]\\|>[^>]\\|!=\\|&&\\|||\\||>\\|::"
-          "\\|\\_<with\\_>\\)")
+          "\\|\\_<receiving\\_>\\)")
   "What a line opens with when it carries the line above on.
 That is a binary operator of report section 2.6, or the `->', `=' or
-`with' of a signature broken over lines.  `//' and `/*' open comments,
+`receiving' of a signature broken over lines.  `//' and `/*' open comments,
 and `<<' and `>>' are brackets.")
 
 (defun ernest--line-empty-p ()

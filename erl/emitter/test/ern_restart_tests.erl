@@ -9,7 +9,7 @@
 %% restart is lost with the mailbox (report §6.9), so a test that restarts
 %% a process sends it the next message only after this.
 -define(UP,
-        "fn up(s : Address(Msg)) : Bool with m =\n"
+        "fn up(s : Address(Msg)) : Bool =\n"
         "    match Address.call(s, fn(r) = Ping(reply = r), 1000) {\n"
         "        Some(_) -> true\n"
         "      | None -> Process.status(Process.fromAddress(s)) != None && up(s)\n"
@@ -24,16 +24,16 @@
 restart_keeps_address_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Bump | Crash | Get(reply : Reply(Int)) | Ping(reply : Reply(Unit))\n"
-        "fn loop(n : Int) : Unit with Msg = receive {\n"
+        "fn loop(n : Int) : Unit receiving Msg = receive {\n"
         "    Bump -> loop(n + 1)\n"
         "  | Crash -> fault(\"crash\")\n"
         "  | Get(reply = r) -> { answer(r, n); loop(n) }\n"
         "  | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
         "}\n"
         ++ ?UP ++
-        "export fn main() : Unit with Never = {\n"
+        "export fn main() : Unit = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(restarting(limit, fn() : Unit with Msg = loop(0)));\n"
+        "    let s = spawn(restarting(limit, fn() : Unit receiving Msg = loop(0)));\n"
         "    send(s, Bump);\n"
         "    send(s, Crash);\n"
         "    let _ = up(s);\n"
@@ -53,19 +53,19 @@ restart_limit_test() ->
     Program = fun(Restarts) ->
         "type Msg = Crash | Ping(reply : Reply(Unit))\n"
         "type MainMsg = Died(Down)\n"
-        "fn loop(n : Int) : Unit with Msg =\n"
+        "fn loop(n : Int) : Unit receiving Msg =\n"
         "    receive {\n"
         "        Crash -> fault(Int.toString(n))\n"
         "      | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
         "    }\n"
-        "fn count() : Unit with Msg = {\n"
+        "fn count() : Unit receiving Msg = {\n"
         "    Io.println(\"start\");\n"
         "    loop(1)\n"
         "}\n"
-        "foreign fn delivered(process : Process) : Foreign.Term with m =\n"
+        "foreign fn delivered(process : Process) : Foreign.Term =\n"
         "    \"ern_waits:delivered/1\"\n"
         ++ ?UP ++
-        "export fn main() : Unit with MainMsg = {\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
         "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
         "    let s = spawnMonitored(restarting(limit, count), Died);\n"
         "    let _ = up(s);\n"
@@ -94,17 +94,17 @@ restart_unlimited() ->
     Program = fun(Limit, Body, Crashes) ->
         "type Msg = Crash | Stop | Ping(reply : Reply(Unit))\n"
         "type MainMsg = Died(Down)\n"
-        "fn loop() : Unit with Msg =\n"
+        "fn loop() : Unit receiving Msg =\n"
         "    receive {\n"
         "        Crash -> fault(\"crash\")\n"
         "      | Stop -> Unit\n"
         "      | Ping(reply = r) -> { answer(r, Unit); loop() }\n"
         "    }\n"
-        "fn boom() : Unit with Msg = fault(\"boom\")\n"
+        "fn boom() : Unit receiving Msg = fault(\"boom\")\n"
         ++ ?UP ++
-        "fn crash(s : Address(Msg), left : Int) : Unit with m =\n"
+        "fn crash(s : Address(Msg), left : Int) : Unit =\n"
         "    if left == 0 || !up(s) then Unit else { send(s, Crash); crash(s, left - 1) }\n"
-        "export fn main() : Unit with MainMsg = {\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
         "    let s = spawnMonitored(restarting(" ++ Limit ++ ", " ++ Body ++ "), Died);\n"
         "    crash(s, " ++ Crashes ++ ");\n"
         "    if up(s) then send(s, Stop) else Unit;\n"
@@ -124,16 +124,16 @@ restart_empties_the_mailbox_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Add(n : Int, reply : Reply(Int)) | Total(reply : Reply(Int)) | Plain(Int)"
         " | Busy\n"
-        "fn count(total : Int) : Unit with Msg =\n"
+        "fn count(total : Int) : Unit receiving Msg =\n"
         "    receive {\n"
         "        Add(n = n, reply = r) -> { answer(r, total + n); count(total + n) }\n"
         "      | Total(reply = r) -> { answer(r, total); count(total) }\n"
         "      | Plain(n) -> count(total + n)\n"
         "      | Busy -> { spin(Clock.monotonic() + 200); fault(\"busy\") }\n"
         "    }\n"
-        "fn spin(until : Int) : Unit with m =\n"
+        "fn spin(until : Int) : Unit =\n"
         "    if Clock.monotonic() >= until then Unit else spin(until)\n"
-        "export fn main() : Unit with Never = {\n"
+        "export fn main() : Unit = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
         "    let s = spawn(restarting(limit, fn() = count(0)));\n"
         "    send(s, Busy);\n"
@@ -158,9 +158,9 @@ restart_cancels_what_it_asked_for() ->
         "type Msg = Heard | Ask(Address(Int)) | Crash | Ping(reply : Reply(Unit))"
         " | Count(reply : Reply(Int))\n"
         "type MainMsg = Gone(Down) | Report(Process.FaultReport)\n"
-        "foreign fn delivered(process : Process) : Foreign.Term with m =\n"
+        "foreign fn delivered(process : Process) : Foreign.Term =\n"
         "    \"ern_waits:delivered/1\"\n"
-        "fn loop(n : Int) : Unit with Msg =\n"
+        "fn loop(n : Int) : Unit receiving Msg =\n"
         "    receive {\n"
         "        Heard -> loop(n + 1)\n"
         "      | Ask(other) -> { " ++ Ask ++ "; loop(n) }\n"
@@ -169,10 +169,10 @@ restart_cancels_what_it_asked_for() ->
         "      | Count(reply = r) -> { answer(r, n); loop(n) }\n"
         "    }\n"
         ++ ?UP ++
-        "export fn main() : Unit with MainMsg = {\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
         "    let s = spawn(restarting(limit, fn() = loop(0)));\n"
-        "    let other = spawn(fn() : Unit with Int = receive { _ -> Unit });\n"
+        "    let other = spawn(fn() : Unit receiving Int = receive { _ -> Unit });\n"
         "    send(s, Ask(other));\n"
         "    send(s, Crash);\n"
         "    let _ = up(s);\n"
@@ -195,7 +195,7 @@ restart_cancels_what_it_asked_for() ->
                  ern_emitter_tests:run(
                      Program("Process.faults(fn(_) = Heard)",
                              "Process.faults(Report);"
-                             " let _ = spawn(fn() : Unit with Never = fault(\"other\"));"
+                             " let _ = spawn(fn() = fault(\"other\"));"
                              " receive { Report(_) -> Unit }"))).
 
 %% report §6.9: returning and a kill end a restarting process as they end
@@ -204,8 +204,8 @@ restart_only_on_fault_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Stop\n"
         "type MainMsg = Died(Down)\n"
-        "fn waits() : Unit with Msg = receive { Stop -> Unit }\n"
-        "export fn main() : Unit with MainMsg = {\n"
+        "fn waits() : Unit receiving Msg = receive { Stop -> Unit }\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
         "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
         "    let a = spawnMonitored(restarting(limit, waits), Died);\n"
         "    send(a, Stop);\n"
@@ -225,7 +225,7 @@ restart_only_on_fault_test() ->
 %% restart a supervisor asks for, which §6.9 gives to the outer function
 nested_restarting_test() ->
     {Result, Output} = ern_emitter_tests:run(
-        "export fn main() : Unit with Never =\n"
+        "export fn main() : Unit =\n"
         "    restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
         "        Io.println(\"outer\");\n"
         "        restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"

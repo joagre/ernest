@@ -123,19 +123,19 @@ costs() ->
     ["// make bench's fourth part (test/ern_code_costs.erl): MVP 3.2's costs,\n"
      "// measured from a node that lists the peers its arguments name.\n"
      "\n"
-     "foreign fn traced() : Unit with m = \"ern_code_probe:traced/0\"\n"
+     "foreign fn traced() : Unit = \"ern_code_probe:traced/0\"\n"
      "\n"
-     "foreign fn steps() : List(String) with m = \"ern_code_probe:read/0\"\n"
+     "foreign fn steps() : List(String) = \"ern_code_probe:read/0\"\n"
      "\n"
-     "foreign fn counts() : String with m = \"ern_code_probe:counts/0\"\n"
+     "foreign fn counts() : String = \"ern_code_probe:counts/0\"\n"
      "\n"
-     "foreign fn window() : Unit with m = \"ern_code_probe:window/0\"\n"
+     "foreign fn window() : Unit = \"ern_code_probe:window/0\"\n"
      "\n"
-     "foreign fn windowed() : List(String) with m = \"ern_code_probe:windowed/0\"\n"
+     "foreign fn windowed() : List(String) = \"ern_code_probe:windowed/0\"\n"
      "\n"
-     "foreign fn picks(count : Int) : Int with m = \"ern_code_probe:picks/1\"\n"
+     "foreign fn picks(count : Int) : Int = \"ern_code_probe:picks/1\"\n"
      "\n"
-     "export fn main() : Unit with Never =\n"
+     "export fn main() : Unit =\n"
      "    match Os.arguments {\n"
      "        [t, c, p, d, l, q1, q2, f, loads] -> {\n"
      "            firsts([t, c, p, d, l, q1, q2]);\n"
@@ -156,17 +156,17 @@ costs() ->
      "    }\n"
      "\n"
      "// A line of words.\n"
-     "fn said(words : List(String)) : Unit with m = Io.println(String.join(words, \" \"))\n"
+     "fn said(words : List(String)) : Unit = Io.println(String.join(words, \" \"))\n"
      "\n"
      "// The microseconds f took, and what it answered.\n"
-     "fn timed(f : () -> Either(Io.Error, a) with m) : #(Int, String) with m = {\n"
+     "fn timed(f : () -> Either(Io.Error, a) receiving m) : #(Int, String) receiving m = {\n"
      "    let started = Clock.monotonicMicros();\n"
      "    let answer = f();\n"
      "    #(Clock.monotonicMicros() - started, outcome(answer))\n"
      "}\n"
      "\n"
-     "fn timedSaid(scenario : String, label : String, f : () -> Either(Io.Error, a) with m)"
-     " : Unit with m =\n"
+     "fn timedSaid(scenario : String, label : String, f : () -> Either(Io.Error, a) receiving m)"
+     " : Unit receiving m =\n"
      "    match timed(f) {\n"
      "        #(took, answer) -> said([scenario, label, Int.toString(took), answer])\n"
      "    }\n"
@@ -180,7 +180,7 @@ costs() ->
      "// Report §8.7: a dial, timed by the first utilization, and then a bare\n"
      "// node's first spawn, which builds the prelude's environment every\n"
      "// arrival links through, a reach of five, on each node.\n"
-     "fn firsts(nodes : List(String)) : Unit with m =\n"
+     "fn firsts(nodes : List(String)) : Unit =\n"
      "    List.forEach(nodes, fn(node) = {\n"
      "        timedSaid(\"dial\", node, fn() = Peer.utilization(node, 30000));\n"
      "        timedSaid(\"first\", node, fn() = R0.spawned(node, 5))\n"
@@ -189,7 +189,7 @@ costs() ->
      "// Report §8.7, §10: each reach spawned or computed where the peer lacks\n"
      "// it, and again, where it holds it.\n"
      "fn crossing(scenario : String,\n"
-     "            crossed : (Int, Int) -> Either(Io.Error, a) with m) : Unit with m =\n"
+     "            crossed : (Int, Int) -> Either(Io.Error, a) receiving m) : Unit receiving m =\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(variant) =\n"
      "        List.forEach([1, 5, 20], fn(size) = {\n"
      "            let label = Int.toString(size);\n"
@@ -203,8 +203,8 @@ costs() ->
      "fn probed(scenario : String,\n"
      "          node : String,\n"
      "          sizes : List(Int),\n"
-     "          spawned : (Int, Int) -> Either(Io.Error, Address(Never)) with m)"
-     " : Unit with m = {\n"
+     "          spawned : (Int, Int) -> Either(Io.Error, Address(Never)) receiving m)"
+     " : Unit receiving m = {\n"
      "    let _ = Peer.computeAt(node, traced, 30000);\n"
      "    let _ = Peer.computeAt(node, counts, 30000);\n"
      "    let _ = Peer.computeAt(node, steps, 30000);\n"
@@ -222,14 +222,14 @@ costs() ->
      "        }))\n"
      "}\n"
      "\n"
-     "fn countsSaid(scenario : String, label : String, node : String) : Unit with m =\n"
+     "fn countsSaid(scenario : String, label : String, node : String) : Unit =\n"
      "    match Peer.computeAt(node, counts, 30000) {\n"
      "        Right(text) -> said([scenario, label, text])\n"
      "      | Left(failure) -> said([scenario, label, \"failed\", Io.show(failure)])\n"
      "    }\n"
      "\n"
      "fn stepsSaid(scenario : String, label : String, read : Either(Io.Error, List(String)))"
-     " : Unit with m =\n"
+     " : Unit =\n"
      "    match read {\n"
      "        Right(lines) -> List.forEach(lines, fn(line) = said([scenario, label, line]))\n"
      "      | Left(failure) -> said([scenario, label, \"failed\", Io.show(failure)])\n"
@@ -239,7 +239,7 @@ costs() ->
      "// which holds its reach, the standard library, timed by the compute that\n"
      "// runs the load, and the host's counts around it; the loader crosses\n"
      "// with a first load, of load0.\n"
-     "fn loading(node : String, loads : String) : Unit with m = {\n"
+     "fn loading(node : String, loads : String) : Unit = {\n"
      "    let _ = Peer.computeAt(node, counts, 30000);\n"
      "    let _ = loadedOn(node, loads <> \"/load0.erc\");\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(index) = {\n"
@@ -251,7 +251,7 @@ costs() ->
      "    })\n"
      "}\n"
      "\n"
-     "fn loadedOn(node : String, path : String) : Either(Io.Error, Unit) with m =\n"
+     "fn loadedOn(node : String, path : String) : Either(Io.Error, Unit) =\n"
      "    match Peer.computeAt(node, fn() = Code.load(Path(path)), 30000) {\n"
      "        Right(loaded) -> loaded\n"
      "      | Left(failure) -> Left(failure)\n"
@@ -260,7 +260,7 @@ costs() ->
      "// Report §11.2: a development day's shape, distinct small definitions\n"
      "// spawned onto one bare node one after another, the host's counts read\n"
      "// before the first and after each.\n"
-     "fn day(node : String) : Unit with m = {\n"
+     "fn day(node : String) : Unit = {\n"
      "    let _ = Peer.computeAt(node, counts, 30000);\n"
      "    countsSaid(\"day_counts\", \"0\", node);\n"
      "    List.forEach(List.range(1, ", integer_to_list(?DAY), "), fn(index) = {\n"
@@ -276,7 +276,7 @@ costs() ->
      "// picks by the utilizations its peers told it, of one on the peer named,\n"
      "// of the utilizations read, and of the pick alone, the read and the\n"
      "// draw, each peer holding `one` first, so that no compute carries code.\n"
-     "fn placing(q1 : String) : Unit with m = {\n"
+     "fn placing(q1 : String) : Unit = {\n"
      "    List.forEach(Peer.peers(), fn(node) = {\n"
      "        let _ = Peer.computeAt(node, one, 30000);\n"
      "        Unit\n"
@@ -303,7 +303,8 @@ costs() ->
      "    })\n"
      "}\n"
      "\n"
-     "fn rounds(scenario : String, label : String, f : () -> Unit with m) : Unit with m = {\n"
+     "fn rounds(scenario : String, label : String, f : () -> Unit receiving m) : Unit receiving"
+     " m = {\n"
      "    let started = Clock.monotonicMicros();\n"
      "    List.forEach(List.range(1, ", integer_to_list(?ROUNDS), "), fn(_) = f());\n"
      "    said([scenario, label, Int.toString(Clock.monotonicMicros() - started)])\n"
@@ -313,7 +314,7 @@ costs() ->
      "// q2, left idle over a window each opens, this node's last, so that the\n"
      "// computes that open the others' fall outside its own; then what crossed\n"
      "// each connection, read once every window has closed.\n"
-     "fn idle(q1 : String, q2 : String) : Unit with m = {\n"
+     "fn idle(q1 : String, q2 : String) : Unit = {\n"
      "    let _ = Peer.computeAt(q1, utilizationOfQ2, 30000);\n"
      "    let _ = Peer.computeAt(q1, window, 30000);\n"
      "    let _ = Peer.computeAt(q2, window, 30000);\n"
@@ -323,7 +324,7 @@ costs() ->
      "        stepsSaid(\"idle\", node, Peer.computeAt(node, windowed, 30000)))\n"
      "}\n"
      "\n"
-     "fn utilizationOfQ2() : Either(Io.Error, Float) with m = Peer.utilization(\"q2\", 5000)\n"].
+     "fn utilizationOfQ2() : Either(Io.Error, Float) = Peer.utilization(\"q2\", 5000)\n"].
 
 %% The module that spawns or computes a reach by its variant, from the
 %% module that holds it.
@@ -332,7 +333,7 @@ reaches() ->
      "// variant.\n"
      "\n",
      [io_lib:format("export fn ~s(peer : String, size : Int, variant : Int)"
-                    " : Either(Io.Error, ~s) with m =~n"
+                    " : Either(Io.Error, ~s) =~n"
                     "    match variant {~n~s"
                     "      | _ -> Left(Io.Invalid)~n"
                     "    }~n~n",
@@ -371,7 +372,7 @@ chain(Size, Variant) ->
                     false -> ""
                 end,
          case Place of
-             1 -> io_lib:format("fn ~s() : Unit with Never = {~n    let _ = ~s~s;~n    Unit~n}~n~n",
+             1 -> io_lib:format("fn ~s() : Unit = {~n    let _ = ~s~s;~n    Unit~n}~n~n",
                                 [reach_name(Size, Variant, 1), Fold, Next]);
              _ -> io_lib:format("fn ~s(x : Int) : Int =~n    ~s~s~n~n",
                                 [reach_name(Size, Variant, Place), Fold, Next])
@@ -384,7 +385,7 @@ reach_name(Size, Variant, Place) ->
 %% A function that spawns or computes, on the peer it is given, the function
 %% of the case its argument names.
 dispatch(Name, Parameter, Answer, Form, Cases) ->
-    [io_lib:format("export fn ~s(peer : String, ~s : Int) : Either(Io.Error, ~s) with m =~n"
+    [io_lib:format("export fn ~s(peer : String, ~s : Int) : Either(Io.Error, ~s) receiving m =~n"
                    "    match ~s {~n", [Name, Parameter, Answer, Parameter]),
      lists:join("      | ", [io_lib:format("~s -> ~s(peer, ~s, 30000)~n", [Case, Form, Function])
                              || {Case, Function} <- Cases]),
@@ -411,7 +412,7 @@ days() ->
     ["// make bench's fourth part (test/ern_code_costs.erl): a day's definitions\n"
      "// by their index.\n"
      "\n"
-     "export fn spawned(peer : String, index : Int) : Either(Io.Error, Address(Never)) with m =\n"
+     "export fn spawned(peer : String, index : Int) : Either(Io.Error, Address(Never)) =\n"
      "    match (index - 1) / 20 {\n",
      lists:join("      | ", [io_lib:format("~B -> Day~B.spawned(peer, index)~n", [Day - 1, Day])
                              || Day <- lists:seq(1, ?DAY div 20)]),
@@ -423,7 +424,7 @@ day(Day) ->
     ["// make bench's fourth part (test/ern_code_costs.erl): twenty of a day's\n"
      "// definitions.\n"
      "\n",
-     [io_lib:format("fn day~B() : Unit with Never = {~n"
+     [io_lib:format("fn day~B() : Unit receiving Never = {~n"
                     "    let _ = List.map([~B], fn(x) = x + ~B);~n"
                     "    Unit~n"
                     "}~n~n", [Index, Index, Index])
@@ -455,7 +456,7 @@ fix(Build, Chain) ->
                       "    List.foldLeft([~s(x)], ~B, fn(acc, y) = Aside.aside(acc + y))~n~n",
                       [fix_name(Size, Chain, Place), fix_name(Size, Chain, Place - 1), Place])
         || Place <- lists:seq(1, Size - 1)],
-       io_lib:format("fn ~s() : Unit with Never = {~n    let _ = ~s(1);~n    Unit~n}~n~n",
+       io_lib:format("fn ~s() : Unit receiving Never = {~n    let _ = ~s(1);~n    Unit~n}~n~n",
                      [fix_name(Size, Chain, Size), fix_name(Size, Chain, Size - 1)])]
       || Size <- ?SIZES],
      dispatch("spawnTop", "size", "Address(Never)", "Peer.spawn",
@@ -471,7 +472,7 @@ fixes() ->
      "// chain.\n"
      "\n"
      "export fn spawnTop(peer : String, size : Int, chain : Int)"
-     " : Either(Io.Error, Address(Never)) with m =\n"
+     " : Either(Io.Error, Address(Never)) =\n"
      "    match chain {\n",
      lists:join("      | ", [io_lib:format("~B -> Fix~B.spawnTop(peer, size)~n", [Chain, Chain])
                              || Chain <- lists:seq(1, ?RUNS)]),
@@ -484,12 +485,12 @@ server() ->
     "// make bench's fourth part (test/ern_code_costs.erl): the node of the old\n"
     "// build, which reads the fixed modules from its load path at its start.\n"
     "\n"
-    "export fn main() : Unit with Unit = {\n"
+    "export fn main() : Unit receiving Unit = {\n"
     "    Io.println(\"serving\");\n"
     "    held()\n"
     "}\n"
     "\n"
-    "fn held() : Unit with Unit = receive { _ -> held() }\n".
+    "fn held() : Unit receiving Unit = receive { _ -> held() }\n".
 
 %% A module `Code.load` loads: a type, a binding and twenty functions, each
 %% with a lambda, distinct from every other module's by its index.

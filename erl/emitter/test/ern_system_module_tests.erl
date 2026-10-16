@@ -13,7 +13,7 @@
 terminal_is_lines_or_keys_test() ->
     {Result1, _} = ern_emitter_tests:run_at_terminal(
         "type Msg = Pressed(Terminal.Event)\n"
-        "export fn main() : Unit with Msg = {\n"
+        "export fn main() : Unit receiving Msg = {\n"
         "    let _ = Io.readLine();\n"
         "    let _ = Terminal.subscribe(Pressed);\n"
         "    receive { Pressed(_) -> Unit }\n"
@@ -29,11 +29,11 @@ terminal_claim_faults_its_caller_test() ->
                  ern_emitter_tests:run_at_terminal(
                      "type Msg = Pressed(Terminal.Event)\n"
                      "type MainMsg = Ended(Down)\n"
-                     "fn watch() : Unit with Msg = {\n"
+                     "fn watch() : Unit receiving Msg = {\n"
                      "    let _ = Terminal.subscribe(Pressed);\n"
                      "    Unit\n"
                      "}\n"
-                     "export fn main() : Unit with MainMsg = {\n"
+                     "export fn main() : Unit receiving MainMsg = {\n"
                      "    let _ = Io.readLine();\n"
                      "    let _ = spawnMonitored(watch, Ended);\n"
                      "    receive {\n"
@@ -57,7 +57,7 @@ os_run(Program, Arguments, Input, Ms) ->
          "        <> \"|\" <> Io.show(String.fromUtf8(f.stderr))\n"
          "  | Left(e) -> Io.show(e)\n"
          "}\n"
-         "export fn main() : Unit with Never = Io.println(show(Os.run(Os.Command(program = ",
+         "export fn main() : Unit = Io.println(show(Os.run(Os.Command(program = ",
          Program, ", arguments = ", Arguments, ", input = ", Input, "), ", Ms, ")))\n"]).
 
 %% Appendix E.23: the exit status, the output and the standard error, apart
@@ -115,9 +115,9 @@ os_run_dies_with_its_caller_test() ->
     Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
     {ok, _} = ern_emitter_tests:run(
         "type Msg = Started\n"
-        "export fn main() : Unit with Msg = {\n"
+        "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
-        "    let w = spawn(fn() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "    let w = spawn(fn() = match Os.start(Os.Command(program = \"sh\",\n"
         "        arguments = [\"-c\", \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>)) {\n"
         "        Right(p) -> { send(me, Started); let _ = Os.read(p, 5000); Unit }\n"
         "      | Left(_) -> Unit\n"
@@ -174,7 +174,7 @@ sh_collect(Port, Acc) ->
 %% What a program wrote, a line a piece, until its exit status or why not.
 drain() ->
     "fn text(b : Bytes) : String = Optional.withDefault(String.fromUtf8(b), \"?\")\n"
-    "fn drain(p : Address(Os.ProgramMsg)) : Unit with m = match Os.read(p, 5000) {\n"
+    "fn drain(p : Address(Os.ProgramMsg)) : Unit = match Os.read(p, 5000) {\n"
     "    Right(Os.Stdout(b)) -> { Io.print(\"out \" <> text(b)); drain(p) }\n"
     "  | Right(Os.Stderr(b)) -> { Io.print(\"err \" <> text(b)); drain(p) }\n"
     "  | Right(Os.Exited(s)) -> Io.println(\"exit \" <> Int.toString(s))\n"
@@ -186,7 +186,7 @@ drain() ->
 os_start_reads_in_order_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [drain(),
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
         "    input = <<>>)) {\n"
         "    Right(p) -> drain(p)\n"
@@ -206,20 +206,20 @@ os_start_output_waits_for_a_read_test() ->
     Timed = filename:join(Scratch, "timed"),
     {ok, Output} = ern_emitter_tests:run(
         [
-        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with m = match Os.read(p, 5000) {\n"
+        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int = match Os.read(p, 5000) {\n"
         "    Right(Os.Exited(_)) -> n\n"
         "  | Right(_) -> drain(p, n + 1)\n"
         "  | Left(_) -> -1\n"
         "}\n"
-        "fn marked() : Bool with m = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
-        "fn writer(mark : String) : Address(Os.ProgramMsg) with m =\n"
+        "fn marked() : Bool = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
+        "fn writer(mark : String) : Address(Os.ProgramMsg) =\n"
         "    match Os.start(Os.Command(program = \"sh\",\n"
         "        arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch \" <> mark],\n"
         "        input = <<>>)) {\n"
         "        Right(p) -> p\n"
         "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
-        "export fn main() : Unit with Never = {\n"
+        "export fn main() : Unit receiving Never = {\n"
         "    let before = Clock.monotonic();\n"
         "    let _ = drain(writer(\"", Timed, "\"), 0);\n"
         "    let took = Clock.monotonic() - before;\n"
@@ -238,12 +238,12 @@ os_start_output_waits_for_a_read_test() ->
 os_start_write_then_close_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [
-        "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes with m =\n"
+        "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes =\n"
         "    match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> collect(p, got <> b)\n"
         "  | _ -> got\n"
         "}\n"
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"cat\",\n"
+        "export fn main() : Unit = match Os.start(Os.Command(program = \"cat\",\n"
         "    arguments = [], input = String.toUtf8(\"a\"))) {\n"
         "    Right(p) -> {\n"
         "        let taken = Os.write(p, String.toUtf8(\"b\"), 5000);\n"
@@ -264,15 +264,15 @@ os_program_is_a_process_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [
         "type Msg = Ended(Down)\n"
-        "fn started(script : String) : Address(Os.ProgramMsg) with Msg =\n"
+        "fn started(script : String) : Address(Os.ProgramMsg) receiving Msg =\n"
         "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
         "        input = <<>>)) {\n"
         "        Right(p) -> p\n"
         "      | Left(_) -> fault(\"not started\")\n"
         "    }\n"
-        "fn reason() : String with Msg =\n"
+        "fn reason() : String receiving Msg =\n"
         "    receive { Ended(Down(reason = r, site = _)) -> Io.show(r) }\n"
-        "export fn main() : Unit with Msg = {\n"
+        "export fn main() : Unit receiving Msg = {\n"
         "    let sleeper = started(\"tail -f /dev/null & echo $$ $! > ", Pids,
         "; echo written; wait\");\n"
         "    // the process numbers are written once the shell says so\n"
@@ -298,7 +298,7 @@ os_program_is_a_process_test() ->
 %% killed the program
 os_read_time_limit_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>)) {\n"
         "    Right(p) -> {\n"
         "        Io.println(Io.show(Os.read(p, 50)));\n"
@@ -316,31 +316,31 @@ os_read_time_limit_test() ->
 os_exit_test() ->
     ?assertEqual({{exit, 3}, <<"bye\n">>},
                  ern_emitter_tests:run(
-                     "export fn main() : Unit with Never = {\n"
+                     "export fn main() : Unit = {\n"
                      "    Io.println(\"bye\");\n"
                      "    Os.exit(3)\n"
                      "}\n")),
     ?assertEqual({{exit, 5}, <<>>},
                  ern_emitter_tests:run(
-                     "export fn main() : Unit with Unit = {\n"
-                     "    let _ = spawn(fn() : Unit with Never = Os.exit(5));\n"
+                     "export fn main() : Unit receiving Unit = {\n"
+                     "    let _ = spawn(fn() = Os.exit(5));\n"
                      "    receive { _ -> Unit }\n"
                      "}\n")),
     ?assertEqual({{fault, <<"an exit status is from 0 to 255">>}, <<>>},
-                 ern_emitter_tests:run("export fn main() : Unit with Never = Os.exit(256)\n")).
+                 ern_emitter_tests:run("export fn main() : Unit = Os.exit(256)\n")).
 
 %% report §11.2: where Os.exit faults its caller, as in the shell and under
 %% `ern test`, it ends only the process that calls it
 os_exit_faults_where_asked_test() ->
     ?assertEqual({{fault, <<"exited with status 2">>}, <<>>},
                  ern_emitter_tests:run(
-                     ['M'], "export fn main() : Unit with Never = Os.exit(2)\n",
+                     ['M'], "export fn main() : Unit = Os.exit(2)\n",
                      #{exit => fault})).
 
 %% Appendix E.23, report §11.2: Os.arguments is what the program was run
 %% with, and the empty list where it was run with none
 os_arguments_test() ->
-    Main = "export fn main() : Unit with Never = Io.println(Io.show(Os.arguments))\n",
+    Main = "export fn main() : Unit = Io.println(Io.show(Os.arguments))\n",
     ?assertEqual({ok, <<"[\"a\", \"b c\", \"--x\"]\n">>},
                  ern_emitter_tests:run(
                      ['M'], Main, #{arguments => [<<"a">>, <<"b c">>, <<"--x">>]})),
@@ -354,7 +354,7 @@ os_arguments_test() ->
 %% regression test for the host's own term, badarg, answered as the cause
 fs_path_with_nul_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        "export fn main() : Unit with Never =\n"
+        "export fn main() : Unit =\n"
         "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
     ?assertEqual(<<"Left(Invalid)\n">>, Output).
 
@@ -367,7 +367,7 @@ fs_list_names_a_name_not_utf8_test() ->
     ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
     ok = file:write_file(filename:join(Dir, "ok"), <<>>),
     {ok, Output} = ern_emitter_tests:run(
-        ["export fn main() : Unit with Never = match Fs.list(Path(\"", Dir,
+        ["export fn main() : Unit = match Fs.list(Path(\"", Dir,
          "\"), 1000) {\n"
          "    Right(entries) -> Io.println(Io.show(List.map(entries,\n"
          "        fn(e) = Path.name(e.path))))\n"
@@ -387,13 +387,13 @@ fs_list_names_a_name_not_utf8_test() ->
 socket_owner_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Opened(Address(Tcp.SocketMsg)) | Ended(Down)\n"
-        "fn opener(port : Int, to : Address(Msg)) : Unit with Never =\n"
+        "fn opener(port : Int, to : Address(Msg)) : Unit =\n"
         "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "        Right(s) -> send(to, Opened(s))\n"
         "      | Left(_) -> Unit\n"
         "    }\n"
-        "fn keeper() : Unit with Int = receive { _ -> Unit }\n"
-        "fn giver(port : Int, keep : Process, to : Address(Msg)) : Unit with Never =\n"
+        "fn keeper() : Unit receiving Int = receive { _ -> Unit }\n"
+        "fn giver(port : Int, keep : Process, to : Address(Msg)) : Unit =\n"
         "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "        Right(s) -> {\n"
         "            Tcp.give(s, keep);\n"
@@ -401,12 +401,12 @@ socket_owner_test() ->
         "        }\n"
         "      | Left(_) -> Unit\n"
         "    }\n"
-        "fn opened() : Address(Tcp.SocketMsg) with Msg = receive { Opened(s) -> s }\n"
-        "fn ends(s : Address(Tcp.SocketMsg), ms : Int) : String with Msg = {\n"
+        "fn opened() : Address(Tcp.SocketMsg) receiving Msg = receive { Opened(s) -> s }\n"
+        "fn ends(s : Address(Tcp.SocketMsg), ms : Int) : String receiving Msg = {\n"
         "    monitor(Process.fromAddress(s), Ended);\n"
         "    receive { Ended(_) -> \"ended\" | after ms -> \"alive\" }\n"
         "}\n"
-        "fn check(port : Int) : Unit with Msg = {\n"
+        "fn check(port : Int) : Unit receiving Msg = {\n"
         "    let me = self();\n"
         "    let first = spawnMonitored(fn() = opener(port, me), Ended);\n"
         "    let orphan = opened();\n"
@@ -427,7 +427,7 @@ socket_owner_test() ->
         "      | Left(_) -> Unit\n"
         "    }\n"
         "}\n"
-        "export fn main() : Unit with Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "export fn main() : Unit receiving Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(listener) -> {\n"
         "        let _ = Either.map(Tcp.port(listener), check);\n"
         "        Tcp.closeListener(listener)\n"
@@ -444,12 +444,12 @@ socket_owner_test() ->
 opened_processes_are_live_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [
-        "fn site(p : Process) : String with m = match Process.status(p) {\n"
+        "fn site(p : Process) : String = match Process.status(p) {\n"
         "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
         "  | None -> \"none\"\n"
         "}\n"
-        "fn listed(p : Process) : Bool with m = List.any(Process.live(), fn(q) = q == p)\n"
-        "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "fn listed(p : Process) : Bool = List.any(Process.live(), fn(q) = q == p)\n"
+        "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "            Right(c) -> {\n"
@@ -477,10 +477,10 @@ opened_processes_are_live_test() ->
 tcp_write_answers_closed_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [
-        "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> {\n"
-        "            let _ = spawn(fn() : Unit with Never = match Tcp.accept(l, 5000) {\n"
+        "            let _ = spawn(fn() = match Tcp.accept(l, 5000) {\n"
         "                Right(s) -> {\n"
         "                    let _ = Tcp.read(s, 5000);\n"
         "                    Tcp.close(s)\n"
@@ -518,25 +518,24 @@ paced(Setup) ->
         ["type Msg = Done | Ended(Down) | Gone(Down)\n",
          Setup,
          "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
-         "fn writes(write : (Bytes) -> Either(Io.Error, Unit) with Never, n : Int)"
-         " : Unit with Never =\n"
+         "fn writes(write : (Bytes) -> Either(Io.Error, Unit), n : Int) : Unit =\n"
          "    if n == 0 then Unit else { let _ = write(chunk()); writes(write, n - 1) }\n"
-         "fn done() : Bool with Msg =\n"
+         "fn done() : Bool receiving Msg =\n"
          "    receive { Done -> true | after 0 -> false }\n"]).
 
 %% Appendix E.23: a program that stops reading its input, since no one
 %% reads its output, holds its writer, and a write after its end faults
 os_write_waits_test() ->
     {ok, Output} = paced(
-        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with Msg = match Os.read(p, 5000) {\n"
+        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int = match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> drain(p, n + Bytes.size(b))\n"
         "  | _ -> n\n"
         "}\n"
-        "fn written() : Address(Os.ProgramMsg) with Msg =\n"
+        "fn written() : Address(Os.ProgramMsg) receiving Msg =\n"
         "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>)) {\n"
         "        Right(p) -> {\n"
         "            let me = self();\n"
-        "            let _ = spawn(fn() : Unit with Never = {\n"
+        "            let _ = spawn(fn() = {\n"
         "                writes(fn(b) = Os.write(p, b, 30000), 64);\n"
         "                Os.closeInput(p);\n"
         "                send(me, Done)\n"
@@ -545,7 +544,7 @@ os_write_waits_test() ->
         "        }\n"
         "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
-        "export fn main() : Unit with Msg = {\n"
+        "export fn main() : Unit receiving Msg = {\n"
         "    let before = Clock.monotonic();\n"
         "    let _ = drain(written(), 0);\n"
         "    receive { Done -> Unit };\n"
@@ -556,7 +555,7 @@ os_write_waits_test() ->
         "    let n = drain(p, 0);\n"
         "    receive { Done -> Unit };\n"
         "    Io.println(Io.show(#(early, n)));\n"
-        "    let late = fn() : Unit with Never = {\n"
+        "    let late = fn() = {\n"
         "        let _ = Os.write(p, <<1>>, 5000);\n"
         "        Unit\n"
         "    };\n"
@@ -570,16 +569,16 @@ os_write_waits_test() ->
 %% and a write to a socket that has been closed faults
 tcp_write_waits_test() ->
     {ok, Output} = paced(
-        "fn drain(s : Address(Tcp.SocketMsg), n : Int) : Int with Msg =\n"
+        "fn drain(s : Address(Tcp.SocketMsg), n : Int) : Int =\n"
         "    if n >= 4194304 then n\n"
         "    else match Tcp.read(s, 5000) {\n"
         "        Right(b) -> drain(s, n + Bytes.size(b))\n"
         "      | Left(_) -> n\n"
         "    }\n"
         "fn written(l : Address(Tcp.ListenerMsg),\n"
-        "           port : Int) : Address(Tcp.SocketMsg) with Msg = {\n"
+        "           port : Int) : Address(Tcp.SocketMsg) receiving Msg = {\n"
         "    let me = self();\n"
-        "    let _ = spawn(fn() : Unit with Never = match\n"
+        "    let _ = spawn(fn() = match\n"
         "        Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "        Right(c) -> {\n"
         "            writes(fn(b) = Tcp.write(c, b, 30000), 64);\n"
@@ -592,7 +591,7 @@ tcp_write_waits_test() ->
         "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
         "}\n"
-        "export fn main() : Unit with Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "export fn main() : Unit receiving Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> {\n"
         "            let before = Clock.monotonic();\n"
@@ -611,7 +610,7 @@ tcp_write_waits_test() ->
         "            Tcp.close(s);\n"
         "            receive { Gone(_) -> Unit };\n"
         "            Io.println(Io.show(#(early, n)));\n"
-        "            let late = fn() : Unit with Never = {\n"
+        "            let late = fn() = {\n"
         "                let _ = Tcp.write(s, <<1>>, 5000);\n"
         "                Unit\n"
         "            };\n"

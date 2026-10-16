@@ -5,7 +5,7 @@
 
 type Stop = Stop(Reply(Unit))
 
-fn count(total : Int) : Unit with Counter.Msg =
+fn count(total : Int) : Unit receiving Counter.Msg =
     receive {
         Counter.Add(amount) -> count(total + amount)
       | Counter.Get(reply = reply) -> {
@@ -14,7 +14,7 @@ fn count(total : Int) : Unit with Counter.Msg =
         }
     }
 
-export fn main() : Unit with Stop = {
+export fn main() : Unit receiving Stop = {
     let _ = Peer.offer(Counter.service, spawn(fn() = count(0)));
     Os.termination(Stop);
     Io.println("offered");
@@ -34,7 +34,7 @@ export fn main() : Unit with Stop = {
 }
 
 // Holds the reply and never answers it.
-fn held(reply : Reply(Unit)) : Unit with Stop =
+fn held(reply : Reply(Unit)) : Unit receiving Stop =
     receive {
         Stop(other) -> {
             answer(other, Unit);

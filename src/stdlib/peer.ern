@@ -40,7 +40,7 @@
 /// ```ernest
 /// {
 ///     let service : Peer.Service(Int) = Peer.service("squares");
-///     let _ = Peer.offer(service, spawn(fn() : Unit with Int = receive {
+///     let _ = Peer.offer(service, spawn(fn() : Unit receiving Int = receive {
 ///         _ -> Unit
 ///     }));
 ///     Peer.find(service, 1000)
@@ -52,7 +52,7 @@
 /// does not list:
 ///
 /// ```ernest
-/// Peer.spawn("worker", fn() : Unit with Never = Io.println("working"), 5000)
+/// Peer.spawn("worker", fn() : Unit receiving Never = Io.println("working"), 5000)
 /// // => Left(NotListed)
 /// ```
 ///
@@ -134,10 +134,10 @@ export fn name(service : Service(m)) : String =
 /// ```ernest
 /// {
 ///     let service : Peer.Service(Int) = Peer.service("squares");
-///     let first = spawn(fn() : Unit with Int = receive {
+///     let first = spawn(fn() : Unit receiving Int = receive {
 ///         _ -> Unit
 ///     });
-///     let second = spawn(fn() : Unit with Int = receive {
+///     let second = spawn(fn() : Unit receiving Int = receive {
 ///         _ -> Unit
 ///     });
 ///     #(Peer.offer(service, first),
@@ -145,7 +145,7 @@ export fn name(service : Service(m)) : String =
 /// }
 /// // => #(Right(Unit), true)
 /// ```
-export foreign fn offer(service : Service(m), address : Address(m)) : Either(Process, Unit) with n =
+export foreign fn offer(service : Service(m), address : Address(m)) : Either(Process, Unit) =
     "ern_peer:offer/2"
 
 /// The first address a peer `ernest.conf` lists for the service's name offers
@@ -156,7 +156,7 @@ export foreign fn offer(service : Service(m), address : Address(m)) : Either(Pro
 /// passed over; where no peer offers it, the last of these is answered, and
 /// `Left(Timeout)` where the time runs out. A find meets `NotListed`,
 /// `Unreachable`, `Timeout`, `NotOffered` and `OtherType`.
-export foreign fn find(service : Service(m), ms : Int) : Either(Io.Error, Address(m)) with n =
+export foreign fn find(service : Service(m), ms : Int) : Either(Io.Error, Address(m)) =
     "ern_peer:find/2"
 
 /// A process started on the peer of that name, running `f`, its address
@@ -175,8 +175,8 @@ export foreign fn find(service : Service(m), ms : Int) : Either(Io.Error, Addres
 /// runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout` and
 /// `NotLoaded`. `spawn` is called where it is named, and is no value.
 export foreign fn spawn(name : String,
-                        f : () -> Unit with m,
-                        ms : Int) : Either(Io.Error, Address(m)) with n =
+                        f : () -> Unit receiving m,
+                        ms : Int) : Either(Io.Error, Address(m)) =
     "ern_peer:spawn/3"
 
 /// As `spawn`, the caller monitoring the process from its start: `wrap(d)` is
@@ -186,12 +186,12 @@ export foreign fn spawn(name : String,
 /// ### Examples
 ///
 /// ```ernest
-/// Peer.spawnMonitored("worker", fn() : Unit with Never = Unit, fn(down) = down, 5000)
+/// Peer.spawnMonitored("worker", fn() : Unit receiving Never = Unit, fn(down) = down, 5000)
 /// ```
 export foreign fn spawnMonitored(name : String,
-                                 f : () -> Unit with m,
+                                 f : () -> Unit receiving m,
                                  wrap : (Down) -> n,
-                                 ms : Int) : Either(Io.Error, Address(m)) with n =
+                                 ms : Int) : Either(Io.Error, Address(m)) receiving n =
     "ern_peer:spawn_monitored/4"
 
 /// The value of `f()`, run on a peer this node picks, as `computeAt` runs it
@@ -220,7 +220,7 @@ export foreign fn spawnMonitored(name : String,
 /// }
 /// // => 42
 /// ```
-export foreign fn compute(f : () -> a with m, ms : Int) : Either(Io.Error, a) with n =
+export foreign fn compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, a) =
     "ern_peer:compute/2"
 
 /// The value of `f()`, run in a process started on the peer of that name as
@@ -251,8 +251,8 @@ export foreign fn compute(f : () -> a with m, ms : Int) : Either(Io.Error, a) wi
 /// // => Left(NotListed)
 /// ```
 export foreign fn computeAt(name : String,
-                            f : () -> a with m,
-                            ms : Int) : Either(Io.Error, a) with n =
+                            f : () -> a receiving m,
+                            ms : Int) : Either(Io.Error, a) =
     "ern_peer:compute_at/3"
 
 /// How busy the peer of that name is, answered within `ms` milliseconds: a
@@ -271,7 +271,7 @@ export foreign fn computeAt(name : String,
 /// Peer.utilization("worker", 1000)
 /// // => Left(NotListed)
 /// ```
-export foreign fn utilization(name : String, ms : Int) : Either(Io.Error, Float) with n =
+export foreign fn utilization(name : String, ms : Int) : Either(Io.Error, Float) =
     "ern_peer:utilization/2"
 
 /// The names of the peers this node lists, in the configuration's order. The
@@ -283,7 +283,7 @@ export foreign fn utilization(name : String, ms : Int) : Either(Io.Error, Float)
 /// Peer.peers()
 /// // => []
 /// ```
-export foreign fn peers() : List(String) with n =
+export foreign fn peers() : List(String) =
     "ern_peer:peers/0"
 
 /// The utilizations this node holds of its peers, each peer's name, its
@@ -307,7 +307,7 @@ export foreign fn peers() : List(String) with n =
 /// }
 /// // => Right(42)
 /// ```
-export foreign fn utilizations() : List(#(String, Float, Int)) with n =
+export foreign fn utilizations() : List(#(String, Float, Int)) =
     "ern_peer:utilizations/0"
 
 /// Sets the utilization this node tells its peers, and answers them when
@@ -330,5 +330,5 @@ export foreign fn utilizations() : List(#(String, Float, Int)) with n =
 /// Peer.setUtilization(0.25)
 /// // => Unit
 /// ```
-export foreign fn setUtilization(x : Float) : Unit with n =
+export foreign fn setUtilization(x : Float) : Unit =
     "ern_peer:set_utilization/1"

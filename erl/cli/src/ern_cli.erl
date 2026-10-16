@@ -1470,7 +1470,7 @@ shell_entry(Options, Namespace) ->
 
 %% Report §8.1: the entry point, the loaded module's `main` or the function
 %% of that module `--main` names (§11.2), by its name. It is an exported
-%% `fn` of type `() -> Unit`, with a mailbox type or pure; a top-level
+%% `fn` of type `() -> Unit`, receiving or not; a top-level
 %% `let`, and a function of another shape, is refused.
 entry_point(Options, Namespace) ->
     EntryFunction = case proplists:get_value(main, Options) of

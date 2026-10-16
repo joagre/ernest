@@ -281,7 +281,7 @@ hangup() ->
     Dir = "build/hangup",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit receiving Never = {\n"
                          "    Io.println(\"running\");\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
@@ -313,7 +313,7 @@ out_of_memory() ->
     ok = file:write_file(Dir ++ "/grows.ern",
                          "type Msg = Ended(Down)\n"
                          "fn grow(list : List(Int)) : Unit = grow(List.range(1, 1000) <> list)\n"
-                         "export fn main() : Unit with Msg = {\n"
+                         "export fn main() : Unit receiving Msg = {\n"
                          "    let _ = spawnMonitored(fn() = grow([]), Ended);\n"
                          "    receive { Ended(_) -> Io.println(\"main was told\") }\n"
                          "}\n"),
@@ -342,7 +342,7 @@ interrupt() ->
     Dir = "build/interrupt",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    Io.println(\"running\");\n"
                          "    let _ = Io.readLine();\n"
                          "    Io.println(\"late\")\n"
@@ -453,7 +453,7 @@ ets() ->
     Dir = "build/ets",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/tables.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    let t : Ets.Table(String, Int) = Ets.new();\n"
                          "    Ets.put(t, \"a\", 1);\n"
                          "    Ets.put(t, \"a\", 2);\n"
@@ -475,7 +475,7 @@ ets() ->
     ?assert(lists:member(<<"Tables.main faulted: foreign function ets:insert/2 raised "
                            "error:badarg">>, Lines)),
     ok = file:write_file(Dir ++ "/sized.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    let t : Ets.Table(String, Int) = Ets.new();\n"
                          "    Ets.close(t);\n"
                          "    Io.println(Int.toString(Ets.size(t)))\n"
@@ -544,12 +544,12 @@ os() ->
     SourceRoot = "build/os/src",
     ok = filelib:ensure_path(SourceRoot),
     ok = file:write_file(SourceRoot ++ "/args.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    Io.println(Io.show(Os.arguments));\n"
                          "    Os.exit(List.size(Os.arguments))\n"
                          "}\n"),
     ok = file:write_file(SourceRoot ++ "/env.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    Io.println(Io.show(#(Os.environment(\"ERN_OK\"),\n"
                          "                         Os.environment(\"ERN_NONE\"))));\n"
                          "    Io.println(Io.show(Os.environment(\"ERN_BAD\")))\n"
@@ -591,7 +591,7 @@ given_environment() ->
     Names = "[\"PATH\", \"BINDIR\", \"EMU\", \"ERL_LIBS\", \"ERL_CRASH_DUMP_SECONDS\"]",
     ok = file:write_file(
            SourceRoot ++ "/given.ern",
-           ["export fn main() : Unit with Never = {\n"
+           ["export fn main() : Unit = {\n"
             "    List.forEach(", Names, ", fn(name) =\n"
             "        Io.println(Optional.withDefault(Os.environment(name), \"unset\")));\n"
             "    let script = \"echo \\\"$PATH\\\"; echo \\\"$BINDIR\\\";"
@@ -626,7 +626,7 @@ pwd_is_the_shells() ->
     Dir = "build/pwd",
     ok = filelib:ensure_path(Dir ++ "/src"),
     ok = file:write_file(Dir ++ "/src/pwd.ern",
-                         "export fn main() : Unit with Never =\n"
+                         "export fn main() : Unit =\n"
                          "    Io.println(Optional.withDefault(Os.environment(\"PWD\"),"
                          " \"unset\"))\n"),
     0 = build("--source-root " ++ Dir ++ "/src " ++ Dir ++ "/src"),
@@ -656,7 +656,7 @@ host_takes_nothing_from_where_it_runs() ->
     ok = filelib:ensure_path(Dir ++ "/src"),
     ok = file:write_file(Dir ++ "/src/plain.ern",
                          "foreign fn stub() : Int = \"ern_cwd_stub:value/0\"\n"
-                         "export fn main() : Unit with Never = Io.println(Int.toString(stub()))\n"),
+                         "export fn main() : Unit = Io.println(Int.toString(stub()))\n"),
     ok = file:write_file(Dir ++ "/ern_cwd_stub.erl",
                          "-module(ern_cwd_stub).\n-export([value/0]).\nvalue() -> 42.\n"),
     {ok, ern_cwd_stub} = compile:file(Dir ++ "/ern_cwd_stub.erl", [{outdir, Dir}]),
@@ -684,7 +684,7 @@ working_directory() ->
     Dir = "build/cwd",
     ok = filelib:ensure_path(Dir ++ "/src"),
     ok = file:write_file(Dir ++ "/src/here.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    Io.println(Path.toString(Os.workingDirectory));\n"
                          "    match Fs.read(Path(\"notes.txt\"), 1000) {\n"
                          "        Right(bytes) -> Io.println(Io.show(String.fromUtf8(bytes)))\n"
@@ -741,10 +741,10 @@ stream_gone() ->
     Dir = "build/gone",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/chatty.ern",
-                         "fn loop(n : Int) : Unit with Never =\n"
+                         "fn loop(n : Int) : Unit =\n"
                          "    if n == 0 then Io.printlnError(\"finished\")\n"
                          "    else { Io.println(\"line\"); loop(n - 1) }\n"
-                         "export fn main() : Unit with Never = loop(100000000)\n"),
+                         "export fn main() : Unit = loop(100000000)\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/chatty.ern"),
     {0, Output} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/chatty.erc 2> " ++ Dir
                      ++ "/err; echo $? > " ++ Dir ++ "/status; } | head -1'"),
@@ -770,7 +770,7 @@ stream_lost_at_end() ->
                 {"exit", "{ Io.println(\"written\"); Os.exit(3) }", ""}],
     [begin
          ok = file:write_file(Dir ++ "/" ++ Name ++ ".ern",
-                              "export fn main() : Unit with m = " ++ Body ++ "\n"),
+                              "export fn main() : Unit = " ++ Body ++ "\n"),
          0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/" ++ Name ++ ".ern")
      end || {Name, Body, _} <- Programs],
     %% the reader has gone before the program writes
@@ -798,11 +798,11 @@ paced_output() ->
     Dir = "build/paced",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/flood.ern",
-                         "fn loop(n : Int) : Unit with Never =\n"
+                         "fn loop(n : Int) : Unit =\n"
                          "    if n == 0 then Unit\n"
                          "    else { Io.println(\"a line of output a slow reader takes late\");\n"
                          "        loop(n - 1) }\n"
-                         "export fn main() : Unit with Never = loop(2000000)\n"),
+                         "export fn main() : Unit = loop(2000000)\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
     Reader = "{ sleep 4; head -c 1 > /dev/null; }",
     {0, Output} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
@@ -834,7 +834,7 @@ foreign_module() ->
     Probe(Dir ++ "/work", 2),
     ok = file:write_file(Dir ++ "/prog/which.ern",
                          "foreign fn n() : Int = \"ern_probe:n/0\"\n"
-                         "export fn main() : Unit with Never = Io.println(Int.toString(n()))\n"),
+                         "export fn main() : Unit = Io.println(Int.toString(n()))\n"),
     {0, _} = sh(Ern ++ " build --source-root " ++ Dir ++ "/prog " ++ Dir ++ "/prog/which.ern"),
     ?assertEqual({0, <<"1\n">>}, sh(Ern ++ " run ../prog/which.erc", [{cd, Dir ++ "/work"}])).
 
@@ -891,7 +891,7 @@ fault_line_escaped() ->
     Dir = "build/escaped",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/forged.ern",
-                         "export fn main() : Unit with Never =\n"
+                         "export fn main() : Unit =\n"
                          "    fault(\"a\\u{1b}[31m\\nX.main faulted: forged\")\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/forged.ern"),
     ErrorFile = Dir ++ "/err",
@@ -912,7 +912,7 @@ stamped() ->
     Dir = "build/stamped",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/faulty.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit = {\n"
                          "    let z = List.size([]);\n"
                          "    let _ = 1 / z;\n"
                          "    Unit\n"
@@ -945,7 +945,7 @@ signal_end() ->
     Dir = "build/signal_end",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() : Unit with Never = {\n"
+                         "export fn main() : Unit receiving Never = {\n"
                          "    Io.println(\"running\");\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
@@ -982,11 +982,12 @@ end_status() ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/told.ern",
                          "type Msg = Terminating(Reply(Unit)) | Ready\n"
-                         "export fn main() : Unit with Msg =\n"
+                         "export fn main() : Unit receiving Msg =\n"
                          "    match Os.arguments {\n"
                          "        [how, began] -> {\n"
                          "            let me = self();\n"
-                         "            let _ = spawn(fn() : Unit with Msg = subscriber(how, me));\n"
+                         "            let _ = spawn(fn() : Unit receiving Msg = subscriber(how,"
+                         " me));\n"
                          "            receive {\n"
                          "                Ready -> ended(began)\n"
                          "              | Terminating(reply) -> answer(reply, Unit)\n"
@@ -994,7 +995,7 @@ end_status() ->
                          "        }\n"
                          "      | _ -> Unit\n"
                          "    }\n"
-                         "fn ended(began : String) : Unit with Msg =\n"
+                         "fn ended(began : String) : Unit receiving Msg =\n"
                          "    match began {\n"
                          "        \"termination\" -> {\n"
                          "            Io.println(\"running\");\n"
@@ -1003,7 +1004,8 @@ end_status() ->
                          "      | \"exit\" -> Os.exit(3)\n"
                          "      | _ -> Unit\n"
                          "    }\n"
-                         "fn subscriber(how : String, main : Address(Msg)) : Unit with Msg = {\n"
+                         "fn subscriber(how : String, main : Address(Msg)) : Unit receiving Msg"
+                         " = {\n"
                          "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
@@ -1011,7 +1013,7 @@ end_status() ->
                          "      | Ready -> Unit\n"
                          "    }\n"
                          "}\n"
-                         "fn told(how : String, reply : Reply(Unit)) : Unit with Msg = {\n"
+                         "fn told(how : String, reply : Reply(Unit)) : Unit receiving Msg = {\n"
                          "    Io.println(\"told\");\n"
                          "    match how {\n"
                          "        \"exit\" -> {\n"
@@ -1022,7 +1024,7 @@ end_status() ->
                          "      | _ -> held(reply)\n"
                          "    }\n"
                          "}\n"
-                         "fn held(reply : Reply(Unit)) : Unit with Msg =\n"
+                         "fn held(reply : Reply(Unit)) : Unit receiving Msg =\n"
                          "    receive {\n"
                          "        Terminating(other) -> {\n"
                          "            answer(other, Unit);\n"
@@ -1076,7 +1078,7 @@ fault_before_its_end() ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/faulty.ern",
                          "type Msg = Terminating(Reply(Unit)) | Ready\n"
-                         "fn keeper(main : Address(Msg)) : Unit with Msg = {\n"
+                         "fn keeper(main : Address(Msg)) : Unit receiving Msg = {\n"
                          "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
@@ -1086,9 +1088,9 @@ fault_before_its_end() ->
                          "        }\n"
                          "    }\n"
                          "}\n"
-                         "export fn main() : Unit with Msg = {\n"
+                         "export fn main() : Unit receiving Msg = {\n"
                          "    let me = self();\n"
-                         "    let _ = spawn(fn() : Unit with Msg = keeper(me));\n"
+                         "    let _ = spawn(fn() : Unit receiving Msg = keeper(me));\n"
                          "    receive { Ready -> Unit }\n"
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
@@ -1120,20 +1122,22 @@ restarted_subscriber() ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/restarted.ern",
                          "type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
-                         "fn hold(main : Address(Msg)) : Unit with Msg = {\n"
+                         "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
                          "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
                          "    }\n"
                          "}\n"
-                         "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit with Msg"
+                         "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit receiving"
+                         " Msg"
                          " = {\n"
                          "    Os.termination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    count(holder, 0)\n"
                          "}\n"
-                         "fn count(holder : Address(Msg), n : Int) : Unit with Msg = receive {\n"
+                         "fn count(holder : Address(Msg), n : Int) : Unit receiving Msg ="
+                         " receive {\n"
                          "    Add(k) -> count(holder, n + k)\n"
                          "  | Terminating(reply) -> if n > 0 then {\n"
                          "        let _ = 1 / List.size([]);\n"
@@ -1144,11 +1148,11 @@ restarted_subscriber() ->
                          "        answer(reply, Unit)\n"
                          "    }\n"
                          "}\n"
-                         "export fn main() : Unit with Msg = {\n"
+                         "export fn main() : Unit receiving Msg = {\n"
                          "    let me = self();\n"
-                         "    let holder = spawn(fn() : Unit with Msg = hold(me));\n"
+                         "    let holder = spawn(fn() : Unit receiving Msg = hold(me));\n"
                          "    let limit = RestartLimit(restarts = 1, within = 5000);\n"
-                         "    let k = spawn(restarting(limit, fn() : Unit with Msg"
+                         "    let k = spawn(restarting(limit, fn() : Unit receiving Msg"
                          " = keeper(holder, me)));\n"
                          "    send(k, Add(1));\n"
                          "    receive { Ready -> Unit };\n"
@@ -1240,7 +1244,7 @@ waiting_program(Dir) ->
                          "type Msg = Terminating(Reply(Unit)) | Ready | MainEnded(Down)"
                          " | WorkerEnded(Down)\n"
                          "type Order = Fail\n"
-                         "export fn main() : Unit with Msg =\n"
+                         "export fn main() : Unit receiving Msg =\n"
                          "    match Os.arguments {\n"
                          "        [\"termination\"] -> {\n"
                          "            Os.termination(Terminating);\n"
@@ -1250,20 +1254,21 @@ waiting_program(Dir) ->
                          "        }\n"
                          "      | _ -> started()\n"
                          "    }\n"
-                         "fn started() : Unit with Msg = {\n"
+                         "fn started() : Unit receiving Msg = {\n"
                          "    let me = self();\n"
                          "    let worker = spawn(fails);\n"
-                         "    let _ = spawn(fn() : Unit with Msg = keeper(me, worker));\n"
+                         "    let _ = spawn(fn() : Unit receiving Msg = keeper(me, worker));\n"
                          "    receive { Ready -> Unit }\n"
                          "}\n"
-                         "fn fails() : Unit with Order =\n"
+                         "fn fails() : Unit receiving Order =\n"
                          "    receive {\n"
                          "        Fail -> {\n"
                          "            let _ = 1 / List.size([]);\n"
                          "            Unit\n"
                          "        }\n"
                          "    }\n"
-                         "fn keeper(main : Address(Msg), worker : Address(Order)) : Unit with Msg"
+                         "fn keeper(main : Address(Msg), worker : Address(Order)) : Unit"
+                         " receiving Msg"
                          " = {\n"
                          "    Os.termination(Terminating);\n"
                          "    monitor(Process.fromAddress(main), MainEnded);\n"
@@ -1315,7 +1320,7 @@ limits_line() ->
                          "let filled : Unit =\n"
                          "    fill((4 * host(Foreign.atom(\"atom_limit\")) + 4) / 5\n"
                          "         - host(Foreign.atom(\"atom_count\")))\n"
-                         "export fn main() : Unit with Never = Io.println(\"ran\")\n"),
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/atoms.ern"),
     {0, Output} = sh("../bin/ern run " ++ Dir ++ "/atoms.erc 2> " ++ Dir ++ "/err.txt"),
     ?assertEqual(<<"ran\n">>, Output),

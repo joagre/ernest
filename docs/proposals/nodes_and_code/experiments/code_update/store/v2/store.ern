@@ -11,7 +11,7 @@ export type State = State(items : Map(String, Int), listener : Address(Tcp.Liste
 
 export let store : Service.Handle(Msg, State) = Service.start(init, step)
 
-export fn init() : State with Service.Envelope(Msg, State) =
+export fn init() : State receiving Service.Envelope(Msg, State) =
     match Tcp.listen("127.0.0.1", 0) {
         Right(listener) -> {
             let me = via(self(), Service.Message);
@@ -21,7 +21,7 @@ export fn init() : State with Service.Envelope(Msg, State) =
       | Left(_) -> fault("cannot listen")
     }
 
-export fn step(state : State, message : Msg) : State with Service.Envelope(Msg, State) =
+export fn step(state : State, message : Msg) : State receiving Service.Envelope(Msg, State) =
     match message {
         Put(key = key, value = value) -> {
             Io.println("put " <> key);
@@ -41,7 +41,7 @@ export fn step(state : State, message : Msg) : State with Service.Envelope(Msg, 
         }
     }
 
-export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int with n =
+export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int =
     match Tcp.port(listener) {
         Right(found) -> found
       | Left(_) -> 0
@@ -49,7 +49,7 @@ export fn portOf(listener : Address(Tcp.ListenerMsg)) : Int with n =
 
 /// Answers each connection the store's size and closes it; ends when the
 /// listener does, which is when its owner does.
-export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) : Unit with m =
+export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             let size = Address.callForever(store, fn(reply) = Size(reply = reply));
@@ -61,14 +61,14 @@ export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) :
       | Left(_) -> Unit
     }
 
-export fn put(key : String, value : Int) : Unit with n =
+export fn put(key : String, value : Int) : Unit receiving n =
     send(Service.address(store), Put(key = key, value = value))
 
-export fn get(key : String) : Optional(Int) with n =
+export fn get(key : String) : Optional(Int) receiving n =
     Address.callForever(Service.address(store), fn(reply) = Get(key = key, reply = reply))
 
-export fn size(handle : Service.Handle(Msg, State)) : Int with n =
+export fn size(handle : Service.Handle(Msg, State)) : Int receiving n =
     Address.callForever(Service.address(handle), fn(reply) = Size(reply = reply))
 
-export fn port(handle : Service.Handle(Msg, State)) : Int with n =
+export fn port(handle : Service.Handle(Msg, State)) : Int receiving n =
     Address.callForever(Service.address(handle), fn(reply) = Port(reply = reply))

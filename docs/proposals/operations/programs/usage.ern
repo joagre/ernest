@@ -17,14 +17,14 @@ let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
 
-fn shown(list : List(a)) : Unit with m needs a.show =
+fn shown(list : List(a)) : Unit needs a.show =
     List.forEach(list, fn(x) = Io.println(Io.show(x)))
 
 fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
     operations.toList(operations.intersection(operations.fromList(list),
                                               operations.fromList(other)))
 
-export fn main() : Unit with Never = {
+export fn main() : Unit = {
     let small = OrderedSet.fromList([3, 1, 3]);
     let both = OrderedSet.union(small, OrderedSet.fromList([2]));
     Io.println(Io.show(OrderedSet.toList(both)));

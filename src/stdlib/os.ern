@@ -104,7 +104,7 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Foreign.atom("os"))
 
-foreign fn system(name : Foreign.Term) : Address(Msg) with m =
+foreign fn system(name : Foreign.Term) : Address(Msg) =
     "ern_rt:system_process/1"
 
 /// The words after the module on `ern run`'s command line, whatever they look
@@ -121,7 +121,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 /// ```
 export let arguments : List(String) = commandLine()
 
-foreign fn commandLine() : List(String) with m =
+foreign fn commandLine() : List(String) =
     "ern_rt:arguments/0"
 
 /// The value of the program's environment variable `name`, or `None` where it
@@ -161,7 +161,7 @@ let host : Host = hostFacts()
 
 let variables : Map(String, Bytes) = host.environment
 
-foreign fn hostFacts() : Host with m =
+foreign fn hostFacts() : Host =
     "ern_os:host/0"
 
 /// The host's number for the user the program runs as, bound when the program
@@ -189,7 +189,7 @@ export let user : Int = host.user
 /// ```
 export let workingDirectory : Path = Path(hostDirectory())
 
-foreign fn hostDirectory() : String with m =
+foreign fn hostDirectory() : String =
     "ern_os:working_directory/0"
 
 /// Ends the program with `status`, as the end of its entry process ends it, and
@@ -215,7 +215,7 @@ foreign fn hostDirectory() : String with m =
 ///   | files -> files
 /// }
 /// ```
-export foreign fn exit(status : Int) : a with m =
+export foreign fn exit(status : Int) : a =
     "ern_rt:exit_program/1"
 
 /// Tells the calling process of the program's end before it comes: at the end,
@@ -249,10 +249,10 @@ export foreign fn exit(status : Int) : a with m =
 /// ```
 ///
 /// since 0.4.0
-export fn termination(wrap : (Reply(Unit)) -> m) : Unit with m =
+export fn termination(wrap : (Reply(Unit)) -> m) : Unit receiving m =
     subscribe(adapted(self(), wrap))
 
-foreign fn subscribe(address : Address(Reply(Unit))) : Unit with m =
+foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
     "ern_rt:termination/1"
 
 /// Starts the program and answers its address, or `Left` with why it could not
@@ -292,8 +292,8 @@ foreign fn subscribe(address : Address(Reply(Unit))) : Unit with m =
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with m = {
-    let owner = Process.fromAddress(self());
+export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) = {
+    let owner = Process.current();
     Address.callForever(reference,
                         fn(reply) = Start(command = command, owner = owner, reply = reply))
 }
@@ -329,7 +329,7 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with 
 /// }
 /// // => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
 /// ```
-export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) with m =
+export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) =
     Address.callForever(program, fn(reply) = Read(ms = ms, reply = reply))
 
 /// Gives `bytes` to the program as its input, after what it was given before.
@@ -361,9 +361,7 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn write(program : Address(ProgramMsg),
-                bytes : Bytes,
-                ms : Int) : Either(Io.Error, Unit) with m =
+export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
     Address.callForever(program, fn(reply) = Write(bytes = bytes, ms = ms, reply = reply))
 
 /// Ends the program's input, once what it was given before is written. A
@@ -382,7 +380,7 @@ export fn write(program : Address(ProgramMsg),
 /// }
 /// // => Right("2")
 /// ```
-export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
+export fn closeInput(program : Address(ProgramMsg)) : Unit =
     send(program, CloseInput)
 
 /// Makes `owner` the program's owner, in place of the process that started it
@@ -397,7 +395,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// ```ernest
 /// {
 ///     let program <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
-///     let reader = spawn(fn() : Unit with Never = match Os.read(program, 5000) {
+///     let reader = spawn(fn() : Unit receiving Never = match Os.read(program, 5000) {
 ///         _ -> Unit
 ///     });
 ///     Os.give(program, Process.fromAddress(reader));
@@ -406,7 +404,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// ```
 ///
 /// since 0.2.0
-export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
+export fn give(program : Address(ProgramMsg), owner : Process) : Unit =
     send(program, Give(owner = owner))
 
 /// Runs the program to its end and answers its exit status and all it wrote: it
@@ -430,7 +428,7 @@ export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
 ///            fn(finished) = String.fromUtf8(finished.stdout))
 /// // => Right(Some("hi"))
 /// ```
-export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) with m = {
+export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) = {
     let deadline = Clock.monotonic() + ms;
     let program <- start(command);
     closeInput(program);
@@ -443,7 +441,7 @@ export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) with m =
 fn collect(program : Address(ProgramMsg),
            deadline : Int,
            stdoutPieces : List(Bytes),
-           stderrPieces : List(Bytes)) : Either(Io.Error, Finished) with m =
+           stderrPieces : List(Bytes)) : Either(Io.Error, Finished) =
     match read(program, deadline - Clock.monotonic()) {
         Right(Stdout(bytes)) -> collect(program, deadline, bytes :: stdoutPieces, stderrPieces)
       | Right(Stderr(bytes)) -> collect(program, deadline, stdoutPieces, bytes :: stderrPieces)
