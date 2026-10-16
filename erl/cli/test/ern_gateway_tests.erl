@@ -55,46 +55,64 @@ adapted_in_order_test() ->
     ?assertNotEqual(First, Next).
 
 %% report §6.5, §8.7, §11.2: a process the worker keeps that ends otherwise
-%% than told, as each ends with the run it was started in, is forgotten,
-%% and a message to its address in the next run, in one host, as `ern
-%% test` runs a directory's tests, starts another, which applies it
+%% than told, as each ends with the run it was started in, is forgotten.
+%% In the next run, in one host, as `ern test` runs a directory's tests, a
+%% message to the earlier run's address is dropped, no process kept for it
+%% and its function not applied, and a message to an address the next run
+%% made starts another, which applies it. A regression test, written after the code;
+%% the drop since the address holds its run (finding D4), before which the
+%% earlier run's function was applied
 adapted_forgotten_test() ->
     Self = self(),
     Worker = spawn(fun() -> ern_gateway:work(?PEER, Self) end),
-    Applying = fun({held, Main}) ->
-                       Main ! {applying, erlang:self(), held},
-                       receive never -> held end;
-                  ({applied, Main}) ->
-                       Main ! {applying, erlang:self(), applied},
-                       {got, erlang:self()}
+    Applying = fun(Run) ->
+                   fun({held, Main}) ->
+                           Main ! {applying, erlang:self(), held},
+                           receive never -> held end;
+                      ({applied, Main}) ->
+                           Main ! {applying, erlang:self(), Run},
+                           {got, erlang:self()}
+                   end
                end,
-    Address = ern_rt:adapted(Self, Applying),
-    %% a run's entry point: a message handed, which names the run's entry
-    %% process, and the process kept for it named; where the message is
-    %% applied, the run waits for the process's end, which the worker asks
-    %% for once it has applied, so that the run's end does not kill it
-    Handed = fun(Kind) ->
-                 fun() ->
-                     ern_rt:timed(),
-                     Worker ! frame(Address, {Kind, erlang:self()}),
-                     Kept = applying(Kind),
-                     case Kind of
-                         held -> ok;
-                         applied -> _ = ended(erlang:monitor(process, Kept))
-                     end,
-                     ern_rt:untimed(),
-                     Self ! {kept, Kept}
-                 end
-             end,
-    ok = ern_rt:run_main(Handed(held), <<"main">>, quiet()),
-    First = wait(kept),
+    %% the first run: an address it makes, a message to it handed, which
+    %% names the run's entry process, and the process kept for it named
+    ok = ern_rt:run_main(
+           fun() ->
+               ern_rt:timed(),
+               Address = ern_rt:adapted(Self, Applying(first)),
+               Worker ! frame(Address, {held, erlang:self()}),
+               Kept = applying(held),
+               ern_rt:untimed(),
+               Self ! {kept, {Address, Kept}}
+           end, <<"main">>, quiet()),
+    {Earlier, First} = wait(kept),
     _ = ended(erlang:monitor(process, First)),
     %% the worker has taken the process's end once it no longer monitors it
     ok = ern_waits:until(Worker, fun() -> not is_monitored(Worker, First) end),
-    ok = ern_rt:run_main(Handed(applied), <<"main">>, quiet()),
-    Second = wait(kept),
+    %% the second: a message to the first run's address, then one to an
+    %% address of its own, which the run waits on until the process kept for
+    %% it has ended, which the worker asks for once it has applied, and then
+    %% until the worker holds no process kept, so that the first run's
+    %% address, whose frame came before, has been read
+    ok = ern_rt:run_main(
+           fun() ->
+               ern_rt:timed(),
+               Worker ! frame(Earlier, {applied, erlang:self()}),
+               Worker ! frame(ern_rt:adapted(Self, Applying(second)), {applied, erlang:self()}),
+               Kept = applying(second),
+               _ = ended(erlang:monitor(process, Kept)),
+               ok = ern_waits:until(Worker, fun() ->
+                                                erlang:process_info(Worker, monitors)
+                                                    =:= {monitors, []}
+                                            end),
+               Dropped = receive {applying, _, first} -> applied after 0 -> dropped end,
+               ern_rt:untimed(),
+               Self ! {kept, {Kept, Dropped}}
+           end, <<"main">>, quiet()),
+    {Second, Dropped} = wait(kept),
     exit(Worker, kill),
     ?assertNotEqual(First, Second),
+    ?assertEqual(dropped, Dropped),
     ?assertEqual(Second, got()).
 
 %% report §6.5, §6.4, §8.7: a loss of the peer's connection while the

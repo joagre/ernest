@@ -5,11 +5,12 @@
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
 %% {'Down', Pid, Reason, Site} in declared field order.
 %%
-%% An Address is a pid, or {adapted, Function, Target, Maker} for an address
-%% seen through a function (report §6.5), which send/2 applies in the
-%% sender where Maker, the process that made it, is of the sender's node,
-%% and otherwise the process Maker's node keeps for the address and the
-%% sending node applies (kept/1, §8.7), or
+%% An Address is a pid, or {adapted, Function, Target, Maker, Launch} for an
+%% address seen through a function (report §6.5), which send/2 applies in
+%% the sender where Maker, the process that made it, is of the sender's
+%% node, and otherwise the process Maker's node keeps for the address and
+%% the sending node applies (kept/1, §8.7), Launch being the reference of
+%% the launch that made it, or
 %% {foreign, Pid, Descriptor, Bound} for an address foreign code gave
 %% (report §8.4), whose messages cross into foreign code. A Reply(a) is the
 %% alias of the call's monitor of its callee, as gen_server's call makes
@@ -54,9 +55,9 @@
 %% among them.
 -module(ern_rt).
 
--export([send/2, kept/1, process_of/1, held/3, is_never_given/1, is_address/1,
-         spawn/2, spawn_monitored/3, spawn_root/3, self/0, adapted/2, call/3, call/4,
-         call_forever/2, call_forever/3, compute/3, answer/2, refuse/2,
+-export([send/2, kept/1, acting_for/1, process_of/1, held/3, is_never_given/1, is_address/1,
+         spawn/2, spawn_monitored/3, spawn_root/3, self/0, current/0, adapted/2, call/3,
+         call/4, call_forever/2, call_forever/3, compute/3, answer/2, refuse/2,
          monitor/2, kill/1, reason/1, started_by/1, kill_started/1, kill_all/1, rooting/0,
          rooted/2, processes/0, status/1, faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
@@ -163,9 +164,27 @@
 -define(LOOK_SOON, 100).
 -define(LOOK_LATER, 1000).
 
+%% Report §6.9, §6.5, Appendix E.18, E.21, E.23, E.28: what stands for a
+%% row in a process of the runtime's own that runs a program's function for
+%% another process, a delivery, the terminal's courier and the process kept
+%% for an adapted address whose target is on this node, held in its
+%% dictionary under ?ACTING
+%% (acting_for/1): the process it acts for, its recipient, which
+%% Process.current answers and which owns what the function opens; the
+%% marks the Code.loads called in it evaluate under, the innermost first,
+%% the first of which its spawns take for their root in place of the
+%% recipient's (rooting/0); and the site of the binding such a load
+%% evaluates (initializing/1).
+-record(acting, {recipient, marks = [], site = <<>>}).
+-define(ACTING, '$ern_acting').
+
 %% An adapted address holds the process that made it, whose node is the
-%% one its function runs on (report §6.5).
--type address() :: pid() | {adapted, fun((term()) -> term()), address(), pid()}
+%% one its function runs on (report §6.5), and the reference of the launch
+%% that made it, which is dead once that launch has ended, by an earlier
+%% start of the node or as an earlier run of `ern test` over a directory
+%% (§8.7, §11.2), or none where no launch was in progress.
+-type address() :: pid()
+                 | {adapted, fun((term()) -> term()), address(), pid(), reference() | none}
                  | {foreign, pid(), term(), map()}.
 
 %% Report §8.2: the system processes, by the names the runtime keeps them
@@ -209,10 +228,11 @@ send(Address, Message) ->
 %% function is the target's, on one node and across nodes alike: it takes
 %% the message's place in the target's mailbox, and the target faults at
 %% the wait that reaches it, as at a bad message's fault (§8.4), which
-%% `restarting` restarts (§6.9); the sender goes on. Report §8.7: one made
-%% by an earlier start of this node is dead, and a message to it is
-%% dropped, its function not applied, whether it came from a peer's frame
-%% or a send here.
+%% `restarting` restarts (§6.9); the sender goes on. Report §8.7, §11.2: one
+%% made by an earlier start of this node, or by an earlier run of `ern
+%% test` over a directory, is dead, and a message to it is dropped, its
+%% function not applied, wherever the function would be applied: a send
+%% here, and a peer's frame as it arrives (kept/1).
 deliver(Address, Message) ->
     sent(adapted_way(Address, Message)).
 
@@ -220,9 +240,17 @@ deliver(Address, Message) ->
 %% applied first, in the sender, so that a call that one of them makes ends
 %% before the call it is applied for begins (call/4): the address and the
 %% message that reach it, a fault for the target, or nothing where the
-%% address is of an earlier start.
-adapted_way({adapted, Function, Target, Maker}, Message) when node(Maker) =:= node() ->
-    case is_of_this_start(Maker) of
+%% address is of a launch that has ended. Report §8.7, §11.2: such an
+%% address reaches the node again inside a peer's message, and a process
+%% here may then send to it, so the send compares too. A maker that lives
+%% is of the launch in progress, since every process the runtime started
+%% ended with its launch (§8.6), so the common send pays the host's
+%% liveness check alone, and only a dead maker's address compares its
+%% launch (is_of_this_launch/1). The one exception is a process the
+%% runtime did not start that outlives its launch, which keeps its
+%% addresses alive while it lives, and which only an Erlang test can be.
+adapted_way({adapted, Function, Target, Maker, Launch}, Message) when node(Maker) =:= node() ->
+    case erlang:is_process_alive(Maker) orelse is_of_this_launch(Launch) of
         true ->
             try Function(Message) of
                 Adapted -> adapted_way(Target, Adapted)
@@ -244,7 +272,7 @@ sent({fault, Pid, Cause}) ->
 %% report §6.5, §8.7: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, where the process kept
 %% for the address and this node applies the function (kept/1)
-sent({{adapted, _, _, Maker} = Address, Message}) ->
+sent({{adapted, _, _, Maker, _} = Address, Message}) ->
     erlang:send({ern_gateway, node(Maker)},
                 {ern_frame, erlang:self(), {adapted, Address, Message}});
 %% report §8.4: a message to a foreign address crosses into foreign code
@@ -266,19 +294,31 @@ sent({Pid, Message}) ->
 %% connection ending nothing (§8.7). The process is the runtime's, as a
 %% Down's delivery is (wrapped/3), and has no row, since Process.live
 %% lists what a program spawned and what a system module opened (Appendix
-%% E.21); the reaper holds it (reaper_held/2). It is no delivery to its
+%% E.21); the reaper holds it (reaper_held/2). Report §6.5: it acts for the
+%% address's target where the target is on this node, so that what the
+%% function opens, spawns or asks of the runtime is the target's, as a
+%% wrap's is its recipient's (acting_for/1). It is no delivery to its
 %% target, and the target's end does not end it (abandoned/1). None where
 %% no run is in progress to apply the function in, between two runs of
-%% `ern test` over a directory, in one host, and before the first, and the
-%% message is dropped; a process whose run ends as it starts ends at once,
-%% the messages handed to it dropped so.
+%% `ern test` over a directory, in one host, and before the first, and
+%% report §8.7, §11.2: where the address is of a launch that has ended, an
+%% earlier start's of the node or an earlier run's (is_of_this_launch/1);
+%% the message is dropped then, its function not applied. A process whose
+%% run ends as it starts ends at once, the messages handed to it dropped
+%% so.
 -spec kept(address()) -> pid() | none.
-kept(Address) ->
+kept({adapted, _, _, _, Launch} = Address) ->
     Worker = erlang:self(),
     Reaper = persistent_term:get({?MODULE, reaper}, none),
-    case is_pid(Reaper) andalso erlang:is_process_alive(Reaper) of
-        false -> none;
-        true -> reaper_held(Reaper, fun() -> kept_loop(Address, Worker) end)
+    case is_pid(Reaper) andalso erlang:is_process_alive(Reaper)
+         andalso is_of_this_launch(Launch) of
+        false ->
+            none;
+        true ->
+            reaper_held(Reaper, fun() ->
+                                    acting_for(process_of(Address)),
+                                    kept_loop(Address, Worker)
+                                end)
     end.
 
 %% Report §6.5, §6.9, §8.6: a process of the runtime's own that runs Work,
@@ -309,16 +349,37 @@ kept_loop(Address, Worker) ->
             ok
     end.
 
-%% Report §8.7: whether a process of this node's name is of this start: a
-%% living one is, and one that is not is where its start's number, which the
-%% host puts last in a process's external form (NEW_PID_EXT), is this
-%% start's, erlang:system_info(creation).
-is_of_this_start(Pid) ->
-    erlang:is_process_alive(Pid) orelse begin
-        Bytes = term_to_binary(Pid),
-        binary:decode_unsigned(binary:part(Bytes, byte_size(Bytes), -4))
-            =:= erlang:system_info(creation)
-    end.
+%% Report §6.9, §6.5: the calling process of the runtime's own, a delivery,
+%% the terminal's courier (ern_tty) or a process kept for an adapted
+%% address, made to act for Recipient, the process it delivers to, where
+%% Recipient is on this node: what the function it runs opens, spawns or
+%% asks of the runtime is Recipient's, as if Recipient had done it itself
+%% (#acting{}). Where Recipient is on another node, as an adapted address's
+%% target may be, it acts for none, as §6.5 says: a resource the function
+%% opens is the calling process's and ends with it, and a process it spawns
+%% heads a chain of its own.
+-spec acting_for(pid()) -> ok.
+acting_for(Recipient) when node(Recipient) =:= node() ->
+    _ = erlang:put(?ACTING, #acting{recipient = Recipient}),
+    ok;
+acting_for(_Recipient) ->
+    ok.
+
+%% Report §8.7, §11.2: the launch in progress, which tags the adapted
+%% addresses its processes make, or none between two launches, while
+%% none runs (launched/1).
+launch() ->
+    persistent_term:get({?MODULE, launch}, none).
+
+%% Report §8.7, §11.2: whether an adapted address's launch is the one in
+%% progress, asked of an address a frame names as it arrives (kept/1) and
+%% of a dead maker's as it is sent here (adapted_way/2). A launch's
+%% reference holds its node's start, which the host tells apart
+%% (erlang:system_info(creation)), so one of an earlier start is never this
+%% one, and neither is one of an earlier run of `ern test` over a
+%% directory.
+is_of_this_launch(Launch) ->
+    Launch =:= launch().
 
 %% The process an address names, through any number of adaptations and
 %% through the checker of §8.4: an address that has crossed into
@@ -326,7 +387,7 @@ is_of_this_start(Pid) ->
 %% runtime holds of a process, its terminal, its monitors, its death,
 %% must be the process itself.
 -spec process_of(address()) -> pid().
-process_of({adapted, _, Target, _}) -> process_of(Target);
+process_of({adapted, _, Target, _, _}) -> process_of(Target);
 process_of({foreign, Pid, _, _}) -> Pid;
 process_of(Pid) -> behind(Pid).
 
@@ -370,7 +431,8 @@ is_never_given(_) ->
 %% Whether a term is an address in one of the forms the runtime holds.
 -spec is_address(term()) -> boolean().
 is_address(Pid) when is_pid(Pid) -> true;
-is_address({adapted, Function, Target, Maker}) when is_function(Function, 1), is_pid(Maker) ->
+is_address({adapted, Function, Target, Maker, Launch})
+  when is_function(Function, 1), is_pid(Maker), is_reference(Launch) ->
     is_address(Target);
 is_address({foreign, Pid, _, _}) -> is_pid(Pid);
 is_address(_) -> false.
@@ -395,8 +457,11 @@ spawn_monitored(Function, Wrap, Site) ->
 spawn_root(Function, Wrap, Site) ->
     spawn_with_monitors(Function, Site, [{erlang:self(), Wrap}], root).
 
-%% Chain: chained, where the process's root is its spawner's, root, where
-%% it is its own, or {peer, Node}, where a peer's spawn started it.
+%% Chain: chained, where the process's root is its spawner's, sent with the
+%% process or the mark the root is read from (parent/0), or root, where it
+%% is its own.
+spawn_with_monitors(Function, Site, Monitors, chained) ->
+    spawn_with_monitors(Function, Site, Monitors, {chained, parent()});
 spawn_with_monitors(Function, Site, Monitors, Chain) ->
     Ref = make_ref(),
     persistent_term:get({?MODULE, reaper})
@@ -405,17 +470,41 @@ spawn_with_monitors(Function, Site, Monitors, Chain) ->
         {Ref, Pid} -> Pid
     end.
 
+%% Report §6.9, §11.2, Appendix E.28: what a spawn's root is read from
+%% (root/2): the spawner, or for a process of the runtime's own that acts
+%% for another (acting_for/1), that process, or the mark a Code.load called
+%% in it evaluates under (rooting/0).
+parent() ->
+    case erlang:get(?ACTING) of
+        undefined -> erlang:self();
+        #acting{recipient = Recipient, marks = []} -> Recipient;
+        #acting{marks = [Mark | _]} -> Mark
+    end.
+
 -spec self() -> address().
 self() ->
     erlang:self().
+
+%% Appendix E.21, report §6.9: Process.current, the running process, or the
+%% process a delivery or a process kept for an adapted address acts for
+%% (acting_for/1).
+-spec current() -> pid().
+current() ->
+    case erlang:get(?ACTING) of
+        undefined -> erlang:self();
+        #acting{recipient = Recipient} -> Recipient
+    end.
 
 %%
 %% Report §6.5, §9.5
 %%
 
+%% Report §6.5, §8.7, §11.2: the address holds the calling process, its
+%% maker, whose node applies its function, and the launch in progress,
+%% whose end ends the address (adapted_way/2, kept/1).
 -spec adapted(address(), fun((term()) -> term())) -> address().
 adapted(Target, Function) ->
-    {adapted, Function, Target, erlang:self()}.
+    {adapted, Function, Target, erlang:self(), launch()}.
 
 %%
 %% Report §6.6
@@ -874,7 +963,8 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% table, since a timed receive it enters first counts itself there
 %% (§8.6). A monitor made with the spawn, spawnMonitored's, stands as
 %% monitor's does. Its root is its spawner's, where Chain says so and the
-%% spawner is a process of the runtime's, and else itself; a peer's spawn,
+%% spawner is a process of the runtime's or acts for one, and else itself
+%% (parent/0); a peer's spawn,
 %% {peer, Node}, heads a chain of its own, and its row keeps the peer's
 %% node, which its fault's line names (§11.2), and so does a peer's
 %% compute, {compute, Node, Caller, Alias}, whose process starts only once
@@ -885,7 +975,7 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain,
     Started = fun() -> receive Ref -> run(Function) end end,
     {Pid, _MonitorRef} = erlang:spawn_monitor(Started),
     {Root, Peer} = case Chain of
-                       chained -> {root(From, Pid), none};
+                       {chained, Parent} -> {root(Parent, Pid), none};
                        root -> {Pid, none};
                        {peer, Node} -> {Pid, Node};
                        {compute, Node, _, _} -> {Pid, Node}
@@ -917,7 +1007,11 @@ adopted(Pid, Site, Owner, From, Ref) ->
     From ! {Ref, adopted}.
 
 %% The root of Pid, started by Parent: Parent's where the runtime started
-%% or adopted Parent, and else Pid itself, the head of its chain.
+%% or adopted Parent, and else Pid itself, the head of its chain; or the
+%% mark Parent is, which a Code.load in a process acting for another
+%% evaluates under (parent/0).
+root(Mark, _Pid) when is_reference(Mark) ->
+    Mark;
 root(Parent, Pid) ->
     case ets:lookup(?PROCESSES, Parent) of
         [{_, _, _, _, _, Root, _}] -> Root;
@@ -950,7 +1044,7 @@ new_run(Pid, Ref, Reaper) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?TERMINATING, Pid),
     Reaper1 = monitors_canceled(Pid, Reaper),
-    canceled(Pid),
+    abandoned(Pid),
     Pid ! {Ref, fresh},
     Reaper1.
 
@@ -1134,23 +1228,26 @@ unmonitored(Caller, [Pid | Rest], Monitors, MonitorRefs) ->
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
 wrapped(Caller, Wrap, Down) ->
-    counted_link(Caller, fun() -> deliver({adapted, Wrap, Caller, erlang:self()}, Down) end).
+    counted_link(Caller, fun() -> deliver(adapted(Caller, Wrap), Down) end).
 
 %% Report §8.6: a process that will deliver a message to the process behind
 %% Address, counted as a source from before it starts until its work is done,
 %% and linked, so that one that never finishes ends with the process that
-%% started it, the reaper or the clock, each of which lives the run long and
-%% traps its exit (reaper/0, clock/1). Report §6.9: it is noted against its
-%% recipient and the process that started it, which ends it when the
-%% recipient restarts (canceled/1), and the reaper ends it when the
-%% recipient ends (abandoned/1); one whose recipient has ended already, an
-%% alarm's that fires after its process's end among them, ends before it
-%% starts, the row written first, so that an end the reaper learns of after
-%% the look finds it.
+%% started it, the reaper, the clock or the end's teller, each of which
+%% traps its exit (reaper/0, clock/1, tell/4), and the first two of which
+%% live the run long. Report §6.9: it acts for its recipient (acting_for/1),
+%% so that what the function it applies opens, spawns or asks of the
+%% runtime is the recipient's, and Process.current there is the recipient.
+%% It is noted against its recipient and the process that started it, and
+%% ended when the recipient restarts or ends (abandoned/1); one whose
+%% recipient has ended already, an alarm's that fires after its process's
+%% end among them, ends before it starts, the row written first, so that an
+%% end the reaper learns of after the look finds it.
 counted_link(Address, Work) ->
     Recipient = process_of(Address),
     Starter = erlang:self(),
     Pid = erlang:spawn_link(fun() ->
+                                acting_for(Recipient),
                                 receive go -> Work(), delivered(Recipient, Starter) end
                             end),
     Delivery = {Recipient, Starter, Pid},
@@ -1159,54 +1256,60 @@ counted_link(Address, Work) ->
     case node(Recipient) =:= node() andalso not erlang:is_process_alive(Recipient) of
         true -> ended_deliveries([Delivery]);
         false -> Pid ! go
-    end.
+    end,
+    Pid.
 
 delivered(Recipient, Starter) ->
     try ets:delete(?DELIVERIES, {Recipient, Starter, erlang:self()}) catch _:_ -> true end,
     source_end().
 
 %% Report §8.6: a process of the runtime's own that the calling process
-%% holds, ended. One that returned, a delivery done, a process kept for an
-%% address told to stop or a teller with its word, has taken its own rows.
-%% One that ended otherwise, killed from foreign code, delivered nothing:
-%% it is no source any more, and its row of deliveries goes. The row is
-%% found by a read of the deliveries on their way, which an end of this
-%% kind alone pays; one a delivery's recipient ended (abandoned/1), or a
-%% restart of it (canceled/1), has had its rows taken already, and one that
-%% is no delivery has none, which its source's row says.
+%% holds, ended, and whether it was a delivery that delivered nothing. One
+%% that returned, a delivery done, a process kept for an address told to
+%% stop or a teller with its word, has taken its own rows. One that ended
+%% otherwise, killed from foreign code, delivered nothing: it is no source
+%% any more, and its row of deliveries goes. The row is found by a read of
+%% the deliveries on their way, which an end of this kind alone pays; one a
+%% delivery's recipient ended, or a restart of it, has had its rows taken
+%% already (abandoned/1), and one that is no delivery has none, which its
+%% source's row says. Report §6.6: a call its function was making ends
+%% with it (uncalled/1).
 undelivered(_Pid, normal) ->
-    ok;
+    false;
 undelivered(Pid, _ExitReason) ->
     try ets:take(?HELD, {source, Pid}) of
-        [] -> ok;
-        _ -> ets:match_delete(?DELIVERIES, {{'_', erlang:self(), Pid}})
+        [] ->
+            false;
+        _ ->
+            ets:match_delete(?DELIVERIES, {{'_', erlang:self(), Pid}}),
+            uncalled(Pid),
+            true
     catch _:_ ->
-        true
-    end,
-    ok.
+        false
+    end.
 
 %% Report §6.9, §8.6: a process of the runtime's own the reaper holds that
 %% ended (reaper_held/2): what it delivered nothing of is no source any
-%% more (undelivered/2), the deliveries to it end with it, and the monitors
-%% it made go, as a caller's go at its end, a teller's of its subscriber.
+%% more (undelivered/2), the deliveries to it end with it, a call it was
+%% making ends with it, a kept process's killed in its function among them
+%% (uncalled/1), and the monitors it made go, as a caller's go at its end,
+%% a teller's of its subscriber.
 held_ended(Pid, ExitReason, Reaper) ->
-    undelivered(Pid, ExitReason),
+    _ = undelivered(Pid, ExitReason),
     abandoned(Pid),
+    uncalled(Pid),
     monitors_canceled(Pid, Reaper).
 
-%% Report §6.9: the deliveries this process started to Recipient, ended
-%% when Recipient restarts, each waited for, so that none reaches the new
-%% run.
-canceled(Recipient) ->
-    ended_deliveries(deliveries({Recipient, erlang:self(), '_'})).
-
 %% Report §6.9: every delivery to Recipient, whichever process started it,
-%% the reaper or the clock, ended once Recipient has ended: a delivery to a
-%% process that has ended ends with it, one whose wrap does not finish
-%% among them. The reaper ends them where it learns of the end, of a
-%% process it started, adopted, monitors or watches, or holds. A process
-%% kept for an adapted address (kept/1) is no delivery to its target, and
-%% runs on.
+%% the reaper, the clock or one of the end's tellers, ended, each waited
+%% for: once Recipient has ended, since a delivery to a process that has
+%% ended ends with it, one whose wrap does not finish among them, and when
+%% it restarts, so that none reaches the new run. The reaper ends them where
+%% it learns of an end, of a process it started, adopted, monitors or
+%% watches, or holds, and where it is asked at a restart (new_run/3); the
+%% clock ends them too where it is asked, so that a delivery it started as
+%% the reaper was asked is ended (alarms_canceled/2). A process kept for an
+%% adapted address (kept/1) is no delivery to its target, and runs on.
 abandoned(Recipient) ->
     ended_deliveries(deliveries({Recipient, '_', '_'})).
 
@@ -1219,7 +1322,9 @@ deliveries(Pattern) ->
 %% Deliveries ended, each killed and waited for: its rows taken first, so
 %% that the process that started it, told of its end, finds none to take
 %% (undelivered/2), and unlinked first where this process started it, so
-%% that it is told nothing.
+%% that it is told nothing. Report §6.6: a call the delivery's function was
+%% making ends with it, its rows gone (uncalled/1), as a process's at its
+%% end (delivered_down/3).
 ended_deliveries(Deliveries) ->
     lists:foreach(fun({_, Starter, Pid} = Delivery) ->
                       try
@@ -1231,7 +1336,8 @@ ended_deliveries(Deliveries) ->
                       MonitorRef = erlang:monitor(process, Pid),
                       Starter =:= erlang:self() andalso erlang:unlink(Pid),
                       exit(Pid, kill),
-                      receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
+                      receive {'DOWN', MonitorRef, process, Pid, _} -> ok end,
+                      uncalled(Pid)
                   end, Deliveries).
 
 %% The live processes the runtime started or adopted, with their spawn
@@ -1287,16 +1393,36 @@ kill_all(Pids) ->
 %% it started, is known by the mark (started_by/1) and not mixed with what
 %% the caller started before; the mark and the root the caller had, which
 %% rooted/2 gives back. A process the runtime did not start heads no chain,
-%% and is given none.
+%% and is given none. Report §6.9: a process of the runtime's own that acts
+%% for another (acting_for/1) heads it in what stands for its row, and not
+%% the process it acts for, which runs on beside it: its own spawns take the
+%% mark (parent/0), and the root it had is the mark of the load it was
+%% evaluating, or else the root of the process it acts for, which a load of
+%% that process's own may give back meanwhile; one that acts for a process
+%% the runtime did not start heads no chain either.
 -spec rooting() -> {reference(), pid() | reference() | none}.
 rooting() ->
     Mark = make_ref(),
-    case ets_lookup(?PROCESSES, erlang:self()) of
-        [{_, _, _, _, _, Root, _}] ->
-            true = ets:update_element(?PROCESSES, erlang:self(), {6, Mark}),
-            {Mark, Root};
-        _ ->
-            {Mark, none}
+    case erlang:get(?ACTING) of
+        undefined ->
+            case ets_lookup(?PROCESSES, erlang:self()) of
+                [{_, _, _, _, _, Root, _}] ->
+                    true = ets:update_element(?PROCESSES, erlang:self(), {6, Mark}),
+                    {Mark, Root};
+                _ ->
+                    {Mark, none}
+            end;
+        #acting{recipient = Recipient, marks = Marks} = Acting ->
+            case {Marks, ets_lookup(?PROCESSES, Recipient)} of
+                {[Inner | _], _} ->
+                    _ = erlang:put(?ACTING, Acting#acting{marks = [Mark | Marks]}),
+                    {Mark, Inner};
+                {[], [{_, _, _, _, _, Root, _}]} ->
+                    _ = erlang:put(?ACTING, Acting#acting{marks = [Mark]}),
+                    {Mark, Root};
+                {[], _} ->
+                    {Mark, none}
+            end
     end.
 
 %% Appendix E.28, report §11.2: the root the calling process had given back
@@ -1309,7 +1435,12 @@ rooting() ->
 rooted(_Mark, none) ->
     ok;
 rooted(Mark, Root) ->
-    true = ets:update_element(?PROCESSES, erlang:self(), {6, Root}),
+    case erlang:get(?ACTING) of
+        undefined ->
+            true = ets:update_element(?PROCESSES, erlang:self(), {6, Root});
+        #acting{marks = [Mark | Marks]} = Acting ->
+            _ = erlang:put(?ACTING, Acting#acting{marks = Marks})
+    end,
     Ref = make_ref(),
     persistent_term:get({?MODULE, reaper}) ! {rooted, erlang:self(), Ref, Mark, Root},
     receive
@@ -2194,14 +2325,16 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% source while it is pending (report §8.6). The clock holds each pending alarm by
 %% its timer, with its moment, where it goes and the process behind that,
 %% and each process's timers, so that a restart of that process cancels its
-%% own and reads no other's (report §6.9). An alarm after milliseconds is
+%% own and reads no other's (report §6.9), and its monitor of each process
+%% it holds an alarm of, one for each, so that the end of that process
+%% forgets its alarms too (alarms_canceled/2). An alarm after milliseconds is
 %% held by its deadline on the monotonic clock, `{monotonic, Deadline}`,
 %% which a clock that is set does not move; one at a time by the time,
 %% `{time, Time}`, which the host's clock is read against. The host's
 %% timers count monotonic time, so the clock asks the host to be told of
 %% each change of its time offset, and sets every alarm at a time again
 %% then. `read_time` reads the host's clock, or a test's.
--record(clock, {alarms = #{}, by_recipient = #{}, read_time}).
+-record(clock, {alarms = #{}, by_recipient = #{}, monitor_refs = #{}, read_time}).
 
 %% Report §6.5, E.15: the clock holds each alarm's delivery, a process of
 %% its own linked to it (fired/2), and traps their exits, as the reaper
@@ -2225,8 +2358,10 @@ clock_loop(Clock) ->
             Clock1 = alarms_canceled(Pid, Clock),
             Pid ! {Ref, fresh},
             clock_loop(Clock1);
+        {'DOWN', _MonitorRef, process, Pid, _} ->
+            clock_loop(alarms_canceled(Pid, Clock));
         {'EXIT', Pid, ExitReason} ->
-            undelivered(Pid, ExitReason),
+            _ = undelivered(Pid, ExitReason),
             clock_loop(Clock)
     end.
 
@@ -2248,15 +2383,14 @@ alarm(Moment, Address, Reply, Clock) ->
 fired(Timer, #clock{alarms = Alarms, read_time = ReadTime} = Clock) ->
     case Alarms of
         #{Timer := {Moment, Address, Recipient}} ->
-            Left = without_alarm(Timer, Recipient, Clock),
             case wait(Moment, ReadTime) of
                 0 ->
                     Now = ReadTime(),
                     counted_link(Address, fun() -> deliver(Address, Now) end),
                     source_end(),
-                    Left;
+                    without_alarm(Timer, Recipient, Clock);
                 _ ->
-                    armed(Moment, Address, Left)
+                    without_alarm(Timer, Recipient, armed(Moment, Address, Clock))
             end;
         #{} ->
             Clock
@@ -2268,34 +2402,61 @@ fired(Timer, #clock{alarms = Alarms, read_time = ReadTime} = Clock) ->
 set_again(#clock{alarms = Alarms} = Clock) ->
     maps:fold(fun(Timer, {{time, _} = Moment, Address, Recipient}, Acc) ->
                       erlang:cancel_timer(Timer),
-                      armed(Moment, Address, without_alarm(Timer, Recipient, Acc));
+                      without_alarm(Timer, Recipient, armed(Moment, Address, Acc));
                  (_Timer, {{monotonic, _}, _, _}, Acc) ->
                       Acc
               end, Clock, Alarms).
 
 %% Report §6.9: a restart cancels the process's alarms, and those on their
-%% way to it.
-alarms_canceled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient} = Clock) ->
+%% way to it. Report §8.6, Appendix E.15: so does its end, which the
+%% clock's monitor of it tells, since an alarm that fires after its process
+%% has ended delivers nothing, so that none is a source the deadlock count
+%% waits on.
+alarms_canceled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient,
+                            monitor_refs = MonitorRefs} = Clock) ->
     {Timers, ByRecipient1} = case maps:take(Pid, ByRecipient) of
                                  {Own, Others} -> {Own, Others};
                                  error -> {[], ByRecipient}
                              end,
     lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
-    canceled(Pid),
-    Clock#clock{alarms = maps:without(Timers, Alarms), by_recipient = ByRecipient1}.
+    abandoned(Pid),
+    Clock#clock{alarms = maps:without(Timers, Alarms), by_recipient = ByRecipient1,
+                monitor_refs = demonitored(Pid, MonitorRefs)}.
 
 %% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
-%% have one, so an alarm is set again until its moment has come.
-armed(Moment, Address,
-      #clock{alarms = Alarms, by_recipient = ByRecipient, read_time = ReadTime} = Clock) ->
+%% have one, so an alarm is set again until its moment has come. The
+%% process it goes to is monitored from its first alarm.
+armed(Moment, Address, #clock{alarms = Alarms, by_recipient = ByRecipient,
+                              monitor_refs = MonitorRefs, read_time = ReadTime} = Clock) ->
     Timer = erlang:start_timer(wait(Moment, ReadTime), erlang:self(), fire),
     Recipient = process_of(Address),
+    MonitorRefs1 = case MonitorRefs of
+                       #{Recipient := _} -> MonitorRefs;
+                       #{} -> MonitorRefs#{Recipient => erlang:monitor(process, Recipient)}
+                   end,
     Clock#clock{alarms = Alarms#{Timer => {Moment, Address, Recipient}},
-                by_recipient = added(Recipient, Timer, ByRecipient)}.
+                by_recipient = added(Recipient, Timer, ByRecipient), monitor_refs = MonitorRefs1}.
 
-without_alarm(Timer, Recipient, #clock{alarms = Alarms, by_recipient = ByRecipient} = Clock) ->
-    Clock#clock{alarms = maps:remove(Timer, Alarms),
-                by_recipient = forgotten(Recipient, Timer, ByRecipient)}.
+%% An alarm forgotten, and the monitor of its process with its last.
+without_alarm(Timer, Recipient, #clock{alarms = Alarms, by_recipient = ByRecipient,
+                                       monitor_refs = MonitorRefs} = Clock) ->
+    ByRecipient1 = forgotten(Recipient, Timer, ByRecipient),
+    MonitorRefs1 = case ByRecipient1 of
+                       #{Recipient := _} -> MonitorRefs;
+                       #{} -> demonitored(Recipient, MonitorRefs)
+                   end,
+    Clock#clock{alarms = maps:remove(Timer, Alarms), by_recipient = ByRecipient1,
+                monitor_refs = MonitorRefs1}.
+
+%% The clock's monitor of Pid gone, and a DOWN it sent with it.
+demonitored(Pid, MonitorRefs) ->
+    case maps:take(Pid, MonitorRefs) of
+        {MonitorRef, MonitorRefs1} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            MonitorRefs1;
+        error ->
+            MonitorRefs
+    end.
 
 %% The next wait towards an alarm's moment, at most ?SLICE; 0 once it has
 %% come.
@@ -2418,9 +2579,10 @@ terminations(_) -> 0.
 %% subscribe again in its new run before its teller's word comes; that
 %% subscription is told once the word has come, so that the old run's line
 %% is said before the new run's. A teller that ends before its word, which
-%% only a kill from outside it does, its wrap's fault being the
-%% subscriber's, ends the wait for its subscriber, whose answer would reach
-%% no one, and the end goes on without it. Where none is waited for, the
+%% a kill of its delivery from foreign code before it arrives makes it do,
+%% its wrap's fault being the subscriber's, ends the wait for its
+%% subscriber, whose answer would reach no one, and the end goes on
+%% without it. Where none is waited for, the
 %% wait is over once a last read finds no one to tell.
 waited(Outcome, Launch, Say, Waiting, Terminations) when map_size(Waiting) =:= 0 ->
     case last_read() of
@@ -2488,11 +2650,11 @@ untold(Subscriptions, Waiting) ->
 %% Each of them told, by a teller of its own, and its run marked told, so
 %% that no later read tells it again. A row gone since the read, by its
 %% process's end or restart, is told all the same, the teller's call ending
-%% as any call to that process would. Report §6.9, §8.6: a teller applies
-%% the subscriber's wrap, as a Down's delivery does, and the reaper holds
-%% it as it holds a delivery (reaper_held/2), so that its end ends nothing
-%% else and it ends with the program; the runner monitors it, so that a
-%% teller that ends before its word holds up no end (waited/5).
+%% as any call to that process would. Report §6.9, §8.6: a teller has the
+%% subscriber's wrap applied by a delivery of its own (tell/4), and the
+%% reaper holds it as it holds a delivery (reaper_held/2), so that its end
+%% ends nothing else and it ends with the program; the runner monitors it,
+%% so that a teller that ends before its word holds up no end (waited/5).
 tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
     Reaper = persistent_term:get({?MODULE, reaper}),
@@ -2517,32 +2679,57 @@ tell_late(Launch, Say, Untold, Waiting) ->
 counted([_]) -> "1 subscriber";
 counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 
-%% Report §8.6: a subscriber told, `wrap(reply)` delivered to it by a
-%% process of its own, as a monitor's Down is, a fault in the wrap the
-%% subscriber's (§6.5); the answer waited for as a caller waits for its
-%% callee's, which the subscriber's end or its restart ends (§6.6, §6.9).
+%% Report §8.6: a subscriber told, `wrap(reply)` delivered to it as a
+%% monitor's Down is, by a delivery of its own that the teller starts and
+%% holds (counted_link/2), a fault in the wrap the subscriber's (§6.5); the
+%% call noted first, since the wrap's own calls are the delivery's. The
+%% answer is waited for as a caller waits for its callee's, which the
+%% subscriber's end or its restart ends (§6.6, §6.9), and either ends the
+%% delivery (abandoned/1), one whose wrap does not finish among them.
 %% Report §11.2: its end is learned by the runtime's monitor, whose Down the
 %% reaper gives once it has reported the subscriber's fault, so that the
 %% fault's line comes before the line that it ended without answering; a
 %% restart reports its fault before it ends the calls waiting on it
-%% (restarts/4). Once it has its word it ends, and its monitor goes with
-%% it, as the reaper that holds it sees it end (held_ended/3), so that a
-%% subscriber that restarts at each telling is told by a teller each time.
+%% (restarts/4). A delivery foreign code kills before it arrives gives no
+%% word: the teller ends without one, and the runner, which monitors it,
+%% waits for the subscriber no longer (waited/5). Once it has its word it
+%% ends, and its monitor goes with it, as the reaper that holds it sees it
+%% end (held_ended/3), so that a subscriber that restarts at each telling
+%% is told by a teller each time.
 tell(Runner, Launch, Subscriber, Address) ->
     {Callee, Reply} = watched(Address),
     Ended = make_ref(),
     monitor(Subscriber, fun(_Down) -> Ended end),
-    Way = adapted_way(Address, Reply),
     pending(Callee, Reply),
-    sent(Way),
-    How = receive
-              {Reply, answered, _} -> <<"answered">>;
-              {Reply, _} -> <<"answered">>;
-              {Reply, restarted, _} -> <<"restarted without answering">>;
-              Ended -> <<"ended without answering">>
-          end,
+    %% the delivery's end a message, as the reaper and the clock take their
+    %% deliveries' (undelivered/2)
+    erlang:process_flag(trap_exit, true),
+    Delivery = counted_link(Address, fun() -> deliver(Address, Reply) end),
+    How = told_how(Reply, Ended, Delivery),
     settled(Reply),
-    Runner ! {said, Launch, Subscriber, How}.
+    case How of
+        none -> ok;
+        _ -> Runner ! {said, Launch, Subscriber, How}
+    end.
+
+%% How the subscriber was told, or none where its delivery was killed
+%% before it arrived. A delivery that ended as it delivered, or that the
+%% subscriber's end or restart ended, is followed by the word. The
+%% reaper's end, which ends the run, ends the teller.
+told_how(Reply, Ended, Delivery) ->
+    receive
+        {Reply, answered, _} -> <<"answered">>;
+        {Reply, _} -> <<"answered">>;
+        {Reply, restarted, _} -> <<"restarted without answering">>;
+        Ended -> <<"ended without answering">>;
+        {'EXIT', Delivery, ExitReason} ->
+            case undelivered(Delivery, ExitReason) of
+                true -> none;
+                false -> told_how(Reply, Ended, Delivery)
+            end;
+        {'EXIT', _Reaper, ExitReason} ->
+            exit(ExitReason)
+    end.
 
 %% Where an Os.exit or a second termination cuts the wait short: the
 %% subscribers still waited for said, in the order their processes were
@@ -2605,8 +2792,10 @@ table_kind(?NOTES) -> ordered_set;
 table_kind(_) -> set.
 
 %% The reference that tags this launch, under which the runner is known,
-%% and what the options give the run. Report §11.2: `ern run` reports
-%% every fault, the runtime's own subscriber, given here as a function.
+%% and which tags the adapted addresses the launch's processes make
+%% (launch/0), and what the options give the run. Report §11.2: `ern run`
+%% reports every fault, the runtime's own subscriber, given here as a
+%% function.
 launched(Options) ->
     persistent_term:erase({?MODULE, holder}),
     case Options of
@@ -2615,6 +2804,7 @@ launched(Options) ->
     end,
     Launch = make_ref(),
     persistent_term:put({?MODULE, runner}, {erlang:self(), Launch}),
+    persistent_term:put({?MODULE, launch}, Launch),
     persistent_term:put({?MODULE, arguments}, maps:get(arguments, Options, [])),
     persistent_term:put({?MODULE, exit}, maps:get(exit, Options, program)),
     Launch.
@@ -2784,21 +2974,35 @@ signal(Signal) ->
 
 %% Report §8.5, §11.2: the binding the calling process evaluates now, whose
 %% site a fault while it does is reported under, as a spawn's is; a process
-%% the runtime did not start has no site to change.
+%% the runtime did not start has no site to change. Report §6.9: a process
+%% of the runtime's own that acts for another keeps it in what stands for
+%% its row (#acting{}), since a Code.load called in it evaluates there, and
+%% the row of the process it acts for is that process's own.
 -spec initializing(binary()) -> 'Unit'.
 initializing(Site) ->
-    try ets:update_element(?PROCESSES, erlang:self(), {2, Site}) of
-        _ -> ?UNIT
-    catch
-        error:badarg -> ?UNIT
+    case erlang:get(?ACTING) of
+        undefined ->
+            try ets:update_element(?PROCESSES, erlang:self(), {2, Site}) of
+                _ -> ?UNIT
+            catch
+                error:badarg -> ?UNIT
+            end;
+        Acting ->
+            _ = erlang:put(?ACTING, Acting#acting{site = Site}),
+            ?UNIT
     end.
 
 %% The calling process's site, empty for one the runtime did not start.
 -spec site() -> binary().
 site() ->
-    case ets_lookup(?PROCESSES, erlang:self()) of
-        [{_, Site, _, _, _, _, _}] -> Site;
-        _ -> <<>>
+    case erlang:get(?ACTING) of
+        undefined ->
+            case ets_lookup(?PROCESSES, erlang:self()) of
+                [{_, Site, _, _, _, _, _}] -> Site;
+                _ -> <<>>
+            end;
+        #acting{site = Site} ->
+            Site
     end.
 
 %% Report §8.5, §11.2: a top-level binding's value, which '$init'/0 put.
@@ -3064,8 +3268,10 @@ end_program(Launch, Reaper, System) ->
         _ -> ok
     end,
     lists:foreach(fun ets:delete/1, tables()),
-    %% a signal after the run has nothing to end (signal/1)
+    %% a signal after the run has nothing to end (signal/1), and an adapted
+    %% address the run made is dead (adapted_way/2)
     persistent_term:erase({?MODULE, runner}),
+    persistent_term:erase({?MODULE, launch}),
     flush_launch(Launch),
     Gone.
 

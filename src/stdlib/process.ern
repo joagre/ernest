@@ -91,7 +91,8 @@ export foreign fn fromAddress(address : Address(m)) : Process =
 
 /// The running process, for a function that needs its identity and not its
 /// mailbox; `self` gives its address. It is the process `fromAddress(self())`
-/// gives.
+/// gives. In a wrap the runtime applies, a monitor's, an alarm's or a
+/// subscription's, it is the process the wrap delivers to (report §6.9).
 ///
 /// ### Examples
 ///
@@ -102,7 +103,7 @@ export foreign fn fromAddress(address : Address(m)) : Process =
 ///
 /// since 0.4.0
 export foreign fn current() : Process =
-    "erlang:self/0"
+    "ern_rt:current/0"
 
 /// A snapshot of the process, or `None` once it has ended, and for a process on
 /// another node.

@@ -513,8 +513,8 @@ frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
         true -> answered(From, Ref, Answer);
         false -> unreadable
     end;
-frame(_From, {adapted, {adapted, Function, _Target, Maker} = Address, Message})
-  when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node() ->
+frame(_From, {adapted, {adapted, Function, _Target, Maker, Launch} = Address, Message})
+  when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node(), is_reference(Launch) ->
     {adapted, Address, Message};
 frame(_From, _Body) ->
     unreadable.

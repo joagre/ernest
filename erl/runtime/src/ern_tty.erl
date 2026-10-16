@@ -169,8 +169,10 @@ deliver(Events, Subscribers) ->
 
 %% Report §8.2: one subscriber's keys, in order, its wrap applied here, so
 %% that a wrap that does not finish delays that subscriber's keys and no
-%% other's; a fault in the wrap is the subscriber's (§6.5). Linked to the
-%% terminal's process, so that it ends with it.
+%% other's; a fault in the wrap is the subscriber's (§6.5), and so is what
+%% the wrap opens, spawns or asks of the runtime, since the courier acts for
+%% the subscriber (§6.9, ern_rt:acting_for/1). Linked to the terminal's
+%% process, so that it ends with it.
 courier(Address) ->
     receive
         {to, Next} ->
@@ -195,7 +197,11 @@ subscribe(Address, Subscribers, Before, After) ->
             MonitorRef = erlang:monitor(process, Pid),
             Subscribers =:= [] andalso running(Before) andalso After =/= closed
                 andalso ern_rt:source_begin(),
-            [{Pid, erlang:spawn_link(fun() -> courier(Address) end), MonitorRef} | Subscribers]
+            Courier = erlang:spawn_link(fun() ->
+                                            ern_rt:acting_for(Pid),
+                                            courier(Address)
+                                        end),
+            [{Pid, Courier, MonitorRef} | Subscribers]
     end.
 
 %% The subscription of Pid, its courier ended and waited for, so that no

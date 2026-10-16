@@ -197,6 +197,71 @@ load_under_a_running_wrap_test() ->
     ?assert(erlang:module_loaded('ern@plug@watch')),
     ?assertNot(erlang:module_loaded('ern@plug@watch$2')).
 
+%% Appendix E.28, report §6.9, §11.2: a process a monitor's wrap spawns,
+%% where the monitor was made by a process the load's evaluation started,
+%% is that process's, as if it had spawned it itself, and a refused load
+%% kills it with that process, so that the program is left with the entry
+%% process alone. A regression test, written after the code (finding D1):
+%% the wrap's delivery had no row, so the process it spawned headed a chain
+%% of its own and lived on
+load_kills_what_a_wrap_spawned_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/helped.ern",
+          "type Msg = Helped | Ready(Reply(Unit))\n\n"
+          "let watcher : Address(Msg) = spawn(fn() : Unit receiving Msg = {\n"
+          "    monitor(Process.fromAddress(spawn(fn() = Unit)), fn(_) = {\n"
+          "        let _ = spawn(fn() : Unit receiving Int = receive {\n"
+          "            n -> Io.println(Int.toString(n))\n"
+          "        });\n"
+          "        Helped\n"
+          "    });\n"
+          "    receive {\n"
+          "        Helped -> receive {\n"
+          "            Ready(reply) -> answer(reply, Unit)\n"
+          "        }\n"
+          "    };\n"
+          "    receive {\n"
+          "        Helped -> Unit\n"
+          "    }\n"
+          "})\n\n"
+          "let helped : Unit = Address.callForever(watcher, fn(reply) = Ready(reply))\n\n"
+          "let broken : Int = 1 / List.size([])\n"),
+    built(Lib, "plug/helped.ern"),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit = {\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/helped.erc\"))));\n"
+                 "    Io.println(Int.toString(List.size(Process.live())))\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Other(\"Plug.Helped.broken:22 faulted: division by zero\"))">>,
+                  <<"1">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+%% Appendix E.28, report §6.9: Code.load called in a monitor's wrap
+%% evaluates the module's bindings in the wrap's delivery, as if the
+%% process it delivers to had called it: a refusal names the binding that
+%% faulted, and kills every process the evaluation started, so that the
+%% program is left with the entry process alone. A regression test,
+%% written after the code (finding D1): the delivery had no row to mark,
+%% so the refusal killed nothing, and named no binding
+load_in_a_wrap_test() ->
+    Dir = tmp(),
+    Lib = library(Dir),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Loaded(Either(Io.Error, Unit))\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    monitor(Process.fromAddress(spawn(fn() = Unit)),\n"
+                 "            fn(_) = Loaded(Code.load(Path(\"" ++ Lib ++ "/plug/bad.erc\"))));\n"
+                 "    receive {\n"
+                 "        Loaded(outcome) -> Io.println(Io.show(outcome))\n"
+                 "    };\n"
+                 "    Io.println(Int.toString(List.size(Process.live())))\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>, <<"1">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
 %% Appendix E.28, report §11.2: a module compiled against another
 %% interface of a module it uses than the load path holds is Invalid
 other_interface_test() ->

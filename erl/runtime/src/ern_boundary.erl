@@ -316,7 +316,7 @@ expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->
     checker(Value, MessageDescriptor, Bound, Cause);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checker
-expose({address, MessageDescriptor, Cause}, {adapted, _, _, _} = Value, Bound) ->
+expose({address, MessageDescriptor, Cause}, {adapted, _, _, _, _} = Value, Bound) ->
     checker(Value, MessageDescriptor, Bound, Cause);
 %% an address foreign code gave goes back to it as it came
 expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;

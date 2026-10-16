@@ -1587,15 +1587,18 @@ load(Namespace, Needer, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
             [ErlangModule | Loaded1]
     end.
 
-%% Report §11.2: a unit, once loaded, is held for the node's life, so a
-%% module the host holds already, with this very code from this file, is
-%% taken as it is: `ern test` over a directory loads a module again for
-%% each file whose program uses it, in one node. A module of a name the
-%% host holds other code of is an earlier program's, which ran in this host
-%% and ended, as the toolchain's own tests run program after program in
-%% one: the host's old code of the name is purged first, which the host
-%% requires before it loads the name again, and which kills no process,
-%% since every process of an ended program has ended with it (§8.6).
+%% Report §11.2: a module the host holds already, with this very code from
+%% this file, is taken as it is: `ern test` over a directory loads a module
+%% again for each file whose program uses it, in one node. A module of a
+%% name the host holds other code of is an earlier program's, which ran in
+%% this host and ended: an earlier run's of `ern test` over a directory,
+%% where a unit is held for its run and not the node's life, or an earlier
+%% one's of the toolchain's own tests, which run program after program in
+%% one host. The host's old code of the name is purged first, which the
+%% host requires before it loads the name again, and which kills no
+%% process, since every process of an ended program has ended with it
+%% (§8.6), and reaches no function of it, since an adapted address the
+%% earlier run made is dead (ern_rt:adapted/2).
 loaded_unit(ErlangModule, File, Beam) ->
     case ern_code:is_held(ErlangModule, Beam) andalso code:which(ErlangModule) =:= File of
         true ->

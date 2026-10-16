@@ -513,7 +513,10 @@ it knew (principle 1), and `Never` has no values, so nothing is ever sent to suc
 sentence; then the checker at generalization, the guide's §8.1 sentence, and the `receiving Never`
 marks the nodes tests restored under item 2, which go. Built before the tag.
 
-**Before the tag: a wrap acts for its recipient.** Decided with the user on 2026-10-17 (docs/findings.md,
+**Before the tag: a wrap acts for its recipient.** Done 2026-10-17 (the log's *Before the Tag, the
+Last Builds*): every delivery, the terminal's courier and a kept process whose target is on this node
+carry whom they act for; a resource a load's binding opens itself stays its evaluator's, which E.28
+says. Decided with the user on 2026-10-17 (the cold read's
 D1): what a wrap opens, spawns or asks of the runtime is the process it delivers to's, as its fault
 already is, and `Process.current()` in it is that process (§6.9); what an adapted function does on
 arrival is the target's where the target is on that node, and where it is not, a resource it opens
@@ -522,8 +525,9 @@ sentences are written; then the delivery's row names the recipient as owner and 
 and a program's ownership (E.18, E.23), a spawn's chain and a refused load's kill (§11.2, E.28), and
 `Process.current`; tests of the four cases the read named. Built before the tag.
 
-**Before the tag: what still counts at the end and in the deadlock count.** Decided with the user on
-2026-10-17 (docs/findings.md, C27 and D2). The end's teller applies a subscriber's wrap in itself and
+**Before the tag: what still counts at the end and in the deadlock count.** Done 2026-10-17 (the
+log's *Before the Tag, the Last Builds*), with a defect found on the way, a delivery killed in a
+call leaving the call's rows. Decided with the user on 2026-10-17 (the cold read's C27 and D2). The end's teller applies a subscriber's wrap in itself and
 is no delivery the runtime ends, so a wrap that never finishes holds the end past the subscriber's
 end or restart, against §8.6 and §6.9: the teller applies the wrap in a delivery of its own, noted
 against the subscriber, which its end or restart ends. An alarm whose process has ended holds off

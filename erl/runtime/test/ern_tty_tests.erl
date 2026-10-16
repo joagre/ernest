@@ -76,6 +76,26 @@ second_subscription_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual([{again, {'Key', $a}}, {again, {'Key', $b}}], wait(got)).
 
+%% report §6.9, Appendix E.16, E.21: the terminal's wrap acts for its
+%% subscriber, as every wrap acts for the process it delivers to:
+%% Process.current there is the subscriber, and not the courier that
+%% applies it. A regression test, written after the code (finding D1's
+%% read-back): the courier was nobody's
+wrap_acts_for_its_subscriber_test() ->
+    Self = self(),
+    Process = ern_named:functions('ern@process'),
+    ok = ern_rt:run_main(
+           fun() ->
+               Tty = ern_rt:system_process(terminal),
+               subscribe(Tty, fun(Event) ->
+                                  {current, Process(current)(), erlang:self(), Event}
+                              end),
+               Tty ! {chars, "a"},
+               {Current, Applier} = receive {current, C, A, _} -> {C, A} end,
+               Self ! {current, {Current =:= erlang:self(), Applier =/= erlang:self()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
+    ?assertEqual({true, true}, wait(current)).
+
 %% report §8.2, §8.6: a subscription ends when its process dies, so the
 %% keys stop being a source that can deliver, and a program left waiting
 %% on nothing is found deadlocked. A regression test: a dead subscriber

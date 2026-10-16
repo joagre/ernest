@@ -235,7 +235,7 @@ faulty_fields_test() ->
          || Body <- [{answer, make_ref(), garbage}, {answer, make_ref(), {failed, 'Other'}},
                      {answer, make_ref(), {spawned, Elsewhere}}, {answer, nothing, {spawned, Here}},
                      {find, 1, <<"Int">>, make_ref()},
-                     {adapted, {adapted, Wrap, Here, Elsewhere}, 1},
+                     {adapted, {adapted, Wrap, Here, Elsewhere, make_ref()}, 1},
                      {adapted, not_an_address, 1},
                      {spawn, make_ref(), not_a_function, <<"s">>, false},
                      {spawn, make_ref(), {function, <<"short">>}, <<"s">>, false},
@@ -918,7 +918,7 @@ proxy_one_find_test() ->
     Main = fun() ->
                ern_rt:init_modules([Proxy]),
                Service = {'Service', <<"probe">>, <<0:256>>},
-               {adapted, _, Forwarder, _} = Address = Start(Service, 1000),
+               {adapted, _, Forwarder, _, _} = Address = Start(Service, 1000),
                %% the first find made, the process waits for a message
                ok = ern_waits:until(Forwarder, fun() -> holds(Proxy, Forwarder) end),
                1 = erlang:trace_pattern({'ern@peer', Find, 2}, true, [local]),
