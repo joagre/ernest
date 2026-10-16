@@ -34,7 +34,9 @@ A process receives values of one type, so a `receive` is a `match` over that typ
 
 **Why does a function that receives say `receiving M`, while one that only sends says nothing?**
 
-A `receive` reads the mailbox of the process the function runs in, and a mailbox takes messages of one type, so the function runs only in a process whose mailbox is of that type. `receiving M` is that fact in the function's type, and the compiler refuses to run the function anywhere else: as the function a `spawn` starts with a mailbox of another type, or as a guard, which runs while a message is selected (report §3.9, report §6.1). A send needs no such fact. What it sends is in the address, `Address(M)`, and it reads nothing of the sender's mailbox; neither does a spawn, an answer, or a call, which waits on its reply and not on the caller's mailbox. So a function that only sends runs in any process, stands wherever one receiving `M` is expected, and says nothing, since a type carries what keeps messages safe and nothing of what a function does (report §0, principle 5).
+A `receive` reads the mailbox of the process the function runs in, and a mailbox takes messages of one type, so the function runs only in a process whose mailbox is of that type. `receiving M` is that fact in the function's type, and the compiler refuses to run the function anywhere else: as the function a `spawn` starts with a mailbox of another type, or as a guard, which runs while a message is selected (report §3.9, report §6.1).
+
+A send needs no such fact. What it sends is in the address, `Address(M)`, and it reads nothing of the sender's mailbox; neither does a spawn, an answer, or a call, which waits on its reply and not on the caller's mailbox. So a function that only sends runs in any process, stands wherever one receiving `M` is expected, and says nothing, since a type carries what keeps messages safe and nothing of what a function does (report §0, principle 5).
 
 **What does a typed mailbox catch, and what does it not?**
 
