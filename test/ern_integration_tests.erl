@@ -715,7 +715,7 @@ make_dir(Dir) ->
         Other -> Other
     end.
 
-%% report §11, docs/proposals/install/install.md: the launcher needs `iconv` to read the
+%% report §11, docs/install.md: the launcher needs `iconv` to read the
 %% working directory's name, and names it where the path has none. A
 %% regression test: every working directory was refused as not UTF-8
 launcher_names_a_missing_iconv_test() ->

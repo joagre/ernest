@@ -2,7 +2,7 @@
 
 ;; The repository's own sources are indented as the style guide says, so
 ;; reindenting one with the mode must leave it unchanged
-;; (docs/proposals/emacs/emacs_mode.md, the table of tests).  Run from
+;; (docs/emacs_mode.md, the table of tests).  Run from
 ;; `editors/emacs/':
 ;;
 ;;     emacs -Q -batch -l test/reindent.el ../../src/stdlib/*.ern

@@ -18,9 +18,8 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-16) but two, the shell's refusal of a
-module cycle through the load path and the three design notes' move to `docs/`; item 11 waits for
-the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-16) but one, the shell's refusal of a
+module cycle through the load path; item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -35,10 +34,10 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 1 | the chain: parser, types, BEAM | 2026-09-18 | tag `mvp1` | the log's entries of 2026-09-17 and 2026-09-18; [`architecture.md`](architecture.md) |
 | MVP 2 | the rest of the report on one node | 2026-09-19 | | the log's entries of 2026-09-19 |
 | MVP 2.5 | a complete standard library | 2026-09-20 | | *The Erlang Standard Library, Read for Ernest*, *Fs by Its Structure, and the Table*, *One Token for the Project* |
-| MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](proposals/emacs/emacs_mode.md) |
+| MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](emacs_mode.md) |
 | The report read as a Wirth report | the report read against Wirth's register and §0, about thirty issues decided one at a time | 2026-09-23 and 2026-09-24 | | the log's entries of those two days, one an issue |
 | MVP 2.61 | the guide as the user's document | 2026-09-24, out of order | | the log's entries of 2026-09-24 |
-| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](proposals/shell/shell_design.md); the log's entries from 2026-09-20 to 2026-09-25 |
+| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](shell_design.md); the log's entries from 2026-09-20 to 2026-09-25 |
 | `libs/markdown` | a CommonMark renderer, now under MVP 4.1 | 2026-09-25 | | Appendix G.2 |
 | The code read back after the shell | every line of Ernest and Erlang read for the principles, clumsiness and defects | 2026-09-25 | | *The Code Read Back* |
 | MVP 2.65 | the language and the toolchain read back | 2026-09-26 | | *The Report Read Cold, Its Plain Half* to *The Closing of Step 10*; the log's entries of 2026-09-25 and 2026-09-26 |
@@ -399,16 +398,14 @@ host since 2026-10-16 evening, 7.6 s, of which the no-op `make` it depends on is
 `guide/deployment.md`, `why.md` and `faq.md` are installed as `language.md` is, and the install
 test's link check reads every depth, where it had read the top directory alone.
 
-**Before the tag: the design notes.** Decided 2026-10-16 (the log's *The Design Notes Leave the
-Proposals*). The three design notes of built components, `emacs_mode.md`, `shell_design.md` and
-`install.md`, move from `docs/proposals/` to `docs/` under their own names, since the Makefile, the
-tests, the Emacs mode's source and the release's install tests cite them, and `docs/proposals/`
-goes, one proposal at a time (MVP 3.9). Each is trimmed on the move to what its component does and
-why; what it does not do goes to the log; the Emacs note's table of tests stays, since the test
-files cite it. Every pointer changes in the same commit: CLAUDE.md's owner table, the style test's
-exemption of `docs/proposals/`, which the notes then fall under, the Makefile's comments,
-`docs/development.md`, `docs/architecture.md`, `docs/README.md`, the MVP 2.9 row above, and the
-Emacs mode's header, its tests and its README. The log's old paths stay as history.
+**Before the tag: the design notes.** Done 2026-10-16 (the log's *The Design Notes Leave the
+Proposals*): the three design notes of built components, `emacs_mode.md`, `shell_design.md` and
+`install.md`, moved from `docs/proposals/` to `docs/` under their own names, and the spelling test
+reads them there. `docs/proposals/emacs/` and `install/` went with them; `shell/` keeps
+`attached.md`, its README pointing at the note. Each was trimmed to what its component does and
+why, what it does not do going to the log, and the Emacs note keeps its table of tests. Every
+pointer changed in the same commit; the log's old paths stay as history. `docs/proposals/` goes one
+proposal at a time (MVP 3.9).
 
 **Before the tag: the programs tests.** Done 2026-10-16 (the log's *The Programs Tests' Bounds*):
 the install test split, each part bound by the first's own time; a timed-out run's read-only
@@ -748,7 +745,7 @@ shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping o
 binding read is the node's, a process listed is the node's and a function called runs there without
 the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
 reload code on the node, as `erl -remsh` attaches to an Erlang node. The shell's design does not
-assume it runs on the node whose code it evaluates (`docs/proposals/shell/shell_design.md`). Nothing of
+assume it runs on the node whose code it evaluates (`docs/shell_design.md`). Nothing of
 it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
 it.
 

@@ -1,5 +1,5 @@
 %% The installation and the release archive, each made by make, and the
-%% toolchain run where they put it (docs/proposals/install/install.md). Run from
+%% toolchain run where they put it (docs/install.md). Run from
 %% this directory by its Makefile, never beside ern_manual_tests: make
 %% writes the manual pages under ../build/stdlib, which those tests write
 %% too. The helpers that run a command are ern_integration_tests'.
@@ -37,7 +37,7 @@ parts({Base, Ms}) ->
                                     fun() -> closed(Base) end}},
                {timeout, Bound(2), {"the release archive", fun release/0}}]}.
 
-%% docs/proposals/install/install.md: make install writes the tree under a
+%% docs/install.md: make install writes the tree under a
 %% prefix, bin/ern a relative link to its launcher; the prefix moved to
 %% another place runs there, `ern`, the shell, a program that runs another
 %% through the helper, and `ern doc --man`, and `man` finds ern(1), a
@@ -120,7 +120,7 @@ install() ->
                  ern_integration_tests:sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b")),
     Base.
 
-%% docs/proposals/install/install.md: a DESTDIR stages the same tree, which
+%% docs/install.md: a DESTDIR stages the same tree, which
 %% runs where it is staged, and make uninstall with it removes every file.
 %% Written with the code.
 staged(Base) ->
@@ -135,7 +135,7 @@ staged(Base) ->
     ?assertEqual([],
                  [File || File <- filelib:wildcard(Stage ++ "/**/*"), not filelib:is_dir(File)]).
 
-%% docs/proposals/install/install.md: a `bin/ern` that is no longer the
+%% docs/install.md: a `bin/ern` that is no longer the
 %% installation's link is a person's own: install refuses it before it
 %% touches the installation there, and uninstall leaves it, a regression
 %% test of both, which removed it.
@@ -151,7 +151,7 @@ own(Base) ->
     ?assertEqual({ok, <<"mine\n">>}, file:read_file(Own ++ "/bin/ern")),
     ?assertNot(filelib:is_dir(Own ++ "/lib/ernest")).
 
-%% docs/proposals/install/install.md: a prefix that cannot be written is
+%% docs/install.md: a prefix that cannot be written is
 %% refused with nothing written. Written with the code.
 closed(Base) ->
     case ern_integration_tests:sh("id -u") of
@@ -176,7 +176,7 @@ version() ->
     {ok, Text} = file:read_file("../VERSION"),
     string:trim(Text).
 
-%% docs/proposals/install/install.md: make release writes the archive, the staged tree with
+%% docs/install.md: make release writes the archive, the staged tree with
 %% the helper as its C source, a Makefile and a README; its make compiles
 %% the helper, and its make install installs under a prefix, where a
 %% program that runs another through the helper runs, and its make

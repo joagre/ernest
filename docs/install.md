@@ -1,6 +1,6 @@
 # The installation
 
-Status: built. This is the installation's design note, and changes when the installation's design does. It is not authoritative.
+Status: the installation's design note, which changes when the installation does. It is not a proposal, and not authoritative.
 
 How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed*, *The Release Has a README of Its Own* and *The Layout Completed* argue it. `installation_test_` in `test/ern_install_tests.erl` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
 
@@ -44,7 +44,7 @@ The documents installed are for a reader with no checkout. A document is install
 
 Before it clears the host's flags, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, it keeps each of them, and `PATH`, `BINDIR`, `EMU`, `PROGNAME` and `ROOTDIR`, which the host's own start sets or changes, as `ERN_GIVEN_<NAME>`, with `ERN_GIVEN` to say so: the runtime's helper puts each back, so that a program's environment is the one `ern` was started in (report Appendix E.23).
 
-It needs `sh`, `readlink` and `iconv`, and checks no version of the host.
+It needs `sh`, `readlink` and `iconv`.
 
 ## The release archive
 

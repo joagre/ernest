@@ -2,8 +2,8 @@
 
 ;;; Commentary:
 
-;; The mode for `.ern' files.  docs/proposals/emacs/emacs_mode.md designs
-;; it, and says what it does and what it does not do.
+;; The mode for `.ern' files.  docs/emacs_mode.md designs it, and
+;; says what it does.
 ;;
 ;; A buffer being edited is broken most of the time, so coloring and
 ;; indentation are the buffer's own work.  The toolchain is reached in

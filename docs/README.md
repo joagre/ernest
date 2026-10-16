@@ -6,6 +6,9 @@ What each file and directory here is, and the two READMEs that stand beside the 
 - **[`implementation_plan.md`](implementation_plan.md)**: where the project stands and what comes next.
 - **[`decisions.md`](decisions.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
+- **[`shell_design.md`](shell_design.md)**: the shell's design note: how it is built.
+- **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode's design note: what it does, and the tests that judge it.
+- **[`install.md`](install.md)**: the installation's design note: how a checkout and the release archive are installed.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`soundness.md`](soundness.md)**: the argument that a well-typed program does not go wrong, kept with the rules it covers.
 - **[`otp_bugs.md`](otp_bugs.md)**: the defects found in OTP, each written as a report for OTP's tracker.
@@ -17,6 +20,6 @@ What each file and directory here is, and the two READMEs that stand beside the 
 - **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser and the checker give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`man/`](man/)**: the manual pages as CommonMark, which `make man` writes from `main` and a release commits: the prelude's and the standard library's, and each library's.
-- **[`proposals/`](proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; operations records are there as the record of what was built, with three programs the tests run; and so are the design notes of the shell, [`shell_design.md`](proposals/shell/shell_design.md), of the Emacs major mode, [`emacs_mode.md`](proposals/emacs/emacs_mode.md), and of the installation, [`install.md`](proposals/install/install.md).
+- **[`proposals/`](proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; and operations records are there as the record of what was built, with three programs the tests run.
 - **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
 - **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode.

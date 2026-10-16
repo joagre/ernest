@@ -241,7 +241,7 @@ The site's files as served.
 - `make install` ships no page of the site: the pages are the server's, their
   links absolute and the shell panel on each. An installation's documents stay
   each in the form its reader uses: the man pages as roff, the report and the
-  guide, which have no roff form, as Markdown (`docs/proposals/install/install.md`).
+  guide, which have no roff form, as Markdown (`docs/install.md`).
   A form of the pages that works from a file, relative links and no panel,
   shipped apart as Rust ships its book, is decided with MVP 4.2 if it is wanted
   (decided 2026-10-13).
