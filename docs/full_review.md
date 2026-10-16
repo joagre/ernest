@@ -14,6 +14,7 @@ It does not run while the findings of the last one are open.
 - A reader edits nothing in the repository. It tries a program in a scratch directory of its own, with `bin/ern`.
 - The readers read one commit, which the findings name, and run side by side.
 - An area too large for one reader is read in parts, each by a reader of its own with the same brief.
+- Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the log says what each was for, and the reader asks whether anything still needs it.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
 
 ## The readers
