@@ -18,8 +18,9 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-16) but one, the shell's refusal of a
-module cycle through the load path; item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-16) but two, the shell's refusal of a
+module cycle through the load path and the three design notes' move to `docs/`; item 11 waits for
+the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -398,6 +399,17 @@ host since 2026-10-16 evening, 7.6 s, of which the no-op `make` it depends on is
 `guide/deployment.md`, `why.md` and `faq.md` are installed as `language.md` is, and the install
 test's link check reads every depth, where it had read the top directory alone.
 
+**Before the tag: the design notes.** Decided 2026-10-16 (the log's *The Design Notes Leave the
+Proposals*). The three design notes of built components, `emacs_mode.md`, `shell_design.md` and
+`install.md`, move from `docs/proposals/` to `docs/` under their own names, since the Makefile, the
+tests, the Emacs mode's source and the release's install tests cite them, and `docs/proposals/`
+goes, one proposal at a time (MVP 3.9). Each is trimmed on the move to what its component does and
+why; what it does not do goes to the log; the Emacs note's table of tests stays, since the test
+files cite it. Every pointer changes in the same commit: CLAUDE.md's owner table, the style test's
+exemption of `docs/proposals/`, which the notes then fall under, the Makefile's comments,
+`docs/development.md`, `docs/architecture.md`, `docs/README.md`, the MVP 2.9 row above, and the
+Emacs mode's header, its tests and its README. The log's old paths stay as history.
+
 **Before the tag: the programs tests.** Done 2026-10-16 (the log's *The Programs Tests' Bounds*):
 the install test split, each part bound by the first's own time; a timed-out run's read-only
 `closed` directory made writable by the cleanup; the desk's "send at once" bound by the dial's
@@ -469,6 +481,24 @@ it knew (principle 1), and `Never` has no values, so nothing is ever sent to suc
 (soundness). The report first, §3.11's sentence, §6.2's rule and §4.6's example, with its soundness
 sentence; then the checker at generalization, the guide's §8.1 sentence, and the `receiving Never`
 marks the nodes tests restored under item 2, which go. Built before the tag.
+
+**Before the tag: a wrap acts for its recipient.** Decided with the user on 2026-10-17 (docs/findings.md,
+D1): what a wrap opens, spawns or asks of the runtime is the process it delivers to's, as its fault
+already is, and `Process.current()` in it is that process (§6.9); what an adapted function does on
+arrival is the target's where the target is on that node, and where it is not, a resource it opens
+ends with the application and a process it spawns heads a chain of its own (§6.5). The report's
+sentences are written; then the delivery's row names the recipient as owner and root, for a socket's
+and a program's ownership (E.18, E.23), a spawn's chain and a refused load's kill (§11.2, E.28), and
+`Process.current`; tests of the four cases the read named. Built before the tag.
+
+**Before the tag: what still counts at the end and in the deadlock count.** Decided with the user on
+2026-10-17 (docs/findings.md, C27 and D2). The end's teller applies a subscriber's wrap in itself and
+is no delivery the runtime ends, so a wrap that never finishes holds the end past the subscriber's
+end or restart, against §8.6 and §6.9: the teller applies the wrap in a delivery of its own, noted
+against the subscriber, which its end or restart ends. An alarm whose process has ended holds off
+the deadlock fault until it fires, against §8.6 read with E.15: the clock monitors a process while it
+holds an alarm of it, one monitor for each, gone as its last alarm fires, and forgets an ended
+process's alarms as it forgets a restarted one's. Regression tests for both. Built before the tag.
 
 **Before the tag: a module cycle through the load path.** Found 2026-10-16 by the read-back of the
 refused load's units. The shell accepts a module that uses, through the load path, a module that
@@ -691,6 +721,17 @@ log's *The First Release Is for Others*:
   0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
   citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
   numbers kept for good (the log's *The Language Argued Before Peers*).
+- **The proposals built by then go**, decided 2026-10-16 (the log's *The Design Notes Leave the
+  Proposals*). A proposal's directory goes when the milestone built from it closes, after one pass
+  takes to the log what it still argues that the log lacks; the review runs that pass over every
+  proposal built by 0.5.0, `nodes_and_code/`, `operations/`, `kill_darlings/`, `placement/` and,
+  once MVP 3.27 has measured against it, `balancer/`, and finds the operations programs and the
+  code-update experiments, which the tests run, a home under `examples/` or `test/fixtures/`, or
+  lets them go with their tests. The attached shell's, the site's and `ernest_host/` stay for the
+  milestones after 0.5.0, each going as its milestone closes; the last to go takes
+  `docs/README.md`'s line, `docs/development.md`'s layout and CLAUDE.md's *Proposals* and
+  *Handouts and scratch* paragraphs with it. CLAUDE.md's sentence that a built proposal is kept
+  changes in the commit that removes the first directory.
 - **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
   0.4.0 and that a release may still refuse a program the previous release accepted, as every
   release before 1.0 may (the log's *A Release Carries No History*); no section of the report states
