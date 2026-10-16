@@ -470,7 +470,7 @@ reconnection can be taken by the old worker's loss and answered `Unreachable`, i
 as its answer arrives. The shape of the fix: one worker for a node across a loss, kept until it
 holds no frame and no process, running the loss in order and reading the frames after the
 reconnection itself; and a loss taking only the rows written before it. Regression tests in the
-gateway's and the peer's tests; fixed before the tag.
+gateway's and the peer's tests.
 
 **Before the tag: purges and the runtime's deliveries.** Done 2026-10-16 (the log's *The Runtime's
 Own Processes*, its last paragraphs); decided with the user the same day: the shell and `Code.load` keep a
