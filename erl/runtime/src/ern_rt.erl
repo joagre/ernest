@@ -2502,8 +2502,14 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% clock the Clock process reads in place of the host's, for tests; node =>
 %% fun(() -> ok), run in the entry process after `init`, which starts a
 %% node's carrier once the bindings have their values, a node detecting no
-%% deadlock (report §8.6, §8.7). Report §8.2: the standard streams carry
-%% bytes for the run, whatever the host's locale.
+%% deadlock (report §8.6, §8.7); say => fun((iodata()) -> any()), which
+%% writes the runtime's own line on standard error, ern_carrier:say/1 for
+%% `ern run` and `ern test`, and by default the line as it is through
+%% stderr (said/1, report §11.2); flush => fun(() -> any()), the shell's,
+%% run once the end's wait is over and stdout and stderr have taken what
+%% was sent them, which writes what they passed on to its screen
+%% (passed_on/2, §8.6). Report §8.2: the standard streams carry bytes for
+%% the run, whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
