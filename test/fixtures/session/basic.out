@@ -60,7 +60,7 @@ x : Int
 zero : () -> Int
 > 1 + 2 : Int
 > Io.println : (String) -> Unit with m+
-> Io.show : (a!) -> String needs a.show
+> Io.show : (a) -> String needs a.show
 > depth 10
 length 100
 output 5
@@ -72,10 +72,10 @@ timing off
   | ^
 > the session declares no nosuchname
 > Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
-Optional.isNone : (Optional(a!)) -> Bool
-Optional.isSome : (Optional(a!)) -> Bool
+Optional.isNone : (Optional(a)) -> Bool
+Optional.isSome : (Optional(a)) -> Bool
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
-Optional.withDefault : (Optional(a!), a!) -> a!
+Optional.withDefault : (Optional(a), a) -> a
 > String.trim
 
     String.trim(text : String) : String

@@ -1965,7 +1965,7 @@ let hashed : Ops(Set(Int)) = Ops(..Set)
 
 ```console
 $ ern build example.ern
-example.ern:3:36: Ops(..Set) fills size with Set.size: expected (a) -> Bool, found (Set(b=!)) -> Int
+example.ern:3:36: Ops(..Set) fills size with Set.size: expected (a) -> Bool, found (Set(b=)) -> Int
 2 | 
 3 | let hashed : Ops(Set(Int)) = Ops(..Set)
   |                              --- Ops declares size : (s) -> Bool
@@ -2326,7 +2326,7 @@ fn f(g : () -> Int) : Bool = g == g
 
 ```console
 $ ern build example.ern
-example.ern:1:30: `==` is not defined on () -> Int: it contains a function or an address
+example.ern:1:30: `==` is not defined on () -> Int: it contains a function, an address or a reply
 1 | fn f(g : () -> Int) : Bool = g == g
   |                              ^^^^^^
 ```
@@ -2341,7 +2341,7 @@ fn f() : Bool = same(fn() = 1, fn() = 1)
 
 ```console
 $ ern build example.ern
-example.ern:3:22: () -> Int does not support equality (it contains a function or an address), which same requires of its first argument
+example.ern:3:22: () -> Int does not support equality (it contains a function, an address or a reply), which same requires of its first argument
 2 | 
 3 | fn f() : Bool = same(fn() = 1, fn() = 1)
   |                 ---- same : (a=, a=) -> Bool
@@ -2578,7 +2578,7 @@ fn give(x : a) : Foreign.Term =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: the type a! is not known whole here, and Foreign.term gives foreign code a value by its type
+example.ern:2:5: the type a is not known whole here, and Foreign.term gives foreign code a value by its type
 1 | fn give(x : a) : Foreign.Term =
 2 |     Foreign.term(x)
   |     ^^^^^^^^^^^^
@@ -2950,24 +2950,6 @@ example.ern:1:26: the body does not have the declared result type: expected a, f
   |                      - result type a declared here
   |                          ^
   | = help: `a` and `b` stand for types a caller chooses apart, which may differ
-```
-
-### A reply passed where a function discards its argument (§3.9, §6.6)
-
-```ernest-rejected
-fn drop(x) = Unit
-
-fn f(r : Reply(Int)) : Unit with m = drop(r)
-```
-
-```console
-$ ern build example.ern
-example.ern:3:43: a reply-carrying value, Reply(Int), passed in the first argument of drop, which duplicates or discards it
-2 | 
-3 | fn f(r : Reply(Int)) : Unit with m = drop(r)
-  |                                      ---- drop : (a!) -> Unit
-  |                                           ^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ## Names in a block (report §5.4)
@@ -3885,364 +3867,6 @@ example.ern:3:16: a comparison in a `receive` guard compares variables, literals
   | = help: receive the message and `match` it
 ```
 
-### A reply discarded with `_` (§6.6)
-
-```ernest-rejected
-fn drop(r : Reply(Int)) : Unit with m = {
-    let _ = r;
-    Unit
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:9: `_` would discard a reply-carrying value
-1 | fn drop(r : Reply(Int)) : Unit with m = {
-2 |     let _ = r;
-  |         ^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A reply duplicated with `as` (§6.6)
-
-```ernest-rejected
-fn twice(r : Reply(Int)) : Unit with m =
-    match r {
-        x as y -> answer(x, 1)
-    }
-```
-
-```console
-$ ern build example.ern
-example.ern:3:9: `as` on a reply-carrying value would duplicate it
-2 |     match r {
-3 |         x as y -> answer(x, 1)
-  |         ^^^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A positional field that carries a reply matched with `_` (§6.6)
-
-```ernest-rejected
-type Req = Get(Reply(Int))
-
-fn serve(q : Req) : Unit with m =
-    match q {
-        Get(_) -> Unit
-    }
-```
-
-```console
-$ ern build example.ern
-example.ern:5:9: the field of Get carries a reply and cannot be `_`
-4 |     match q {
-5 |         Get(_) -> Unit
-  |         ^^^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A named field that carries a reply left out of a pattern (§6.6)
-
-```ernest-rejected
-type Req = Get(reply : Reply(Int), n : Int)
-
-fn serve(q : Req) : Unit with m =
-    match q {
-        Get(n = n) -> Unit
-    }
-```
-
-```console
-$ ern build example.ern
-example.ern:5:9: field reply of Get carries a reply and must be bound
-4 |     match q {
-5 |         Get(n = n) -> Unit
-  |         ^^^^^^^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A list of replies given to a function that drops its elements (§6.6, §3.9)
-
-```ernest-rejected
-fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: waiting)
-```
-
-```console
-$ ern build example.ern
-example.ern:1:72: a reply-carrying value, Reply(Int), passed in the first argument of List.size, which duplicates or discards it
-1 | fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: waiting)
-  |                                                              --------- List.size : (List(a!)) -> Int
-  |                                                                        ^^^^^^^^^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A lambda that captures a reply, bound and passed on (§6.6)
-
-```ernest-rejected
-fn later(r : Reply(Int)) : Unit with m = {
-    let f = fn() = answer(r, 1);
-    let g = f;
-    g()
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:3:13: the lambda f captures a reply-carrying value and may only be called or passed as the function spawn, spawnMonitored, Peer.spawn or Peer.spawnMonitored runs
-2 |     let f = fn() = answer(r, 1);
-3 |     let g = f;
-  |             ^
-```
-
-### A reply captured by a lambda that is passed to a function (§6.6)
-
-```ernest-rejected
-fn each(r : Reply(Int)) : Unit with m =
-    List.forEach([1], fn(x) = answer(r, x))
-```
-
-```console
-$ ern build example.ern
-example.ern:2:23: the reply-carrying value r is captured by a lambda that is not called, bound by `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or Peer.spawnMonitored runs
-1 | fn each(r : Reply(Int)) : Unit with m =
-2 |     List.forEach([1], fn(x) = answer(r, x))
-  |                       ^^^^^^^^^^^^^^^^^^^^
-```
-
-### A reply captured by a local function (§6.6)
-
-```ernest-rejected
-fn later(r : Reply(Int)) : Unit with m = {
-    fn g() : Unit with m = answer(r, 1);
-    g()
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:5: the reply-carrying value r is captured by a local function
-1 | fn later(r : Reply(Int)) : Unit with m = {
-2 |     fn g() : Unit with m = answer(r, 1);
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: a local fn may be called many times; pass r to it as a parameter
-```
-
-### A reply answered twice (§6.6)
-
-```ernest-rejected
-fn twice(r : Reply(Int)) : Unit with m = {
-    answer(r, 1);
-    answer(r, 2)
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:3:12: the reply-carrying value r is consumed twice
-1 | fn twice(r : Reply(Int)) : Unit with m = {
-2 |     answer(r, 1);
-  |            - first consumed here
-3 |     answer(r, 2)
-  |            ^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A reply answered on one path only (§6.6)
-
-```ernest-rejected
-fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else Unit
-```
-
-```console
-$ ern build example.ern
-example.ern:1:80: the reply-carrying value r is not consumed on this path
-1 | fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else Unit
-  |                                                                     - consumed here, on another path
-  |                                                                                ^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A reply never answered (§6.6)
-
-```ernest-rejected
-fn never(r : Reply(Int)) : Unit with m = Unit
-```
-
-```console
-$ ern build example.ern
-example.ern:1:42: the reply-carrying value r is never consumed
-1 | fn never(r : Reply(Int)) : Unit with m = Unit
-  |                                          ^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A reply left unanswered after a function that returns what it receives (§6.6)
-
-```ernest-rejected
-type Tick = Tick
-
-fn next() =
-    receive { x -> x }
-
-fn worker(r : Reply(Int)) : Unit with Tick = {
-    let _ = next();
-    Unit
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:6:46: the reply-carrying value r is never consumed
-5 | 
-6 | fn worker(r : Reply(Int)) : Unit with Tick = {
-  |                                              ^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A reply consumed in the right operand of `&&` (§6.6)
-
-```ernest-rejected
-fn done(r : Reply(Int)) : Bool with m = {
-    answer(r, 1);
-    true
-}
-
-fn serve(r : Reply(Int), ready : Bool) : Unit with m =
-    if ready && done(r) then Unit else Unit
-```
-
-```console
-$ ern build example.ern
-example.ern:7:22: the reply-carrying value r is consumed in the right operand of `&&`, which the left operand may skip
-6 | fn serve(r : Reply(Int), ready : Bool) : Unit with m =
-7 |     if ready && done(r) then Unit else Unit
-  |                      ^
-  | = help: consume r before the `&&` or after it, or write an `if`
-```
-
-### A reply consumed after a `<-` (§6.6, §5.5)
-
-```ernest-rejected
-fn serve(r : Reply(Int), text : String) : Optional(Unit) with m = {
-    let n <- String.toInt(text);
-    answer(r, n);
-    Some(Unit)
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:3:12: the reply-carrying value r is consumed after a `<-`, which leaves the block on a `Left` or a `None`
-2 |     let n <- String.toInt(text);
-3 |     answer(r, n);
-  |            ^
-  | = help: consume r before the `<-`, or `match` on the value in place of the `<-`
-```
-
-### A reply left unanswered behind a name that hides it (§6.6, §5.10)
-
-```ernest-rejected
-fn serve(r : Reply(Int), n : Optional(Int)) : Unit with m =
-    match n {
-        Some(r) -> Io.println(Int.toString(r))
-      | None -> answer(r, 0)
-    }
-```
-
-```console
-$ ern build example.ern
-example.ern:3:20: the reply-carrying value r is not consumed on this path
-2 |     match n {
-3 |         Some(r) -> Io.println(Int.toString(r))
-  |              - this r is a new binding, which shadows the reply-carrying r
-  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-4 |       | None -> answer(r, 0)
-  |                        - consumed here, on another path
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-### A field selected from a value that carries a reply (§6.6)
-
-```ernest-rejected
-type Request = Get(reply : Reply(Int)) | Stop
-
-type Pending = Pending(request : Request, tries : Int)
-
-fn tries(pending : Pending) : Int =
-    pending.tries
-```
-
-```console
-$ ern build example.ern
-example.ern:6:13: `.tries` is selected from a reply-carrying value, and would drop its other fields
-5 | fn tries(pending : Pending) : Int =
-6 |     pending.tries
-  |             ^^^^^
-  | = help: take the value apart with a pattern, which binds every field that carries a reply (§6.6)
-```
-
-### A record update of a value that carries a reply (§6.6)
-
-```ernest-rejected
-type Request = Get(reply : Reply(Int)) | Stop
-
-type Pending = Pending(request : Request, tries : Int)
-
-fn again(pending : Pending, request : Request) : Pending =
-    Pending(..pending, request = request)
-```
-
-```console
-$ ern build example.ern
-example.ern:6:5: a record update of a reply-carrying value would drop the field it replaces
-5 | fn again(pending : Pending, request : Request) : Pending =
-6 |     Pending(..pending, request = request)
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: take the value apart with a pattern and build Pending from its fields (§6.6)
-```
-
-### A reply bound at top level (§6.6)
-
-```ernest-rejected
-type Give = Give(reply : Reply(Reply(Int)))
-
-let server : Address(Give) =
-    spawn(fn() : Unit with Give = receive { Give(reply = out) -> fault("no") })
-
-let stash = Address.callForever(server, fn(r) = Give(reply = r))
-```
-
-```console
-$ ern build example.ern
-example.ern:6:1: stash has the reply-carrying type Reply(Int), and a top-level `let` holds no reply: every function may read it
-5 | 
-6 | let stash = Address.callForever(server, fn(r) = Give(reply = r))
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: hold the reply in the process that answers it, as a parameter of its loop (§6.6)
-```
-
-### A reply given to a function that a function returned, which duplicates it (§6.6, §3.9)
-
-```ernest-rejected
-fn pair() =
-    fn(x) = #(x, x)
-
-fn serve(r : Reply(Int)) : Unit with m = {
-    let #(first, second) = pair()(r);
-    answer(first, 1);
-    answer(second, 2)
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:5:28: a reply-carrying value, Reply(Int), passed where pair duplicates or discards its argument: pair : () -> (a!) -> #(a!, a!)
-4 | fn serve(r : Reply(Int)) : Unit with m = {
-5 |     let #(first, second) = pair()(r);
-  |                            ^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
 ## What crosses to another node (report §3.11)
 
 ### A service at a message type not known where it is made (§3.11)
@@ -4364,7 +3988,7 @@ fn startWith(name : String, values : List(a)) : Unit with m = {
 
 ```console
 $ ern build example.ern
-example.ern:2:89: the function Peer.spawn starts captures values, whose type List(a!) holds a type variable
+example.ern:2:89: the function Peer.spawn starts captures values, whose type List(a) holds a type variable
 1 | fn startWith(name : String, values : List(a)) : Unit with m = {
 2 |     let _ = Peer.spawn(name, fn() : Unit with Never = Io.println(Int.toString(List.size(values))),
   |                                                                                         ^^^^^^

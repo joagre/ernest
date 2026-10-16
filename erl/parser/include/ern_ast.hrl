@@ -102,11 +102,9 @@
 %% statements: [#fn_declaration{} | #binding{} | Expr], the last an Expr
 -record(binding, {span, pattern, annotation, operator, expr}).
 %% annotation: the type written, or undefined; operator: '=' | '<-'
--record(e_call, {span, callee, args, pipe = false, returns = true, type}).
+-record(e_call, {span, callee, args, pipe = false, type}).
 %% pipe: true when `x |> e` wrote it; x is the first argument, evaluated
-%% before a callee that is not a name (report §5.1); returns: set by the
-%% checker, false where the callee never returns, which the reply check
-%% reads (report §6.6)
+%% before a callee that is not a name (report §5.1)
 -record(e_selection, {span, expr, field, field_span, type}).
 %% expr.field, report §3.5; field_span: where the selector stands, where
 %% its errors are reported (report §11.5)

@@ -497,7 +497,7 @@ check_module(#session{scope = Scope} = Session, Namespace, InputOrigin, Input, D
         {ok, Typed, Interface, Env} ->
             Type = input_type(Typed, Binds),
             Binds1 = generalized(Binds, Typed, Env),
-            case refused(Type, Env, Binds1, Typed) of
+            case undetermined(Type, Env, Binds1, Typed) of
                 none ->
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
@@ -565,30 +565,6 @@ site(#startup_input{file = File, line = Line}) -> {File, Line - 1}.
 %% type is still open is refused with the annotation that would settle
 %% it, rather than entering the session as a scheme whose variables mean
 %% nothing to the inputs after it.
-refused(Type, Env, Binds, Typed) ->
-    case reply_refusal(Type, Env, Binds, Typed) of
-        none -> undetermined(Type, Env, Binds, Typed);
-        Refused -> Refused
-    end.
-
-%% Report §6.6, §11.2: an input's value is printed and dropped, and what a
-%% `let` at the prompt binds is the session's, for any later input to use,
-%% so neither may carry a reply, which is consumed exactly once.
-reply_refusal(_Type, _Env, declarations, _Typed) ->
-    none;
-reply_refusal(Type, Env, _Binds, Typed) ->
-    case ern_typecheck:is_reply_carrying(Type, Env) of
-        false ->
-            none;
-        true ->
-            TypeState = ern_typecheck:type_state(Env),
-            {refused, #diagnostic{span = input_span(Typed),
-                                  message = "an input's value cannot carry a reply, which is"
-                                            " consumed exactly once; this one is "
-                                            ++ ern_types:format(Type, TypeState),
-                                  help = "answer the reply within the input"}}
-    end.
-
 undetermined(_Type, _Env, declarations, _Typed) ->
     none;
 undetermined(_Type, _Env, it, _Typed) ->

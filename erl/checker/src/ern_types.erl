@@ -19,7 +19,7 @@
 
 -type id() :: pos_integer().
 -type qualified_name() :: [atom()].
--type restriction() :: equality | process_only | not_reply_carrying.
+-type restriction() :: equality | process_only.
 -type restrictions() :: [restriction()].
 -type effect() :: pure | type().
 -type type() :: {tvar, id()} | {tcon, qualified_name(), [type()]} | {ttuple, [type()]}
@@ -377,9 +377,8 @@ replace_variables(pure, _) ->
 
 %%
 %% Printing, report §11.5. Variables are named a, b, c, ... in order of
-%% appearance; a variable with the equality restriction prints as a=, a
-%% process-only effect variable in no value position as m+, and one that is
-%% not-reply-carrying as a!.
+%% appearance; a variable with the equality restriction prints as a=, and a
+%% process-only effect variable in no value position as m+.
 %%
 
 %% Report §11.5: the differing part of two types that do not unify, so a
@@ -586,7 +585,7 @@ over_variables(Requirement) ->
 
 member_text(Type, Member, TypeState, Names) ->
     {Text, Names1} = format_type(Type, TypeState, Names),
-    {[string:trim(lists:flatten(Text), trailing, "=!+"), ".", atom_to_list(Member)], Names1}.
+    {[string:trim(lists:flatten(Text), trailing, "=+"), ".", atom_to_list(Member)], Names1}.
 
 %% The state with a scheme's variables named as its declaration names them.
 %% They are the scheme's own, bound by it, so the state's substitution does
@@ -676,7 +675,6 @@ format_type({tvar, Id}, TypeState,
             %% occurs in no value position, since one that does is never pure
             Restrictions = known_restrictions(Id, TypeState),
             Marks = [$= || lists:member(equality, Restrictions)]
-                 ++ [$! || lists:member(not_reply_carrying, Restrictions)]
                  ++ [$+ || lists:member(process_only, Restrictions), lists:member(Id, EffectOnly)],
             Name = Base ++ Marks,
             {Name, Names1#variable_names{named = Named#{Id => Name}, taken = [Base | Taken]}}

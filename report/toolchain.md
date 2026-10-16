@@ -256,7 +256,6 @@ Other errors are placed and told as follows.
 - A call of a selected field, `operations.intersection(...)`, names the field as written where a message would say `the callee`.
 - A recursive call's argument at another type than the definition's own (§3.9) is reported as not fitting the callee at its own type, with a help line naming the fix: a second function for the call at another type.
 - A type of a recursive group named in its fields at other than the declaring type's parameters (§3.9) is reported at that name, with a help line naming the fix: the type named at those parameters, `Nest(a)`, and, where the type it was named at takes one argument, that type holding it, `List(Nest(a))`.
-- A path that does not consume a reply labels the first binding on it that shadows the reply's name (§5.10).
 - A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6).
 - A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
 - An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
@@ -372,7 +371,7 @@ A derived `compare` (§3.5) is hashed as a written one, the function the checker
 
 Whether a declaration is exported, and whether a type is abstract, is not in its form; the view a `show` has of an abstract type is in the form of the function that shows it (above).
 
-A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality`, `not_reply_carrying` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` (§4.9). A parameter is `{param, Pattern, Annotation}`. An `Annotation` is `none` where nothing is written, and otherwise the type written, its names resolved. `Needs` lists the `needs` clause's members as written, each `{needs, Type, Member}`.
+A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` (§4.9). A parameter is `{param, Pattern, Annotation}`. An `Annotation` is `none` where nothing is written, and otherwise the type written, its names resolved. `Needs` lists the `needs` clause's members as written, each `{needs, Type, Member}`.
 
 **References.**
 

@@ -14,10 +14,9 @@
 %%   qualified_name() :: [atom()]  ['Int'], ['List'], ['Net', 'Http', 'Request']
 %%
 %% Every variable has an entry in the checker's variable table keyed by id().
-%% Its restrictions are the three inferred restrictions of report §3.9:
-%% `equality` (the variable was compared with ==), `process_only` (it may
-%% not bind to pure), `not_reply_carrying` (it may not be instantiated to a
-%% reply-carrying type). A bound variable's binding lives in the
+%% Its restrictions are the two inferred restrictions of report §3.9:
+%% `equality` (the variable was compared with ==) and `process_only` (it
+%% may not bind to pure). A bound variable's binding lives in the
 %% substitution, not in the term, so a type is read through
 %% ern_types:resolve/2 before inspection.
 %%
@@ -63,16 +62,14 @@
 %% What the checker knows about a declared type, from this module or a
 %% compiled interface.
 -record(type_info, {qualified_name, params = [], param_names = [], constructors = [],
-                    abstract = false, foreign = false, reply_carrying = false,
-                    equality = []}).
+                    abstract = false, foreign = false, equality = []}).
 %% params: a type variable for each of the type's parameters, in order, of
 %% every kind of type, a declared type's those its constructors' schemes
 %% are over; param_names: the names a declaration writes for them, [] for
 %% a built-in type
 %% equality: for a foreign or built-in type, whether each parameter requires
 %% equality, as `k=` declares it (report §4.7, §9.2); [] when none does
-%% constructors: [#constructor_info{}]; reply_carrying is computed
-%% transitively (report §6.6)
+%% constructors: [#constructor_info{}]
 
 -record(constructor_info, {name, qualified_name, type_qualified_name, fields = none, tag_arity,
                            scheme}).

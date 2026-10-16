@@ -972,8 +972,8 @@ is_compiled_against(_, _, _, _) ->
 compiler_modules() ->
     [ern_ast, ern_bitspec, ern_bound, ern_canonical, ern_chunk, ern_compile, ern_descriptor,
      ern_diagnostic, ern_docs, ern_emitter, ern_exhaust, ern_format, ern_interface, ern_lexer,
-     ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_reply, ern_scope, ern_typecheck,
-     ern_types, ern_build].
+     ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_scope, ern_typecheck, ern_types,
+     ern_build].
 
 %% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.

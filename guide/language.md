@@ -37,17 +37,17 @@ Beside the guide: [Why Ernest](why.md), the argument for the design with a progr
 
 Ernest is a functional language for concurrent programs, built on two ideas. A pure function computes a value from its arguments and does nothing else, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that sends or receives says so in its type, and runs only in a process. Every other rule says how the two appear in each other's code.
 
-The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Four follow, each as a program and what `ern build`, the compiler, says about it.
+The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Three follow, each as a program and what `ern build`, the compiler, says about it.
 
 **A message the process does not take.** The counter receives `CounterMsg`, so the address `spawn` returns takes a `CounterMsg` and nothing else.
 
 ```ernest-rejected
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -70,26 +70,6 @@ message.ern:14:19: the argument does not fit send: expected CounterMsg, found St
 
 An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labeled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, `Reply`, `answer`, and `with`, are taught in §1 to §4; here only the errors matter.
 
-**A request left unanswered.** A `Get` carries a `Reply(Int)`, in which the counter puts its answer. A reply is answered exactly once on every path. This counter forgets to, and whoever asked would wait.
-
-```ernest-rejected
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
-
-fn count(total : Int) : Unit with CounterMsg =
-    receive {
-        Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> count(total)
-    }
-```
-
-```console
-$ ern build forgot.ern
-forgot.ern:6:9: the reply-carrying value reply is never consumed
-5 |         Inc(amount) -> count(total + amount)
-6 |       | Get(reply = reply) -> count(total)
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
 
 **Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `: Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
 
@@ -128,7 +108,7 @@ notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, four things with a program for each, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the fourth is principle 3's (§11).
+These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, four things with a program for each, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the third is principle 3's (§11).
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
@@ -441,7 +421,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (report §3.10), so a map keyed by addresses is a type error at its first operation; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function, an address or a reply, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (report §3.10), so a map keyed by addresses is a type error at its first operation; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -588,7 +568,7 @@ Four more rules concern processes, and are for after §4:
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
-**Marks in a printed type.** A printed type marks what the compiler infers of a type variable, and an annotation writes no mark. `k=` needs equality (§2.5): `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. `a!` may not hold a reply (§4.2): `List.size : (List(a!)) -> Int` drops the list's elements. `m+` is a process-only effect variable (§3.5) that stands only after `with`, never as the type of a value: `send : (Address(a), a) -> Unit with m+`, and a function of yours that calls `send` prints so too. An effect variable that is also a callback's result type, `monitor`'s `(Down) -> m`, is a type, so never pure, and is printed without the mark. The one mark a program writes is `=` on a foreign declaration's type variable, since the compiler cannot see what the Erlang compares (§8.3, report §11.5).
+**Marks in a printed type.** A printed type marks what the compiler infers of a type variable, and an annotation writes no mark. `k=` needs equality (§2.5): `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. `m+` is a process-only effect variable (§3.5) that stands only after `with`, never as the type of a value: `send : (Address(a), a) -> Unit with m+`, and a function of yours that calls `send` prints so too. An effect variable that is also a callback's result type, `monitor`'s `(Down) -> m`, is a type, so never pure, and is printed without the mark. The one mark a program writes is `=` on a foreign declaration's type variable, since the compiler cannot see what the Erlang compares (§8.3, report §11.5).
 
 ### 2.10 A word counter, by hand
 
@@ -793,12 +773,12 @@ A process holds state, receives messages, and answers requests. This section bui
 ### 4.1 Message type and receive loop
 
 ```ernest
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -823,50 +803,11 @@ Ernest 0.3.1. :help for the commands, :quit to leave.
 `it` is unchanged: this input did not determine the type of its value
 ```
 
-### 4.2 A reply is answered once
+### 4.2 A reply
 
-A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. `answer(r, v)` answers it. Giving the reply to someone else hands the obligation on with it: sending the message that carries it, passing it to a function, or returning it. Each of these *consumes* the reply, as answering does, and the compiler's messages use the word. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for the whole value: it is used exactly once, neither twice nor never.
+A `Reply` in a message type says that whoever sends the message waits for an answer, and for what: a `Get(Reply(Int))` is answered with an `Int`. `answer(reply, v)` is the one operation on a reply: it sends `v` to the caller waiting on it, by a way private to the call and never through a mailbox. A second answer to a reply is dropped, and so is an answer that comes after the caller stopped waiting (report §6.6).
 
-Sending a request twice consumes its reply twice:
-
-```ernest-rejected
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
-
-fn twice(counter : Address(CounterMsg), request : CounterMsg) : Unit with m = {
-    send(counter, request);
-    send(counter, request)
-}
-```
-
-```console
-$ ern build resend.ern
-resend.ern:5:19: the reply-carrying value request is consumed twice
-3 | fn twice(counter : Address(CounterMsg), request : CounterMsg) : Unit with m = {
-4 |     send(counter, request);
-  |                   ------- first consumed here
-5 |     send(counter, request)
-  |                   ^^^^^^^
-  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
-```
-
-**What may hold a reply.** Putting a reply in a constructor or a list hands the obligation to the value built. A list may hold a reply, as an `Optional`, an `Either` or any sum type may, and the queue of §4.4 keeps its waiting callers' replies in a list. A constructor with no reply-carrying field, `Stop` in a type whose `Get` carries one, has no obligation to hand on, and neither has the pattern `[]`.
-
-Since each reply is counted, a reply-carrying value is never copied or dropped:
-
-- A function that copies or drops its argument cannot take one. Neither can a `Map` or a `Set`, whose operations are the runtime's.
-- It is no operand of `==` or `!=`.
-- `_` cannot stand for one in a pattern.
-- No field is selected from one, since the selection would drop the other fields. One is not the base of a record update, since the update would drop the field it replaces. A pattern takes such a value apart.
-
-A printed type marks a variable that may not hold a reply `!` (§2.9): `dup : (a!) -> #(a!, a!)` for a function that copies its argument.
-
-**A reply in a lambda.** Capturing a reply in a lambda hands the obligation to the lambda. The lambda is then used exactly once itself: called once, or given straight to `spawn`.
-
-**Paths that need not answer.** The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). Nor need a path that calls a function whose result type is a type variable that neither a parameter's type nor its mailbox type names, as `fn die(cause : String) : a = fault(cause)`, since such a function cannot return. A path that faults inside a function whose type says it returns, or waits for ever, is still written with its answer: the compiler reads the type, not the run, and the caller's deadline covers a wait (§4.4).
-
-**Paths that may be skipped.** The right operand of `&&` or `||` is skipped where the left decides alone, and what follows a `let p <- e` is skipped where a `None` or a `Left` leaves the block. A reply is not consumed in a part that may be skipped. It is consumed before that part or after it, or the `<-` is written as a `match`, whose every clause consumes it.
-
-Report §6.6 gives the whole discipline.
+A reply is a value. A server that cannot answer yet keeps it until it can, as anything else it keeps: in a parameter of its loop, in a list, a map or a message, or captured by a lambda. The queue of §4.4 keeps its waiting callers' replies in a list. A caller whose reply is never answered waits until its call's deadline, or, in `Address.callForever`, for as long as the callee lives (§4.4).
 
 ### 4.3 Selective receive and `after`
 
@@ -899,9 +840,9 @@ Ernest 0.3.1. :help for the commands, :quit to leave.
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n+
 ```
 
-`Address.call(counter, fn(reply) = Get(reply = reply), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `counter`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
+`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, reply = reply)`. The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
 
-`Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause where it faulted, and otherwise with a cause saying it was killed, returned without answering, was closed, was restarted by its supervisor, or had ended already. A callee that only waits keeps a `callForever` caller waiting too.
+`Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause where it faulted, and otherwise with a cause saying it was killed, returned without answering, was closed, was restarted by its supervisor, or had ended already. A callee that lives on without answering holds a `callForever` caller for as long as it lives, one that only waits as much as one that dropped the reply.
 
 A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one:
 
@@ -950,7 +891,7 @@ $ ern run queue.erc
 took 7
 ```
 
-Each reply is answered once on every path: a `Put` answers the first caller waiting, and a `Take` answers at once or hands its reply to the list. `main` cannot wait in the call itself, since it is `main` that puts the item. A process of its own makes the call and sends the answer on as `Took(item)`, and `main` goes on to put. A process that must keep receiving while an answer is on its way calls from such a helper; one with nothing else to do calls.
+A `Put` answers the first caller waiting, and a `Take` answers at once or keeps its reply in the list. `main` cannot wait in the call itself, since it is `main` that puts the item. A process of its own makes the call and sends the answer on as `Took(item)`, and `main` goes on to put. A process that must keep receiving while an answer is on its way calls from such a helper; one with nothing else to do calls.
 
 **Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
 
@@ -1008,12 +949,12 @@ A receiver that writes each message on to a socket grants once its write has ret
 The counter of §4.1 with a `main` that uses it, in `counter.ern`:
 
 ```ernest
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -1023,7 +964,7 @@ export fn main() : Unit with Never = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
-    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("count is " <> Int.toString(total))
       | None -> Io.println("counter did not answer")
     }
@@ -1050,13 +991,13 @@ The counter of §4.5 gains an `Upgrade` constructor. The program is three parts 
 // counter.ern
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -1073,7 +1014,7 @@ A replacement loop that doubles each increment:
 fn countTwice(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> countTwice(total + 2 * amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             countTwice(total)
         }
@@ -1089,13 +1030,13 @@ export fn main() : Unit with Never = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
-    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("before upgrade: " <> Int.toString(total))
       | None -> Io.println("timeout")
     };
     send(counter, Upgrade(migrate = fn(total) = total, next = countTwice));
     send(counter, Inc(1));
-    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("after upgrade: " <> Int.toString(total))
       | None -> Io.println("timeout")
     }
@@ -1152,7 +1093,7 @@ A `send` is `Unit`, which the shell does not print.
 **(b)** A relay stands in front of the counter of §4.1 and passes every message on:
 
 ```ernest
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn relay(counter : Address(CounterMsg)) : Unit with CounterMsg =
     receive {
@@ -1160,14 +1101,14 @@ fn relay(counter : Address(CounterMsg)) : Unit with CounterMsg =
             send(counter, Inc(amount));
             relay(counter)
         }
-      | Get(reply = reply) -> {
-            send(counter, Get(reply = reply));
+      | Get(reply) -> {
+            send(counter, Get(reply));
             relay(counter)
         }
     }
 ```
 
-Who answers a `Get` sent to the relay? Does the relay still owe an answer after its `send`, and what would the compiler say of `answer(reply, 0)` written after it?
+Who answers a `Get` sent to the relay? With `answer(reply, 0)` written after the relay's `send`, what does a caller of the relay get?
 
 **(c)** Add a request `Reset` to §4.1's `CounterMsg`: it answers the total and sets it to zero. Write its clause in `count`. Then leave the clause out and predict: does the program still compile, and what happens to a `Reset` sent to that counter?
 
@@ -1693,7 +1634,7 @@ Some(3)
 
 The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
 
-`fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `reply`, and need not (§4.2): the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's.
+`fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `reply`: the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's.
 
 ### 6.6 A supervisor
 
@@ -1758,9 +1699,9 @@ Some(1) Some(1)
 
 **Who is in a group.** A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
 
-### 6.7 Exercises
+### 6.7 Exercise
 
-**(a)** Given:
+Given:
 
 ```ernest
 fn first(list : List(Int)) : Int =
@@ -1771,24 +1712,6 @@ fn first(list : List(Int)) : Int =
 ```
 
 What happens when `main` calls `first([])`, and how would you make the empty list the caller's to handle?
-
-**(b)** The compiler refuses this counter, which is meant to pass over a negative amount:
-
-```ernest-rejected
-type CounterMsg = Add(amount : Int, reply : Reply(Int))
-
-fn count(total : Int) : Unit with CounterMsg =
-    receive {
-        Add(amount = amount, reply = reply) -> if amount < 0 then
-            count(total) // rejected
-        else {
-            answer(reply, total + amount);
-            count(total + amount)
-        }
-    }
-```
-
-Why? Repair it twice: once so that the caller is told, as §6.2 would have it, and once as §6.4 would.
 
 ## 7. Organize code
 
@@ -2021,7 +1944,7 @@ Date(year = 2026, month = 10, day = 2)
 
 `Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, an `Optional(Int)`, is refused at the declaration (report §3.5).
 
-`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
+`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. `Io.show`'s own type says so, `(a) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
 
 **A module built on a requirement.** The standard library's `OrderedSet` keeps a set's elements in the order of their type's `compare`, and each of its functions that needs the order declares `needs a.compare`. A program uses it without naming an order:
 
@@ -2079,7 +2002,7 @@ $ ern build mixed.ern
 mixed.ern:9:66: the argument does not fit OrderedSet.union: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)
 8 |     let down = OrderedSet.fromList([Descending(1)]);
 9 |     Io.println(Int.toString(OrderedSet.size(OrderedSet.union(up, down))))
-  |                                             ---------------- OrderedSet.union : (OrderedSet.Set(a!), OrderedSet.Set(a!)) -> OrderedSet.Set(a!) needs a.compare
+  |                                             ---------------- OrderedSet.union : (OrderedSet.Set(a), OrderedSet.Set(a)) -> OrderedSet.Set(a) needs a.compare
   |                                                                  ^^^^
   | = help: the types differ at Int and Descending
 ```
@@ -2880,7 +2803,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 **What differs.**
 
 - A mailbox has a type, so a message the process does not take is a compile error, not a message that sits in the mailbox for ever.
-- A reply is checked: a request's `Reply` is answered exactly once on every path (§4.2).
+
 - A function says in its type whether it may send or receive (§3.4).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
@@ -2904,7 +2827,7 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 
 §0 also says how Ernest stands to the runtime beneath it: a rule of the host is Ernest's only where the report states it as Ernest's own, and where the report is silent the runtime carries the host's rule without letting it show.
 
-Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
+Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 ## 12. Frequently asked questions
 
@@ -2918,11 +2841,11 @@ The questions a reader brings, from the likeness to Gleam to where the superviso
 
 **§3.7.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
 
-**§4.8.** (a) No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone. (b) The counter answers. Sending the `Get` on handed the reply's obligation to the counter with the message, so the relay owes nothing after its `send`, and holds nothing to answer with: `answer(reply, 0)` after it is refused, `the reply-carrying value reply is consumed twice`. (c) The type gains `Reset(reply : Reply(Int))`, and `count` the clause `Reset(reply = reply) -> { answer(reply, total); count(0) }`. Without the clause the program still compiles. A `receive` takes the messages its clauses match and leaves the others in the mailbox (§4.3), so the `Reset` waits there for a clause that never comes: its caller's `Address.call` answers `None` at its deadline, and the counter goes on serving `Inc` and `Get`. A `match` must cover its type; a `receive` need not, and a protocol's new request is the programmer's to give a clause.
+**§4.8.** (a) No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone. (b) The counter answers: the relay sends the `Get` on with its reply, and the counter answers it as it answers any `Get`. With `answer(reply, 0)` after the `send` the program still compiles, and the reply is answered twice: the caller gets the answer that comes first, most likely the relay's `0`, since the counter answers only once it has taken the `Get`, and the other is dropped (§4.2). Nothing checks it, so a relay leaves the answer to the process it hands the reply to. (c) The type gains `Reset(Reply(Int))`, and `count` the clause `Reset(reply) -> { answer(reply, total); count(0) }`. Without the clause the program still compiles. A `receive` takes the messages its clauses match and leaves the others in the mailbox (§4.3), so the `Reset` waits there for a clause that never comes: its caller's `Address.call` answers `None` at its deadline, and the counter goes on serving `Inc` and `Get`. A `match` must cover its type; a `receive` need not, and a protocol's new request is the programmer's to give a clause.
 
 **§5.7.** (a) No. As written, pong prints before it answers, and `Io.println` returns once standard output has taken the line (report §8.2), so ping, which waits for the answer, cannot print its next line first. With the print below the `answer`, ping is free to print `ping 2` while pong has still to print `pong 3`. The two are two senders to standard output, and nothing orders them: the call did, and it has returned. (b) `job 1: 1` or `job 1: the worker died`. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers `None` though the worker did its work, and the result arrives afterwards, for the next wait to pass over. The clause tells the two ends apart by the `Down`'s reason. A run seldom shows the second line, but the order is not promised, so the clause stays.
 
-**§6.7.** (a) `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`. (b) On the path for a negative amount `reply` is neither answered nor handed on, and a reply is used exactly once on every path (§4.2); its caller would wait until its deadline for an answer no one can give. Told to the caller (§6.2): the reply becomes a `Reply(Either(String, Int))`, the path answers `Left("a negative amount")` before it loops, and the other answers `Right(total + amount)`. Let it crash (§6.4): the path calls `fault("a negative amount")`, which need not answer, since the fault ends the process and the call waiting on it at once; under `restarting` the counter then begins again from zero (§6.5).
+**§6.7.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
 **§7.4.** (a) Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included. `main.ern` writes `Stack.push(Stack.empty, 1)`: another module sees the type and its operations, never the constructor, so `Stack.Stack([1])` is refused. (b) The two bags. A list's elements have one type. `hashed` is an `Operations(Set(Int), Int)` and `ordered` an `Operations(OrderedSet.Set(Int), Int)`: an operations record keeps the representation in its type, so the two records are of two types, and a list of both is refused. Both bags are a `Bag(Int)`, since a record of closures hides the representation in its functions. (c) `fn firstTwo(list : List(a)) : List(a) needs a.compare = List.take(sorted(list), 2)`. It calls `sorted` at its own type variable, so it declares the requirement and passes on the member it is given. The call writes nothing: the compiler supplies `Int.compare`.
 

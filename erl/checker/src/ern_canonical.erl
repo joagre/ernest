@@ -970,9 +970,9 @@ expr_form(#e_call{callee = #e_var{referent = #remote_declaration{namespace = ['P
                                                                   name = Name}} = Callee,
                   args = [_, Spawned | _] = Args}, Walk)
   when Name =:= spawn; Name =:= spawnMonitored ->
-    %% report §6.6, §8.7: a spawn on a peer holds the captures of its
-    %% function whose types carry a reply, whose calls a spawn that fails
-    %% ends, each with its type
+    %% report §8.7: a spawn on a peer holds the captures of its function
+    %% whose types hold a reply, whose calls a spawn that fails ends, each
+    %% with its type
     {CalleeForm, Walk1} = peer_spawn(Callee, held(Spawned, Walk), Walk),
     {ArgForms, Walk2} = lists:mapfoldl(fun expr/2, Walk1, Args),
     {{call, CalleeForm, ArgForms}, Walk2};
@@ -1042,7 +1042,7 @@ expr_form(#e_receive{clauses = Clauses, 'after' = After}, Walk) ->
     {{'receive', ClauseForms, AfterForm}, Walk2}.
 
 %% Report §8.7, Appendix H: `Peer.spawn` or `Peer.spawnMonitored`, the
-%% captures Held of its function that carry a reply each with its type, in
+%% captures Held of its function that hold a reply each with its type, in
 %% the order the function first names them.
 peer_spawn(#e_var{referent = Referent, name = Name, supplies = Supplies} = Callee, Held, Walk) ->
     {Reference, Walk1} = value_reference(Referent, Name, Walk),
@@ -1053,11 +1053,11 @@ peer_spawn(#e_var{referent = Referent, name = Name, supplies = Supplies} = Calle
                                         end, Walk2, Held),
     {at(Callee, {var, Reference, SupplyForms, HeldForms}, none), Walk3}.
 
-%% Report §6.6, §8.7: the locals a spawned function captures whose types
-%% carry a reply, each by its number with its type: a lambda's, written
-%% at the spawn or bound to the local the spawn names, read in the scope
-%% where it was written; `restarting`'s function's; and none of a local
-%% function's, which captures no reply (§6.6), nor a declaration's.
+%% Report §8.7, Appendix H: the locals a spawned function captures whose
+%% types hold a reply, each by its number with its type: a lambda's,
+%% written at the spawn or bound to the local the spawn names, read in the
+%% scope where it was written; `restarting`'s function's; and none of a
+%% local function's, nor a declaration's.
 held(#e_call{callee = #e_var{referent = {prelude, [restarting]}}, args = [_, Function]}, Walk) ->
     held(Function, Walk);
 held(#e_lambda{} = Lambda, #walk{scope = Scope} = Walk) ->
@@ -1075,8 +1075,38 @@ captured_replies(Lambda, Scope, #walk{env = Env}) ->
                        [{Name, Type}
                         || #e_var{referent = var, name = Name, type = Type}
                                <- ern_ast:free_uses(Lambda, [])]),
-    [{maps:get(Name, Scope), Type}
-     || {Name, Type} <- Typed, ern_typecheck:is_reply_carrying(Type, Env)].
+    [{maps:get(Name, Scope), Type} || {Name, Type} <- Typed, holds_reply(Type, Env)].
+
+%% Report §8.7: whether a value of the type holds a reply, which a spawn
+%% that fails reads by the type's descriptor (ern_peer): a `Reply`, or a
+%% list's element, a tuple's component or a declared type's field, its
+%% arguments in place of its parameters, that holds one. A declared type
+%% met again inside its own fields is not read again. An address, a
+%% function, a value of a foreign type and the arguments of the other
+%% built-in types are not looked through.
+holds_reply(Type, Env) ->
+    holds_reply(Type, Env, []).
+
+holds_reply(Type, Env, Seen) ->
+    case ern_typecheck:resolve_type(Type, Env) of
+        {tcon, ['Reply'], _} ->
+            true;
+        {tcon, ['List'], [Element]} ->
+            holds_reply(Element, Env, Seen);
+        {tcon, QualifiedName, Args} ->
+            case {lists:member(QualifiedName, Seen),
+                  ern_typecheck:declared_fields(QualifiedName, Args, Env)} of
+                {false, {ok, Fields}} ->
+                    lists:any(fun(Field) -> holds_reply(Field, Env, [QualifiedName | Seen]) end,
+                              Fields);
+                _ ->
+                    false
+            end;
+        {ttuple, Elements} ->
+            lists:any(fun(Element) -> holds_reply(Element, Env, Seen) end, Elements);
+        _ ->
+            false
+    end.
 
 %% Report Appendix H: a literal's value in its fixed encoding.
 literal(string, Value) when is_list(Value) -> unicode:characters_to_binary(Value);

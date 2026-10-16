@@ -17,12 +17,6 @@
 /// **Equality.** `contains` and `unique` compare elements with `==`, so the
 /// element type needs equality: a list of functions has neither.
 ///
-/// **Replies.** A list may hold a `Reply`, which must be answered exactly once
-/// (report §6.6). A function that drops or copies elements, `size`, `filter`
-/// and `take` among them, refuses such a list, and its printed type marks the
-/// element `!`: `List.size : (List(a!)) -> Int`. One that uses each element
-/// once, `map` or `foldLeft`, takes it.
-///
 /// ## Examples
 ///
 /// Each element doubled, and a list appended:

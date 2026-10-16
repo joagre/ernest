@@ -12,17 +12,15 @@
 %% (report §4.8, §3.5, §5.5, §6.3); what each requirement is supplied with
 %% (§4.9); rigidity of annotation variables (§3.9); the order of a block's
 %% local fns and lets (§5.4, ern_scope); match exhaustiveness (ern_exhaust);
-%% a top-level let that holds no reply and the reply discipline (§6.6,
-%% ern_reply); the restrictions instances carry (§3.9, §3.10); and a
-%% `with m` that names no effect (§4.5). Errors are collected per
-%% definition; checking continues with the next.
+%% the restrictions instances carry (§3.9, §3.10); and a `with m` that
+%% names no effect (§4.5). Errors are collected per definition; checking
+%% continues with the next.
 -module(ern_typecheck).
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, with_interfaces/2, lookup_type/2, type_qualified_name/3, identity/2,
-         position/2, reach/2, global_scheme/2, is_provided/2, described_type/2,
-         is_reply_carrying/2, assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
+         position/2, reach/2, global_scheme/2, is_provided/2, described_type/2, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, is_foreign/2,
          declaration_scheme/2, declared_fields/3, session_member/3, lookup_constructor/4,
          constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
@@ -45,11 +43,6 @@
 %% declares it, checked on first demand (a reference, or an operator
 %% resolving to it); typed: the groups checked so far; diagnostics: their
 %% errors
-%% reply_variables: type variables the reply discipline takes for
-%% reply-carrying while it asks whether a body would keep §6.6 if they
-%% were (§3.9)
-%% reply_params: for each declared type with parameters, whether each can
-%% make an instantiation reply-carrying (report §6.6)
 %% let_order: the module's top-level lets in the order §8.5 evaluates
 %% them, which the emitter reads
 %% effectful: whether the definition being checked has called a
@@ -74,8 +67,8 @@
               local_types = #{}, local_constructors = #{}, local_values = #{}, session_scope = #{},
               locals = #{}, effect = pure, type_state, pending = [], deferred = [],
               annotation_variables = #{}, rigid = [], effect_origin = undefined,
-              groups = #{}, typed = [], diagnostics = [], reply_variables = [],
-              reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
+              groups = #{}, typed = [], diagnostics = [], let_order = [], effectful = false,
+              effectful_lets = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
               reaches = #{}, positions = #{}, foreign = #{}}).
@@ -103,12 +96,12 @@
 %% Never; the span that made it so, its label, and what to do.
 -record(effect_origin, {what, span, label, help}).
 
-%% A restriction an instance carries, checked when its definition ends
-%% (report §3.9, §3.10): equality or not_reply_carrying, the type
-%% variable's id, where the instance stands, what needs the equality, the
-%% name and printed type the instance was taken of, and the span and place
-%% of the argument a call passes the variable in, {Span, Index}.
--record(pending_restriction, {restriction, id, span, need, who, argument}).
+%% The equality constraint an instance carries, checked when its
+%% definition ends (report §3.9, §3.10): the type variable's id, where the
+%% instance stands, what needs the equality, the name and printed type the
+%% instance was taken of, and the span and place of the argument a call
+%% passes the variable in, {Span, Index}.
+-record(pending_restriction, {id, span, need, who, argument}).
 
 %% What waits for the end of a definition, where its types are known: an
 %% operator and a field selection whose operand type is still a variable
@@ -789,7 +782,7 @@ declare_types(Declarations, Env1) ->
     %% pass three: each recursive group's types named at their parameters,
     %% over the declarations whose constructors declared, so every name resolves
     GroupDiagnostics = check_recursive_groups(lists:reverse(Constructed), Env4),
-    {mark_reply_carrying(with_reply_params(Env4)), Diagnostics ++ GroupDiagnostics}.
+    {Env4, Diagnostics ++ GroupDiagnostics}.
 
 %% Report §3.9: within a recursive group of the module's types, a type of
 %% the group is named in the group's fields at type variables that are
@@ -970,17 +963,6 @@ effect_param_state(#env{types = Types, type_state = TypeState}) ->
     HasEffectParam = fun(_, TypeIsValue) -> lists:member(false, TypeIsValue) end,
     ern_types:set_effect_params(maps:filter(HasEffectParam, IsValue), TypeState).
 
-%% Report §6.6: a declared type is reply-carrying at an instantiation whose
-%% fields, its arguments substituted, have a reply-carrying type. An
-%% argument can make them so only where its parameter reaches a field
-%% outside function types, foreign types' arguments and the built-in types'
-%% but a List's element, which carries a reply as reply_in/3 reads it.
-with_reply_params(#env{types = Types} = Env) ->
-    Env#env{reply_params = param_occurrences(Types, fun in_reply/3,
-                                             fun(#type_info{params = Params}) ->
-                                                 [false || _ <- Params]
-                                             end)}.
-
 %% For each declared type with parameters, whether each parameter occurs in
 %% its fields as Occurs says, or holds from the start as Given says. A
 %% parameter may occur only as an argument of another type, or of its own,
@@ -1047,26 +1029,6 @@ in_value(Id, {ttuple, Elements}, IsValue) ->
 in_value(Id, {tfn, Params, _, Result}, IsValue) ->
     lists:any(fun(Part) -> in_value(Id, Part, IsValue) end, [Result | Params]);
 in_value(_, _, _) ->
-    false.
-
-%% Does variable Id reach the type outside function types and the
-%% arguments of foreign types and of the built-in types but a List's
-%% element, given which parameters of the declared types reach their
-%% fields so far?
-in_reply(Id, {tvar, Id}, _Reaches) ->
-    true;
-in_reply(Id, {tcon, ['List'], [Element]}, Reaches) ->
-    in_reply(Id, Element, Reaches);
-in_reply(Id, {tcon, QualifiedName, Args}, Reaches) ->
-    Reaching = case Reaches of
-                   #{QualifiedName := TypeReaches} ->
-                       [Arg || {Arg, true} <- lists:zip(Args, TypeReaches)];
-                   _ -> []
-               end,
-    lists:any(fun(Arg) -> in_reply(Id, Arg, Reaches) end, Reaching);
-in_reply(Id, {ttuple, Elements}, Reaches) ->
-    lists:any(fun(Element) -> in_reply(Id, Element, Reaches) end, Elements);
-in_reply(_, _, _) ->
     false.
 
 type_declaration_of(#type_declaration{} = TypeDeclaration) -> [TypeDeclaration];
@@ -1165,75 +1127,6 @@ declared_field_type(Syntax, AnnotationVariables, Env) ->
         [Extra | _] -> fail(ern_ast:span(Syntax), "type variable " ++ atom_to_list(Extra)
                                                   ++ " is not a parameter of the type")
     end.
-
-
-%% Fixpoint over the module's types (report §6.6).
-mark_reply_carrying(#env{types = Types} = Env) ->
-    Marked = reply_fixpoint(Types, Env),
-    Env#env{types = Marked}.
-
-reply_fixpoint(Types, Env) ->
-    Mark = fun(_, #type_info{constructors = Constructors, reply_carrying = false} = TypeInfo) ->
-                   Carry = lists:any(fun(#constructor_info{scheme = #scheme{type = Type}}) ->
-                                         field_types_reply(Type, Types, Env)
-                                     end, Constructors),
-                   TypeInfo#type_info{reply_carrying = Carry};
-              (_, TypeInfo) ->
-                   TypeInfo
-           end,
-    Types1 = maps:map(Mark, Types),
-    case Types1 =:= Types of
-        true -> Types;
-        false -> reply_fixpoint(Types1, Env)
-    end.
-
-field_types_reply({tfn, Fields, pure, _}, Types, Env) ->
-    lists:any(fun(Field) -> reply_in(Field, Types, Env) end, Fields);
-field_types_reply(_, _, _) ->
-    false.
-
-reply_in(Type, Types, Env) ->
-    case ern_types:resolve(Type, Env#env.type_state) of
-        {tvar, _} = Variable -> lists:member(Variable, Env#env.reply_variables);
-        {tcon, ['Reply'], _} -> true;
-        %% report §6.6: `List` is reply-carrying through its elements; a type
-        %% whose operations are the runtime's is not through its arguments
-        {tcon, ['List'], [Element]} -> reply_in(Element, Types, Env);
-        {tcon, QualifiedName, Args} ->
-            case Types of
-                #{QualifiedName := #type_info{foreign = true}} -> false;
-                #{QualifiedName := #type_info{reply_carrying = true}} -> true;
-                _ ->
-                    Reaching = case Env#env.reply_params of
-                                   #{QualifiedName := TypeReaches} ->
-                                       [Arg || {Arg, true} <- lists:zip(Args, TypeReaches)];
-                                   _ -> []
-                               end,
-                    lists:any(fun(Arg) -> reply_in(Arg, Types, Env) end, Reaching)
-            end;
-        {ttuple, Elements} ->
-            lists:any(fun(Element) -> reply_in(Element, Types, Env) end, Elements);
-        _ -> false
-    end.
-
--spec is_reply_carrying(ern_types:type(), env()) -> boolean().
-is_reply_carrying(Type, #env{types = Types} = Env) -> reply_in(Type, Types, Env).
-
-%% Report §3.9, §6.6: the environment in which the type variables Variables
-%% are taken for reply-carrying.
--spec assume_reply_carrying([ern_types:type()], env()) -> env().
-assume_reply_carrying(Variables, Env) -> Env#env{reply_variables = Variables}.
-
-%% Report §3.9: whether a value whose type carries a reply, as the
-%% environment takes its variables, was passed where a function has the
-%% not-reply-carrying restriction, in the definition under check.
--spec restricted_reply_carrying(env()) -> boolean().
-restricted_reply_carrying(#env{pending = Pending} = Env) ->
-    lists:any(fun(#pending_restriction{restriction = not_reply_carrying, id = Id}) ->
-                      is_reply_carrying({tvar, Id}, Env);
-                 (_) ->
-                      false
-              end, Pending).
 
 %%
 %% Values: fn, let, foreign fn, in dependency order
@@ -1916,10 +1809,7 @@ signature_shape(#foreign_fn_declaration{span = Span, params = Params,
                                  ern_types:add_restriction(maps:get(Name, AnnotationVariables),
                                                            equality, Acc)
                              end, TypeState, Marked),
-    Env1 = bound(Placeholder, Type,
-                 Env#env{type_state = not_reply_carrying_params(Type,
-                                                                foreign_effect(Type, TypeState1),
-                                                                Env)}),
+    Env1 = bound(Placeholder, Type, Env#env{type_state = foreign_effect(Type, TypeState1)}),
     placeholder_requirement(Declaration, Placeholder, shown_requirement(Declaration, Type, Env),
                             Env1);
 signature_shape(_, _, Env) ->
@@ -2064,44 +1954,6 @@ param_type(#param{annotation = undefined}, AnnotationVariables, Env) ->
     {Type, AnnotationVariables, TypeState};
 param_type(#param{annotation = Syntax}, AnnotationVariables, Env) ->
     annotation_type(Syntax, AnnotationVariables, Env).
-
-%% Report §4.7, §3.9: a foreign function has no body to infer from, and its
-%% code may copy a value it is given or drop it, so a type variable whose
-%% values a parameter holds is not reply-carrying: one the parameter's type
-%% reaches through tuples and type arguments, and not under an address, a
-%% reply or a function type, whose values the parameter does not hold, nor
-%% under a declared type's parameter that occurs in no field, `m` of
-%% `Peer.Service(m)`. A regression: `Foreign.term(r)` dropped a reply, and
-%% `Ets.put(t, k, r)` stored one.
-not_reply_carrying_params({tfn, Params, _, _}, TypeState, #env{types = Types}) ->
-    lists:foldl(fun(Id, Acc) ->
-                    ern_types:add_restriction({tvar, Id}, not_reply_carrying, Acc)
-                end, TypeState,
-                [Id || Param <- Params, Id <- held_variables(Param, TypeState, Types)]).
-
-held_variables(Type, TypeState, Types) ->
-    case ern_types:resolve(Type, TypeState) of
-        {tvar, Id} -> [Id];
-        {tcon, ['Address'], _} -> [];
-        {tcon, ['Reply'], _} -> [];
-        {tcon, QualifiedName, Args} ->
-            lists:append([held_variables(Arg, TypeState, Types)
-                          || Arg <- held_args(QualifiedName, Args, TypeState, Types)]);
-        {ttuple, Elements} ->
-            lists:append([held_variables(Element, TypeState, Types) || Element <- Elements]);
-        _ -> []
-    end.
-
-%% The arguments of a type whose values it holds: those in a value
-%% position, but for one whose parameter occurs in no field (report §3.9).
-held_args(QualifiedName, Args, TypeState, Types) ->
-    InValue = ern_types:value_args(QualifiedName, Args, TypeState),
-    case Types of
-        #{QualifiedName := #type_info{foreign = false, params = [_ | _]} = TypeInfo} ->
-            InValue -- [Arg || {Arg, true} <- lists:zip(Args, in_no_field(TypeInfo))];
-        _ ->
-            InValue
-    end.
 
 set_declaration_scheme(#fn_declaration{} = Declaration, Scheme) ->
     Declaration#fn_declaration{scheme = Scheme};
@@ -2401,17 +2253,15 @@ post_checks(Declaration,
     %% report §4.9: what each use of a requirement is supplied with, read
     %% now that the definition's types are known
     {Supplied, Env2} = supplied(Declaration, Env1),
-    {TypedParams, TypedBody} = params_and_body(Supplied),
+    TypedBody = body(Supplied),
     rigid_annotation_variables(Span, Rigid, Env2),
     ern_scope:order(TypedBody),
     ern_exhaust:check(TypedBody, Env2),
-    holds_no_reply(Declaration, Span, Type, Env2),
-    Env3 = ern_reply:check(TypedParams, TypedBody, Type, Env2),
-    check_pending_restrictions(Env3),
-    %% the lesser error last, so that a reply or a restriction the body
-    %% breaks is what a refusal names first
-    needless_effect(Declaration, Type, Env3),
-    {Supplied, Env3#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
+    check_pending_restrictions(Env2),
+    %% the lesser error last, so that a restriction the body breaks is what
+    %% a refusal names first
+    needless_effect(Declaration, Type, Env2),
+    {Supplied, Env2#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
                         pending = Env#env.pending, deferred = Env#env.deferred,
                         requirement = Env#env.requirement, signature = Env#env.signature,
                         definition = Env#env.definition}}.
@@ -2443,20 +2293,8 @@ needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
 needless_effect(_, _, _) ->
     ok.
 
-%% Report §6.6: a top-level binding is read by every function and is no
-%% obligation, so its type carries no reply.
-holds_no_reply(#let_declaration{name = Name}, Span, Type, Env) ->
-    not is_reply_carrying(Type, Env)
-        orelse fail(Span, atom_to_list(Name) ++ " has the reply-carrying type "
-                          ++ ern_types:format(Type, Env#env.type_state)
-                          ++ ", and a top-level `let` holds no reply: every function may read it",
-                    [], "hold the reply in the process that answers it, as a parameter of its"
-                        " loop (§6.6)");
-holds_no_reply(_, _, _, _) ->
-    ok.
-
-params_and_body(#fn_declaration{params = Params, body = Body}) -> {Params, Body};
-params_and_body(#let_declaration{body = Body}) -> {[], Body}.
+body(#fn_declaration{body = Body}) -> Body;
+body(#let_declaration{body = Body}) -> Body.
 
 %% Report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
 %% at which the name is used, as a callee or an argument, the library's
@@ -2662,13 +2500,12 @@ branch_labels(Text, [First | Others]) ->
     [{ern_ast:span(First), Text ++ " here"}
      | [{ern_ast:span(Other), "and here"} || Other <- Others]].
 
-%% Restrictions checked at instantiation (report §3.9, §3.10): a
-%% not-reply-carrying variable bound to a reply-carrying type, an
-%% equality-restricted one bound to a type containing a function or an
-%% address. They are checked in the order they stand in the source, so
-%% that the one reported is the first place that needed the restriction: a
-%% map's first operation, and a comparison before a later use that made
-%% its type one without equality.
+%% Restrictions checked at instantiation (report §3.9, §3.10): an
+%% equality-restricted variable bound to a type containing a function, an
+%% address or a reply. They are checked in the order they stand in the
+%% source, so that the one reported is the first place that needed the
+%% restriction: a map's first operation, and a comparison before a later
+%% use that made its type one without equality.
 check_pending_restrictions(#env{pending = Pending} = Env) ->
     Ordered = lists:sort(fun(First, Second) -> place(First) =< place(Second) end, Pending),
     lists:foreach(fun(Restriction) -> check_pending(Restriction, Env) end, Ordered).
@@ -2677,27 +2514,8 @@ check_pending_restrictions(#env{pending = Pending} = Env) ->
 %% its place among the parameters, with the callee's type, which carries the
 %% restriction, as the label; an instance no call applies is reported where
 %% it stands, its type in the message.
-check_pending(#pending_restriction{restriction = not_reply_carrying, id = Id, span = Span,
-                                   who = Who, argument = undefined},
-              Env) ->
-    Type = ern_types:substitute({tvar, Id}, Env#env.type_state),
-    not is_reply_carrying(Type, Env)
-        orelse fail(Span, "a reply-carrying value, " ++ ern_types:format(Type, Env#env.type_state)
-                          ++ ", passed where " ++ who(Who, "the function")
-                          ++ " duplicates or discards its argument" ++ signature_of(Who), [],
-                    ern_reply:consume_help());
-check_pending(#pending_restriction{restriction = not_reply_carrying, id = Id, span = Span,
-                                   who = {Name, _} = Who, argument = {ArgumentSpan, Index}},
-              Env) ->
-    Type = ern_types:substitute({tvar, Id}, Env#env.type_state),
-    not is_reply_carrying(Type, Env)
-        orelse fail(ArgumentSpan, "a reply-carrying value, "
-                                  ++ ern_types:format(Type, Env#env.type_state)
-                                  ++ ", passed in the " ++ ordinal(Index) ++ " argument of "
-                                  ++ Name ++ ", which duplicates or discards it",
-                    [callee_label(Span, Who)], ern_reply:consume_help());
-check_pending(#pending_restriction{restriction = equality, id = Id, span = Span, need = Need,
-                                   who = Who, argument = Argument},
+check_pending(#pending_restriction{id = Id, span = Span, need = Need, who = Who,
+                                   argument = Argument},
               Env) ->
     Type = ern_types:substitute({tvar, Id}, Env#env.type_state),
     case {lacks_equality(Type, Env), Argument} of
@@ -2742,11 +2560,11 @@ ordinal(Index) ->
 %% a call, `pair()(r)`, places none, since the arguments are not the named
 %% function's; a restriction a later use breaks is placed at no argument.
 placed_argument(CalleeSpan, Arg, Index, #env{pending = Pending, type_state = TypeState} = Env) ->
-    Placed = fun(#pending_restriction{argument = undefined, who = {_, _}, span = Span, id = Id,
-                                      restriction = Restriction} = Pending1) ->
+    Placed = fun(#pending_restriction{argument = undefined, who = {_, _}, span = Span,
+                                      id = Id} = Pending1) ->
                      Type = ern_types:substitute({tvar, Id}, TypeState),
                      case ern_diagnostic:span(Span) =:= CalleeSpan
-                          andalso is_broken(Restriction, Type, Env) of
+                          andalso lacks_equality(Type, Env) =/= false of
                          true ->
                              Pending1#pending_restriction{
                                argument = {ern_diagnostic:span(ern_ast:span(Arg)), Index}};
@@ -2757,9 +2575,6 @@ placed_argument(CalleeSpan, Arg, Index, #env{pending = Pending, type_state = Typ
                      Pending1
              end,
     Env#env{pending = lists:map(Placed, Pending)}.
-
-is_broken(not_reply_carrying, Type, Env) -> is_reply_carrying(Type, Env);
-is_broken(equality, Type, Env) -> lacks_equality(Type, Env) =/= false.
 
 %% Where a pending restriction was needed, as a line and a column.
 place(#pending_restriction{span = Span}) ->
@@ -2778,23 +2593,19 @@ need_text(map, _) -> "and a Map's key needs it";
 need_text(set, _) -> "and a Set's element needs it".
 
 %% The restrictions an instance of a scheme carries, checked when its
-%% definition ends: each not-reply-carrying variable, and each
-%% equality-restricted one with what needs the equality: a Map's key or a
-%% Set's element it stands in, or else a comparison (report §3.10).
+%% definition ends: each equality-restricted variable with what needs the
+%% equality: a Map's key or a Set's element it stands in, or else a
+%% comparison (report §3.10).
 instance_pending(Type, Span, TypeState) ->
     instance_pending(Type, Span, TypeState, undefined).
 
 %% Who: the name the instance was taken of, and its printed type.
 instance_pending(Type, Span, TypeState, Who) ->
-    [#pending_restriction{restriction = Restriction, id = Id, span = Span,
-                          need = need(Restriction, Id, Type, TypeState), who = Who}
+    [#pending_restriction{id = Id, span = Span, need = need(Id, Type, TypeState), who = Who}
      || Id <- ern_types:free_variables(Type, TypeState),
-        Restriction <- ern_types:restrictions(Id, TypeState),
-        Restriction =:= not_reply_carrying orelse Restriction =:= equality].
+        lists:member(equality, ern_types:restrictions(Id, TypeState))].
 
-need(not_reply_carrying, _Id, _Type, _TypeState) ->
-    undefined;
-need(equality, Id, Type, TypeState) ->
+need(Id, Type, TypeState) ->
     case container_of(Id, Type, TypeState) of
         none -> compared;
         Container -> Container
@@ -3682,7 +3493,7 @@ member_text(Type, Member, TypeState) ->
 %% A type variable as an error names it, without the marks a printed type
 %% gives it (report §11.5).
 variable_text(Variable, TypeState) ->
-    string:trim(ern_types:format(Variable, TypeState), trailing, "=!+").
+    string:trim(ern_types:format(Variable, TypeState), trailing, "=+").
 
 %% Report §3.5, §4.8: a field selection resolves against its operand's type
 %% as an operator does, deferred while that type is still a variable.
@@ -4102,7 +3913,6 @@ infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
                                       length(Args)]),
                  [], "a call supplies all the arguments");
         {tfn, ParamTypes, Effect, ResultType} ->
-            Returns = returns(Callee, Env1),
             %% report §11.5: the callee's type ends in its requirement
             Origin = {ern_ast:span(Callee), Name ++ " : " ++ callee_text(Callee, TypedCallee,
                                                                        CalleeType, Env1)},
@@ -4118,8 +3928,8 @@ infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
             Env3 = use_effect(Span, Name, Effect,
                               running_mailbox(TypedCallee, TypedArgs, ResultType, Env2)),
             {Opened, TypeState1} = open_effect(ResultType, Env3#env.type_state),
-            {Expr#e_call{callee = TypedCallee, args = TypedArgs, type = Opened, returns = Returns},
-             Opened, Env3#env{type_state = TypeState1}};
+            {Expr#e_call{callee = TypedCallee, args = TypedArgs, type = Opened}, Opened,
+             Env3#env{type_state = TypeState1}};
         {tvar, _} ->
             {TypedArgs, ArgTypes, Env2} = infer_list(Args, Env1),
             {ResultType, TypeState} = ern_types:fresh(Env2#env.type_state),
@@ -4580,33 +4390,6 @@ argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
         false -> "the argument does not fit " ++ Name
     end.
 
-%% Report §6.6: a function whose result type is a variable neither a
-%% parameter's type nor its mailbox type names does not return, `fault`
-%% among them, and a call to it consumes every obligation open on its
-%% path. One whose result is its mailbox type returns what it receives.
-%% The variable is the scheme's own; one the enclosing definition fixes
-%% may stand for a type a value has.
-returns(#e_var{span = Span, namespace = Namespace, name = Name}, Env) ->
-    {#scheme{quantified = Quantified, type = Type}, _, _} =
-        lookup_value(Span, Namespace, Name, Env),
-    TypeState = Env#env.type_state,
-    case ern_types:resolve(Type, TypeState) of
-        {tfn, Params, Effect, Result} ->
-            case ern_types:resolve(Result, TypeState) of
-                {tvar, Id} ->
-                    Named = ern_types:free_variables({tfn, Params, Effect, {ttuple, []}},
-                                                     TypeState),
-                    not (lists:keymember(Id, 1, Quantified)
-                         andalso not lists:member(Id, Named));
-                _ ->
-                    true
-            end;
-        _ ->
-            true
-    end;
-returns(_, _) ->
-    true.
-
 %% A callee's effect: pure constrains nothing; anything else is the
 %% enclosing function's effect.
 use_effect(Span, Name, Effect,
@@ -4825,8 +4608,7 @@ restrict_equality(Span, Type, Env) ->
             TypeState1 = lists:foldl(fun(Id, Acc) ->
                                          ern_types:add_restriction({tvar, Id}, equality, Acc)
                                      end, TypeState, Variables),
-            Compared = [#pending_restriction{restriction = equality, id = Id, span = Span,
-                                             need = compared}
+            Compared = [#pending_restriction{id = Id, span = Span, need = compared}
                         || Id <- Variables],
             Env#env{type_state = TypeState1, pending = Compared ++ Env#env.pending};
         Lack ->
@@ -4862,11 +4644,11 @@ lacks_equality(Type, Env) ->
 lacks(Type, #env{type_state = TypeState} = Env, Seen) ->
     case ern_types:resolve(Type, TypeState) of
         {tfn, _, _, _} ->
-            "it contains a function or an address";
+            "it contains a function, an address or a reply";
         {tcon, ['Address'], _} ->
-            "it contains a function or an address";
+            "it contains a function, an address or a reply";
         {tcon, ['Reply'], _} ->
-            "it contains a function or an address";
+            "it contains a function, an address or a reply";
         {tcon, QualifiedName, Args} ->
             case {lists:member(QualifiedName, Seen), declared_fields(QualifiedName, Args, Env)} of
                 {false, {ok, Fields}} ->
@@ -5205,11 +4987,7 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
                                          ++ ern_types:format(ExprType, Env2#env.type_state)}),
     Env4 = case Generalize of
                true ->
-                   %% report §3.9: the lambda's variables take their
-                   %% restrictions before they are generalized
-                   #e_lambda{params = LambdaParams, body = LambdaBody} = TypedExpr,
-                   Restricted = ern_reply:restrict(LambdaParams, LambdaBody, ExprType, Env3),
-                   TypeState1 = ern_types:leave(Restricted#env.type_state),
+                   TypeState1 = ern_types:leave(Env3#env.type_state),
                    {Scheme, TypeState2} = ern_types:generalize(ExprType, TypeState1),
                    #p_var{name = Name} = Pattern,
                    Env3#env{type_state = TypeState2, generalizing = false,

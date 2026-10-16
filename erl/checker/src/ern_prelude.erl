@@ -119,8 +119,8 @@ builtin_types() ->
       <<"""
       Where the answer to a request goes. `Address.call` makes one and puts it
       in the request, and the process that receives the request answers it with
-      `answer`. A reply is answered exactly once on every path, or handed on,
-      and the compiler checks it (report §6.6).
+      `answer`. A process that cannot answer yet keeps the reply as it keeps
+      any value, in a list or a map, and answers it when it can (report §6.6).
 
       ### Examples
 
@@ -411,8 +411,9 @@ values() ->
       or `None` where none came within `ms` milliseconds.
 
       `request` is given a fresh `Reply` and builds the message that carries
-      it, `fn(reply) = Get(reply = reply)`. The process that receives the
-      message answers it with `answer`.
+      it: a constructor whose one field is the reply, `Get`, or a lambda,
+      `fn(reply) = Add(amount = 5, reply = reply)`. The process that receives
+      the message answers it with `answer`.
 
       `None` does not cancel the work: the process asked may still do it, and
       an answer that comes late is dropped. Where that process has ended, or
@@ -462,10 +463,9 @@ values() ->
       <<"""
       Answers a request: sends `value` to the caller waiting on `reply`.
 
-      A reply is answered exactly once on every path, or handed on, and the
-      compiler checks it (report §6.6). A caller that has stopped waiting,
-      after its deadline or its end, never sees the answer, and the process
-      that answers is not told.
+      A second answer to a reply is dropped, and a caller that has stopped
+      waiting, after its deadline or its end, never sees the answer; the
+      process that answers is not told (report §6.6).
 
       ### Examples
 

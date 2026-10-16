@@ -1146,8 +1146,8 @@ spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 `io.ern` provides `Io.show` and `Io.debug` (Appendix E.1):
 
 ```
-Io.show        : (a!) -> String needs a.show // the value as Ernest writes it, at the use's type
-Io.debug       : (a!) -> a! with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
+Io.show        : (a) -> String needs a.show // the value as Ernest writes it, at the use's type
+Io.debug       : (a) -> a with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
 ```
 
 ### 9.5 Process functions

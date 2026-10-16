@@ -433,12 +433,12 @@ prelude_shown() ->
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m+">>,
                  <<"Ernest prelude">>, <<"Starts a process that runs">>,
-                 <<"List.size(list : List(a!)) : Int">>,
+                 <<"List.size(list : List(a)) : Int">>,
                  %% report §9.4, §9.6: every prelude function, `Io.show`,
                  %% `Io.debug` and `String.compare` among them; a regression
                  %% test, the listing left them out
-                 <<"\nIo.show : (a!) -> String needs a.show\n">>,
-                 <<"\nIo.debug : (a!) -> a! with m+ needs a.show\n">>,
+                 <<"\nIo.show : (a) -> String needs a.show\n">>,
+                 <<"\nIo.debug : (a) -> a with m+ needs a.show\n">>,
                  <<"\nString.compare : (String, String) -> Ordering\n">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
@@ -1175,8 +1175,7 @@ completion() ->
     ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
     %% it was painted under the line, the candidates with their types
     Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
-    %% report §3.9: filter gives each element to `keep` and to its result
-    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a!)">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
 %% report §11.2, §3.5: a field that two constructors give two types is no
@@ -2246,9 +2245,10 @@ input_reads_line() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Screen, <<"already read as">>)).
 
-%% report §6.6, §11.2: an input's value is printed and dropped, and a `let`
-%% at the prompt binds for every later input, so neither may carry a reply.
-%% A regression test: the shell printed such a value and dropped the reply.
+%% report §6.6, §11.2: an input whose value holds a reply is printed, and a
+%% `let` of one binds, as any other input. A regression test written after
+%% the code, 2026-10-16: the shell refused both while a reply was an
+%% obligation; it does not cover a reply that reaches the prompt unanswered
 reply_input_test_() ->
     {timeout, 60, fun reply_input/0}.
 
@@ -2260,9 +2260,8 @@ reply_input() ->
                                      "let x = ", Take, "\n",
                                      "1 + 1\n"]),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
-    Refused = binary:matches(Output, <<"an input's value cannot carry a reply">>),
-    ?assertEqual(2, length(Refused)),
-    ?assertEqual(nomatch, binary:match(Output, <<"Stop : Req">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Stop : Req">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"x : Req">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)).
 
 %% report §11.2, §5.4: a `let` at the prompt is a block `let`, so its

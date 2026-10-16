@@ -22,12 +22,12 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 **The mailbox in the function's type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`:
 
 ```ernest
-type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -37,27 +37,27 @@ export fn main() : Unit with Never = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
-    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("count is " <> Int.toString(total))
       | None -> Io.println("counter did not answer")
     }
 }
 ```
 
-`main` receives nothing, `with Never`, and spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers once with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+`main` receives nothing, `with Never`, and spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 **Code known by its hash.** The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old version runs on wherever a process still runs it:
 
 ```ernest-fragment
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(next : (Int) -> Unit with CounterMsg)
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }

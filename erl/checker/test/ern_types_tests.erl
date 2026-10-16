@@ -152,10 +152,7 @@ format_test() ->
     ?assertEqual("(Int) -> (Int) -> Int",
                  ern_types:format({tfn, [int()], pure, {tfn, [int()], pure, int()}}, TypeState3)),
     TypeState4 = ern_types:add_restriction(A, equality, TypeState3),
-    ?assertEqual("(a=, a=) -> Bool", ern_types:format({tfn, [A, A], pure, bool()}, TypeState4)),
-    TypeState5 = ern_types:add_restriction(B, not_reply_carrying, TypeState4),
-    ?assertEqual("(a!) -> #(a!, a!)",
-                 ern_types:format({tfn, [B], pure, {ttuple, [B, B]}}, TypeState5)).
+    ?assertEqual("(a=, a=) -> Bool", ern_types:format({tfn, [A, A], pure, bool()}, TypeState4)).
 
 %% report §11.2, §11.5: a signature inside a call, each parameter under
 %% its declared name, in three parts around the one at the cursor, the

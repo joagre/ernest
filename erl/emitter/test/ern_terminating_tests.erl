@@ -56,9 +56,9 @@ told_at_the_entry_process_end_test() ->
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 answered\n">>)).
 
 %% report §8.6, §8.7, §6.6: a subscriber that handed its reply to a
-%% function spawned on a peer, whose spawn failed, cannot answer it, since
-%% the lambda consumed it, and no process will: the end goes on without the
-%% subscriber, which lives, and the runtime says so in place of its answer.
+%% function spawned on a peer, whose spawn failed, does not answer it, and
+%% no process will: the end goes on without the subscriber, which lives,
+%% and the runtime says so in place of its answer.
 %% Here the spawn fails with NotListed, in a program that is no node, and
 %% the subscriber goes on counting, to die with the program. A regression
 %% test, written after the code (MVP 3.2's item 3)

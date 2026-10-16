@@ -1263,15 +1263,14 @@ callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument],
 %% Peer.spawnMonitored, Peer.computeAt and Peer.compute send the function's
 %% identity and captures in place of the function, and the spawn's or the
 %% compute's site, as a spawn on this node keeps it (§6.9); a spawn passes
-%% last the captures that carry a reply, whose calls it ends where it fails
-%% (§6.6), and a compute none, since the checker refuses a compute's
-%% function that captured one (§6.6's rule)
+%% last the captures that hold a reply, whose calls it ends where it fails
+%% (§6.6), as its form holds them, and a compute none, whose form holds
+%% none (Appendix H)
 callee(_, {var, {named, ['Peer', service]}, [ServiceType]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     {call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType)]), Context1};
 callee(Source, {var, {named, ['Peer', compute]}, _}, _, [Spawned | Rest], Context) ->
-    %% a compute's function holds no reply (§6.6's rule), nor its form any;
-    %% the node picks its peer
+    %% a compute's form holds no reply (Appendix H); the node picks its peer
     peer_spawn(Source, compute, [], [], Spawned, Rest, Context);
 callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest], Context)
   when Name =:= spawn; Name =:= spawnMonitored; Name =:= computeAt ->
@@ -2238,7 +2237,7 @@ peer_spawn(Source, Name, Held, Peered, Spawned, Rest, Context) ->
 %% Captures}`, an entry of this unit running it over them; and
 %% `restarting` over one of these with its limit, `{restarting, Limit,
 %% Spawned}`. The checker admitted only these (ern_bound). Beside the form,
-%% the captures that carry a reply, each the variable in force at it with
+%% the captures that hold a reply, each the variable in force at it with
 %% its type's descriptor, which a spawn that fails reads the replies it
 %% holds by and ends their calls, looking through no other value (ern_peer):
 %% Held, which the form of the spawn holds (Appendix H).
@@ -2321,7 +2320,7 @@ spawned_lambda(Lambda, Scope, Held, Context) ->
 
 %% A local fn a spawn on a peer starts, its captures the variables in force
 %% at its declaration, or at the spawn where it comes first (report §5.4).
-%% A local fn captures no reply (§6.6).
+%% Its form holds no reply its captures hold (Appendix H).
 spawned_local(Number, #local_fn{snapshot = Snapshot, function = Function,
                                 position = Position} = Local,
               #emit_context{variables = Variables} = Context) ->

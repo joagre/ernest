@@ -349,7 +349,7 @@ body_captures(Name, Function, Uses, Env) ->
             fail(ern_ast:span(Function),
                  %% the variable as an error names it, without a printed type's marks
                  Name ++ verb(Name) ++ "a function that uses "
-                     ++ string:trim(ern_types:format(Variable, TypeState), trailing, "=!+")
+                     ++ string:trim(ern_types:format(Variable, TypeState), trailing, "=+")
                      ++ "." ++ atom_to_list(Member) ++ ", a member of the requirement in force,"
                      " which is a function bound to its node",
                  "give the process what it needs as a value it captures, or "

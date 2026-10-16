@@ -442,7 +442,8 @@ the same commit; then the log; then the code, by an agent from the settled repor
    "visible in the code or in the type" says it means visible where it happens, as failure is; and
    whether a principle says what a type carries, what keeps values and messages safe and nothing
    more, is decided there. CLAUDE.md's first line and the README's change with §0.
-1. **The reply's obligation goes.** §6.6 keeps what a call does at run time, the deadline, `None`
+1. **The reply's obligation goes.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraphs of
+   that day), the held replies of §8.7 kept as decided here and reopened as a question below. §6.6 keeps what a call does at run time, the deadline, `None`
    or a fault where the callee ends before it answers, a late or second answer dropped, and the
    one sentence that a callee that lives on without answering holds a `callForever` caller; it
    loses the obligation and the rules for where a reply may stand. §3.9's three inferred

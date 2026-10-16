@@ -178,38 +178,38 @@ A value of an abstract type outside its module is written as `<abstract>`, and a
 `[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` takes an order (§3.10); given a function that is none, its result is not stated. `List.<>` is the prelude's, §9.6; this module provides it (§9). The primitives are `size`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
 ```
-List.size : (List(a!)) -> Int
-List.isEmpty : (List(a!)) -> Bool
-List.contains : (List(a=!), a=!) -> Bool
-List.get : (List(a!), Int) -> Optional(a!) // by index from 0; None for a negative index or one at or past the end
-List.removeAt : (List(a!), Int) -> List(a!) // without the element at the index from 0; the list as it was for a negative index or one at or past the end
+List.size : (List(a)) -> Int
+List.isEmpty : (List(a)) -> Bool
+List.contains : (List(a=), a=) -> Bool
+List.get : (List(a), Int) -> Optional(a) // by index from 0; None for a negative index or one at or past the end
+List.removeAt : (List(a), Int) -> List(a) // without the element at the index from 0; the list as it was for a negative index or one at or past the end
 List.map : (List(a), (a) -> b with e) -> List(b) with e
-List.filter : (List(a!), (a!) -> Bool with e) -> List(a!) with e
+List.filter : (List(a), (a) -> Bool with e) -> List(a) with e
 List.filterMap : (List(a), (a) -> Optional(b) with e) -> List(b) with e
 List.foldLeft : (List(a), b, (b, a) -> b with e) -> b with e
 List.foldRight : (List(a), b, (b, a) -> b with e) -> b with e // from the right
 List.forEach : (List(a), (a) -> Unit with e) -> Unit with e
-List.any : (List(a!), (a!) -> Bool with e) -> Bool with e
-List.all : (List(a!), (a!) -> Bool with e) -> Bool with e
-List.find : (List(a!), (a!) -> Bool with e) -> Optional(a!) with e // the first that satisfies
-List.last : (List(a!)) -> Optional(a!)
-List.take : (List(a!), Int) -> List(a!) // the first n, or all when there are fewer; n below 0 is 0
-List.drop : (List(a!), Int) -> List(a!) // all but the first n; n below 0 is 0
-List.takeLast : (List(a!), Int) -> List(a!) // the last n, or all when there are fewer; n below 0 is 0
-List.dropLast : (List(a!), Int) -> List(a!) // all but the last n; n below 0 is 0
-List.span : (List(a!), (a!) -> Bool with e) -> #(List(a!), List(a!)) with e // the longest prefix that satisfies, and the rest
-List.partition : (List(a!), (a!) -> Bool with e) -> #(List(a!), List(a!)) with e // those that satisfy and those that do not, each in order
-List.unique : (List(a=!)) -> List(a=!) // the first occurrence of each, in order
+List.any : (List(a), (a) -> Bool with e) -> Bool with e
+List.all : (List(a), (a) -> Bool with e) -> Bool with e
+List.find : (List(a), (a) -> Bool with e) -> Optional(a) with e // the first that satisfies
+List.last : (List(a)) -> Optional(a)
+List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewer; n below 0 is 0
+List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
+List.takeLast : (List(a), Int) -> List(a) // the last n, or all when there are fewer; n below 0 is 0
+List.dropLast : (List(a), Int) -> List(a) // all but the last n; n below 0 is 0
+List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // the longest prefix that satisfies, and the rest
+List.partition : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // those that satisfy and those that do not, each in order
+List.unique : (List(a=)) -> List(a=) // the first occurrence of each, in order
 List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 0
-List.repeat : (a!, Int) -> List(a!) // n copies; n below 0 is 0
+List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
-List.sort : (List(a!), (a!, a!) -> Ordering with e) -> List(a!) with e // stable
-List.zip : (List(a!), List(b!)) -> List(#(a!, b!)) // to the shorter length
+List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e // stable
+List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
 List.unzip : (List(#(a, b))) -> #(List(a), List(b))
 List.flatMap : (List(a), (a) -> List(b) with e) -> List(b) with e
 List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; empty when the first is greater
-List.tryMap : (List(a!), (a!) -> Either(e, b!) with x) -> Either(e, List(b!)) with x // the first Left ends it
-List.tryFold : (List(a!), b, (b, a!) -> Either(e, b) with x) -> Either(e, b) with x // the first Left ends it
+List.tryMap : (List(a), (a) -> Either(e, b) with x) -> Either(e, List(b)) with x // the first Left ends it
+List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with x // the first Left ends it
 ```
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
@@ -218,27 +218,27 @@ Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `fol
 
 ```
 Map.empty : Map(k=, v)
-Map.size : (Map(k=!, v!)) -> Int
-Map.isEmpty : (Map(k=!, v!)) -> Bool
-Map.contains : (Map(k=!, v!), k=!) -> Bool
-Map.get : (Map(k=!, v!), k=!) -> Optional(v!)
-Map.put : (Map(k=!, v!), k=!, v!) -> Map(k=!, v!) // replaces an entry with that key
-Map.remove : (Map(k=!, v!), k=!) -> Map(k=!, v!) // a key not present is not an error
-Map.update : (Map(k=!, v!), k=!, (Optional(v!)) -> v! with e) -> Map(k=!, v!) with e // the entry, present or not, replaced by the function's value
-Map.map : (Map(k=!, v!), (k=!, v!) -> w with e) -> Map(k=!, w) with e
-Map.filter : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Map(k=!, v!) with e
-Map.filterMap : (Map(k=!, v!), (k=!, v!) -> Optional(w!) with e) -> Map(k=!, w!) with e
-Map.fold : (Map(k=!, v!), b, (b, k=!, v!) -> b with e) -> b with e
-Map.forEach : (Map(k=!, v!), (k=!, v!) -> Unit with e) -> Unit with e
-Map.any : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Bool with e
-Map.all : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Bool with e
-Map.find : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Optional(#(k=!, v!)) with e // some entry that satisfies
-Map.merge : (Map(k=!, v!), Map(k=!, v!)) -> Map(k=!, v!) // the second wins for a shared key
-Map.mergeWith : (Map(k=!, v!), Map(k=!, v!), (k=!, v!, v!) -> v! with e) -> Map(k=!, v!) with e // for a shared key, the function of the key, the first's value and the second's
-Map.fromList : (List(#(k=!, v!))) -> Map(k=!, v!) // a later pair wins
-Map.toList : (Map(k=!, v!)) -> List(#(k=!, v!))
-Map.keys : (Map(k=!, v!)) -> List(k=!)
-Map.values : (Map(k=!, v!)) -> List(v!)
+Map.size : (Map(k=, v)) -> Int
+Map.isEmpty : (Map(k=, v)) -> Bool
+Map.contains : (Map(k=, v), k=) -> Bool
+Map.get : (Map(k=, v), k=) -> Optional(v)
+Map.put : (Map(k=, v), k=, v) -> Map(k=, v) // replaces an entry with that key
+Map.remove : (Map(k=, v), k=) -> Map(k=, v) // a key not present is not an error
+Map.update : (Map(k=, v), k=, (Optional(v)) -> v with e) -> Map(k=, v) with e // the entry, present or not, replaced by the function's value
+Map.map : (Map(k=, v), (k=, v) -> w with e) -> Map(k=, w) with e
+Map.filter : (Map(k=, v), (k=, v) -> Bool with e) -> Map(k=, v) with e
+Map.filterMap : (Map(k=, v), (k=, v) -> Optional(w) with e) -> Map(k=, w) with e
+Map.fold : (Map(k=, v), b, (b, k=, v) -> b with e) -> b with e
+Map.forEach : (Map(k=, v), (k=, v) -> Unit with e) -> Unit with e
+Map.any : (Map(k=, v), (k=, v) -> Bool with e) -> Bool with e
+Map.all : (Map(k=, v), (k=, v) -> Bool with e) -> Bool with e
+Map.find : (Map(k=, v), (k=, v) -> Bool with e) -> Optional(#(k=, v)) with e // some entry that satisfies
+Map.merge : (Map(k=, v), Map(k=, v)) -> Map(k=, v) // the second wins for a shared key
+Map.mergeWith : (Map(k=, v), Map(k=, v), (k=, v, v) -> v with e) -> Map(k=, v) with e // for a shared key, the function of the key, the first's value and the second's
+Map.fromList : (List(#(k=, v))) -> Map(k=, v) // a later pair wins
+Map.toList : (Map(k=, v)) -> List(#(k=, v))
+Map.keys : (Map(k=, v)) -> List(k=)
+Map.values : (Map(k=, v)) -> List(v)
 ```
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
@@ -247,25 +247,25 @@ Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`.
 
 ```
 Set.empty : Set(a=)
-Set.size : (Set(a=!)) -> Int
-Set.isEmpty : (Set(a=!)) -> Bool
-Set.contains : (Set(a=!), a=!) -> Bool
-Set.put : (Set(a=!), a=!) -> Set(a=!) // an element already present is not an error
-Set.remove : (Set(a=!), a=!) -> Set(a=!) // an element not present is not an error
-Set.map : (Set(a=!), (a=!) -> b= with e) -> Set(b=) with e // requires equality on b
-Set.filter : (Set(a=!), (a=!) -> Bool with e) -> Set(a=!) with e
-Set.filterMap : (Set(a=!), (a=!) -> Optional(b=!) with e) -> Set(b=!) with e // requires equality on b
-Set.fold : (Set(a=!), b, (b, a=!) -> b with e) -> b with e
-Set.forEach : (Set(a=!), (a=!) -> Unit with e) -> Unit with e
-Set.any : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
-Set.all : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
-Set.find : (Set(a=!), (a=!) -> Bool with e) -> Optional(a=!) with e // some element that satisfies
-Set.fromList : (List(a=!)) -> Set(a=!)
-Set.toList : (Set(a=!)) -> List(a=!)
-Set.union : (Set(a=!), Set(a=!)) -> Set(a=!)
-Set.intersection : (Set(a=!), Set(a=!)) -> Set(a=!)
-Set.difference : (Set(a=!), Set(a=!)) -> Set(a=!) // the elements of the first not in the second
-Set.isSubset : (Set(a=!), Set(a=!)) -> Bool // every element of the first is in the second
+Set.size : (Set(a=)) -> Int
+Set.isEmpty : (Set(a=)) -> Bool
+Set.contains : (Set(a=), a=) -> Bool
+Set.put : (Set(a=), a=) -> Set(a=) // an element already present is not an error
+Set.remove : (Set(a=), a=) -> Set(a=) // an element not present is not an error
+Set.map : (Set(a=), (a=) -> b= with e) -> Set(b=) with e // requires equality on b
+Set.filter : (Set(a=), (a=) -> Bool with e) -> Set(a=) with e
+Set.filterMap : (Set(a=), (a=) -> Optional(b=) with e) -> Set(b=) with e // requires equality on b
+Set.fold : (Set(a=), b, (b, a=) -> b with e) -> b with e
+Set.forEach : (Set(a=), (a=) -> Unit with e) -> Unit with e
+Set.any : (Set(a=), (a=) -> Bool with e) -> Bool with e
+Set.all : (Set(a=), (a=) -> Bool with e) -> Bool with e
+Set.find : (Set(a=), (a=) -> Bool with e) -> Optional(a=) with e // some element that satisfies
+Set.fromList : (List(a=)) -> Set(a=)
+Set.toList : (Set(a=)) -> List(a=)
+Set.union : (Set(a=), Set(a=)) -> Set(a=)
+Set.intersection : (Set(a=), Set(a=)) -> Set(a=)
+Set.difference : (Set(a=), Set(a=)) -> Set(a=) // the elements of the first not in the second
+Set.isSubset : (Set(a=), Set(a=)) -> Bool // every element of the first is in the second
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
@@ -390,9 +390,9 @@ Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y f
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
 
 ```
-Optional.isSome : (Optional(a!)) -> Bool
-Optional.isNone : (Optional(a!)) -> Bool
-Optional.withDefault : (Optional(a!), a!) -> a!
+Optional.isSome : (Optional(a)) -> Bool
+Optional.isNone : (Optional(a)) -> Bool
+Optional.withDefault : (Optional(a), a) -> a
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
@@ -400,14 +400,14 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with 
 ### Appendix E.11. `either.ern` (namespace `Either`)
 
 ```
-Either.isLeft : (Either(e!, a!)) -> Bool
-Either.isRight : (Either(e!, a!)) -> Bool
-Either.withDefault : (Either(e!, a!), a!) -> a!
+Either.isLeft : (Either(e, a)) -> Bool
+Either.isRight : (Either(e, a)) -> Bool
+Either.withDefault : (Either(e, a), a) -> a
 Either.map : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
 Either.mapLeft : (Either(e, a), (e) -> b with x) -> Either(b, a) with x
 Either.andThen : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
-Either.toOptional : (Either(e!, a)) -> Optional(a)
-Either.fromOptional : (Optional(a), e!) -> Either(e!, a)
+Either.toOptional : (Either(e, a)) -> Optional(a)
+Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 
 ### Appendix E.12. `foreign.ern` (namespace `Foreign`)
@@ -420,7 +420,7 @@ An Erlang function that answers `{ok, V}` or `{error, R}` needs an Erlang helper
 
 ```
 foreign type Term
-Foreign.term : (a!) -> Term // the value as it crosses into foreign code, at the use's type (§8.4)
+Foreign.term : (a) -> Term // the value as it crosses into foreign code, at the use's type (§8.4)
 Foreign.toInt : (Term) -> Optional(Int)
 Foreign.toFloat : (Term) -> Optional(Float)
 Foreign.toString : (Term) -> Optional(String) // a binary that is not UTF-8 is None
@@ -685,7 +685,7 @@ A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a p
 ```
 type Case(m) = Case(name : String, run : () -> Result with m)
 type Result = Passed | Failed(String)
-Test.equal : (a=!, a=!) -> Result needs a.show // the actual value first, then the expected one
+Test.equal : (a=, a=) -> Result needs a.show // the actual value first, then the expected one
 ```
 
 ### Appendix E.25. `ordered_set.ern` (namespace `OrderedSet`)
@@ -701,27 +701,27 @@ The element type's `compare` is the program's promise: an order (§3.10) that sa
 ```
 abstract type Set(a)
 OrderedSet.empty : Set(a)
-OrderedSet.size : (Set(a!)) -> Int
-OrderedSet.isEmpty : (Set(a!)) -> Bool
-OrderedSet.contains : (Set(a!), a!) -> Bool needs a.compare
-OrderedSet.put : (Set(a!), a!) -> Set(a!) needs a.compare // an element already there is kept
-OrderedSet.remove : (Set(a!), a!) -> Set(a!) needs a.compare // an element not present is not an error
-OrderedSet.map : (Set(a), (a) -> b! with e) -> Set(b!) with e needs b.compare
-OrderedSet.filter : (Set(a!), (a!) -> Bool with e) -> Set(a!) with e
-OrderedSet.filterMap : (Set(a), (a) -> Optional(b!) with e) -> Set(b!) with e needs b.compare
+OrderedSet.size : (Set(a)) -> Int
+OrderedSet.isEmpty : (Set(a)) -> Bool
+OrderedSet.contains : (Set(a), a) -> Bool needs a.compare
+OrderedSet.put : (Set(a), a) -> Set(a) needs a.compare // an element already there is kept
+OrderedSet.remove : (Set(a), a) -> Set(a) needs a.compare // an element not present is not an error
+OrderedSet.map : (Set(a), (a) -> b with e) -> Set(b) with e needs b.compare
+OrderedSet.filter : (Set(a), (a) -> Bool with e) -> Set(a) with e
+OrderedSet.filterMap : (Set(a), (a) -> Optional(b) with e) -> Set(b) with e needs b.compare
 OrderedSet.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e
 OrderedSet.forEach : (Set(a), (a) -> Unit with e) -> Unit with e
-OrderedSet.any : (Set(a!), (a!) -> Bool with e) -> Bool with e
-OrderedSet.all : (Set(a!), (a!) -> Bool with e) -> Bool with e
-OrderedSet.find : (Set(a!), (a!) -> Bool with e) -> Optional(a!) with e // the first in order that satisfies
-OrderedSet.fromList : (List(a!)) -> Set(a!) needs a.compare
+OrderedSet.any : (Set(a), (a) -> Bool with e) -> Bool with e
+OrderedSet.all : (Set(a), (a) -> Bool with e) -> Bool with e
+OrderedSet.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // the first in order that satisfies
+OrderedSet.fromList : (List(a)) -> Set(a) needs a.compare
 OrderedSet.toList : (Set(a)) -> List(a) // in order
-OrderedSet.min : (Set(a!)) -> Optional(a!) // the first in order
-OrderedSet.max : (Set(a!)) -> Optional(a!) // the last in order
-OrderedSet.union : (Set(a!), Set(a!)) -> Set(a!) needs a.compare
-OrderedSet.intersection : (Set(a!), Set(a!)) -> Set(a!) needs a.compare
-OrderedSet.difference : (Set(a!), Set(a!)) -> Set(a!) needs a.compare // the elements of the first not in the second
-OrderedSet.isSubset : (Set(a!), Set(a!)) -> Bool needs a.compare // every element of the first is in the second
+OrderedSet.min : (Set(a)) -> Optional(a) // the first in order
+OrderedSet.max : (Set(a)) -> Optional(a) // the last in order
+OrderedSet.union : (Set(a), Set(a)) -> Set(a) needs a.compare
+OrderedSet.intersection : (Set(a), Set(a)) -> Set(a) needs a.compare
+OrderedSet.difference : (Set(a), Set(a)) -> Set(a) needs a.compare // the elements of the first not in the second
+OrderedSet.isSubset : (Set(a), Set(a)) -> Bool needs a.compare // every element of the first is in the second
 ```
 
 ### Appendix E.26. `ordered_map.ern` (namespace `OrderedMap`)
@@ -735,27 +735,27 @@ The map is a sorted list of pairs, one shape per map: `get`, `put`, `remove` and
 ```
 abstract type Map(k, v)
 OrderedMap.empty : Map(k, v)
-OrderedMap.size : (Map(k!, v!)) -> Int
-OrderedMap.isEmpty : (Map(k!, v!)) -> Bool
-OrderedMap.contains : (Map(k!, v!), k!) -> Bool needs k.compare
-OrderedMap.get : (Map(k!, v!), k!) -> Optional(v!) needs k.compare
-OrderedMap.put : (Map(k!, v!), k!, v!) -> Map(k!, v!) needs k.compare // replaces the value of an entry with that key
-OrderedMap.remove : (Map(k!, v!), k!) -> Map(k!, v!) needs k.compare // a key not present is not an error
-OrderedMap.update : (Map(k!, v!), k!, (Optional(v!)) -> v! with e) -> Map(k!, v!) with e needs k.compare // the entry, present or not, replaced by the function's value
-OrderedMap.map : (Map(k!, v), (k!, v) -> w with e) -> Map(k!, w) with e
-OrderedMap.filter : (Map(k!, v!), (k!, v!) -> Bool with e) -> Map(k!, v!) with e
-OrderedMap.filterMap : (Map(k!, v), (k!, v) -> Optional(w) with e) -> Map(k!, w) with e
+OrderedMap.size : (Map(k, v)) -> Int
+OrderedMap.isEmpty : (Map(k, v)) -> Bool
+OrderedMap.contains : (Map(k, v), k) -> Bool needs k.compare
+OrderedMap.get : (Map(k, v), k) -> Optional(v) needs k.compare
+OrderedMap.put : (Map(k, v), k, v) -> Map(k, v) needs k.compare // replaces the value of an entry with that key
+OrderedMap.remove : (Map(k, v), k) -> Map(k, v) needs k.compare // a key not present is not an error
+OrderedMap.update : (Map(k, v), k, (Optional(v)) -> v with e) -> Map(k, v) with e needs k.compare // the entry, present or not, replaced by the function's value
+OrderedMap.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
+OrderedMap.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
+OrderedMap.filterMap : (Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e
 OrderedMap.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
 OrderedMap.forEach : (Map(k, v), (k, v) -> Unit with e) -> Unit with e
-OrderedMap.any : (Map(k!, v!), (k!, v!) -> Bool with e) -> Bool with e
-OrderedMap.all : (Map(k!, v!), (k!, v!) -> Bool with e) -> Bool with e
-OrderedMap.find : (Map(k!, v!), (k!, v!) -> Bool with e) -> Optional(#(k!, v!)) with e // the first in order that satisfies
-OrderedMap.merge : (Map(k!, v!), Map(k!, v!)) -> Map(k!, v!) needs k.compare // the second wins for a shared key
-OrderedMap.mergeWith : (Map(k!, v!), Map(k!, v!), (k!, v!, v!) -> v! with e) -> Map(k!, v!) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
-OrderedMap.fromList : (List(#(k!, v!))) -> Map(k!, v!) needs k.compare // a later pair's value wins
+OrderedMap.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
+OrderedMap.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
+OrderedMap.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // the first in order that satisfies
+OrderedMap.merge : (Map(k, v), Map(k, v)) -> Map(k, v) needs k.compare // the second wins for a shared key
+OrderedMap.mergeWith : (Map(k, v), Map(k, v), (k, v, v) -> v with e) -> Map(k, v) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
+OrderedMap.fromList : (List(#(k, v))) -> Map(k, v) needs k.compare // a later pair's value wins
 OrderedMap.toList : (Map(k, v)) -> List(#(k, v)) // in order
-OrderedMap.keys : (Map(k, v!)) -> List(k) // in order
-OrderedMap.values : (Map(k!, v)) -> List(v) // in the keys' order
+OrderedMap.keys : (Map(k, v)) -> List(k) // in order
+OrderedMap.values : (Map(k, v)) -> List(v) // in the keys' order
 ```
 
 ### Appendix E.27. `peer.ern` (namespace `Peer`)
@@ -815,7 +815,7 @@ All three are primitives: `load` and `hashes` read the toolchain's files through
 ```
 Code.load : (Path) -> Either(Io.Error, Unit) with m+ // the compiled module and its reach loaded, their bindings without a value evaluated
 Code.hashes : (Path) -> Either(Io.Error, List(#(String, String))) with m+ // each definition's qualified name and hash, in the module's order
-Code.running : (a!) -> List(Address(m)) with n+ // a form (§3.11): f a top-level fn of any arity whose result is Unit with m
+Code.running : (a) -> List(Address(m)) with n+ // a form (§3.11): f a top-level fn of any arity whose result is Unit with m
 ```
 
 ## Appendix G. Libraries
@@ -831,14 +831,14 @@ A table belongs to the process that made it and ends with that process or with `
 ```
 foreign type Table(k=, v)
 Ets.new : () -> Table(k=, v) with m+
-Ets.put : (Table(k=!, v!), k=!, v!) -> Unit with m+
-Ets.get : (Table(k=!, v!), k=!) -> Optional(v!) with m+
-Ets.contains : (Table(k=!, v!), k=!) -> Bool with m+
-Ets.remove : (Table(k=!, v!), k=!) -> Unit with m+
-Ets.size : (Table(k=!, v!)) -> Int with m+
-Ets.clear : (Table(k=!, v!)) -> Unit with m+
-Ets.close : (Table(k=!, v!)) -> Unit with m+
-Ets.toList : (Table(k=!, v!)) -> List(#(k=!, v!)) with m+
+Ets.put : (Table(k=, v), k=, v) -> Unit with m+
+Ets.get : (Table(k=, v), k=) -> Optional(v) with m+
+Ets.contains : (Table(k=, v), k=) -> Bool with m+
+Ets.remove : (Table(k=, v), k=) -> Unit with m+
+Ets.size : (Table(k=, v)) -> Int with m+
+Ets.clear : (Table(k=, v)) -> Unit with m+
+Ets.close : (Table(k=, v)) -> Unit with m+
+Ets.toList : (Table(k=, v)) -> List(#(k=, v)) with m+
 ```
 
 ### Appendix G.2. `libs/markdown` (namespace `Markdown`)

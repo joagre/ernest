@@ -1085,6 +1085,52 @@ show_test() ->
         "}\n"),
     ?assertEqual(<<"Snap(seen = 2, dir = \"x\")\nSome('a')\n<<1>> <<2, 3>>\n">>, Output).
 
+%% report §6.6, Appendix E.1: a server keeps the replies it cannot answer
+%% yet as it keeps any value, in a list, in a map and captured by a lambda
+%% in a list, and answers each once it holds all three; a second answer is
+%% dropped, and a reply prints as `<reply>`. A regression test written after
+%% the code, 2026-10-16, when the reply's obligation went, which refused
+%% the map, the lambda and the second answer; it does not cover an answer
+%% that comes after its caller's deadline
+replies_kept_as_values_test() ->
+    {ok, Output} = run(
+        "type Request = Ask(n : Int, reply : Reply(Int))\n"
+        "type Main = Got(Int)\n"
+        "fn serve(pending : List(Reply(Int)), byKey : Map(Int, Reply(Int)),\n"
+        "         later : List(() -> Unit with Request), count : Int) : Unit with Request =\n"
+        "    if count == 3 then release(pending, byKey, later)\n"
+        "    else receive {\n"
+        "        Ask(n = n, reply = reply) ->\n"
+        "            if n == 1 then serve(reply :: pending, byKey, later, count + 1)\n"
+        "            else if n == 2 then\n"
+        "                serve(pending, Map.put(byKey, n, reply), later, count + 1)\n"
+        "            else\n"
+        "                serve(pending, byKey, (fn() = answer(reply, n * 10)) :: later,\n"
+        "                      count + 1)\n"
+        "    }\n"
+        "fn release(pending : List(Reply(Int)), byKey : Map(Int, Reply(Int)),\n"
+        "           later : List(() -> Unit with Request)) : Unit with Request = {\n"
+        "    Io.println(Io.show(pending));\n"
+        "    List.forEach(pending, fn(reply) = { answer(reply, 10); answer(reply, 100) });\n"
+        "    Map.forEach(byKey, fn(key, reply) = answer(reply, key * 10));\n"
+        "    List.forEach(later, fn(f) = f())\n"
+        "}\n"
+        "export fn main() : Unit with Main = {\n"
+        "    let server = spawn(fn() = serve([], Map.empty, [], 0));\n"
+        "    let me = self();\n"
+        "    List.forEach([1, 2, 3], fn(n) = {\n"
+        "        let _ = spawn(fn() =\n"
+        "            send(me, Got(Address.callForever(server,\n"
+        "                                             fn(reply) = Ask(n = n, reply = reply)))));\n"
+        "        Unit\n"
+        "    });\n"
+        "    let a = receive { Got(v) -> v };\n"
+        "    let b = receive { Got(v) -> v };\n"
+        "    let c = receive { Got(v) -> v };\n"
+        "    Io.println(Io.show(List.sort([a, b, c], Int.compare)))\n"
+        "}\n"),
+    ?assertEqual(<<"[<reply>]\n[10, 20, 30]\n">>, Output).
+
 %% report §4.2, §4.5: a module's own type named Float may have members
 %% negate and compare, and a call of them, each as a value, and prefix `-`
 %% on the type are the module's. A regression test, rewritten when a member
@@ -1759,7 +1805,7 @@ foreign_improper_list_test() ->
     ?assertEqual({fault, <<"foreign return does not match List(Int)">>}, Result1),
     {Result2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
                        ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual({fault, <<"foreign return does not match List(a!)">>}, Result2).
+    ?assertEqual({fault, <<"foreign return does not match List(a)">>}, Result2).
 
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and

@@ -18,7 +18,7 @@ values_test() ->
         code_lines(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
-    %% marks of the restrictions the compiler infers, `a=`, `a!` and `m+`,
+    %% marks of the restrictions the compiler infers, `a=` and `m+`,
     %% are left out of the comparison on both sides, §9's being held to the
     %% compiler's by marked_prelude_test below, and Appendix E's listings by
     %% ern_doc_tests' listings_are_the_interfaces_test (report §3.9, §11.5);
@@ -262,7 +262,7 @@ printed(QualifiedName, Scheme, TypeState) ->
 
 %% A printed type without the marks of the inferred restrictions.
 unmarked(Text) ->
-    re:replace(Text, "\\b([a-z][a-z0-9]*)[=!+]+", "\\1", [global, {return, list}]).
+    re:replace(Text, "\\b([a-z][a-z0-9]*)[=+]+", "\\1", [global, {return, list}]).
 
 %% A type text with the names of the value's own module unqualified.
 own(QualifiedName, Text) ->

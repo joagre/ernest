@@ -46,7 +46,7 @@ refusals(Text) ->
 basic_inference_test() ->
     ?assertEqual("(Int) -> Int", type_of("export fn double(n) = n * 2", double)),
     ?assertEqual("(a) -> a", type_of("export fn id(x) = x", id)),
-    ?assertEqual("(a, b!) -> a", type_of("export fn first(x, y) = x", first)),
+    ?assertEqual("(a, b) -> a", type_of("export fn first(x, y) = x", first)),
     ?assertEqual("((a) -> b with e, a) -> b with e",
                  type_of("export fn apply(f, x) = f(x)", apply)),
     ?assertEqual("(Int) -> Int",
@@ -55,9 +55,7 @@ basic_inference_test() ->
     ?assertEqual("((a) -> b with e, a, a) -> #(b, b) with e",
                  type_of("export fn map2(f, x, y) = #(f(x), f(y))", map2)),
     ?assertEqual("() -> List(a)", type_of("export fn namedEmpty() = { let xs = []; xs }",
-                                          namedEmpty)),
-    %% report §3.9: List.size drops its list's elements, so len does
-    ?assertEqual("(List(a!)) -> Int", type_of("export fn len(xs) = List.size(xs)", len)).
+                                          namedEmpty)).
 
 %% report §3.9, §11.5: a parameter's function type whose effect variable
 %% occurs nowhere else admits a function with any mailbox type, and one
@@ -70,29 +68,12 @@ lone_effect_variable_test() ->
     ?assertEqual("(() -> Unit with e) -> Int", type_of(Ignore, ignore)),
     ?assertEqual(ok, ok(Ignore ++ "fn g() : Int = ignore(impure)\n"
                                   "fn h() : Int = ignore(fn() = Unit)\n")),
-    ?assertEqual("() -> (a!) -> #(a!, a!)", type_of("export fn pair() = fn(x) = #(x, x)", pair)).
+    ?assertEqual("() -> (a) -> #(a, a)", type_of("export fn pair() = fn(x) = #(x, x)", pair)).
 
 %% report §3.9, §11.5
 constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a=, a=) -> Bool", type_of("export fn equal(a, b) = a == b", equal)),
-    ?assertEqual("(a!) -> #(a!, a!)", type_of("export fn dup(x) = #(x, x)", dup)),
-    ?assertEqual("(a!) -> Unit", type_of("export fn discard(x) = Unit", discard)),
     ?assertEqual("(a) -> a", type_of("export fn identity(x) = x", identity)).
-
-%% report §3.9, §6.6: no type's variable is exempt from the no-reply
-%% restriction; a list's element takes it where the body drops or copies
-%% one, as an `Optional`'s does. A regression test of the rule of
-%% 2026-10-01, which removed the exemption of a container's element
-elements_take_the_restriction_test() ->
-    ?assertEqual("(Optional(a!), a!) -> a!",
-                 type_of("export fn orElse(o : Optional(a), d : a) : a =\n"
-                         "    match o { Some(x) -> x | None -> d }", orElse)),
-    ?assertEqual("(a!, List(#(a!, b))) -> List(#(a!, b))",
-                 type_of("export fn keep(x : a, ys : List(#(a, b))) = ys", keep)),
-    ?assertEqual("(a, List(a)) -> List(a)",
-                 type_of("export fn push(x : a, ys : List(a)) = x :: ys", push)),
-    ?assertEqual("(a!, (List(a!)) -> Int) -> Unit",
-                 type_of("export fn skip(x : a, f : (List(a)) -> Int) = Unit", skip)).
 
 %% report §3.9: a foreign fn whose effect is its own is process-only; one
 %% whose effect is a parameter's callback's is effect-polymorphic
@@ -154,16 +135,7 @@ phantom_type_argument_test() ->
     ?assertEqual("the body does not have the declared result type: expected Int, found P(a)",
                  refusal("type P(e) = P(n : Int)\n"
                          "fn make() : P(e) = P(n = 1)\n"
-                         "fn f() : Int = make()\n")),
-    %% a value of the type holds no value of the variable, so a foreign
-    %% function's parameter of it leaves the variable reply-carrying (§4.7),
-    %% as `Peer.offer`'s service does
-    {ok, _, #interface{values = Values}, Env} =
-        check("export type P(e) = P(n : Int)\n"
-              "export foreign fn put(p : P(a), to : Address(a)) : Unit = \"m:put/2\"\n"),
-    ?assertEqual("(P(a), Address(a)) -> Unit",
-                 ern_types:format_scheme(maps:get(['M', put], Values),
-                                         ern_typecheck:type_state(Env))).
+                         "fn f() : Int = make()\n")).
 
 %% report §5.4, §0 principle 3: `let _ = e` discards a value whatever `e`
 %% is, a pure one among them, since the `_` shows it unused, and a pure call
@@ -274,15 +246,13 @@ foreign_type_equality_test() ->
     ?assertEqual(ok, ok(Source ++ "fn f() = put(mk(), 1, 2)\n")),
     %% reported at the first place that needs it, `put`'s second argument,
     %% put's type in the label showing the key's restriction (§11.5)
-    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), which put requires of its second argument",
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function, an address"
+                 " or a reply), which put requires of its second argument",
                  refusal(Source ++ "fn f() = put(mk(), fn(x : Int) : Int = x, 2)\n")),
     %% a parameter without `=` asks nothing
     ?assertEqual(ok, ok(Source ++ "fn f() = put(mk(), 1, fn(x : Int) : Int = x)\n")),
-    %% the constraint shows in a type that names the parameter, and so
-    %% does the no-reply restriction a foreign function's parameters give
-    %% (report §4.7)
-    ?assertEqual("(a=!, b!) -> M.T(a=!, b!)",
+    %% the constraint shows in a type that names the parameter (report §4.7)
+    ?assertEqual("(a=, b) -> M.T(a=, b)",
                  type_of(Source ++ "export fn g(key, value) = put(mk(), key, value)\n", g)).
 
 %% report §4.8: `!` is negation on Bool
@@ -403,7 +373,7 @@ operator_member_shape_test() ->
     ?assertEqual(ok, ok(Box ++ "export fn Box.<>(Box(a), Box(b)) = Box(a <> b)\n")),
     ?assertEqual(ok, ok(Box ++ "export fn Box.*(x : Box(Int), y : Box(Int)) : Int = 1\n")),
     ?assertEqual("Box.<> must have the type (Box(a), Box(a)) -> Box(a),"
-                 " not (Box(a), Box(b!)) -> Box(a)",
+                 " not (Box(a), Box(b)) -> Box(a)",
                  refusal(Box ++ "export fn Box.<>(x : Box(a), y : Box(b)) : Box(a) = x\n")),
     %% an inferred signature is read as it is inferred
     ?assertEqual(ok, ok(Vec ++ "export fn Vec.negate(Vec(a)) = Vec(-a)\n")).
@@ -675,12 +645,11 @@ spawn_function_test() ->
                  " it starts",
                  peer_refusal("fn f() : Unit = { let s = Peer.spawn; Unit }\n")).
 
-%% report §8.7, §6.6, §3.11: a lambda that captures a reply is consumed by
-%% Peer.spawn and Peer.spawnMonitored as by spawn, the reply crossing with
-%% its captures: accepted written at the spawn and bound by a `let`, and a
-%% use of the reply or the lambda after the spawn refused as a second use,
-%% as after spawn. A regression test, written after the code, which
-%% refused the lambda with a message that read false of it
+%% report §8.7, §3.11: a lambda that captures a reply is started by
+%% Peer.spawn and Peer.spawnMonitored, the reply crossing with its
+%% captures, written at the spawn and bound by a `let`. A regression test,
+%% written after the code, which refused the lambda with a message that
+%% read false of it
 peer_spawn_reply_test() ->
     Worker = "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
     Head = Worker ++ "fn f(r : Reply(Int)) : Unit with m = {\n",
@@ -692,23 +661,7 @@ peer_spawn_reply_test() ->
                                 "    let job = fn() : Unit with Never = worker(r);\n"
                                 "    let _ = Peer.spawnMonitored(\"p\", job, Died, 5000);\n"
                                 "    Unit\n"
-                                "}\n")),
-    ?assertEqual("the reply-carrying value r is consumed twice",
-                 peer_refusal(Head ++ "    let _ = Peer.spawn(\"p\", fn() : Unit with Never ="
-                                     " worker(r), 5000);\n"
-                                     "    answer(r, 2)\n"
-                                     "}\n")),
-    ?assertEqual("the reply-carrying value job is consumed twice",
-                 peer_refusal(Worker ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                                       "    let job = fn() : Unit with Never = worker(r);\n"
-                                       "    let _ = Peer.spawn(\"p\", job, 5000);\n"
-                                       "    job()\n"
-                                       "}\n")),
-    ?assertEqual("the reply-carrying value r is consumed twice",
-                 refusal(Worker ++ "fn f(r : Reply(Int)) : Unit with m = {\n"
-                                   "    let _ = spawn(fn() : Unit with Never = worker(r));\n"
-                                   "    answer(r, 2)\n"
-                                   "}\n")).
+                                "}\n")).
 
 %% report §3.11, §6.9, §4.9: `restarting` applied to a function a spawn on a
 %% peer admits is admitted, its captures checked as that function's, and
@@ -790,7 +743,7 @@ spawn_captures_test() ->
                  peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit with m = {\n"
                               ++ spawning("", "fn() : Unit with Never = { let _ = socket; Unit"
                                               " }"))),
-    ?assertEqual("the function Peer.spawn starts captures x, whose type a! holds a type"
+    ?assertEqual("the function Peer.spawn starts captures x, whose type a holds a type"
                  " variable",
                  peer_refusal("fn f(x : a) : Unit with m = {\n"
                               ++ spawning("", "fn() : Unit with Never = { let _ = [x]; Unit }"))),
@@ -872,7 +825,7 @@ compute_function(Form) ->
                  " socket",
                  peer_refusal("fn f(socket : Address(Tcp.SocketMsg)) : Unit with m = {\n"
                               ++ computing(Form, "", "fn() = { let _ = socket; 1 }"))),
-    ?assertEqual("the function " ++ Form ++ " runs captures x, whose type a! holds a type"
+    ?assertEqual("the function " ++ Form ++ " runs captures x, whose type a holds a type"
                  " variable",
                  peer_refusal("fn f(x : a) : Unit with m = {\n"
                               ++ computing(Form, "", "fn() = { let _ = [x]; 1 }"))),
@@ -1032,11 +985,11 @@ equality_reads_private_types_test() ->
 foreign_fn_equality_mark_test() ->
     Member = "foreign fn member(element : a=, list : List(a)) : Bool = \"lists:member/2\"\n",
     ?assertEqual(ok, ok(Member ++ "fn f() = member(1, [2])\n")),
-    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), which member requires of its first argument",
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function, an address"
+                 " or a reply), which member requires of its first argument",
                  refusal(Member ++ "fn f() = member(fn(x : Int) : Int = x, [])\n")),
     %% the mark is the variable's: it holds at the occurrence it is not on
-    ?assertEqual("(a=!, List(a=!)) -> Bool",
+    ?assertEqual("(a=, List(a=)) -> Bool",
                  type_of("export " ++ Member, member)),
     ?assertEqual(type_of("export " ++ Member, member),
                  type_of("export foreign fn member(element : a, list : List(a=)) : Bool ="
@@ -1058,25 +1011,73 @@ foreign_fn_equality_mark_test() ->
 process_identity_test() ->
     ok("fn same(a : Address(Int), b : Address(Int)) : Bool =\n"
        "    Process.fromAddress(a) == Process.fromAddress(b)"),
-    ?assertEqual("`==` is not defined on Address(Int): it contains a function or an address;"
-                 " compare the processes behind addresses, `Process.fromAddress(a)`",
+    ?assertEqual("`==` is not defined on Address(Int): it contains a function, an address or a"
+                 " reply; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn same(a : Address(Int), b : Address(Int)) = a == b")),
     ?assertMatch("`<` is not defined on Process" ++ _,
                  refusal("fn before(a : Process, b : Process) = a < b")).
 
 %% report §3.10
 equality_test() ->
-    ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",
+    ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function, an address or a"
+                 " reply",
                  refusal("fn f(g : (Int) -> Int) = g == g")),
-    ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), which equal requires of its first argument; compare the"
+    ?assertEqual("Address(Int) does not support equality (it contains a function, an address"
+                 " or a reply), which equal requires of its first argument; compare the"
                  " processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn same(a : Address(Int), b) = equal(a, b)\nfn equal(a, b) = a == b")),
-    ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), which Map.put requires of a Map's key, in its second argument"
+    ?assertEqual("Address(Int) does not support equality (it contains a function, an address"
+                 " or a reply), which Map.put requires of a Map's key, in its second argument"
                  "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn f(a : Address(Int)) = Map.put(Map.empty, a, 1)")),
     ?assertEqual(ok, ok("fn f(a : String) = Map.put(Map.empty, a, 1)")).
+
+%% report §3.10: `==` on a reply, or on a value that holds one, is a type
+%% error, as on a function or an address, through the equality constraint
+%% as at the operator. A regression test written after the code,
+%% 2026-10-16, when §6.6's obligation, which had refused it first, went
+reply_equality_test() ->
+    ?assertEqual("`==` is not defined on Reply(Int): it contains a function, an address or a"
+                 " reply",
+                 refusal("fn f(r : Reply(Int)) : Bool = r == r")),
+    ?assertEqual("`==` is not defined on List(Reply(Int)): it contains a function, an address"
+                 " or a reply",
+                 refusal("fn f(rs : List(Reply(Int))) : Bool = rs == rs")),
+    ?assertEqual("Reply(Int) does not support equality (it contains a function, an address or"
+                 " a reply), which equal requires of its first argument",
+                 refusal("fn equal(a, b) = a == b\n"
+                         "fn f(r : Reply(Int)) : Bool = equal(r, r)")).
+
+%% report §6.6, §4.7, §11.2: a reply is a value and stands wherever a value
+%% stands: dropped by `_` or an omitted field, bound twice by `as`, the
+%% operand of a selection and the base of an update, on a path `&&` or a
+%% `<-` may skip, captured by a local fn or by a lambda passed on, held at
+%% top level, in a map, given to a function that copies or drops it and to
+%% `Foreign.term`, and answered twice or never. A regression test written
+%% after the code, 2026-10-16, when the reply's obligation, which refused
+%% each, went
+reply_is_a_value_test() ->
+    Source = "type Ask = Ask(reply : Reply(Int), n : Int)\n"
+             "type Req = Get(reply : Reply(Int)) | Stop\n",
+    Programs =
+        ["fn f(r : Reply(Int)) : Unit = { let _ = r; Unit }",
+         "fn f(q : Req) : Int = match q { Get() -> 1 | Stop -> 0 }",
+         "fn f(q : Req) : Int = match q { Get(reply = _) as whole -> 1 | Stop -> 0 }",
+         "fn f(a : Ask) : Int = a.n",
+         "fn f(a : Ask) : Ask = Ask(..a, n = 2)",
+         "fn f(r : Reply(Int), c : Bool) : Bool with m = c && { answer(r, 1); true }",
+         "fn f(r : Reply(Int), t : String) : Optional(Unit) with m =\n"
+         "    { let n <- String.toInt(t); answer(r, n); Some(Unit) }",
+         "fn f(r : Reply(Int)) : Unit with m = { fn go() : Unit with m = answer(r, 1); go() }",
+         "fn f(r : Reply(Int)) : Unit with m = List.forEach([1, 2], fn(x) = answer(r, x))",
+         "let none : List(Reply(Int)) = []",
+         "fn f(r : Reply(Int)) : Map(Int, Reply(Int)) = Map.put(Map.empty, 1, r)",
+         "fn f(rs : List(Reply(Int))) : Int = List.size(rs)",
+         "fn f(r : Reply(Int)) : Foreign.Term = Foreign.term(r)",
+         "fn f(r : Reply(Int)) : Unit with m = { answer(r, 1); answer(r, 2) }",
+         "fn f(r : Reply(Int)) : Unit = Unit"],
+    [?assertEqual({Program, ok}, {Program, ok(Source ++ Program)}) || Program <- Programs],
+    ?assertEqual("(a) -> #(a, a)", type_of("export fn dup(x) = #(x, x)", dup)).
 
 %% report §3.10: a declared type holds what its fields hold, its arguments
 %% in place of its parameters, an abstract type too; a recursive type, one
@@ -1086,22 +1087,23 @@ equality_test() ->
 %% not cover an abstract type of another module, which reads the same
 %% constructors from its interface.
 declared_type_equality_test() ->
-    ?assertEqual("`==` is not defined on Box: it contains a function or an address",
+    ?assertEqual("`==` is not defined on Box: it contains a function, an address or a reply",
                  refusal("type Box = Box((Int) -> Int)\nfn f(b : Box) = b == b")),
-    ?assertEqual("`==` is not defined on Wrap(Int): it contains a function or an address",
+    ?assertEqual("`==` is not defined on Wrap(Int): it contains a function, an address or a"
+                 " reply",
                  refusal("type Wrap(a) = Wrap((a) -> Int)\nfn f(w : Wrap(Int)) = w == w")),
-    ?assertEqual("`==` is not defined on Holder((Int) -> Int): it contains a function or an"
-                 " address",
+    ?assertEqual("`==` is not defined on Holder((Int) -> Int): it contains a function, an"
+                 " address or a reply",
                  refusal("type Holder(a) = Holder(Optional(a))\n"
                          "fn f(h : Holder((Int) -> Int)) = h == h")),
-    ?assertEqual("`==` is not defined on Tree: it contains a function or an address",
+    ?assertEqual("`==` is not defined on Tree: it contains a function, an address or a reply",
                  refusal("type Tree = Leaf | Node(left : Tree, f : (Int) -> Int)\n"
                          "fn f(t : Tree) = t == t")),
-    ?assertEqual("`==` is not defined on Nest((Int) -> Int): it contains a function or an"
-                 " address",
+    ?assertEqual("`==` is not defined on Nest((Int) -> Int): it contains a function, an address"
+                 " or a reply",
                  refusal("type Nest(a) = Flat(a) | Deeper(List(Nest(a)))\n"
                          "fn f(n : Nest((Int) -> Int)) = n == n")),
-    ?assertEqual("`==` is not defined on Hidden: it contains a function or an address",
+    ?assertEqual("`==` is not defined on Hidden: it contains a function, an address or a reply",
                  refusal("export abstract type Hidden = Hidden((Int) -> Int)\n"
                          "fn f(h : Hidden) = h == h")),
     ?assertEqual(ok, ok("type Tree(a) = Leaf | Node(left : Tree(a), value : a)\n"
@@ -1184,7 +1186,7 @@ unit_implementation_test() ->
 foreign_from_at_a_known_type_test() ->
     %% at a signature's variable the help is the `foreign fn` alone: a
     %% regression test, the help opened with an annotation, which cannot fix it
-    ?assertEqual({"the type a! is not known whole here, and Foreign.term gives foreign code a"
+    ?assertEqual({"the type a is not known whole here, and Foreign.term gives foreign code a"
                   " value by its type",
                   "a value of a type variable is given by a `foreign fn` whose parameter is of"
                   " that variable"},
@@ -1195,7 +1197,7 @@ foreign_from_at_a_known_type_test() ->
     ?assertEqual("the type List(a) is not known whole here, and Foreign.term gives foreign code"
                  " a value by its type",
                  refusal("fn give(xs : List(a)) : Foreign.Term needs a.show = Foreign.term(xs)")),
-    ?assertEqual("the type a! is not known whole here, and Foreign.term gives foreign code a"
+    ?assertEqual("the type a is not known whole here, and Foreign.term gives foreign code a"
                  " value by its type",
                  refusal("fn give(xs : List(a)) : List(Foreign.Term) =\n"
                          "    List.map(xs, Foreign.term)")),
@@ -1219,11 +1221,11 @@ foreign_has_exact_equality_test() ->
 %% `g(fn(y : Int) = y)` compared two functions.
 equality_through_a_binding_test() ->
     Source = "fn eq(a, b) = a == b\nexport fn g(x) = eq([x], [x])\n",
-    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), which g requires of its first argument",
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function, an address"
+                 " or a reply), which g requires of its first argument",
                  refusal(Source ++ "fn h() = g(fn(y : Int) = y)")),
     ?assertEqual(ok, ok(Source ++ "fn h() = g(1)")),
-    ?assertEqual("(a=!) -> Bool", type_of(Source, g)).
+    ?assertEqual("(a=) -> Bool", type_of(Source, g)).
 
 %% report §3.10: a type's ordering is the `compare` in its own namespace; a
 %% module-level `fn compare` is an ordinary function and gives the type no
@@ -1242,11 +1244,11 @@ module_level_compare_gives_no_ordering_test() ->
 %% user function's own Map parameter instantiated at such a key, which
 %% takes the same path.
 map_key_equality_test() ->
-    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), and a Map's key needs it",
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function, an address"
+                 " or a reply), and a Map's key needs it",
                  refusal("fn f() = { let m : Map((Int) -> Int, Int) = Map.empty; m }")),
-    ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), which Set.put requires of a Set's element, in its second"
+    ?assertEqual("Address(Int) does not support equality (it contains a function, an address"
+                 " or a reply), which Set.put requires of a Set's element, in its second"
                  " argument; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn f(a : Address(Int)) = Set.put(Set.empty, a)")),
     ?assertEqual(ok, ok("type Box = Box(m : Map((Int) -> Int, Int))\n"
@@ -1254,8 +1256,8 @@ map_key_equality_test() ->
                         "fn g(b : Box) : Box = b")),
     ?assertEqual("(Map(#(k=, Int), v)) -> Map(#(k=, Int), v)",
                  type_of("export fn f(m : Map(#(k, Int), v)) : Map(#(k, Int), v) = m", f)),
-    ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), which f requires of a Map's key, in its first argument"
+    ?assertEqual("Address(Int) does not support equality (it contains a function, an address"
+                 " or a reply), which f requires of a Map's key, in its first argument"
                  "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn f(m : Map(#(k, Int), Int), key : k) = m\n"
                          "fn g(m : Map(#(Address(Int), Int), Int), a : Address(Int)) = f(m, a)")).
@@ -1306,7 +1308,7 @@ receive_and_mailboxes_test() ->
                          "fn p() : Unit = sleep(1)")),
     ?assertEqual("f is declared with mailbox Never and cannot receive",
                  refusal("fn f() : Unit with Never = receive { Unit -> Unit }")),
-    ?assertEqual("(a!) -> Unit with e+",
+    ?assertEqual("(a) -> Unit with e+",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
 %% report §6.2, §4.6
@@ -1894,17 +1896,6 @@ unannotated_result_fixed_by_use_test() ->
                  " (a against List(a))",
                  refusal("fn f() = [f()]\n")).
 
-%% report §6.6: a declared type whose field is a List of a parameter is
-%% reply-carrying where the parameter is, so a value of it holding a reply
-%% is an obligation. A regression test: `Box([r])` was dropped with no error
-reply_in_a_list_field_test() ->
-    ?assertEqual("the reply-carrying value b is never consumed",
-                 refusal("type Box(a) = Box(List(a))\n"
-                         "fn drop(r : Reply(Int)) : Unit = {\n"
-                         "    let b = Box([r]);\n"
-                         "    Unit\n"
-                         "}\n")).
-
 %% report §5.11, §8.5: a size expression names an earlier segment's
 %% variable, which no top-level `let` of the same name is. A regression
 %% test: the name was taken for the let's, and a false cycle refused
@@ -1923,7 +1914,7 @@ variable_names_past_z_test() ->
     Params = string:join(["x : a1" | ["y" ++ integer_to_list(N) || N <- lists:seq(1, 26)]],
                          ", "),
     Printed = type_of("export fn f(" ++ Params ++ ") : a1 = x\n", f),
-    ?assertMatch({match, _}, re:run(Printed, ", z!, b1!\\) -> a1$")).
+    ?assertMatch({match, _}, re:run(Printed, ", z, b1\\) -> a1$")).
 
 %% report §11.5, §4.8: of the operators whose operand type nothing fixes,
 %% the first in the source is reported, after a selection a later use
@@ -2053,7 +2044,7 @@ effectful_initializer_test() ->
            "fn apply(f) = f()\n"
            "fn make() = fn() = spawn(fn() = cell(None))\n"
            "fn start() = spawn(fn() = cell(None))\n",
-    Refused = "the type of shared is not determined (Address(Cell(Optional(a!)))), and a"
+    Refused = "the type of shared is not determined (Address(Cell(Optional(a)))), and a"
               " top-level `let` whose initializer calls a process-only function is not"
               " generalized; annotate it",
     ?assertEqual(Refused, refusal(Cell ++ "let shared = spawn(fn() = cell(None))")),
@@ -2061,68 +2052,6 @@ effectful_initializer_test() ->
     ?assertEqual(Refused, refusal(Cell ++ "let shared = make()()")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
     ?assertEqual("() -> Address(a) with a", type_of("export let me = fn() = self()", me)).
-
-%% report §3.9, §6.6: a type variable is not-reply-carrying where the body,
-%% read with it taken for a reply, would break the discipline: through a
-%% `let` as much as by the parameter's name, or dropped inside a user type;
-%% one used exactly once stays open. A regression test: a `let` hid the
-%% second use and the drop, so a reply could be answered twice or never. It
-%% does not cover a variable that is only a container's element, which is
-%% exempt
-reply_through_bindings_test() ->
-    Source = "type Req = Get(reply : Reply(Int))\nexport type Box(a) = Box(a)\n",
-    ?assertEqual("(a!) -> #(a!, a!)",
-                 type_of("export fn dup(x) = { let y = x; #(y, y) }", dup)),
-    ?assertEqual("(a!) -> Unit", type_of("export fn drop(x) = { let y = x; Unit }", drop)),
-    ?assertEqual("(M.Box(a!)) -> Unit",
-                 type_of(Source ++ "export fn forget(b : Box(a)) : Unit = Unit", forget)),
-    ?assertEqual("(a) -> a", type_of("export fn keep(x) = { let y = x; y }", keep)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of dup,"
-                 " which duplicates or discards it",
-                 refusal(Source ++ "fn dup(x) = { let y = x; #(y, y) }\n"
-                         "fn f(r : Reply(Int)) = {\n"
-                         "    let #(a, b) = dup(r); answer(a, 1); answer(b, 2) }")).
-
-%% report §6.6, §3.9: a declared type is reply-carrying at an instantiation
-%% whose fields, its arguments substituted, have a reply-carrying type, so
-%% a variable is not-reply-carrying for a dropped value of the type only
-%% where its parameter reaches a field outside function types and the
-%% arguments of built-in types but a List's element, directly or through
-%% another declared type's parameter. H(e) was taken as reply-carrying at a
-%% reply-carrying e, and `drop` printed as `(H(e!)) -> Unit`; so was WH(a).
-%% A List's element carries a reply, so Lst(a) is reply-carrying at a: a
-%% regression test, a reply in it was dropped with no error
-reply_carrying_by_the_fields_test() ->
-    Types = "export type H(e) = H(f : (Int) -> Unit with e)\n"
-            "export type Box(a) = Box(a)\n"
-            "export type Lst(a) = Lst(List(a))\n"
-            "export type Wrap(a) = Wrap(b : Box(a))\n"
-            "export type WH(e) = WH(h : H(e))\n"
-            "export type Pair(a) = Pair(#(a, Int))\n",
-    Printed = fun(Declaration, Name) ->
-                  {ok, _, #interface{values = Values}, Env} = check(Types ++ Declaration),
-                  ern_types:format_scheme(maps:get(['M', Name], Values),
-                                          ern_typecheck:type_state(Env))
-              end,
-    ?assertEqual("(H(e)) -> Unit", Printed("export fn drop(h : H(e)) : Unit = Unit\n", drop)),
-    ?assertEqual("(WH(e)) -> Unit",
-                 Printed("export fn drop(h : WH(e)) : Unit = Unit\n", drop)),
-    ?assertEqual("(Lst(a!)) -> Unit",
-                 Printed("export fn drop(b : Lst(a)) : Unit = Unit\n", drop)),
-    ?assertEqual("(Box(a!)) -> Unit",
-                 Printed("export fn drop(b : Box(a)) : Unit = Unit\n", drop)),
-    ?assertEqual("(Wrap(a!)) -> Unit",
-                 Printed("export fn drop(b : Wrap(a)) : Unit = Unit\n", drop)),
-    ?assertEqual("(Pair(a!)) -> Unit",
-                 Printed("export fn drop(b : Pair(a)) : Unit = Unit\n", drop)),
-    %% an H over a mailbox of requests is no reply, and may be dropped
-    Requests = "type Req = Get(reply : Reply(Int))\n",
-    ?assertEqual(ok, ok(Types ++ Requests ++ "fn drop(h : H(e)) : Unit = Unit\n"
-                        "fn f(h : H(Req)) : Unit = { drop(h); drop(h) }\n")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of drop,"
-                 " which duplicates or discards it",
-                 refusal(Types ++ "fn drop(b : Box(a)) : Unit = Unit\n"
-                         "fn f(r : Reply(Int)) : Unit = drop(Box(r))\n")).
 
 %% report §3.5, §4.8, §11.5: a field is selected where every constructor has
 %% it, of one type; a type found later in the definition serves, one never
@@ -2277,75 +2206,8 @@ exhaustiveness_test() ->
                  refusal("type R = Get(reply : Int) | Stop\nfn f(r) = match r { Stop -> 0 }")).
 
 %%
-%% Reply discipline (report §6.6)
+%% Names, forms and the built-in types
 %%
-
-%% report §6.6
-reply_test() ->
-    Source = "type Req = Get(reply : Reply(Int)) | Stop\n",
-    ?assertEqual(ok, ok(Source ++ "fn serve(n : Int) : Unit with Req = receive {\n"
-                        "    Get(reply = r) -> { answer(r, n); serve(n) }\n  | Stop -> Unit }")),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal(Source ++ "fn serve(n : Int) : Unit with Req = receive {\n"
-                         "    Get(reply = r) -> serve(n)\n  | Stop -> Unit }")),
-    ?assertEqual("the reply-carrying value r is consumed twice",
-                 refusal(Source ++ "fn serve(n : Int) : Unit with Req = receive {\n"
-                         "    Get(reply = r) -> { answer(r, n); answer(r, n) }\n"
-                         "  | Stop -> Unit }")),
-    ?assertEqual("the reply-carrying value request is consumed twice",
-                 refusal(Source ++ "fn twice(dst : Address(Req), request : Req) ="
-                         " { send(dst, request); send(dst, request) }")),
-    ?assertEqual(ok,
-                 ok(Source ++ "fn once(dst : Address(Req), request : Req) = send(dst, request)")),
-    ?assertEqual("field reply of Get carries a reply and must be bound",
-                 refusal(Source ++ "fn f(r : Req) = match r { Get() -> 1 | Stop -> 0 }")),
-    ?assertEqual("field reply of Get carries a reply and must be bound",
-                 refusal(Source ++ "fn f(r : Req) = match r { Get(reply = _) -> 1 | Stop -> 0 }")),
-    ?assertEqual("`as` on a reply-carrying value would duplicate it",
-                 refusal(Source
-                         ++ "fn f(r : Req) = match r { Get(reply = x) as whole -> answer(x, 1)"
-                            " | Stop -> Unit }")),
-    %% a list holds a reply as a constructor does, and `[]` binds none
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Req) = [r]")),
-    ?assertEqual(ok, ok("fn answerAll(rs : List(Reply(Int))) : Unit with m = match rs {\n"
-                        "    [] -> Unit\n  | r :: rest -> { answer(r, 1); answerAll(rest) } }")),
-    ?assertEqual("the reply-carrying value rs is never consumed",
-                 refusal("fn drop(rs : List(Reply(Int))) = Unit")),
-    ?assertEqual("the reply-carrying value r is not consumed on this path",
-                 refusal(Source
-                         ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1) else Unit")),
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
-                        " else answer(r, 2)")),
-    ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
-                 " Peer.spawnMonitored runs",
-                 refusal(Source ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never ="
-                        " { let _ = spawn(fn() : Unit with Never = answer(r, 1)); Unit }")),
-    ?assertEqual({"a reply-carrying value, Reply(Int), passed in the first argument of dup,"
-                  " which duplicates or discards it",
-                  "a reply is consumed by answering it, passing it on once, or matching it (§6.6)"},
-                 refusal_and_help(Source ++ "fn dup(x) = #(x, x)\nfn f(r : Reply(Int)) = dup(r)")),
-    ?assertEqual(ok, ok(Source ++ "fn id(x) = x\nfn f(r : Reply(Int)) = answer(id(r), 1)")),
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) = { let r2 = r; answer(r2, 1) }")),
-    %% the mk callback of Address.call
-    ?assertEqual(ok,
-                 ok(Source ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
-                    " 1000)")).
-
-%% report §6.6: a `receive`'s `after` clause is a branch, on which an
-%% obligation open before the `receive` is consumed as on any other. A
-%% regression test of the principles review's K9 (2026-10-09), which
-%% named the clause in §6.6; the checker held it already
-reply_after_clause_test() ->
-    Source = "type Msg = Go | Halt\n",
-    ?assertEqual("the reply-carrying value r is not consumed on this path",
-                 refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Msg = receive {\n"
-                         "    Go -> answer(r, 1)\n  | Halt -> answer(r, 0)\n"
-                         "  | after 10 -> Unit\n}\n")),
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Msg = receive {\n"
-                        "    Go -> answer(r, 1)\n  | Halt -> answer(r, 0)\n"
-                        "  | after 10 -> answer(r, 2)\n}\n")).
 
 %% report §4.2: a type's member is written `T.name`, within the type's own
 %% members too; no lookup step finds it unqualified. A regression test,
@@ -2416,89 +2278,6 @@ selector_at_the_arguments_test() ->
     ?assertEqual(ok, ok(Source ++ "fn g(p : P(Int)) : Int = p.x")),
     ?assertEqual("P(String) has no field x of one type: x is String in A and Int in B",
                  refusal(Source ++ "fn g(p : P(String)) = p.x")).
-
-%% report §4.7, §3.9, §6.6: a foreign function's variables whose values a
-%% parameter holds are not reply-carrying, since its code may copy or drop
-%% what it is given; a variable under an address or in a function type is
-%% not held. A regression test: `Foreign.term(r)` dropped a reply
-foreign_no_reply_test() ->
-    Source = "type Msg = Get(reply : Reply(Int))\n",
-    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of"
-                 " Foreign.term, which duplicates or discards it",
-                 refusal(Source ++ "fn f(r : Reply(Int)) = { let _ = Foreign.term(r); Unit }")),
-    ?assertEqual("(a!) -> M.Held(a!)",
-                 type_of("export type Held(a) = Held(a)\n"
-                         "export foreign fn hold(x : a) : Held(a) = \"erlang:hd/1\"", hold)),
-    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Msg)) : Process = Process.fromAddress(a)")),
-    ?assertEqual("((Int) -> m) -> Unit",
-                 type_of("export foreign fn call(f : (Int) -> m) : Unit = \"erlang:hd/1\"", call)).
-
-%% report §6.6, §3.9: a list holds a reply however deep in a type it
-%% stands, and a function of a list that drops or copies its elements,
-%% `List.size` among them, or a shim of `Map` (§4.7), refuses one at the
-%% call. A regression test of the rule of 2026-10-01: the check read `[]`
-%% alone, so `r :: waiters` compiled and the list's functions could drop
-%% the reply
-reply_in_a_list_test() ->
-    ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\n"
-                        "fn f(r : Reply(Int)) : #(List(Reply(Int)), Int) = pair(r)")),
-    ?assertEqual(ok, ok("fn some(x) = Some([x])\n"
-                        "fn f(r : Reply(Int)) : Optional(List(Reply(Int))) = some(r)")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of"
-                 " List.size, which duplicates or discards it",
-                 refusal("fn f(r : Reply(Int), waiters : List(Reply(Int))) ="
-                         " List.size(r :: waiters)")),
-    ?assertMatch("a reply-carrying value, Reply(Int), passed in the third argument of Map.put,"
-                 " which duplicates or discards it",
-                 refusal("fn f(r : Reply(Int)) = Map.put(Map.empty, 1, r)")),
-    ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\nfn f(n : Int) = pair(n)")),
-    ?assertEqual(ok, ok("fn f(r : Reply(Int)) = { let #(r2, _) = #(r, [1]); answer(r2, 1) }")).
-
-%% report §6.6, §3.9: `Optional` and `Either` are sum types like any other,
-%% and hold a reply as a user's own sum type does, used once. A regression
-%% test, written with the rule: `Some(r)` was refused
-reply_in_optional_test() ->
-    ?assertEqual(ok, ok("fn f(r : Reply(Int)) ="
-                        " match Some(r) { Some(q) -> answer(q, 1) | None -> Unit }")),
-    ?assertEqual("`_` would discard a reply-carrying value",
-                 refusal("fn f(r : Reply(Int)) = { let o = Some(r); let _ = o; Unit }")),
-    ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Either(String, Reply(Int)) = Right(r)")).
-
-%% report §6.6: a local fn may not capture a reply-carrying value, since it
-%% may be called many times; a function whose inferred result is
-%% reply-carrying returns the reply to its caller, who must consume it. A
-%% regression test: the checker conformed before it was written. It does
-%% not cover a local fn that captures a lambda that captured the reply.
-reply_through_functions_test() ->
-    ?assertEqual("the reply-carrying value r is captured by a local function",
-                 refusal("fn f(r : Reply(Int)) : Unit with Never ="
-                         " { fn go() = answer(r, 1); go() }")),
-    Pass = "fn pass(r : Reply(Int)) = r\n",
-    ?assertEqual(ok, ok(Pass ++ "fn f(r : Reply(Int)) : Unit with Never = answer(pass(r), 1)")),
-    ?assertEqual("the reply-carrying value x is never consumed",
-                 refusal(Pass ++ "fn g(r : Reply(Int)) : Unit with Never ="
-                         " { let x = pass(r); Unit }")).
-
-%% report §5.4, §6.6: a reply-carrying expression neither bound nor
-%% consumed is refused: a statement has type Unit, which carries no reply,
-%% and `_` would discard one, in a block and as a parameter
-reply_discarded_test() ->
-    Source = "type Req = Get(reply : Reply(Int)) | Stop\n",
-    ?assertEqual("this statement's value is discarded: expected Unit, found Req",
-                 refusal(Source ++ "fn f(r : Reply(Int)) = { Get(reply = r); Unit }")),
-    ?assertEqual("`_` would discard a reply-carrying value",
-                 refusal(Source ++ "fn f(r : Reply(Int)) = { let _ = Get(reply = r); Unit }")),
-    ?assertEqual("`_` would discard a reply-carrying value",
-                 refusal(Source ++ "fn f(_ : Reply(Int)) = Unit")).
-
-%% report §3.9, §6.6: the not-reply-carrying restriction reaches the
-%% variables inside a tuple parameter
-reply_restriction_in_a_tuple_test() ->
-    Source = "type Req = Get(reply : Reply(Int)) | Stop\n",
-    ?assertEqual("(#(a, b!)) -> a", type_of("export fn fst(#(x, y)) = x", fst)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of fst,"
-                 " which duplicates or discards it",
-                 refusal(Source ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")).
 
 %% report §5.10: a pattern matches each field once
 field_matched_twice_test() ->
@@ -2600,9 +2379,7 @@ never_is_ordinary_test() ->
 %% as a type, and every declared type's constructors cover it
 prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(a : Address(Int), n : Never, x : Foreign.Term, l : List(Int),"
-                        " m : Map(String, Int), s : Set(Char)) = Unit")),
-    %% a Reply parameter must be consumed (§6.6), so it gets its own line
-    ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Unit with Never = answer(r, 1)")),
+                        " m : Map(String, Int), s : Set(Char), r : Reply(Int)) = Unit")),
     ?assertEqual(ok, ok("fn f(x : Unit) = match x { Unit -> 1 }")),
     ?assertEqual(ok, ok("fn f(x : Optional(Int)) = match x { None -> 0 | Some(v) -> v }")),
     ?assertEqual(ok, ok("fn f(x : Either(String, Int)) = match x { Left(_) -> 0"
@@ -2653,259 +2430,6 @@ abstract_type_test() ->
                  " constructors from no module",
                  refusal("abstract type Stack(a) = Stack(List(a))")),
     ?assertEqual("Nope is not a type declared in this module", refusal("fn Nope.negate(n) = n")).
-
-%% report §6.6: a path with a call to a function whose result type is a
-%% variable neither a parameter's type nor its mailbox type names, `fault`
-%% among them, consumes every
-%% obligation open on it, in an `if` and in a `receive`; a returning path
-%% that does not answer is still refused, and so is a function whose type
-%% says it returns though it faults, and a fault inside a lambda, neither
-%% of which is the path's own; `die` is a regression test of the rule of
-%% 2026-10-01, which named `fault` alone before
-fault_path_test() ->
-    Source = "type M = Add(amount : Int, reply : Reply(Int)) | Stop\n",
-    ?assertEqual(ok, ok(Source ++ "fn serve() : Unit with M = receive {\n"
-                        "    Add(amount = n, reply = r) ->\n"
-                        "        if n < 0 then fault(\"negative\")\n"
-                        "        else { answer(r, n); serve() }\n"
-                        "  | Stop -> Unit\n"
-                        "}\n")),
-    ?assertEqual(ok, ok(Source ++ "fn serve() : Unit with M = receive {\n"
-                        "    Add(amount = n, reply = r) -> match n {\n"
-                        "        0 -> fault(\"zero\")\n"
-                        "      | _ -> answer(r, n)\n"
-                        "    }\n"
-                        "  | Stop -> Unit\n"
-                        "}\n")),
-    ?assertEqual("the reply-carrying value r is not consumed on this path",
-                 refusal(Source ++ "fn serve() : Unit with M = receive {\n"
-                         "    Add(amount = n, reply = r) ->\n"
-                         "        if n < 0 then serve() else answer(r, n)\n"
-                         "  | Stop -> Unit\n"
-                         "}\n")),
-    ?assertEqual(ok, ok(Source ++ "fn die(m : String) : a = fault(m)\n"
-                        "fn serve() : Unit with M = receive {\n"
-                        "    Add(amount = n, reply = r) ->\n"
-                        "        if n < 0 then die(\"negative\") else answer(r, n)\n"
-                        "  | Stop -> Unit\n"
-                        "}\n")),
-    ?assertEqual("the reply-carrying value r is not consumed on this path",
-                 refusal(Source ++ "fn same(x : a) : a = x\n"
-                         "fn serve() : Unit with M = receive {\n"
-                         "    Add(amount = n, reply = r) ->\n"
-                         "        if n < 0 then same(Unit) else answer(r, n)\n"
-                         "  | Stop -> Unit\n"
-                         "}\n")),
-    ?assertEqual("the reply-carrying value r is not consumed on this path",
-                 refusal(Source ++ "fn reject(m : String) : Unit = fault(m)\n"
-                         "fn serve() : Unit with M = receive {\n"
-                         "    Add(amount = n, reply = r) ->\n"
-                         "        if n < 0 then reject(\"negative\") else answer(r, n)\n"
-                         "  | Stop -> Unit\n"
-                         "}\n")),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal(Source ++ "fn serve() : Unit with M = receive {\n"
-                         "    Add(amount = n, reply = r) -> {\n"
-                         "        let later = fn() : Unit = fault(\"later\");\n"
-                         "        later()\n"
-                         "    }\n"
-                         "  | Stop -> Unit\n"
-                         "}\n")).
-
-%% report §6.6: a function whose result type is its mailbox type returns
-%% what it receives, and a call to it consumes no obligation. A regression
-%% test of a hole the type system's argument found (2026-10-04): the call
-%% was read as one that does not return, since no parameter's type names
-%% its result, and a reply after it could be dropped
-receive_returns_test() ->
-    Source = "type Tick = Tick\nfn next() = receive { x -> x }\n",
-    ?assertEqual("() -> a with a", type_of("export fn next() = receive { x -> x }", next)),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal(Source ++ "fn worker(r : Reply(Int)) : Unit with Tick = {\n"
-                         "    let _ = next();\n    Unit\n}")),
-    ?assertEqual(ok, ok(Source ++ "fn worker(r : Reply(Int)) : Unit with Tick = {\n"
-                        "    let _ = next();\n    answer(r, 1)\n}")).
-
-%% report §3.9, §6.6: the not-reply-carrying restriction falls on a variable
-%% of the definition's type wherever it stands, in the result and in a
-%% value as in a parameter, and where the variable's value is passed inside
-%% another to a function that has the restriction; a lambda a block's `let`
-%% binds takes it before it is generalized. Regression tests of holes the
-%% type system's argument found (2026-10-04): a function a definition
-%% returned or held duplicated a reply, and so did `dup` given a box of one
-restriction_reaches_values_test() ->
-    Dup = "fn dup(x) = #(x, x)\n",
-    ?assertEqual("() -> (a!) -> #(a!, a!)", type_of("export fn pair() = fn(x) = #(x, x)", pair)),
-    ?assertEqual("List((a!) -> #(a!, a!))", type_of("export let fs = [fn(x) = #(x, x)]", fs)),
-    ?assertEqual("(a!) -> #(List(a!), List(a!))",
-                 type_of(Dup ++ "export fn both(x) = dup([x])", both)),
-    ?assertEqual("(a!) -> #(M.Box(a!), M.Box(a!))",
-                 type_of(Dup ++ "export type Box(a) = Box(item : a)\n"
-                         "export fn boxed(x) = dup(Box(item = x))", boxed)),
-    %% a captured value may be used by each call of the lambda; its own
-    %% parameter is used once
-    ?assertEqual("(a!) -> (b) -> #(a!, b)",
-                 type_of("export fn first(x) = fn(y) = #(x, y)", first)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of d, which"
-                 " duplicates or discards it",
-                 refusal("fn f(r : Reply(Int)) : Unit with m = {\n"
-                         "    let d = fn(x) = #(x, x);\n"
-                         "    let #(a, b) = d(r);\n    answer(a, 1);\n    answer(b, 2)\n}")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where pair duplicates or discards"
-                 " its argument: pair : () -> (a!) -> #(a!, a!)",
-                 refusal("fn pair() = fn(x) = #(x, x)\n"
-                         "fn f(r : Reply(Int)) : Unit with m = {\n"
-                         "    let #(a, b) = pair()(r);\n    answer(a, 1);\n    answer(b, 2)\n}")).
-
-%% report §6.6, §4.8, §5.5: the right operand of `&&` and `||`, and what
-%% follows a `<-` in its block, are paths that may be skipped, and neither
-%% consumes an obligation open before it; one that faults consumes none
-%% for the path that skips it. Regression tests of holes the type system's
-%% argument found (2026-10-04): a reply was dropped where the left operand
-%% decided alone and where a `None` left the block
-skipped_path_test() ->
-    Done = "fn done(r : Reply(Int)) : Bool with m = { answer(r, 1); true }\n",
-    ?assertEqual({"the reply-carrying value r is consumed in the right operand of `&&`, which the"
-                  " left operand may skip",
-                  "consume r before the `&&` or after it, or write an `if`"},
-                 refusal_and_help(Done ++ "fn f(r : Reply(Int), c : Bool) : Unit with m =\n"
-                                  "    if c && done(r) then Unit else Unit")),
-    ?assertEqual("the reply-carrying value r is consumed in the right operand of `||`, which the"
-                 " left operand may skip",
-                 refusal(Done ++ "fn f(r : Reply(Int), c : Bool) : Unit with m =\n"
-                         "    if c || done(r) then Unit else Unit")),
-    ?assertEqual(ok, ok("fn f(r : Reply(Int), c : Bool) : Unit with m = {\n"
-                        "    let go = c || fault(\"stop\");\n    answer(r, 1)\n}")),
-    ?assertEqual({"the reply-carrying value r is consumed after a `<-`, which leaves the block on"
-                  " a `Left` or a `None`",
-                  "consume r before the `<-`, or `match` on the value in place of the `<-`"},
-                 refusal_and_help("fn f(r : Reply(Int), text : String) : Optional(Unit) with m ="
-                                  " {\n    let n <- String.toInt(text);\n    answer(r, n);\n"
-                                  "    Some(Unit)\n}")),
-    %% consumed before the `<-`, and after the block the `<-` leaves
-    ?assertEqual(ok, ok("fn f(r : Reply(Int), text : String) : Optional(Int) with m = {\n"
-                        "    answer(r, 0);\n    let n <- String.toInt(text);\n    Some(n)\n}")),
-    ?assertEqual(ok, ok("fn f(r : Reply(Int), o : Optional(Int)) : Optional(Int) with m = {\n"
-                        "    let v = { let n <- o; Some(n) };\n    answer(r, 1);\n    v\n}")).
-
-%% report §6.6, §5.10: a name bound inside hides the obligation of that
-%% name around it, and its uses consume nothing of the outer one. A
-%% regression test of a hole the type system's argument found
-%% (2026-10-04): a use of the inner name counted for the reply, which was
-%% then never answered; and a name bound anew after the reply was answered
-%% was refused as a second use
-hidden_name_test() ->
-    ?assertEqual("the reply-carrying value r is not consumed on this path",
-                 refusal("fn f(r : Reply(Int), n : Optional(Int)) : Unit with m =\n"
-                         "    match n {\n        Some(r) -> Io.println(Int.toString(r))\n"
-                         "      | None -> answer(r, 0)\n    }")),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal("fn f(r : Reply(Int)) : Unit with m = {\n"
-                         "    let r = 5;\n    Io.println(Int.toString(r))\n}")),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal("fn f(r : Reply(Int)) : Unit with m =\n"
-                         "    (fn(r) = Io.println(Int.toString(r)))(5)")),
-    ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Unit with m = {\n"
-                        "    answer(r, 1);\n    let r = 5;\n"
-                        "    Io.println(Int.toString(r))\n}")).
-
-%% report §6.6: a reply-carrying value is not the value a field is selected
-%% from nor the base of a record update, which would drop the fields the
-%% selection leaves and the field the update replaces; a pattern takes it
-%% apart, and the restriction says so of a type variable (§3.9). A
-%% regression test of a hole the type system's argument found
-%% (2026-10-04): the report's list of where such a value may stand was not
-%% held, and both dropped a reply
-selection_and_update_test() ->
-    Source = "type Req = Get(reply : Reply(Int)) | Stop\n"
-             "type Two = Two(first : Req, second : Req, count : Int)\n"
-             "export type Pair(a, b) = Pair(first : a, second : b)\n",
-    ?assertEqual({"`.first` is selected from a reply-carrying value, and would drop its other"
-                  " fields",
-                  "take the value apart with a pattern, which binds every field that carries a"
-                  " reply (§6.6)"},
-                 refusal_and_help(Source ++ "fn f(two : Two) : Req = two.first")),
-    ?assertEqual("`.count` is selected from a reply-carrying value, and would drop its other"
-                 " fields",
-                 refusal(Source ++ "fn f(two : Two) : Int = two.count")),
-    ?assertEqual({"a record update of a reply-carrying value would drop the field it replaces",
-                  "take the value apart with a pattern and build Two from its fields (§6.6)"},
-                 refusal_and_help(Source ++ "fn f(two : Two, other : Req) : Two =\n"
-                                  "    Two(..two, first = other)")),
-    ?assertEqual("(M.Pair(a!, b!)) -> a!",
-                 type_of(Source ++ "export fn left(p : Pair(a, b)) : a = p.first", left)),
-    ?assertEqual("(M.Pair(a, b)) -> M.Pair(b, a)",
-                 type_of(Source ++ "export fn swap(p : Pair(a, b)) : Pair(b, a) =\n"
-                         "    match p { Pair(first = x, second = y) ->"
-                         " Pair(first = y, second = x) }", swap)).
-
-%% report §6.6: a top-level binding is read by every function and is no
-%% obligation, so one whose type is reply-carrying is refused; a generalized
-%% one holds no value of its variable's type and is used at any instance. A
-%% regression test of a hole the type system's argument found (2026-10-04):
-%% a reply a call answered with was bound at top level and answered twice
-top_level_holds_no_reply_test() ->
-    Source = "type Give = Give(reply : Reply(Reply(Int)))\n"
-             "let server : Address(Give) = spawn(fn() : Unit with Give =\n"
-             "    receive { Give(reply = out) -> fault(\"no\") })\n",
-    ?assertEqual({"stash has the reply-carrying type Reply(Int), and a top-level `let` holds no"
-                  " reply: every function may read it",
-                  "hold the reply in the process that answers it, as a parameter of its loop"
-                  " (§6.6)"},
-                 refusal_and_help(Source ++ "let stash = Address.callForever(server,"
-                                  " fn(r) = Give(reply = r))")),
-    ?assertEqual("none has the reply-carrying type List(Reply(Int)), and a top-level `let` holds"
-                 " no reply: every function may read it",
-                 refusal("let none : List(Reply(Int)) = []")),
-    ?assertEqual(ok, ok("let empty = []\n"
-                        "fn keep(r : Reply(Int)) : List(Reply(Int)) = r :: empty")).
-
-%% report §6.6, §6.9: `restarting` may run its function more than once, so a
-%% lambda that captures a reply is refused there, by the rule that lets such
-%% a lambda stand only where it is called or spawned once
-reply_lambda_restarting_test() ->
-    ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
-                 " Peer.spawnMonitored runs",
-                 refusal("fn worker(r : Reply(Int)) : Unit with m = answer(r, 1)\n"
-                         "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                         "    let limit = RestartLimit(restarts = 1, within = 1);\n"
-                         "    let g = restarting(limit, fn() : Unit with Never = worker(r));\n"
-                         "    let _ = spawn(g);\n"
-                         "    Unit\n"
-                         "}\n")).
-
-%% report §6.6: a lambda that captures a reply-carrying value is reply-carrying
-%% itself, consumed exactly once by a call or as spawn's direct argument,
-%% bindable by let, and legal nowhere else
-reply_lambda_test() ->
-    Source = "type Req = Get(reply : Reply(Int)) | Stop\n"
-             "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                        "    let g = fn() = worker(r);\n    let _ = spawn(g);\n    Unit }")),
-    ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                        "    let g = fn() = worker(r);\n    g() }")),
-    ?assertEqual(ok,
-                 ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never = (fn() = worker(r))()")),
-    ?assertEqual("the reply-carrying value g is consumed twice",
-                 refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                         "    let g = fn() = worker(r);\n    let _ = spawn(g);\n    g() }")),
-    ?assertEqual("the reply-carrying value g is never consumed",
-                 refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                         "    let g = fn() = worker(r);\n    Unit }")),
-    ?assertEqual("the reply-carrying value g is captured by a lambda that is not called, bound by"
-                 " `let`, or passed as the function spawn, spawnMonitored, Peer.spawn or"
-                 " Peer.spawnMonitored runs",
-                 refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                         "    let g = fn() = worker(r);\n    List.forEach([1], fn(_) = g()) }")),
-    ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
-                 " as the function spawn, spawnMonitored, Peer.spawn or Peer.spawnMonitored"
-                 " runs",
-                 refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                         "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
-    ?assertEqual("the reply-carrying value g is not consumed on this path",
-                 refusal(Source ++ "fn f(r : Reply(Int), b : Bool) : Unit with Never = {\n"
-                         "    let g = fn() = worker(r);\n    if b then g() else Unit }")).
 
 %% report §4.2: a module may name its own declaration by its qualified name
 %% where a binding hides the plain one, in any order, and not its own
@@ -2992,7 +2516,8 @@ undeclared_type_in_interface_test() ->
     {ok, MainDeclarations} =
         ern_parser:parse_string("fn same() : Bool = Maker.make() == Maker.make()\n"),
     ?assertMatch({error, [#diagnostic{message = "`==` is not defined on Boxes.Box: it contains a"
-                                                " function or an address"}]},
+                                                " function, an address or a"
+                                                " reply"}]},
                  ern_typecheck:check(['Main'], MainDeclarations, [Maker, Boxes])),
     ?assertError({interface_names_undeclared_type, "Boxes.Box"},
                  ern_typecheck:check(['Main'], MainDeclarations, [Maker])).
@@ -3166,8 +2691,7 @@ type_names_in_messages_test() ->
 %% an unnamed one gets a fresh name that avoids the names in use; a use
 %% of a value does not inherit the names of its declaration
 variable_names_test() ->
-    %% report §4.7: Map.get is a shim, whose variables are not reply-carrying
-    ?assertEqual("(Map(k=!, v!), k=!) -> Optional(v!)",
+    ?assertEqual("(Map(k=, v), k=) -> Optional(v)",
                  type_of("export fn get(m : Map(k, v), key : k) : Optional(v) = Map.get(m, key)",
                          get)),
     ?assertEqual("(a=, a=) -> Bool",
@@ -3183,8 +2707,10 @@ variable_names_test() ->
 %% variable that names no parameter's effect, and whose body acts through
 %% no process, is refused, the pure signature being the one spelling; a
 %% variable a parameter's effect names, or one the body makes process-only,
-%% stands; a reply or a restriction the body breaks is named first. A
-%% regression test of the full review's P12 (2026-10-04)
+%% stands; a restriction the body breaks is named first. A regression test
+%% of the full review's P12 (2026-10-04); the restriction's case is a
+%% regression test written after the code, 2026-10-16, the reply's it
+%% replaced having gone with §6.6's obligation
 needless_effect_test() ->
     ?assertEqual({"k acts through no process, and `with m` names no parameter's effect",
                   "write k's type without `with`: it is pure"},
@@ -3192,8 +2718,10 @@ needless_effect_test() ->
     ?assertEqual(ok, ok("fn apply(f : () -> Unit with m) : Unit with m = f()\n"
                         "fn tell(a : Address(Int)) : Unit with m = send(a, 1)\n"
                         "fn k() : Int = 5\n")),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal("fn never(r : Reply(Int)) : Unit with m = Unit")).
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function, an address"
+                 " or a reply), which equal requires of its first argument",
+                 refusal("fn equal(a, b) = a == b\n"
+                         "fn k(f : (Int) -> Int) : Bool with m = equal(f, f)")).
 
 %% report §4.8: an operator is resolved in its definition, and a local fn
 %% and a lambda a block `let` binds are definitions of their own, since
@@ -3379,20 +2907,6 @@ effect_origin_of_an_unannotated_lambda_test() ->
     InPure = diagnostic(Helpers ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
     ?assertEqual([], InPure#diagnostic.labels).
 
-%% report §6.6, §4.2: only the prelude's spawn consumes a capturing lambda
-%% as its direct argument; a module's own function named spawn is any
-%% other function. A regression test: the reply check knew spawn by its
-%% unqualified name, and a module's own spawn was taken for the prelude's.
-own_spawn_is_no_spawn_test() ->
-    Diagnostic = diagnostic("fn spawn(a : Int, f : () -> Unit with m) : Unit with m = Unit\n"
-                            "fn handle(r : Reply(Int)) : Unit with m = {\n"
-                            "    let f = fn() = answer(r, 1);\n"
-                            "    spawn(1, f)\n}\n"),
-    ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
-                 " passed as the function spawn, spawnMonitored, Peer.spawn or"
-                 " Peer.spawnMonitored runs",
-                 Diagnostic#diagnostic.message).
-
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which is pure, in a
 %% process body and a pure one alike, for a top-level and a local fn. It
@@ -3434,13 +2948,12 @@ address_key_at_first_operation_test() ->
 
 %% report §3.10, §4.8: a regression test. An operator resolved at the end
 %% of its definition keeps its member's equality constraint, as one
-%% resolved at once does. Not covered: the no_reply restriction, which
-%% the same list carries.
+%% resolved at once does.
 deferred_operator_keeps_its_members_equality_test() ->
     Source = "type Box(a) = Box(a)\n"
              "fn Box.+(Box(x), Box(y)) : Box(a) = if x == y then Box(x) else Box(y)\n",
-    Message = "(Int) -> Int does not support equality (it contains a function or an address),"
-              " but it is compared here",
+    Message = "(Int) -> Int does not support equality (it contains a function, an address or"
+              " a reply), but it is compared here",
     ?assertEqual(Message,
                  refusal(Source ++ "fn f(p : Box((Int) -> Int), q) : Box((Int) -> Int) = p + q\n")),
     ?assertEqual(Message, refusal(Source ++ "fn f(p, q) : Box((Int) -> Int) = {\n"
@@ -3696,14 +3209,14 @@ shadowed_name_is_no_reference_test() ->
 %% variable resolves to; it ends the declaration's printed type (§11.5);
 %% written after the code
 requirement_in_the_body_test() ->
-    ?assertEqual("(List(a!)) -> List(a!) needs a.compare",
+    ?assertEqual("(List(a)) -> List(a) needs a.compare",
                  type_of("export fn f(list : List(a)) : List(a) needs a.compare =\n"
                          "    List.sort(list, a.compare)\n", f)),
     ?assertEqual("(a, a) -> Bool needs a.compare",
                  type_of("export fn f(x : a, y : a) : Bool needs a.compare = x < y\n", f)),
     ?assertEqual("(a) -> a needs a.negate",
                  type_of("export fn f(x : a) : a needs a.negate = -x\n", f)),
-    ?assertEqual("(a!, a!) -> a! needs a.+, a.*",
+    ?assertEqual("(a, a) -> a needs a.+, a.*",
                  type_of("export fn f(x : a, y : a) : a needs a.+, a.* = x * y + a.+(x, y)\n", f)).
 
 %% report §4.9: a requirement's variable stands in a value position of the
@@ -3830,9 +3343,9 @@ derives_test() ->
             "export type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))"
             " derives compare\n",
     ?assertEqual("(M.Date, M.Date) -> Ordering", member_type_of(Types, 'Date', compare)),
-    ?assertEqual("(M.Pair(a, b!), M.Pair(a, b!)) -> Ordering needs a.compare, b.compare",
+    ?assertEqual("(M.Pair(a, b), M.Pair(a, b)) -> Ordering needs a.compare, b.compare",
                  member_type_of(Types, 'Pair', compare)),
-    ?assertEqual("(M.Tree(a!), M.Tree(a!)) -> Ordering needs a.compare",
+    ?assertEqual("(M.Tree(a), M.Tree(a)) -> Ordering needs a.compare",
                  member_type_of(Types, 'Tree', compare)),
     ?assertEqual(ok, ok(Types ++ "fn earlier(x : Date, y : Date) : Bool = x < y\n"
                         "fn f(x : Pair(Int, String)) : Bool = x > x\n"
@@ -3884,7 +3397,7 @@ fill_test() ->
     %% two types are named as one, so two variables are `a` and `b`; a
     %% regression test too, both printed as `a`
     ?assertEqual({"Ops(..Set) fills size with Set.size: expected (a) -> Bool, found"
-                  " (Set(b=!)) -> Int", "the types differ at Bool and Int"},
+                  " (Set(b=)) -> Int", "the types differ at Bool and Int"},
                  refusal_and_help("type Ops(s) = Ops(size : (s) -> Bool)\n"
                                   "fn f() : Ops(Set(Int)) = Ops(..Set)")),
     %% an expression after `..` keeps the record update's rule

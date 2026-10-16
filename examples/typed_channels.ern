@@ -28,12 +28,10 @@ export fn main() : Unit with m = {
     //     the argument does not fit send: expected CounterMsg, found String
     send(counter, Add(2));
     send(counter, Add(3));
-    // 3. A request carries its reply, which the counter answers once, and the call answers
-    // Some, or None where no answer came within its time (report §6.6). Answering a reply
-    // twice is refused, `answer(reply, total); answer(reply, total)` in count, and so is
-    // answering it once a lambda took it,
-    // `let _ = spawn(fn() = answer(reply, total)); answer(reply, total)`:
-    //     the reply-carrying value reply is consumed twice
+    // 3. A request carries its reply, which the counter answers, and the call answers Some,
+    // or None where no answer came within its time (report §6.6). A second answer to a reply,
+    // `answer(reply, total); answer(reply, total)` in count, is dropped when it runs, and the
+    // caller gets the first.
     Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 5000)));
     // 4. Addresses have no subtyping, and adapted makes an address of another type: a Tick sent
     // to ticker reaches the counter as an Add(1) (report §6.5).

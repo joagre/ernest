@@ -2050,15 +2050,13 @@ doc_test() ->
              "type Shape = Dot | At(x : Int, y : Int)\n```\n\nA shape.\n">>),
     Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a)\n```\n">>),
     Expect(<<"## Shapes.empty\n\n```ernest\nShapes.empty : Box(a)\n```\n">>),
-    %% report §3.9, §6.6: put places its element in a list once, so it takes a reply
     %% report §11.4: a function shows its declaration, a parameter written
     %% as a pattern with its type alone
     Expect(<<"## Shapes.put\n\n```ernest\nShapes.put(x : a, Box(a)) : Box(a)\n```\n\n"
              "Put x in the box.\n">>),
-    %% report §4.2: a member is shown under its type; §3.9: it drops its
-    %% boxes' elements, and `Box` is no type the restriction looks through
+    %% report §4.2: a member is shown under its type
     Expect(<<"## Shapes.Box.compare\n\n```ernest\n"
-             "Shapes.Box.compare(Box(a!), Box(a!)) : Ordering\n```\n\nBy size.\n">>),
+             "Shapes.Box.compare(Box(a), Box(a)) : Ordering\n```\n\nBy size.\n">>),
     Expect(<<"## Shapes.same\n\n```ernest\nShapes.same(a : a=, b : a=) : Bool\n```\n">>),
     %% report §11.4: a private declaration is marked
     Expect(<<"## Shapes.twice\n\n```ernest\nShapes.twice(n : Int) : Int\n```\n\n"
