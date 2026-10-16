@@ -459,6 +459,17 @@ function the standard library declares and holds the set its modules list equal 
 own, so that a new primitive forces a decision, since an unlisted primitive that waits is a false
 `Fault("deadlock")` no test would catch. Built before the tag.
 
+**Before the tag: an unfixed mailbox type is `Never`.** Decided with the user on 2026-10-16: at the
+end of a definition's inference, a mailbox type variable of a spawned function's address that
+nothing fixed is `Never`, for `spawn`, `spawnMonitored`, `Peer.spawn` and the entry point alike, at
+the shell's prompt as in a module, in place of §3.11's rule that defaults it so only where the
+definition's type does not hold it and refuses it where it does, and of §4.6's refusal of a
+top-level `let p = spawn(fn() = Io.println("x"))`; the compiler asked for a word whose one value
+it knew (principle 1), and `Never` has no values, so nothing is ever sent to such an address
+(soundness). The report first, §3.11's sentence, §6.2's rule and §4.6's example, with its soundness
+sentence; then the checker at generalization, the guide's §8.1 sentence, and the `receiving Never`
+marks the nodes tests restored under item 2, which go. Built before the tag.
+
 **Before the tag: a module cycle through the load path.** Found 2026-10-16 by the read-back of the
 refused load's units. The shell accepts a module that uses, through the load path, a module that
 uses it, which §11.1 calls an error, and in that case alone a load refused and tried again makes a
