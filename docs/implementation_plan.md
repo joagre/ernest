@@ -452,6 +452,13 @@ restart ends the deliveries to its process, with a §6.9 sentence. The end's tel
 are linked to the runner, which traps no exit, and each applies a subscriber's wrap: they should
 be held as the reaper holds its deliveries. Fixed before the tag, once decided.
 
+**Before the tag: the waits each runtime module lists.** Decided with the user on 2026-10-16: the
+deadlock count takes a standard library operation as a computation that may deliver where its
+runtime module lists it in `-waits`, which §8.6 now says in one sentence; a test walks every foreign
+function the standard library declares and holds the set its modules list equal to a list of its
+own, so that a new primitive forces a decision, since an unlisted primitive that waits is a false
+`Fault("deadlock")` no test would catch. Built before the tag.
+
 **Before the tag: a module cycle through the load path.** Found 2026-10-16 by the read-back of the
 refused load's units. The shell accepts a module that uses, through the load path, a module that
 uses it, which §11.1 calls an error, and in that case alone a load refused and tried again makes a
@@ -593,6 +600,12 @@ are ready, and the release waits for it only where the machines come first.
    `docs/proposals/placement/push.md`'s section 5; the log's paragraph beside item 7's; `docs/memory.md`
    where a measured fact changes; the deployment guide's numbers for two nodes and for code across
    nodes corrected from them.
+
+The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
+test waits for, as the plan's *Before the tag: the programs tests* leaves them; and a nodes test of
+a peer's connection lost and opened again under a function that waits, which no test runs today and
+§8.7's sentence that a loss ends the waits that began before the node ran it describes, joins them
+(decided with the user on 2026-10-16).
 
 ## MVP 3.3 (the tour)
 
