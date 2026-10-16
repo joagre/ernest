@@ -456,7 +456,7 @@ runs, ends the reaper and the run with it; the shell's check that no process run
 `Code.load`'s kill before its purge read the process rows alone, and such a process has none. The
 shape of the fix: the runtime's own processes held by a holder that lives the run long and traps
 exits, or rows of their own that the two checks read; probed first by a reload under a wrap that is
-still running; a regression test in the runtime's tests. Fixed before the tag.
+still running; a regression test in the runtime's tests.
 
 **Before the tag: the gateway's worker across a loss.** Done 2026-10-16 (the log's *The Runtime's
 Own Processes*): one worker for a node across a loss, kept until it has taken every frame handed to
@@ -472,11 +472,11 @@ holds no frame and no process, running the loss in order and reading the frames 
 reconnection itself; and a loss taking only the rows written before it. Regression tests in the
 gateway's and the peer's tests; fixed before the tag.
 
-**Before the tag: purges and the runtime's deliveries.** Decided with the user on 2026-10-16
-(the log's *The Runtime's Own Processes*, its last paragraph): the shell and `Code.load` keep a
+**Before the tag: purges and the runtime's deliveries.** Done 2026-10-16 (the log's *The Runtime's
+Own Processes*, its last paragraphs); decided with the user the same day: the shell and `Code.load` keep a
 refused load's units loaded, as §11.2 says and E.28 now says, so no purge remains and the second
 decision below falls with the first; a delivery to a process that has ended ends with it (§6.9);
-the end's tellers are held as the reaper holds its deliveries. Built the same night. Found
+the end's tellers are held as the reaper holds its deliveries. Found
 2026-10-16 by the read-back of the reaper's fix; four decisions, each with its recommendation. The shell's `withdraw/3` deletes and purges the units a refused `:load` or `:reload`
 brought, against §11.2, where such a unit stays loaded while the session runs, and
 `docs/memory.md` says what the code does: the code should follow §11.2 (principle 1), after which
@@ -487,7 +487,7 @@ its cause naming the load, with a sentence in §6.9 and E.28. A delivery whose r
 runs until its function returns, out of the program's reach: it should end with the recipient, as a
 restart ends the deliveries to its process, with a §6.9 sentence. The end's tellers (`tell_all/3`)
 are linked to the runner, which traps no exit, and each applies a subscriber's wrap: they should
-be held as the reaper holds its deliveries. Fixed before the tag, once decided.
+be held as the reaper holds its deliveries.
 
 **Before the tag: the waits each runtime module lists.** Done 2026-10-17 (the log's *Before the Tag,
 the Last Builds*): the test lives with the emitter's, thirteen primitives listed. Decided with the
@@ -496,7 +496,7 @@ deadlock count takes a standard library operation as a computation that may deli
 runtime module lists it in `-waits`, which §8.6 now says in one sentence; a test walks every foreign
 function the standard library declares and holds the set its modules list equal to a list of its
 own, so that a new primitive forces a decision, since an unlisted primitive that waits is a false
-`Fault("deadlock")` no test would catch. Built before the tag.
+`Fault("deadlock")` no test would catch.
 
 **Before the tag: an unfixed mailbox type is `Never`.** Done 2026-10-17 (the log's *Before the Tag,
 the Last Builds*), with what the build found: a variable a parameter's type holds, or that is the
@@ -510,7 +510,7 @@ top-level `let p = spawn(fn() = Io.println("x"))`; the compiler asked for a word
 it knew (principle 1), and `Never` has no values, so nothing is ever sent to such an address
 (soundness). The report first, §3.11's sentence, §6.2's rule and §4.6's example, with its soundness
 sentence; then the checker at generalization, the guide's §8.1 sentence, and the `receiving Never`
-marks the nodes tests restored under item 2, which go. Built before the tag.
+marks the nodes tests restored under item 2, which go.
 
 **Before the tag: a wrap acts for its recipient.** Done 2026-10-17 (the log's *Before the Tag, the
 Last Builds*): every delivery, the terminal's courier and a kept process whose target is on this node
@@ -522,7 +522,7 @@ arrival is the target's where the target is on that node, and where it is not, a
 ends with the application and a process it spawns heads a chain of its own (§6.5). The report's
 sentences are written; then the delivery's row names the recipient as owner and root, for a socket's
 and a program's ownership (E.18, E.23), a spawn's chain and a refused load's kill (§11.2, E.28), and
-`Process.current`; tests of the four cases the read named. Built before the tag.
+`Process.current`; tests of the four cases the read named.
 
 **Before the tag: what still counts at the end and in the deadlock count.** Done 2026-10-17 (the
 log's *Before the Tag, the Last Builds*), with a defect found on the way, a delivery killed in a
@@ -535,8 +535,7 @@ holds an alarm of it, one monitor for each, gone as its last alarm fires, and fo
 process's alarms as it forgets a restarted one's. And under `ern test` over a directory a unit is held
 for its run and an adapted address made by an earlier run is dead (§11.2, D4): the kept process's
 check of this start is a check of this run there, the runner's run number beside the start's, and the
-runner's purge of an earlier run's code is the stated case. Regression tests for all three. Built
-before the tag.
+runner's purge of an earlier run's code is the stated case. Regression tests for all three.
 
 **Before the tag: `List.minimumBy` and `maximumBy`.** Done 2026-10-17 (the log's *Before the Tag, the
 Last Builds*): one fold each, the guide's `least.ern` using `minimumBy`. Decided with the user on 2026-10-17
@@ -545,7 +544,7 @@ smallest by a key is what a reader looks for in one call and the guide's `least.
 and the head around their absence. `List.minimumBy : (List(a), (a) -> k) -> Optional(a) needs
 k.compare` and `maximumBy` likewise, `None` of an empty list, the first of equals, beside
 `List.sort` in Appendix E.2 with their pages, written with the code since the listings are held to
-the compiler; the guide's `least.ern` then uses `minimumBy`. Built before the tag.
+the compiler; the guide's `least.ern` then uses `minimumBy`.
 
 **Before the tag: a module cycle through the load path.** Done 2026-10-17 whole (the log's *Before
 the Tag, the Last Builds*): the build reads the load path's recorded dependencies and refuses a
@@ -562,7 +561,7 @@ cycle, which E.28 then says; regression tests for the three. Found 2026-10-16 by
 refused load's units. The shell accepts a module that uses, through the load path, a module that
 uses it, which §11.1 calls an error, and in that case alone a load refused and tried again makes a
 new unit. The shape of the fix: the shell refuses the cycle as `ern build` refuses one, naming its
-modules, with a regression test in the shell's tests. Fixed before the tag.
+modules, with a regression test in the shell's tests.
 
 **Before the tag: the shell and a private mailbox type.** Done 2026-10-16 (the log's *The Shell
 on a Private Type*): the interface carries the private types an exported signature names (§11.1),
