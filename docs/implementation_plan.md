@@ -761,7 +761,12 @@ log's *The First Release Is for Others*:
 - **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
   gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
   one design note under `docs/` beside the shell's, once MVP 3.27's measurements have settled their
-  figures; the proposals then stay as the record of how the design was weighed. A proposal that
+  figures; the proposals then stay as the record of how the design was weighed. Its sources, in
+  order: §8.7 and §11.2 and the code as built, with `architecture.md`'s map, for what the component
+  is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is shaped so; `nodes.md`
+  and `code.md` for the intent and the alternatives weighed at the start, several of which the build
+  changed; `set_aside/` for one line each on what went and why; `experiments/` for the numbers a cost
+  section quotes; `other_systems.md` for the comparison. A proposal that
   redesigned a rule of the language and built no component, kill darlings, the balancer's suggestion
   and the placement push, becomes no note, its outcome being the report's (decided with the user on
   2026-10-17).
