@@ -407,6 +407,27 @@ why, what it does not do going to the log, and the Emacs note keeps its table of
 pointer changed in the same commit; the log's old paths stay as history. `docs/proposals/` goes one
 proposal at a time (MVP 3.9).
 
+**Before the tag: the examples.** Decided 2026-10-16 (the log's *The Examples Are Programs*). A
+new reader's first Ernest program on disk is one of `examples/`, so each is a program its reader
+would want to have written, and nothing in one is shaped by the test that runs it. Five change.
+`shout.ern` serves until stopped and is talked to with `nc` from another terminal, its three
+clients gone. `services.ern`'s fault comes from its input, a command read from standard input that
+the store cannot take, not from a `Corrupt` it sends itself. `typed_channels.ern` leaves for the
+guide, its four doubts an answer in the guide's §12 or a passage of chapter 4, the compiler's words
+kept; `typed_channels_nodes.ern` stays. `upgrade_tool.ern` becomes `examples/upgrade/`, the same
+module `Counter` in `v1/`, the counter alone, and `v2/`, the counter with `count2` and the tool, so
+that a reader diffs the two builds and the peers at the first build lack `count2` when the tool's
+spawn arrives (§8.7); the deployment guide's §5.3 and its runbook of section 6 build `v1` for the
+counters and `v2` for the tool, and `test/ern_deployment_tests.erl` runs it so. `word_count.ern`
+counts the words of a file named on the command line and prints each map's counts, the assertion
+line gone. Three fixes beside: the README's order is by topic and says so, not by size; every
+command runs from `examples/`; `file_sync.ern`'s "once Ernest has peers" goes. The `errorText` of
+sixteen clauses in `file_sync.ern` and `web_server.ern` shrinks to the errors each program says in
+its own words with `Io.show` for the rest, as `tally.ern` writes it; whether `Io.Error` gets its
+text in Appendix E is feedback item 113, decided with the user. The tests build every example as
+now, run each that ends of itself, and connect to each server, `shout.ern` and `web_server.ern`,
+reading one answer, which no test did.
+
 **Before the tag: the programs tests.** Done 2026-10-16 (the log's *The Programs Tests' Bounds*):
 the install test split, each part bound by the first's own time; a timed-out run's read-only
 `closed` directory made writable by the cleanup; the desk's "send at once" bound by the dial's
