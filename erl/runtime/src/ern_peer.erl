@@ -492,17 +492,18 @@ drop_utilization(Node) ->
 %% a spawn or a compute of a function this node lacks, the identity the
 %% exchange asks the peer for (ern_exchange), which answers it; a spawn's
 %% answer handed to the process that waits for it, where it lives, or else
-%% its process ended; a message to an adapted address this node made, its
-%% function applied in a process started for it (ern_rt:deliver_from_peer/2),
-%% so that the worker goes on with the next frame. A find, a spawn or a
-%% compute is asked of the run in progress, and one that comes while none
-%% is answers `Unreachable`: between two runs of `ern test` over a
-%% directory, in one host, and as a run ends (ern_rt:asked_of_run/1). Any
-%% other frame is one the gateway cannot read; the gateway answers a
-%% utilization itself, and hands the exchange's four to the exchange.
+%% its process ended; a message to an adapted address this node made, the
+%% address and the message, which the worker hands to the process it keeps
+%% for the address (ern_rt:kept/1), so that it goes on with the next frame
+%% while the function is applied. A find, a spawn or a compute is asked of
+%% the run in progress, and one that comes while none is answers
+%% `Unreachable`: between two runs of `ern test` over a directory, in one
+%% host, and as a run ends (ern_rt:asked_of_run/1). Any other frame is one
+%% the gateway cannot read; the gateway answers a utilization itself, and
+%% hands the exchange's four to the exchange.
 -spec frame(pid(), term()) ->
           ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}
-          | {exchange, identity()}.
+          | {exchange, identity()} | {adapted, ern_rt:address(), term()}.
 frame(_From, {find, Name, Hash, Alias})
   when is_binary(Name), is_binary(Hash), is_reference(Alias) ->
     Answer = case ern_rt:asked_of_run({offered, Name, Hash}) of
@@ -563,7 +564,7 @@ frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
     end;
 frame(_From, {adapted, {adapted, Function, _Target, Maker} = Address, Message})
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node() ->
-    ern_rt:deliver_from_peer(Address, Message);
+    {adapted, Address, Message};
 frame(_From, _Body) ->
     unreadable.
 

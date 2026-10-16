@@ -8,8 +8,8 @@
 %% An Address is a pid, or {adapted, Function, Target, Maker} for an address
 %% seen through a function (report §6.5), which send/2 applies in the
 %% sender where Maker, the process that made it, is of the sender's node,
-%% and otherwise a process Maker's node starts for the message applies
-%% (deliver_from_peer/2, §8.7), or
+%% and otherwise the process Maker's node keeps for the address and the
+%% sending node applies (kept/1, §8.7), or
 %% {foreign, Pid, Descriptor, Bound} for an address foreign code gave
 %% (report §8.4), whose messages cross into foreign code. A Reply(a) is the
 %% alias of the call's monitor of its callee, as gen_server's call makes
@@ -56,7 +56,7 @@
 %% among them.
 -module(ern_rt).
 
--export([send/2, deliver_from_peer/2, process_of/1, held/3, is_never_given/1, is_address/1,
+-export([send/2, kept/1, process_of/1, held/3, is_never_given/1, is_address/1,
          spawn/2, spawn_monitored/3, spawn_root/3, self/0, adapted/2, call/3, call/4,
          call_forever/2, call_forever/3, compute/3, answer/2, not_started/1, refuse/2,
          monitor/2, kill/1, reason/1, started_by/1, kill_started/1, kill_all/1, rooting/0,
@@ -239,8 +239,8 @@ sent(dropped) ->
 sent({fault, Pid, Cause}) ->
     Pid ! {'$ern_fault', Cause};
 %% report §6.5, §8.7: a message to an adapted address made on another node
-%% is carried, unconverted, to that node's gateway, where a process started
-%% for it applies the function (deliver_from_peer/2)
+%% is carried, unconverted, to that node's gateway, where the process kept
+%% for the address and this node applies the function (kept/1)
 sent({{adapted, _, _, Maker} = Address, Message}) ->
     erlang:send({ern_gateway, node(Maker)},
                 {ern_frame, erlang:self(), {adapted, Address, Message}});
@@ -250,33 +250,53 @@ sent({{foreign, Pid, Descriptor, Bound}, Message}) ->
 sent({Pid, Message}) ->
     Pid ! Message.
 
-%% Report §6.5, §8.7: a message from another node to an adapted address
-%% this node made, its function applied on arrival in a process started for
-%% the message, which ends with it, so that a function that calls, or never
-%% finishes, holds up no other frame of the node it came from; a fault in
-%% the function is the target's, as on one node (deliver/2). The process
-%% is the runtime's, as a Down's delivery is (wrapped/3), and has no row,
-%% since Process.live lists what a program spawned and what a system module
-%% opened (Appendix E.21); it is linked to the reaper, which lives as long
-%% as the run, so that it ends with the program. Between two runs of `ern
-%% test` over a directory, in one host, no run is in progress to apply the
-%% function in, and the message is dropped. Its error handler is this
-%% module, as every process's the runtime starts is (run/1).
--spec deliver_from_peer(address(), term()) -> ok.
-deliver_from_peer(Address, Message) ->
+%% Report §6.5, §8.7: the process this node keeps for an adapted address it
+%% made and a peer that sends to it, started by the gateway's worker for
+%% the peer, the caller, as a message to the address arrives
+%% (ern_gateway:work/1), so that a function that calls, or never finishes,
+%% holds the peer's messages to that address and nothing else. It applies
+%% each message handed to it, {apply, Message}, in the order handed, as a
+%% send here applies it (deliver/2), a fault in the function being the
+%% target's, and tells the worker {applied, Pid} after each; it ends when
+%% the worker tells it to, `stop`, which the worker does once none waits
+%% and at the peer's loss, so that no message handed to it is lost. The
+%% process is the runtime's, as a Down's delivery is (wrapped/3), and has
+%% no row, since Process.live lists what a program spawned and what a
+%% system module opened (Appendix E.21); it is linked to the reaper, which
+%% lives as long as the run, so that it ends with the program. None where
+%% no run is in progress to apply the function in, between two runs of
+%% `ern test` over a directory, in one host, and before the first, and the
+%% message is dropped; a process whose run ends as it starts ends at once,
+%% the messages handed to it dropped so. Its error handler is this module,
+%% as every process's the runtime starts is (run/1).
+-spec kept(address()) -> pid() | none.
+kept(Address) ->
+    Worker = erlang:self(),
     Reaper = persistent_term:get({?MODULE, reaper}, none),
-    _ = erlang:spawn(fun() ->
-                         try is_pid(Reaper) andalso link(Reaper) of
-                             true ->
-                                 erlang:process_flag(error_handler, ?MODULE),
-                                 deliver(Address, Message);
-                             false ->
-                                 ok
-                         catch
-                             error:noproc -> ok
-                         end
-                     end),
-    ok.
+    case is_pid(Reaper) andalso erlang:is_process_alive(Reaper) of
+        false ->
+            none;
+        true ->
+            erlang:spawn(fun() ->
+                             try link(Reaper) of
+                                 true ->
+                                     erlang:process_flag(error_handler, ?MODULE),
+                                     kept_loop(Address, Worker)
+                             catch
+                                 error:noproc -> ok
+                             end
+                         end)
+    end.
+
+kept_loop(Address, Worker) ->
+    receive
+        {apply, Message} ->
+            deliver(Address, Message),
+            Worker ! {applied, erlang:self()},
+            kept_loop(Address, Worker);
+        stop ->
+            ok
+    end.
 
 %% Report §8.7: whether a process of this node's name is of this start: a
 %% living one is, and one that is not is where its start's number, which the

@@ -1047,13 +1047,18 @@ adapted_fault_restarts_test() ->
     ?assertEqual(2, wait(took)),
     ?assertEqual(alive, wait(sender)).
 
-%% report §6.5, §8.7: a message from another node to an adapted address
-%% this node made has its function applied in a process started for the
-%% message, as the gateway's worker asks (ern_peer:frame/2): a fault in the
-%% function is the target's, as on one node, and the process is no process
-%% of the program's, and ends with the program where the function never
-%% finishes. A regression test, written after the code; the frame's way
-%% through the gateway is test/ern_nodes_tests.erl's
+%% report §6.5, §8.7, Appendix E.21: the process a node keeps for an
+%% adapted address it made and a peer that sends to it, started as the
+%% gateway's worker for the peer starts it (ern_peer:frame/2), the test
+%% standing in for the worker: it applies each message handed to it in the
+%% order handed, telling the worker after each, and ends when the worker
+%% tells it to and not before; a fault in the function is the target's, as
+%% on one node; the process is the runtime's, which Process.live does not
+%% list and whose status is None, and ends with the program where the
+%% function never finishes; and none starts where no run is in progress.
+%% A regression test, written after the code; the worker's count
+%% is erl/cli/test/ern_gateway_tests.erl's, and the frame's way through the
+%% gateway test/ern_nodes_tests.erl's
 adapted_from_peer_test() ->
     Self = self(),
     Watcher = spawn(fun() ->
@@ -1062,30 +1067,45 @@ adapted_from_peer_test() ->
                         From ! watching,
                         receive
                             {'DOWN', MonitorRef, process, _, ExitReason} ->
-                                Self ! {applier_end, ExitReason}
+                                Self ! {endless_end, ExitReason}
                         end
                     end),
     ok = ern_rt:run_main(
            fun() ->
                Main = erlang:self(),
                Zero = zero(),
-               Victim = ern_rt:spawn(fun waiting/0, <<"Main.main:3">>),
-               ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
-               ok = ern_rt:deliver_from_peer(ern_rt:adapted(Victim, fun(_) -> 1 div Zero end), 1),
-               receive {down, Down} -> Self ! {d, Down} end,
-               Endless = fun(_) -> Main ! {applier, erlang:self()}, receive never -> ok end end,
-               ok = ern_rt:deliver_from_peer(ern_rt:adapted(Main, Endless), 1),
                %% the waits count as timed, so that they are no deadlock
                ern_rt:timed(),
-               Applier = receive {applier, Pid} -> Pid end,
-               Watcher ! {watch, Applier, Main},
+               Victim = ern_rt:spawn(fun waiting/0, <<"Main.main:3">>),
+               ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
+               Faulting = ern_rt:kept(ern_rt:adapted(Victim, fun(_) -> 1 div Zero end)),
+               Faulting ! {apply, 1},
+               receive {down, Down} -> Self ! {d, Down} end,
+               receive {applied, Faulting} -> ok end,
+               Ordered = ern_rt:kept(ern_rt:adapted(Main, fun(N) -> {got, N} end)),
+               MonitorRef = erlang:monitor(process, Ordered),
+               [Ordered ! {apply, N} || N <- [1, 2, 3]],
+               Applied = [receive {applied, Pid} -> Pid end || _ <- [1, 2, 3]],
+               Got = [receive {got, N} -> N end || _ <- [1, 2, 3]],
+               Alive = erlang:is_process_alive(Ordered),
+               Ordered ! stop,
+               Ended = receive {'DOWN', MonitorRef, process, _, ExitReason} -> ExitReason end,
+               Self ! {ordered, {Ordered, Applied, Got, Alive, Ended}},
+               Endless = fun(_) -> Main ! {endless, erlang:self()}, receive never -> ok end end,
+               Kept = ern_rt:kept(ern_rt:adapted(Main, Endless)),
+               Kept ! {apply, 1},
+               Kept = receive {endless, Pid} -> Pid end,
+               Watcher ! {watch, Kept, Main},
                receive watching -> ok end,
                ern_rt:untimed(),
-               Self ! {listed, lists:member(Applier, ern_rt:processes())}
+               Self ! {listed, {lists:member(Faulting, ern_rt:processes()),
+                                lists:member(Kept, ern_rt:processes()), ern_rt:status(Kept)}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
-    ?assertEqual(false, wait(listed)),
-    ?assertEqual(killed, wait(applier_end)).
+    ?assertMatch({Ordered, [Ordered, Ordered, Ordered], [1, 2, 3], true, normal}, wait(ordered)),
+    ?assertEqual({false, false, 'None'}, wait(listed)),
+    ?assertEqual(killed, wait(endless_end)),
+    ?assertEqual(none, ern_rt:kept(ern_rt:adapted(Self, fun(N) -> N end))).
 
 %% report §11.2, §6.9, Appendix E.18: a process spawn_root starts heads a
 %% spawn chain of its own, and every process spawned from it, directly or

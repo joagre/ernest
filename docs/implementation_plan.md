@@ -414,6 +414,17 @@ shape of the fix: the runtime's own processes held by a holder that lives the ru
 exits, or rows of their own that the two checks read; probed first by a reload under a wrap that is
 still running; a regression test in the runtime's tests. Fixed before the tag.
 
+**Before the tag: the gateway's worker across a loss.** Found 2026-10-16 by item 2b's read-back.
+When a peer's connection is lost and opened again, the gateway starts a new worker for the peer
+while the old one may still hold frames, and now a process kept for an address whose function
+waits: a message sent after the loss can pass one sent before it, against §6.4's order to one
+address; and `ern_peer:lost/1` takes every spawn row of the node, so a spawn made after the
+reconnection can be taken by the old worker's loss and answered `Unreachable`, its process killed
+as its answer arrives. The shape of the fix: one worker for a node across a loss, kept until it
+holds no frame and no process, running the loss in order and reading the frames after the
+reconnection itself; and a loss taking only the rows written before it. Regression tests in the
+gateway's and the peer's tests; fixed before the tag.
+
 **Before the tag: the shell and a private mailbox type.** Found 2026-10-15 by use. With `count`
 exported and its mailbox type `Msg` kept private, which the report's rule on exported declarations
 allows (§4.2), the input `let p = spawn(fn() = Plain.count(0))` faults the shell and ends it with
@@ -483,14 +494,17 @@ the same commit; then the log; then the code, by an agent from the settled repor
    the rest, the proposals' programs the tests run among them; the catalog of diagnostics; the
    guide as the proposal's section 7 and the findings' item 6 say, the front page's *What Ernest
    adds* and the README's lines the test holds equal to it among them; and `docs/man/` at the release.
-2b. **What item 2's build found.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraph
-   *Item 2b*); decided the same day (its paragraph *Item 2's code half*), built before 2a. §4.6 generalizes a top-level `let` whose initializer is
+2b. **What item 2's build found.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraphs
+   *Item 2b* and *Item 2b's order*); decided the same day (its paragraph *Item 2's code half*),
+   built before 2a. The process for each message broke a sender's order through one address, which
+   the full run's `code_upgrade` showed; the function runs in a process of the address's own,
+   started as a message arrives and ended once none waits (§6.5, §8.7, §10). §4.6 generalizes a top-level `let` whose initializer is
    a call where its type, read through the fields of the declared types it names, holds no function
    type, no foreign type, no address and no reply, so that `Map.empty` and `Set.empty` are the
    values Appendix E lists; the checker exempts the two by name meanwhile, marked INTERIM, and the
    walk of the type replaces it, with tests of a call whose type holds an address, a function, a
    foreign type, and none of the four. The function of an adapted address made on this node is
-   applied, for a message from another node, in a process the gateway starts for the message
+   applied, for a message from another node, in a process of the address's own
    (§6.5, §8.7), where the gateway applied it itself, with a test of one that calls. A `receive`
    whose patterns fix no type is process-only (§3.9), which the checker does and a test cites.
 2a. **The held replies go** (decided 2026-10-16, the log's *Kill Darlings*, its paragraph *Held

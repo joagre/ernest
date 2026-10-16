@@ -1557,15 +1557,17 @@ calls(Base) ->
                  "waits again: 1", "its connection lost: Returned", "after the loss: 0"]].
 
 %% report §6.5, §8.7: the function of an adapted address made on the store,
-%% sent to from the desk, runs on the store in a process started for the
-%% message, so that one that calls a process there, which answers only once
-%% it is opened, holds up no other frame of the desk's: a find passes it,
-%% and so does a message to a second adapted address made there, which opens
-%% the gate, and the answer comes back to the desk through the first. A
-%% regression test, written after the code: the store's gateway applied
-%% the function in its worker for the desk, which then read nothing more
-%% from the desk; a function that never finishes, which ends with the
-%% program, is erl/runtime/test/ern_rt_tests.erl's
+%% sent to from the desk, runs on the store in the process the store keeps
+%% for the address and the desk, so that one that calls a process there,
+%% which answers only once it is opened, holds the desk's messages to that
+%% address and nothing else: a find passes it, and so does a message to a
+%% second adapted address made there, which opens the gate, and the answer
+%% comes back to the desk through the first. A regression test, written
+%% after the code: the store's gateway applied the function in its worker
+%% for the desk, which then read nothing more from the desk; a function
+%% that never finishes, which ends with the program, is
+%% erl/runtime/test/ern_rt_tests.erl's, and the order of one address's
+%% messages and the worker's count erl/cli/test/ern_gateway_tests.erl's
 adapted_calls_test_() ->
     nodes_test(60, fun adapted_calls/1).
 
@@ -4395,7 +4397,11 @@ upgraded_builds(Base) ->
 %% runs Code.load of the module with its reach from the load path, which
 %% evaluates the binding, and the same spawn then runs. Written after the
 %% code; the service through the adapted address a regression test of MVP
-%% 3.2's item 7, written after the code
+%% 3.2's item 7, written after the code, and the tool's add and then its
+%% call through that one address, from another node, answering the total
+%% after the add, one of MVP 3.26's item 2b (§6.4, §6.5): the counter's
+%% node applied each message in a process of its own, and the call passed
+%% the add
 code_upgrade_test_() ->
     nodes_test(90, fun code_upgrade/1).
 

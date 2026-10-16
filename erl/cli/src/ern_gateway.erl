@@ -7,7 +7,9 @@
 %% compute, a find, and a message to an adapted address, each read by
 %% ern_peer:frame/2, a spawn or a compute of a function the node lacks
 %% handed on to the node's exchange (ern_exchange), which the worker tells
-%% of the loss too; a frame it cannot read is faulty, and the node ends
+%% of the loss too, and a message to an adapted address handed to the
+%% process the worker keeps for the address (§6.5, ern_rt:kept/1), which
+%% applies its function; a frame it cannot read is faulty, and the node ends
 %% that peer's connection. The exchange's four frames, the request for a
 %% reach, the reach, the lacks and a code frame, it hands to the exchange
 %% as they come, and records nothing of them. A call's two notes it records
@@ -39,11 +41,16 @@
 %% connection to end, and is dropped, which the node says.
 -module(ern_gateway).
 
--export([start/0, reloaded/0, outcome/2]).
+-export([start/0, reloaded/0, work/1, outcome/2]).
 
 -include("ern_node.hrl").
 
 -define(NAME, ern_gateway).
+
+%% Report §6.5, §8.7: the process the worker for a peer keeps for an
+%% adapted address the peer sends to (ern_rt:kept/1), the worker's monitor
+%% of it, and how many messages it has been handed and has not applied.
+-record(kept, {pid, monitor_ref, waiting}).
 
 %% The gateway registered and running, watching the node's connections to
 %% every kind of node, before the node listens, measuring the node as its
@@ -303,26 +310,93 @@ worker(Node, Workers) ->
             {Worker, Workers#{Node => Worker}}
     end.
 
-%% Report §8.7: a peer's frames, read in the order they came, a spawn or a
-%% compute of a function this node lacks handed to the exchange, which asks
-%% the peer for its reach while the worker goes on with the next frame. At
-%% the loss, the spawns that wait on the peer are let go, and then the
-%% exchanges asked of it, the frames the worker handed it having come
-%% before, and the worker ends.
+%% Report §8.7: the worker for the peer of Node, which the gateway starts
+%% for each peer a frame comes from, and its tests alone: the peer's frames,
+%% read in the order they came, a spawn or a compute of a function this
+%% node lacks handed to the exchange, which asks the peer for its reach
+%% while the worker goes on with the next frame, and a message to an
+%% adapted address handed to the process kept for the address (§6.5,
+%% handed/4). At the loss, each process kept is told to stop once it has
+%% applied what it was handed, since nothing else ends at a loss, the
+%% spawns that wait on the peer are let go, and then the exchanges asked of
+%% it, the frames the worker handed it having come before, and the worker
+%% ends.
+-spec work(node()) -> ok.
 work(Node) ->
+    work(Node, #{}, #{}).
+
+%% Kept holds a #kept{} for each adapted address the peer has sent to
+%% while messages to it wait, by the address, and Addresses each kept
+%% process's address, by its pid.
+work(Node, Kept, Addresses) ->
     receive
         {ern_frame, From, Body} ->
             Read = try ern_peer:frame(From, Body)
                    catch _:_ -> unreadable
                    end,
             case Read of
-                {exchange, Identity} -> ern_exchange:lacking(From, Body, Identity);
-                _ -> outcome(Node, Read)
-            end,
-            work(Node);
+                {adapted, Address, Message} ->
+                    {Kept1, Addresses1} = handed(Address, Message, Kept, Addresses),
+                    work(Node, Kept1, Addresses1);
+                {exchange, Identity} ->
+                    ern_exchange:lacking(From, Body, Identity),
+                    work(Node, Kept, Addresses);
+                _ ->
+                    outcome(Node, Read),
+                    work(Node, Kept, Addresses)
+            end;
+        {applied, Pid} ->
+            {Kept1, Addresses1} = applied(Pid, Kept, Addresses),
+            work(Node, Kept1, Addresses1);
+        %% report §6.5: a process kept that ended otherwise than told, with
+        %% the run it was started in, is forgotten, and the next message to
+        %% its address starts another
+        {'DOWN', _, process, Pid, _} ->
+            {Address, Addresses1} = maps:take(Pid, Addresses),
+            work(Node, maps:remove(Address, Kept), Addresses1);
         stop ->
+            maps:foreach(fun(Pid, _) -> Pid ! stop end, Addresses),
             ern_peer:lost(Node),
             ern_exchange:lost(Node)
+    end.
+
+%% Report §6.5, §8.7: a message to an adapted address handed to the process
+%% kept for the address, after every message handed to it before, and
+%% counted; where none is kept, to one started now, which the worker
+%% monitors; and to none where no run is in progress, the message dropped
+%% (ern_rt:kept/1).
+handed(Address, Message, Kept, Addresses) ->
+    case Kept of
+        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting}} ->
+            Pid ! {apply, Message},
+            {Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting + 1}},
+             Addresses};
+        _ ->
+            case ern_rt:kept(Address) of
+                none ->
+                    {Kept, Addresses};
+                Pid ->
+                    MonitorRef = erlang:monitor(process, Pid),
+                    Pid ! {apply, Message},
+                    {Kept#{Address => #kept{pid = Pid, monitor_ref = MonitorRef, waiting = 1}},
+                     Addresses#{Pid => Address}}
+            end
+    end.
+
+%% Report §6.5, §8.7: a message the process kept for its address has
+%% applied, counted off; once none waits the process is told to stop and
+%% forgotten, so that it ends having applied every message it was handed,
+%% and the next message to the address starts another.
+applied(Pid, Kept, Addresses) ->
+    #{Pid := Address} = Addresses,
+    case Kept of
+        #{Address := #kept{monitor_ref = MonitorRef, waiting = 1}} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            Pid ! stop,
+            {maps:remove(Address, Kept), maps:remove(Pid, Addresses)};
+        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting}} ->
+            {Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting - 1}},
+             Addresses}
     end.
 
 %% Report §8.7: what a frame's reading tells the node to say and do, here
