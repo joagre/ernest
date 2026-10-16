@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 15 October 2026.
+Revision of 16 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -114,7 +114,7 @@ export fn main() : Unit with Never = {
 
 ## Appendix E. Standard Library
 
-E.0 is normative; a function enters this appendix by its rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.size : (List(a!)) -> Int` takes no list that holds a reply, and `List.map` takes one. A module's own types are written there without its namespace.
+E.0 is normative; a function enters this appendix by its rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.contains : (List(a=), a=) -> Bool` takes elements that `==` compares. A module's own types are written there without its namespace.
 
 The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
@@ -167,7 +167,7 @@ Io.write : (Bytes) -> Unit with m+ // the bytes to standard output, as they are
 Io.writeError : (Bytes) -> Unit with m+ // the bytes to standard error, as they are
 ```
 
-`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6).
+`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`, and a `Reply` as `<reply>`.
 
 `Io.show` and `Io.debug` write a value by the type at which the name is used, as a callee or an argument; their requirement, `needs a.show` (§9.4), is supplied there as any requirement is (§4.9). The type must be known there whole, not only determined as §4.8 asks of an operand, but for type variables a requirement in force names `show` for, at which the call writes the value as the types the variables are instantiated to: under `needs a.show`, `a`, `List(a)` and `Optional(#(a, Int))` are each written. A type variable no requirement names `show` for is a type error. Neither takes an argument the program has not declared: on a known type none, and under a requirement what it names, which a call supplies without writing it (§4.9). An effect variable in the type is no matter.
 

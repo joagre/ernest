@@ -292,11 +292,9 @@ The functions of §9.4 and §9.5 whose own effect is a mailbox type, `restarting
 
 A function has one mailbox effect or none. A function may take a pure callback beside an effectful one: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) : Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error.
 
-**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one mark a program writes (§4.7); given to a foreign function by §4.7 and by this section's process-only rule; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5).
+**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Two restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one mark a program writes (§4.7); given to a foreign function by this section's process-only rule; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5).
 
 The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code, and neither can `fn h(a : Int) : Unit with e = Io.println("")`.
-
-Not-reply-carrying (§6.6) falls on a type variable of a definition's type when the definition, read with that variable as a reply-carrying type, would break §6.6, and on a foreign function's as §4.7 says: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, put it where §6.6 forbids one, or pass it, alone or inside another value, where a function carries the restriction. The variable stands in a parameter's type, in the result type, or in the type of a value. A function the definition returns or holds is read as the definition is. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, `fn both(x) = dup([x])`, and, for `type Box(a) = Box(a)`, `fn forget(b : Box(a)) : Unit = Unit` cannot take a reply, nor can the function `fn pair() = fn(x) = #(x, x)` returns, of type `() -> (a!) -> #(a!, a!)`, and `fn id(x) = x` can. `Optional.withDefault : (Optional(a!), a!) -> a!` is restricted.
 
 Each restriction is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition.
 
@@ -445,7 +443,7 @@ The binding generalizes its free type variables: `let empty : Stack(a) = Stack([
 
 `foreign fn f(params) : T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A type variable written with `=` in a parameter's type, `a=` in `foreign fn member(element : a=, list : List(a)) : Bool = "lists:member/2"`, carries the equality constraint of §3.10, as one a body compares with `==` does. A variable is marked once, at any of its occurrences in the parameters: a second mark is a type error, and so is a mark in the result type or in any annotation outside a foreign function's parameters.
 
-A foreign function has no body from which §3.9 infers restrictions, and its code may copy a value it is given or drop it, so each type variable whose values a parameter holds is not reply-carrying (§6.6): one the parameter's type reaches through tuples and type arguments, and not under `Address`, `Reply`, or a function type, nor at a declared type's parameter that occurs in no field, `m` of `Peer.Service(m)` (§3.9). What a function it is given returns is the foreign code's to hand on once, as a `Reply` it is given is its to answer once (§8.4). `Foreign.term(r)` on a reply is a type error.
+A foreign function has no body from which §3.9 infers restrictions: its equality constraints are written, `a=`, and its process-only restriction is §3.9's. What a function it is given returns is the foreign code's to hand on, as a `Reply` it is given is its to answer (§8.4).
 
 A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
@@ -735,48 +733,11 @@ export let log : Address(LogMsg) =
 
 A request carries a `Reply(a)`, a one-shot address for its answer. `Address.call`, `Address.callForever` and `answer` are the prelude's, and §9.5 lists their types.
 
-`Address.call(address, request, ms)` allocates a fresh `r : Reply(a)`, sends `request(r)` to `address`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, `ms` corrected as §7.4 says. The clock starts at the call. `request(r)` is evaluated in the caller and sent from there as `send` sends it (§6.5). `ms` bounds the wait for the answer and nothing before it: the request is evaluated and sent though the `ms` milliseconds have passed, and a wait that begins after they have passed ends at once. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(address, request)` waits without limit and returns `a`.
+`Address.call(address, request, ms)` allocates a fresh `r : Reply(a)`, sends `request(r)` to `address`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, `ms` corrected as §7.4 says. The clock starts at the call. `request(r)` is evaluated in the caller and sent from there as `send` sends it (§6.5). `ms` bounds the wait for the answer and nothing before it: the request is evaluated and sent though the `ms` milliseconds have passed, and a wait that begins after they have passed ends at once. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(address, request)` waits without limit and returns `a`. A callee that lives on without answering holds a `callForever` caller for as long as it lives.
 
 When the process `address` names has ended, or ends or restarts before it answers, the wait ends at once, and so it does when the process's node goes out of reach (§8.7). `Address.call` then returns `None`, which says that no answer came, and nothing of whether the request was received or ran. `Address.callForever` faults the caller: with the callee's cause where the callee faulted, restarted after its fault or not, with `Fault("callee was killed")` where it was killed, with `Fault("callee returned without answering")` where its function returned, with `Fault("callee was closed")` where the program closes it, a socket or a listener (Appendix E.18), with `Fault("callee was restarted")` where it restarted because a restart was asked of it (§6.9), with `Fault("callee had ended")` where it had ended before the call, with `Fault("callee did not start")` where the function that held the reply was to start on a peer and did not (§8.7), and with `Fault("callee is unreachable")` where its node went out of reach (§8.7). Where the program ends, the caller ends with it. A request handed on to another process is watched only at the process it was sent to.
 
-`answer(r, v)` sends `v` to the caller. A call's reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered, which only foreign code can give (§4.7). The recipient cannot observe whether the caller still waits.
-
-**The rule.** A `Reply`, and every value that contains one, is *consumed* exactly once on every path from where it is bound. `answer(r, v)` consumes a `Reply` by answering it. Every other consumption hands the obligation on:
-
-- Passing the value to a function whose parameter is reply-carrying at that instantiation hands it to the callee. A callee that duplicates or discards the parameter rejects the call (§3.9).
-- `send` hands it to the `receive` clause that binds the value.
-- Placing it in a constructor field or tuple component of reply-carrying type, or in a list by `::` or a list literal, hands it to the built value.
-- Returning it from a function whose result type is reply-carrying hands it to the caller.
-- Capturing it in a lambda hands it to the lambda, which then carries the obligation by its capture (below). The lambda may be bound by a `let`. It, or the name bound to it, is consumed exactly once, by a call or as the function `spawn`, `spawnMonitored`, `Peer.spawn` or `Peer.spawnMonitored` runs (§8.7), and any other use of it is a type error. `let f = fn() = worker(r); spawn(f)` is legal; with `f()` after the `spawn`, `f` is consumed twice, and `let h = f` is a type error. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
-
-A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked.
-
-A call to a function whose result type is a type variable that neither a parameter's type nor its mailbox type names consumes every obligation open on its path, since the call does not return; `fault` (§7.4) is one. A function whose result type is its mailbox type returns what it receives, `fn next() = receive { x -> x }`, and a call to it consumes nothing. The `request` callback of `Address.call` is checked by the rule: `r` is consumed by placement in the message `request` returns, and `Address.call` discharges the message.
-
-```ernest-rejected
-type Request = Get(reply : Reply(Int)) | Stop
-
-fn serve(request : Request) : Unit with m =
-    match request {
-        Get(reply = reply) -> answer(reply, 42) // accepted: reply is answered on its one path
-      | Stop -> Unit // Stop carries no reply
-    }
-
-fn twice(server : Address(Request), request : Request) : Unit with m = {
-    send(server, request);
-    send(server, request) // rejected: request is consumed twice
-}
-```
-
-**Which values contain a reply.** A type is *reply-carrying* if it is `Reply(a)` or has a constructor field, tuple component, or list element of a reply-carrying type. The property is transitive: `Request` above is reply-carrying, and so is `type Envelope = Env(msg : Request)`. It is by type, not by constructor: every value of `Request` is reply-carrying, `Stop` included. A declared type is reply-carrying at an instantiation whose fields, its arguments substituted, have a reply-carrying type: `Box(Reply(Int))` is, for `type Box(a) = Box(a)`, and `H(Request)` is not, for `type H(e) = H(f : (Int) -> Unit with e)`. A type whose operations are the runtime's, and `Address`, is never reply-carrying through its arguments: `Address(Request)` is not; `List` is, through its elements. A function type is never reply-carrying; a lambda that captures a reply-carrying value carries the obligation by its capture (above).
-
-**Where such a value may stand.** A reply-carrying value stands only as a constructor field, a tuple component, a list element, a function parameter, an operand of an operator a member answers among them (§4.8), a variable bound by `let`, by a pattern, or in a `receive` clause, a capture of a lambda, the scrutinee of a `match`, the right side of `<-`, the value of a branch or of a block, or the result of a function whose result type, declared or inferred, is reply-carrying. Anywhere else it is a type error: as an operand of `==` or `!=`, as the value a field is selected from, and as the base of a record update, among them. A top-level binding of reply-carrying type is a type error.
-
-**Patterns and branches.** A match consumes its scrutinee, and the obligation passes to the variables the pattern binds. A pattern on a reply-carrying value binds every reply-carrying field and element, so `_` or an omitted field there is a type error: `match request { Get() -> ... }` is rejected. `as` on a reply-carrying scrutinee is a type error. A constructor with no reply-carrying field, `Stop` above, and the pattern `[]` discharge the obligation.
-
-An `if`, `match`, `receive`, or block whose value is reply-carrying consumes it or hands it on in every branch, a `receive`'s `after` clause among them. The right operand of `&&` and of `||` is a branch the left operand may skip (§4.8), and what follows a `let p <- e` in its block is a branch a `Left` or a `None` skips (§5.5). An obligation open before either is consumed before it or after it, and not in it: `if c && done(r) then a else b` is a type error, and so is `{ let n <- String.toInt(text); answer(r, n) }`, which is written as a `match` on `String.toInt(text)`.
-
-A guard is pure (§5.9) and its value is a `Bool`, so it can neither answer a reply nor hand one on: a guard that takes one does not return, and a guard that falls through has consumed none.
+`answer(r, v)` sends `v` to the caller. A call's reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered. The recipient cannot observe whether the caller still waits. A server that cannot answer a request yet keeps its reply as it keeps any value, in a list or a map, and answers it when it can.
 
 ### 6.7 Remote computation
 
@@ -1180,8 +1141,8 @@ spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 `io.ern` provides `Io.show` and `Io.debug` (Appendix E.1):
 
 ```
-Io.show        : (a!) -> String needs a.show // the value as Ernest writes it, at the use's type
-Io.debug       : (a!) -> a! with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
+Io.show        : (a) -> String needs a.show // the value as Ernest writes it, at the use's type
+Io.debug       : (a) -> a with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
 ```
 
 ### 9.5 Process functions
@@ -1439,7 +1400,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **connection** — what two nodes send each other over, at most one between them, opened by the first operation that needs it. §8.7.
 - **cons operator** — `::`, list-prepend, right-associative. §3.3, §5.10.
 - **constructor** — a case of a sum type; a value, a function, or a construction form. §3.5, §5.6.
-- **consumed** — of a reply-carrying value: answered, or handed on by one of the uses §6.6 lists, exactly once on every path. §6.6.
 - **container** — a type of the kind that holds elements and provides the container operations, a list, a map, a set. Appendix E.0.
 - **cookie** — the digest of the protocol's version, the form's version, `ern`'s major and minor and OTP's major release, or of a development build's own code, by which the handshake proves the floor. §8.7.
 - **deadlock** — no process can progress. §8.6.
@@ -1474,7 +1434,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
 - **identity** — what a reference to a definition names: a function's or a type's hash, a binding's qualified name with its definition's hash. §8.7.
-- **inferred restriction** — the equality constraint, process-only, or not-reply-carrying, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
+- **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
 - **irrefutable pattern** — a pattern that cannot fail. §5.10.
 - **key** — a node's own key, the key pair by which it is identified. §8.3, §8.7, §11.3.
 - **`kill`** — `kill(a)`, ends the process `a` names with the reason `Killed`. §6.9, §9.5.
@@ -1495,9 +1455,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **namespace** — the dotted prefix of a name; equal to the module's path. §4.2.
 - **`Never`** — the type with no values; as a mailbox type, a process that cannot receive. §3.7, §6.8.
 - **node** — one running runtime, started with a configuration directory and identified by its key. §8.3, §8.7.
-- **not-reply-carrying** — the restriction on a type variable whose values a function duplicates or discards: it stands for no reply-carrying type. §3.9, §6.6.
 - **note** — what a call to a process of another node, or a compute on it, sends that node: that the caller waits, with its reply, and later that the call is over. §8.7.
-- **obligation** — a binding of a reply-carrying value, consumed exactly once on every path. §6.6.
 - **offer** — a service made findable by `Peer.offer`, for as long as its process lives. §8.7.
 - **operations record** — a record a program declares of the operations it uses on a type, filled from each representation's namespace and passed to code written once over them. §4.9.
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
@@ -1524,7 +1482,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **redundant** — of a clause or an alternative: able to match no value those before it leave. §5.9.
 - **remote computation** — work on a peer: a process spawned there, or a function run there for its value. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
-- **reply-carrying** — a type that transitively contains a `Reply`. §6.6.
 - **request-reply** — `Address.call` sends a request that carries a `Reply`, and the callee answers it with `answer`. §6.6.
 - **requirement** — `needs a.compare` after a function's result type, naming members of its type variables that the body may use and a call supplies without writing. §4.9.
 - **reserved word** — a word the grammar keeps for itself. §2.4.
