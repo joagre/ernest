@@ -758,6 +758,13 @@ another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is t
 follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
 log's *The First Release Is for Others*:
 
+- **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
+  gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
+  one design note under `docs/` beside the shell's, once MVP 3.27's measurements have settled their
+  figures; the proposals then stay as the record of how the design was weighed. A proposal that
+  redesigned a rule of the language and built no component, kill darlings, the balancer's suggestion
+  and the placement push, becomes no note, its outcome being the report's (decided with the user on
+  2026-10-17).
 - **`make test` split in two**, done 2026-10-13, taken early (the log's *The Light Run and the
   Full Run*). `make test` is the light run, the applications' unit tests and the document and
   style tests, 85 s, for every commit; `make test-full` is every area, about ten minutes, for
