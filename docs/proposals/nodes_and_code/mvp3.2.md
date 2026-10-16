@@ -6,7 +6,15 @@ Status: built, by MVP 3.2's items 1 to 7, and kept as the record of its design; 
 
 MVP 3.2 lets a spawn carry its code to a peer that lacks it.
 
-A process on one node spawns a process on a peer. The function may be one the peer does not have: one typed at the shell, or one of a program the peer was never given. The spawn frame carries the function's hash and its captured values, as in MVP 3.1. A peer that has the hash starts the process. A peer that lacks it asks for the function's reach, every definition the function reaches: the sender lists their hashes, the peer names the ones it lacks, and the sender ships those, each as its canonical form, the compiler's typed tree, never compiled code. The peer verifies each against its hash, compiles them all with its own back end, loads them at once, and then starts the process. Nothing is loaded lazily: a process starts only once its whole reach is on the node. The next spawn of the same function ships nothing. A node that runs no program, the bare node, runs whatever its peers spawn on it. Nothing of MVP 3.1 changes.
+A process on one node spawns a process on a peer. The function may be one the peer does not have: one typed at the shell, or one of a program the peer was never given.
+
+The spawn frame carries the function's hash and its captured values, as in MVP 3.1. A peer that has the hash starts the process. A peer that lacks it asks for the function's reach, every definition the function reaches: the sender lists their hashes, the peer names the ones it lacks, and the sender ships those, each as its canonical form, the compiler's typed tree, never compiled code. The peer verifies each against its hash, compiles them all with its own back end, loads them at once, and then starts the process.
+
+Nothing is loaded lazily: a process starts only once its whole reach is on the node. The next spawn of the same function ships nothing.
+
+A node that runs no program, the bare node, runs whatever its peers spawn on it.
+
+Nothing of MVP 3.1 changes.
 
 Three things bound it.
 
@@ -95,7 +103,9 @@ fn told(left : Int) : Unit with Msg =
     }
 ```
 
-On a node still at build 1 the spawn carries `count2`, the lambda and `Msg`; `count` it has, at the same hash, and `Counter.Msg` too. The spawned process finds every process on `count`, sends each its `Upgrade`, and reports back through `me`, an address the lambda captured. Each counter switches by its own tail call, its total kept; its address and its key are unchanged, so no client notices. A node whose spawn fails is printed and skipped, and the tool ends when every node has reported. Nothing of the runtime orders this: the order is the list's, the check is the program's, and a tool that waits for each node's report before the next is the same program with `told(1)` inside the loop.
+On a node still at build 1 the spawn carries `count2`, the lambda and `Msg`; `count` it has, at the same hash, and `Counter.Msg` too. The spawned process finds every process on `count`, sends each its `Upgrade`, and reports back through `me`, an address the lambda captured. Each counter switches by its own tail call, its total kept; its address and its key are unchanged, so no client notices.
+
+A node whose spawn fails is printed and skipped, and the tool ends when every node has reported. Nothing of the runtime orders this: the order is the list's, the check is the program's, and a tool that waits for each node's report before the next is the same program with `told(1)` inside the loop.
 
 ## 4. What holds
 
@@ -118,17 +128,41 @@ MVP 3.1's limits stand, but its third, which this milestone lifts. MVP 3.0's nin
 
 ## 6. How it works
 
-**A spawn that carries its code.** The spawn frame is MVP 3.1's: the function's hash, its captured values and the site. A peer that has the hash starts the process at once. A peer that lacks it asks for the reach's list. The sender sends the hashes the function references transitively, code and types, with the foreign declarations it names. The peer answers with the hashes it lacks, or with `NotLoaded`, where it lacks the module a foreign declaration names or the value of a binding the function names. The sender ships the missing code, dependencies first. A code frame carries one definition's canonical form with its immediate references, and never a compiled binary. The four frames, the request, the list, the lacks and the code frame, are Ernest's beside MVP 3.0's six. The peer verifies each frame against its hash as it arrives and holds it apart until the reach is complete. Then it compiles the reach with its own back end, loads it all at once, and starts the process. What the peer said it has is pinned until the load is done. A frame whose content does not match its hash is a faulty frame, and the connection ends. A reach the peer cannot compile or load fails the spawn with `Refused`, whose text is the peer's. The exchange runs in a process of its own on each node, and the gateways only pass its frames. The spawn's time covers the exchange. What arrived complete stays in the code table, and two spawns waiting on one hash share one exchange.
+**A spawn that carries its code.** The spawn frame is MVP 3.1's: the function's hash, its captured values and the site. A peer that has the hash starts the process at once. A peer that lacks it asks for the reach's list. The sender sends the hashes the function references transitively, code and types, with the foreign declarations it names. The peer answers with the hashes it lacks, or with `NotLoaded`, where it lacks the module a foreign declaration names or the value of a binding the function names. The sender ships the missing code, dependencies first.
 
-**A unit on arrival.** The definitions that arrive in one exchange become one unit, under a name of the node's own, its functions named by their position in it; from this milestone every unit's are, the build's too, so that one way makes a unit and an arrival adds its unit's name alone to the host's atoms, a trace and the shell showing a function by the name its build gives its hash. Before the unit is compiled, each reference is linked through the table, as a build's units are: a reference to a definition of the unit becomes a local call, and one to a definition of another unit a call into that unit. The unit is made by the same back end from the same forms as a build's. The canonical form of a received definition, and of one typed at the shell, is kept beside its compiled code, and the node ships it onward as its own. Loading is by the host's `prepare_loading` and `atomic_load`, one batch per reach, with no `-on_load`. The node's units are off the code path, where nothing loads them but the node. Nothing of a node's code is on its disk but its build directory: a node restarted holds its build, and is sent the rest again.
+A code frame carries one definition's canonical form with its immediate references, and never a compiled binary. The four frames, the request, the list, the lacks and the code frame, are Ernest's beside MVP 3.0's six.
 
-**What a node lets go.** A unit that arrived by an exchange or a load is unloaded when no process executes it or holds a function of it. The host tells, `erlang:check_process_code`. The build's own units are never unloaded. A function a table holds the host's check does not see, so a unit whose function sits in a table is never let go, a limit the report states and no refusal of the compiler's (section 5). The node sweeps when it nears a limit of section 7, and lets go the units no process runs, oldest first, until it is under the limit; a unit no process runs stays until then, so a worker whose tasks end and are spawned again ships nothing. A unit unloaded leaves the table, and its name returns to the pool. A spawn that asks for one of its definitions again is sent it again, one exchange.
+The peer verifies each frame against its hash as it arrives and holds it apart until the reach is complete. Then it compiles the reach with its own back end, loads it all at once, and starts the process. What the peer said it has is pinned until the load is done.
+
+A frame whose content does not match its hash is a faulty frame, and the connection ends. A reach the peer cannot compile or load fails the spawn with `Refused`, whose text is the peer's.
+
+The exchange runs in a process of its own on each node, and the gateways only pass its frames. The spawn's time covers the exchange. What arrived complete stays in the code table, and two spawns waiting on one hash share one exchange.
+
+**A unit on arrival.** The definitions that arrive in one exchange become one unit, under a name of the node's own, its functions named by their position in it; from this milestone every unit's are, the build's too, so that one way makes a unit and an arrival adds its unit's name alone to the host's atoms, a trace and the shell showing a function by the name its build gives its hash.
+
+Before the unit is compiled, each reference is linked through the table, as a build's units are: a reference to a definition of the unit becomes a local call, and one to a definition of another unit a call into that unit. The unit is made by the same back end from the same forms as a build's.
+
+The canonical form of a received definition, and of one typed at the shell, is kept beside its compiled code, and the node ships it onward as its own.
+
+Loading is by the host's `prepare_loading` and `atomic_load`, one batch per reach, with no `-on_load`. The node's units are off the code path, where nothing loads them but the node.
+
+Nothing of a node's code is on its disk but its build directory: a node restarted holds its build, and is sent the rest again.
+
+**What a node lets go.** A unit that arrived by an exchange or a load is unloaded when no process executes it or holds a function of it. The host tells, `erlang:check_process_code`. The build's own units are never unloaded.
+
+A function a table holds the host's check does not see, so a unit whose function sits in a table is never let go, a limit the report states and no refusal of the compiler's (section 5).
+
+The node sweeps when it nears a limit of section 7, and lets go the units no process runs, oldest first, until it is under the limit; a unit no process runs stays until then, so a worker whose tasks end and are spawned again ships nothing. A unit unloaded leaves the table, and its name returns to the pool. A spawn that asks for one of its definitions again is sent it again, one exchange.
 
 **The bare node.** Its entry process evaluates the standard library's bindings and waits; the node listens, takes spawns, and ends by termination. It offers what the processes spawned on it offer.
 
 **The shell.** A function typed at the shell has a hash as any definition has, and spawns on a peer with its code. The rest is MVP 3.1's.
 
-**`Code`.** `load` is `ern run`'s loading reached from Ernest: the module's canonical forms and its reach's are read from the load path, verified against their hashes, and become a unit as a load of the shell's does, counted against the limits of section 7. `hashes` reads the `.erc` and answers its table of names and hashes. `running` asks the host for each process's stack, maps each frame's unit and position through the code table to a hash, and keeps the processes with a frame of `f`'s hash and no other: a lambda written in `f` has a hash and a mailbox type of its own, and is not listed; the declaration names its unit and position, which the table maps to its hash the same way. Every process running `f` has `f`'s mailbox type, so the list is typed `Address(m)`, which is why `m` is known whole where `running` is written. The list is a snapshot: a process that enters or leaves `f` after the call is not in it, and a process in it may have ended by the time it is sent to, as any address may.
+**`Code`.** `load` is `ern run`'s loading reached from Ernest: the module's canonical forms and its reach's are read from the load path, verified against their hashes, and become a unit as a load of the shell's does, counted against the limits of section 7.
+
+`hashes` reads the `.erc` and answers its table of names and hashes.
+
+`running` asks the host for each process's stack, maps each frame's unit and position through the code table to a hash, and keeps the processes with a frame of `f`'s hash and no other: a lambda written in `f` has a hash and a mailbox type of its own, and is not listed; the declaration names its unit and position, which the table maps to its hash the same way. Every process running `f` has `f`'s mailbox type, so the list is typed `Address(m)`, which is why `m` is known whole where `running` is written. The list is a snapshot: a process that enters or leaves `f` after the call is not in it, and a process in it may have ended by the time it is sent to, as any address may.
 
 ## 7. The numbers
 
