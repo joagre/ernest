@@ -4,7 +4,7 @@ Ernest stands on the work of the people named here, each by name alone, in the o
 
 ## Erlang and OTP
 
-Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang* (HOPL III, 2007) and of Bjarne Däcker's licentiate thesis *Concurrent Functional Programming for Telecommunications* (KTH, 2000), but me:
+Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang* (HOPL III, 2007) and of Bjarne Däcker's licentiate thesis *Concurrent Functional Programming for Telecommunications* (KTH, 2000):
 
 - Ingela Anderton Andin
 - Marcus Arendt
