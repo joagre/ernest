@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-16.** [§0 Read Again](#0-read-again-2026-10-16).
+**2026-10-16.** [The Tools Measured Again](#the-tools-measured-again-2026-10-16). [The Programs Tests' Bounds](#the-programs-tests-bounds-2026-10-16). [§0 Read Again](#0-read-again-2026-10-16).
 
 **2026-10-15.** [The Rationale Is a Synthesis](#the-rationale-is-a-synthesis-2026-10-15). [The Layout Completed](#the-layout-completed-2026-10-15). [The Repository Laid Out Again](#the-repository-laid-out-again-2026-10-15).
 
@@ -7898,6 +7898,40 @@ The sixty-one findings of item 13's three readers (`docs/findings.md`), decided 
 ## The Plan Rewritten from the Split Proposals, 2026-10-09
 
 *The Milestones After 3.0, Weighed Again* had MVP 3.2 gone and everything kept of the two set-aside proposals in one MVP 3.1. The read-through split it on 2026-10-09: identity first, the hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told and `Standing`; then code with a spawn, the exchange, the bare node, the let-go and `Code`. Everything in the crossing needs the hash and nothing in the hash needs the crossing, and the hash alone already connects nodes of different builds, so the split puts what is needed before what needs it, and each milestone ends with something that runs: a deploy of two builds side by side, then a worker given its code. The number 3.2 stays for the second, a milestone of the language's where the set-aside one was an operations layer. The plan's two sections are written from the proposals, which are the specifications, their reasons `code.md`'s and `nodes.md`'s; the plan's old MVP 3.1 and 3.2 sections, written from the set-aside proposals, go with them, and what they decided that still stands is in the proposals' sections 10 and the log's entries above.
+
+## The Tools Measured Again, 2026-10-16
+
+MVP 3.2's five speed changes, decided on 2026-10-13, built on 2026-10-16 but for the fifth. `ern doc src-dir` now lists the modules from their paths, compiles nothing where every page is as new as what it is made from, reads a module from its `.erc` where that is as new as its source and compiles only the rest (§11.4); `index.md` is written where its text would differ. `make man` writes the pages beside the build's `.erc`s and copies them, and `build/pages` is gone. The Makefile builds the libraries side by side after `ansi`, the manual pages wait on the copy of `libs/markdown` they lay pages out with and not on the whole shell, and every job runs beside those it does not need.
+
+Measured one target at a time on a quiet machine, eight cores, after the change, against *The Tools Measured* of 2026-10-13:
+
+| Target | 2026-10-13 | 2026-10-16 |
+|---|---|---|
+| no-op `make` | 13.0 s | 3.1 s |
+| `make man` | about 20 s | 4.3 s |
+| `make test-docs` | 5.3 s | 4.1 s |
+| `make test-install` | 105 s (2026-10-14) | 42.6 s |
+| `make test-full` | 7 to 8 min | 9 min 28 s |
+
+The load average was still falling from the full run, 8 at the first figure, so each is an upper bound. `test-install`'s halving is the install test's split and the no-op `make` it pays six times. `test-full` is longer by about two minutes, the price of the second phase running its areas one after another instead of six at once at a load of 117 (*The Programs Tests' Bounds*); a phase that runs two areas at once would need a measured fraction to justify it, and none was taken.
+
+The fifth change, `:load` taking a current `.erc`, stopped on its sentence. §11.2 as first written would have let `:load` take a compiled form compiled from another source: the nodes tests start a shell with the fix's source under the source root and the old build on the load path, and the old `.erc`, newer than the fixed source, would have been loaded in place of the fix, as an operator's deployed build would. A second case: a form compiled against a module the session has since reloaded calls the previous version's unit by name, where the reload changed no hash the form references. The sentence now asks that the form be compiled from that source, call no module the session holds at a reload's version, and be tried in the load path's order with the source root last; the session answers `Greet, from greet.erc`, the line `:load` already gives a compiled form. Built next, by the same agent.
+
+Found on the way, planned before the tag: `make diagnostics` takes about 125 s, since it starts the host once for each of its 283 rejected examples, about 0.44 s of start for milliseconds of compiling; the shape of the fix is to build them in one host, or side by side.
+
+## The Programs Tests' Bounds, 2026-10-16
+
+The plan's defects of the programs tests, decided on 2026-10-13 and 2026-10-14, built on 2026-10-16, each bound derived from what it waits for and none chosen (CLAUDE.md's *No fixed sleep*).
+
+The install test ran past 300 s under load. It is split: its first part, which builds, stages and installs, runs as the setup and is timed in that run, and each later part is given its makes plus one times that time, since none of them does more than the first did. A run that timed out had left its `closed` directory read-only, and the next run's cleanup failed with `eexist`; the cleanup makes every directory under it writable first.
+
+The desk's "send at once" was bound by 1000 ms, a chosen number, and could tell nothing apart: a send to a node out of reach returns in microseconds whether or not the dial behind it waits, and the killed store's closed port refused the dial at once. The test now holds the store's port silent, so the dial waits the host's seven seconds (§8.7), and the send's bound is that time, with its reason beside it; each call is bound by its own limit.
+
+The full run's second phase, the shell's tests and the five program parts, ran side by side at a load of about 117 on eight cores. Each area already runs its tests as many at once as the host has schedulers, so six areas at once ran six times what the host carries; the phase now runs its areas one after another. `one_node` and `replaced` have limits equal to the sum of their waits' bounds, where `replaced` really had 60 s and not the plan's 120. `exchange`'s missing answer was a deadline too short for the load, the sender's spawns giving up at 5000 ms, and not a loss in the runtime: `ern_peer`'s answer and give-up were read and lose nothing, and the sender's waits are now the test's own. The deployment harness's `job/2` and `answering/1` waited without a bound and now wait the harness's one-wait time.
+
+The installation installs every `.md` under `report/`, `guide/` and `tour/` by directory, a link rewritten from as many directories up as the document stands down, so `guide/deployment.md`, `why.md` and `faq.md` are installed as `language.md` is (the log's *Every User's Document Installed*). The install test's link check had read only the top directory since the guide and the report moved below it, and the installed guide had six dead links no test saw; it reads every depth now.
+
+Left, planned: about sixty limits in the nodes tests are still numbers of their own, each to be derived as these were once its waits are bounded, in MVP 3.27 where the tests run across machines; and `answering/1` polls `connect` in a tight loop while a node starts, which costs a core, fixed before the tag.
 
 ## §0 Read Again, 2026-10-16
 
