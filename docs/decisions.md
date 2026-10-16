@@ -8053,6 +8053,14 @@ Whether a forgotten answer is caught: not by the compiler, since a reply is a va
 
 Why the compiler is so strict with no warnings: a warning is a rule stated and not held, so a program that builds with warnings has its reader guess which were waived; Ernest gives one answer, and each rule catches a mistake concurrent programs make, the examples the guide's own without a refusal of a print in a function without a mark, which the language no longer has.
 
+**Item 2a's code half, 2026-10-16.** The canonical form of a spawn on a peer is the plain name Appendix H gives every other, its `Held` gone with the walk that found a lambda's captured replies, so every definition that spawns on a peer has a new hash, the form's version unchanged, since no release has shipped a form; the emitter passes a spawn nothing after its site; `ern_peer` and `ern_rt` lose the replies argument, `not_started` and the three places that read it, the end's special case for a subscriber among them.
+
+The tests hold what the rule now says: where a spawn fails with a reply captured, `Address.call` answers `None` at its deadline and not before, `callForever` waits while the spawner lives and faults with the spawner's end, and a spawner that answers through its own copy gives the caller the failure, `Some(Left(NotListed))`, which is what feedback item 102 asked for and the rule now allows.
+
+The cost *Held replies* names for `callForever` holds for the end too: a subscriber that hands its reply to a spawn that fails and answers nothing holds the end as long as it lives, where the runtime went on without it and said so; §8.6's rule that the end waits for every reply or its subscriber's end covers it, and a subscriber that means to answer keeps its copy.
+
+The soundness argument's *Code that crosses* said the runtime ended such calls, which the report's half had left standing; it says now that the call ends by its deadline or the spawner's answer, as a call whose reply an ended process held does.
+
 ## Clause Bodies All or None, 2026-10-14
 
 Decided with the user on 2026-10-14, to be built as MVP 3.3's first item. Today `ern format` keeps a clause's body beside its pattern where it fits and puts a block's body below, so one `match` mixes two shapes, and a clause whose body grows into a block changes its pattern's line too. The rule: in a `match` or a `receive`, either every clause's body stands beside its pattern, or every one goes on the line below it, indented, a block's `{` staying after the arrow. All stay beside where every body fits; one that does not, a block or a body past the line's limit, sends them all below.

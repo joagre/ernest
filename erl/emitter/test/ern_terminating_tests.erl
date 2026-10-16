@@ -56,16 +56,16 @@ told_at_the_entry_process_end_test() ->
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 answered\n">>)).
 
 %% report §8.6, §8.7, §6.6: a subscriber that handed its reply to a
-%% function spawned on a peer, whose spawn failed, does not answer it, and
-%% no process will: the end goes on without the subscriber, which lives,
-%% and the runtime says so in place of its answer.
-%% Here the spawn fails with NotListed, in a program that is no node, and
-%% the subscriber goes on counting, to die with the program. A regression
-%% test, written after the code (MVP 3.2's item 3)
+%% function spawned on a peer keeps its copy, so where the spawn fails it
+%% answers the end itself, and the end ends with its answer, which the
+%% runtime says as any answer. Here the spawn fails with NotListed, in a
+%% program that is no node. A regression test, written after the code
+%% (MVP 3.26's item 2a); a subscriber that does not answer holds the end
+%% while it lives, as any does, which no test here waits on
 subscriber_whose_spawn_failed_test() ->
-    {Result, Output} = kept("{ let _ = Peer.spawn(\"nobody\", fn() ="
-                            " answer(reply, Unit), 1000); Io.println(\"spawn failed\");"
-                            " count(n) }",
+    {Result, Output} = kept("{ match Peer.spawn(\"nobody\", fn() = answer(reply, Unit), 1000) {"
+                            " Left(_) -> { Io.println(\"spawn failed\"); answer(reply, Unit) }"
+                            " | Right(_) -> Unit }; count(n) }",
                             "export fn main() : Unit = {\n"
                             "    let k = spawn(keeper); Address.callForever(k, Ready);\n"
                             "    send(k, Add(1))\n"
@@ -73,9 +73,7 @@ subscriber_whose_spawn_failed_test() ->
     ?assertEqual(ok, Result),
     ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:13\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"spawn failed\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 handed its reply to a"
-                                                " spawn that failed\n">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"without answering">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 answered\n">>)).
 
 %% report §8.6, Appendix E.23: Os.exit ends the program as §8.6 does, the
 %% subscriber told first, with its status

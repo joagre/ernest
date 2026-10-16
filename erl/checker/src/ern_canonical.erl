@@ -86,14 +86,12 @@
 %% functions, the span of each lambda and local function met, reversed, in
 %% the order the walk meets them, which is their positions' (lambdas/2);
 %% services, each service's message type with its form, its own module's
-%% types left open; lambdas, each local a `let` binds to a lambda, by its
-%% number, with the lambda and the scope where it was written, whose
-%% captures a spawn on a peer that names the local holds (held/2); links,
-%% each reference to another module's declaration the walk wrote, with the
-%% qualified name it names, by which the build links it (module/5).
+%% types left open; links, each reference to another module's declaration
+%% the walk wrote, with the qualified name it names, by which the build
+%% links it (module/5).
 -record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
                bound = #{}, segments = #{}, locals = 0, variables = #{}, names = #{},
-               references = [], functions = [], services = [], lambdas = #{}, links = []}).
+               references = [], functions = [], services = [], links = []}).
 
 -spec form_version() -> pos_integer().
 form_version() ->
@@ -965,17 +963,6 @@ expr_form(#e_block{statements = Statements}, #walk{scope = Scope} = Walk) ->
                         end, Walk, Statements),
     {Forms, Walk2} = lists:mapfoldl(fun statement/2, Walk1, Statements),
     {{block, Forms}, Walk2#walk{scope = Scope}};
-expr_form(#e_call{callee = #e_var{referent = #remote_declaration{namespace = ['Peer'],
-                                                                  member_of = undefined,
-                                                                  name = Name}} = Callee,
-                  args = [_, Spawned | _] = Args}, Walk)
-  when Name =:= spawn; Name =:= spawnMonitored ->
-    %% report §8.7: a spawn on a peer holds the captures of its function
-    %% whose types hold a reply, whose calls a spawn that fails ends, each
-    %% with its type
-    {CalleeForm, Walk1} = peer_spawn(Callee, held(Spawned, Walk), Walk),
-    {ArgForms, Walk2} = lists:mapfoldl(fun expr/2, Walk1, Args),
-    {{call, CalleeForm, ArgForms}, Walk2};
 expr_form(#e_call{callee = Callee, args = Args, pipe = Pipe}, Walk) ->
     %% report §5.1: a pipe evaluates its first argument before a callee that
     %% is not a name, a constructor or a lambda
@@ -1041,73 +1028,6 @@ expr_form(#e_receive{clauses = Clauses, 'after' = After}, Walk) ->
                          end,
     {{'receive', ClauseForms, AfterForm}, Walk2}.
 
-%% Report §8.7, Appendix H: `Peer.spawn` or `Peer.spawnMonitored`, the
-%% captures Held of its function that hold a reply each with its type, in
-%% the order the function first names them.
-peer_spawn(#e_var{referent = Referent, name = Name, supplies = Supplies} = Callee, Held, Walk) ->
-    {Reference, Walk1} = value_reference(Referent, Name, Walk),
-    {SupplyForms, Walk2} = lists:mapfoldl(fun supply/2, Walk1, Supplies),
-    {HeldForms, Walk3} = lists:mapfoldl(fun({Number, Type}, Acc) ->
-                                            {TypeForm, Acc1} = type(Type, Acc),
-                                            {{Number, TypeForm}, Acc1}
-                                        end, Walk2, Held),
-    {at(Callee, {var, Reference, SupplyForms, HeldForms}, none), Walk3}.
-
-%% Report §8.7, Appendix H: the locals a spawned function captures whose
-%% types hold a reply, each by its number with its type: a lambda's,
-%% written at the spawn or bound to the local the spawn names, read in the
-%% scope where it was written; `restarting`'s function's; and none of a
-%% local function's, nor a declaration's.
-held(#e_call{callee = #e_var{referent = {prelude, [restarting]}}, args = [_, Function]}, Walk) ->
-    held(Function, Walk);
-held(#e_lambda{} = Lambda, #walk{scope = Scope} = Walk) ->
-    captured_replies(Lambda, Scope, Walk);
-held(#e_var{referent = var, name = Name}, #walk{scope = Scope, lambdas = Lambdas} = Walk) ->
-    case maps:find(maps:get(Name, Scope), Lambdas) of
-        {ok, {Lambda, Before}} -> captured_replies(Lambda, Before, Walk);
-        error -> []
-    end;
-held(_, _) ->
-    [].
-
-captured_replies(Lambda, Scope, #walk{env = Env}) ->
-    Typed = lists:uniq(fun({Name, _}) -> Name end,
-                       [{Name, Type}
-                        || #e_var{referent = var, name = Name, type = Type}
-                               <- ern_ast:free_uses(Lambda, [])]),
-    [{maps:get(Name, Scope), Type} || {Name, Type} <- Typed, holds_reply(Type, Env)].
-
-%% Report §8.7: whether a value of the type holds a reply, which a spawn
-%% that fails reads by the type's descriptor (ern_peer): a `Reply`, or a
-%% list's element, a tuple's component or a declared type's field, its
-%% arguments in place of its parameters, that holds one. A declared type
-%% met again inside its own fields is not read again. An address, a
-%% function, a value of a foreign type and the arguments of the other
-%% built-in types are not looked through.
-holds_reply(Type, Env) ->
-    holds_reply(Type, Env, []).
-
-holds_reply(Type, Env, Seen) ->
-    case ern_typecheck:resolve_type(Type, Env) of
-        {tcon, ['Reply'], _} ->
-            true;
-        {tcon, ['List'], [Element]} ->
-            holds_reply(Element, Env, Seen);
-        {tcon, QualifiedName, Args} ->
-            case {lists:member(QualifiedName, Seen),
-                  ern_typecheck:declared_fields(QualifiedName, Args, Env)} of
-                {false, {ok, Fields}} ->
-                    lists:any(fun(Field) -> holds_reply(Field, Env, [QualifiedName | Seen]) end,
-                              Fields);
-                _ ->
-                    false
-            end;
-        {ttuple, Elements} ->
-            lists:any(fun(Element) -> holds_reply(Element, Env, Seen) end, Elements);
-        _ ->
-            false
-    end.
-
 %% Report Appendix H: a literal's value in its fixed encoding.
 literal(string, Value) when is_list(Value) -> unicode:characters_to_binary(Value);
 literal(_, Value) -> Value.
@@ -1136,13 +1056,12 @@ statement(#fn_declaration{span = Span, name = Name} = Declaration,
     {at(Declaration, Form, Name), Walk1};
 statement(#binding{pattern = Pattern, annotation = Annotation, operator = '=',
                    expr = Expr} = Binding,
-          #walk{names = Names, scope = Before} = Walk) ->
+          #walk{names = Names} = Walk) ->
     {AnnotationForm, Walk1} =
         annotation(Annotation, matched(Annotation, ern_typecheck:node_type(Expr), Walk)),
     {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
-    {at(Binding, {bind, AnnotationForm, ExprForm, PatternForm}, none),
-     let_lambda(Pattern, Expr, Before, Walk3)};
+    {at(Binding, {bind, AnnotationForm, ExprForm, PatternForm}, none), Walk3};
 statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-',
                    expr = Expr} = Binding,
           #walk{env = Env, names = Names} = Walk) ->
@@ -1155,15 +1074,6 @@ statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-',
     {at(Binding, {unwrap, {named, [Sum]}, AnnotationForm, ExprForm, PatternForm}, none), Walk3};
 statement(Expr, Walk) ->
     expr(Expr, Walk).
-
-%% Report §3.11: a `let` of a lambda, by the local it binds, with the scope
-%% where the lambda was written, whose captures a spawn on a peer that
-%% names the local holds (held/2).
-let_lambda(#p_var{name = Name}, #e_lambda{} = Lambda, Before,
-           #walk{scope = Scope, lambdas = Lambdas} = Walk) ->
-    Walk#walk{lambdas = Lambdas#{maps:get(Name, Scope) => {Lambda, Before}}};
-let_lambda(_, _, _, Walk) ->
-    Walk.
 
 clause(#clause{pattern = Pattern, guard = Guard, body = Body} = Clause,
        #walk{scope = Scope} = Walk) ->

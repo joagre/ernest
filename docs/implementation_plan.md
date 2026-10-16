@@ -507,8 +507,8 @@ the same commit; then the log; then the code, by an agent from the settled repor
    applied, for a message from another node, in a process of the address's own
    (§6.5, §8.7), where the gateway applied it itself, with a test of one that calls. A `receive`
    whose patterns fix no type is process-only (§3.9), which the checker does and a test cites.
-2a. **The held replies go** (decided 2026-10-16, the log's *Kill Darlings*, its paragraph *Held
-   replies*). With a reply a value, the spawner keeps its copy of a reply its function captured and
+2a. **The held replies go.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraphs *Held
+   replies* and *Item 2a's code half*); decided the same day. With a reply a value, the spawner keeps its copy of a reply its function captured and
    can answer the caller with the failure a spawn on a peer gives it, which the runtime's ending of
    the call with `Fault("callee did not start")` took away; "whose types carry a reply" lost its
    definition with the obligation; and a compute's or a local function's replies were never held.

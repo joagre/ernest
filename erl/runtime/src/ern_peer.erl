@@ -8,21 +8,20 @@
 %% peer's runtime, or answers `NotLoaded`, or, where the peer lacks the
 %% function, hands the spawn to the peer's exchange (ern_exchange), and
 %% answers through the spawner's gateway, which ends a process no one waits
-%% for any more, a failed spawn ending the calls whose replies its function
-%% held (not_started/2); a compute sends
-%% them so too, its frame the call's first note, and its process answers
-%% the function's value, or its fault, through the caller's alias, its call
-%% the runtime's (ern_rt:compute/3), on the peer named or on one the node
-%% picks by the utilizations its peers told it (picked/0), which the
-%% gateway holds (hold_utilization/3); a utilization asks the peer's gateway, which answers it
+%% for any more; a compute sends them so too, its frame the call's first
+%% note, and its process answers the function's value, or its fault,
+%% through the caller's alias, its call the runtime's (ern_rt:compute/3),
+%% on the peer named or on one the node picks by the utilizations its
+%% peers told it (picked/0), which the gateway holds (hold_utilization/3);
+%% a utilization asks the peer's gateway, which answers it
 %% (ern_gateway). A node's peers and services are the carrier's to give
 %% (configure/2); a program that is no node has none. A wait has no upper
 %% bound: it is made against the moment its time ends, in slices the host
 %% takes (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/5,
-         spawn_monitored/4, spawn_monitored/6, compute/2, compute/3, compute_at/3, compute_at/4,
+-export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
+         spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          picked/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
          hold_utilization/3, drop_utilization/1, frame/2, failed/4, reach_lacked/2,
          foreign_lacked/1, lost/1]).
@@ -65,13 +64,6 @@
 %% declaration.
 -type identity() :: {function, binary()} | {lambda, binary(), pos_integer()}
                   | {foreign, [binary()]}.
-
-%% Report §8.7, §6.6: each value a function captured whose type carries a
-%% reply, with the descriptor of its type (ern_descriptor), which the
-%% compiler passes beside the function, so that a spawn that fails ends
-%% each call whose reply the function held without looking through any
-%% other value.
--type held_replies() :: [{term(), term()}].
 
 %%
 %% What the carrier gives
@@ -202,25 +194,23 @@ gateway_answer(Alias, MonitorRef, Deadline) ->
 %% the frame names, its address answered, or a failure, within the time;
 %% spawn/3 and spawn_monitored/4 are the declarations', which the compiler
 %% calls with the function's identity and captures in place of the
-%% function (ern_emitter's spawned/2), the spawn's site after them, and
-%% last the captures that carry a reply.
+%% function (ern_emitter's spawned/2), and the spawn's site after them.
 -spec spawn(binary(), fun(), integer()) -> no_return().
 spawn(_Name, _Function, _Ms) ->
     erlang:error(spawn_without_site).
 
--spec spawn(binary(), spawned(), integer(), binary(), held_replies()) ->
-          {'Right', pid()} | {'Left', term()}.
-spawn(Name, Spawned, Ms, Site, Replies) ->
-    not_started(spawned(Name, Spawned, none, Ms, Site), Replies).
+-spec spawn(binary(), spawned(), integer(), binary()) -> {'Right', pid()} | {'Left', term()}.
+spawn(Name, Spawned, Ms, Site) ->
+    spawned(Name, Spawned, none, Ms, Site).
 
 -spec spawn_monitored(binary(), fun(), fun(), integer()) -> no_return().
 spawn_monitored(_Name, _Function, _Wrap, _Ms) ->
     erlang:error(spawn_without_site).
 
--spec spawn_monitored(binary(), spawned(), fun(), integer(), binary(), held_replies()) ->
+-spec spawn_monitored(binary(), spawned(), fun(), integer(), binary()) ->
           {'Right', pid()} | {'Left', term()}.
-spawn_monitored(Name, Spawned, Wrap, Ms, Site, Replies) ->
-    not_started(spawned(Name, Spawned, Wrap, Ms, Site), Replies).
+spawn_monitored(Name, Spawned, Wrap, Ms, Site) ->
+    spawned(Name, Spawned, Wrap, Ms, Site).
 
 %% The spawn: its frame to the peer's gateway, whose answer comes through
 %% this node's gateway to the waiting process while it waits; a monitored
@@ -244,48 +234,6 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
             erlang:demonitor(MonitorRef, [flush]),
             started(Answer, Ref, Wrap)
     end.
-
-%% Report §8.7, §6.6: a spawn that failed, whatever its failure, its time
-%% run out after the frame went among them, ends every call whose reply its
-%% function held, as the callee's death ends it, since no process will
-%% answer it here; each reply is found in the captures that carry one, by
-%% their types' descriptors. A reply foreign code gave is its caller's to
-%% wait on, which waits as foreign code waits.
-not_started({'Left', _} = Failed, Replies) ->
-    lists:foreach(fun ern_rt:not_started/1,
-                  lists:append([replies(Descriptor, Value, #{})
-                                || {Value, Descriptor} <- Replies])),
-    Failed;
-not_started(Started, _Replies) ->
-    Started.
-
-%% The replies a value of the type Descriptor describes holds, Bound
-%% binding each mu's refs inside it.
-replies({reply, _, _}, Reply, _) when is_reference(Reply) ->
-    [Reply];
-replies({list, Element}, Values, Bound) when is_list(Values) ->
-    lists:append([replies(Element, Value, Bound) || Value <- Values]);
-replies({tuple, Elements}, Value, Bound) when is_tuple(Value) ->
-    lists:append([replies(Element, Item, Bound)
-                  || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))]);
-replies({map, _, Element}, Value, Bound) when is_map(Value) ->
-    lists:append([replies(Element, Item, Bound) || Item <- maps:values(Value)]);
-replies({con, Constructors}, Value, Bound) when is_tuple(Value) ->
-    [Tag | Fields] = tuple_to_list(Value),
-    case [Elements || Constructor <- Constructors, element(1, Constructor) =:= Tag,
-                      Elements <- [element(2, Constructor)]] of
-        [Elements] -> lists:append([replies(Element, Item, Bound)
-                                    || {Element, Item} <- lists:zip(Elements, Fields)]);
-        _ -> []
-    end;
-replies({abstract, Descriptor}, Value, Bound) ->
-    replies(Descriptor, Value, Bound);
-replies({mu, Id, Descriptor}, Value, Bound) ->
-    replies(Descriptor, Value, Bound#{Id => Descriptor});
-replies({ref, Id}, Value, Bound) ->
-    replies(maps:get(Id, Bound), Value, Bound);
-replies(_, _, _) ->
-    [].
 
 spawn_answer({_, Ref} = Key, MonitorRef, Deadline) ->
     receive

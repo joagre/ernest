@@ -335,56 +335,91 @@ spawn_by_identity_test() ->
     end.
 
 -define(HELD,
-        "export type Ask = Ask(Reply(Int))\n"
-        "export fn alone(peer : String) : Unit receiving Ask = receive {\n"
+        "export type Ask = Ask(Reply(Either(Io.Error, Int)))\n"
+        "export fn dropping(peer : String) : Unit receiving Ask = receive {\n"
         "    Ask(reply) -> {\n"
-        "        let _ = Peer.spawn(peer, fn() = answer(reply, 1), 1000);\n"
-        "        alone(peer)\n"
+        "        let _ = Peer.spawn(peer, fn() = answer(reply, Right(1)), 1000);\n"
+        "        dropping(peer)\n"
         "    }\n"
         "}\n"
         "export type Watched = Request(Ask) | Ended(Down)\n"
-        "export fn whole(peer : String) : Unit receiving Watched = receive {\n"
+        "export fn answering(peer : String) : Unit receiving Watched = receive {\n"
         "    Request(ask) -> {\n"
-        "        let _ = Peer.spawnMonitored(peer, fn() =\n"
-        "                                        match ask { Ask(reply) -> answer(reply, 2) },\n"
-        "                                    fn(down) = Ended(down), 1000);\n"
-        "        whole(peer)\n"
+        "        let spawned = Peer.spawnMonitored(peer, fn() =\n"
+        "                                              match ask {\n"
+        "                                                  Ask(reply) -> answer(reply, Right(2))\n"
+        "                                              },\n"
+        "                                          fn(down) = Ended(down), 1000);\n"
+        "        match spawned {\n"
+        "            Left(failure) -> match ask { Ask(reply) -> answer(reply, Left(failure)) }\n"
+        "          | Right(_) -> Unit\n"
+        "        };\n"
+        "        answering(peer)\n"
         "    }\n"
-        "  | Ended(_) -> whole(peer)\n"
+        "  | Ended(_) -> answering(peer)\n"
         "}\n").
 
-%% report §6.6, §7.4, §8.7: a spawn on a peer that fails ends every call
-%% whose reply its function held, as the callee's death ends it, though the
-%% callee lives: `Address.call` answers None, and `Address.callForever`
-%% faults with "callee did not start"; a reply captured alone and one inside
-%% a captured value alike, through Peer.spawn and Peer.spawnMonitored, the
-%% compiler passing the captures that carry a reply beside the function.
-%% Here the spawn names no peer, NotListed, in a program that is no node;
-%% the call's time is longer than the test's, so its None is the failed
-%% spawn's. A regression test, written after the code
-failed_spawn_ends_replies_test() ->
+%% report §6.6, §8.7: a reply a function spawned on a peer captured crosses
+%% as any value does, and the spawner keeps its copy, so a spawn that fails
+%% ends no call: the caller waits as on any reply no process has answered.
+%% `Address.call` answers None at its deadline, `Address.callForever` waits
+%% while the spawner lives and ends as its death ends it, and a spawner
+%% that answers through its copy gives the caller the failure; a reply
+%% captured alone and one inside a captured value, through Peer.spawn and
+%% Peer.spawnMonitored. Here the spawn names no peer, NotListed, in a
+%% program that is no node. A regression test, written after the code
+%% (MVP 3.26's item 2a); a spawn that fails on a node, and an answer from
+%% another node, are the nodes' (test/ern_nodes_tests.erl)
+failed_spawn_ends_no_call_test() ->
     Unit = 'ern@peerheld',
     _ = loaded(['Peerheld'], ?HELD),
     Self = self(),
+    %% the call's time: an answer that does not come is an absence, which
+    %% only a time shows, and any time shows it; the spawn's failure comes
+    %% at once, so that a call it ended would answer before the time
+    Time = 100,
     Main = fun() ->
-               AloneFunction = ern_named:function(Unit, alone),
-               WholeFunction = ern_named:function(Unit, whole),
-               Alone = ern_rt:spawn(fun() -> AloneFunction(<<"nobody">>) end, <<"M.f:1">>),
-               Whole = ern_rt:spawn(fun() -> WholeFunction(<<"nobody">>) end, <<"M.f:2">>),
-               Asks = [{Alone, fun(Reply) -> {'Ask', Reply} end},
-                       {Whole, fun(Reply) -> {'Request', {'Ask', Reply}} end}],
-               Called = [ern_rt:call(Server, Request, 600000) || {Server, Request} <- Asks],
-               Forever = [try ern_rt:call_forever(Server, Request)
-                          catch throw:{ern, fault, Cause} -> {faulted, Cause}
-                          end || {Server, Request} <- Asks],
-               Self ! {ended, Called, Forever, ets:tab2list(ern_calls)},
-               [ern_rt:kill(Server) || Server <- [Alone, Whole]]
+               DroppingFunction = ern_named:function(Unit, dropping),
+               AnsweringFunction = ern_named:function(Unit, answering),
+               Dropping = ern_rt:spawn(fun() -> DroppingFunction(<<"nobody">>) end, <<"M.f:1">>),
+               Answering = ern_rt:spawn(fun() -> AnsweringFunction(<<"nobody">>) end,
+                                        <<"M.f:2">>),
+               Ask = fun(Reply) -> {'Ask', Reply} end,
+               Before = erlang:monotonic_time(millisecond),
+               Called = ern_rt:call(Dropping, Ask, Time),
+               TimeRanOut = erlang:monotonic_time(millisecond) - Before >= Time,
+               %% the waits below count as timed, so that they are no
+               %% deadlock (§8.6): until the server has taken the first
+               %% ask and waits again, until its spawn for a second
+               %% caller's ask has failed, and for that caller's end once
+               %% the server is killed
+               ern_rt:timed(),
+               ok = ern_waits:until(Dropping,
+                                    fun() ->
+                                        erlang:process_info(Dropping, [message_queue_len, status])
+                                            =:= [{message_queue_len, 0}, {status, waiting}]
+                                    end),
+               Caller = self(),
+               Forever = fun() ->
+                             Caller ! {forever, try ern_rt:call_forever(Dropping, Ask)
+                                                catch throw:{ern, fault, Cause} -> {faulted, Cause}
+                                                end}
+                         end,
+               ok = ern_waits:returned(Dropping, {ern_peer, spawn, ['_', '_', '_', '_']},
+                                       fun() -> ern_rt:spawn(Forever, <<"M.f:3">>) end),
+               ern_rt:kill(Dropping),
+               Ended = receive {forever, Faulted} -> Faulted end,
+               ern_rt:untimed(),
+               Answered = ern_rt:call(Answering, fun(Reply) -> {'Request', {'Ask', Reply}} end,
+                                      600000),
+               Self ! {ended, Called, TimeRanOut, Ended, Answered, ets:tab2list(ern_calls)},
+               ern_rt:kill(Answering)
            end,
     try
         ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
-        NotStarted = {faulted, <<"callee did not start">>},
-        ?assertEqual({ended, ['None', 'None'], [NotStarted, NotStarted], []},
-                     receive {ended, _, _, _} = Got -> Got end)
+        ?assertEqual({ended, 'None', true, {faulted, <<"callee was killed">>},
+                      {'Some', {'Left', 'NotListed'}}, []},
+                     receive {ended, _, _, _, _, _} = Got -> Got end)
     after
         unloaded(Unit)
     end.

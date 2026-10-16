@@ -2041,9 +2041,9 @@ exchanged(Base) ->
              "\n"
              "export foreign fn absent() : Unit = \"lists:ern_absent_function/0\"\n",
     Sender = "// Report §8.7, §6.6: spawns and a compute of functions the receiver\n"
-             "// lacks, and calls whose replies a failed spawn held, each answer a line.\n"
+             "// lacks, and calls whose replies a failed spawn captured, each answer a line.\n"
              "\n"
-             "type Ask = Ask(Reply(Int))\n"
+             "type Ask = Ask(Reply(Either(Io.Error, Int)))\n"
              "\n"
              "export fn main() : Unit receiving Down =\n"
              "    match Os.arguments {\n"
@@ -2081,29 +2081,25 @@ exchanged(Base) ->
              "    Io.println(\"absent function: \" <> outcome(absent))\n"
              "}\n"
              "\n"
-             "// A call whose reply a failed spawn on peer held ends at once: Address.call\n"
-             "// answers None, and callForever faults.\n"
-             "fn ended(peer : String) : Unit receiving Down = {\n"
+             "// A call whose reply a failed spawn on peer captured is answered by the\n"
+             "// server, which keeps its copy of the reply: the failure.\n"
+             "fn ended(peer : String) : Unit = {\n"
              "    let server = spawn(fn() : Unit receiving Ask = serve(peer));\n"
              "    let called = Address.call(server, fn(reply) = Ask(reply), limit());\n"
-             "    Io.println(\"call \" <> peer <> \": \" <> Io.show(called));\n"
-             "    let _ = spawnMonitored(fn() = {\n"
-             "        let _ = Address.callForever(server, fn(reply) = Ask(reply));\n"
-             "        Unit\n"
-             "    }, fn(down) = down);\n"
-             "    receive {\n"
-             "        down ->\n"
-             "            Io.println(\"call forever \" <> peer <> \": \" <> Io.show(down.reason))\n"
-             "    }\n"
+             "    Io.println(\"call \" <> peer <> \": \" <> Io.show(called))\n"
              "}\n"
              "\n"
              "fn serve(peer : String) : Unit receiving Ask = receive {\n"
              "    Ask(reply) -> {\n"
              "        let spawned = Peer.spawn(peer, fn() = {\n"
              "            Lacked.told();\n"
-             "            answer(reply, 1)\n"
+             "            answer(reply, Right(1))\n"
              "        }, limit());\n"
              "        Io.println(\"server \" <> peer <> \": \" <> outcome(spawned));\n"
+             "        match spawned {\n"
+             "            Left(failure) -> answer(reply, Left(failure))\n"
+             "          | Right(_) -> Unit\n"
+             "        };\n"
              "        serve(peer)\n"
              "    }\n"
              "}\n"
@@ -2161,11 +2157,11 @@ exchanged(Base) ->
 %% function whose reach names a binding the receiver never
 %% ran, or a foreign declaration whose module it lacks, answers NotLoaded
 %% from the reach, before any code crosses, the receiver saying what it
-%% lacked; and a call whose reply a function held whose spawn failed ends at
-%% once, NotLoaded or NotListed alike, `Address.call` answering None and
-%% `Address.callForever` faulting with "callee did not start". A regression
-%% test, written after the code; that no code frame moves before NotLoaded
-%% is ern_exchange_tests', since no line marks it here. Each spawn, compute
+%% lacked; and a call whose reply a function captured whose spawn failed
+%% is answered by the spawner, which keeps its copy, with the failure,
+%% NotLoaded or NotListed alike. A regression test, written after the code;
+%% that no code frame moves before NotLoaded is ern_exchange_tests', since
+%% no line marks it here. Each spawn, compute
 %% and call of the sender waits as long as the test waits for the sender,
 %% and the test's limit is the sum of its sixteen waits, a line of the
 %% receiver's, the sender's end, ten lines and one more of the receiver's,
@@ -2186,7 +2182,7 @@ exchange(Base) ->
     WaitReceiver = start(Receiver, ReceiverProgram, []),
     prints(Receiver, "ready"),
     ?assertEqual(0, (start(Sender, SenderProgram, ["receiver", integer_to_list(?WAIT_MS)]))()),
-    Served = "the peer sender's spawn at Sender.serve:58 was not loaded: the binding Lacked.note"
+    Served = "the peer sender's spawn at Sender.serve:50 was not loaded: the binding Lacked.note"
              " has no value here",
     Lines = ["the peer sender's spawn at Sender.main:13 was not loaded: the binding Lacked.note"
              " has no value here",
@@ -2214,13 +2210,11 @@ exchange(Base) ->
      || Line <- ["plain: Right", "counted: Right(Count(2))",
                  "told: NotLoaded", "calls only: NotLoaded",
                  "server receiver: NotLoaded", "server nobody: NotListed",
-                 "call receiver: None", "call nobody: None",
-                 "call forever receiver: Fault(\"callee did not start\")",
-                 "call forever nobody: Fault(\"callee did not start\")",
+                 "call receiver: Some(Left(NotLoaded))", "call nobody: Some(Left(NotListed))",
                  "raises: Right", "spawner: Right", "yielded: Right", "collected: Right(true)",
                  "only by name: NotLoaded", "counts: Right", "absent function: NotLoaded"]],
     has(ReceiverOut, "Count(1)"),
-    ?assertEqual(2, length(string:split(ReceiverErr, Served, all)) - 1),
+    ?assertEqual(1, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.Count")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")),

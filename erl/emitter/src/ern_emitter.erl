@@ -1033,8 +1033,8 @@ string_binary(Text) ->
 
 %% A name used as a value: name_form(...) -> {Form, Context}. Report §4.2:
 %% what the name refers to is the form's reference, read and not decided
-%% here; Extra is what a form holds beside a use of `Address.call` or a
-%% spawn on a peer, or none.
+%% here; Extra is what a form holds beside a use of `Address.call` or
+%% `Address.callForever`, or none.
 name_form(Source, {local, Number}, [], _, Context) ->
     local_value(Source, Number, Context);
 name_form(_, {read, ReadName}, [], _, Context) ->
@@ -1252,22 +1252,16 @@ callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument],
 %% message type's hash, of the type the checker supplied; Peer.spawn,
 %% Peer.spawnMonitored, Peer.computeAt and Peer.compute send the function's
 %% identity and captures in place of the function, and the spawn's or the
-%% compute's site, as a spawn on this node keeps it (§6.9); a spawn passes
-%% last the captures that hold a reply, whose calls it ends where it fails
-%% (§6.6), as its form holds them, and a compute none, whose form holds
-%% none (Appendix H)
+%% compute's site, as a spawn on this node keeps it (§6.9)
 callee(_, {var, {named, ['Peer', service]}, [ServiceType]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     {call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType)]), Context1};
 callee(Source, {var, {named, ['Peer', compute]}, _}, _, [Spawned | Rest], Context) ->
-    %% a compute's form holds no reply (Appendix H); the node picks its peer
-    peer_spawn(Source, compute, [], [], Spawned, Rest, Context);
+    %% the node picks its peer
+    peer_spawn(Source, compute, [], Spawned, Rest, Context);
 callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest], Context)
   when Name =:= spawn; Name =:= spawnMonitored; Name =:= computeAt ->
-    peer_spawn(Source, Name, [], [PeerName], Spawned, Rest, Context);
-callee(Source, {var, {named, ['Peer', Name]}, _, Held}, _, [PeerName, Spawned | Rest], Context)
-  when Name =:= spawn; Name =:= spawnMonitored ->
-    peer_spawn(Source, Name, Held, [PeerName], Spawned, Rest, Context);
+    peer_spawn(Source, Name, [PeerName], Spawned, Rest, Context);
 %% Appendix E.28, report §3.11: Code.running, the identity of the
 %% declaration it names in place of the function, its hash (Appendix H),
 %% by which the runtime finds a frame of it in any unit that holds it
@@ -2204,18 +2198,18 @@ field_sets(Names, FieldSets, Context) ->
 
 %% Peered is the peer's name the operation takes before its function, or
 %% none for a compute whose peer the node picks.
-peer_spawn(Source, Name, Held, Peered, Spawned, Rest, Context) ->
+peer_spawn(Source, Name, Peered, Spawned, Rest, Context) ->
     {PeerForms, Context1} = exprs(Peered, Context),
-    {SpawnedForm, Replies, Context2} = spawned(Spawned, Held, Context1),
+    {SpawnedForm, Context2} = spawned(Spawned, Context1),
     {RestForms, Context3} = exprs(Rest, Context2),
-    {Function, Kept} = case Name of
-                           spawn -> {spawn, [erl_syntax:list(Replies)]};
-                           spawnMonitored -> {spawn_monitored, [erl_syntax:list(Replies)]};
-                           computeAt -> {compute_at, []};
-                           compute -> {compute, []}
-                       end,
+    Function = case Name of
+                   spawn -> spawn;
+                   spawnMonitored -> spawn_monitored;
+                   computeAt -> compute_at;
+                   compute -> compute
+               end,
     {call_remote(ern_peer, Function,
-                 PeerForms ++ [SpawnedForm | RestForms] ++ [site(Source, Context) | Kept]),
+                 PeerForms ++ [SpawnedForm | RestForms] ++ [site(Source, Context)]),
      Context3}.
 
 %% The function a spawn on a peer starts, or a compute runs, as its frame
@@ -2226,50 +2220,44 @@ peer_spawn(Source, Name, Held, Peered, Spawned, Rest, Context) ->
 %% in the order its body first names them, `{lambda, Hash, Position,
 %% Captures}`, an entry of this unit running it over them; and
 %% `restarting` over one of these with its limit, `{restarting, Limit,
-%% Spawned}`. The checker admitted only these (ern_bound). Beside the form,
-%% the captures that hold a reply, each the variable in force at it with
-%% its type's descriptor, which a spawn that fails reads the replies it
-%% holds by and ends their calls, looking through no other value (ern_peer):
-%% Held, which the form of the spawn holds (Appendix H).
-spawned(Spawned, Held, Context) ->
+%% Spawned}`. The checker admitted only these (ern_bound).
+spawned(Spawned, Context) ->
     {_, Node} = sourced(Spawned),
-    spawned_node(Node, Spawned, Held, Context).
+    spawned_node(Node, Spawned, Context).
 
-spawned_node({call, Callee, [Limit, Function]}, _, Held, Context) ->
+spawned_node({call, Callee, [Limit, Function]}, _, Context) ->
     case sourced(Callee) of
         {_, {var, {named, [restarting]}, []}} ->
             {LimitForm, Context1} = expr(Limit, Context),
-            {Inner, Replies, Context2} = spawned(Function, Held, Context1),
-            {erl_syntax:tuple([erl_syntax:atom(restarting), LimitForm, Inner]), Replies,
-             Context2};
+            {Inner, Context2} = spawned(Function, Context1),
+            {erl_syntax:tuple([erl_syntax:atom(restarting), LimitForm, Inner]), Context2};
         _ ->
             fail(none, "a spawn on a peer starts a function the checker refuses")
     end;
-spawned_node({lambda, _, _, _, _, _}, Lambda, Held,
-             #emit_context{variables = Variables} = Context) ->
-    spawned_lambda(Lambda, Variables, Held, Context);
-spawned_node({var, {local, Number}, _}, _, Held,
+spawned_node({lambda, _, _, _, _, _}, Lambda, #emit_context{variables = Variables} = Context) ->
+    spawned_lambda(Lambda, Variables, Context);
+spawned_node({var, {local, Number}, _}, _,
              #emit_context{variables = Variables, locals = Locals,
                            let_lambdas = LetLambdas} = Context) ->
     case {Variables, Locals} of
         {#{Number := Variable}, _} ->
             case LetLambdas of
-                #{Variable := {Lambda, Before}} -> spawned_lambda(Lambda, Before, Held, Context);
+                #{Variable := {Lambda, Before}} -> spawned_lambda(Lambda, Before, Context);
                 _ -> fail(none, "a spawn on a peer starts a local that names no lambda")
             end;
         {_, #{Number := Local}} ->
             spawned_local(Number, Local, Context)
     end;
-spawned_node({var, {foreign, QualifiedName, _}, _}, _, _, Context) ->
-    {foreign_identity(QualifiedName), [], Context};
-spawned_node({var, {hash, Hash}, _}, _, _, Context) ->
-    {erl_syntax:abstract({function, Hash}), [], Context};
-spawned_node({var, {named, QualifiedName} = Reference, _}, _, _, Context) ->
+spawned_node({var, {foreign, QualifiedName, _}, _}, _, Context) ->
+    {foreign_identity(QualifiedName), Context};
+spawned_node({var, {hash, Hash}, _}, _, Context) ->
+    {erl_syntax:abstract({function, Hash}), Context};
+spawned_node({var, {named, QualifiedName} = Reference, _}, _, Context) ->
     case linked(Reference, Context) of
-        #linked{identity = foreign} -> {foreign_identity(QualifiedName), [], Context};
-        #linked{identity = Hash} -> {erl_syntax:abstract({function, Hash}), [], Context}
+        #linked{identity = foreign} -> {foreign_identity(QualifiedName), Context};
+        #linked{identity = Hash} -> {erl_syntax:abstract({function, Hash}), Context}
     end;
-spawned_node(_, _, _, _Context) ->
+spawned_node(_, _, _Context) ->
     fail(none, "a spawn on a peer starts a function the checker refuses").
 
 %% The hash of the declaration Code.running names: its reference's, or,
@@ -2298,7 +2286,7 @@ foreign_identity(QualifiedName) ->
 
 %% A lambda a spawn on a peer starts, its captures the variables in force
 %% at it, Scope.
-spawned_lambda(Lambda, Scope, Held, Context) ->
+spawned_lambda(Lambda, Scope, Context) ->
     {Source, {lambda, Position, _, _, _, Body} = Node} = sourced(Lambda),
     Captures = captures(Node),
     Context1 = entry(Position, length(Captures),
@@ -2306,11 +2294,10 @@ spawned_lambda(Lambda, Scope, Held, Context) ->
                      Context),
     {spawned_identity(Position, [variable_form(maps:get(Number, Scope)) || Number <- Captures],
                       Context1),
-     held_replies(Held, Scope, Context1), Context1}.
+     Context1}.
 
 %% A local fn a spawn on a peer starts, its captures the variables in force
 %% at its declaration, or at the spawn where it comes first (report §5.4).
-%% Its form holds no reply its captures hold (Appendix H).
 spawned_local(Number, #local_fn{snapshot = Snapshot, function = Function,
                                 position = Position} = Local,
               #emit_context{variables = Variables} = Context) ->
@@ -2325,14 +2312,7 @@ spawned_local(Number, #local_fn{snapshot = Snapshot, function = Function,
     {spawned_identity(Position, [variable_form(maps:get(Captured, Scope))
                                  || Captured <- Captures],
                       Context1),
-     [], Context1}.
-
-%% Report §6.6, §8.7: each held capture, the variable in force at it with
-%% its type's descriptor.
-held_replies(Held, Scope, Context) ->
-    [erl_syntax:tuple([variable_form(maps:get(Number, Scope)),
-                       erl_syntax:abstract(descriptor(Type, Context))])
-     || {Number, Type} <- Held].
+     Context1}.
 
 %% The frame's identity of the lambda or local fn at Position, and its
 %% captures.
