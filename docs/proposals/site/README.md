@@ -26,9 +26,8 @@ What the prototype still lacks:
 - `ern` has no command that gives a source's tokens, which the coloring needs.
 - `releases/<version>.md` does not exist; the release step writes the notes
   only to GitHub today.
-- The favicon, a simplified stoat head, is still to draw.
 - The templates hold the first design, which `decisions.md` has moved past in
-  the header's stoat, the footer's rooms, the homepage's order and the shell's
-  controls; the fragments for a list's items do not exist yet.
+  the header's stoat, the favicon, the footer's rooms, the homepage's order and
+  the shell's controls; the fragments for a list's items do not exist yet.
 - The tour, whose document MVP 3.3 writes; until then the prototype has no
   tour pages.

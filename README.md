@@ -1,9 +1,9 @@
 <picture>
   <source media="(prefers-color-scheme: dark)"
-          srcset="assets/ernest-dark.svg">
+          srcset="assets/ernest-combined-dark.svg">
   <source media="(prefers-color-scheme: light)"
-          srcset="assets/ernest-light.svg">
-  <img src="assets/ernest-light.svg" alt="Ernest" width="75%">
+          srcset="assets/ernest-combined-light.svg">
+  <img src="assets/ernest-combined-light.svg" alt="Ernest" width="520">
 </picture>
 
 # Ernest

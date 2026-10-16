@@ -251,10 +251,12 @@ documents() ->
                  filelib:is_regular(filename:join("..", Document))].
 
 %% The links of the documents under a directory, at any depth, that name no
-%% file: a link's target and an image's source, each read from the
-%% document's own directory, an address with a scheme and an anchor of the
-%% document's own aside. Each is given by the document's path under the
-%% directory.
+%% file: a link's target and an image's source, a `<picture>`'s `srcset`
+%% among them, each read from the document's own directory, an address with
+%% a scheme and an anchor of the document's own aside. Each is given by the
+%% document's path under the directory. The `srcset` is read since
+%% 2026-10-16, when the logo's files were renamed: a regression test, which
+%% reads a `srcset` of one address and no other.
 dead_links(Directory) ->
     [{lists:nthtail(length(Directory), Document), Target}
      || Document <- filelib:wildcard(Directory ++ "**/*.md"),
@@ -263,7 +265,7 @@ dead_links(Directory) ->
 
 link_targets(Document) ->
     {ok, Text} = file:read_file(Document),
-    Pattern = "\\]\\(([^)#]+)[^)]*\\)|src=\"([^\"]+)\"",
+    Pattern = "\\]\\(([^)#]+)[^)]*\\)|(?:src|srcset)=\"([^\"]+)\"",
     case re:run(Text, Pattern, [global, {capture, all_but_first, list}]) of
         {match, Matches} ->
             [Target || Match <- Matches, Target <- Match,

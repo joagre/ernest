@@ -27,10 +27,7 @@ report/            the report (normative), in three files: language.md, ยง0 to ย
 guide/             the guides: language.md, the language guide; deployment.md,
                    Running Ernest, the operator's; why.md, the argument for the
                    design, its list held equal to the README's; and faq.md
-assets/            the logo the README, the guide and a release show, light and dark, the
-                   stoat mark alone as a vector and as a
-                   512-pixel avatar, and the social preview GitHub's settings take,
-                   with a note on each
+assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them
 docs/proposals/    what is designed, a directory for each proposal: the proposal, the

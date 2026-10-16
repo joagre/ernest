@@ -70,8 +70,8 @@ stage() {
     for f in build/stdlib/*.3ern build/libs/*/*.3ern; do
         shared "$f" "share/man/man3/$(basename "$f")"
     done
-    for f in LICENSE THIRD_PARTY_LICENSES ACKNOWLEDGMENTS.md assets/ernest-light.svg \
-             assets/ernest-dark.svg; do
+    for f in LICENSE THIRD_PARTY_LICENSES ACKNOWLEDGMENTS.md \
+             assets/ernest-combined-light.svg assets/ernest-combined-dark.svg; do
         shared "$f" "share/doc/ernest/$f"
     done
     # every document for a user of Ernest, by the directory it stands in;

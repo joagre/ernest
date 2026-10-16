@@ -17,7 +17,6 @@ The site's files as served.
 
     /                               the homepage
     /404.html                       any unmatched path, served with HTTP 404
-    /favicon.ico
     /robots.txt
     /sitemap.xml
     /why/                           guide/why.md
@@ -137,10 +136,12 @@ The site's files as served.
   `/assets/`, each at its path in the repository; the docroot holds no copy. A
   file the site takes from the repository keeps the repository's hierarchy, as
   `/man/` keeps `docs/man/`'s (decided 2026-10-13).
-- The full logo appears once, on the homepage, 230 px wide. Every other page's
-  header links home with the stoat, `ernest-mark.svg`, beside "Ernest". Dark
-  mode selects the dark logo through `<picture>`. The favicon is a simplified
-  stoat head.
+- The full logo appears once, on the homepage, 230 px wide:
+  `ernest-combined-light.svg`, and `ernest-combined-dark.svg` in dark mode,
+  which `<picture>` selects. Every other page's header links home with the
+  stoat, `ernest-mark.svg`, beside "Ernest". The favicon is
+  `ernest-avatar-64.png`, which every page names, and the docroot serves no
+  `/favicon.ico` (decided 2026-10-16).
 
 ## Links, 2026-10-13
 
@@ -174,7 +175,7 @@ The site's files as served.
   page declares, since a module's own type shadows the library's namespace
   (report §4.2).
 - Each page has a title, a one-line description, its first sentence, and
-  `ernest-social-preview.png` as the image a shared link shows.
+  `ernest-social-light.png` as the image a shared link shows.
 - The site build checks every internal link and anchor in `build/site/`, made or
   written, and fails on one that does not resolve.
 
