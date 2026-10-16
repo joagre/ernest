@@ -443,7 +443,8 @@ the same commit; then the log; then the code, by an agent from the settled repor
    whether a principle says what a type carries, what keeps values and messages safe and nothing
    more, is decided there. CLAUDE.md's first line and the README's change with §0.
 1. **The reply's obligation goes.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraphs of
-   that day), the held replies of §8.7 kept as decided here and reopened as a question below. §6.6 keeps what a call does at run time, the deadline, `None`
+   that day). The held replies of §8.7 were kept here and reopened by what the build found; decided
+   with the user the same day, they go, as item 2a below, built once item 2 has landed. §6.6 keeps what a call does at run time, the deadline, `None`
    or a fault where the callee ends before it answers, a late or second answer dropped, and the
    one sentence that a callee that lives on without answering holds a `callForever` caller; it
    loses the obligation and the rules for where a reply may stand. §3.9's three inferred
@@ -471,6 +472,16 @@ the same commit; then the log; then the code, by an agent from the settled repor
    the rest, the proposals' programs the tests run among them; the catalog of diagnostics; the
    guide as the proposal's section 7 and the findings' item 6 say, the front page's *What Ernest
    adds* and the README's lines the test holds equal to it among them; and `docs/man/` at the release.
+2a. **The held replies go** (decided 2026-10-16, the log's *Kill Darlings*, its paragraph *Held
+   replies*). With a reply a value, the spawner keeps its copy of a reply its function captured and
+   can answer the caller with the failure a spawn on a peer gives it, which the runtime's ending of
+   the call with `Fault("callee did not start")` took away; "whose types carry a reply" lost its
+   definition with the obligation; and a compute's or a local function's replies were never held.
+   The report first: §6.6's and §7.4's `Fault("callee did not start")`, §8.6's sentence on a
+   subscriber's reply a failed spawn held, §8.7's and E.27's sentences, Appendix H's `Held`, and
+   `soundness.md`'s sentences on them; then the emitter's `held_replies`, `not_started` in
+   `ern_peer` and `ern_rt`, their tests, and the glossary's *HeldReplies*. A failed spawn's
+   captured reply is then any dropped reply: the caller's deadline, or the spawner's own answer.
 3. **A library that waits**, the guide's §4.4 passage,
    [`guide_passage.md`](proposals/kill_darlings/guide_passage.md), after the queue, and §8.1's
    *Many at once* pointing at it, checked by `make test-guide`. The guide's §12 then gains three
