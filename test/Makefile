@@ -35,16 +35,15 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(NODES) $(DEPLOYM
 	  $(INSTALL) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar $(TYPED) $(SHELL_TESTS) ern_pty \
 	  ern_repository ern_measure)
 
-# Run the EUnit modules $(1), with the toolchain and the standard library on
-# the code path.
-EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
+# Run the EUnit modules $(1), with the toolchain on the code path.
+EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval \
 	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))]) of ok -> 0; _ -> 1 end).'
 comma := ,
 space := $(subst ,, )
 
 # The same, each module's tests side by side, as many at once as the host
 # has schedulers, for the areas whose tests each start a host of their own.
-EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'N = erlang:system_info(schedulers_online), \
 	  Ms = [$(subst $(space),$(comma) ,$(strip $(1)))], \
 	  halt(case eunit:test({inparallel, [{inparallel, N, M} || M <- Ms]}) of \
@@ -150,7 +149,7 @@ xref: $(EBIN)/ern_docs_tests.beam
 	  'halt(case eunit:test(ern_docs_tests, []) of ok -> 0; _ -> 1 end).'
 
 diagnostics: $(EBIN)/ern_guide_tests.beam
-	erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
+	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval \
 	  'ern_guide_tests:write_diagnostics(), halt().'
 
 contents: $(EBIN)/ern_docs_tests.beam
@@ -165,13 +164,13 @@ format: $(EBIN)/ern_style_tests.beam
 # Each prints its samples and whether it stayed flat, into build/load/ as
 # well.
 LOADS = processes supervisors sockets programs files alarms
-LOAD = erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN)
+LOAD = erl -noinput -pa ../erl/*/ebin -pa $(EBIN)
 load: $(EBIN)/ern_load.beam measured
 	@mkdir -p build/load/home
 	@$(LOAD) -eval 'ern_load:main(["inputs", "build/load/shell.in"])'
 	@status=0; \
 	for p in $(LOADS); do $(LOAD) -eval "ern_load:main([\"$$p\"])" 2>/dev/null || status=1; done; \
-	HOME=$(abspath build/load/home) $(LOAD) -pa $(abspath ../build/shell) \
+	HOME=$(abspath build/load/home) $(LOAD) \
 	  -eval 'ern_load:main(["shell"])' < build/load/shell.in > build/load/shell.out 2>&1 \
 	  || status=1; \
 	cat build/load/shell.txt; exit $$status
@@ -196,11 +195,11 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt 2> build/bench/faults.txt \
 	  || { tail -20 build/bench/faults.txt >&2; exit 1; }
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
-	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_measure:main(["build/bench/library.txt"])'
-	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_node_costs:main(["build/bench/nodes"])'
-	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_code_costs:main(["build/bench/code"])'
 
 clean:

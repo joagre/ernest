@@ -17,6 +17,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | diagnostics | `ern_diagnostic`, in `shared`, beneath every stage | a `#diagnostic{}`, the source | the text of §11.5 |
 | chunks | `ern_chunk`, in `shared`, which reads a compiled module's chunk as data alone (§11.1) | a chunk's bytes | the term, or `error` |
 | namespaces | `ern_namespace`, in `shared`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1) | a component or a segment | the other |
+| tree | `ern_tree`, in `shared`, the toolchain's tree and the builds of its own under it (§11.1, §11.2) | a build's path | its directory |
 | cli | the modules below | command lines, shell inputs | `ern`'s jobs, a session |
 
 `erl/json` is the one application beside the stages, `libs/json`'s primitives (*The libraries' primitives*).
@@ -40,7 +41,7 @@ The modules of `cli`:
 
 ### The launcher
 
-`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput`, `erl/*/ebin`, `build/stdlib` and `build/shell` on its code path; its header comment says what else it sets and why. It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`install.md`](install.md) lays out the installed tree.
+`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and `erl/*/ebin` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's two libraries is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`install.md`](install.md) lays out the installed tree.
 
 `ern_cli:start/0` installs `ern_signals` again, for a caller that is no launcher, and runs `ern_cli:ern/2`, whose status the host ends with (§11.8).
 
@@ -252,7 +253,9 @@ The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_epmd` and `ern
 
 ### The code table
 
-The code table (§8.7) is `ern_code`'s bag of that name, made at its first use by a process of its own (`ensure/0`). `loaded/1`, `loaded/2` and `loaded/3` put a unit's rows as it loads, read from its `'$code'/0`; `unloaded/1` takes them.
+The code table (§8.7) is `ern_code`'s bag of that name, made at its first use by a process of its own (`ensure/0`). `load/3` loads a unit from its file, and `loaded/2` and `loaded/3` put a unit's rows as it loads, read from its `'$code'/0`; `unloaded/1` takes them.
+
+`ensure_loaded/1` loads a module where the host holds none of its name, as the host's `code:ensure_loaded/1` does: a unit of the toolchain's own from its `.erc`, which `own_file/1` finds by namespace in `build/stdlib`, `build/shell`, `build/libs/ansi` and `build/libs/markdown`, and any other module as the host loads it. The runtime's error handler, `ern_rt:undefined_function/3`, calls it at a first call, on every process the runtime starts and on the one each job runs in (`ern_cli:start/0`); `ern_code:function/2` calls it too.
 
 Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`, `{unit, Unit}`, `{binding, QualifiedName, Hash}`, `{foreign, QualifiedName}`, `{declared, QualifiedName}`, and `{forms, Unit}` for what a unit's compiled form records. The module's header comment gives each row.
 
@@ -273,7 +276,7 @@ Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`
 
 ### The standard library
 
-Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by `make` from `src/stdlib/` into `build/stdlib`. The standard library is every `ern@` module in a `stdlib` directory on the code path, and `ern build` lets its source root take prelude namespaces (`ern_build:is_stdlib_root/1`, §4.2).
+Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by `make` from `src/stdlib/` into `build/stdlib`, one `.erc` each. The standard library is every `.erc` of that directory beside the toolchain (`ern_prelude:stdlib_files/0`), whose interfaces the checker reads and whose modules a run loads at its start, for their initializers (`ern_rt:stdlib_modules/0`, §8.5). The library's own build sets the directory aside (`ern_prelude:set_stdlib_directory/1`), and `ern build` lets its source root take prelude namespaces (`ern_build:is_stdlib_root/1`, §4.2).
 
 `ern_prelude` holds §9 alone. A module declares its own types, and a prelude operation in a type's namespace, `Int.compare`, is in that type's module.
 
@@ -311,7 +314,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 ### The shell
 
-The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` with `libs/markdown` and `libs/ansi` beside it. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`shell_design.md`](shell_design.md) holds the design.
+The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`shell_design.md`](shell_design.md) holds the design.
 
 `ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/4`, the input a module of its own (§11.2).
 

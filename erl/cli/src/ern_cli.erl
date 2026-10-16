@@ -665,10 +665,15 @@ application_code(Directory) ->
                                                  not lists:member(filename:rootname(Name), Tests)].
 
 %% Report §11.4: the time of libs/markdown's compiled code, which lays a
-%% manual page out, where the runtime loads it from (in_runtime/2); none
-%% where no path holds it, and laying a page out then fails in the runtime.
+%% manual page out: the file the host holds it from, or else the one the
+%% runtime loads it from at its first call (in_runtime/2); none where
+%% there is none, and laying a page out then fails in the runtime.
 markdown_modified() ->
-    [Time || File <- [code:which('ern@markdown')], is_list(File), {ok, Time} <- [modified(File)]].
+    Found = case code:is_loaded('ern@markdown') of
+                {file, File} -> {ok, File};
+                false -> ern_code:own_file('ern@markdown')
+            end,
+    [Time || {ok, File} <- [Found], {ok, Time} <- [modified(File)]].
 
 %% A file's last modification, in seconds, as the host gives it.
 modified(File) ->
@@ -979,8 +984,10 @@ config(_Options, _Rest, _ErrorDevice) ->
 %% initializers (§8.5) before the shell starts.
 shell(Options, Rest, ErrorDevice) ->
     quiet_signals(),
+    %% report §11.2: the shell's modules are loaded from build/shell as each
+    %% is first called (ern_code:ensure_loaded/1)
     ErlangModule = ern_namespace:erlang_module(['Shell']),
-    case code:ensure_loaded(ErlangModule) of
+    case ern_code:ensure_loaded(ErlangModule) of
         {module, ErlangModule} -> ok;
         _ -> ern_build:fail("the shell is not built; run make")
     end,
@@ -1589,31 +1596,12 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
             [ErlangModule | Loaded1]
     end.
 
-%% Report §11.2: a module the host holds already, with this very code from
-%% this file, is taken as it is: `ern test` over a directory loads a module
-%% again for each file whose program uses it, in one node. A module of a
-%% name the host holds other code of is an earlier program's, which ran in
-%% this host and ended: an earlier run's of `ern test` over a directory,
-%% where a unit is held for its run and not the node's life, or an earlier
-%% one's of the toolchain's own tests, which run program after program in
-%% one host. The host's old code of the name is purged first, which the
-%% host requires before it loads the name again, and which kills no
-%% process, since every process of an ended program has ended with it
-%% (§8.6), and reaches no function of it, since an adapted address the
-%% earlier run made is dead (ern_rt:adapted/2).
+%% Report §11.2: a module loaded from its file, or taken as the host holds
+%% it (ern_code:load/3), and in the code table as it loads (§8.7).
 loaded_unit(ErlangModule, File, Beam) ->
-    case ern_code:is_held(ErlangModule, Beam) andalso code:which(ErlangModule) =:= File of
-        true ->
-            ok;
-        false ->
-            code:purge(ErlangModule),
-            case code:load_binary(ErlangModule, File, Beam) of
-                {module, ErlangModule} ->
-                    %% report §8.7: in the code table as it loads
-                    ern_code:loaded(ErlangModule, Beam);
-                {error, Error} ->
-                    ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))
-            end
+    case ern_code:load(ErlangModule, File, Beam) of
+        ok -> ok;
+        {error, Error} -> ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))
     end.
 
 %% Report §11.1, §4.1: a module whose load waits on its own load uses

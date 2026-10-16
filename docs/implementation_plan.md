@@ -564,7 +564,13 @@ uses it, which §11.1 calls an error, and in that case alone a load refused and 
 new unit. The shape of the fix: the shell refuses the cycle as `ern build` refuses one, naming its
 modules, with a regression test in the shell's tests.
 
-**Before the tag: one file for one module.** Found 2026-10-17 with the user, reading the release.
+**Before the tag: one file for one module.** Done 2026-10-17 (the log's *Before the Tag, the Last
+Builds*): a compiled module of the standard library's or the shell's is loaded from its `.erc` at
+its first call, through the runtime's error handler and `ern_code`, and never before; the copies,
+their Makefile loops and the two build directories on the host's code path are gone; the dialyzer
+alone keeps copies of its own, since it reads `.beam` names; two Makefile lines remove an old
+checkout's copies and go after the tag (MVP 3.27). Found 2026-10-17 with the user, reading the
+release.
 A compiled module is `list.erc` by its namespace, which every finder of `ern`'s own goes by
 (§11.1), and the build copies it to `ern@list.beam` beside it, since the host's loader resolves a
 module's name to a `.beam` on the code path and nothing else, and the tools, the checker and the
@@ -726,7 +732,9 @@ The nodes tests' about sixty limits, each a number of its own today, are derived
 test waits for, as the plan's *Before the tag: the programs tests* leaves them; and a nodes test of
 a peer's connection lost and opened again under a function that waits, which no test runs today and
 §8.7's sentence that a loss ends the waits that began before the node ran it describes, joins them
-(decided with the user on 2026-10-16).
+(decided with the user on 2026-10-16). The two Makefile lines that remove an old checkout's `.beam`
+copies of compiled modules, `rm -f build/*/ern@*.beam` in the `stdlib` and `shell` rules, go here,
+every checkout having been built since 0.4.0.
 
 ## MVP 3.3 (the tour)
 

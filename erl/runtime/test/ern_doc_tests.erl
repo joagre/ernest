@@ -227,7 +227,8 @@ collect(Tag, Acc) ->
 %% A standard library module's own beam comes back after its examples ran.
 restore(ErlangModule, Original) when is_list(Original) ->
     code:purge(ErlangModule),
-    {module, ErlangModule} = code:load_abs(filename:rootname(Original)),
+    {ok, Beam} = file:read_file(Original),
+    {module, ErlangModule} = code:load_binary(ErlangModule, Original, Beam),
     code:purge(ErlangModule);
 restore(ErlangModule, _) ->
     code:purge(ErlangModule),
@@ -596,7 +597,7 @@ stdlib_targets_test() ->
                   {QualifiedName, Scheme} <- maps:to_list(Values),
                   Arity <- [arity(Scheme)],
                   ErlangModule <- [ern_namespace:erlang_module(Namespace)],
-                  code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
+                  ern_code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
                       orelse not is_map_key(QualifiedName, Positions)
                       orelse not erlang:function_exported(
                                    ErlangModule,

@@ -65,7 +65,7 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
     %% report §11.1: the roots a dependency is found under, the build root
     %% and then each root of the load path
     DependencyRoots = [BuildRoot | load_path(Options)],
-    SetAside = set_aside_installed_stdlib(SourceRoot, BuildRoot),
+    SetAside = set_aside_installed_stdlib(SourceRoot),
     try
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
@@ -99,7 +99,7 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                 {1, Compiled}
         end
     after
-        code:add_pathsa(SetAside)
+        put_back(SetAside)
     end.
 
 %% The modules the files are, and a failure for each file whose path is
@@ -141,11 +141,11 @@ compiled_in_order(Order, SourceRoot, BuildRoot) ->
                      true -> none;
                      false -> stdlib_hash()
                  end,
-    SetAside = set_aside_installed_stdlib(SourceRoot, absolute(BuildRoot)),
+    SetAside = set_aside_installed_stdlib(SourceRoot),
     try
         built(Order, [], {SourceRoot, [BuildRoot], {memory, #{}}, StdlibHash})
     after
-        code:add_pathsa(SetAside)
+        put_back(SetAside)
     end.
 
 %% Report §11.1, §11.5: every module built, in order, but one that uses a
@@ -687,7 +687,7 @@ build_root(Options, SourceRoot) ->
     case proplists:get_value(build_root, Options) of
         undefined ->
             case is_stdlib_root(SourceRoot) of
-                true -> absolute(filename:join([tree(), "build", "stdlib"]));
+                true -> ern_tree:build("stdlib");
                 false -> SourceRoot
             end;
         Given -> absolute(Given)
@@ -696,17 +696,17 @@ build_root(Options, SourceRoot) ->
 %% Report §11.1: the standard library's own root takes its namespaces from
 %% this build's .erc files, so its installed copy, which the checker reads
 %% as the library and which a build of ern in another chunk format may have
-%% written, is off the code path while the library builds; the directories
-%% set aside, which return to the path when the build ends.
-set_aside_installed_stdlib(SourceRoot, BuildRoot) ->
+%% written, is set aside while the library builds, and put back when the
+%% build ends (put_back/1); the directory set aside, or kept where another
+%% root builds.
+set_aside_installed_stdlib(SourceRoot) ->
     case is_stdlib_root(SourceRoot) of
-        true ->
-            SetAside = [Dir || Dir <- code:get_path(), absolute(Dir) =:= BuildRoot],
-            lists:foreach(fun code:del_path/1, SetAside),
-            SetAside;
-        false ->
-            []
+        true -> {set_aside, ern_prelude:set_stdlib_directory(none)};
+        false -> kept
     end.
+
+put_back({set_aside, Directory}) -> ern_prelude:set_stdlib_directory(Directory);
+put_back(kept) -> kept.
 
 -spec is_stdlib_root(file:filename()) -> boolean().
 is_stdlib_root(SourceRoot) ->
@@ -715,13 +715,7 @@ is_stdlib_root(SourceRoot) ->
 %% Report §4.2: the standard library's source root, `src/stdlib/` in the
 %% toolchain's tree.
 stdlib_root() ->
-    absolute(filename:join([tree(), "src", "stdlib"])).
-
-%% The toolchain's tree, the checkout or an installation's lib/ernest, found
-%% from where this module was loaded, its erl/cli/ebin.
-tree() ->
-    Here = absolute(code:which(?MODULE)),
-    filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))).
+    filename:join([ern_tree:tree(), "src", "stdlib"]).
 
 %% Report §4.2: the namespaces a module may not take, the prelude's and the
 %% standard library's.
@@ -1048,8 +1042,8 @@ is_compiled_against(_, _, _, _) ->
 compiler_modules() ->
     [ern_ast, ern_bitspec, ern_bound, ern_canonical, ern_chunk, ern_compile, ern_descriptor,
      ern_diagnostic, ern_docs, ern_emitter, ern_exhaust, ern_format, ern_interface, ern_lexer,
-     ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_scope, ern_typecheck, ern_types,
-     ern_build].
+     ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_scope, ern_tree, ern_typecheck,
+     ern_types, ern_build].
 
 %% Report §11.1, §11.2: the build of ern, its version and a hash of the
 %% modules that compile, so that a compiler changed under one version is

@@ -24,8 +24,9 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples
 # The Ernest trees, src/stdlib/, src/libs/, src/shell/ and tools/, are built by `ern build`
 # every time, and its own rule decides what in each to compile again, by the
 # sources' and the interfaces' hashes (report §11.1): make keeps no stamp of
-# its own, whose times would disagree with the sources' contents. A copy of
-# a module under its Erlang name is written only where its content differs.
+# its own, whose times would disagree with the sources' contents. Each
+# module is one file, its .erc, which ern loads by its namespace as it is
+# first called (report §11.2), and the host's code path holds none.
 
 # The helper that runs a program for Os.run (report Appendix E.23), written
 # in C since the host's ports cannot keep a program's standard error apart,
@@ -52,24 +53,21 @@ $(EXEC): erl/runtime/c_src/ern_exec.c
 	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -Werror -o $@ $<
 
 # The standard library written in Ernest: src/stdlib/ compiled by ern build
-# into build/stdlib under its Erlang module name, where the tools put it on
-# the code path and the checker reads its interface (plan, MVP 2.5). ern
-# build recompiles what a changed compiler changes (report §11.1). A copy
-# under the Erlang name whose module the sweep removed is removed with it.
+# into build/stdlib, where the checker reads its interfaces and a run loads
+# its modules (report §11.1, plan MVP 2.5). ern build recompiles what a
+# changed compiler changes (report §11.1). A copy under the Erlang name,
+# which an earlier build put beside each module for the host's loader, is
+# removed.
 stdlib:
 	@bin/ern build --build-root build/stdlib src/stdlib
-	@for f in build/stdlib/*.erc; do b=build/stdlib/ern@$$(basename $$f .erc).beam; \
-	  cmp -s $$f $$b || cp $$f $$b; done
-	@for b in build/stdlib/ern@*.beam; do m=$${b#build/stdlib/ern@}; \
-	  [ -f build/stdlib/$${m%.beam}.erc ] || rm -f $$b; done
+	@rm -f build/stdlib/ern@*.beam
 
 # The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
 # its own, compiled into build/libs/<name>, which a program adds with
 # --load-path. libs/ansi is compiled first, after the standard library,
 # since libs/markdown writes its styles with it (report Appendix G.3), and
 # the others then side by side, each against it. A library whose directory
-# is gone has its build removed with it, as the standard library's copies
-# are.
+# is gone has its build removed with it.
 LIBS = $(sort $(notdir $(patsubst %/,%,$(wildcard src/libs/*/))))
 LIB_BUILDS = $(LIBS:%=lib-%)
 LIB_PATH = --load-path build/libs/ansi --load-path build/libs/markdown
@@ -84,25 +82,15 @@ $(filter-out lib-ansi,$(LIB_BUILDS)): lib-%: lib-ansi
 	  src/libs/$*
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): src/shell/
-# compiled by ern build into build/shell, where `ern shell` finds it on the
-# code path. A copy whose module is gone is removed, as the standard
-# library's are.
-shell: libs shell-libs
+# compiled by ern build into build/shell, where `ern shell` loads it by
+# namespace, with libs/ansi and libs/markdown, which it renders and styles
+# documentation with and is compiled against, from their builds under
+# build/libs. The copies an earlier build put in build/shell for the
+# host's loader, of the shell's modules and of the two libraries, are
+# removed.
+shell: libs
 	@bin/ern build $(LIB_PATH) --build-root build/shell src/shell
-	@find build/shell -name '*.erc' | while read f; do \
-	  m=$${f#build/shell/}; b=build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; \
-	  cmp -s $$f $$b || cp $$f $$b; done
-	@for b in build/shell/ern@*.beam; do m=$${b#build/shell/ern@}; \
-	  [ "$$m" = markdown.beam ] || [ "$$m" = ansi.beam ] \
-	  || [ -f build/shell/$$(echo $${m%.beam} | tr @ /).erc ] || rm -f $$b; done
-
-# The shell renders documentation with libs/markdown, and styles it with
-# libs/ansi, which it is compiled against and which ship beside it in
-# build/shell, where `ern doc --man` finds libs/markdown too.
-shell-libs: lib-ansi lib-markdown
-	@mkdir -p build/shell
-	@for l in ansi markdown; do cmp -s build/libs/$$l/$$l.erc build/shell/ern@$$l.beam \
-	  || cp build/libs/$$l/$$l.erc build/shell/ern@$$l.beam; done
+	@rm -f build/shell/ern@*.beam
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -127,8 +115,8 @@ $(LIBS:%=pages-%): pages-%:
 # which tools/manual.ern writes into build/man with the standard library's
 # pages in its SEE ALSO. make writes them, so that make install, which a
 # user may run as another, only copies. What they are made from is built
-# first: the trees, and libs/markdown, which lays a page out, copied into
-# the shell's tree, where `ern doc --man` finds it. The shell is built
+# first: the trees, and libs/markdown, which lays a page out, and which
+# `ern doc --man` loads from build/libs/markdown. The shell is built
 # beside the pages, and every job runs side by side with those it does not
 # need. `ern doc` writes a page only where none is there or the one there
 # is older than what it is made from (report §11.4), and make writes ern(1)
@@ -140,10 +128,10 @@ manual:
 	@$(MAKE) -s $(SIDE_BY_SIDE) -O shell tools $(MANUALS)
 	@$(MAKE) -s build/man/ern.1
 
-manual-stdlib: stdlib shell-libs
+manual-stdlib: stdlib lib-markdown
 	@bin/ern doc --man --build-root build/stdlib src/stdlib
 
-$(LIBS:%=manual-%): manual-%: lib-% shell-libs
+$(LIBS:%=manual-%): manual-%: lib-% lib-markdown
 	@bin/ern doc --man --source-root src/libs/$* --load-path build/libs/ansi \
 	  --build-root build/libs/$* src/libs/$*
 
@@ -376,27 +364,29 @@ clean:
 # to the emitter.
 golden: all
 	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_emitter_tests.beam
-	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin -pa $(abspath build/stdlib) \
+	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin \
 	  -eval 'ern_emitter_tests:write_golden(), halt().'
 
 # Dialyzer over the toolchain's Erlang, its tests aside, and over the Erlang
 # the compiler writes for the standard library, the shell and the
-# libraries, a library's .erc copied under its module's name, since
-# Dialyzer reads only a .beam (docs/release_review.md). The table of the
-# host's applications the toolchain calls is built once, into
-# build/dialyzer.plt, and Dialyzer checks it against the host at each run.
+# libraries, each .erc copied into build/dialyzer under its module's name,
+# since Dialyzer reads a module only from a file whose name ends in .beam
+# (docs/release_review.md). The table of the host's applications the
+# toolchain calls is built once, into build/dialyzer.plt, and Dialyzer
+# checks it against the host at each run. A function one of those
+# applications calls in another the table does not hold, os_mon's alarms
+# in sasl, is the host's and not the toolchain's, and is not said as the
+# table is built, where it ended the first run with status 2.
 DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools \
 		os_mon
 dialyzer: all
-	@test -f build/dialyzer.plt || \
-	  dialyzer --build_plt --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)
+	@test -f build/dialyzer.plt || dialyzer --build_plt -Wno_unknown \
+	  --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)
 	@rm -rf build/dialyzer && mkdir -p build/dialyzer
-	@for d in build/libs/*; do (cd $$d && find . -name '*.erc') | while read -r f; do \
-	  m=$${f#./}; cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
+	@for d in build/stdlib build/shell build/libs/*; do (cd $$d && find . -name '*.erc') \
+	  | while read -r f; do m=$${f#./}; \
+	    cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
 	@dialyzer --plt build/dialyzer.plt $(filter-out %_tests.beam,$(wildcard erl/*/ebin/*.beam)) \
-	  $(wildcard build/stdlib/ern@*.beam) \
-	  $(filter-out build/shell/ern@markdown.beam build/shell/ern@ansi.beam,\
-	    $(wildcard build/shell/ern@*.beam)) \
 	  build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
@@ -470,7 +460,7 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 
-.PHONY: all $(APP_BUILDS) stdlib libs $(LIB_BUILDS) shell shell-libs tools manual $(MANUALS) \
+.PHONY: all $(APP_BUILDS) stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
         man $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \

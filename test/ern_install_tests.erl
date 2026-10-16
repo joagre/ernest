@@ -65,7 +65,13 @@ parts({Base, Ms}) ->
 %% installed, and the check found reading the top directory alone since the
 %% report and the guide moved below it. A document of tour/, which the
 %% checkout does not hold yet, and one two directories down are not
-%% covered. Answers the directory the parts after it work in.
+%% covered. So is that the installed standard library is one file for each
+%% of its modules, its `.erc`, and the shell's build one for each of the
+%% shell's: written on 2026-10-17, when the copies of each under its
+%% Erlang name, which the host's loader read from the code path, went, and
+%% `ern` came to load each module from its `.erc`; it does not cover a
+%% library's build under build/libs. Answers the directory the parts
+%% after it work in.
 install() ->
     Version = version(),
     Base = filename:absname("build/install"),
@@ -77,6 +83,8 @@ install() ->
     ?assertEqual([], forms_missing(Base ++ "/a")),
     ?assertEqual([], test_modules(filelib:wildcard(Base ++ "/a/lib/ernest/erl/*/ebin/*.beam"))),
     ?assertNot(filelib:is_dir(Base ++ "/a/lib/ernest/src")),
+    ?assertEqual(compiled("../src/stdlib"), installed(Base ++ "/a/lib/ernest/build/stdlib")),
+    ?assertEqual(compiled("../src/shell"), installed(Base ++ "/a/lib/ernest/build/shell")),
     Documents = Base ++ "/a/share/doc/ernest/",
     {ok, Installed} = file:read_file(Documents ++ "README.md"),
     ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
@@ -301,6 +309,16 @@ forms_missing(Dir) ->
                  {ok, _, Chunks} = beam_lib:all_chunks(Beam),
                  not lists:keymember("ErnC", 1, Chunks)
              end].
+
+%% The `.erc` each module of a source root compiles to, by its path.
+compiled(SourceRoot) ->
+    lists:sort([filename:rootname(Source) ++ ".erc"
+                || Source <- filelib:wildcard("**/*.ern", SourceRoot)]).
+
+%% Every file under a directory, by its path.
+installed(Dir) ->
+    lists:sort([File || File <- filelib:wildcard("**/*", Dir),
+                        not filelib:is_dir(filename:join(Dir, File))]).
 
 %% The modules under a directory that carry the host's debug information.
 debug_information(Dir) ->

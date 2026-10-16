@@ -70,9 +70,9 @@
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
-         spawn_order/1, init_stdlib/0, init_modules/1, initialized/1, offer/2, offered/2,
-         set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
-         note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
+         spawn_order/1, init_stdlib/0, stdlib_modules/0, init_modules/1, initialized/1, offer/2,
+         offered/2, set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3,
+         drop_note/1, note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -1870,8 +1870,11 @@ in_foreign(Function) ->
 %% Report §8.6: the host loads a module at the first call into it, and the
 %% caller waits on the code server meanwhile, which is the host's work and
 %% not a receive of the caller's. Every process the runtime starts has this
-%% module as its error handler (run/1), which counts the load as a foreign
-%% call is counted and leaves the call itself to the host's handler.
+%% module as its error handler (run/1), and so does the one each of ern's
+%% jobs runs in (ern_cli:start/0), which counts the load as a foreign call
+%% is counted and leaves the call itself to the host's handler. Report
+%% §11.2: a unit of the toolchain's own is loaded from its `.erc` at that
+%% first call, as the host loads a module of its own (load/1).
 -spec undefined_function(module(), atom(), [term()]) -> term().
 undefined_function(ErlangModule, Function, Args) ->
     load(ErlangModule),
@@ -1882,13 +1885,15 @@ undefined_lambda(ErlangModule, Function, Args) ->
     load(ErlangModule),
     error_handler:undefined_lambda(ErlangModule, Function, Args).
 
-%% Report §8.7: a unit loaded on demand is in the code table as it loads,
-%% its compiled form read from the path for what it adds to the host's
-%% counts (ern_code:loaded/1), the host's work as the load is.
+%% Report §8.7, §11.2: a module loaded on demand, a unit of the
+%% toolchain's own from its `.erc` and in the code table as it loads, any
+%% other as the host loads it (ern_code:ensure_loaded/1), the host's work
+%% as the load is. The code table's own module the host loads, since its
+%% first call would come back here.
 load(ErlangModule) ->
     in_foreign(fun() ->
-                   code:ensure_loaded(ErlangModule),
-                   ern_code:loaded(ErlangModule)
+                   {module, ern_code} = code:ensure_loaded(ern_code),
+                   ern_code:ensure_loaded(ErlangModule)
                end).
 
 count(Field, Increment) ->
@@ -3298,28 +3303,34 @@ sink_flushed(Sink) ->
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`
 %% among them, are evaluated once at program start like any other module's;
 %% the runner initializes the program's own modules, the runtime these,
-%% which are build output on the code path rather than modules of the load
-%% path.
+%% which are build output beside the toolchain rather than modules of the
+%% load path.
 -spec init_stdlib() -> ok.
 init_stdlib() ->
     run_inits(stdlib_modules()).
 
 %% The standard library's modules, loaded, in the order their initializers
-%% run: every ern@ module in a `stdlib` directory on the code path, as the
-%% checker finds them (ern_prelude:stdlib_interfaces/0). The shell's modules
-%% are on the same path and are not the standard library's; the shell
-%% initializes them as a program's own (init_modules/1).
+%% run: one for every `.erc` of the library's directory, as the checker
+%% finds them (ern_prelude:stdlib_files/0), by the Erlang name its file's
+%% name gives it (report §11.1), each where the host holds none of it
+%% loaded from its file and put in the code table as it loads (§8.7), so
+%% that a node holds every definition of the library. The shell's modules
+%% are not the standard library's; the shell initializes them as a
+%% program's own (init_modules/1). A test that calls the library outside a
+%% run loads it so.
+-spec stdlib_modules() -> [module()].
 stdlib_modules() ->
-    Files = lists:usort(lists:append([filelib:wildcard(filename:join(Dir, "ern@*.beam"))
-                                      || Dir <- code:get_path(),
-                                         filename:basename(Dir) =:= "stdlib"])),
-    ErlangModules = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
-    %% report §8.7: each in the code table as it loads
-    lists:foreach(fun(ErlangModule) ->
-                      code:ensure_loaded(ErlangModule),
-                      ern_code:loaded(ErlangModule)
-                  end, ErlangModules),
-    ordered(ErlangModules).
+    ordered([stdlib_module(File) || File <- ern_prelude:stdlib_files()]).
+
+%% A module of the standard library, loaded; one that cannot be loaded is a
+%% broken build of the toolchain, said as such.
+stdlib_module(File) ->
+    ErlangModule = ern_namespace:erlang_module(
+                     ern_namespace:namespace([filename:basename(File, ".erc")])),
+    case ern_code:ensure_loaded(ErlangModule) of
+        {module, ErlangModule} -> ErlangModule;
+        {error, Error} -> error({broken_standard_library, File, Error, "rebuild it with make"})
+    end.
 
 %% Report §8.5: the top-level lets of the modules given and of the modules
 %% they depend on through `'$deps'/0`, dependencies first, each module once;
@@ -3589,7 +3600,8 @@ drop_callee_notes(Pid, ExitReason) ->
 
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and
-%% is the alphabetical one the code path gives.
+%% is the order given, for the standard library its files' alphabetical
+%% one (ern_prelude:stdlib_files/0).
 -spec ordered([module()]) -> [module()].
 ordered(ErlangModules) ->
     {Order, _} = lists:foldl(fun(ErlangModule, Acc) ->

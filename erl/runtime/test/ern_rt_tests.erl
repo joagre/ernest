@@ -307,7 +307,7 @@ idle_check_is_cheap_test() ->
 %% raised out of run_main, and left the process table and the system
 %% processes behind, so the next run failed to make its table
 failed_start_test() ->
-    %% the standard library is what a `stdlib` directory on the path holds
+    %% the standard library is what its directory holds, here one module
     Dir = filename:join([filename:basedir(user_cache, "ern_rt_tests"), "failed_start", "stdlib"]),
     ok = filelib:ensure_path(Dir),
     ErlangModule = 'ern@zz_failed_start',
@@ -315,17 +315,18 @@ failed_start_test() ->
              {function, 1, '$init', 0,
               [{clause, 1, [], [], [{call, 1, {atom, 1, error}, [{atom, 1, boom}]}]}]}],
     {ok, ErlangModule, Beam} = compile:forms(Forms),
-    ok = file:write_file(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"), Beam),
-    true = code:add_patha(Dir),
+    File = filename:join(Dir, "zz_failed_start.erc"),
+    ok = file:write_file(File, Beam),
+    Library = ern_prelude:set_stdlib_directory(Dir),
     Quiet = #{stdout => fun(_) -> ok end},
     try
         %% the fault of a failure in the runtime carries the host's stack
         ?assertMatch({fault, _, _}, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
     after
-        code:del_path(Dir),
+        ern_prelude:set_stdlib_directory(Library),
         code:purge(ErlangModule),
         code:delete(ErlangModule),
-        file:delete(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"))
+        file:delete(File)
     end,
     ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
 

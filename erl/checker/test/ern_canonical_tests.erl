@@ -630,7 +630,7 @@ reach_test() ->
 %% reads back as the definitions it was written of; a regression test,
 %% written when the chunk was compressed
 compressed_chunk_test() ->
-    {ok, Bytes} = file:read_file(code:which('ern@list')),
+    {ok, Bytes} = file:read_file(filename:join(ern_prelude:stdlib_directory(), "list.erc")),
     {ok, {_, [{_, Chunk}]}} = beam_lib:chunks(Bytes, [binary_to_list(ern_canonical:chunk_name())]),
     ?assertMatch(<<131, 80, _/binary>>, Chunk),
     {1, #recorded{definitions = Written} = Recorded} = binary_to_term(Chunk),

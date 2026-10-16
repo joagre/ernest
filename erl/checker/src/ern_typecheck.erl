@@ -706,6 +706,7 @@ lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = T
 %% namespace one the shell may offer to load; one another module keeps
 %% private, which that module's interface carries since an exported
 %% declaration names it (§11.1), is refused as private.
+-spec unknown_type(ern_diagnostic:span(), [atom()], env()) -> no_return().
 unknown_type(Span, QualifiedName, #env{private_types = PrivateTypes}) ->
     case is_map_key(QualifiedName, PrivateTypes) of
         true ->

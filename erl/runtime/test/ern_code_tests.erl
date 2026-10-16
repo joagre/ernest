@@ -76,6 +76,52 @@ file_forms_hold_the_units_code_test() ->
     ?assertEqual(none, Changed),
     ?assertEqual({ok, Recorded}, Held).
 
+%% report §11.1, §11.2: a unit of the toolchain's own is no `.beam` of the
+%% code path but its `.erc`, found by the namespace its Erlang name gives
+%% in the standard library's directory, here a test's, and loaded from it
+%% at its first call: through the runtime's error handler, which every
+%% process the runtime starts has, and through a lookup by name, which a
+%% job's process makes, and in the code table as it loads. A module no
+%% build of the toolchain's holds has no such file. A regression test,
+%% written after the code; it does not cover the shell's build and its
+%% libraries', which the shell's tests and `ern doc --man`'s reach
+own_unit_loaded_at_first_call_test() ->
+    Dir = filename:join([os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                         "ern_code_" ++ os:getpid() ++ "_"
+                         ++ integer_to_list(erlang:unique_integer([positive])), "stdlib"]),
+    ok = filelib:ensure_path(Dir),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Firstcall'],
+                                                             "export fn one() : Int = 1\n"),
+    {ok, Unit, Beam} = ern_compile:compile(['Firstcall'], Typed, Interface, Env,
+                                           #{source_hash => <<>>, deps => []}),
+    File = filename:join(Dir, "firstcall.erc"),
+    ok = file:write_file(File, Beam),
+    Library = ern_prelude:set_stdlib_directory(Dir),
+    Gone = fun() -> ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit),
+                    code:purge(Unit) end,
+    try
+        ?assertEqual({ok, File}, ern_code:own_file(Unit)),
+        ?assertEqual(none, ern_code:own_file('ern@firstcall@absent')),
+        ?assertEqual(none, ern_code:own_file(lists)),
+        Self = self(),
+        {ok, {Unit, Md5}} = beam_lib:md5(Beam),
+        %% the host calls an error handler only where it holds its code
+        {module, ern_rt} = code:ensure_loaded(ern_rt),
+        _ = spawn(fun() ->
+                      erlang:process_flag(error_handler, ern_rt),
+                      Self ! {called, Unit:module_info(md5)}
+                  end),
+        ?assertEqual(Md5, receive {called, Called} -> Called after 5000 -> none end),
+        ?assertEqual({file, File}, code:is_loaded(Unit)),
+        Gone(),
+        ?assertMatch({_, 0}, ern_code:function(Unit, ['Firstcall', one])),
+        ?assertEqual({file, File}, code:is_loaded(Unit))
+    after
+        ern_prelude:set_stdlib_directory(Library),
+        Gone(),
+        file:delete(File)
+    end.
+
 %% report §8.7: a unit's load puts each of its definitions in the code table
 %% by its identity, the hash its canonical form has, with the unit and the
 %% function that hold it, read as the runtime reads them: a function, a

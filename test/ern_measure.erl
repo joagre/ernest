@@ -948,7 +948,7 @@ code_scenarios() ->
     CodeHashes = Code(hashes),
     CodeLoad = Code(load),
     CodeRunning = Code(running),
-    File = filename:join(filename:dirname(code:which('ern@bool')), "bool.erc"),
+    File = filename:join(ern_prelude:stdlib_directory(), "bool.erc"),
     Path = {'Path', list_to_binary(File)},
     {ok, Bytes} = file:read_file(File),
     {ok, #recorded{definitions = [#definition{hash = Hash} | _]}} = ern_canonical:read(Bytes),

@@ -50,9 +50,8 @@ stage() {
     rm -rf "$stage"
     tree=$stage/lib/ernest
     cd "$repo"
-    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec \
-             build/stdlib/*.erc build/stdlib/ern@*.beam \
-             $(find build/shell build/libs -type f \( -name '*.erc' -o -name '*.beam' \) | sort)
+    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec build/stdlib/*.erc \
+             $(find build/shell build/libs -type f -name '*.erc' | sort)
     do
         # a beam compiled from an application's test/ is a test's, and
         # ships with no installation, a test's helper among them

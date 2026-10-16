@@ -1256,7 +1256,7 @@ is_met(Part) ->
 
 %% Whether the name, or what stands before its last segments, is a module
 %% the host may not have met: one whose source the source root holds, or
-%% one compiled, on the load path or the code path.
+%% one compiled, in the standard library's directory or on the load path.
 names_a_module(Session, Parts) ->
     lists:any(fun(Length) ->
                   is_module_file(Session, [binary_to_list(Part)
@@ -1267,12 +1267,10 @@ is_module_file(#session{source_root = SourceRoot} = Session, Segments) ->
     case lists:all(fun(Segment) -> ern_namespace:component(Segment) =/= error end, Segments) of
         true ->
             Relative = ern_namespace:path(Segments),
-            Beam = ern_namespace:erlang_module_text(Segments) ++ ".beam",
             filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
                 orelse lists:any(fun(Root) ->
                                      filelib:is_regular(filename:join(Root, Relative ++ ".erc"))
-                                 end, load_path(Session))
-                orelse code:where_is_file(Beam) =/= non_existing;
+                                 end, [ern_prelude:stdlib_directory() | load_path(Session)]);
         false ->
             false
     end.
@@ -1865,32 +1863,34 @@ module_signature(Session, QualifiedName, Namespace, Name) ->
 %% The compiled module behind a namespace the session can name, as bytes:
 %% the one `:load` or `:reload` compiled, which is loaded from memory and
 %% has no file; else the file the runner loaded it from, an `.erc`, or the
-%% standard library's `.beam`. `beam_lib` takes either as a binary. A
-%% module on the code path the session cannot name, the shell's own
-%% libraries among them, has none (report §11.2).
+%% standard library's `.erc`. `beam_lib` takes either as a binary. A
+%% module the session cannot name, the shell's own and its libraries among
+%% them, has none (report §11.2).
 beam_of(#session{beams = Beams, interfaces = Interfaces}, Namespace) ->
     case Beams of
         #{Namespace := Beam} -> Beam;
         _ ->
             IsLoaded = lists:any(fun(#interface{namespace = Known}) -> Known =:= Namespace end,
                                  Interfaces),
-            beam_on_path(Namespace, IsLoaded)
+            file_beam(Namespace, IsLoaded)
     end.
 
 %% A module's name is made an atom only where it is one already, so that a
 %% name `:doc` or `Shift-Tab` is asked of, `List.filter` taken for a module,
 %% makes none (report §11.2). One the session has not loaded is the
-%% standard library's where its file lies in the library's directory, as
+%% standard library's where the library's directory holds its file, as
 %% ern_prelude:stdlib_interfaces/0 finds the library.
-beam_on_path(Namespace, IsLoaded) ->
+file_beam(Namespace, true) ->
     Text = ern_namespace:erlang_module_text(Namespace),
-    Loaded = try code:which(list_to_existing_atom(Text)) catch error:badarg -> non_existing end,
-    Paths = [Loaded, code:where_is_file(Text ++ ".beam")],
-    case [Beam || Path <- Paths, is_list(Path),
-                  IsLoaded orelse filename:basename(filename:dirname(Path)) =:= "stdlib",
-                  {ok, Beam} <- [file:read_file(Path)]] of
-        [] -> none;
-        [Beam | _] -> Beam
+    read_beam(try code:which(list_to_existing_atom(Text)) catch error:badarg -> non_existing end);
+file_beam(Namespace, false) ->
+    Path = ern_namespace:path([ern_namespace:segment_text(Segment) || Segment <- Namespace]),
+    read_beam(filename:join(ern_prelude:stdlib_directory(), Path ++ ".erc")).
+
+read_beam(File) ->
+    case is_list(File) andalso file:read_file(File) of
+        {ok, Beam} -> Beam;
+        _ -> none
     end.
 
 entry(none, _, _) -> none;

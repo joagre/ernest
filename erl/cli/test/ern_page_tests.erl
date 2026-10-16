@@ -36,8 +36,5 @@ since_line_test() ->
                                       <<"*Since 0.3.0.*">>)).
 
 beam() ->
-    File = "ern@string.beam",
-    case code:where_is_file(File) of
-        non_existing -> filename:join("../../../build/stdlib", File);
-        Path -> Path
-    end.
+    {ok, Beam} = file:read_file(filename:join(ern_prelude:stdlib_directory(), "string.erc")),
+    Beam.

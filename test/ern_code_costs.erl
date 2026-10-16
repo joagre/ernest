@@ -742,8 +742,7 @@ cold_table() ->
            " {Warm, {ok, _, _}} = timer:tc(fun() -> ern_compile:compiled(Forms(warm), []) end),"
            " io:format(\"~B ~B ~B~n\", [Prelude, Cold, Warm]), halt().",
     Command = lists:flatten(["erl +B -boot no_dot_erlang -noshell -noinput -pa ",
-                             filename:join(Tree, "erl/*/ebin"), " ", ?STDLIB, " -eval '", Eval,
-                             "'"]),
+                             filename:join(Tree, "erl/*/ebin"), " -eval '", Eval, "'"]),
     Runs = [[list_to_integer(Word) || Word <- string:lexemes(os:cmd(Command), " \n")]
             || _ <- lists:seq(1, ?RUNS)],
     heading("a bare node's first arrival, in a fresh host", "µs"),

@@ -34,8 +34,8 @@ tmp() ->
 %% report §11.1: the standard library's own build takes its namespaces from
 %% its .erc files and not from an installed copy, so a copy that cannot be
 %% read, as one a build of ern in another chunk format wrote, does not stop
-%% the build that replaces it, and the copy's directory returns to the code
-%% path after. A regression test: such a copy stopped `make` until
+%% the build that replaces it, and the copy's directory is the library's
+%% again after. A regression test: such a copy stopped `make` until
 %% build/stdlib was removed by hand. Not covered: a copy read while another
 %% root builds, which is the library's and must be readable. A build of the
 %% whole library, about a second and a half alone, runs beside every other
@@ -46,14 +46,14 @@ stdlib_build_sets_its_copy_aside_test_() ->
 stdlib_build_sets_its_copy_aside() ->
     Installed = filename:join(tmp(), "stdlib"),
     ok = filelib:ensure_path(Installed),
-    ok = file:write_file(filename:join(Installed, "ern@unreadable.beam"), <<"not a module">>),
-    true = code:add_pathz(Installed),
+    ok = file:write_file(filename:join(Installed, "unreadable.erc"), <<"not a module">>),
+    Library = ern_prelude:set_stdlib_directory(Installed),
     try
         ?assertEqual(0, ern_build:compile("ern build", [{build_root, Installed}],
                                           "../../../src/stdlib", standard_error)),
-        ?assert(lists:member(Installed, code:get_path()))
+        ?assertEqual(Installed, ern_prelude:stdlib_directory())
     after
-        code:del_path(Installed)
+        ern_prelude:set_stdlib_directory(Library)
     end.
 
 %% report §11.1: the standard library's own build checks each module after
@@ -433,12 +433,12 @@ set_modified(File, Time) ->
     ok = file:write_file_info(File, #file_info{mtime = Time, atime = Time}, [{time, posix}]).
 
 %% Run run with libs/markdown's code loaded from a copy in Dir whose time
-%% is Time, and then from where the code path holds it again, so that the
-%% code `ern doc --man` lays a page out with has a time of the test's and
-%% the tree's file is not touched.
+%% is Time, and then from its build again, so that the code `ern doc --man`
+%% lays a page out with has a time of the test's and the tree's file is not
+%% touched.
 with_markdown_modified(Time, Dir, Run) ->
-    Tree = code:which('ern@markdown'),
-    Copy = filename:join(Dir, "ern@markdown.beam"),
+    {ok, Tree} = ern_code:own_file('ern@markdown'),
+    Copy = filename:join(Dir, "markdown.erc"),
     {ok, _} = file:copy(Tree, Copy),
     set_modified(Copy, Time),
     loaded_from(Copy),
@@ -446,7 +446,8 @@ with_markdown_modified(Time, Dir, Run) ->
 
 loaded_from(File) ->
     _ = code:purge('ern@markdown'),
-    {module, 'ern@markdown'} = code:load_abs(filename:rootname(File)).
+    {ok, Beam} = file:read_file(File),
+    {module, 'ern@markdown'} = code:load_binary('ern@markdown', File, Beam).
 
 %%
 %% ern build, report §11.1
@@ -1755,7 +1756,7 @@ code_table_test() ->
     ?assertMatch([{_, lists, sum}], ern_code:foreign(Called, ['Geo', 'Shape', sum])),
     %% the standard library's definitions, which its units hold as a
     %% program's do
-    {ok, ListBeam} = file:read_file(code:which('ern@list')),
+    {ok, ListBeam} = file:read_file(filename:join(ern_prelude:stdlib_directory(), "list.erc")),
     {ok, #recorded{definitions = ListDefinitions}} = ern_canonical:read(ListBeam),
     [Map] = [Hash || #definition{qualified_name = ['List', map], hash = Hash} <- ListDefinitions],
     {MapFunction, 2} = ern_code:function('ern@list', ['List', map]),
@@ -1782,7 +1783,8 @@ library_hashed_test() ->
     ?assertMatch({_, _}, binary:match(term_to_binary(Form), Named)),
     {ok, #{references := [{['Util', twice], Twice}]}} = ern_interface:read(Main),
     Read = fun(ErlangModule) ->
-                   {ok, Bytes} = file:read_file(code:which(ErlangModule)),
+                   {ok, File} = ern_code:own_file(ErlangModule),
+                   {ok, Bytes} = file:read_file(File),
                    Bytes
            end,
     {ok, #recorded{definitions = AnsiDefinitions}} = ern_canonical:read(Read('ern@ansi')),
@@ -2555,8 +2557,8 @@ docs_chunk_test() ->
                   {{function, twice, 1}, _, [<<"Shapes.twice(n : Int) : Int">>],
                    #{<<"en">> := <<"Twice n.">>}, #{params := [n]}}],
                  Entries),
-    %% Erlang's own documentation reader finds it, as it finds the standard
-    %% library's modules installed under build/stdlib
+    %% Erlang's own documentation reader finds it, in a copy of the module
+    %% under its Erlang name on the code path
     ErlangModule = ern_namespace:erlang_module(['Shapes']),
     ok = file:write_file(filename:join(BuildRoot, atom_to_list(ErlangModule) ++ ".beam"), Beam),
     true = code:add_patha(BuildRoot),

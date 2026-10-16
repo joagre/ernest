@@ -8,7 +8,8 @@
 -module(ern_prelude).
 
 -export([equality_params/1, builtin_types/0, is_builtin/1, declared_types/0, values/0,
-         parameters/1, member_types/0, docs/0, stdlib_interfaces/0]).
+         parameters/1, member_types/0, docs/0, stdlib_interfaces/0, stdlib_files/0,
+         stdlib_directory/0, set_stdlib_directory/1]).
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -705,31 +706,63 @@ prelude_doc() ->
     since 0.1.0
     """/utf8>>.
 
-%% The interfaces of the standard library modules written in Ernest: every
-%% ern@*.beam in a `stdlib` directory on the code path that carries an
-%% interface chunk (report §11.1). The compiled library is build output,
-%% so it is found by where it is installed rather than by an application's
-%% name; taking every ern@ module on the path instead would make the
-%% shell's own module, which lives in `build/shell` and is on the same
-%% path, a standard library namespace (report §4.2, §11.2).
+%% The interfaces of the standard library modules written in Ernest: one
+%% for each of its files (stdlib_files/0), each of which carries an
+%% interface chunk (report §11.1).
 %%
 %% Every check asks for them, and a build several times for each module,
 %% and decoding a chunk, which reads each of its bytes as data first
 %% (ern_chunk), costs about ten times reading the file. So the host holds, for
-%% each file the path gives, the bytes of its interface chunk and the
-%% interface they decode to, and decodes a chunk again only where its bytes
-%% differ from those held: what is answered is always the files' own. What
-%% is held is replaced whole where a file is added, removed or changed, and
-%% is never more than the files the path gave at the last call.
+%% each file, the bytes of its interface chunk and the interface they
+%% decode to, and decodes a chunk again only where its bytes differ from
+%% those held: what is answered is always the files' own. What is held is
+%% replaced whole where a file is added, removed or changed, and is never
+%% more than the files the library's directory held at the last call.
 -spec stdlib_interfaces() -> [#interface{}].
 stdlib_interfaces() ->
-    Files = lists:usort(lists:append([filelib:wildcard(filename:join(Dir, "ern@*.beam"))
-                                      || Dir <- code:get_path(),
-                                         filename:basename(Dir) =:= "stdlib"])),
+    Files = stdlib_files(),
     Held = persistent_term:get({?MODULE, stdlib_interfaces}, #{}),
     Read = maps:from_list([{File, stdlib_interface(File, Held)} || File <- Files]),
     Read =:= Held orelse persistent_term:put({?MODULE, stdlib_interfaces}, Read),
     [Interface || File <- Files, {_, Interface} <- [maps:get(File, Read)]].
+
+%% Report §11.1: the standard library's compiled modules, every `.erc` of
+%% its directory, in the order of their names; none while the directory is
+%% set aside. The compiled library is build output, so it is found where
+%% it is built rather than by an application's name.
+-spec stdlib_files() -> [file:filename()].
+stdlib_files() ->
+    case stdlib_directory() of
+        none -> [];
+        Directory -> [filename:join(Directory, Name)
+                      || Name <- lists:sort(filelib:wildcard("*.erc", Directory))]
+    end.
+
+%% Report §11.1: the directory of the standard library's compiled modules,
+%% `build/stdlib` beside the toolchain, where the library's own build
+%% writes them, held once found; none while the library's own source root
+%% builds, which takes the library's namespaces from that build's `.erc`
+%% files alone (ern_build).
+-spec stdlib_directory() -> file:filename() | none.
+stdlib_directory() ->
+    case persistent_term:get({?MODULE, stdlib_directory}, unfound) of
+        unfound ->
+            Directory = ern_tree:build("stdlib"),
+            persistent_term:put({?MODULE, stdlib_directory}, Directory),
+            Directory;
+        Directory ->
+            Directory
+    end.
+
+%% The standard library's directory replaced by Directory, or set aside by
+%% none, and the one it replaces, which the caller puts back: the library's
+%% own build sets it aside while it builds, and a test names a library of
+%% its own.
+-spec set_stdlib_directory(file:filename() | none) -> file:filename() | none.
+set_stdlib_directory(Directory) ->
+    Replaced = stdlib_directory(),
+    persistent_term:put({?MODULE, stdlib_directory}, Directory),
+    Replaced.
 
 %% A file's interface chunk, its bytes copied out of the file's, and its
 %% interface: the one held where the bytes are those held, else the one they

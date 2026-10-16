@@ -433,11 +433,18 @@ in_string([], _, _, _, Acc) -> lists:reverse(Acc).
 vendored(Name) ->
     string:find(ern_repository:read("THIRD_PARTY_LICENSES"), Name ++ ".erl") =/= nomatch.
 
-%% build/stdlib holds the standard library under the name erlang_module/1 gives it.
+%% build/stdlib holds the standard library, each module in the .erc of its
+%% path, under the Erlang name erlang_module/1 gives it.
 compiled_as(Relative) ->
-    Namespace = string:replace(filename:rootname(filename:basename(Relative)), "/", "@", all),
-    Beam = filename:join([?ROOT, "build", "stdlib", "ern@" ++ lists:flatten(Namespace) ++ ".beam"]),
-    filelib:is_regular(Beam).
+    Component = filename:rootname(filename:basename(Relative)),
+    Erc = filename:join([?ROOT, "build", "stdlib", Component ++ ".erc"]),
+    case file:read_file(Erc) of
+        {ok, Beam} ->
+            {ok, {Module, _}} = beam_lib:chunks(Beam, []),
+            Module =:= ern_namespace:erlang_module(ern_namespace:namespace([Component]));
+        {error, _} ->
+            false
+    end.
 
 has_line(Relative, Line) ->
     lists:member(Line, [Text || {_, Text} <- numbered(Relative)]).

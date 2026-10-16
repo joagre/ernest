@@ -189,7 +189,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.
 
-One application's test module runs alone as the suite runs it: its test beams by `make -s -C erl/<app>/src beams`, then, from `erl/<app>/src`, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa ../../*/ebin -pa $(realpath ../../../build/stdlib) -pa $(realpath ../../../build/shell) -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
+One application's test module runs alone as the suite runs it: its test beams by `make -s -C erl/<app>/src beams`, then, from `erl/<app>/src`, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa ../../*/ebin -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
 
 ## Using
 

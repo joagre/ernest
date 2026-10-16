@@ -2,7 +2,7 @@
 %% unit that holds it, and report §11.2: the host's limits on what a
 %% runtime loads, which the runtime says it nears. A unit is a compiled
 %% module of the host's, whose '$code'/0, which the compiler writes from
-%% the canonical forms' hashes (ern_emitter), lists what it holds; loaded/1
+%% the canonical forms' hashes (ern_emitter), lists what it holds; loaded/2
 %% reads it into the table as the unit loads: each function by its hash,
 %% with its function, its arity and its reach, each lambda and local
 %% function a spawn on a peer starts by its identity, with its entry's
@@ -41,13 +41,14 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([loaded/1, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
-         forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
-         present/1, function/2, function_text/2, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
-         placement/4, running/1, hashes/1, binding_keys/1, nearing/0, nearing/1, nearing/2, line/3,
-         counts/0]).
+-export([ensure_loaded/1, own_file/1, load/3, loaded/2, loaded/3, unloaded/1, spawnable/1,
+         holders/1, linkable/1, valued/1, forms/1, called/1, absent_binding/1, absent_binding/2,
+         foreign/2, declared/1, declared/2, present/1, function/2, function_text/2, is_free/1,
+         is_held/2, fresh_unit/1, unit_beside/2, placement/4, running/1, hashes/1,
+         binding_keys/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -export_type([host_table/0, reach/0]).
 
@@ -74,25 +75,105 @@
 %% A unit's load
 %%
 
-%% Report §8.7: a unit's definitions put in the table as it loads. A unit
-%% whose code the table holds already is passed over, and one loaded again
-%% with other code replaces its rows. A module that is no unit, the host's
-%% or a foreign function's, holds nothing here. The unit's own row holds
-%% its code's digest, the keys of its rows, and the units its code calls,
-%% none for a unit whose '$code'/0 lists none, as a shell's holder of
-%% values. What the unit adds to the host's counts is added to their sums
-%% (summed/1), read from its compiled form. A unit the host loaded from the
-%% code path, as the runtime loads one on demand, its compiled form read
-%% from the path.
--spec loaded(module()) -> ok.
-loaded(Unit) ->
-    case erlang:function_exported(Unit, '$code', 0) andalso code:get_object_code(Unit) of
-        {Unit, Beam, _} -> loaded(Unit, Beam);
-        _ -> ok
+%% Report §11.2: a module loaded where the host holds no code of its name,
+%% as the host's code:ensure_loaded/1 loads one at its first call: a unit
+%% of the toolchain's own from its `.erc` (own_file/1), in the table as it
+%% loads (load/3), and any other module as the host loads it, one of its
+%% own or a `.beam` of the load path. The runtime's error handler loads so
+%% (ern_rt:undefined_function/3), on every process the runtime starts; a
+%% job's own process reaches a unit through function/2, which loads it so.
+-spec ensure_loaded(module()) -> {module, module()} | {error, term()}.
+ensure_loaded(Module) ->
+    case erlang:module_loaded(Module) of
+        true ->
+            {module, Module};
+        false ->
+            case own_file(Module) of
+                {ok, File} -> loaded_from(Module, File);
+                none -> code:ensure_loaded(Module)
+            end
     end.
 
-%% The same, for a unit the host loaded from its compiled form Beam, which
-%% a file holds: the build's, whose forms the file holds.
+%% A unit loaded from its file, read raw, not through the host's file
+%% server, as the checker reads the library (ern_prelude).
+loaded_from(Unit, File) ->
+    case file:read_file(File, [raw]) of
+        {ok, Beam} ->
+            case load(Unit, File, Beam) of
+                ok -> {module, Unit};
+                {error, _} = Refused -> Refused
+            end;
+        {error, _} = Unread ->
+            Unread
+    end.
+
+%% Report §11.1, §11.2: the `.erc` of a unit of the toolchain's own, found
+%% by the namespace its Erlang name gives, `ern@` and its path with `@` for
+%% `/`, in the standard library's directory, then in the shell's build and
+%% in the builds of the two libraries the shell is compiled against,
+%% libs/ansi and libs/markdown; none where none holds it, a program's unit
+%% among them, which its runner loads (§11.2).
+-spec own_file(module()) -> {ok, file:filename()} | none.
+own_file(Module) ->
+    case atom_to_list(Module) of
+        "ern@" ++ Path ->
+            Relative = lists:flatten(string:replace(Path, "@", "/", all)) ++ ".erc",
+            Builds = [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown"]],
+            Files = [filename:join(Root, Relative)
+                     || Root <- [ern_prelude:stdlib_directory() | Builds], Root =/= none],
+            case lists:search(fun is_regular/1, Files) of
+                {value, File} -> {ok, File};
+                false -> none
+            end;
+        _ ->
+            none
+    end.
+
+%% Whether a file is there, asked raw.
+is_regular(File) ->
+    case file:read_file_info(File, [raw]) of
+        {ok, #file_info{type = regular}} -> true;
+        _ -> false
+    end.
+
+%% Report §11.2, §8.7: a unit loaded from its compiled form Beam, which
+%% the file File holds, and put in the table as it loads (loaded/2): a
+%% program's module, and every module of the standard library at a run's
+%% start (ern_rt). A unit the host holds already, with this very code from
+%% this file, is taken as it is: `ern test` over a directory loads a module
+%% again for each file whose program uses it, in one node. A unit of a name
+%% the host holds other code of is an earlier program's, which ran in this
+%% host and ended: an earlier run's of `ern test` over a directory, where a
+%% unit is held for its run and not the node's life, or an earlier one's of
+%% the toolchain's own tests, which run program after program in one host.
+%% The host's old code of the name is purged first, which the host requires
+%% before it loads the name again, and which kills no process, since every
+%% process of an ended program has ended with it (§8.6), and reaches no
+%% function of it, since an adapted address the earlier run made is dead
+%% (ern_rt:adapted/2). The host's refusal is answered.
+-spec load(module(), file:filename(), binary()) -> ok | {error, atom()}.
+load(Unit, File, Beam) ->
+    case is_held(Unit, Beam) andalso code:which(Unit) =:= File of
+        true ->
+            ok;
+        false ->
+            code:purge(Unit),
+            case code:load_binary(Unit, File, Beam) of
+                {module, Unit} -> loaded(Unit, Beam);
+                {error, _} = Refused -> Refused
+            end
+    end.
+
+%% Report §8.7: a unit's definitions put in the table as it loads, for a
+%% unit the host loaded from its compiled form Beam, which a file holds:
+%% the build's, whose forms the file holds. A unit whose code the table
+%% holds already is passed over, and one loaded again with other code
+%% replaces its rows. A module that is no unit, the host's or a foreign
+%% function's, holds nothing here. The unit's own row holds its code's
+%% digest, the keys of its rows, and the units its code calls, none for a
+%% unit whose '$code'/0 lists none, as a shell's holder of values. What the
+%% unit adds to the host's counts is added to their sums (summed/1), read
+%% from its compiled form.
 -spec loaded(module(), binary()) -> ok.
 loaded(Unit, Beam) ->
     loaded(Unit, Beam, none).
@@ -295,7 +376,7 @@ kept(Unit, Recorded) ->
     Recorded.
 
 %% Report §8.7, §11.2: the units the code of Unit calls, Unit among them:
-%% those its row names (loaded/1), and those theirs name, each once. A
+%% those its row names (loaded/2), and those theirs name, each once. A
 %% binding or a foreign declaration a function's reach names is read in
 %% one of them, the unit of its module the calling code was compiled
 %% against, which is not always the latest a node holds: a shell's build
@@ -436,12 +517,14 @@ lookup(Key) ->
 %% functions are named by their position in it (ern_emitter), so every caller
 %% from Erlang by a name finds its function here: the entry point, the
 %% shell's input and its program, and a library's function the toolchain
-%% calls, `Markdown`'s for `ern doc`. A unit an exchange made names its
-%% definitions by their names as text (§8.7), which no caller names: a
-%% peer's spawn finds its function by its identity (spawnable/1).
+%% calls, `Markdown`'s for `ern doc`; a unit of the toolchain's own is
+%% loaded as it is first asked for (ensure_loaded/1). A unit an exchange
+%% made names its definitions by their names as text (§8.7), which no
+%% caller names: a peer's spawn finds its function by its identity
+%% (spawnable/1).
 -spec function(module(), [atom()]) -> {atom(), arity()} | none.
 function(Unit, QualifiedName) ->
-    case code:ensure_loaded(Unit) =:= {module, Unit}
+    case ensure_loaded(Unit) =:= {module, Unit}
          andalso erlang:function_exported(Unit, '$code', 0) of
         true ->
             case [{Function, Arity} || {Named, Held} <- Unit:'$code'(), Named =:= QualifiedName,
@@ -538,8 +621,13 @@ is_free(Unit) ->
 %% current code.
 -spec is_held(module(), binary()) -> boolean().
 is_held(Unit, Beam) ->
-    {ok, {_, Md5}} = beam_lib:md5(Beam),
-    erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5.
+    case erlang:module_loaded(Unit) of
+        true ->
+            {ok, {_, Md5}} = beam_lib:md5(Beam),
+            Unit:module_info(md5) =:= Md5;
+        false ->
+            false
+    end.
 
 %% Report §11.2: a unit of a name of its own, for a module whose Erlang
 %% name the node holds code of, as a reload's version and a compiled module
@@ -645,7 +733,7 @@ dependencies(Unit) ->
 %% Appendix E.28, report §3.11: Code.running, the processes of this node,
 %% the system processes excepted (Appendix E.21), whose stack holds a frame
 %% of the definition of Hash itself: of the function each unit that holds it
-%% runs it by, which its row in the table names (loaded/1), so that a unit
+%% runs it by, which its row in the table names (loaded/2), so that a unit
 %% the build loaded and one an arrival or a load made of the same definition
 %% count alike (§8.7). A lambda's and a local function's frames are their
 %% own functions', '$N.P' or a fun, and no definition's. The scan reads each

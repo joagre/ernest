@@ -14,8 +14,8 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     bin/ern                      the launcher
     erl/<app>/ebin/              the toolchain's modules, without its tests
     erl/runtime/priv/ern_exec    the helper Os.run runs a program through
-    build/stdlib/                the standard library, compiled
-    build/shell/                 the shell, compiled, with libs/markdown and libs/ansi
+    build/stdlib/                the standard library, compiled, one .erc for each module
+    build/shell/                 the shell, compiled
     build/libs/<name>/           each library, compiled, a root for --load-path
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
@@ -38,7 +38,7 @@ The documents under the three directories are staged with each link into the che
 
 ## The launcher
 
-`bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv`, a working directory whose name `iconv` does not read as UTF-8 (report §11), and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's code paths and:
+`bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv`, a working directory whose name `iconv` does not read as UTF-8 (report §11), and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's applications, `erl/*/ebin`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
 
 - `+B`: the interrupt ends it, and opens no break menu (report §8.6);
 - `-boot no_dot_erlang`: `~/.erlang` is not read;

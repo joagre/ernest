@@ -3084,8 +3084,7 @@ typing_makes_no_names_test_() ->
 %% In a host of its own, since the count of names is the host's, and other
 %% tests make names beside this one.
 typing_makes_no_names() ->
-    Paths = [filename:absname(Path)
-             || Path <- filelib:wildcard("../erl/*/ebin") ++ ["../build/stdlib"]],
+    Paths = [filename:absname(Path) || Path <- filelib:wildcard("../erl/*/ebin")],
     Script = filename:join(fresh_home(), "names.escript"),
     ok = file:write_file(
            Script,

@@ -7,10 +7,14 @@
 -export([function/2, main/1, functions/1]).
 
 %% The function of Unit that holds the declaration Name of its module,
-%% `sort`, or [MemberOf, Name] for a member, as a fun.
+%% `sort`, or [MemberOf, Name] for a member, as a fun. The standard library
+%% is loaded first, as a run's start loads it, since a test calls it from a
+%% process of its own, which loads no unit at its first call
+%% (ern_rt:stdlib_modules/0).
 -spec function(module(), atom() | [atom()]) -> function().
 function(Unit, Name) ->
-    {module, Unit} = code:ensure_loaded(Unit),
+    _ = ern_rt:stdlib_modules(),
+    {module, Unit} = ern_code:ensure_loaded(Unit),
     [Namespace] = [Namespace || {Namespace, {calls, _}} <- Unit:'$code'()],
     Parts = case Name of
                 [_ | _] -> Name;

@@ -44,14 +44,14 @@ TESTS = Modules = [list_to_atom(filename:basename(File, ".beam")) \
 	                Index rem $(PARTS) =:= $(PART)], \
 	halt(case eunit:test(Mine, []) of ok -> 0; _ -> 1 end).
 
-# The tests run with the standard library on the path, and the shell's
-# tree, which holds libs/markdown's module for `ern doc --man` (report §11.4).
+# The tests run with the toolchain's applications on the path; a unit of
+# the standard library, the shell or a library the shell is compiled
+# against is loaded from its .erc by namespace (ern_code:ensure_loaded/1).
 # A test makes what it needs under one directory of the run's own,
 # ERN_TEST_DIR, which is removed when the run ends, whatever its outcome.
 test: $(BEAM) $(TEST_BEAM)
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_test_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) \
-	  -pa $(abspath ../../../build/shell) -eval '$(TESTS)'; \
+	  ERN_TEST_DIR=$$dir erl -noshell -pa $(EBIN) -eval '$(TESTS)'; \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 clean:

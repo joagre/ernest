@@ -95,13 +95,14 @@ prelude_documented_test() ->
                  length(Entries)).
 
 in_module_docs(Namespace, Name) ->
-    ErlangModule = list_to_atom("ern@" ++ string:lowercase(atom_to_list(Namespace))),
-    case code:which(ErlangModule) of
-        File when is_list(File) ->
-            {ok, {_, [{"Docs", Chunk}]}} = beam_lib:chunks(File, ["Docs"]),
+    File = filename:join(ern_prelude:stdlib_directory(),
+                         ern_namespace:module_path([Namespace]) ++ ".erc"),
+    case file:read_file(File) of
+        {ok, Beam} ->
+            {ok, {_, [{"Docs", Chunk}]}} = beam_lib:chunks(Beam, ["Docs"]),
             {docs_v1, _, _, _, _, _, Entries} = binary_to_term(Chunk),
             lists:any(fun({{_, EntryName, _}, _, _, _, _}) -> EntryName =:= Name end, Entries);
-        _ ->
+        {error, _} ->
             false
     end.
 
@@ -390,11 +391,10 @@ builtin_types_test() ->
 %% report §11.1: the standard library's interfaces are its files' own at
 %% every call, though the host holds those it last decoded: a file whose
 %% chunk has changed is decoded again, however soon after it was read, and
-%% a file the path no longer gives is no interface. A regression test,
-%% written with the hold
+%% a file the library's directory no longer holds is no interface. A
+%% regression test, written with the hold
 stdlib_interfaces_follow_the_files_test() ->
-    Path = code:get_path(),
-    [Installed | _] = [Dir || Dir <- Path, filename:basename(Dir) =:= "stdlib"],
+    Installed = ern_prelude:stdlib_directory(),
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
     Dir = filename:join([Base, "ern_prelude_" ++ os:getpid() ++ "_"
                                ++ integer_to_list(erlang:unique_integer([positive])), "stdlib"]),
@@ -402,21 +402,21 @@ stdlib_interfaces_follow_the_files_test() ->
     Copy = fun(Name, As) ->
                    {ok, _} = file:copy(filename:join(Installed, Name), filename:join(Dir, As))
            end,
-    Copy("ern@int.beam", "ern@int.beam"),
-    Copy("ern@list.beam", "ern@list.beam"),
+    Copy("int.erc", "int.erc"),
+    Copy("list.erc", "list.erc"),
     Namespaces = fun() ->
                          [Namespace || #interface{namespace = Namespace}
                                            <- ern_prelude:stdlib_interfaces()]
                  end,
-    true = code:set_path([Dir | [Other || Other <- Path, filename:basename(Other) =/= "stdlib"]]),
+    Installed = ern_prelude:set_stdlib_directory(Dir),
     try
         ?assertEqual([['Int'], ['List']], Namespaces()),
-        Copy("ern@char.beam", "ern@int.beam"),
+        Copy("char.erc", "int.erc"),
         ?assertEqual([['Char'], ['List']], Namespaces()),
-        ok = file:delete(filename:join(Dir, "ern@list.beam")),
+        ok = file:delete(filename:join(Dir, "list.erc")),
         ?assertEqual([['Char']], Namespaces())
     after
-        code:set_path(Path)
+        ern_prelude:set_stdlib_directory(Installed)
     end.
 
 %% The report's list and the code's equal, in order; where they are not, the
