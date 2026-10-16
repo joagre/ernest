@@ -4,7 +4,7 @@
 -module(ern_types).
 
 -export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
-         add_restriction/3, enter/1, leave/1,
+         add_restriction/3, unfixed/2, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          replace_variables/2,
@@ -82,6 +82,26 @@ add_restriction(Type, Restriction, TypeState) ->
             TypeState#type_state{variables = Variables#{Id => Restricted}};
         _ ->
             TypeState
+    end.
+
+%% Report §3.9, §6.2: whether a type is still a variable as the definition
+%% of the current level ends: `own` where the variable is the definition's,
+%% made at its level or deeper and tied to no enclosing definition's since,
+%% so that nothing after the definition but its calls can fix it;
+%% `enclosing` where an enclosing definition holds it, whose end reads it;
+%% and false where it is a type, or a variable an annotation names, which
+%% means every type (§3.9).
+-spec unfixed(type() | none, type_state()) -> own | enclosing | false.
+unfixed(Type, #type_state{level = Level, variables = Variables} = TypeState) ->
+    case resolve(Type, TypeState) of
+        {tvar, Id} ->
+            case maps:get(Id, Variables) of
+                #type_variable{name = Name} when Name =/= undefined -> false;
+                #type_variable{level = VariableLevel} when VariableLevel >= Level -> own;
+                _ -> enclosing
+            end;
+        _ ->
+            false
     end.
 
 -spec enter(type_state()) -> type_state().

@@ -10,12 +10,13 @@
 %%
 %% Per definition, after inference, as post_checks/3 runs them: what was
 %% deferred, operators, selections, `<-` and receive guards' orderings
-%% (report §4.8, §3.5, §5.5, §6.3); what each requirement is supplied with
-%% (§4.9); rigidity of annotation variables (§3.9); the order of a block's
-%% local fns and lets (§5.4, ern_scope); match exhaustiveness (ern_exhaust);
-%% the restrictions instances carry (§3.9, §3.10); and a `receiving m` that
-%% names no mailbox type (§4.5). Errors are collected per definition;
-%% checking continues with the next.
+%% (report §4.8, §3.5, §5.5, §6.3); a spawned function's mailbox type that
+%% nothing fixed, which is Never (§6.2); what each requirement is supplied
+%% with (§4.9); rigidity of annotation variables (§3.9); the order of a
+%% block's local fns and lets (§5.4, ern_scope); match exhaustiveness
+%% (ern_exhaust); the restrictions instances carry (§3.9, §3.10); and a
+%% `receiving m` that names no mailbox type (§4.5). Errors are collected
+%% per definition; checking continues with the next.
 -module(ern_typecheck).
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
@@ -39,6 +40,10 @@
 %% declarations and the prelude (report §11.2), empty in every other module
 %% pending, deferred: what the definition being checked leaves for its
 %% end, the #pending_restriction{}s and the deferred records below
+%% mailboxes: the mailbox types of the functions the definition's spawns
+%% and computes are given, each Never at its end where nothing fixed it
+%% (report §6.2, §3.11), and one an enclosing definition holds left for
+%% that one's end (unfixed_mailboxes/2)
 %% effect_origin: undefined or the #effect_origin{} of the mailbox here
 %% groups: qualified name => the dependency group not yet checked that
 %% declares it, checked on first demand (a reference, or an operator
@@ -64,7 +69,7 @@
 -record(env, {namespace = [], types = #{}, constructors = #{}, globals = #{}, lets = #{},
               local_types = #{}, local_constructors = #{}, local_values = #{}, session_scope = #{},
               locals = #{}, effect = none, type_state, pending = [], deferred = [],
-              annotation_variables = #{}, rigid = [], effect_origin = undefined,
+              mailboxes = [], annotation_variables = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
@@ -121,8 +126,8 @@
 %% own mailbox and adds its restrictions to the definition's (report §4.8,
 %% §3.4, §3.10), and a requirement is supplied from the members in force
 %% there (§4.9).
--record(post_check, {span, type, effect, effect_origin, rigid, pending, deferred, requirement,
-                     signature, definition}).
+-record(post_check, {span, type, effect, effect_origin, rigid, pending, deferred, mailboxes,
+                     requirement, signature, definition}).
 
 %% A block's local fns as its statements are checked (report §5.4, §3.9):
 %% the placeholder type of each, the local fns each names, those checked,
@@ -1212,9 +1217,9 @@ demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
     case UncheckedGroups of
         #{QualifiedName := Group} ->
             Clean = Env#env{locals = #{}, effect = none, pending = [], deferred = [],
-                            annotation_variables = #{}, rigid = [], effect_origin = undefined,
-                            inferring = [], requirement = [], signature = [],
-                            definition = undefined},
+                            mailboxes = [], annotation_variables = #{}, rigid = [],
+                            effect_origin = undefined, inferring = [], requirement = [],
+                            signature = [], definition = undefined},
             restore_scope(run_group(Group, Clean), Env);
         _ ->
             Env
@@ -1224,7 +1229,8 @@ demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
 %% with the scope of Env, the environment before it.
 restore_scope(Checked, Env) ->
     Checked#env{locals = Env#env.locals, effect = Env#env.effect, pending = Env#env.pending,
-                deferred = Env#env.deferred, annotation_variables = Env#env.annotation_variables,
+                deferred = Env#env.deferred, mailboxes = Env#env.mailboxes,
+                annotation_variables = Env#env.annotation_variables,
                 rigid = Env#env.rigid, effect_origin = Env#env.effect_origin,
                 inferring = Env#env.inferring,
                 requirement = Env#env.requirement, signature = Env#env.signature,
@@ -1512,19 +1518,15 @@ check_group(Group, Env) ->
                                    end, Env3, TypedAndPost),
     %% report §3.11: a spawn on a peer, read once the whole definition is
     %% inferred, since a local fn's end leaves the types of what its lambdas
-    %% capture from around it to the definition that encloses it; a spawned
-    %% process's mailbox type that is a variable none of the group's types
-    %% holds is Never
-    Held = lists:append([ern_types:free_variables(Variable, Env4#env.type_state)
-                         || {_, Variable} <- Placeholders]),
-    Env5 = lists:foldl(fun(Declaration, Acc) -> ern_bound:check(Declaration, Held, Acc) end,
-                       Env4, Typed),
-    Env6 = Env5#env{type_state = ern_types:leave(Env5#env.type_state),
+    %% capture from around it to the definition that encloses it, and once
+    %% its mailbox type nothing fixed is Never (post_checks/3)
+    lists:foreach(fun(Declaration) -> ern_bound:check(Declaration, Env4) end, Typed),
+    Env5 = Env4#env{type_state = ern_types:leave(Env4#env.type_state),
                     inferring = Env#env.inferring},
     %% generalize and publish; the typed AST is substituted so consumers read
     %% resolved types off the nodes
     Publish = fun(Declaration, Acc) -> publish(Declaration, Placeholder(Declaration), Acc) end,
-    lists:mapfoldl(Publish, Env6, Typed).
+    lists:mapfoldl(Publish, Env5, Typed).
 
 %% A member's placeholder among the globals, its definition under inference.
 declare_placeholder({{MemberOf, Name}, Variable}, Env) ->
@@ -2078,7 +2080,8 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
                  || VariableName := Variable <- AnnotationVariables1,
                     not is_map_key(VariableName, Env#env.annotation_variables)],
     Env3 = Env2#env{type_state = mark_process_only(FunctionType, TypeState1), effect = EffectType,
-                    pending = [], deferred = [], annotation_variables = AnnotationVariables1,
+                    pending = [], deferred = [], mailboxes = [],
+                    annotation_variables = AnnotationVariables1,
                     rigid = maps:to_list(AnnotationVariables1), effect_origin = Origin,
                     requirement = [{Variable, Member} || #member{type = Variable, name = Member}
                                                              <- Members]
@@ -2100,7 +2103,7 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
     %% report §4.6: a top-level initializer is a body of mailbox type Never,
     %% which may spawn, send, and call, and receives no message
     Env1 = Env#env{type_state = TypeState, effect = ?NEVER, pending = [],
-                   deferred = [], annotation_variables = AnnotationVariables,
+                   deferred = [], mailboxes = [], annotation_variables = AnnotationVariables,
                    rigid = maps:to_list(AnnotationVariables),
                    definition = {'let', declaration_name(Declaration)},
                    %% report §3.9: a lambda that is the whole initializer is
@@ -2172,8 +2175,8 @@ post(Span, Type, Env) ->
     #post_check{span = Span, type = Type, effect = Env#env.effect,
                 effect_origin = Env#env.effect_origin, rigid = Env#env.rigid,
                 pending = Env#env.pending, deferred = Env#env.deferred,
-                requirement = Env#env.requirement, signature = Env#env.signature,
-                definition = Env#env.definition}.
+                mailboxes = Env#env.mailboxes, requirement = Env#env.requirement,
+                signature = Env#env.signature, definition = Env#env.definition}.
 
 %% Report §3.9: a foreign fn's effect is its own, and so process-only,
 %% unless it is the effect of one of its parameters' function types, where
@@ -2329,12 +2332,17 @@ post_checks(Declaration, none, Env) ->
 post_checks(Declaration,
             #post_check{span = Span, type = Type, effect = Effect, effect_origin = Origin,
                         rigid = Rigid, pending = Pending, deferred = Deferred,
-                        requirement = Requirement, signature = Signature,
-                        definition = Definition},
+                        mailboxes = Mailboxes, requirement = Requirement,
+                        signature = Signature, definition = Definition},
             Env) ->
-    Env1 = solve_deferred(Env#env{effect = Effect, effect_origin = Origin, pending = Pending,
-                                  deferred = Deferred, requirement = Requirement,
-                                  signature = Signature, definition = Definition}),
+    Solved = solve_deferred(Env#env{effect = Effect, effect_origin = Origin, pending = Pending,
+                                    deferred = Deferred, mailboxes = Mailboxes,
+                                    requirement = Requirement, signature = Signature,
+                                    definition = Definition}),
+    %% report §6.2, §3.11: the definition's inference ends here, and a
+    %% spawned function's mailbox type nothing fixed is Never before
+    %% anything reads the definition's types
+    Env1 = unfixed_mailboxes(Type, Solved),
     %% report §4.9: what each use of a requirement is supplied with, read
     %% now that the definition's types are known
     {Supplied, Env2} = supplied(Declaration, Env1),
@@ -2348,8 +2356,73 @@ post_checks(Declaration,
     needless_effect(Declaration, Type, Env2),
     {Supplied, Env2#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
                         pending = Env#env.pending, deferred = Env#env.deferred,
+                        mailboxes = Env2#env.mailboxes ++ Env#env.mailboxes,
                         requirement = Env#env.requirement, signature = Env#env.signature,
                         definition = Env#env.definition}}.
+
+%% Report §6.2, §3.11: as a definition of type Type ends, each mailbox type
+%% its spawns' and computes' functions were given that is still a variable
+%% of its own, which no annotation names, is Never, a process-only one
+%% among them, since Never is a type; but one each call fixes, which a
+%% parameter's type holds or which is the definition's own mailbox type,
+%% keeps. One an enclosing definition holds stays for that definition's
+%% end, and a variable inside a mailbox type is none of these.
+unfixed_mailboxes(Type, #env{mailboxes = Mailboxes, type_state = TypeState} = Env) ->
+    Called = called_variables(Type, TypeState),
+    Unfixed = [{Mailbox, ern_types:unfixed(Mailbox, TypeState)} || Mailbox <- Mailboxes],
+    Never = lists:foldl(fun(Mailbox, Acc) -> bound(?NEVER, Mailbox, Acc) end, Env,
+                        [Mailbox || {Mailbox, own} <- Unfixed,
+                                    {tvar, Id} <- [ern_types:resolve(Mailbox, TypeState)],
+                                    not lists:member(Id, Called)]),
+    Never#env{mailboxes = [Mailbox || {Mailbox, enclosing} <- Unfixed]}.
+
+%% Report §6.2: the variables each call of a definition of type Type fixes,
+%% those its parameters' types hold and its own mailbox type, and so of the
+%% function it answers, whose parameters are the definition's as a curried
+%% function's are, `fn make() = fn(f) = spawn(f)` as `fn start(f)`, and an
+%% input at the prompt that binds a lambda as a `let` in a block binds it
+%% (§11.2).
+called_variables(Type, TypeState) ->
+    case ern_types:resolve(Type, TypeState) of
+        {tfn, Params, Effect, Result} ->
+            ern_types:free_variables({ttuple, Params}, TypeState)
+                ++ ern_types:free_variables(Effect, TypeState)
+                ++ called_variables(Result, TypeState);
+        _ ->
+            []
+    end.
+
+%% Report §6.2, §3.11: the mailbox type of the function a spawn or a
+%% compute is given, at the instance of its name, wherever the name is
+%% used; none for any other name.
+spawned_mailbox(Referent, {tfn, Params, _, _}) ->
+    case spawned_position(Referent) of
+        none ->
+            [];
+        Position ->
+            case lists:nth(Position, Params) of
+                {tfn, [], Mailbox, _} -> [Mailbox];
+                _ -> []
+            end
+    end;
+spawned_mailbox(_, _) ->
+    [].
+
+%% Report §6.2, Appendix E.27: the position of the function among the
+%% parameters of `spawn`, `spawnMonitored`, and `Peer`'s spawns and
+%% computes, as the checker resolved the name, after the peer's name where
+%% one is taken.
+spawned_position({prelude, [spawn]}) -> 1;
+spawned_position({prelude, [spawnMonitored]}) -> 1;
+spawned_position(#remote_declaration{namespace = ['Peer'], member_of = undefined, name = Name}) ->
+    case Name of
+        spawn -> 2;
+        spawnMonitored -> 2;
+        computeAt -> 2;
+        compute -> 1;
+        _ -> none
+    end;
+spawned_position(_) -> none.
 
 %% Report §4.5, §3.9: a `fn` whose result annotation writes an effect
 %% variable that names no parameter's mailbox type, and whose body
@@ -3910,10 +3983,14 @@ infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
     Supplies = [#pending_member{span = Span, type = Instance, member = Member, need = Need}
                 || {Instance, Member} <- Requirement]
         ++ shown(Span, Referent, Type, Env1),
+    %% report §6.2, §3.11: the mailbox type a spawn's function is given is
+    %% read at the definition's end
+    Mailboxes = spawned_mailbox(Referent, ern_types:resolve(Type, TypeState)),
     %% report §4.2: what the name resolved to is recorded, so that the
     %% emitter reads the decision rather than making it again
     {Expr#e_var{type = Type, referent = Referent, supplies = Supplies}, Type,
-     Env1#env{type_state = TypeState, pending = Pending ++ Env1#env.pending}};
+     Env1#env{type_state = TypeState, pending = Pending ++ Env1#env.pending,
+              mailboxes = Mailboxes ++ Env1#env.mailboxes}};
 infer(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name, base = Base,
                      args = Args} = Expr, Env) ->
     ConstructorInfo = lookup_constructor(Span, ConstructorNamespace, Name, Env),
@@ -5073,11 +5150,15 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
                                          ++ ern_types:format(ExprType, Env2#env.type_state)}),
     Env4 = case Generalize of
                true ->
-                   TypeState1 = ern_types:leave(Env3#env.type_state),
+                   %% report §6.2: the lambda is a definition, and its
+                   %% spawns' mailbox types nothing fixed are Never before
+                   %% it is generalized
+                   Ended = unfixed_mailboxes(ExprType, Env3),
+                   TypeState1 = ern_types:leave(Ended#env.type_state),
                    {Scheme, TypeState2} = ern_types:generalize(ExprType, TypeState1),
                    #p_var{name = Name} = Pattern,
-                   Env3#env{type_state = TypeState2, generalizing = false,
-                            locals = maps:put(Name, Scheme, Env3#env.locals)};
+                   Ended#env{type_state = TypeState2, generalizing = false,
+                             locals = maps:put(Name, Scheme, Env3#env.locals)};
                false ->
                    bind_locals(Bindings, Env3)
            end,

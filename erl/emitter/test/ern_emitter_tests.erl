@@ -220,6 +220,47 @@ standard_shim_callback_deadlock() ->
            "    }, [1])))\n",
     ?assertMatch({{fault, <<"deadlock">>}, _}, run(['M'], Text, #{standard => true})).
 
+%% report §8.6: the deadlock count takes a standard library operation for a
+%% computation that may deliver where the runtime module that implements it
+%% lists it in `-waits`, which the emitter reads at each foreign call. Of
+%% the host's functions every `foreign fn` of the standard library calls,
+%% as its compiled form records them, those listed are this list and no
+%% other, so that a new primitive, or a renamed one, is decided here: an
+%% unlisted primitive that waits is a false `Fault("deadlock")`, which
+%% nothing else catches. A regression test, written after the code; whether
+%% a listed primitive waits indeed, and an unlisted one does not, is the
+%% list's decision, which no test checks
+waiting_primitives_test() ->
+    Sources = filelib:wildcard("../../../src/stdlib/*.ern"),
+    Called = lists:usort(lists:append([foreign_calls(Source) || Source <- Sources])),
+    ?assertEqual([{ern_code, hashes, 1},
+                  {ern_code_load, load, 1},
+                  {ern_io, debug, 2},
+                  {ern_os, host, 0},
+                  {ern_os, working_directory, 0},
+                  {ern_peer, compute, 2},
+                  {ern_peer, compute_at, 3},
+                  {ern_peer, find, 2},
+                  {ern_peer, spawn, 3},
+                  {ern_peer, spawn_monitored, 4},
+                  {ern_peer, utilization, 2},
+                  {ern_rt, exit_program, 1},
+                  {ern_tty, size, 0}],
+                 [Call || {Module, Function, Arity} = Call <- Called,
+                          ern_emitter:is_listed_waiting(Module, Function, Arity)]).
+
+%% The host's module, function and arity each foreign declaration of a
+%% standard library module calls, as the build in build/stdlib records it:
+%% its parameters, then a member for each its requirement names, as the
+%% emitter passes them (report §4.9, §9.4).
+foreign_calls(Source) ->
+    Compiled = filename:join("../../../build/stdlib", filename:basename(Source, ".ern") ++ ".erc"),
+    {ok, Beam} = file:read_file(Compiled),
+    {ok, #recorded{foreign = Foreign}} = ern_canonical:read(Beam),
+    [{HostModule, HostFunction, length(ParamTypes) + length(Requirement)}
+     || {_, {scheme, _, {arrow, ParamTypes, _, _}, Requirement}, HostModule, HostFunction, _}
+            <- Foreign].
+
 %% report §8.1, §8.4, Appendix B
 hello_golden_test() ->
     ?assertEqual(target_forms("hello.erl"), example_forms("hello")).

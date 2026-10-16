@@ -36,7 +36,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, function_name/1, site_name/2]).
+-export([unit/1, source/1, function_name/1, is_listed_waiting/3, site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -483,6 +483,9 @@ foreign_call(Call, HostModule, HostFunction, Arity,
                                 none, [Raised]),
     {erl_syntax:try_expr([Counted], [Handler]), Context1}.
 
+%% Report §8.6: whether the runtime module lists the function among those
+%% that wait (`-waits`); a module the host cannot load lists none.
+-spec is_listed_waiting(atom(), atom(), arity()) -> boolean().
 is_listed_waiting(HostModule, HostFunction, Arity) ->
     case code:ensure_loaded(HostModule) of
         {module, HostModule} ->

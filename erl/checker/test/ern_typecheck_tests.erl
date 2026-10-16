@@ -779,10 +779,10 @@ spawn_captures_test() ->
 
 %% report §3.11, §8.1: the process a spawn on a peer starts has a mailbox
 %% type known whole where it is written, which crosses; one that is a
-%% variable the definition's type does not hold is Never, as an entry
-%% point's is, and one it holds is refused, since an instance could make it
-%% bound. A regression test: §6.10's spawn of a lambda with no annotation
-%% was refused
+%% variable nothing fixed is Never, as an entry point's is, and one an
+%% annotation names is refused, since an instance could make it bound. A
+%% regression test: §6.10's spawn of a lambda with no annotation was
+%% refused
 spawn_mailbox_test() ->
     ?assertEqual(ok, peer_ok("fn f() : Unit = {\n" ++ spawning("", "fn() = Unit"))),
     {ok, Typed} = typed_peer("fn idle() : Unit receiving m = receive { after 1 -> Unit }\n"
@@ -820,7 +820,7 @@ peer_name("Peer.compute") -> "".
 %% named or on one the node picks, is checked as a spawn's, each error
 %% naming the form written: its captures, a function that came as a value,
 %% a member of a requirement in force, its mailbox type, which is Never
-%% where it is a variable the definition's type does not hold, and
+%% where it is a variable nothing fixed, and
 %% `restarting` over a function it admits; each form is called where it is
 %% named. A regression test, written after the code, of `Peer.computeAt`,
 %% today's form of the compute on a named peer, and of `Peer.compute`
@@ -2147,10 +2147,11 @@ toplevel_let_test() ->
     %% report §3.9, §4.6: one whose initializer is a call has the type the
     %% call gives, generalized where that type is data, so a variable left
     %% in a type that holds an address is an error, where a value generalizes
-    ?assertEqual("the type of s is not determined (Address(a)), and a top-level `let` whose"
-                 " initializer is no value is not generalized where its type holds an address;"
-                 " annotate it",
-                 refusal("export let s = spawn(fn() = Unit)")),
+    ?assertEqual("the type of s is not determined (Address(Optional(a))), and a top-level"
+                 " `let` whose initializer is no value is not generalized where its type holds"
+                 " an address; annotate it",
+                 refusal("fn hold(value : a) : Unit receiving a = receive { next -> hold(next) }\n"
+                         "export let s = spawn(fn() = hold(None))")),
     ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)),
     ?assertEqual("List(Int)", type_of("export let some = List.reverse([1])", some)),
     %% a constructor applied to values, a tuple and a list of them are values
@@ -2182,6 +2183,63 @@ initializer_call_not_generalized_test() ->
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
     ?assertEqual("() -> Address(a) receiving a", type_of("export let me = fn() = self()", me)).
 
+%% report §6.2, §3.11, §4.6: a spawned function's mailbox type that nothing
+%% fixed by the end of the definition, which no parameter's type holds and
+%% which is not the definition's own mailbox type, is Never: a top-level
+%% `let` of a spawn, and of a `Peer.spawn` with no mark; a `fn`, whose type
+%% then holds it, a process-only one among them, and a local `fn` as a
+%% top-level one; nothing can be sent to such an address. One a send fixes,
+%% one an annotation names, one a parameter's type holds, of the definition
+%% or of the function it answers, one that is the definition's own mailbox
+%% type, whose `receive` stands, and one an enclosing definition fixes
+%% after a local fn's end are kept, and a variable inside a mailbox type is
+%% still §4.6's refusal. A regression test, written after the code; it
+%% does not cover the shell's input, which ern_shell_tests does, nor a
+%% group of definitions
+unfixed_mailbox_is_never_test() ->
+    ?assertEqual("Address(Never)", type_of("export let p = spawn(fn() = Io.println(\"x\"))", p)),
+    ?assertEqual("Either(Io.Error, Address(Never))",
+                 type_of("export let q = Peer.spawn(\"p\", fn() = Unit, 5000)", q)),
+    ?assertEqual("() -> Address(Never)",
+                 type_of("export fn make() = spawn(fn() = Io.println(\"x\"))", make)),
+    ?assertEqual("() -> Address(Never)",
+                 type_of("export fn start() = spawn(fn() = receive { _ -> Unit })", start)),
+    ?assertEqual("(() -> Unit receiving a) -> Address(a)",
+                 type_of("export fn start(f) = spawn(f)", start)),
+    ?assertEqual(ok, ok("fn start(f) = spawn(f)\n"
+                        "fn g() : Unit = {\n"
+                        "    let p = start(fn() = receive { n -> Io.println(Int.toString(n)) });\n"
+                        "    send(p, 1)\n"
+                        "}\n")),
+    ?assertEqual("() -> (() -> Unit receiving a) -> Address(a)",
+                 type_of("export fn make() = fn(f) = spawn(f)", make)),
+    ?assertEqual("(Address(a)) -> Address(a)",
+                 type_of("export fn relay(other) = { let p = spawn(fn() = Unit);"
+                         " if true then p else other }", relay)),
+    ?assertEqual("() -> Unit receiving e+",
+                 type_of("export fn loop() = { let p = spawn(fn() = Unit);"
+                         " receive { m -> send(p, m) } }", loop)),
+    ?assertEqual("the argument does not fit send: expected Never, found Int",
+                 refusal("let p = spawn(fn() = Unit)\nfn f() : Unit = send(p, 1)")),
+    ?assertEqual("the argument does not fit send: expected Never, found Int",
+                 refusal("fn f() : Unit = { fn start() = spawn(fn() = Unit); send(start(), 1) }")),
+    ?assertEqual("the argument does not fit send: expected Never, found Int",
+                 refusal("fn f() : Unit = { let start = fn() = spawn(fn() = Unit);"
+                         " send(start(), 1) }")),
+    ?assertEqual("() -> Address(Int)",
+                 type_of("export fn start() = { let p = spawn(fn() = Unit); send(p, 1); p }",
+                         start)),
+    ?assertEqual("(() -> Unit receiving m) -> Address(m)",
+                 type_of("export fn start(f : () -> Unit receiving m) : Address(m) = spawn(f)",
+                         start)),
+    ?assertEqual(ok, ok("fn f() : Unit = { let p = spawn(fn() = Unit); fn g() = p;"
+                        " send(g(), 1) }")),
+    ?assertEqual("the type of shared is not determined (Address(Optional(a))), and a top-level"
+                 " `let` whose initializer is no value is not generalized where its type holds"
+                 " an address; annotate it",
+                 refusal("fn hold(value : a) : Unit receiving a = receive { next -> hold(next) }\n"
+                         "let shared = spawn(fn() = hold(None))")).
+
 %% report §4.6: a call's binding whose type, read through the fields of the
 %% declared types it names, holds a function type, a foreign type, an
 %% address or a reply is not generalized, the refusal naming what it holds:
@@ -2201,7 +2259,7 @@ call_holding_no_data_not_generalized_test() ->
                  refusal("fn make() = fn(x) = x\nlet id = make()")),
     ?assertEqual(Refused("box", "Box(a)", "an address"),
                  refusal("type Box(a) = Box(Address(a))\n"
-                         "fn boxed() = Box(spawn(fn() = Unit))\nlet box = boxed()")),
+                         "fn boxed() : Box(a) = Box(spawn(fn() = Unit))\nlet box = boxed()")),
     ?assertEqual(Refused("handle", "Handle(a)", "the foreign type Handle(a)"),
                  refusal("foreign type Handle(a)\n"
                          "foreign fn open() : Handle(a) = \"m:open/0\"\nlet handle = open()")),

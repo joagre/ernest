@@ -52,7 +52,7 @@
 /// does not list:
 ///
 /// ```ernest
-/// Peer.spawn("worker", fn() : Unit receiving Never = Io.println("working"), 5000)
+/// Peer.spawn("worker", fn() = Io.println("working"), 5000)
 /// // => Left(NotListed)
 /// ```
 ///
@@ -186,7 +186,7 @@ export foreign fn spawn(name : String,
 /// ### Examples
 ///
 /// ```ernest
-/// Peer.spawnMonitored("worker", fn() : Unit receiving Never = Unit, fn(down) = down, 5000)
+/// Peer.spawnMonitored("worker", fn() = Unit, fn(down) = down, 5000)
 /// ```
 export foreign fn spawnMonitored(name : String,
                                  f : () -> Unit receiving m,

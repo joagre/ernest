@@ -773,7 +773,7 @@ fault_while_typing() ->
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex(Late)},
-                     {expect, "Address(a)"},
+                     {expect, "Address(Never)"},
                      {expect, "> "},
                      {send, hex("abc")},
                      {expect, "abc"},
@@ -2198,7 +2198,8 @@ open_binding_test_() ->
 open_binding() ->
     InputFile = scratch_file("ern_open_"),
     ok = file:write_file(InputFile,
-                         "let p = spawn(fn() = receive { _ -> Unit })\n"
+                         "fn kept(f : () -> Unit receiving m) : Address(m) = spawn(f)\n"
+                         "let p = kept(fn() = receive { _ -> Unit })\n"
                          "let q : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"
                          "send(q, 1)\n"
                          "kill(q)\n"
@@ -2213,6 +2214,21 @@ open_binding() ->
     %% free variable used to break every input after it
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"badkey">>)).
+
+%% report §6.2, §3.11, §4.6, §11.2: an input at the prompt is a definition,
+%% so the mailbox type of a process it spawns that nothing fixed is Never,
+%% and a send to its address is refused. A regression test, written after
+%% the code; a `Peer.spawn` at the prompt is node_shell_test's
+unfixed_mailbox_at_the_prompt_test_() ->
+    {timeout, 60, fun unfixed_mailbox_at_the_prompt/0}.
+
+unfixed_mailbox_at_the_prompt() ->
+    InputFile = scratch_file("ern_unfixed_"),
+    ok = file:write_file(InputFile, "let p = spawn(fn() = Io.println(\"x\"))\nsend(p, 1)\n"),
+    {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"p : Address(Never)">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the argument does not fit send: expected Never,"
+                                                " found Int">>)).
 
 %% report §11.2, §11.5: a `let` at the prompt binds as a `let` in a block
 %% does, so a value that is not of its annotation's type is told so as a
@@ -2364,10 +2380,11 @@ unsettled_binding_test_() ->
 
 unsettled_binding() ->
     InputFile = scratch_file("ern_unsettled_"),
-    ok = file:write_file(InputFile, "let p = spawn(fn() : Unit = Unit)\n"),
+    ok = file:write_file(InputFile, "fn kept(f : () -> Unit receiving m) : Address(m) = spawn(f)\n"
+                                    "let p = kept(fn() : Unit = Unit)\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Text))
-     || Text <- [<<"  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n">>,
+     || Text <- [<<"  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n">>,
                  <<"annotate the binding, `let p : Address(T) = ...`, or give the spawned"
                    " function its mailbox type, `fn() : Unit receiving T = ...`">>]].
 
@@ -2839,6 +2856,37 @@ reload_names_no_library() ->
     ?assertMatch({match, _}, re:run(Output, "no source has changed\nthe source root [^\n]* holds"
                                             " no source of Other\n")).
 
+%% report §11.1, §11.2: a module that uses, through the load path, a module
+%% that uses it is a cycle, which `:load` refuses as `ern build` refuses
+%% one, naming the two, and loads nothing: the module from its source, and
+%% the other from its compiled form alone. A regression test, written after
+%% the fix: the first was loaded, and the second never ended
+load_path_cycle_test_() ->
+    {timeout, 60, fun load_path_cycle/0}.
+
+load_path_cycle() ->
+    Dir = scratch("ern_load_path_cycle_"),
+    [Library, Source, Build] = [filename:join(Dir, Leaf) || Leaf <- ["lib", "src", "build"]],
+    [ok = filelib:ensure_path(Path) || Path <- [Library, Source, Build]],
+    Twice = "export fn twice(x : Int) : Int = x * 2\n",
+    ok = file:write_file(filename:join(Library, "b.ern"), Twice),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " " ++ Library),
+    ok = file:write_file(filename:join(Source, "a.ern"), "export fn four() : Int = B.twice(2)\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Source ++ " --build-root " ++ Build
+                        ++ " --load-path " ++ Library ++ " " ++ Source),
+    %% B compiled again, against A, which it uses in turn
+    ok = file:write_file(filename:join(Library, "b.ern"),
+                         [Twice, "\nexport fn eight() : Int = A.four() * 2\n"]),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " --load-path " ++ Build
+                        ++ " " ++ Library),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load A\nA.four()\n:load B\nB.eight()\n1 + 1\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " --load-path "
+                                   ++ Library ++ " --load-path " ++ Build) ++ " < " ++ InputFile),
+    ?assertEqual(2, length(binary:matches(Output, <<"> module cycle: A, B\n">>))),
+    [?assertMatch({_, _}, binary:match(Output, Text))
+     || Text <- [<<"unknown name A.four">>, <<"unknown name B.eight">>, <<"> 2 : Int">>]].
+
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)
@@ -3129,8 +3177,7 @@ node_shell() ->
                                      write_source(Dir, "greet.ern",
                                                   "export fn hello() : String = \"hello\"\n"),
                                      ":reload\nGreet.hello()\nOther.x\nPeer.peers()\n"
-                                     "Peer.spawn(\"far\","
-                                     " fn() : Unit receiving Never = Unit, 100)\n"
+                                     "Peer.spawn(\"far\", fn() = Unit, 100)\n"
                                      "type T = T(Int)\n"
                                      "let service : Peer.Service(T) = Peer.service(\"t\")\n"
                                      "let boxed : Peer.Service(List(Optional(T))) ="

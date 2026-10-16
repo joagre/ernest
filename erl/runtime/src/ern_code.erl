@@ -246,9 +246,9 @@ valued(Key) ->
 %% definitions (#recorded{}): what is kept beside its code, or what the
 %% `.erc` the host loaded it from holds, read as it is asked for, where the
 %% file holds the unit's code still; none where neither is there, a file
-%% changed or gone among the ways, which the build's rule against writing a
-%% build under a running node excludes (§11.1), so that a unit is never
-%% described by forms its code was not compiled from.
+%% changed or gone among the ways, as a build written under a running node
+%% changes it, so that a unit is never described by forms its code was not
+%% compiled from.
 -spec forms(module()) -> {ok, #recorded{}} | none.
 forms(Unit) ->
     case lookup({forms, Unit}) of

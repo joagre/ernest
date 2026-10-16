@@ -2689,7 +2689,7 @@ fix_from_shell(Base) ->
                "\n"
                "fn middle(x : Int) : Int = aside(fn() = leaf(x)) + 1\n"
                "\n"
-               "export fn top() : Unit receiving Never = Io.println(Int.toString(middle(1)))\n"
+               "export fn top() : Unit = Io.println(Int.toString(middle(1)))\n"
                "\n"
                "// What no fix changes, beneath whose frame the fix runs.\n"
                "export fn aside(f : () -> Int) : Int = f() + 0\n"
@@ -3066,7 +3066,7 @@ shell_compute(Base) ->
                                     "Peer.computeAt(\"worker\", alone, 5000)\n",
                                     "type Count = Count(Int)\n",
                                     "foreign fn wrong() : Count = \"erlang:yield/0\"\n",
-                                    "fn counts() : Unit receiving Never = {\n"
+                                    "fn counts() : Unit = {\n"
                                     "    Io.println(\"counting\");\n"
                                     "    let _ = wrong();\n"
                                     "    Unit\n"
@@ -3221,8 +3221,7 @@ shell_node(Base) ->
     prints(Store, "ready"),
     {DeskInput, WaitDesk} = shell_started(Desk, Root),
     true = port_command(DeskInput, ":load Greet\n"
-                                   "Peer.spawn(\"store\","
-                                   " fn() : Unit receiving Never = Unit, 5000)\n"),
+                                   "Peer.spawn(\"store\", fn() = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "go\n"),
     prints(Store, "spawned: Right"),
@@ -3325,7 +3324,7 @@ shell_node_versions(Base) ->
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        "Peer.spawn(\"store\", fn() : Unit receiving Never = Unit, 5000)\n"),
+                        "Peer.spawn(\"store\", fn() = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
     prints(Store, "first: NotLoaded"),
@@ -3417,7 +3416,7 @@ shell_node_reach(Base) ->
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        "Peer.spawn(\"store\", fn() : Unit receiving Never = Unit, 5000)\n"),
+                        "Peer.spawn(\"store\", fn() = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
     prints(Store, "first: NotLoaded"),
@@ -3504,7 +3503,7 @@ refused_build_load(Base) ->
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        "Peer.spawn(\"store\", fn() : Unit receiving Never = Unit, 5000)\n"),
+                        "Peer.spawn(\"store\", fn() = Unit, 5000)\n"),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "before\n"),
     prints(Store, "before: NotLoaded"),

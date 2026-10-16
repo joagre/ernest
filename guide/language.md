@@ -766,15 +766,22 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit receiving n`, and the address an `Address(n)`. A function that receives nothing fits wherever one with a mailbox type is expected, so it is spawned as any other, and the first `send` to its address fixes `n`. Where nothing fixes it, the process receives nothing and its mailbox type is `Never`, one rule for every process: one spawned here or on a peer (§8.1), and `main` (§1.1). An annotation may say so, `let worker : Address(Never) = spawn(fn() = work())`, and nothing can be sent to that address.
+**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit receiving n`, and the address an `Address(n)`. A function that receives nothing fits wherever one with a mailbox type is expected, so it is spawned as any other, and the first `send` to its address fixes `n`. So does each call of the definition where a parameter's type holds `n` or `n` is the definition's own mailbox type: `fn start(f) = spawn(f)` spawns a function of any mailbox type. Where nothing fixes it by the end of the definition the spawn is written in, or of the input at the prompt, the process receives nothing and its mailbox type is `Never`, one rule for every process: one spawned here or on a peer (§8.1), and `main` (§1.1). Its address is an `Address(Never)`, to which nothing can be sent:
+
+```console
+$ ern shell
+Ernest 0.3.1. :help for the commands, :quit to leave.
+> let worker = spawn(fn() = Unit)
+worker : Address(Never)
+```
 
 A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3); the shell shows the open type and keeps `it` as it was:
 
 ```console
 $ ern shell
 Ernest 0.3.1. :help for the commands, :quit to leave.
-> spawn(fn() : Unit = Unit)
-<address 84> : Address(a)
+> List.reverse([])
+[] : List(a)
 `it` is unchanged: this input did not determine the type of its value
 ```
 
@@ -2403,7 +2410,7 @@ $ ern run sent.erc
 no foo: NotListed
 ```
 
-What the function captures, and where it runs, is as for a compute: `me` crosses, and still names this process. A process spawned so that never receives needs no annotation: where nothing else names the mailbox type of the address the spawn answers, it is `Never`. A fault in it is the process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Its `site` is empty for a process of another node; that node's standard error reports the fault with the site (report §6.9). Several computations run at once as several such processes, each sending its result back.
+What the function captures, and where it runs, is as for a compute: `me` crosses, and still names this process. A process spawned so that it never receives needs no annotation: nothing fixes its mailbox type, which is then `Never` (§4.1). A fault in it is the process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Its `site` is empty for a process of another node; that node's standard error reports the fault with the site (report §6.9). Several computations run at once as several such processes, each sending its result back.
 
 ### 8.2 Services across nodes
 

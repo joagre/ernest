@@ -278,7 +278,7 @@ export fn close(socket : Address(SocketMsg)) : Unit =
 ///     let port <- Tcp.port(listener);
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
 ///     let socket <- Tcp.accept(listener, 1000);
-///     let session = spawn(fn() : Unit receiving Never = {
+///     let session = spawn(fn() = {
 ///         let _ = Tcp.write(socket, String.toUtf8("hello"), 1000);
 ///         Tcp.close(socket)
 ///     });

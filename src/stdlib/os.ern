@@ -395,7 +395,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit =
 /// ```ernest
 /// {
 ///     let program <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
-///     let reader = spawn(fn() : Unit receiving Never = match Os.read(program, 5000) {
+///     let reader = spawn(fn() = match Os.read(program, 5000) {
 ///         _ -> Unit
 ///     });
 ///     Os.give(program, Process.fromAddress(reader));

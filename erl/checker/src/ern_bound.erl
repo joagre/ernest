@@ -8,21 +8,19 @@
 %% the compute or bound by a `let` it names, or
 %% `restarting` applied to one of these, and what that lambda or `fn`
 %% captures, and the mailbox type of the process it starts, are neither
-%% bound nor hold a type variable, but for a mailbox type that is a
-%% variable the definition's type does not hold, which is Never; nor does
-%% its body use a member of a requirement in force, a function. A compute's
+%% bound nor hold a type variable, a mailbox type nothing fixed being Never
+%% by then (ern_typecheck's unfixed_mailboxes); nor does its body use a
+%% member of a requirement in force, a function. A compute's
 %% function's result type, which crosses back, is neither bound nor holds a
 %% type variable. Nothing else is checked, and nothing is looked through at
 %% a send. A breach is thrown as the checker's type errors are.
 -module(ern_bound).
 
--export([binds/2, check/3]).
+-export([binds/2, check/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
-
--define(NEVER, {tcon, ['Never'], []}).
 
 %% Report §3.11: false where a value of the type crosses to another node,
 %% and else what binds it there, as a phrase: a function, a value of a
@@ -100,42 +98,29 @@ first(Binds, [Type | Types]) ->
 %%
 
 %% Report §3.11: every spawn on a peer and every compute in a definition,
-%% its typed body read once its types are known; Held are the type
-%% variables the definition's type holds. Answers the env with each started
-%% process's mailbox type that is a variable Held leaves out bound to
-%% Never. Scope holds, for each local name a `let` binds to a lambda or a
-%% block declares with `fn`, that lambda or declaration, and for each name
-%% bound since, `value`.
--spec check(tuple(), [ern_types:id()], ern_typecheck:env()) -> ern_typecheck:env().
-check(#fn_declaration{params = Params, body = Body}, Held, Env) ->
-    never(walk(Body, shadowed(param_names(Params), #{}), {Held, Env}), Env);
-check(#let_declaration{body = Body}, Held, Env) ->
-    never(walk(Body, #{}, {Held, Env}), Env);
-check(_, _, Env) ->
-    Env.
+%% its typed body read once its types are known. Scope holds, for each
+%% local name a `let` binds to a lambda or a block declares with `fn`, that
+%% lambda or declaration, and for each name bound since, `value`.
+-spec check(tuple(), ern_typecheck:env()) -> ok.
+check(#fn_declaration{params = Params, body = Body}, Env) ->
+    walk(Body, shadowed(param_names(Params), #{}), Env);
+check(#let_declaration{body = Body}, Env) ->
+    walk(Body, #{}, Env);
+check(_, _) ->
+    ok.
 
-%% Report §3.11, §8.1: a mailbox type no instance of the definition reaches
-%% is Never, as an entry point's is.
-never(Variables, Env) ->
-    TypeState = lists:foldl(fun(Id, Acc) ->
-                                {ok, Acc1} = ern_types:unify({tvar, Id}, ?NEVER, Acc),
-                                Acc1
-                            end, ern_typecheck:type_state(Env), lists:usort(Variables)),
-    ern_typecheck:set_type_state(TypeState, Env).
-
-%% The mailbox types taken as Never under a node: walk/3 answers the
-%% variables each spawn or compute in it leaves so.
-walk(#e_call{callee = #e_var{referent = Referent} = Callee, args = Args}, Scope, Context) ->
-    Spawned = case {spawn_name(Referent), is_running(Referent)} of
-                  {none, false} -> walk(Callee, Scope, Context);
-                  {none, true} -> running(Args, Context);
-                  {Name, _} -> spawned(Name, Callee, Args, Scope, Context)
-              end,
-    Spawned ++ walk(Args, Scope, Context);
-walk(#e_var{span = Span, referent = Referent}, _Scope, _Context) ->
+%% Each spawn on a peer, each compute and each `Code.running` under a node.
+walk(#e_call{callee = #e_var{referent = Referent} = Callee, args = Args}, Scope, Env) ->
+    case {spawn_name(Referent), is_running(Referent)} of
+        {none, false} -> walk(Callee, Scope, Env);
+        {none, true} -> running(Args, Env);
+        {Name, _} -> spawned(Name, Callee, Args, Scope, Env)
+    end,
+    walk(Args, Scope, Env);
+walk(#e_var{span = Span, referent = Referent}, _Scope, _Env) ->
     case {spawn_name(Referent), is_running(Referent)} of
         {none, false} ->
-            [];
+            ok;
         {none, true} ->
             fail(Span, "Code.running is called where it is named, so that the compiler sees the"
                        " declaration it names",
@@ -146,34 +131,39 @@ walk(#e_var{span = Span, referent = Referent}, _Scope, _Context) ->
                  "call it: `" ++ Name ++ "(" ++ peer_argument(Name) ++ "fn() = ..., ms)`"
                  " (§3.11)")
     end;
-walk(#e_lambda{params = Params, body = Body}, Scope, Context) ->
-    walk(Body, shadowed(param_names(Params), Scope), Context);
-walk(#clause{pattern = Pattern, guard = Guard, body = Body}, Scope, Context) ->
+walk(#e_lambda{params = Params, body = Body}, Scope, Env) ->
+    walk(Body, shadowed(param_names(Params), Scope), Env);
+walk(#clause{pattern = Pattern, guard = Guard, body = Body}, Scope, Env) ->
     Scope1 = shadowed(pattern_names(Pattern), Scope),
-    walk(Guard, Scope1, Context) ++ walk(Body, Scope1, Context);
-walk(#e_block{statements = Statements}, Scope, Context) ->
+    walk(Guard, Scope1, Env),
+    walk(Body, Scope1, Env);
+walk(#e_block{statements = Statements}, Scope, Env) ->
     Fns = maps:from_list([{Name, {local_fn, Fn}}
                           || #fn_declaration{name = Name} = Fn <- Statements]),
-    {Spawned, _} = lists:mapfoldl(fun(Statement, Acc) -> statement(Statement, Acc, Context) end,
-                                  maps:merge(Scope, Fns), Statements),
-    lists:append(Spawned);
-walk(Node, Scope, Context) when is_tuple(Node) ->
-    walk(tl(tuple_to_list(Node)), Scope, Context);
-walk(Nodes, Scope, Context) when is_list(Nodes) ->
-    lists:append([walk(Node, Scope, Context) || Node <- Nodes]);
+    lists:foldl(fun(Statement, Acc) -> statement(Statement, Acc, Env) end,
+                maps:merge(Scope, Fns), Statements),
+    ok;
+walk(Node, Scope, Env) when is_tuple(Node) ->
+    walk(tl(tuple_to_list(Node)), Scope, Env);
+walk(Nodes, Scope, Env) when is_list(Nodes) ->
+    lists:foreach(fun(Node) -> walk(Node, Scope, Env) end, Nodes);
 walk(_, _, _) ->
-    [].
+    ok.
 
-%% A block's statement, and the scope of the statements after it.
+%% A block's statement walked, and the scope of the statements after it.
 statement(#binding{pattern = #p_var{name = Name}, operator = '=', expr = #e_lambda{} = Lambda},
-          Scope, Context) ->
-    {walk(Lambda, Scope, Context), Scope#{Name => {lambda, Lambda}}};
-statement(#binding{pattern = Pattern, expr = Expr}, Scope, Context) ->
-    {walk(Expr, Scope, Context), shadowed(pattern_names(Pattern), Scope)};
-statement(#fn_declaration{params = Params, body = Body}, Scope, Context) ->
-    {walk(Body, shadowed(param_names(Params), Scope), Context), Scope};
-statement(Expr, Scope, Context) ->
-    {walk(Expr, Scope, Context), Scope}.
+          Scope, Env) ->
+    walk(Lambda, Scope, Env),
+    Scope#{Name => {lambda, Lambda}};
+statement(#binding{pattern = Pattern, expr = Expr}, Scope, Env) ->
+    walk(Expr, Scope, Env),
+    shadowed(pattern_names(Pattern), Scope);
+statement(#fn_declaration{params = Params, body = Body}, Scope, Env) ->
+    walk(Body, shadowed(param_names(Params), Scope), Env),
+    Scope;
+statement(Expr, Scope, Env) ->
+    walk(Expr, Scope, Env),
+    Scope.
 
 %% Appendix E.27: `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute` and
 %% `Peer.computeAt`, the module's own functions as the checker resolved
@@ -207,9 +197,8 @@ is_running(_) ->
 %% type is Unit and whose mailbox type, where it has one, holds no type
 %% variable, read from its declaration and not from this use, since every
 %% process listed has it as its mailbox type; one that receives nothing
-%% names none. Nothing is taken as Never here.
-running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}],
-        {_Held, Env}) ->
+%% names none.
+running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}], Env) ->
     Written = ern_namespace:text(Namespace ++ [Name]),
     Help = "name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)",
     What = fun(Text) -> "Code.running lists the processes that run a declaration, and "
@@ -228,9 +217,8 @@ running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Refe
                 andalso fail(Span, What(" is a foreign declaration, which has no hash"), Help),
             #scheme{type = Type} = ern_typecheck:declaration_scheme(Referent, Env),
             declared_running(Span, {Written, atom_to_list(Name)}, Type, Env)
-    end,
-    [];
-running([Function], _Context) ->
+    end;
+running([Function], _Env) ->
     fail(ern_ast:span(Function),
          "Code.running lists the processes that run a declaration, named where the call is"
          " written",
@@ -257,10 +245,9 @@ declared_running(Span, {Written, Declared}, Type, Env) ->
 
 %% Report §3.11: the function the spawn or the compute starts, written
 %% where its captures are seen, each capture and the process's mailbox type
-%% neither bound nor holding a type variable, but for a mailbox type that is
-%% Never; and a compute's result type, which crosses back, neither bound nor
-%% holding one.
-spawned(Name, #e_var{type = CalleeType}, Args, Scope, {Held, Env}) ->
+%% neither bound nor holding a type variable; and a compute's result type,
+%% which crosses back, neither bound nor holding one.
+spawned(Name, #e_var{type = CalleeType}, Args, Scope, Env) ->
     Position = function_position(Name),
     Function = lists:nth(Position, Args),
     Captures = restarted_captures(Name, Function, Scope, Env),
@@ -269,7 +256,7 @@ spawned(Name, #e_var{type = CalleeType}, Args, Scope, {Held, Env}) ->
     is_compute(Name)
         andalso result_crosses(Name, ern_ast:span(Function), FunctionType, Env),
     {tfn, [], Mailbox, _} = FunctionType,
-    mailbox_crosses(Name, ern_ast:span(Function), Mailbox, Held, Env).
+    mailbox_crosses(Name, ern_ast:span(Function), Mailbox, Env).
 
 %% Report §3.11, §6.9: `restarting` applied to a function the spawn admits
 %% captures the limit, a `RestartLimit`, which crosses, and what that
@@ -411,31 +398,26 @@ result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
                  " what crosses (§3.11)")
     end.
 
-%% Answers the variable a mailbox type is, to be taken as Never, where the
-%% definition's type does not hold it, and else none.
-mailbox_crosses(Name, Span, Mailbox, Held, Env) ->
+%% A mailbox type that is still a variable is one an annotation names or
+%% each call of the definition fixes, since one nothing fixed is Never by
+%% now, and an instance of the definition could make it a bound type.
+mailbox_crosses(Name, Span, Mailbox, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     Text = ern_types:format(Mailbox, TypeState),
     case {binds(Mailbox, Env), ern_types:resolve(Mailbox, TypeState)} of
-        {false, {tvar, Id}} ->
-            case lists:member(Id, Held) of
-                false ->
-                    [Id];
-                true ->
-                    fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
-                               ++ " is not known whole here",
-                         "give the function its mailbox type, " ++ annotated(Name) ++ ": an"
-                         " instance of this definition could make the variable a type bound to"
-                         " its node (§3.11)")
-            end;
+        {false, {tvar, _}} ->
+            fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
+                       ++ " is not known whole here",
+                 "give the function its mailbox type, " ++ annotated(Name) ++ ": an"
+                 " instance of this definition could make the variable a type bound to"
+                 " its node (§3.11)");
         {false, _} ->
             ern_types:free_variables(Mailbox, TypeState) =:= []
                 orelse fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                                   ++ " is not known whole here",
                             "give the function its mailbox type, " ++ annotated(Name) ++ ": a"
                             " type variable in it could stand for a type bound to its node"
-                            " (§3.11)"),
-            [];
+                            " (§3.11)");
         {Why, _} ->
             fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                        ++ " is bound to its node, since it holds " ++ Why,

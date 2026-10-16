@@ -357,9 +357,11 @@ values() ->
       runs beside the caller, on this node, and `spawn` returns at once.
 
       The address takes the messages `f`'s mailbox type names. A function that
-      receives nothing is spawned as any other, `spawn(fn() = Io.println("hi"))`,
-      and what is sent to its address waits unread (report §6.2). The process
-      ends when `f` returns, faults, or is killed.
+      receives nothing is spawned as any other, and what is sent to its address
+      waits unread. Where nothing fixes the mailbox type by the end of the
+      definition the spawn is written in, it is `Never`:
+      `spawn(fn() = Io.println("hi"))` alone answers an `Address(Never)`
+      (report §6.2). The process ends when `f` returns, faults, or is killed.
 
       ### Examples
 

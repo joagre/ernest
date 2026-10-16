@@ -107,6 +107,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Supply**: what a requirement's member is supplied with at a use (§4.9), a `#known_member{}`, a `#required_member{}`, a `#shown_type{}`, whose `member` is `show` or `exposed`, or a service's `#service_type{}`, its message type known whole, a `#pending_member{}` until the definition ends; many are `supplies`. Not `Witness`, `Dictionary`, `Instance`.
 - **Derives**: §3.5's `derives compare`, a type declaration's `derives`.
 - **Restriction**: §3.9's inferred restriction; the two are `equality` and `process_only`. Not `flags`, `add_flag`, `eq`.
+- **Unfixed**: §6.2's mailbox type that nothing has fixed by the end of its definition, which is `Never`, `ern_types:unfixed/2`; the mailbox types a definition's spawns and computes were given, which its end reads, are the checker's `mailboxes` (`unfixed_mailboxes/1`). Not `Open`, `Free`, `Pending`.
 - **Bound**: §3.11's type bound to its node, and what binds it, which `ern_bound:binds` answers: a function, a foreign type, a resource, or an address or a reply of a bound type. Not `Local`, `Pinned`, `Sendable`.
 - **Capture**: a local a lambda's body names from around it (§3.11), in the bound check; many are `captures`. Not `Free`, `Closed`, `Env`.
 - **ResultType**: §4.5's result type, and "result type" in every message. Not `ret`, `Ret`, `RetT`, `R`, "return type".

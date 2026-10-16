@@ -482,14 +482,19 @@ restart ends the deliveries to its process, with a §6.9 sentence. The end's tel
 are linked to the runner, which traps no exit, and each applies a subscriber's wrap: they should
 be held as the reaper holds its deliveries. Fixed before the tag, once decided.
 
-**Before the tag: the waits each runtime module lists.** Decided with the user on 2026-10-16: the
+**Before the tag: the waits each runtime module lists.** Done 2026-10-17 (the log's *Before the Tag,
+the Last Builds*): the test lives with the emitter's, thirteen primitives listed. Decided with the
+user on 2026-10-16: the
 deadlock count takes a standard library operation as a computation that may deliver where its
 runtime module lists it in `-waits`, which §8.6 now says in one sentence; a test walks every foreign
 function the standard library declares and holds the set its modules list equal to a list of its
 own, so that a new primitive forces a decision, since an unlisted primitive that waits is a false
 `Fault("deadlock")` no test would catch. Built before the tag.
 
-**Before the tag: an unfixed mailbox type is `Never`.** Decided with the user on 2026-10-16: at the
+**Before the tag: an unfixed mailbox type is `Never`.** Done 2026-10-17 (the log's *Before the Tag,
+the Last Builds*), with what the build found: a variable a parameter's type holds, or that is the
+definition's own mailbox type, is fixed by each call and keeps, so `fn start(f) = spawn(f)` stays
+generic (§3.11, §6.2). Decided with the user on 2026-10-16: at the
 end of a definition's inference, a mailbox type variable of a spawned function's address that
 nothing fixed is `Never`, for `spawn`, `spawnMonitored`, `Peer.spawn` and the entry point alike, at
 the shell's prompt as in a module, in place of §3.11's rule that defaults it so only where the
@@ -516,9 +521,22 @@ end or restart, against §8.6 and §6.9: the teller applies the wrap in a delive
 against the subscriber, which its end or restart ends. An alarm whose process has ended holds off
 the deadlock fault until it fires, against §8.6 read with E.15: the clock monitors a process while it
 holds an alarm of it, one monitor for each, gone as its last alarm fires, and forgets an ended
-process's alarms as it forgets a restarted one's. Regression tests for both. Built before the tag.
+process's alarms as it forgets a restarted one's. And under `ern test` over a directory a unit is held
+for its run and an adapted address made by an earlier run is dead (§11.2, D4): the kept process's
+check of this start is a check of this run there, the runner's run number beside the start's, and the
+runner's purge of an earlier run's code is the stated case. Regression tests for all three. Built
+before the tag.
 
-**Before the tag: a module cycle through the load path.** Found 2026-10-16 by the read-back of the
+**Before the tag: a module cycle through the load path.** The shell's half done 2026-10-17 (the
+log's *Before the Tag, the Last Builds*): the shell refuses the cycle with its modules' names, where a
+cycle through a source module loaded silently and one between two compiled forms recursed for ever.
+The build found three more, planned here: `ern build` accepts a cycle through the load path, against
+§11.1, since it reads no recorded dependency of a load-path module, and `ern run` of such a program
+never ends, and `Code.load` of a module in such a cycle faults its caller with the host's `badkey`
+(E.28 names no error for it). The shape of the fix: the build reads the load-path modules' recorded
+dependencies transitively and refuses a cycle naming its modules, as it refuses one among its own
+sources, so that `ern run` never meets one; `Code.load` answers `Left(Invalid)` for a module in a
+cycle, which E.28 then says; regression tests for the three. Found 2026-10-16 by the read-back of the
 refused load's units. The shell accepts a module that uses, through the load path, a module that
 uses it, which §11.1 calls an error, and in that case alone a load refused and tried again makes a
 new unit. The shape of the fix: the shell refuses the cycle as `ern build` refuses one, naming its
