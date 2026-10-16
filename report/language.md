@@ -118,7 +118,7 @@ Eighteen, grouped by role:
 
 | Role                 | Words                                                  |
 |----------------------|--------------------------------------------------------|
-| Types                | `type`, `abstract`, `with`, `foreign`                  |
+| Types                | `type`, `abstract`, `receiving`, `foreign`             |
 | Pattern matching     | `match`, `when`, `receive`, `after`, `as`, `or`        |
 | Control flow         | `if`, `then`, `else`                                   |
 | Bindings             | `fn`, `let`                                            |
@@ -238,9 +238,9 @@ A Unicode scalar value is a code point other than a surrogate, U+0000 through U+
 
 `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `(#(A, B)) -> C` are different types; the first takes two arguments, the second one tuple. `() -> C` takes no arguments.
 
-`with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, §6.1. A function type without `with M` is pure.
+`receiving M` after the result is the mailbox type: the function receives from the mailbox of the process it runs in, whose type is `M`, §6.1. A function type without `receiving M` receives nothing.
 
-`with` binds to the nearest arrow. `(A) -> (B) -> C with M` is a pure function returning a function with mailbox `M`. `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure one. In a result annotation, a `with` after a function type is that type's: `fn f() : (A) -> B with M` returns a function with mailbox `M`; `fn f() : ((A) -> B) with M` has mailbox `M` itself.
+`receiving` binds to the nearest arrow. `(A) -> (B) -> C receiving M` is a function that receives nothing and returns a function receiving `M`. `(A) -> ((B) -> C) receiving M` is a function receiving `M` that returns one that receives nothing. In a result annotation, a `receiving` after a function type is that type's: `fn f() : (A) -> B receiving M` returns a function receiving `M`; `fn f() : ((A) -> B) receiving M` receives `M` itself.
 
 ### 3.5 Sum types
 
@@ -280,27 +280,32 @@ Type variables in a `fn` signature scope over the whole definition, including th
 
 Recursive and mutually recursive types are allowed; polymorphic recursion is not, even where the whole signature is written: a recursive call is at the definition's own type. A module's definitions are inferred each after the definitions it names, and a group of definitions that name one another is inferred together, each call within the group at the called definition's own type, before any is generalized. Within a recursive group of types, a type of the group is named in the group's fields at the parameters of the type declared, each in its place, and at nothing else. `type Nest(a) = Flat(a) | Deeper(Nest(List(a)))` is refused at its declaration, and so is `type Flip(a, b) = End(a) | Turn(Flip(b, a))`; `Deeper(List(Nest(a)))` is allowed. Every type variable in a constructor's fields is a parameter of the type.
 
-**Effect polymorphism.** The mailbox effect of a function type may be a type variable, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b with e, a) -> b with e`. At a call site an effect variable binds to a mailbox type or to pure: `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox of `send`, `apply(fn(x) = x + 1, 5)` binds `e` to pure. Pure is the absence of `with`; it is not a type. A mailbox type bound this way becomes the caller's.
+**Effect polymorphism.** The mailbox type of a function type may be a type variable, an *effect variable*, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b receiving e, a) -> b receiving e`. At a call site an effect variable binds to a mailbox type or to none: `apply(fn(x) = self(), 5)` binds `e` to the caller's mailbox type, `apply(fn(x) = x + 1, 5)` binds `e` to none. None is the absence of `receiving`; it is not a type. A mailbox type bound this way becomes the caller's.
 
-A pure function stands wherever a function of the same type with a mailbox type is expected, and a function with a mailbox type never stands where a pure one is expected. So an expression whose type is a function type without `with` takes a fresh effect variable in its place, which the context binds: with `fn double(n : Int) : Int = n * 2` and `fn done(n : Int) : Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
+A function that receives nothing stands wherever a function of the same type receiving `M` is expected, and a function that receives never stands where one that receives nothing is expected. So an expression whose type is a function type without `receiving` takes a fresh effect variable in its place, which the context binds: with `fn double(n : Int) : Int = n * 2` and `fn done(n : Int) : Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
 
-An effect position is the type after `with`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. So is a type argument whose parameter occurs in no field of its type: `m` in `Peer.Service(m)` (§8.7). A variable that occurs only in effect positions ranges over the mailbox types and pure. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) with m` is never pure.
+An effect position is the type after `receiving`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. So is a type argument whose parameter occurs in no field of its type: `m` in `Peer.Service(m)` (§8.7). A variable that occurs only in effect positions ranges over the mailbox types and none. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) receiving m` is never none.
 
 Inference asks for an annotation at an operator whose operand type nothing in the definition fixes (§4.8), a field selection whose operand type nothing fixes (§3.5), a top-level binding that is not generalized whose type keeps a variable nothing resolves (§4.6), a `<-` whose sum type is still open (§5.5), `Io.show` or `Io.debug` at a type not known whole that no requirement names (Appendix E.1, §4.9), a fill whose record type leaves a requirement's variable undetermined (§5.6), a path in a record update through a field whose type nothing fixes (§5.6), `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), and an input at the prompt that binds a name its type does not settle (§11.2). A `Peer.spawn` or `Peer.spawnMonitored` whose function captured a value whose type holds a type variable is refused (§3.11).
 
-The functions of §9.4 and §9.5 whose own effect is a mailbox type, `restarting`, and a `foreign fn` whose effect is its own, are *process-only*: their effect variable is treated as if it occurred in a value position, and pure code cannot call them. A `foreign fn`'s effect is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the effect is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit with e) : Unit with e` is pure when `f` is.
+A `receive` with an `after` clause alone waits on its process's mailbox and reads no type from it, so the function around it, where nothing else fixes its mailbox type, is *process-only*: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is: one that sends, spawns, answers, calls, prints or reads a file names no mailbox, and a call of it adds nothing to the caller's type. A `foreign fn`'s mailbox type is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the mailbox type is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e` receives nothing when `f` does.
 
-A function has one mailbox effect or none. A function may take a pure callback beside an effectful one: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) : Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error.
+A function has one mailbox type or none. A function may take a callback that receives nothing beside one that receives: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit receiving n) : Unit receiving n`, `p` receives nothing, `e` receives `n`, and the function inherits `n`. Two callbacks whose mailbox types are both variables unify to one. Two callbacks with different concrete mailbox types are a type error.
 
-**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Two restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one mark a program writes (§4.7); given to a foreign function by this section's process-only rule; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5).
+**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox type. Two restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one mark a program writes (§4.7); given to a foreign function by this section's process-only rule; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5).
 
-The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code, and neither can `fn h(a : Int) : Unit with e = Io.println("")`.
+The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn pause(ms) = receive { after ms -> Unit }` cannot be taken for one that receives nothing, and neither can `fn h(ms : Int) : Unit receiving e = pause(ms)`.
 
 Each restriction is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition.
 
 ### 3.10 Equality and ordering
 
 `==` and `!=` are structural and defined for all values except those containing functions, addresses or replies, on which they are a type error. On a value of a foreign type, `Foreign.Term` among them, or of `Process`, they are the runtime's exact equality on the two representations (§8.4): two references are equal only when they are one reference, and two values that foreign code made as the same term are equal.
+
+```ernest-rejected
+fn same(f : () -> Int, g : () -> Int) : Bool =
+    f == g // rejected: == is not defined on functions
+```
 
 Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering` (§9.3). For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6), and for no other type: `Bool`, `Optional`, and `Path` (§9.3) have no ordering.
 
@@ -322,7 +327,7 @@ A service's message type, the mailbox type of a process spawned on a peer or sta
 
 The function a spawn on a peer starts, or a `Peer.compute` or a `Peer.computeAt` runs, is the name of a top-level `fn` or `foreign fn` declaration, which captures nothing; a lambda written in the same definition, at the spawn or bound by a `let` whose name the spawn writes; a `fn` declared in the same definition, whose captures are checked as a lambda's; or `restarting` (§6.9) applied to one of these, whose result captures its two arguments and nothing else. The captures of a lambda or of a local `fn` are the locals its body names. A member of a requirement in force (§4.9) that such a body uses is a function the definition was given, and the spawn is refused as one that captured a function: `Peer.spawn starts a function that uses a.show, a member of the requirement in force, which is a function bound to its node`, the member named. Any other expression is refused, a function that came as a parameter, in a message or from a call among them, since its captures are not in its type. A local name that names no such lambda or `fn` is refused with `Peer.spawn starts f, a function that came as a value, whose captures the compiler does not see`, `f` the name.
 
-`Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute` and `Peer.computeAt` are called where they are named, and are not taken as values: `let start = Peer.spawn` is refused with `Peer.spawn is called where it is named, so that the compiler sees the function it starts`. `Code.running(f)` is a form the same way (§6.10, Appendix E.28): `f` is the name of a top-level `fn` declaration of any arity whose result type is `Unit with m`, `m` known whole where `running` is written and holding no type variable, since every process listed has it as its mailbox type; the call's type is `List(Address(m))`, and `Code.running` is called where it is named. Each error names the operation written.
+`Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute` and `Peer.computeAt` are called where they are named, and are not taken as values: `let start = Peer.spawn` is refused with `Peer.spawn is called where it is named, so that the compiler sees the function it starts`. `Code.running(f)` is a form the same way (§6.10, Appendix E.28): `f` is the name of a top-level `fn` declaration of any arity whose result type is `Unit`, `receiving m` or without; the call's type is `List(Address(m))`, `m` the function's mailbox type, known whole where `running` is written and holding no type variable, since every process listed has it as its mailbox type, or, for a function that receives nothing, a type variable that nothing fixes; and `Code.running` is called where it is named. Each error names the operation written.
 
 No other operation is checked, and nothing is looked through at a send: an adapted address crosses with the values its function captured as payload, which no operation on another node reaches: they are touched only on the node that made it, where the function runs (§6.5). A value crosses in the runtime's external term format (§8.4) and carries nothing of its type, which is known at both ends and the same at both: every address of another node's process came from a find or a spawn, which compare types by hash, or inside a message whose type one of them agreed (§8.7). So a message between nodes is values only, and it needs no code on the node it reaches.
 
@@ -417,9 +422,9 @@ External callers see `Stack.Stack`, `Stack.empty`, `Stack.push`, `Stack.pop`, an
 
 ### 4.5 Functions
 
-`fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The result annotation is omitted, or is `: T` for a pure function, or `: T with M` for process code, as a parameter's annotation is `: T`.
+`fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The result annotation is omitted, or is `: T` for a function that receives nothing, or `: T receiving M` for one that receives, as a parameter's annotation is `: T`.
 
-A pure annotation on a function that calls process code is a type error. A pure annotation makes pure the effect of every parameter the body calls: `fn apply(f, x) : Int = f(x)` has type `((a) -> Int, a) -> Int`. `with M` where `M` is a type variable that names no parameter's effect is written only where the body acts through a process, making `M` process-only (§3.9); over a body that does not, it is an error, since the function is pure and `: T` is its one annotation: `fn k() : Int with m = 5` is refused.
+An annotation without `receiving` on a function that receives is a type error. Such an annotation makes every parameter the body calls one that receives nothing: `fn apply(f, x) : Int = f(x)` has type `((a) -> Int, a) -> Int`. `receiving M` where `M` is a type variable that names no parameter's mailbox type is written only where the body receives, making `M` process-only (§3.9); over a body that does not, it is an error, since the function receives nothing and `: T` is its one annotation: `fn k() : Int receiving m = 5` is refused.
 
 A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) : Int = Map.size(entries)`.
 
@@ -433,9 +438,9 @@ In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `
 
 A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. A later use of the binding in the block pins such a variable: `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`. One that reaches the block's result is generalized by the enclosing `fn` or top-level `let`: `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`. An annotation on the binding fixes it. A use pins a variable only where it fixes the variable's type, and a variable that nothing pins stays free: in `{ let xs = []; List.size(xs) }` the element type stays open.
 
-At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body of mailbox type `Never` (§6.8): it may spawn, send, and call, and it receives no message, a `receive` in it having only an `after` clause.
+At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body receiving `Never` (§6.8): it may spawn, send, and call, and it receives no message, a `receive` in it having only an `after` clause.
 
-The binding generalizes its free type variables: `let empty : Stack(a) = Stack([])`. A binding whose initializer calls a process-only function (§3.9) as it is evaluated is not generalized, and a type variable left in its type is a type error at the binding. A call in the body of a lambda the initializer builds and does not call is the lambda's: `let me = fn() = self()` is generalized. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
+The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A binding whose initializer is a call, or holds one, has the type the call gives and is not generalized, and a type variable left in its type is a type error at the binding: `let shared = spawn(fn() = cell(None))` is refused until an annotation fixes the type of what the cell holds. A call in the body of a lambda the initializer builds and does not call is the lambda's: `let me = fn() = self()` is generalized. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
 
 ### 4.7 Foreign declarations
 
@@ -445,7 +450,7 @@ The binding generalizes its free type variables: `let empty : Stack(a) = Stack([
 
 A foreign function has no body from which §3.9 infers restrictions: its equality constraints are written, `a=`, and its process-only restriction is §3.9's. What a function it is given returns is the foreign code's to hand on, as a `Reply` it is given is its to answer (§8.4).
 
-A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
+A foreign function that declares `receiving M` may receive from the calling process's mailbox and deliver into it. One without `receiving` promises to do neither, and may do anything else. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
 ### 4.8 Operators
 
@@ -455,7 +460,7 @@ Both operands have one type, which either may determine, and there is no numeric
 
 An operator is resolved once its definition is inferred, and before the definition is generalized. Its definition is the enclosing `fn` declaration, top-level or local, the enclosing top-level `let`, or a block `let` that binds a lambda, since each is generalized (§3.9, §4.6); any other lambda belongs to the definition it stands in. So `fn add(a, b) = a + b` in a block is a type error, whatever calls it later, and `fn add(a : Int, b : Int) = a + b` is not. An operand whose type is then a type variable of the enclosing declaration's signature resolves to the member its requirement names, `needs a.+` (§4.9). An operand type still undetermined then, or a type variable no requirement names, is a type error. A field selection (§3.5) is resolved in the same way, against its operand's type.
 
-A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each is pure. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `Vec.+` of a type `Vec(a)` has the type `(Vec(a), Vec(a)) -> R`. A member of another shape is an error at its declaration. An operator on a type that declares no member for it, `%` on `Float` or `<>` on `Int`, is a type error.
+A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each receives nothing. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `Vec.+` of a type `Vec(a)` has the type `(Vec(a), Vec(a)) -> R`. A member of another shape is an error at its declaration. An operator on a type that declares no member for it, `%` on `Float` or `<>` on `Int`, is a type error.
 
 `!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. `::` is cons (§3.3); `|>` is a syntactic form (§5.7). The operators are the closed set of §2.6, and every other operation is a function.
 
@@ -611,7 +616,7 @@ The value is matched against the clauses' patterns in order; the first clause wh
 
 The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. `true` and `false` together cover `Bool`. A clause, or an alternative of one, is *redundant* when it can match no value the clauses and alternatives before it leave unmatched, and a redundant clause is a type error: `n -> n | 0 -> 1`. For redundancy, a bitstring pattern in an earlier clause is taken to match no value, and one in the clause being judged to match any value. A guarded clause before the one being judged is taken to match no value, so `n when n > 0 -> 1 | n -> 0` is not redundant.
 
-A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
+A guard is a `Bool` expression that receives nothing and sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
 ### 5.10 Patterns
 
@@ -670,17 +675,17 @@ A process is an execution of a function with a mailbox type. It has a mailbox th
 
 ### 6.1 The mailbox type
 
-`(A) -> B with M` is the type of a function that acts through the process it runs in, whose mailbox has type `M`: it uses that process's `send`, `receive`, or `self`, or calls a function whose type has one, a prelude function of §9.4 or §9.5, `spawn` and `kill` among them, or a foreign function with a mailbox type. Every function runs in a process; that is not marked.
+`(A) -> B receiving M` is the type of a function whose own process's mailbox is involved, the mailbox of type `M`: it receives from it, gives out its address by `self`, asks for a message to be delivered into it, as `monitor` and `spawnMonitored` do through their wrap (§6.9, Appendix E.0 shape rule 8), or calls a function whose type names one, a prelude function of §9.4 or §9.5 or a foreign function among them. Every function runs in a process; that is not marked, and neither is what a function does through other processes or through the world: a `send`, a `spawn`, a `kill`, an `answer`, a call, printing, a file, a socket or a clock carry no mark.
 
-The effect is inferred. A function that calls a function with effect `M` has effect `M`. Two calls with different concrete effects in one body are a type error. Calls with variable effects unify. A pure call contributes nothing. A `receive`, with pattern clauses or only `after`, is process-only, as `self` is. A function that contains no `receive` and none of whose calls determines an effect is pure.
+The mailbox type is inferred. A function that calls a function receiving `M` receives `M`. Two calls with different concrete mailbox types in one body are a type error. Calls with variable mailbox types unify. A call of a function without `receiving` contributes nothing. A `receive` with pattern clauses gives the mailbox type its patterns have; one with only `after` is process-only, as §3.9 says. A function that contains no `receive`, calls no `self`, asks for no delivery and none of whose calls determines a mailbox type receives nothing.
 
 | Written | Meaning |
 |---|---|
-| `(A) -> B` | pure; callable from any process |
-| `(A) -> B with M` | uses its process; callable only where the mailbox type is `M` |
-| `(A) -> B with m`, `m` a variable | uses its process when `m` is a mailbox type; `m` takes the caller's mailbox type |
+| `(A) -> B` | receives nothing; callable from any process |
+| `(A) -> B receiving M` | receives from its process; callable only where the mailbox type is `M` |
+| `(A) -> B receiving m`, `m` a variable | receives when `m` is a mailbox type; `m` takes the caller's mailbox type |
 
-A pure function that calls a function argument runs it in the caller's process and is effect-polymorphic in it (§3.9): `List.map(xs, fn(x) = send(a, x))` has the callback's effect. Nothing else is written on a function type.
+A function that calls a function argument runs it in the caller's process and is effect-polymorphic in it (§3.9): `List.map(xs, fn(x) = receive { n -> x + n })` has the callback's mailbox type, and `List.map(xs, fn(x) = send(a, x))` has none. Nothing else is written on a function type.
 
 ### 6.2 Built-in functions
 
@@ -688,7 +693,7 @@ A pure function that calls a function argument runs it in the caller's process a
 
 The one silence in the language is an act on what has ended, or cannot be reached, that asks nothing back, which does nothing and says nothing: a message whose receiver has ended or restarts (§6.9), or whose request has timed out or been answered, is dropped; a message or a `kill` to a process whose node is out of reach or not listed vanishes, while the process may live on (§8.7); and a `kill` (§6.9), a close or a `give` of a resource that has ended (Appendix E.18, E.23) does nothing. A program's end keeps no promise (§8.6). Every other failure is a value, a message, or a fault (§7).
 
-`spawn(f)` starts a process on the running node that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The effect `n` of `f` appears in `Address(n)` and so is a mailbox type (§3.9). A pure `f` fits, as a pure function fits wherever one with a mailbox type is expected, and `n` is then what the context makes it. A process that never receives is spawned with `fn() : Unit with Never = ...`.
+`spawn(f)` starts a process on the running node that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The mailbox type `n` of `f` appears in `Address(n)` and so is a type (§3.9). An `f` that receives nothing fits, as such a function fits wherever one receiving `n` is expected, and `n` is then what the context makes it: a process that never receives is spawned as any other, and what is sent to its address waits in a mailbox nothing reads.
 
 A node is one running runtime; a peer is another node it knows by name (§8.3). `Peer.spawn(name, f, ms)` and `Peer.spawnMonitored(name, f, wrap, ms)` start the process on the peer named, and answer its address or a failure, as a value (§8.7, Appendix E.27). The values `f` captured cross to the peer (§3.11).
 
@@ -745,9 +750,9 @@ Work on a peer is a process spawned there, `Peer.spawn(name, f, ms)` (§6.2, §8
 
 ### 6.8 `Never`
 
-A function with mailbox type `Never` can send but never receive: a `receive` with a pattern clause written in a body of mailbox type `Never` is a type error, and a `receive` with only an `after` clause is how a `Never` process waits. A function whose mailbox type is a variable, called at `Never`, waits in its `receive` for a message that cannot come, and where nothing else can run the entry process faults with `Fault("deadlock")` (§8.6).
+A function receiving `Never` can send but never receive a message: a `receive` with a pattern clause written in a body receiving `Never` is a type error, and a `receive` with only an `after` clause is how such a body waits. A function whose mailbox type is a variable, called at `Never`, waits in its `receive` for a message that cannot come, and where nothing else can run the entry process faults with `Fault("deadlock")` (§8.6).
 
-`with Never` annotates a process root that never receives: `main`, or the function a spawn lambda calls. A function so annotated can only be called where the mailbox is `Never`; a send-only helper called from process code is polymorphic instead, `with m`, as `Io.println` in Appendix E.
+`Never` is the mailbox type of a top-level initializer (§4.6) and of the entry process where the entry point receives nothing (§8.6); `self()` there is an `Address(Never)`, to which nothing can be sent. A function that receives nothing, `main` or the function a spawn runs among them, writes no mark, and is called from any process.
 
 ### 6.9 Death
 
@@ -820,7 +825,7 @@ A function answers a failure as a value: `Optional` where the failure has no cau
 
 A request a rule of this report refuses, which the program alone could have kept, faults the process that made it: a second process running a group, a claim of the terminal the other way. An argument the host cannot take whole is `Left(Invalid)`; one outside the function's own domain is `None`, or is corrected as this section says; what the world refuses, a port in use or a file that exists, is a value with its cause. A failure no request stands behind, a standard input that cannot be read or keys that are not UTF-8 among them (§8.2), faults the entry process; standard output or standard error that cannot be written ends the program without a fault (§8.6).
 
-A count or a duration below 0 is none, and a window below 1 is 1 (§6.9, Appendix G.4); a duration has no upper bound, and a moment already past is now; no other value is corrected unsaid. A pure function can fault. The causes are these, and a standard library function's section gives its own:
+A count or a duration below 0 is none, and a window below 1 is 1 (§6.9, Appendix G.4); a duration has no upper bound, and a moment already past is now; no other value is corrected unsaid. A function that receives nothing can fault. The causes are these, and a standard library function's section gives its own:
 
 - `/` and `%` on `Int` with a zero divisor: `Fault("division by zero")`. `Int.div` and `Int.rem`, Appendix E.8, return `Optional` instead.
 - `Float` arithmetic whose result the finite range cannot hold (§3.1): `Fault("float arithmetic error")`. `Int.toFloat` of an integer that rounds beyond the largest finite `Float`: `Fault("Int out of Float range")`.
@@ -846,7 +851,7 @@ A line of standard input that is not UTF-8 faults the process that asked for it 
 
 ### 8.1 `main`
 
-The entry point is a function of type `() -> Unit with m`. The process that runs it is the *entry process*. `m` is the message type when the entry receives. It is `Never` when the annotation says so. Otherwise it is polymorphic, and the runtime instantiates it to `Never`. A pure function of type `() -> Unit` is an entry point too, and its process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`, as a mailbox type that is a variable is taken as `Never`.
+The entry point is a function of type `() -> Unit`, `receiving m` or without. The process that runs it is the *entry process*. `m` is the message type where the entry point receives; where it receives nothing, or `m` is a variable, the process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`.
 
 A top-level `let`, a function of another shape, and a private function are not entry points, and `ern run` refuses them. `ern run module.erc` runs the `export fn main` of that module; `ern run --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name. A bare node (§8.7) has no entry point: its entry process, whose site is `bare node` (§6.9), evaluates the standard library's bindings (§8.5) and waits, and the node ends by termination (§8.6).
 
@@ -1141,8 +1146,8 @@ spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 `io.ern` provides `Io.show` and `Io.debug` (Appendix E.1):
 
 ```
-Io.show        : (a) -> String needs a.show // the value as Ernest writes it, at the use's type
-Io.debug       : (a) -> a with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
+Io.show        : (a!) -> String needs a.show // the value as Ernest writes it, at the use's type
+Io.debug       : (a!) -> a! with m+ needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
 ```
 
 ### 9.5 Process functions
@@ -1409,8 +1414,8 @@ Every technical term this report introduces, with a gloss and the section that d
 - **dial** — a node's opening of a connection to a peer, at the address its configuration lists. §8.7.
 - **doc block** — consecutive `///` lines, read as CommonMark. §2.2.
 - **doc comment** — `///`, not followed by a fourth `/`, to end of line; attached to the following declaration. §2.2.
-- **effect polymorphism** — a mailbox effect that is a type variable. §3.9.
-- **effect position** — the type after `with` in a function type. §3.9.
+- **effect polymorphism** — a mailbox type that is a type variable, an effect variable. §3.9.
+- **effect position** — the type after `receiving` in a function type. §3.9.
 - **entry point** — the function run in the entry process: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
 - **entry process** — the process that runs the entry point. §8.1, §8.6.
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
@@ -1445,7 +1450,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **load path** — the roots a program's modules are found under by their namespaces, the standard library's among them. §11.1, §11.2.
 - **loss** — the end of a connection, which gives each monitor on the peer's processes its `Down` with `Unreachable`, ends each waiting call, and drops what waited to be sent, and nothing else. §8.7.
 - **mailbox** — the queue of values a process receives. §6.
-- **mailbox type** — the `M` in `(A) -> B with M`; the type of the process's mailbox. §6.1.
+- **mailbox type** — the `M` in `(A) -> B receiving M`; the type of the process's mailbox. §6.1.
 - **`match`** — the pattern-matching expression form. §5.9.
 - **measure** — one of the host's measures a node runs, `cpu`, `memory` or `disk`, named in `ernest.conf`. §8.7, Appendix C.
 - **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace: declared with the type's prefix, `fn Distance.+`, derived (§3.5), or, for a prelude type, declared unprefixed in its module; a requirement names one on a type variable. §4.2, §4.5, §4.9.
@@ -1472,12 +1477,12 @@ Every technical term this report introduces, with a gloss and the section that d
 - **primitive** — an operation beneath what Ernest writes: the language's, a built-in function of §9, or a named function that is no value, `Peer.spawn`; a standard library module's, one that reads or writes what the host owns, or one a function of the host does exactly, the rest of the module being Ernest over its primitives. §0, Appendix E.0.
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
-- **process-only** — a function whose effect variable cannot be pure. §3.9.
-- **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.
+- **process-only** — a function whose effect variable is never none: one that waits with `after` alone, or a foreign function receiving a variable of its own. §3.9.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **raw string** — a `String` literal between backquotes, its text taken as written. §2.5.
 - **reach** — a definition with everything it references, transitively. §8.7.
 - **`receive`** — a match over the mailbox. §6.3.
+- **receiving** — the one mark on a function type, `(A) -> B receiving M`: the function's own process's mailbox, of type `M`, is involved. §6.1.
 - **record update** — `C(..p, f = v)`, a construction whose unlisted fields are `p`'s; `f.g = v` reaches a field of a field through a *path*. §5.6.
 - **redundant** — of a clause or an alternative: able to match no value those before it leave. §5.9.
 - **remote computation** — work on a peer: a process spawned there, or a function run there for its value. §6.7.
