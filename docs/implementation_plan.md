@@ -18,7 +18,8 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-17); item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-17) but one found on the 17th, one
+file for one module, which the user decides; item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -562,6 +563,17 @@ refused load's units. The shell accepts a module that uses, through the load pat
 uses it, which §11.1 calls an error, and in that case alone a load refused and tried again makes a
 new unit. The shape of the fix: the shell refuses the cycle as `ern build` refuses one, naming its
 modules, with a regression test in the shell's tests.
+
+**Before the tag: one file for one module.** Found 2026-10-17 with the user, reading the release.
+A compiled module is `list.erc` by its namespace, which every finder of `ern`'s own goes by
+(§11.1), and the build copies it to `ern@list.beam` beside it, since the host's loader resolves a
+module's name to a `.beam` on the code path and nothing else, and the tools, the checker and the
+shell reach the standard library and the shell's modules that way; the installation carries 54
+files under `build/stdlib` where 27 are the modules. The shape of the fix: `ern` registers those
+modules with the host's loader at its start, from the `.erc` files it finds by namespace, as it
+loads a program's, so the code path holds no copy and the two Makefile loops go; §11.2's sentence
+on the shell's code path changes with it, and the install test counts one file a module. Decided
+with the user whether it is built before the tag.
 
 **Before the tag: the shell and a private mailbox type.** Done 2026-10-16 (the log's *The Shell
 on a Private Type*): the interface carries the private types an exported signature names (§11.1),
