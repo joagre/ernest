@@ -1340,6 +1340,30 @@ receive_and_mailboxes_test() ->
     ?assertEqual("(a) -> Unit receiving e+",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
+%% report §3.9: a `receive` whose patterns fix no type, a wildcard or a
+%% variable nothing fixes, reads its process's mailbox at no type, so its
+%% function is process-only, printed `+`, and stands neither as `adapted`'s
+%% function nor in a guard, where a function receiving nothing is expected;
+%% one whose pattern fixes the type is not, and a function receiving
+%% nothing stands there. A regression test, written after the checker,
+%% which did so before §3.9 named it; it does not cover a variable that
+%% the clause's body fixes, whose function receives at that type
+receive_fixing_no_type_test() ->
+    ?assertEqual("() -> Unit receiving e+", type_of("export fn f() = receive { _ -> Unit }", f)),
+    ?assertEqual("(Int) -> Int receiving e+",
+                 type_of("export fn wait(n : Int) = receive { _ -> n }", wait)),
+    ?assertEqual("() -> Unit receiving Int", type_of("export fn f() = receive { 1 -> Unit }", f)),
+    Adapted = "export fn g() : Address(Int) receiving Int = adapted(self(), wait)\n",
+    ?assertEqual("the argument does not fit adapted: a function that receives where one that"
+                 " receives nothing is needed",
+                 refusal("fn wait(n : Int) = receive { _ -> n }\n" ++ Adapted)),
+    ?assertEqual(ok, ok("fn wait(n : Int) = n\n" ++ Adapted)),
+    ?assertEqual({"ready needs a mailbox, and a guard receives nothing",
+                  "compute the value before the match"},
+                 refusal_and_help("fn ready() = receive { _ -> true }\n"
+                                  "fn g() : Unit receiving Int ="
+                                  " receive { n when ready() -> Unit }")).
+
 %% report §6.2, §4.6
 spawn_test() ->
     ?assertEqual(ok, ok("fn work() : Unit = Unit\n"
@@ -2056,28 +2080,28 @@ toplevel_let_test() ->
                          "    spawn(fn() : Unit receiving Int = receive { n -> Unit })", s)),
     ?assertEqual("a top-level initializer runs with mailbox Never and cannot receive",
                  refusal("let x = receive { n -> n }")),
-    %% report §3.9, §4.6: one whose initializer is a call is not generalized,
-    %% whatever the call does, so a variable left in its type is an error,
-    %% where a value generalizes
+    %% report §3.9, §4.6: one whose initializer is a call has the type the
+    %% call gives, generalized where that type is data, so a variable left
+    %% in a type that holds an address is an error, where a value generalizes
     ?assertEqual("the type of s is not determined (Address(a)), and a top-level `let` whose"
-                 " initializer is no value is not generalized; annotate it",
+                 " initializer is no value is not generalized where its type holds an address;"
+                 " annotate it",
                  refusal("export let s = spawn(fn() = Unit)")),
-    ?assertEqual("the type of empty is not determined (List(a)), and a top-level `let` whose"
-                 " initializer is no value is not generalized; annotate it",
-                 refusal("export let empty = List.reverse([])")),
+    ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)),
     ?assertEqual("List(Int)", type_of("export let some = List.reverse([1])", some)),
     %% a constructor applied to values, a tuple and a list of them are values
     ?assertEqual("Optional(List(a))", type_of("export let none = Some([])", none)),
     ?assertEqual("#(List(a), Optional(b))", type_of("export let pair = #([], None)", pair)),
     ?assertEqual("List(Optional(a))", type_of("export let nones = [None, None]", nones)).
 
-%% report §3.9, §4.6: an initializer that is or holds a call is not
-%% generalized, a spawn through a helper that calls what it is given, through
-%% a function a call returns, and through a function passed by name among
-%% them; a lambda it builds and does not call is generalized. Regression
-%% tests, written with the type system's argument (2026-10-04), which rests
-%% on them: a process generalized over its mailbox type would answer one
-%% caller with another's value. Kept for the value restriction, 2026-10-16
+%% report §3.9, §4.6: an initializer that is or holds a call whose type
+%% holds an address is not generalized, a spawn through a helper that calls
+%% what it is given, through a function a call returns, and through a
+%% function passed by name among them; a lambda it builds and does not call
+%% is generalized. Regression tests, written with the type system's argument
+%% (2026-10-04), which rests on them: a process generalized over its mailbox
+%% type would answer one caller with another's value. Kept for the value
+%% restriction, 2026-10-16
 initializer_call_not_generalized_test() ->
     Cell = "type Cell(a) = Put(a) | Get(reply : Reply(a))\n"
            "fn cell(v : a) : Unit receiving Cell(a) = receive {\n"
@@ -2086,12 +2110,67 @@ initializer_call_not_generalized_test() ->
            "fn make() = fn() = spawn(fn() = cell(None))\n"
            "fn start() = spawn(fn() = cell(None))\n",
     Refused = "the type of shared is not determined (Address(Cell(Optional(a)))), and a"
-              " top-level `let` whose initializer is no value is not generalized; annotate it",
+              " top-level `let` whose initializer is no value is not generalized where its type"
+              " holds an address; annotate it",
     ?assertEqual(Refused, refusal(Cell ++ "let shared = spawn(fn() = cell(None))")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(fn() = spawn(fn() = cell(None)))")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = make()()")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
     ?assertEqual("() -> Address(a) receiving a", type_of("export let me = fn() = self()", me)).
+
+%% report §4.6: a call's binding whose type, read through the fields of the
+%% declared types it names, holds a function type, a foreign type, an
+%% address or a reply is not generalized, the refusal naming what it holds:
+%% a function a call returns, a declared type that holds an address through
+%% its field, the module's own foreign type, a reply, and an address inside
+%% a declared type met again inside its own fields, whose argument is read.
+%% Regression tests, written after the code; they do not cover a type of
+%% another module that keeps its constructors (§4.4), whose fields the walk
+%% reads as it reads the module's own
+call_holding_no_data_not_generalized_test() ->
+    Refused = fun(Name, Type, Held) ->
+                  "the type of " ++ Name ++ " is not determined (" ++ Type ++ "), and a"
+                  " top-level `let` whose initializer is no value is not generalized where its"
+                  " type holds " ++ Held ++ "; annotate it"
+              end,
+    ?assertEqual(Refused("id", "(a) -> a", "a function"),
+                 refusal("fn make() = fn(x) = x\nlet id = make()")),
+    ?assertEqual(Refused("box", "Box(a)", "an address"),
+                 refusal("type Box(a) = Box(Address(a))\n"
+                         "fn boxed() = Box(spawn(fn() = Unit))\nlet box = boxed()")),
+    ?assertEqual(Refused("handle", "Handle(a)", "the foreign type Handle(a)"),
+                 refusal("foreign type Handle(a)\n"
+                         "foreign fn open() : Handle(a) = \"m:open/0\"\nlet handle = open()")),
+    ?assertEqual(Refused("asked", "Optional(Reply(a))", "a reply"),
+                 refusal("foreign fn asking() : Optional(Reply(a)) = \"m:asking/0\"\n"
+                         "let asked = asking()")),
+    ?assertEqual(Refused("doubly", "Wrap(Wrap(Address(a)))", "an address"),
+                 refusal("type Wrap(a) = Wrap(a)\n"
+                         "foreign fn wrapped() : Wrap(Wrap(Address(a))) = \"m:wrapped/0\"\n"
+                         "let doubly = wrapped()")).
+
+%% report §4.6: a call's binding whose type holds none of the four is
+%% generalized, and is used at two types in its module: a list a foreign
+%% function answers, a declared type over data, and a recursive one, whose
+%% walk ends at the type met again. Regression tests, written after the
+%% code; Map.empty and Set.empty, which the standard library's build
+%% checks, are the case the rule was relaxed for
+call_holding_data_generalized_test() ->
+    Empty = "foreign fn nothing() : List(a) = \"m:nothing/0\"\n"
+            "export let empty = nothing()\n"
+            "export fn sizes() : Int = List.size(1 :: empty) + List.size(\"a\" :: empty)\n",
+    ?assertEqual("List(a)", type_of(Empty, empty)),
+    Pair = "export type Pair(a) = Pair(items : List(a), first : Optional(a))\n"
+           "foreign fn paired() : Pair(a) = \"m:paired/0\"\n"
+           "export let pair = paired()\n"
+           "export fn sizes() : Int =\n"
+           "    List.size(1 :: pair.items) + List.size(\"a\" :: pair.items)\n",
+    ?assertEqual("M.Pair(a)", type_of(Pair, pair)),
+    Tree = "export type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))\n"
+           "foreign fn planted() : Tree(a) = \"m:planted/0\"\n"
+           "export let tree = planted()\n"
+           "export fn trees() : #(Tree(Int), Tree(String)) = #(tree, tree)\n",
+    ?assertEqual("M.Tree(a)", type_of(Tree, tree)).
 
 %% report §3.5, §4.8, §11.5: a field is selected where every constructor has
 %% it, of one type; a type found later in the definition serves, one never

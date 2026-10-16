@@ -31,6 +31,16 @@ export type AdapterMsg = Adapt(target : Address(Int), reply : Reply(Address(Int)
 
 export let adapter : Peer.Service(AdapterMsg) = Peer.service("adapter")
 
+// A gate on the store, which takes no call until it is opened: the store
+// answers each address it is given with an adapted address of it made
+// there, whose function calls the gate and passes on what it answers, and
+// offers a second, which opens the gate.
+export type GateMsg = Pass(n : Int, reply : Reply(Int)) | Open
+
+export let gated : Peer.Service(AdapterMsg) = Peer.service("gated")
+
+export let opener : Peer.Service(Unit) = Peer.service("opener")
+
 // A watcher on the store of the processes the desk's computes start there,
 // each watched once it says so, under a label, which says how each ended.
 export type WatcherMsg =

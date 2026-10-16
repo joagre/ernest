@@ -1542,28 +1542,79 @@ with_requirement(Scheme, #scheme{requirement = Requirement}, TypeState) ->
 
 %% Report §3.9, §4.6: a definition's scheme, generalized over its free
 %% variables, except a top-level let whose initializer is no value, which
-%% has the type its call gives, and whose type may keep no variable.
+%% has the type its call gives (call_scheme/4).
 generalized(#let_declaration{span = Span, name = Name, body = Body}, Variable,
             #env{type_state = TypeState} = Env) ->
-    %% INTERIM, until a plan item decides docs/language_feedback.md's item
-    %% 110: the standard library's Map.empty and Set.empty, whose
-    %% initializers call the host, are generalized though §4.6 generalizes
-    %% no call
-    case is_value_form(Body) orelse lists:member({Env#env.namespace, Name},
-                                                 [{['Map'], empty}, {['Set'], empty}]) of
-        true ->
-            ern_types:generalize(Variable, TypeState);
-        false ->
-            case ern_types:free_variables(Variable, TypeState) of
-                [] -> {ern_types:monomorphic(ern_types:substitute(Variable, TypeState)), TypeState};
-                _ -> fail(Span, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
-                                ++ ern_types:format(Variable, TypeState)
-                                ++ "), and a top-level `let` whose initializer is no value is"
-                                " not generalized; annotate it")
-            end
+    case is_value_form(Body) of
+        true -> ern_types:generalize(Variable, TypeState);
+        false -> call_scheme(Span, Name, Variable, Env)
     end;
 generalized(_, Variable, #env{type_state = TypeState}) ->
     ern_types:generalize(Variable, TypeState).
+
+%% Report §4.6: the scheme of a top-level let whose initializer is or holds
+%% a call, which has the type the call gives, generalized where that type
+%% is data (non_data/2), and otherwise keeping no type variable.
+call_scheme(Span, Name, Variable, #env{type_state = TypeState} = Env) ->
+    case ern_types:free_variables(Variable, TypeState) =:= [] orelse non_data(Variable, Env) of
+        true ->
+            {ern_types:monomorphic(ern_types:substitute(Variable, TypeState)), TypeState};
+        none ->
+            ern_types:generalize(Variable, TypeState);
+        Held ->
+            fail(Span, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
+                       ++ ern_types:format(Variable, TypeState)
+                       ++ "), and a top-level `let` whose initializer is no value is not"
+                       " generalized where its type holds " ++ Held ++ "; annotate it")
+    end.
+
+%% Report §4.6: what of a type keeps a value of it from being data, which
+%% a call's binding generalizes, as a phrase, or none: a function type, a
+%% foreign type (§3.8), an address or a reply, read through the fields of
+%% the declared types the type names, with their arguments in place of
+%% their parameters, and through a built-in type's arguments. A declared
+%% type met again inside its own fields is not read again, its arguments
+%% read in its place, since types recurse, as ern_bound:binds/2 reads them.
+non_data(Type, Env) ->
+    non_data(Type, Env, []).
+
+non_data(Type, #env{type_state = TypeState} = Env, Seen) ->
+    case ern_types:resolve(Type, TypeState) of
+        {tfn, _, _, _} ->
+            "a function";
+        {tcon, ['Address'], _} ->
+            "an address";
+        {tcon, ['Reply'], _} ->
+            "a reply";
+        {tcon, QualifiedName, Args} = Applied ->
+            case {ern_prelude:is_builtin(QualifiedName), described_type(QualifiedName, Env)} of
+                {false, #type_info{foreign = true}} ->
+                    "the foreign type " ++ ern_types:format(Applied, TypeState);
+                _ ->
+                    declared_non_data(QualifiedName, Args, Env, Seen)
+            end;
+        {ttuple, Elements} ->
+            first_non_data(Elements, Env, Seen);
+        {tvar, _} ->
+            none
+    end.
+
+declared_non_data(QualifiedName, Args, Env, Seen) ->
+    case {lists:member(QualifiedName, Seen), declared_fields(QualifiedName, Args, Env)} of
+        {false, {ok, Fields}} ->
+            first_non_data(Fields, Env, [QualifiedName | Seen]);
+        _ ->
+            first_non_data(ern_types:value_args(QualifiedName, Args, Env#env.type_state), Env,
+                           Seen)
+    end.
+
+first_non_data([], _Env, _Seen) ->
+    none;
+first_non_data([Type | Types], Env, Seen) ->
+    case non_data(Type, Env, Seen) of
+        none -> first_non_data(Types, Env, Seen);
+        Held -> Held
+    end.
 
 %% Report §4.6: a value, which a top-level `let` generalizes: a literal, a
 %% name, a lambda, whose body is its own, or a constructor applied to

@@ -405,6 +405,15 @@ bounded. Left: about sixty limits in the nodes tests are numbers of their own, d
 once each test's waits are bounded; and `answering/1` in the deployment tests polls `connect` in
 a tight loop while a node starts, fixed before the tag.
 
+**Before the tag: the reaper and the runtime's own processes.** Found 2026-10-16 by item 2b's
+read-back. The process that applies a wrap or an adapted function (§6.5, §6.9) is linked to the
+reaper, which does not trap exits, so one that ends abnormally, killed by the purge of the unit it
+runs, ends the reaper and the run with it; the shell's check that no process runs a unit and
+`Code.load`'s kill before its purge read the process rows alone, and such a process has none. The
+shape of the fix: the runtime's own processes held by a holder that lives the run long and traps
+exits, or rows of their own that the two checks read; probed first by a reload under a wrap that is
+still running; a regression test in the runtime's tests. Fixed before the tag.
+
 **Before the tag: the shell and a private mailbox type.** Found 2026-10-15 by use. With `count`
 exported and its mailbox type `Msg` kept private, which the report's rule on exported declarations
 allows (§4.2), the input `let p = spawn(fn() = Plain.count(0))` faults the shell and ends it with
@@ -474,8 +483,8 @@ the same commit; then the log; then the code, by an agent from the settled repor
    the rest, the proposals' programs the tests run among them; the catalog of diagnostics; the
    guide as the proposal's section 7 and the findings' item 6 say, the front page's *What Ernest
    adds* and the README's lines the test holds equal to it among them; and `docs/man/` at the release.
-2b. **What item 2's build found** (decided 2026-10-16, the log's *Kill Darlings*, its paragraph
-   *Item 2's code half*), built before 2a. §4.6 generalizes a top-level `let` whose initializer is
+2b. **What item 2's build found.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraph
+   *Item 2b*); decided the same day (its paragraph *Item 2's code half*), built before 2a. §4.6 generalizes a top-level `let` whose initializer is
    a call where its type, read through the fields of the declared types it names, holds no function
    type, no foreign type, no address and no reply, so that `Map.empty` and `Set.empty` are the
    values Appendix E lists; the checker exempts the two by name meanwhile, marked INTERIM, and the

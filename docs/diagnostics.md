@@ -1264,17 +1264,14 @@ example.ern:3:1: Money.+ must have the type (Money, Money) -> Money, not (Money,
 ### A top-level `let` whose initializer is no value and whose type is not determined (§4.6)
 
 ```ernest-rejected
-let box = {
-    let p : Address(Unit) = spawn(fn() = Unit);
-    []
-}
+let inbox = spawn(fn() = Unit)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:1: the type of box is not determined (List(a)), and a top-level `let` whose initializer is no value is not generalized; annotate it
-1 | let box = {
-  | ^^^^^^^^^^^
+example.ern:1:1: the type of inbox is not determined (Address(a)), and a top-level `let` whose initializer is no value is not generalized where its type holds an address; annotate it
+1 | let inbox = spawn(fn() = Unit)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A foreign implementation of the wrong arity (§8.4)

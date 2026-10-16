@@ -1,9 +1,10 @@
 // Report §8.7: the store, which offers a counter, an adapted address of it,
 // a process to be killed, a census of its atoms, two slots, a fragile
 // process behind an adapted address whose function faults, an adapter
-// that makes adapted addresses here, the services the desk calls, and a
-// watcher of the processes the desk's computes start here; says each fault
-// its subscriber of faults is told of; and waits.
+// that makes adapted addresses here, and one whose addresses' function
+// calls a gate here, with an adapted address that opens it, the services
+// the desk calls, and a watcher of the processes the desk's computes start
+// here; says each fault its subscriber of faults is told of; and waits.
 
 let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
@@ -53,6 +54,9 @@ export fn main() : Unit receiving Unit = {
     let _ = Peer.offer(Counter.echo, echoer);
     let _ = Peer.offer(Counter.echoAdapted, adapted(echoer, fn(back) = Counter.Ping(back)));
     let _ = Peer.offer(Counter.adapter, spawn(fn() = adapts()));
+    let gate = spawn(fn() = closed());
+    let _ = Peer.offer(Counter.gated, spawn(fn() = gates(gate)));
+    let _ = Peer.offer(Counter.opener, adapted(gate, fn(_) = Counter.Open));
     let _ = Peer.offer(Counter.watcher, spawn(fn() = watching()));
     Io.println("offered");
     wait()
@@ -94,6 +98,35 @@ fn adapts() : Unit receiving Counter.AdapterMsg =
             answer(reply, adapted(target, fn(n) = n * 2));
             adapts()
         }
+    }
+
+// Each address the desk gives answered with an adapted address of it made
+// here, whose function calls the gate and passes on what the gate answers.
+fn gates(gate : Address(Counter.GateMsg)) : Unit receiving Counter.AdapterMsg =
+    receive {
+        Counter.Adapt(target = target, reply = reply) -> {
+            answer(reply, adapted(target, fn(n) = passed(gate, n)));
+            gates(gate)
+        }
+    }
+
+fn passed(gate : Address(Counter.GateMsg), n : Int) : Int =
+    Address.callForever(gate, fn(reply) = Counter.Pass(n = n, reply = reply))
+
+// The gate, which answers no call until it is opened, and then each with
+// ten times what it carries.
+fn closed() : Unit receiving Counter.GateMsg =
+    receive {
+        Counter.Open -> opened()
+    }
+
+fn opened() : Unit receiving Counter.GateMsg =
+    receive {
+        Counter.Pass(n = n, reply = reply) -> {
+            answer(reply, n * 10);
+            opened()
+        }
+      | Counter.Open -> opened()
     }
 
 fn echoes() : Unit receiving Counter.EchoMsg =

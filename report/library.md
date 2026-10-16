@@ -598,7 +598,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
 
-`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9) and for one on another node. `live` answers the processes the runtime started that have not ended, the system processes excepted: those a program spawned, and a listener, a socket or a running program a system module opened (Appendix E.18, E.23).
+`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function (§6.5, §6.9). `live` answers the processes the runtime started that have not ended, the system processes excepted: those a program spawned, and a listener, a socket or a running program a system module opened (Appendix E.18, E.23).
 
 `faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes' excepted, as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§8.2): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 

@@ -7,7 +7,7 @@
 %% compiled interfaces, stdlib_interfaces/0.
 -module(ern_prelude).
 
--export([equality_params/1, builtin_types/0, declared_types/0, values/0,
+-export([equality_params/1, builtin_types/0, is_builtin/1, declared_types/0, values/0,
          parameters/1, member_types/0, docs/0, stdlib_interfaces/0]).
 
 -include_lib("checker/include/ern_types.hrl").
@@ -195,6 +195,12 @@ builtin_types() ->
       // => true
       ```
       """/utf8>>}].
+
+%% Report §3.1, §9.1, §9.2: a type of the prelude's own, which the checker
+%% keeps as a foreign one and which is no foreign type of §3.8.
+-spec is_builtin(ern_types:qualified_name()) -> boolean().
+is_builtin([Name]) -> lists:keymember(Name, 1, builtin_types());
+is_builtin(_) -> false.
 
 %% Report §9.3, each type with its doc block.
 -spec declared_types() -> string().

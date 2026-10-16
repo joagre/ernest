@@ -20,6 +20,7 @@ export fn main() : Unit receiving Msg =
       | ["costs"] -> costs()
       | ["compute"] -> computes()
       | ["utilization"] -> utilizations()
+      | ["gated"] -> faulted("gated", gatedPasses)
       | _ -> Unit
     }
 
@@ -683,3 +684,25 @@ fn keeps(moment : String) : Unit = {
 
 foreign fn statistic(item : Foreign.Term) : Foreign.Term =
     "erlang:statistics/1"
+
+// Report §6.5, §8.7: an adapted address made on the store whose function
+// calls a gate there, which answers once a message through a second
+// adapted address made there opens it: each function runs on the store in
+// a process of its own, so the second message and a find pass the first,
+// and what the gate answers comes here through the first.
+fn gatedPasses() : Unit receiving Int = {
+    let opener = Shared.found(Counter.opener);
+    let through = gated(self());
+    send(through, 5);
+    Io.println("found meanwhile: " <> started(Peer.find(Counter.opener, 5000)));
+    send(opener, Unit);
+    receive {
+        n -> Io.println("through the gate: " <> Int.toString(n))
+    }
+}
+
+// An adapted address of the target, made on the store, whose function
+// calls the store's gate.
+fn gated(target : Address(Int)) : Address(Int) =
+    Address.callForever(Shared.found(Counter.gated),
+                        fn(reply) = Counter.Adapt(target = target, reply = reply))

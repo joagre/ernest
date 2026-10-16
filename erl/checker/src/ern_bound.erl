@@ -49,7 +49,8 @@ binds(Type, Env, Seen) ->
         {tcon, ['Reply'], [Answer]} ->
             holding("a reply whose answer holds ", Answer, Env, Seen);
         {tcon, QualifiedName, Args} ->
-            case {is_builtin(QualifiedName), ern_typecheck:described_type(QualifiedName, Env)} of
+            case {ern_prelude:is_builtin(QualifiedName),
+                  ern_typecheck:described_type(QualifiedName, Env)} of
                 {false, #type_info{foreign = true}} ->
                     "a value of the foreign type " ++ ern_namespace:text(QualifiedName);
                 _ ->
@@ -76,11 +77,6 @@ holding(Prefix, Type, Env, Seen) ->
         false -> false;
         Inner -> Prefix ++ Inner
     end.
-
-%% Report §3.1, §9.1, §9.2: a type of the prelude's own, which the checker
-%% keeps as a foreign one and which is no foreign type of §3.8.
-is_builtin([Name]) -> lists:keymember(Name, 1, ern_prelude:builtin_types());
-is_builtin(_) -> false.
 
 %% Report §3.11, Appendix E.18, E.23: the message types of the runtime's
 %% processes for a socket, a listener and a running program, whose

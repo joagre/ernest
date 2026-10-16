@@ -1038,7 +1038,7 @@ store_and_desk(Base) ->
     lists(Third, [{"store", Store, PortStore}]),
     Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
               <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
-              <<"doomed">>, <<"adapter">>, <<"watcher">>],
+              <<"doomed">>, <<"adapter">>, <<"watcher">>, <<"gated">>, <<"opener">>],
     edit(Desk, fun(Conf) ->
                    Conf#{<<"services">> => maps:merge(
                                               maps:from_list([{Name, [<<"store">>]}
@@ -1363,7 +1363,7 @@ spawn_on_peer(Base) ->
      || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Timeout", "no upper bound: Right"]],
-    has(StoreErr, "the peer desk's spawn at Desk.spawns:78 was not loaded: the binding"
+    has(StoreErr, "the peer desk's spawn at Desk.spawns:79 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     has(StoreOut, "the store squares 49"),
     has(StoreOut, "the store squares 64"),
@@ -1403,18 +1403,18 @@ compute_on_peer(Base) ->
     [has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
                  "divided: Fault(\"division by zero\")",
-                 "reported here: Desk.faulted:106 division by zero false",
+                 "reported here: Desk.faulted:107 division by zero false",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
                  " error:badarg\")",
-                 "reported here: Desk.faulted:106 foreign function erlang:binary_to_integer/1"
+                 "reported here: Desk.faulted:107 foreign function erlang:binary_to_integer/1"
                  " raised error:badarg true",
                  "killed: Left(Other(\"Killed\"))", "timed out: Left(Timeout)",
                  "with the store's end: Left(Other(\"ProgramEnd\"))"]],
-    ?assertEqual(1, length(string:split(Err, "Desk.faulted:106 faulted: division by zero\n", all))
+    ?assertEqual(1, length(string:split(Err, "Desk.faulted:107 faulted: division by zero\n", all))
                     - 1),
-    has(Err, "Desk.faulted:106 faulted: foreign function erlang:binary_to_integer/1 raised"
+    has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:530 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:531 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
@@ -1555,6 +1555,30 @@ calls(Base) ->
                  "echo: Some(7)", "while it waits: 1", "its callee killed: Returned",
                  "after the callee's end: 0", "timed out: None 0", "answered here: Some(42) 0",
                  "waits again: 1", "its connection lost: Returned", "after the loss: 0"]].
+
+%% report §6.5, §8.7: the function of an adapted address made on the store,
+%% sent to from the desk, runs on the store in a process started for the
+%% message, so that one that calls a process there, which answers only once
+%% it is opened, holds up no other frame of the desk's: a find passes it,
+%% and so does a message to a second adapted address made there, which opens
+%% the gate, and the answer comes back to the desk through the first. A
+%% regression test, written after the code: the store's gateway applied
+%% the function in its worker for the desk, which then read nothing more
+%% from the desk; a function that never finishes, which ends with the
+%% program, is erl/runtime/test/ern_rt_tests.erl's
+adapted_calls_test_() ->
+    nodes_test(60, fun adapted_calls/1).
+
+adapted_calls(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["gated"]))()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["found meanwhile: Right", "through the gate: 50", "gated: Returned"]].
 
 %% `ern <job> --config-dir Dir` run as a person runs it, its status.
 signaled(Job, Dir) ->

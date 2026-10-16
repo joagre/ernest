@@ -1047,6 +1047,46 @@ adapted_fault_restarts_test() ->
     ?assertEqual(2, wait(took)),
     ?assertEqual(alive, wait(sender)).
 
+%% report §6.5, §8.7: a message from another node to an adapted address
+%% this node made has its function applied in a process started for the
+%% message, as the gateway's worker asks (ern_peer:frame/2): a fault in the
+%% function is the target's, as on one node, and the process is no process
+%% of the program's, and ends with the program where the function never
+%% finishes. A regression test, written after the code; the frame's way
+%% through the gateway is test/ern_nodes_tests.erl's
+adapted_from_peer_test() ->
+    Self = self(),
+    Watcher = spawn(fun() ->
+                        {Watched, From} = receive {watch, Pid, Asker} -> {Pid, Asker} end,
+                        MonitorRef = erlang:monitor(process, Watched),
+                        From ! watching,
+                        receive
+                            {'DOWN', MonitorRef, process, _, ExitReason} ->
+                                Self ! {applier_end, ExitReason}
+                        end
+                    end),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Zero = zero(),
+               Victim = ern_rt:spawn(fun waiting/0, <<"Main.main:3">>),
+               ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
+               ok = ern_rt:deliver_from_peer(ern_rt:adapted(Victim, fun(_) -> 1 div Zero end), 1),
+               receive {down, Down} -> Self ! {d, Down} end,
+               Endless = fun(_) -> Main ! {applier, erlang:self()}, receive never -> ok end end,
+               ok = ern_rt:deliver_from_peer(ern_rt:adapted(Main, Endless), 1),
+               %% the waits count as timed, so that they are no deadlock
+               ern_rt:timed(),
+               Applier = receive {applier, Pid} -> Pid end,
+               Watcher ! {watch, Applier, Main},
+               receive watching -> ok end,
+               ern_rt:untimed(),
+               Self ! {listed, lists:member(Applier, ern_rt:processes())}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
+    ?assertEqual(false, wait(listed)),
+    ?assertEqual(killed, wait(applier_end)).
+
 %% report §11.2, §6.9, Appendix E.18: a process spawn_root starts heads a
 %% spawn chain of its own, and every process spawned from it, directly or
 %% through one that has since ended, is started by it, and so is a
