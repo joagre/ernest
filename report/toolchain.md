@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 14 October 2026.
+Revision of 16 October 2026.
 
 This file holds the report's §11 and Appendices C and H. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -143,7 +143,7 @@ A type the session declares prints unqualified, except one a later declaration o
 
 A spawn site in the session is written as the session writes names: in a function an input declares, by that function's name, `start:2`, and in an input's own expression as the file its diagnostics name, `input 3:1`. The line is counted as its diagnostics count it, within a typed input and within the file for an input of a startup file.
 
-**Loading and reloading.** `:load` takes a module by its namespace. It compiles the module's source under the source root, or, where there is none, loads its compiled form from the load path or the source root. A compiled form is refused as `ern run` refuses one: one compiled against another interface of a module it uses, or of the standard library, than the session holds, and a file at a module's path that holds another module; and nothing is loaded. Each module it uses that the session has not loaded is loaded the same way, and a module is compiled against the modules the session has loaded.
+**Loading and reloading.** `:load` takes a module by its namespace. It compiles the module's source under the source root, or, where there is none, loads its compiled form from the load path or the source root. Where a compiled form of the module stands beside its source or on the load path, as new as the source and compiled against the interfaces the session holds, `:load` takes it and compiles nothing. A compiled form is refused as `ern run` refuses one: one compiled against another interface of a module it uses, or of the standard library, than the session holds, and a file at a module's path that holds another module; and nothing is loaded. Each module it uses that the session has not loaded is loaded the same way, and a module is compiled against the modules the session has loaded.
 
 `:load` evaluates the top-level bindings of each module it loads, as §8.5 orders them, in a process of the shell's own that lives while the session runs, as the entry process lives through a program (§8.5), so that what a binding opens stays open as it does under `ern run` (Appendix E.18).
 
@@ -229,7 +229,7 @@ A declaration's heading is level two, so a heading inside its doc block, or a co
 
 The page's header names the page, and its footer the version of `ern`. Its NAME line is the page's name and the module's first sentence, the text of the first paragraph of its doc block up to the first period a space follows outside emphasis, code spans, and links, or the whole paragraph where there is none; a module whose doc block has no paragraph has its page's title there. The rest is the page above after its title, under DESCRIPTION: a heading of level two is a subsection and a deeper one a paragraph in bold, a code span and strong emphasis are bold, emphasis is in italics, a code block is indented and not filled, a list item follows its bullet or its number, a block quote is indented, a table is its rows in columns and is not filled, and a link is its text with its URL after it. The page's last line is a comment at the head of its source.
 
-**What is written.** `ern doc src-dir`, with `--man` or without, writes a module's document or page only where none is there, or where the one there is older than what it is made from: the module's source, the module's `.erc` in `build-root` where `ern build` has written one, the compiled `libs/markdown` that lays a manual page out, or any file of the toolchain's own code. A file as new as all of them is left as it is. `index.md` is written every time.
+**What is written.** `ern doc src-dir`, with `--man` or without, writes a module's document or page only where none is there, or where the one there is older than what it is made from: the module's source, the module's `.erc` in `build-root` where `ern build` has written one, the compiled `libs/markdown` that lays a manual page out, or any file of the toolchain's own code. A file as new as all of them is left as it is. A module whose `.erc` in `build-root` is as new as its source is read from the `.erc` and not compiled again, and where every document or page is as new as what it is made from, nothing is compiled. `index.md` is written where its text would differ from the one there, and left as it is otherwise.
 
 ### 11.5 Diagnostics
 
