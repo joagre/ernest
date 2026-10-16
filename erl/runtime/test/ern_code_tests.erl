@@ -39,6 +39,43 @@ hash(QualifiedName, Definitions) ->
         "export let answer : Int = hidden(41)\n"
         "export foreign fn backwards(list : List(Int)) : List(Int) = \"lists:reverse/1\"\n").
 
+%% report §11.2, §8.7: a unit loaded from its compiled form's file is
+%% described by the forms that file records while it holds the unit's code,
+%% and by none once the file holds other code, as where a build is written
+%% under a running node, so that no load takes the unit for one made of
+%% the file's forms and no peer is sent forms the code was not compiled
+%% from. A regression test, written after the code: the forms were read
+%% from whatever the file held when first asked for
+file_forms_hold_the_units_code_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_code_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    File = filename:join(Dir, "tablefile.erc"),
+    Compiled = fun(Text) ->
+                   {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Tablefile'], Text),
+                   {ok, _, Beam} = ern_compile:compile(['Tablefile'], Typed, Interface, Env,
+                                                       #{source_hash => <<>>, deps => []}),
+                   Beam
+               end,
+    First = Compiled("export fn one() : Int = 1\n"),
+    Second = Compiled("export fn two() : Int = 2\n"),
+    Unit = 'ern@tablefile',
+    ok = file:write_file(File, First),
+    {module, Unit} = code:load_binary(Unit, File, First),
+    ok = ern_code:loaded(Unit, First),
+    ok = file:write_file(File, Second),
+    Changed = ern_code:forms(Unit),
+    ok = file:write_file(File, First),
+    {ok, Recorded} = ern_canonical:read(First),
+    Held = ern_code:forms(Unit),
+    ern_code:unloaded(Unit),
+    code:purge(Unit),
+    code:delete(Unit),
+    code:purge(Unit),
+    ?assertEqual(none, Changed),
+    ?assertEqual({ok, Recorded}, Held).
+
 %% report §8.7: a unit's load puts each of its definitions in the code table
 %% by its identity, the hash its canonical form has, with the unit and the
 %% function that hold it, read as the runtime reads them: a function, a

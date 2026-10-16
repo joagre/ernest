@@ -1107,13 +1107,13 @@ adapted_from_peer_test() ->
     ?assertEqual(killed, wait(endless_end)),
     ?assertEqual(none, ern_rt:kept(ern_rt:adapted(Self, fun(N) -> N end))).
 
-%% report §6.5, §6.9, §8.6, §8.7, §11.2, Appendix E.15, E.28: the runtime's
-%% own processes, a monitor's wrap's delivery, an alarm's delivery and the
+%% report §6.5, §6.9, §8.6, §8.7, Appendix E.15: the runtime's own
+%% processes, a monitor's wrap's delivery, an alarm's delivery and the
 %% process kept for an adapted address, each killed while its function
-%% runs, as the purge of the unit the function is of kills it, end nothing
-%% else: the run goes on, the reaper and the clock alive, a later Down and
-%% a later alarm delivered; and a delivery killed so is no source any more,
-%% so that the deadlock the entry process then makes is found. A regression
+%% runs, as foreign code may kill it, end nothing else: the run goes on,
+%% the reaper and the clock alive, a later Down and a later alarm
+%% delivered; and a delivery killed so is no source any more, so that the
+%% deadlock the entry process then makes is found. A regression
 %% test, written after the code: each was linked to the reaper or the
 %% clock, which did not trap exits, so the kill ended it and left every
 %% later spawn, or every later alarm, waiting for ever
@@ -1197,6 +1197,118 @@ watching(Tester) ->
             Tester ! {ended, [receive {'DOWN', MonitorRef, process, _, ExitReason} -> ExitReason end
                               || MonitorRef <- MonitorRefs]}
     end.
+
+%% report §6.9: a delivery to a process that has ended ends with it: a
+%% monitor's wrap that never finishes, for a process that ends while it
+%% runs, is ended as the process ends, and a delivery in flight to a
+%% process that lives runs on. A regression test, written after the code:
+%% the delivery ran until its function returned, for ever here, though no
+%% one could receive what it delivered
+deliveries_end_with_their_recipient_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Spinning = fun(_) -> Main ! {endless, erlang:self()}, spin() end,
+               ern_rt:timed(),
+               Recipient = ern_rt:spawn(fun() ->
+                                            _ = ern_rt:spawn_monitored(fun() -> ok end, Spinning,
+                                                                       <<"Main.main:4">>),
+                                            receive stop -> ok end
+                                        end, <<"Main.main:3">>),
+               Ending = endless(),
+               _ = ern_rt:spawn_monitored(fun() -> ok end, Spinning, <<"Main.main:7">>),
+               Living = endless(),
+               MonitorRef = erlang:monitor(process, Ending),
+               Recipient ! stop,
+               Ended = receive {'DOWN', MonitorRef, process, Ending, ExitReason} -> ExitReason end,
+               Self ! {ended, {Ended, erlang:is_process_alive(Living)}},
+               ern_rt:untimed()
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({killed, true}, wait(ended)).
+
+%% report §6.9, Appendix E.15: an alarm that fires once the process that
+%% set it has ended delivers nothing: its function, which would never
+%% finish, does not run, and the delivery is no source, so that the
+%% deadlock the entry process then makes is found. The test's clock stands
+%% in for the host's, set past the alarm's time once its process has ended,
+%% as alarm_at_follows_the_clock_test_'s is. A regression test, written
+%% after the code: the delivery ran the function for a process that was
+%% gone, and the program never ended
+alarm_after_its_process_ended_test_() ->
+    {timeout, 30, fun alarm_after_its_process_ended/0}.
+
+alarm_after_its_process_ended() ->
+    Ahead = atomics:new(1, []),
+    Time = fun() -> erlang:system_time(millisecond) + atomics:get(Ahead, 1) end,
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    Clock = ern_rt:system_process(clock),
+                    Spinning = fun(_) -> Main ! {endless, erlang:self()}, spin() end,
+                    At = Time() + 60000,
+                    Setter = ern_rt:spawn(
+                               fun() ->
+                                   Address = ern_rt:adapted(ern_rt:self(), Spinning),
+                                   'Unit' = ern_rt:call_forever(
+                                              Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply}
+                                                     end)
+                               end, <<"Main.main:4">>),
+                    MonitorRef = erlang:monitor(process, Setter),
+                    receive {'DOWN', MonitorRef, process, Setter, _} -> ok end,
+                    atomics:put(Ahead, 1, 61000),
+                    Clock ! {'CHANGE', make_ref(), time_offset, clock_service, 0},
+                    receive never -> ok end
+                end, <<"main">>, #{time => Time, stdout => fun(_) -> ok end}),
+    ?assertEqual({fault, <<"deadlock">>}, Outcome).
+
+%% report §8.6, §11.2: a teller of the program's end killed while it
+%% applies its subscriber's wrap ends nothing else: the end goes on, the
+%% other subscriber is told and answers, and the runtime says that the end
+%% no longer waits for the first, whose answer could reach no one. A
+%% regression test, written after the code: the teller was linked to the
+%% runner, which traps no exit, so the kill ended the runner, the caller
+%% of run_main
+killed_teller_test() ->
+    Self = self(),
+    Killer = spawn(fun() -> receive {teller, Teller} -> exit(Teller, kill) end end),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    _ = ern_rt:spawn(
+                          fun() ->
+                              ern_rt:termination(
+                                ern_rt:adapted(ern_rt:self(),
+                                               fun(_) -> Killer ! {teller, erlang:self()}, spin()
+                                               end)),
+                              Main ! subscribed,
+                              receive never -> ok end
+                          end, <<"Main.first:2">>),
+                    receive subscribed -> ok end,
+                    _ = ern_rt:spawn(
+                          fun() ->
+                              ern_rt:termination(ern_rt:adapted(ern_rt:self(),
+                                                                fun(Reply) -> {told, Reply} end)),
+                              Main ! subscribed,
+                              receive {told, Reply} -> ern_rt:answer(Reply, 'Unit') end,
+                              receive never -> ok end
+                          end, <<"Main.second:2">>),
+                    receive subscribed -> ok end
+                end, <<"main">>, #{stdout => fun(_) -> ok end,
+                                   say => fun(Line) -> Self ! {said, iolist_to_binary(Line)} end}),
+    ?assertEqual(ok, Outcome),
+    Said = said(),
+    ?assertEqual(<<"the end waits for 2 subscribers: Main.first:2, Main.second:2">>, hd(Said)),
+    ?assertEqual([<<"the subscriber Main.first:2 is no longer waited for">>,
+                  <<"the subscriber Main.second:2 answered">>], lists:sort(tl(Said))).
+
+%% The lines the end said, in the order it said them.
+said() ->
+    receive {said, Line} -> [Line | said()] after 0 -> [] end.
+
+%% A function that never returns, and never waits.
+spin() ->
+    spin().
 
 %% report §11.2, §6.9, Appendix E.18: a process spawn_root starts heads a
 %% spawn chain of its own, and every process spawned from it, directly or

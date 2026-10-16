@@ -189,6 +189,11 @@
 %% until it ends, so that they end with it.
 -record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, watched = #{}}).
 
+%% A subscriber the end has told and waits for (report §8.6): its spawn
+%% order and its spawn site, which the end's lines name it by (§11.2), its
+%% teller, and the runner's monitor of the teller.
+-record(waited_for, {order, site, teller, monitor_ref}).
+
 %%
 %% Report §6.2, §9.4
 %%
@@ -261,33 +266,38 @@ sent({Pid, Message}) ->
 %% connection ending nothing (§8.7). The process is the runtime's, as a
 %% Down's delivery is (wrapped/3), and has no row, since Process.live
 %% lists what a program spawned and what a system module opened (Appendix
-%% E.21); it is linked to the reaper, which lives as long as the run, so
-%% that it ends with the program, and which traps its exit, so that its
-%% end, killed by the purge of the unit whose function it runs among them,
-%% ends nothing else (reaper/0). None where no run is in progress to apply
-%% the function in, between two runs of `ern test` over a directory, in one
-%% host, and before the first, and the message is dropped; a process whose
-%% run ends as it starts ends at once, the messages handed to it dropped
-%% so. Its error handler is this module, as every process's the runtime
-%% starts is (run/1).
+%% E.21); the reaper holds it (reaper_held/2). It is no delivery to its
+%% target, and the target's end does not end it (abandoned/1). None where
+%% no run is in progress to apply the function in, between two runs of
+%% `ern test` over a directory, in one host, and before the first, and the
+%% message is dropped; a process whose run ends as it starts ends at once,
+%% the messages handed to it dropped so.
 -spec kept(address()) -> pid() | none.
 kept(Address) ->
     Worker = erlang:self(),
     Reaper = persistent_term:get({?MODULE, reaper}, none),
     case is_pid(Reaper) andalso erlang:is_process_alive(Reaper) of
-        false ->
-            none;
-        true ->
-            erlang:spawn(fun() ->
-                             try link(Reaper) of
-                                 true ->
-                                     erlang:process_flag(error_handler, ?MODULE),
-                                     kept_loop(Address, Worker)
-                             catch
-                                 error:noproc -> ok
-                             end
-                         end)
+        false -> none;
+        true -> reaper_held(Reaper, fun() -> kept_loop(Address, Worker) end)
     end.
+
+%% Report §6.5, §6.9, §8.6: a process of the runtime's own that runs Work,
+%% held by the reaper as its deliveries are: linked to it, which lives as
+%% long as the run, so that the process ends with the program as the
+%% reaper is stopped (end_program/3), and which traps its exit, so that its
+%% end, however it comes, ends nothing else (reaper/0). It runs nothing
+%% where the reaper has gone. Its error handler is this module, as every
+%% process's the runtime starts is (run/1).
+reaper_held(Reaper, Work) ->
+    erlang:spawn(fun() ->
+                     try link(Reaper) of
+                         true ->
+                             erlang:process_flag(error_handler, ?MODULE),
+                             Work()
+                     catch
+                         error:noproc -> ok
+                     end
+                 end).
 
 kept_loop(Address, Worker) ->
     receive
@@ -731,13 +741,6 @@ monitor(Process, Wrap) ->
     Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
-%% The caller's monitors canceled by the reaper (monitors_canceled/2): a
-%% teller's, once it has its word (tell/4).
-cancel_monitors() ->
-    Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {cancel_monitors, erlang:self(), Ref},
-    receive {Ref, canceled} -> ok end.
-
 -spec kill(address()) -> 'Unit'.
 kill(Address) ->
     %% report §8.2: no program can name a system process, whose reference is
@@ -768,13 +771,14 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% The reaper: spawns on request with a monitor of its own, keeps each live
 %% process's row, and tells each process that monitors another how it
 %% ended. Report §6.9: of a process that has ended it keeps nothing, so a
-%% monitor made after the end answers Unknown. Report §6.5, §6.9, §8.7: it
-%% holds the runtime's own processes, each delivery it starts and each
-%% process kept for an adapted address (kept/1), linked to it, so that each
-%% ends with the run as the reaper is stopped (end_program/3); it traps
-%% their exits, so that one that ends otherwise than it returns, killed by
-%% the purge of the unit whose function it runs (§11.2, Appendix E.28),
-%% ends nothing but itself (undelivered/2).
+%% monitor made after the end answers Unknown, and the deliveries to it
+%% end with it (abandoned/1). Report §6.5, §6.9, §8.6, §8.7: it holds the
+%% runtime's own processes, each delivery it starts, each process kept for
+%% an adapted address (kept/1) and each of the end's tellers (tell_all/3),
+%% linked to it, so that each ends with the run as the reaper is stopped
+%% (end_program/3); it traps their exits, so that one that ends otherwise
+%% than it returns, killed from foreign code among the ways, ends nothing
+%% but itself (held_ended/3).
 reaper() ->
     erlang:process_flag(trap_exit, true),
     reaper_loop(#reaper{}).
@@ -830,10 +834,6 @@ reaper_loop(Reaper, Wait) ->
             reaper_loop(Reaper);
         {new_run, Pid, Ref} ->
             reaper_loop(new_run(Pid, Ref, Reaper));
-        {cancel_monitors, Caller, Ref} ->
-            Reaper1 = monitors_canceled(Caller, Reaper),
-            Caller ! {Ref, canceled},
-            reaper_loop(Reaper1);
         {end_program, From, Ref} ->
             ended_program(From, Ref);
         {'DOWN', _MonitorRef, process, Pid, ExitReason} ->
@@ -846,10 +846,10 @@ reaper_loop(Reaper, Wait) ->
         {'WATCHED_DOWN', _MonitorRef, process, Pid, ExitReason} ->
             unoffered(Pid),
             drop_callee_notes(Pid, ExitReason),
+            abandoned(Pid),
             reaper_loop(Reaper#reaper{watched = maps:remove(Pid, Reaper#reaper.watched)});
         {'EXIT', Pid, ExitReason} ->
-            undelivered(Pid, ExitReason),
-            reaper_loop(Reaper)
+            reaper_loop(held_ended(Pid, ExitReason, Reaper))
     after Wait ->
         case look() of
             deadlock ->
@@ -955,9 +955,8 @@ new_run(Pid, Ref, Reaper) ->
     Reaper1.
 
 %% A caller's own monitors canceled, taken from the processes it
-%% monitored: at its restart (new_run/3), and for a process the runtime
-%% did not start, whose end the reaper does not see, when it asks
-%% (cancel_monitors/0).
+%% monitored: at its restart (new_run/3), and at the end of a process of
+%% the runtime's own the reaper holds, a teller's (held_ended/3).
 monitors_canceled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
                                   monitor_refs = MonitorRefs} = Reaper) ->
     {Monitors1, MonitorRefs1} = unmonitored(Caller, maps:get(Caller, Monitoring, []), Monitors,
@@ -965,13 +964,14 @@ monitors_canceled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
     Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Caller, Monitoring),
                   monitor_refs = MonitorRefs1}.
 
-%% A process that ended: each monitor of it told, and the monitors of it,
-%% and its own, gone.
+%% A process that ended: each monitor of it told, the monitors of it, and
+%% its own, gone, and the deliveries to it ended (abandoned/1).
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
     unoffered(Pid),
     drop_callee_notes(Pid, ExitReason),
     delivered_down(Pid, ExitReason, Reaper),
+    abandoned(Pid),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
         orelse is_map_key(Pid, MonitorRefs) of
         false ->
@@ -1142,56 +1142,97 @@ wrapped(Caller, Wrap, Down) ->
 %% started it, the reaper or the clock, each of which lives the run long and
 %% traps its exit (reaper/0, clock/1). Report §6.9: it is noted against its
 %% recipient and the process that started it, which ends it when the
-%% recipient restarts (canceled/1).
+%% recipient restarts (canceled/1), and the reaper ends it when the
+%% recipient ends (abandoned/1); one whose recipient has ended already, an
+%% alarm's that fires after its process's end among them, ends before it
+%% starts, the row written first, so that an end the reaper learns of after
+%% the look finds it.
 counted_link(Address, Work) ->
     Recipient = process_of(Address),
     Starter = erlang:self(),
     Pid = erlang:spawn_link(fun() ->
                                 receive go -> Work(), delivered(Recipient, Starter) end
                             end),
-    try ets:insert(?DELIVERIES, {{Recipient, Starter, Pid}}) catch _:_ -> true end,
+    Delivery = {Recipient, Starter, Pid},
+    try ets:insert(?DELIVERIES, {Delivery}) catch _:_ -> true end,
     source_begin(Pid),
-    Pid ! go.
+    case node(Recipient) =:= node() andalso not erlang:is_process_alive(Recipient) of
+        true -> ended_deliveries([Delivery]);
+        false -> Pid ! go
+    end.
 
 delivered(Recipient, Starter) ->
     try ets:delete(?DELIVERIES, {Recipient, Starter, erlang:self()}) catch _:_ -> true end,
     source_end().
 
 %% Report §8.6: a process of the runtime's own that the calling process
-%% holds, ended. One that returned, a delivery done or a process kept for
-%% an address told to stop, has taken its own rows. One that ended
-%% otherwise, killed by the purge of the unit whose function it ran (§11.2,
-%% Appendix E.28) or by foreign code, delivered nothing: it is no source any
-%% more, and its row of deliveries goes. The row is found by a read of the
-%% deliveries on their way, which an end of this kind alone pays, and a
-%% purge, which makes it, reads every process of the host.
+%% holds, ended. One that returned, a delivery done, a process kept for an
+%% address told to stop or a teller with its word, has taken its own rows.
+%% One that ended otherwise, killed from foreign code, delivered nothing:
+%% it is no source any more, and its row of deliveries goes. The row is
+%% found by a read of the deliveries on their way, which an end of this
+%% kind alone pays; one a delivery's recipient ended (abandoned/1), or a
+%% restart of it (canceled/1), has had its rows taken already, and one that
+%% is no delivery has none, which its source's row says.
 undelivered(_Pid, normal) ->
     ok;
 undelivered(Pid, _ExitReason) ->
-    try
-        ets:delete(?HELD, {source, Pid}),
-        ets:match_delete(?DELIVERIES, {{'_', erlang:self(), Pid}})
+    try ets:take(?HELD, {source, Pid}) of
+        [] -> ok;
+        _ -> ets:match_delete(?DELIVERIES, {{'_', erlang:self(), Pid}})
     catch _:_ ->
         true
     end,
     ok.
 
+%% Report §6.9, §8.6: a process of the runtime's own the reaper holds that
+%% ended (reaper_held/2): what it delivered nothing of is no source any
+%% more (undelivered/2), the deliveries to it end with it, and the monitors
+%% it made go, as a caller's go at its end, a teller's of its subscriber.
+held_ended(Pid, ExitReason, Reaper) ->
+    undelivered(Pid, ExitReason),
+    abandoned(Pid),
+    monitors_canceled(Pid, Reaper).
+
 %% Report §6.9: the deliveries this process started to Recipient, ended
 %% when Recipient restarts, each waited for, so that none reaches the new
 %% run.
 canceled(Recipient) ->
-    Starter = erlang:self(),
-    Mine = try ets:select(?DELIVERIES, [{{{Recipient, Starter, '$1'}}, [], ['$1']}])
-           catch _:_ -> []
-           end,
-    lists:foreach(fun(Pid) ->
+    ended_deliveries(deliveries({Recipient, erlang:self(), '_'})).
+
+%% Report §6.9: every delivery to Recipient, whichever process started it,
+%% the reaper or the clock, ended once Recipient has ended: a delivery to a
+%% process that has ended ends with it, one whose wrap does not finish
+%% among them. The reaper ends them where it learns of the end, of a
+%% process it started, adopted, monitors or watches, or holds. A process
+%% kept for an adapted address (kept/1) is no delivery to its target, and
+%% runs on.
+abandoned(Recipient) ->
+    ended_deliveries(deliveries({Recipient, '_', '_'})).
+
+%% The deliveries in flight a pattern of their rows names, each {Recipient,
+%% Starter, Pid}, its recipient given, which the ordered table reads as one
+%% range, the recipient's own rows and no other's.
+deliveries(Pattern) ->
+    try ets:select(?DELIVERIES, [{{Pattern}, [], [{element, 1, '$_'}]}]) catch _:_ -> [] end.
+
+%% Deliveries ended, each killed and waited for: its rows taken first, so
+%% that the process that started it, told of its end, finds none to take
+%% (undelivered/2), and unlinked first where this process started it, so
+%% that it is told nothing.
+ended_deliveries(Deliveries) ->
+    lists:foreach(fun({_, Starter, Pid} = Delivery) ->
+                      try
+                          ets:delete(?DELIVERIES, Delivery),
+                          ets:delete(?HELD, {source, Pid})
+                      catch _:_ ->
+                          true
+                      end,
                       MonitorRef = erlang:monitor(process, Pid),
-                      erlang:unlink(Pid),
+                      Starter =:= erlang:self() andalso erlang:unlink(Pid),
                       exit(Pid, kill),
-                      receive {'DOWN', MonitorRef, process, Pid, _} -> ok end,
-                      ets:delete(?DELIVERIES, {Recipient, Starter, Pid}),
-                      ets:delete(?HELD, {source, Pid})
-                  end, Mine).
+                      receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
+                  end, Deliveries).
 
 %% The live processes the runtime started or adopted, with their spawn
 %% sites.
@@ -1231,9 +1272,8 @@ kill_started(Roots) ->
             [Site || {_, Site} <- Started] ++ kill_started(Roots)
     end.
 
-%% Report §6.9: each process killed, and waited for, so that a unit is
-%% purged only once no process runs it, since the purge kills one that
-%% runs its code and has not yet taken the signal itself.
+%% Report §6.9: each process killed, and waited for, so that a refused
+%% load answers once what it killed has ended (§11.2).
 -spec kill_all([pid()]) -> ok.
 kill_all(Pids) ->
     MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
@@ -2372,14 +2412,16 @@ terminations({signal, _}) -> 1;
 terminations(_) -> 0.
 
 %% The end's wait, Waiting holding each subscriber told and not yet heard
-%% of, with its spawn order, its spawn site and its teller. A word, a
-%% teller's or a new subscription's, reads its subscriber's row alone, so
-%% that what a word costs does not grow with the subscribers. A subscriber
-%% that restarted while it was waited for may subscribe again in its new
-%% run before its teller's word comes; that subscription is told once the
-%% word has come, so that the old run's line is said before the new run's.
-%% Where none is waited for, the wait is over once a last read finds no
-%% one to tell.
+%% of (#waited_for{}). A word, a teller's or a new subscription's, reads
+%% its subscriber's row alone, so that what a word costs does not grow with
+%% the subscribers. A subscriber that restarted while it was waited for may
+%% subscribe again in its new run before its teller's word comes; that
+%% subscription is told once the word has come, so that the old run's line
+%% is said before the new run's. A teller that ends before its word, which
+%% only a kill from outside it does, its wrap's fault being the
+%% subscriber's, ends the wait for its subscriber, whose answer would reach
+%% no one, and the end goes on without it. Where none is waited for, the
+%% wait is over once a last read finds no one to tell.
 waited(Outcome, Launch, Say, Waiting, Terminations) when map_size(Waiting) =:= 0 ->
     case last_read() of
         [] ->
@@ -2391,8 +2433,15 @@ waited(Outcome, Launch, Say, Waiting, Terminations) when map_size(Waiting) =:= 0
 waited(Outcome, Launch, Say, Waiting, Terminations) ->
     receive
         {said, Launch, Subscriber, How} ->
-            {_, Site, _} = maps:get(Subscriber, Waiting),
+            #waited_for{site = Site, monitor_ref = MonitorRef} = maps:get(Subscriber, Waiting),
+            erlang:demonitor(MonitorRef, [flush]),
             Say(["the subscriber ", Site, " ", How]),
+            Waiting1 = maps:remove(Subscriber, Waiting),
+            Untold = untold(subscription(Subscriber), Waiting1),
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1), Terminations);
+        {{teller, Launch, Subscriber}, _, process, _, _} ->
+            #waited_for{site = Site} = maps:get(Subscriber, Waiting),
+            Say(["the subscriber ", Site, " is no longer waited for"]),
             Waiting1 = maps:remove(Subscriber, Waiting),
             Untold = untold(subscription(Subscriber), Waiting1),
             waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1), Terminations);
@@ -2439,15 +2488,23 @@ untold(Subscriptions, Waiting) ->
 %% Each of them told, by a teller of its own, and its run marked told, so
 %% that no later read tells it again. A row gone since the read, by its
 %% process's end or restart, is told all the same, the teller's call ending
-%% as any call to that process would.
+%% as any call to that process would. Report §6.9, §8.6: a teller applies
+%% the subscriber's wrap, as a Down's delivery does, and the reaper holds
+%% it as it holds a delivery (reaper_held/2), so that its end ends nothing
+%% else and it ends with the program; the runner monitors it, so that a
+%% teller that ends before its word holds up no end (waited/5).
 tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
+    Reaper = persistent_term:get({?MODULE, reaper}),
     lists:foldl(fun({Order, Subscriber, Address, Site}, Acc) ->
                     _ = ets:update_element(?TERMINATING, Subscriber, {3, true}),
-                    Teller = erlang:spawn_link(fun() ->
-                                                   tell(Runner, Launch, Subscriber, Address)
-                                               end),
-                    Acc#{Subscriber => {Order, Site, Teller}}
+                    Teller = reaper_held(Reaper, fun() ->
+                                                     tell(Runner, Launch, Subscriber, Address)
+                                                 end),
+                    MonitorRef = erlang:monitor(process, Teller,
+                                                [{tag, {teller, Launch, Subscriber}}]),
+                    Acc#{Subscriber => #waited_for{order = Order, site = Site, teller = Teller,
+                                                   monitor_ref = MonitorRef}}
                 end, Waiting, Untold).
 
 %% Report §11.2: subscribers told once the wait has been said, each said
@@ -2468,10 +2525,9 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% reaper gives once it has reported the subscriber's fault, so that the
 %% fault's line comes before the line that it ended without answering; a
 %% restart reports its fault before it ends the calls waiting on it
-%% (restarts/4). Once it has its word, its monitor goes, as a caller's
-%% goes with its call (settled/1): the reaper does not see a teller end,
-%% and a subscriber that restarts at each telling is told by a teller
-%% each time.
+%% (restarts/4). Once it has its word it ends, and its monitor goes with
+%% it, as the reaper that holds it sees it end (held_ended/3), so that a
+%% subscriber that restarts at each telling is told by a teller each time.
 tell(Runner, Launch, Subscriber, Address) ->
     {Callee, Reply} = watched(Address),
     Ended = make_ref(),
@@ -2486,7 +2542,6 @@ tell(Runner, Launch, Subscriber, Address) ->
               Ended -> <<"ended without answering">>
           end,
     settled(Reply),
-    cancel_monitors(),
     Runner ! {said, Launch, Subscriber, How}.
 
 %% Where an Os.exit or a second termination cuts the wait short: the
@@ -2497,11 +2552,11 @@ tell(Runner, Launch, Subscriber, Address) ->
 %% said.
 cut_short(Say, Waiting) ->
     Unanswered = lists:sort(maps:values(Waiting)),
-    Sites = [Site || {_, Site, _} <- Unanswered],
+    Sites = [Site || #waited_for{site = Site} <- Unanswered],
     Say(["the end was cut short, ", counted(Sites), " unanswered: ", lists:join(", ", Sites)]),
     ets:delete(?LAUNCH, ending),
-    lists:foreach(fun({_, _, Teller}) ->
-                      erlang:unlink(Teller),
+    lists:foreach(fun(#waited_for{teller = Teller, monitor_ref = MonitorRef}) ->
+                      erlang:demonitor(MonitorRef, [flush]),
                       exit(Teller, kill)
                   end, Unanswered).
 

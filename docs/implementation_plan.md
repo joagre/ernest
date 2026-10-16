@@ -17,10 +17,9 @@ and a feature declined in the log's *Later*; nothing stands between.
 **MVP 3.2 is in progress.** Its items 1 to 10 are done, code crossing with a spawn, the bare
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
-(2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Before the
-tag, in MVP 3.2 below, one paragraph remains, four decisions on purges and the runtime's deliveries,
-each with its recommendation, for the user before they are built; every other paragraph before the
-tag is done.
+(2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-16) but one, the shell's refusal of a
+module cycle through the load path; item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -436,9 +435,12 @@ holds no frame and no process, running the loss in order and reading the frames 
 reconnection itself; and a loss taking only the rows written before it. Regression tests in the
 gateway's and the peer's tests; fixed before the tag.
 
-**Before the tag: purges and the runtime's deliveries.** Found 2026-10-16 by the read-back of the
-reaper's fix; four decisions, each with its recommendation, for the user's eye before they are
-built. The shell's `withdraw/3` deletes and purges the units a refused `:load` or `:reload`
+**Before the tag: purges and the runtime's deliveries.** Decided with the user on 2026-10-16
+(the log's *The Runtime's Own Processes*, its last paragraph): the shell and `Code.load` keep a
+refused load's units loaded, as §11.2 says and E.28 now says, so no purge remains and the second
+decision below falls with the first; a delivery to a process that has ended ends with it (§6.9);
+the end's tellers are held as the reaper holds its deliveries. Built the same night. Found
+2026-10-16 by the read-back of the reaper's fix; four decisions, each with its recommendation. The shell's `withdraw/3` deletes and purges the units a refused `:load` or `:reload`
 brought, against §11.2, where such a unit stays loaded while the session runs, and
 `docs/memory.md` says what the code does: the code should follow §11.2 (principle 1), after which
 no purge of the shell's reaches a running delivery. `Code.load`'s purge (E.28) kills a wrap's or an
@@ -449,6 +451,12 @@ runs until its function returns, out of the program's reach: it should end with 
 restart ends the deliveries to its process, with a §6.9 sentence. The end's tellers (`tell_all/3`)
 are linked to the runner, which traps no exit, and each applies a subscriber's wrap: they should
 be held as the reaper holds its deliveries. Fixed before the tag, once decided.
+
+**Before the tag: a module cycle through the load path.** Found 2026-10-16 by the read-back of the
+refused load's units. The shell accepts a module that uses, through the load path, a module that
+uses it, which §11.1 calls an error, and in that case alone a load refused and tried again makes a
+new unit. The shape of the fix: the shell refuses the cycle as `ern build` refuses one, naming its
+modules, with a regression test in the shell's tests. Fixed before the tag.
 
 **Before the tag: the shell and a private mailbox type.** Done 2026-10-16 (the log's *The Shell
 on a Private Type*): the interface carries the private types an exported signature names (§11.1),

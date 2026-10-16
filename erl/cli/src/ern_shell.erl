@@ -96,12 +96,24 @@
 %% compiled form, the hash of the source it was compiled from (§11.2),
 %% whether its source is the session's, the session compiling it or taking
 %% its current compiled form, or it is a library's, whose form alone the
-%% session has; whether its unit is made from that form's forms as it is
-%% installed, a compiled module loaded beside another unit of its name;
-%% and the file of the current compiled form `:load` took in place of
-%% compiling its source, or none.
--record(compiled, {namespace, unit, beam, source_hash, from_source = false, from_forms = false,
+%% session has; how its unit comes as it is installed, `file`, its
+%% compiled form loaded as it is, `forms`, made from that form's forms, or
+%% `held`, a unit the node holds already (ern_code:placement/4); and the
+%% file of the current compiled form `:load` took in place of compiling
+%% its source, or none.
+-record(compiled, {namespace, unit, beam, source_hash, from_source = false, made = file,
                    erc = none}).
+%% A load's modules as it places them, each after the modules it uses
+%% (report §8.7, §11.2): the interfaces a module is compiled against, the
+%% session's and those of the modules the load placed before it; the unit
+%% each runs as where it is not its Erlang name, which a module is compiled
+%% to call; the modules of its source set not placed yet, by namespace;
+%% what came of each it placed of them, compiled or why not, the last
+%% first; the modules that did not compile; the unit of each module the
+%% load has placed, by namespace; and the modules it takes from their
+%% compiled forms on the load path, in the order placed.
+-record(placing, {interfaces, units, sources = #{}, compiled = [], failed = [], placed = #{},
+                  needed = []}).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -1972,12 +1984,12 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                     %% loaded and whose source the root holds is compiled too
                     Sources = with_sources(Session, [{Namespace, File}], []),
                     case compile_in_order(Session, Sources) of
-                        {ok, CompiledModules} ->
+                        {ok, Needed, CompiledModules} ->
                             Lines = [loaded_line(Session, Compiled)
                                      || {Loaded, _} <- lists:reverse(Sources),
                                         Compiled <- [lists:keyfind(Loaded, #compiled.namespace,
                                                                    CompiledModules)]],
-                            with_needed(Session, CompiledModules,
+                            loaded_with(Session, Needed ++ CompiledModules,
                                         unicode:characters_to_binary(lists:join("\n", Lines)));
                         {error, Failed} ->
                             {'Left', iolist_to_binary(Failed)}
@@ -1991,14 +2003,16 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
         none ->
             case compiled_of(Session, Namespace) of
                 {ok, File, Beam, Hash} ->
-                    case compiled_unit(Namespace, Beam, Hash) of
-                        {ok, Compiled} ->
-                            with_needed(Session, [Compiled],
+                    %% report §11.2: what it uses that the session has not
+                    %% loaded is placed before it, and it last
+                    case compiled_placed(Session, Namespace, Beam, Hash, placing(Session)) of
+                        {ok, #placing{needed = All}} ->
+                            loaded_with(Session, All,
                                         <<Name/binary, ", from ",
                                           (unicode:characters_to_binary(
                                              relative(File, Session)))/binary>>);
                         {error, Refusal} ->
-                            {'Left', <<Refusal/binary, "\n">>}
+                            {'Left', Refusal}
                     end;
                 {error, Refusal} ->
                     {'Left', <<Refusal/binary, "\n">>};
@@ -2034,18 +2048,12 @@ with_sources(#session{source_root = SourceRoot, source_hashes = Loaded} = Sessio
             with_sources(Session, Rest ++ More, Acc ++ [{Namespace, File}])
     end.
 
-%% The modules loaded, after what they use that the session has not
-%% loaded, and `:load`'s answer.
-with_needed(Session, CompiledModules, Answer) ->
-    case needed(Session, CompiledModules) of
-        {ok, Needed} ->
-            All = Needed ++ CompiledModules,
-            case refused_compiled(Session, All) of
-                none -> installed(Session, All, Answer);
-                Refusal -> {'Left', <<(unicode:characters_to_binary(Refusal))/binary, "\n">>}
-            end;
-        {error, Text} ->
-            {'Left', Text}
+%% The modules of a `:load` loaded, what they use that the session had not
+%% loaded among them, and `:load`'s answer.
+loaded_with(Session, All, Answer) ->
+    case refused_compiled(Session, All) of
+        none -> installed(Session, All, Answer);
+        Refusal -> {'Left', <<(unicode:characters_to_binary(Refusal))/binary, "\n">>}
     end.
 
 %% Report §11.2: a compiled module is refused as `ern run` refuses one: a
@@ -2084,7 +2092,6 @@ held_interfaces(Namespace, Interfaces) ->
 %% Report §11.2: the modules installed and their bindings evaluated, and
 %% `:load`'s answer; a binding that faults leaves nothing loaded.
 installed(Session, All, Answer) ->
-    Brought = brought(All),
     Session1 = install(Session, All),
     case initialize(in_order(All)) of
         {ok, Roots} ->
@@ -2092,7 +2099,7 @@ installed(Session, All, Answer) ->
             evaluating(Roots),
             {'Right', {keep_session(Session1), Answer}};
         {fault, _, Site, How, _, Roots} ->
-            Killed = withdraw(Brought, All, Roots),
+            Killed = withdraw(All, Roots),
             {'Left', <<(binding_end(Site, How))/binary, "; nothing was loaded",
                        (killed_text(Killed))/binary, "\n">>}
     end.
@@ -2105,31 +2112,28 @@ in_order(CompiledModules) ->
     [maps:get(Unit, ByUnit)
      || Unit <- ern_rt:ordered([Unit || #compiled{unit = Unit} <- CompiledModules])].
 
-%% Report §8.7: the units a load brought to the node, those it held no
-%% code of before; a unit the node held, of its build, is the node's.
-brought(CompiledModules) ->
-    [Compiled || #compiled{unit = Unit} = Compiled <- CompiledModules, ern_code:is_free(Unit)].
-
 %% Report §11.2: a refused `:load` or `:reload` undone, so that the session
 %% is as it was: every process its evaluation started, directly or
 %% through one it started, is killed (§6.9) and waited for, each of them
 %% started by one of Roots, the processes the bindings were evaluated in
 %% (ern_rt:kill_started/1), a process of a unit the node held among them,
 %% and then each of Roots that lives on, the shell's own, which nothing
-%% names; each unit it brought is then deleted and purged, and the values
-%% the bindings of every unit it evaluated stored go (ern_code:withdrawn/2),
-%% so that a unit the node held, which the session had not evaluated, is
-%% without them as before, its code and its rows the node's. Code.load
-%% undoes a load so too (Appendix E.28). The keys are read while the code
-%% is current. The spawn sites of the processes killed.
-withdraw(Brought, All, Roots) ->
+%% names; and the values the bindings of every unit it evaluated stored
+%% go, so that a unit the node held, which the session had not evaluated,
+%% is without them as before. The units the load brought stay loaded and
+%% in the code table, as any unit does, out of the session's scope, since
+%% a process running before the load may have been handed a function of
+%% one, as an input's code is kept; the module loaded again, unchanged,
+%% makes no unit (compile_unit/5, compiled_unit/5). Code.load undoes a
+%% load so too (Appendix E.28). The spawn sites of the processes killed.
+withdraw(All, Roots) ->
     Keys = lists:append([ern_code:binding_keys(Unit) || #compiled{unit = Unit} <- All]),
     Sites = ern_rt:kill_started([Root || {Root, _} <- Roots]),
     Living = [{Root, Ref} || {Root, Ref} <- Roots, erlang:is_process_alive(Root)],
     ern_rt:kill_all([Root || {Root, _} <- Living]),
     %% the end of each, which its monitor from its spawn tells the session
     lists:foreach(fun({_, Ref}) -> receive {Ref, {'Down', _, _, _}} -> ok end end, Living),
-    ern_code:withdrawn([Unit || #compiled{unit = Unit} <- Brought], Keys),
+    lists:foreach(fun persistent_term:erase/1, Keys),
     Sites.
 
 %% Report §11.2: the refusal names the processes it killed by their spawn
@@ -2247,74 +2251,112 @@ binding_end(Site, {faulted, Cause}) ->
 binding_end(Site, killed) ->
     <<Site/binary, " was killed">>.
 
-%% Report §11.2: what the modules use that the session has not loaded,
-%% each found as the runner finds it, by namespace on the load path, and
-%% loaded before them, the modules it uses first.
-needed(Session, CompiledModules) ->
-    Compiled = [Namespace || #compiled{namespace = Namespace} <- CompiledModules],
-    lists:foldl(fun(#compiled{beam = Beam}, Found) -> needed(Session, Beam, Found, Compiled) end,
-                {ok, []}, CompiledModules).
+%% Report §11.2: what a module uses placed before it, so that it is linked
+%% to their units: a module the session has loaded is placed already; one
+%% of the load's source set is compiled first, where the order of the set
+%% has not placed it yet, as for a module of the load path that uses one;
+%% and any other is found as the runner finds it, by its namespace on the
+%% load path, and placed after the modules it uses. The placing, or why
+%% one cannot be loaded.
+needed_placed(_Session, [], Placing) ->
+    {ok, Placing};
+needed_placed(Session, [Dependency | Rest], Placing) ->
+    case dependency_placed(Session, Dependency, Placing) of
+        {ok, Placing1} -> needed_placed(Session, Rest, Placing1);
+        Error -> Error
+    end.
 
-%% What one module uses that neither the session nor the modules compiled
-%% with it, Compiled, provide.
-needed(_Session, _Beam, {error, _} = Error, _Compiled) ->
-    Error;
-needed(#session{source_hashes = Loaded} = Session, Beam, {ok, _} = Found, Compiled) ->
-    {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
-    lists:foldl(fun(_, {error, _} = Error) ->
-                        Error;
-                   ({Namespace, _}, {ok, Acc}) ->
-                        case is_map_key(Namespace, Loaded) orelse lists:member(Namespace, Compiled)
-                             orelse lists:keymember(Namespace, #compiled.namespace, Acc) of
-                            true -> {ok, Acc};
-                            false -> needed_one(Session, Namespace, Acc, Compiled)
-                        end
-                end, Found, DependencyHashes).
+%% One module a module uses placed: one of the source set compiled now,
+%% where the set's order has not reached it; one the session has loaded,
+%% or the load has placed, is compiling or could not compile, as it is;
+%% and any other found on the load path.
+dependency_placed(#session{source_hashes = Loaded} = Session, Dependency,
+                  #placing{sources = Sources, placed = Placed} = Placing) ->
+    case Sources of
+        #{Dependency := Module} -> {ok, compiled_in_order(Session, Module, Placing)};
+        _ when is_map_key(Dependency, Loaded); is_map_key(Dependency, Placed) -> {ok, Placing};
+        _ -> needed_one(Session, Dependency, Placing)
+    end.
 
-needed_one(Session, Namespace, Acc, Compiled) ->
-    Refused = fun(Refusal) -> {error, <<Refusal/binary, "\n">>} end,
+needed_one(Session, Namespace, Placing) ->
     case compiled_of(Session, Namespace) of
         {ok, _, Beam, Hash} ->
-            case compiled_unit(Namespace, Beam, Hash) of
-                {ok, Unit} ->
-                    case needed(Session, Beam, {ok, Acc}, Compiled) of
-                        {ok, Acc1} -> {ok, Acc1 ++ [Unit]};
-                        Error -> Error
-                    end;
-                {error, Refusal} ->
-                    Refused(Refusal)
-            end;
+            compiled_placed(Session, Namespace, Beam, Hash, Placing);
         {error, Refusal} ->
-            Refused(Refusal);
+            {error, <<Refusal/binary, "\n">>};
         none ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             {error, <<"no module ", Name/binary, " on the load path\n">>}
+    end.
+
+%% A module the load takes from its compiled form Beam placed, after what
+%% it uses, among the load's modules from the load path.
+compiled_placed(Session, Namespace, Beam, Hash, Placing) ->
+    {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
+    case needed_placed(Session, [Dependency || {Dependency, _} <- DependencyHashes], Placing) of
+        {ok, Placing1} ->
+            case compiled_unit(Session, Namespace, Beam, Hash, Placing1) of
+                {ok, Compiled} ->
+                    #placing{needed = Needed} = Placing2 = placed(Compiled, Placing1),
+                    {ok, Placing2#placing{needed = Needed ++ [Compiled]}};
+                Error ->
+                    Error
+            end;
+        Error ->
+            Error
+    end.
+
+%% A load's placing as it begins: the session's interfaces and units.
+placing(#session{units = Units} = Session) ->
+    #placing{interfaces = loaded_interfaces(Session), units = Units}.
+
+%% The placing with a module the load placed, which those after it are
+%% compiled against and call.
+placed(#compiled{namespace = Namespace, unit = Unit, beam = Beam},
+       #placing{interfaces = Interfaces, units = Units, placed = Placed} = Placing) ->
+    {ok, #{interface := Interface}} = ern_interface:read(Beam),
+    Placing#placing{interfaces = Interfaces#{Namespace => Interface},
+                    units = with_unit(Namespace, Unit, Units), placed = Placed#{Namespace => Unit}}.
+
+%% The unit a module of the session's or of the load runs as, or unknown
+%% for one the load has not placed yet or is compiling.
+placed_unit(#session{source_hashes = Loaded} = Session, Namespace, #placing{placed = Placed}) ->
+    case Placed of
+        #{Namespace := Unit} -> Unit;
+        _ when is_map_key(Namespace, Loaded) -> unit(Session, Namespace);
+        _ -> unknown
     end.
 
 %%
 %% Units, report §8.7, §11.2
 %%
 
-%% Report §8.7, §11.2: a module loaded from its compiled form is the unit
-%% of its Erlang name, one the host holds no code of, or holds with this
-%% very code, as a node holds its build's. Where the host holds other code
-%% under that name, a node's build's or the shell's own, the module is a
-%% unit of a name of its own, as a reload's version is (fresh_unit/1), made
-%% from its compiled form's forms by the back end as it is installed, once
-%% the modules it uses are (install_one/2).
-compiled_unit(Namespace, Beam, Hash) ->
-    Unit = ern_namespace:erlang_module(Namespace),
-    case ern_code:is_free(Unit) orelse ern_code:is_held(Unit, Beam) of
-        true ->
-            {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash}};
-        false ->
-            case fresh_unit(Namespace) of
-                {ok, Fresh} ->
-                    {ok, #compiled{namespace = Namespace, unit = Fresh, beam = Beam,
-                                   source_hash = Hash, from_forms = true}};
-                {error, _} = Error ->
-                    Error
-            end
+%% Report §8.7, §11.2: a module loaded from its compiled form is placed as
+%% Code.load places one (ern_code:placement/4), linked to the units of the
+%% modules it uses, the session's and those the load placed before it: the
+%% unit of its Erlang name where the host holds this very code there, or
+%% none, and each module it uses is under its own Erlang name, its compiled
+%% form loaded as it is, as a node holds its build's; else a unit made from
+%% its forms by the back end as it is installed, once the modules it uses
+%% are (install/2), of its Erlang name where the host holds no code of it
+%% and of a name of its own beside it otherwise, as a reload's version is;
+%% or a unit an earlier load made of these very forms, a refused load's,
+%% which stays loaded (withdraw/2), so that a module loaded again,
+%% unchanged, makes no unit. A module it uses whose unit the load has not
+%% placed yet, one the load is compiling that uses this module in turn, is
+%% not linked to, and the unit is made from its forms, installed after
+%% that module.
+compiled_unit(Session, Namespace, Beam, Hash, Placing) ->
+    {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
+    {ok, Recorded} = ern_canonical:read(Beam),
+    Dependencies = [{Dependency, placed_unit(Session, Dependency, Placing)}
+                    || {Dependency, _} <- DependencyHashes],
+    case ern_code:placement(Namespace, Beam, Recorded, Dependencies) of
+        {error, Text} ->
+            {error, <<Text/binary, "\n">>};
+        {Made, Unit} ->
+            {ok, #compiled{namespace = Namespace, unit = Unit, beam = Beam, source_hash = Hash,
+                           made = Made}}
     end.
 
 %% Report §8.7, §11.2: a module compiled from its source as a unit no other
@@ -2344,10 +2386,44 @@ compile_unit(#session{source_hashes = Loaded} = Session, Namespace, File, Interf
             end
     end.
 
+%% Report §11.2, Appendix E.28: a module compiled as a unit of a name of
+%% its own beside its Erlang name: the first name the host holds no code
+%% of, or a unit beside it that an earlier load of the session made of
+%% this very code and kept when the load was refused (withdraw/2), whose
+%% bindings have no value, so that a module loaded again, unchanged, makes
+%% no unit. A unit beside it that holds the module's forms is compiled
+%% again as that unit, and taken where the host holds this very code there,
+%% as the unit of its Erlang name is (compile_unit/5).
 fresh_compiled(Session, Namespace, File, Against, SiteNamespace) ->
     case fresh_unit(Namespace) of
-        {ok, Unit} -> compiled_as(Session, Namespace, Unit, File, Against, SiteNamespace);
-        {error, _} = Error -> Error
+        {ok, Unit} ->
+            case compiled_as(Session, Namespace, Unit, File, Against, SiteNamespace) of
+                {ok, Fresh} -> {ok, kept_or_fresh(Session, Fresh, File, Against, SiteNamespace)};
+                Error -> Error
+            end;
+        {error, _} = Error ->
+            Error
+    end.
+
+kept_or_fresh(Session, #compiled{namespace = Namespace, beam = Beam} = Fresh, File, Against,
+              SiteNamespace) ->
+    {ok, Recorded} = ern_canonical:read(Beam),
+    IsKept = fun(Unit) ->
+                     not ern_rt:is_initialized(Unit) andalso ern_code:forms(Unit) =:= {ok, Recorded}
+             end,
+    case ern_code:unit_beside(Namespace, IsKept) of
+        {held, Unit} ->
+            case compiled_as(Session, Namespace, Unit, File, Against, SiteNamespace) of
+                {ok, #compiled{beam = KeptBeam} = Kept} ->
+                    case ern_code:is_held(Unit, KeptBeam) of
+                        true -> Kept;
+                        false -> Fresh
+                    end;
+                {error, _} ->
+                    Fresh
+            end;
+        _ ->
+            Fresh
     end.
 
 %% Report §11.2: the namespace a reload's version of a loaded module names
@@ -2438,7 +2514,6 @@ reload_changed(#session{source_hashes = SourceHashes, source_expected = Expected
 %% previous version has it of one hash.
 reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, SourcelessLines) ->
     All = Needed ++ Compiled,
-    Brought = brought(All),
     Session1 = install(Session, All),
     IsFirst = fun(#compiled{namespace = Namespace}) -> not is_map_key(Namespace, Loaded) end,
     case initialize(in_order(All)) of
@@ -2455,7 +2530,7 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
                     reload_done(Session, Session1, {All, Compiled},
                                 [kept_values_line(Site, How)], SourcelessLines);
                 true ->
-                    Killed = withdraw(Brought, All, Roots),
+                    Killed = withdraw(All, Roots),
                     {'Left', <<(binding_end(Site, How))/binary, "; nothing was reloaded",
                                (killed_text(Killed))/binary, "\n">>}
             end
@@ -2529,13 +2604,10 @@ kept_values(Before, #compiled{namespace = Namespace, unit = Unit}) ->
 %% and the source root does not hold; or why they cannot all be.
 compile_all(Session, ChangedSources) ->
     case compile_in_order(Session, with_sources(Session, ChangedSources, [])) of
-        {ok, CompiledModules} ->
+        {ok, Needed, CompiledModules} ->
             case stale_users(Session, ChangedSources, CompiledModules) of
                 [] ->
-                    case needed(Session, CompiledModules) of
-                        {ok, Needed} -> {ok, Needed, CompiledModules};
-                        Error -> Error
-                    end;
+                    {ok, Needed, CompiledModules};
                 Users ->
                     Sources = [{Namespace, source_of(Session, Namespace)} || Namespace <- Users],
                     case [Namespace || {Namespace, none} <- Sources] of
@@ -2554,18 +2626,24 @@ compile_all(Session, ChangedSources) ->
             Error
     end.
 
-%% Each module compiled, a module before those that use it, against the
+%% Each module compiled, a module after those it uses, against the
 %% interfaces of the session and of the modules compiled before it, and as
-%% the unit compile_unit/5 gives it, which those after it call.
-compile_in_order(#session{source_root = SourceRoot, units = Units} = Session, Set) ->
+%% the unit compile_unit/5 gives it, which those after it call; what each
+%% uses placed before it (needed_placed/3). What the modules use from the
+%% load path and the modules, in the order placed, or why they cannot all
+%% be compiled.
+compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
     try ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
                                  || {_, File} <- Set], SourceRoot, load_path(Session)) of
         Ordered ->
-            Compile = fun(Module, Acc) -> compiled_in_order(Session, Module, Acc) end,
-            {Compiled, _} = lists:mapfoldl(Compile, {loaded_interfaces(Session), Units, []},
-                                           Ordered),
-            case [Text || {_, {error, Text}} <- Compiled] of
-                [] -> {ok, [Module || {_, {ok, Module}} <- Compiled]};
+            Sources = #{Namespace => Module
+                        || #build_module{namespace = Namespace} = Module <- Ordered},
+            #placing{compiled = Compiled, needed = Needed} =
+                lists:foldl(fun(#build_module{namespace = Namespace}, Placing) ->
+                                    source_placed(Session, Namespace, Placing)
+                            end, (placing(Session))#placing{sources = Sources}, Ordered),
+            case [Text || {_, {error, Text}} <- lists:reverse(Compiled)] of
+                [] -> {ok, Needed, [Module || {_, {ok, Module}} <- lists:reverse(Compiled)]};
                 Texts -> {error, Texts}
             end
     catch
@@ -2578,45 +2656,73 @@ compile_in_order(#session{source_root = SourceRoot, units = Units} = Session, Se
                         || Diagnostic <- Diagnostics])]}
     end.
 
+%% A module of the source set compiled, where it is not placed yet.
+source_placed(Session, Namespace, #placing{sources = Sources} = Placing) ->
+    case Sources of
+        #{Namespace := Module} -> compiled_in_order(Session, Module, Placing);
+        _ -> Placing
+    end.
+
 %% Report §11.2: one module of a `:load`, its current compiled form taken
 %% or the module compiled, where every module it uses did, and said not to
 %% be loaded where one did not; the build's advice to compile that one
 %% first does not apply in the shell.
 compiled_in_order(Session, #build_module{namespace = Namespace,
                                          dependencies = Dependencies} = Module,
-                  {Interfaces, Units, Failed}) ->
-    case [Dependency || Dependency <- Dependencies, lists:member(Dependency, Failed)] of
-        [Dependency | _] ->
-            Text = unicode:characters_to_binary([ern_namespace:text(Namespace),
-                                                 " is not loaded, since ",
-                                                 ern_namespace:text(Dependency),
-                                                 " does not compile\n"]),
-            {{Namespace, {error, Text}}, {Interfaces, Units, [Namespace | Failed]}};
-        [] ->
-            case taken_or_compiled(Session, Module, Interfaces, Units) of
-                {ok, #compiled{unit = Unit, beam = Beam}} = Ok ->
-                    {ok, #{interface := Interface}} = ern_interface:read(Beam),
-                    {{Namespace, Ok}, {Interfaces#{Namespace => Interface},
-                                       with_unit(Namespace, Unit, Units), Failed}};
-                Error ->
-                    {{Namespace, Error}, {Interfaces, Units, [Namespace | Failed]}}
+                  #placing{sources = Sources, placed = Placed} = Placing) ->
+    %% placed, its unit unknown until it is compiled, so that a module it
+    %% uses that uses it in turn does not compile it again
+    Placing1 = Placing#placing{sources = maps:remove(Namespace, Sources),
+                               placed = Placed#{Namespace => unknown}},
+    case needed_placed(Session, Dependencies, Placing1) of
+        {ok, #placing{failed = Failed} = Placing2} ->
+            case [Dependency || Dependency <- Dependencies, lists:member(Dependency, Failed)] of
+                [Dependency | _] ->
+                    failed(Namespace,
+                           unicode:characters_to_binary([ern_namespace:text(Namespace),
+                                                         " is not loaded, since ",
+                                                         ern_namespace:text(Dependency),
+                                                         " does not compile\n"]),
+                           Placing2);
+                [] ->
+                    case taken_or_compiled(Session, Module, Placing2) of
+                        {ok, Compiled} = Ok ->
+                            #placing{compiled = Done} = Placing3 = placed(Compiled, Placing2),
+                            Placing3#placing{compiled = [{Namespace, Ok} | Done]};
+                        {error, Text} ->
+                            failed(Namespace, Text, Placing2)
+                    end
+            end;
+        {error, Text} ->
+            %% report §11.2, §11.5: its own diagnostic or refusal first,
+            %% where its compile gives one, a module it uses that the load
+            %% path lacks among the causes
+            case taken_or_compiled(Session, Module, Placing1) of
+                {error, Diagnostic} -> failed(Namespace, Diagnostic, Placing1);
+                {ok, _} -> failed(Namespace, Text, Placing1)
             end
     end.
 
+%% The placing with a module of the source set that was not compiled, and
+%% why.
+failed(Namespace, Text, #placing{compiled = Done, failed = Failed} = Placing) ->
+    Placing#placing{compiled = [{Namespace, {error, Text}} | Done], failed = [Namespace | Failed]}.
+
 %% Report §11.2: a module the session has not loaded is its current
 %% compiled form where one qualifies (current_form/4), the unit
-%% compiled_unit/3 gives a compiled form, and else compiled from its
+%% compiled_unit/5 gives a compiled form, and else compiled from its
 %% source. A module it has loaded, which a reload compiles again, is
 %% compiled.
 taken_or_compiled(#session{source_hashes = Loaded} = Session,
-                  #build_module{namespace = Namespace, file = File} = Module, Interfaces, Units) ->
+                  #build_module{namespace = Namespace, file = File} = Module,
+                  #placing{interfaces = Interfaces, units = Units} = Placing) ->
     Taken = case is_map_key(Namespace, Loaded) of
                 true -> none;
                 false -> current_form(Session, Module, Interfaces, Units)
             end,
     case Taken of
         {ok, Erc, Beam, Hash} ->
-            case compiled_unit(Namespace, Beam, Hash) of
+            case compiled_unit(Session, Namespace, Beam, Hash, Placing) of
                 {ok, Compiled} -> {ok, Compiled#compiled{from_source = true, erc = Erc}};
                 Error -> Error
             end;
@@ -2760,26 +2866,26 @@ loaded_interfaces(#session{interfaces = Interfaces, source_hashes = SourceHashes
 
 %% Each module installed as its unit, loaded where the node does not hold
 %% it already, and in scope by its namespace in place of its previous
-%% version.
+%% version, each after the modules it uses (in_dependency_order/1).
 install(Session, CompiledModules) ->
-    lists:foldl(fun install_one/2, Session, CompiledModules).
+    lists:foldl(fun install_one/2, Session, in_dependency_order(CompiledModules)).
 
 install_one(#compiled{namespace = Namespace, unit = Unit, beam = Compiled, source_hash = Hash,
-                      from_source = FromSource, from_forms = FromForms},
+                      from_source = FromSource, made = Made},
             #session{interfaces = Interfaces, source_hashes = SourceHashes, beams = Beams,
                      units = Units, source_expected = Expected, prelude = Prelude} = Session) ->
-    %% report §11.2: a compiled module loaded beside another unit of its
-    %% name made a unit of its own from its forms, linked to the units the
-    %% session holds of the modules it uses, which are installed before it
-    Beam = case FromForms of
-               true ->
-                   {ok, Made} = ern_compile:from_compiled(Compiled, Unit, Interfaces, Prelude,
-                                                         with_unit(Namespace, Unit, Units)),
-                   Made;
-               false ->
+    %% report §11.2: a compiled module that is not loaded as it is made a
+    %% unit from its forms, linked to the units the session holds of the
+    %% modules it uses, which are installed before it
+    Beam = case Made of
+               forms ->
+                   {ok, Built} = ern_compile:from_compiled(Compiled, Unit, Interfaces, Prelude,
+                                                          with_unit(Namespace, Unit, Units)),
+                   Built;
+               _ ->
                    Compiled
            end,
-    case ern_code:is_held(Unit, Beam) of
+    case Made =:= held orelse ern_code:is_held(Unit, Beam) of
         true -> ok;
         false -> {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam)
     end,
@@ -2794,6 +2900,34 @@ install_one(#compiled{namespace = Namespace, unit = Unit, beam = Compiled, sourc
                                       end,
                     beams = Beams#{Namespace => Beam},
                     units = with_unit(Namespace, Unit, Units)}.
+
+%% The modules of a load in an order where each follows those it uses, by
+%% what their compiled forms record, so that one made from its forms is
+%% linked to the units the session holds of them as it is installed; the
+%% order of the list is kept where no dependency decides it.
+in_dependency_order(CompiledModules) ->
+    ByNamespace = #{Namespace => Compiled
+                    || #compiled{namespace = Namespace} = Compiled <- CompiledModules},
+    {Order, _} = lists:foldl(fun(#compiled{namespace = Namespace}, Acc) ->
+                                     with_dependencies(Namespace, ByNamespace, Acc)
+                             end, {[], #{}}, CompiledModules),
+    lists:reverse(Order).
+
+%% Order, the modules visited so far, the last first, with the module of
+%% Namespace after the modules of the load it uses; Seen by namespace.
+with_dependencies(Namespace, ByNamespace, {Order, Seen} = Acc) ->
+    case ByNamespace of
+        #{Namespace := #compiled{beam = Beam} = Compiled} when not is_map_key(Namespace, Seen) ->
+            {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
+            {Order1, Seen1} = lists:foldl(fun({Dependency, _}, DependencyAcc) ->
+                                                  with_dependencies(Dependency, ByNamespace,
+                                                                    DependencyAcc)
+                                          end, {Order, Seen#{Namespace => true}},
+                                          DependencyHashes),
+            {[Compiled | Order1], Seen1};
+        _ ->
+            Acc
+    end.
 
 %%
 %% The session's declarations at a reload, report §11.2

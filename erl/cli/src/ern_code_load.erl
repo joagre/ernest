@@ -17,20 +17,22 @@
 %% its forms by the back end (ern_compile:from_compiled/5), of its Erlang
 %% name where the host holds none and of a name of its own otherwise,
 %% `ern@counter$2`, linked to the units of the modules it uses, as the
-%% shell's load makes one beside another of its name. The units are loaded
-%% by the host's atomic load, one batch, and enter the code table, so that
-%% a spawn finds their definitions and an exchange ships them (§8.7); a
-%% unit, once loaded, is held for the node's life (§11.2).
+%% shell's load makes one beside another of its name (ern_code:placement/4).
+%% The units are loaded by the host's atomic load, one batch, and enter the
+%% code table, so that a spawn finds their definitions and an exchange
+%% ships them (§8.7); a unit, once loaded, is held for the node's life
+%% (§11.2).
 %%
 %% The bindings of the units without values, the units the node held and
 %% had not evaluated among them, are evaluated in the calling process in
 %% §8.5's order, each in a body of mailbox type `Never` (§4.6), the caller
 %% the head of a spawn chain of its own meanwhile (ern_rt:rooting/0). One
 %% that faults ends the evaluation: every process the evaluation started is
-%% killed (ern_rt:kill_started/1), the units the load brought are deleted
-%% and purged and the values its evaluation stored go (ern_code:withdrawn/2),
+%% killed (ern_rt:kill_started/1) and the values its evaluation stored go,
 %% as a refused load of the shell's is undone, and the load answers the
-%% fault as §8.5 reports it.
+%% fault as §8.5 reports it. The units the load brought stay loaded, out of
+%% reach, since a process running before the load may hold a function of
+%% one (§11.2); loaded again, unchanged, the module makes no unit.
 -module(ern_code_load).
 
 -export([load/1]).
@@ -181,44 +183,16 @@ placed(Reach) ->
 %% Units: the unit of each namespace placed so far. A unit made from these
 %% very forms by an earlier load, linked to the same units, is taken as
 %% the node holds it, under the module's Erlang name or one of its own, so
-%% that loading a module again makes no unit (§11.2).
+%% that loading a module again makes no unit (§11.2, ern_code:placement/4).
 place(#found{namespace = Namespace, beam = Beam, recorded = Recorded,
              chunk = #{deps := Dependencies}} = Found, Units) ->
-    Plain = ern_namespace:erlang_module(Namespace),
-    DependencyUnits = [maps:get(Dependency, Units) || {Dependency, _} <- Dependencies],
-    Linked = DependencyUnits =:= [ern_namespace:erlang_module(Dependency)
-                                  || {Dependency, _} <- Dependencies],
-    Made = fun(Unit) ->
-                   ern_code:forms(Unit) =:= {ok, Recorded}
-                       andalso dependencies(Unit) =:= DependencyUnits
-           end,
-    Placed = case {Linked andalso ern_code:is_held(Plain, Beam), ern_code:is_free(Plain)} of
-                 {true, _} ->
-                     #placed{found = Found, unit = Plain, made = held};
-                 {false, true} when Linked ->
-                     #placed{found = Found, unit = Plain, made = file};
-                 {false, true} ->
-                     #placed{found = Found, unit = Plain, made = forms};
-                 {false, false} ->
-                     case erlang:module_loaded(Plain) andalso Made(Plain) of
-                         true ->
-                             #placed{found = Found, unit = Plain, made = held};
-                         false ->
-                             case ern_code:unit_beside(Namespace, Made) of
-                                 {held, Unit} -> #placed{found = Found, unit = Unit, made = held};
-                                 {free, Unit} -> #placed{found = Found, unit = Unit, made = forms};
-                                 {error, Text} -> cannot(Found, Text)
-                             end
-                     end
-             end,
-    {Placed, Units#{Namespace => Placed#placed.unit}}.
-
-%% Report §8.5: the units a unit's code depends on, which its '$deps'/0
-%% lists, none where it lists none.
-dependencies(Unit) ->
-    case erlang:function_exported(Unit, '$deps', 0) of
-        true -> Unit:'$deps'();
-        false -> []
+    DependencyUnits = [{Dependency, maps:get(Dependency, Units)}
+                       || {Dependency, _} <- Dependencies],
+    case ern_code:placement(Namespace, Beam, Recorded, DependencyUnits) of
+        {error, Text} ->
+            cannot(Found, Text);
+        {Made, Unit} ->
+            {#placed{found = Found, unit = Unit, made = Made}, Units#{Namespace => Unit}}
     end.
 
 %% The units the node did not hold, made, loaded whole by the host's
@@ -276,7 +250,7 @@ made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Pl
 %% Report §8.5, Appendix E.28: the bindings of each unit of the load whose
 %% bindings have no value, those of the units it uses first, evaluated in
 %% the calling process, under a spawn chain of its own; `Right(Unit)`, or
-%% the fault of one, the load undone (withdrawn/3).
+%% the fault of one, the load undone (withdrawn/2).
 evaluated(Placed) ->
     Units = [Unit || #placed{unit = Unit} <- Placed],
     Evaluated = [Unit || Unit <- ern_rt:ordered(Units), erlang:function_exported(Unit, '$init', 0),
@@ -298,17 +272,18 @@ evaluated(Placed) ->
             ern_rt:rooted(Mark, Root),
             {'Right', 'Unit'};
         {fault, BindingSite, Cause} ->
-            withdrawn(Placed, Evaluated, Mark),
+            withdrawn(Evaluated, Mark),
             ern_rt:rooted(Mark, Root),
             refuse({'Other', <<BindingSite/binary, " faulted: ", Cause/binary>>})
     end.
 
 %% Report §11.2, Appendix E.28: a load whose binding faulted undone: every
-%% process its evaluation started killed, the units it brought deleted and
-%% purged, and the values of the units it evaluated gone, a unit the node
-%% held and had not evaluated keeping its code; the keys read while the
-%% code is current.
-withdrawn(Placed, Evaluated, Mark) ->
+%% process its evaluation started killed, and the values of the units it
+%% evaluated gone (§8.5), so that a unit the node held and had not
+%% evaluated is without them as before. The units it brought stay loaded
+%% and in the code table, as a refused load of the shell's leaves them,
+%% their names in no program's reach.
+withdrawn(Evaluated, Mark) ->
     Keys = lists:append([ern_code:binding_keys(Unit) || Unit <- Evaluated]),
     _ = ern_rt:kill_started([Mark]),
-    ern_code:withdrawn([Unit || #placed{unit = Unit, made = How} <- Placed, How =/= held], Keys).
+    lists:foreach(fun persistent_term:erase/1, Keys).

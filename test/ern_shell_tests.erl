@@ -3355,6 +3355,100 @@ stored_values_go() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 2 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 3 : Int\n">>)).
 
+%% report §11.2, Appendix E.28: a unit a refused `:load` brought stays
+%% loaded, out of scope: a process running before the load, the holder of
+%% a module loaded first, was handed a function of it by a binding before
+%% the fault, and calls it after; the module refused again, unchanged,
+%% makes no unit, under its Erlang name and beside it alike, where a changed
+%% source of it was refused once and then again. Counted by the host's
+%% loaded modules, from the session's own inputs. A regression test,
+%% written after the code: the refusal deleted and purged the unit, and the
+%% holder faulted at the call
+refused_load_keeps_its_unit_test_() ->
+    {timeout, 60, fun refused_load_keeps_its_unit/0}.
+
+refused_load_keeps_its_unit() ->
+    Dir = scratch("ern_refused_unit_"),
+    ok = file:write_file(filename:join(Dir, "hold.ern"),
+                         "export type Msg = Keep(() -> Int) | Run(Reply(Int))\n\n"
+                         "fn hold(kept : () -> Int) : Unit receiving Msg =\n"
+                         "    receive {\n"
+                         "        Keep(given) -> hold(given)\n"
+                         "      | Run(reply) -> {\n"
+                         "            answer(reply, kept());\n"
+                         "            hold(kept)\n"
+                         "        }\n"
+                         "    }\n\n"
+                         "export let holder : Address(Msg) ="
+                         " spawn(fn() : Unit receiving Msg = hold(fn() = 0))\n"),
+    Giver = fun(Value) ->
+                ["fn given() : Int = ", integer_to_list(Value), "\n\n"
+                 "let handed : Unit = send(Hold.holder, Hold.Keep(given))\n\n"
+                 "let broken : Int = 1 / List.size([])\n"]
+            end,
+    ok = file:write_file(filename:join(Dir, "giver.ern"), Giver(42)),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Hold\n:load Giver\nAddress.callForever(Hold.holder, Hold.Run)\n",
+                          "foreign fn loaded(name : Foreign.Term) : Bool ="
+                          " \"erlang:module_loaded/1\"\n",
+                          "fn unit(name : String) : Bool ="
+                          " loaded(Foreign.term(Foreign.atom(name)))\n",
+                          ":load Giver\nunit(\"ern@giver$2\")\n",
+                          write_source(Dir, "giver.ern", Giver(43)),
+                          ":load Giver\n:load Giver\n",
+                          "unit(\"ern@giver\")\nunit(\"ern@giver$2\")\nunit(\"ern@giver$3\")\n",
+                          "Address.callForever(Hold.holder, Hold.Run)\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Refused = <<"> Giver.broken:5 faulted: division by zero; nothing was loaded\n">>,
+    ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, "> 42 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, "> false : Bool\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, Refused/binary,
+                                                "> true : Bool\n> true : Bool\n"
+                                                "> false : Bool\n> 43 : Int\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"> fault:">>)).
+
+%% report §11.2, §8.7: a module of the load path whose compiled form is
+%% replaced between a refused `:load` that brought it and the next is a
+%% unit of its own beside the one the refusal left loaded, and the module
+%% that uses it, compiled again, calls that unit: here the replaced
+%% `Lib.Value` divides by 2 where the first divided by 0. A regression
+%% test, written after the code: with the refused load's units kept, the
+%% module was compiled to call the library under its Erlang name before
+%% the library was placed, which ran the kept unit's code and faulted again
+refused_load_links_a_replaced_library_test_() ->
+    {timeout, 60, fun refused_load_links_a_replaced_library/0}.
+
+refused_load_links_a_replaced_library() ->
+    Dir = scratch("ern_replaced_library_"),
+    [First, Second, LoadPath, Source] = [filename:join(Dir, Name)
+                                         || Name <- ["first", "second", "path", "app"]],
+    Value = fun(Root, Divisor) ->
+                ok = filelib:ensure_dir(filename:join(Root, "lib/value.ern")),
+                ok = file:write_file(filename:join(Root, "lib/value.ern"),
+                                     ["export fn divisor() : Int = ", Divisor, "\n"]),
+                {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Root ++ " " ++ Root)
+            end,
+    Value(First, "0"),
+    Value(Second, "2"),
+    ok = filelib:ensure_dir(filename:join(LoadPath, "lib/value.erc")),
+    {ok, _} = file:copy(filename:join(First, "lib/value.erc"),
+                        filename:join(LoadPath, "lib/value.erc")),
+    ok = filelib:ensure_dir(filename:join(Source, "app.ern")),
+    ok = file:write_file(filename:join(Source, "app.ern"),
+                         "export let checked : Int = 10 / Lib.Value.divisor()\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load App\n",
+                          "Fs.copy(Path(\"", filename:join(Second, "lib/value.erc"), "\"), Path(\"",
+                          filename:join(LoadPath, "lib/value.erc"), "\"), 2000)\n",
+                          ":load App\nApp.checked\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " --load-path "
+                                   ++ LoadPath) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> App.checked:1 faulted: division by zero;"
+                                                " nothing was loaded\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> App, compiled from app.ern\n> 5 : Int\n">>)).
+
 %% report §11.2, §6.10: a binding runs the version it was taken from, and
 %% so does one that captures it or calls it, through every later reload,
 %% since a reload unloads nothing. A regression test: a closure capturing a

@@ -34,10 +34,13 @@ built(Root, Relative) ->
                                  filename:join(Root, Relative)])).
 
 %% What a run of the program at File printed, its lines; the run's status
-%% is 0.
+%% is 0. Options come before the file on the command line.
 ran(File) ->
+    ran(File, []).
+
+ran(File, Options) ->
     Before = byte_size(captured_output()),
-    ?assertEqual(0, ern_cli:ern(["run", File])),
+    ?assertEqual(0, ern_cli:ern(["run"] ++ Options ++ [File])),
     Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
     binary:split(Output, <<"\n">>, [global, trim]).
 
@@ -80,7 +83,10 @@ library(Dir) ->
 %% faults answers its fault as §8.5 reports it, every process the
 %% evaluation started killed and nothing loaded, so that the same load
 %% faults again; a path with no file and a module of the reach the load
-%% path lacks answer NotFound, and a file that is no `.erc` Invalid
+%% path lacks answer NotFound, and a file that is no `.erc` Invalid. The
+%% unit the refused load brought stays loaded, out of reach, and the load
+%% refused again makes no unit: a regression test of that, written after
+%% the code, which deleted and purged the unit
 load_test() ->
     Dir = tmp(),
     Lib = library(Dir),
@@ -110,23 +116,40 @@ load_test() ->
                   <<"Left(NotFound)">>,
                   <<"Left(Invalid)">>],
                  ran(filename:rootname(Main) ++ ".erc")),
-    %% report §11.2: nothing of the faulting load stays loaded
-    ?assertNot(erlang:module_loaded('ern@plug@bad')).
+    %% report §11.2, Appendix E.28: the faulting load's unit stays, and the
+    %% load refused again made no other
+    ?assert(erlang:module_loaded('ern@plug@bad')),
+    ?assertNot(erlang:module_loaded('ern@plug@bad$2')).
 
 %% Appendix E.28, report §6.9, §11.2: a load whose binding faults while a
 %% monitor's wrap of the module it brought still runs, in the runtime's own
-%% process for the Down's delivery, is undone all the same: the purge of
-%% the module ends that process, as it ends any that runs the module's
-%% code, and nothing else, so the program goes on, a later monitor's Down
-%% delivered and the load refused alike when asked again. A regression
-%% test, written after the code: the delivery's process was linked to the
-%% runtime's reaper, which did not trap exits, so the purge ended the
-%% reaper with it, and the program waited for ever at its next monitor. The
-%% shell's refused load and reload, which purge as this load does
-%% (ern_shell's withdraw/3), are not run here
+%% process for the Down's delivery, is undone all the same: the process the
+%% evaluation started is killed, the wrap's delivery to it ending with it
+%% (§6.9), and nothing else ends, so the program goes on, a later
+%% monitor's Down delivered and the load refused alike when asked again.
+%% The unit the load brought stays loaded, out of reach (§11.2): a process
+%% running before the load, the holder of a module the program uses, was
+%% handed a function of it by a binding before the fault, and calls it
+%% after; refused again, the module makes no unit. A regression test,
+%% written after the code: the delivery's process was linked to the
+%% runtime's reaper, which did not trap exits, so the purge of the unit
+%% ended the reaper with it, and the program waited for ever at its next
+%% monitor; once the reaper trapped exits, the purge left the holder a
+%% function whose code was gone, which faulted at its call
 load_under_a_running_wrap_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/hold.ern",
+          "export type Msg = Keep(() -> Int) | Run(Reply(Int))\n\n"
+          "fn hold(kept : () -> Int) : Unit receiving Msg =\n"
+          "    receive {\n"
+          "        Keep(given) -> hold(given)\n"
+          "      | Run(reply) -> {\n"
+          "            answer(reply, kept());\n"
+          "            hold(kept)\n"
+          "        }\n"
+          "    }\n\n"
+          "export let holder : Address(Msg) = spawn(fn() : Unit receiving Msg = hold(fn() = 0))\n"),
     write(Lib, "plug/watch.ern",
           "type Msg = Spinning | Done(Int) | Ready(Reply(Unit))\n\n"
           "fn spin(count : Int) : Int = spin(count + 1)\n\n"
@@ -146,25 +169,33 @@ load_under_a_running_wrap_test() ->
           "    }\n"
           "})\n\n"
           "let spinning : Unit = Address.callForever(watcher, fn(reply) = Ready(reply))\n\n"
+          "let handed : Unit = send(Plug.Hold.holder, Plug.Hold.Keep(fn() = 42))\n\n"
           "let broken : Int = 1 / List.size([])\n"),
+    built(Lib, "plug/hold.ern"),
     built(Lib, "plug/watch.ern"),
     Main = write(Dir, "main.ern",
                  "type Msg = Ended(Down)\n\n"
                  "fn shown(path : String) : Unit =\n"
                  "    Io.println(Io.show(Code.load(Path(path))))\n\n"
+                 "fn called() : Unit =\n"
+                 "    Io.println(Int.toString(Address.callForever(Plug.Hold.holder,"
+                 " Plug.Hold.Run)))\n\n"
                  "export fn main() : Unit receiving Msg = {\n"
                  "    shown(\"" ++ Lib ++ "/plug/watch.erc\");\n"
+                 "    called();\n"
                  "    monitor(Process.fromAddress(spawn(fn() = Unit)), fn(down) = Ended(down));\n"
                  "    receive {\n"
                  "        Ended(_) -> Io.println(\"a later monitor told\")\n"
                  "    };\n"
-                 "    shown(\"" ++ Lib ++ "/plug/watch.erc\")\n"
+                 "    shown(\"" ++ Lib ++ "/plug/watch.erc\");\n"
+                 "    called()\n"
                  "}\n"),
-    built(Dir, "main.ern"),
-    Refused = <<"Left(Other(\"Plug.Watch.broken:23 faulted: division by zero\"))">>,
-    ?assertEqual([Refused, <<"a later monitor told">>, Refused],
-                 ran(filename:rootname(Main) ++ ".erc")),
-    ?assertNot(erlang:module_loaded('ern@plug@watch')).
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--load-path", Lib, Main])),
+    Refused = <<"Left(Other(\"Plug.Watch.broken:25 faulted: division by zero\"))">>,
+    ?assertEqual([Refused, <<"42">>, <<"a later monitor told">>, Refused, <<"42">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib])),
+    ?assert(erlang:module_loaded('ern@plug@watch')),
+    ?assertNot(erlang:module_loaded('ern@plug@watch$2')).
 
 %% Appendix E.28, report §11.2: a module compiled against another
 %% interface of a module it uses than the load path holds is Invalid

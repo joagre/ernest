@@ -44,7 +44,7 @@
 -export([loaded/1, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          forms/1, called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2, function_text/2, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
-         running/1, hashes/1, binding_keys/1, withdrawn/2, nearing/0, nearing/1, nearing/2, line/3,
+         placement/4, running/1, hashes/1, binding_keys/1, nearing/0, nearing/1, nearing/2, line/3,
          counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
@@ -244,10 +244,11 @@ valued(Key) ->
 
 %% Report §11.2, §8.7: what the unit Unit's compiled form records of its
 %% definitions (#recorded{}): what is kept beside its code, or what the
-%% `.erc` the host loaded it from holds, read as it is asked for; none
-%% where neither is there, a file changed or gone among the ways, which
-%% the build's rule against writing a build under a running node excludes
-%% (§11.1).
+%% `.erc` the host loaded it from holds, read as it is asked for, where the
+%% file holds the unit's code still; none where neither is there, a file
+%% changed or gone among the ways, which the build's rule against writing a
+%% build under a running node excludes (§11.1), so that a unit is never
+%% described by forms its code was not compiled from.
 -spec forms(module()) -> {ok, #recorded{}} | none.
 forms(Unit) ->
     case lookup({forms, Unit}) of
@@ -257,13 +258,21 @@ forms(Unit) ->
             File = code:which(Unit),
             case is_list(File) andalso file:read_file(File) of
                 {ok, Bytes} ->
-                    case ern_canonical:read(Bytes) of
+                    case holds_code(Unit, Bytes) andalso ern_canonical:read(Bytes) of
                         {ok, Recorded} -> {ok, kept(Unit, Recorded)};
-                        {error, _} -> none
+                        _ -> none
                     end;
                 _ ->
                     none
             end
+    end.
+
+%% Whether Bytes, a file's, are the code of the loaded Unit, as the host
+%% digests it.
+holds_code(Unit, Bytes) ->
+    case beam_lib:md5(Bytes) of
+        {ok, {_, Md5}} -> erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5;
+        {error, _, _} -> false
     end.
 
 %% Report §11.2: a build's unit's forms, read from its `.erc` at the first
@@ -574,6 +583,61 @@ unit_beside(Namespace, Wanted, Number) ->
                       ern_namespace:host_name_text(lists:flatten(What), Text))}
     end.
 
+%% Report §8.7, §11.2, Appendix E.28: the unit a module whose compiled form
+%% is Beam, which records Recorded, is placed as on this node, and how it
+%% comes, Dependencies being each module it uses with the unit placed for
+%% it, in the order its compiled form lists them, or `unknown` where none
+%% is placed yet. held: the node holds the unit, under the module's Erlang
+%% name with this very code and each module it uses under its own, or a
+%% unit an earlier load made from these very forms linked to the same
+%% units, a refused load's among them, which stays loaded (§11.2), so that
+%% a module loaded again, unchanged, makes no unit. file: its compiled form
+%% loaded as it is, under its Erlang name, where the host holds no code of
+%% the name and each module it uses is under its own Erlang name. forms: a
+%% unit made from its forms by the back end, linked to the units of the
+%% modules it uses, under its Erlang name where the host holds no code of
+%% it, and else under a name of its own, `ern@counter$2` (unit_beside/2).
+%% Or the refusal of a name the host does not hold. Code.load places the
+%% modules of its reach so (ern_code_load), and the shell the compiled
+%% forms it loads (ern_shell).
+-spec placement([atom()], binary(), #recorded{}, [{[atom()], module() | unknown}]) ->
+          {held | file | forms, module()} | {error, binary()}.
+placement(Namespace, Beam, Recorded, Dependencies) ->
+    Plain = ern_namespace:erlang_module(Namespace),
+    Linked = lists:all(fun({Dependency, Unit}) -> Unit =:= ern_namespace:erlang_module(Dependency)
+                       end, Dependencies),
+    DependencyUnits = [Unit || {_, Unit} <- Dependencies],
+    Made = fun(Unit) ->
+                   forms(Unit) =:= {ok, Recorded} andalso dependencies(Unit) =:= DependencyUnits
+           end,
+    case {Linked andalso is_held(Plain, Beam), is_free(Plain)} of
+        {true, _} ->
+            {held, Plain};
+        {false, true} when Linked ->
+            {file, Plain};
+        {false, true} ->
+            {forms, Plain};
+        {false, false} ->
+            case erlang:module_loaded(Plain) andalso Made(Plain) of
+                true ->
+                    {held, Plain};
+                false ->
+                    case unit_beside(Namespace, Made) of
+                        {held, Unit} -> {held, Unit};
+                        {free, Unit} -> {forms, Unit};
+                        {error, _} = Error -> Error
+                    end
+            end
+    end.
+
+%% Report §8.5: the units a unit's code depends on, which its '$deps'/0
+%% lists, none where it lists none.
+dependencies(Unit) ->
+    case erlang:function_exported(Unit, '$deps', 0) of
+        true -> Unit:'$deps'();
+        false -> []
+    end.
+
 %%
 %% Appendix E.28: the Code module's running and hashes
 %%
@@ -654,22 +718,6 @@ binding_keys(Unit) ->
         true -> [Key || {_, {binding, _, Key}} <- Unit:'$code'()];
         false -> []
     end.
-
-%% Report §11.2, Appendix E.28: a refused load undone: the units it brought,
-%% Units, deleted, out of the table and purged, each process that ran them
-%% having been killed and waited for, since a purge kills one that runs a
-%% unit's code and has not yet taken its signal; and the values Keys, the
-%% bindings of every unit its evaluation gave a value, gone (§8.5), so that
-%% a unit the node held, and had not evaluated, is without them as before.
--spec withdrawn([module()], [term()]) -> ok.
-withdrawn(Units, Keys) ->
-    lists:foreach(fun(Unit) ->
-                      code:delete(Unit),
-                      unloaded(Unit)
-                  end, Units),
-    lists:foreach(fun code:purge/1, Units),
-    lists:foreach(fun persistent_term:erase/1, Keys),
-    ok.
 
 %%
 %% The host's limits, report §11.2
