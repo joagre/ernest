@@ -1,6 +1,6 @@
 # Ernest — Claude Instructions
 
-Ernest is a functional language for concurrent programs, designed by the user (joagre). Two concepts: pure functions (Hindley-Milner) and processes with typed mailboxes. The report under [`report/`](report/) is the language, in three files.
+Ernest is a functional language for concurrent programs, designed by the user (joagre). Two concepts: functions with Hindley-Milner types, and processes with typed mailboxes. The report under [`report/`](report/) is the language, in three files.
 
 The rules follow the order of work. Each is stated once; the checklist at the end names them.
 

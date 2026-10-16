@@ -453,8 +453,8 @@ Each item: the report first, its revision date and the soundness paragraph of ea
 the same commit; then the log; then the code, by an agent from the settled report text; then
 `make test-full`, and a stop. The proposal's section 6 names what each touches beyond the code.
 
-0. **§0 read again**, as `principles_review.md` reads §0 against what it decided, with the user,
-   before item 1: the sentence that defines *pure* goes, since the report then calls nothing pure
+0. **§0 read again.** Done 2026-10-16 (the log's *§0 Read Again*): the three sentences below,
+   as `principles_review.md` reads §0 against what it decided, with the user, before item 1: the sentence that defines *pure* goes, since the report then calls nothing pure
    and describes a function without `receiving` as one that receives nothing; principle 3's
    "visible in the code or in the type" says it means visible where it happens, as failure is; and
    whether a principle says what a type carries, what keeps values and messages safe and nothing

@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 15 October 2026.
+Revision of 16 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -32,7 +32,7 @@ This file holds the report's §0 to §10 and Appendices A, B and F. §11 and App
 
 Ernest is a functional language for concurrent programs. It has two concepts: functions, with Hindley-Milner types, and processes with typed mailboxes, the only way to affect the world. Everything else in this report is a rule for how the two show up in each other.
 
-Every function runs inside a process, an execution of a function with a mailbox that receives values of one type. A function that sends, receives, or asks for its own address acts through its process and names its mailbox in its type, `(A) -> B with M`; that is the only mark written on a function type. A function that does not act through its process is pure: its result depends only on its arguments, and it affects nothing. §3 and §6 make this precise; §10 states what the runtime must provide.
+Every function runs inside a process, an execution of a function with a mailbox that receives values of one type. A function that receives from its mailbox, gives out its address, or asks for a message to be delivered into it names the mailbox in its type, `(A) -> B receiving M`; that is the only mark written on a function type. A function whose type names no mailbox receives nothing and runs in any process. §3 and §6 make this precise; §10 states what the runtime must provide.
 
 Five principles. Principles 2 to 5 are constructive; when following them yields code that surprises, principle 1 overrides.
 
@@ -50,7 +50,7 @@ Five principles. Principles 2 to 5 are constructive; when following them yields 
 
 3. Nothing invisible.
 
-   Control flow, communication, and failure are visible in the code or in the type. A top-level binding is visible when its name appears at the use site, or, in a fill, when the use site names its namespace and the record's declaration names its field (§5.6).
+   Control flow, communication, and failure are visible in the code or in the type. Visible means visible where it happens: a send at the line that sends, a fault at the line that faults, a receive at the line that receives and in the type of the function around it. A top-level binding is visible when its name appears at the use site, or, in a fill, when the use site names its namespace and the record's declaration names its field (§5.6).
 
    A rule the type decides is checked when the program is compiled; one the value decides is a value, a message, or a fault when it runs (§7).
 
@@ -61,6 +61,8 @@ Five principles. Principles 2 to 5 are constructive; when following them yields 
 5. Small: few concepts, few primitives, few reserved words.
 
    The count is the language's, its concepts, its primitives and its reserved words; the standard library is bounded by Appendix E.0's rules, and a function is there where a reader who knows the type looks for it. How many programs ask for a feature decides nothing, for it or against it.
+
+   A type carries what keeps values and messages safe, the type of what a function receives among it, and nothing of what a function does.
 
    A feature costs a program that does not use it nothing: no argument, no word, and no name of it is written there. Every function the prelude or a library names is a value, taken, passed and stored as any function is. One that is not is a primitive, named where the report states it and counted here.
 

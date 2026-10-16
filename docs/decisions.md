@@ -15,6 +15,8 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
+**2026-10-16.** [§0 Read Again](#0-read-again-2026-10-16).
+
 **2026-10-15.** [The Rationale Is a Synthesis](#the-rationale-is-a-synthesis-2026-10-15). [The Layout Completed](#the-layout-completed-2026-10-15). [The Repository Laid Out Again](#the-repository-laid-out-again-2026-10-15).
 
 **2026-10-14.** [Kill Darlings](#kill-darlings-2026-10-14). [Clause Bodies All or None](#clause-bodies-all-or-none-2026-10-14). [The Guide Gathers Many Computes](#the-guide-gathers-many-computes-2026-10-14). [Paragraphs Break Where the Text Turns](#paragraphs-break-where-the-text-turns-2026-10-14). [Acknowledgments and a Dedication](#acknowledgments-and-a-dedication-2026-10-14).
@@ -7896,6 +7898,16 @@ The sixty-one findings of item 13's three readers (`docs/findings.md`), decided 
 ## The Plan Rewritten from the Split Proposals, 2026-10-09
 
 *The Milestones After 3.0, Weighed Again* had MVP 3.2 gone and everything kept of the two set-aside proposals in one MVP 3.1. The read-through split it on 2026-10-09: identity first, the hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told and `Standing`; then code with a spawn, the exchange, the bare node, the let-go and `Code`. Everything in the crossing needs the hash and nothing in the hash needs the crossing, and the hash alone already connects nodes of different builds, so the split puts what is needed before what needs it, and each milestone ends with something that runs: a deploy of two builds side by side, then a worker given its code. The number 3.2 stays for the second, a milestone of the language's where the set-aside one was an operations layer. The plan's two sections are written from the proposals, which are the specifications, their reasons `code.md`'s and `nodes.md`'s; the plan's old MVP 3.1 and 3.2 sections, written from the set-aside proposals, go with them, and what they decided that still stands is in the proposals' sections 10 and the log's entries above.
+
+## §0 Read Again, 2026-10-16
+
+MVP 3.26's item 0, decided with the user on 2026-10-16, before its items 1 and 2 are built. Three sentences of §0 change, as the proposal's section 5 asked.
+
+The sentence that defined *pure* goes. §0 said a function that sends, receives or asks for its address names its mailbox in its type, and that one which does not is pure and affects nothing; after the change a sender names no mailbox and a function without a mark may print, so both were about to be false. §0 now says that a function which receives from its mailbox, gives out its address or asks for a message to be delivered into it names the mailbox, `receiving M`, and that one whose type names no mailbox receives nothing and runs in any process. The word *pure* appears nowhere in the report; "functional language" stays, by what it has meant here, functions as values over immutable values. CLAUDE.md's first line changes with it.
+
+Principle 3 says what visible means: where it happens, a send at the line that sends, a fault at the line that faults, a receive at the line and in the type around it. That is how the principle already read failure, and it is the sentence that lets a forgotten answer be a run-time outcome, the loss the proposal's section 2 names.
+
+Principle 5 says what a type carries: what keeps values and messages safe, the type of what a function receives among it, and nothing of what a function does. It stands under smallness because it is the measure that decided both subtractions and the measure the next mark on a type must meet; under principle 3 it would read as a claim about visibility, which it is not. The cost is a sentence in §0, which had not said what the type system is for.
 
 ## The Rationale Is a Synthesis, 2026-10-15
 
