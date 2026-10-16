@@ -804,8 +804,9 @@ every look is a compute wrapped by hand, and nothing of the node's own is at the
 shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping of code, so that a
 binding read is the node's, a process listed is the node's and a function called runs there without
 the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
-reload code on the node, as `erl -remsh` attaches to an Erlang node. The shell's design does not
-assume it runs on the node whose code it evaluates (`docs/shell_design.md`). Nothing of
+reload code on the node, as `erl -remsh` attaches to an Erlang node. Whether the shell's design, `docs/shell_design.md`, assumes it runs
+on the node whose code it evaluates is the proposal's first question, read against the note before
+anything is built. Nothing of
 it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
 it.
 
