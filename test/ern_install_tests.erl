@@ -74,6 +74,7 @@ install() ->
     _ = ern_integration_tests:succeed("make -s -C .. install PREFIX=" ++ Base ++ "/a"),
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
     ?assertEqual([], debug_information(Base ++ "/a")),
+    ?assertEqual([], forms_missing(Base ++ "/a")),
     ?assertEqual([], test_modules(filelib:wildcard(Base ++ "/a/lib/ernest/erl/*/ebin/*.beam"))),
     ?assertNot(filelib:is_dir(Base ++ "/a/lib/ernest/src")),
     Documents = Base ++ "/a/share/doc/ernest/",
@@ -288,6 +289,18 @@ runs_echo() ->
     "        String.fromUtf8(out), \"\"))\n"
     "  | Left(e) -> Io.println(Io.show(e))\n"
     "}\n".
+
+%% Report §8.7: the compiled Ernest modules under a directory that lack
+%% their canonical forms, ErnC, which a node ships to a peer that lacks a
+%% definition and which the strip must keep. A regression test, written
+%% after the strip dropped them (2026-10-17).
+forms_missing(Dir) ->
+    [File || File <- filelib:wildcard(Dir ++ "/**/*.erc"),
+             begin
+                 {ok, Beam} = file:read_file(File),
+                 {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+                 not lists:keymember("ErnC", 1, Chunks)
+             end].
 
 %% The modules under a directory that carry the host's debug information.
 debug_information(Dir) ->
