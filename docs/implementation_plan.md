@@ -18,9 +18,9 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Before the
-tag, in MVP 3.2 below, five paragraphs remain: the reaper and the runtime's own processes, the
-gateway's worker across a loss, `make diagnostics`, the deployment tests' `answering/1`, and the
-shell on a private mailbox type.
+tag, in MVP 3.2 below, one paragraph remains, four decisions on purges and the runtime's deliveries,
+each with its recommendation, for the user before they are built; every other paragraph before the
+tag is done.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -450,7 +450,14 @@ restart ends the deliveries to its process, with a §6.9 sentence. The end's tel
 are linked to the runner, which traps no exit, and each applies a subscriber's wrap: they should
 be held as the reaper holds its deliveries. Fixed before the tag, once decided.
 
-**Before the tag: the shell and a private mailbox type.** Found 2026-10-15 by use. With `count`
+**Before the tag: the shell and a private mailbox type.** Done 2026-10-16 (the log's *The Shell
+on a Private Type*): the interface carries the private types an exported signature names (§11.1),
+which mended the shell's binding and three faults of compiled programs the probe found, `Io.show`
+of such a value, its address exposed to foreign code and its function spawned on a peer; with it,
+the shell takes a compiled form only from this build of `ern` (§11.2), a private type named by a
+dependent or at the prompt is refused as one the module keeps private (§11.5), §11.5 says an empty
+line follows each error, and one integration test holds `bin/ern build`'s own printing to the
+catalog, which `make diagnostics` building in the host no longer did. Found 2026-10-15 by use. With `count`
 exported and its mailbox type `Msg` kept private, which the report's rule on exported declarations
 allows (§4.2), the input `let p = spawn(fn() = Plain.count(0))` faults the shell and ends it with
 status 70, `ern_descriptor:descriptor/3`'s `case_clause` on `undefined`: the compiled interface

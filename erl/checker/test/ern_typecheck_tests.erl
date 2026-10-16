@@ -1000,6 +1000,70 @@ equality_reads_private_types_test() ->
     {ok, Declarations} = ern_parser:parse_string("fn f(x : A.T, y : A.T) : Bool = x == y\n"),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['M'], Declarations, [Interface])).
 
+%% report §11.1, §4.2: the interface carries each private type an exported
+%% signature names wherever an arrow's effect names it, a mailbox type an
+%% exported function receives, one a function parameter or result receives
+%% and one a function in an exported type's field receives, with those
+%% their fields name, beside those an abstract type's fields name, and no
+%% other private type; a dependent describes a value of each and cannot
+%% name it. A regression test: the interface carried those an abstract
+%% type's fields name alone, and a dependent describing an address of a
+%% private mailbox type faulted; the descriptors built from them are the
+%% shell's tests' and the integration tests'
+interface_carries_named_private_types_test() ->
+    {ok, _, #interface{private_types = PrivateTypes} = Interface, _} =
+        ern_typecheck:check_string(
+          ['A'],
+          "type Msg = Add(Int) | Get(Reply(Inner))\n"
+          "type Inner = Inner(Int)\n"
+          "type Job = Job\n"
+          "type Done = Done\n"
+          "type Step = Step\n"
+          "type Field = Field(Int)\n"
+          "type Kept = Kept(Int)\n"
+          "export abstract type Hidden = Hidden(Field)\n"
+          "export type Task = Task(run : () -> Unit receiving Step)\n"
+          "export fn count(total : Int) : Unit receiving Msg = receive { _ -> count(total) }\n"
+          "export fn run(job : () -> Unit receiving Job) : Unit = Unit\n"
+          "export fn later() : () -> Unit receiving Done =\n"
+          "    fn() : Unit receiving Done = receive { _ -> Unit }\n"
+          "export fn kept() : Int = match Kept(1) { Kept(n) -> n }\n"),
+    ?assertEqual([['A', 'Done'], ['A', 'Field'], ['A', 'Inner'], ['A', 'Job'], ['A', 'Msg'],
+                  ['A', 'Step']],
+                 lists:sort(maps:keys(PrivateTypes))),
+    {ok, Spawn} = ern_parser:parse_string("fn f() : Unit = {\n"
+                                          "    let p = spawn(fn() = A.count(0));\n"
+                                          "    Unit\n"
+                                          "}\n"),
+    {ok, _, _, Env} = ern_typecheck:check(['M'], Spawn, [Interface]),
+    ?assertMatch(#type_info{qualified_name = ['A', 'Msg']},
+                 ern_typecheck:described_type(['A', 'Msg'], Env)),
+    {ok, Named} = ern_parser:parse_string("fn f(x : A.Msg) : Int = 1\n"),
+    ?assertMatch({error, [#diagnostic{message = "A.Msg is a type A keeps private"}]},
+                 ern_typecheck:check(['M'], Named, [Interface])).
+
+%% report §11.5, §4.2: a dependent that names a type another module keeps
+%% private, which that module's interface carries, is refused as private,
+%% on the type as written, with no namespace to load; a qualified type
+%% nothing declares stays unknown. A regression test, written after the
+%% code: the private type was refused as unknown; it does not cover the
+%% prompt, which the shell's tests do
+private_type_named_by_a_dependent_test() ->
+    {ok, _, Interface, _} =
+        ern_typecheck:check_string(['Plain'],
+                                   "type Msg = Add(Int)\n"
+                                   "export fn count(total : Int) : Unit receiving Msg =\n"
+                                   "    receive { Add(amount) -> count(total + amount) }\n"),
+    {ok, Named} = ern_parser:parse_string("fn f(x : Address(Plain.Msg)) : Int = 1\n"),
+    ?assertMatch({error, [#diagnostic{span = {1, 18, _},
+                                      message = "Plain.Msg is a type Plain keeps private",
+                                      unknown_namespace = undefined}]},
+                 ern_typecheck:check(['M'], Named, [Interface])),
+    {ok, Absent} = ern_parser:parse_string("fn f(x : Plain.Absent) : Int = 1\n"),
+    ?assertMatch({error, [#diagnostic{message = "unknown type Plain.Absent",
+                                      unknown_namespace = ['Plain']}]},
+                 ern_typecheck:check(['M'], Absent, [Interface])).
+
 %% report §4.7, §3.10: a foreign function's type variable written `a=` in
 %% its parameters carries the equality constraint, as one a body compares
 %% does; it is written once, and nowhere but a foreign function's

@@ -90,10 +90,12 @@
 %% module and by the compiler.
 -record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
                     identities = #{}, reaches = #{}, positions = #{}}).
-%% private_types: the module's private types an exported abstract type's
-%% fields name, and those theirs name, #{qualified_name() => #type_info{}}, by
-%% which a dependent describes the abstract type's values (report §8.4,
-%% §11.1) and which it cannot name (§4.2)
+%% private_types: the module's private types an exported declaration names,
+%% a mailbox type an exported function receives wherever an arrow's effect
+%% names it, or a type an exported abstract type's fields name, and those
+%% theirs name, #{qualified_name() => #type_info{}}, by which a dependent
+%% describes a value of each (report §8.4, §11.1) and which it cannot name
+%% (§4.2)
 %% lets: the qualified names among `values` that were declared with `let`,
 %% which the emitter calls through their getter (report §4.6, §8.5)
 %% namespace: qualified_name(); types: #{qualified_name() => #type_info{}};

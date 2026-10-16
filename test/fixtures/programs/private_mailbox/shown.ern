@@ -1,0 +1,9 @@
+//
+// Report §4.2, Appendix E.1: `Io.show` of an address of a mailbox type
+// another module keeps private.
+//
+
+export fn main() : Unit = {
+    let counter = spawn(fn() = Plain.count(0));
+    Io.println(Io.show(counter))
+}

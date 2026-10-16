@@ -71,9 +71,11 @@
               reaches = #{}, positions = #{}, foreign = #{}}).
 %% foreign: the module's own foreign declarations, by qualified name,
 %% which have no hash and are no definition (report Appendix H, §3.11)
-%% private_types: the private types of the modules given, which their
-%% abstract types' fields name; the descriptor builder reads them
-%% (described_type/2), and no name resolves to one (report §4.2, §11.1)
+%% private_types: the private types of the modules given that their
+%% exported declarations name, a mailbox type an exported function
+%% receives or a type an abstract type's fields name; the descriptor
+%% builder reads them (described_type/2), and no name resolves to one
+%% (report §4.2, §11.1)
 %% identities: the hashes of the definitions of the modules given, by
 %% qualified name, which their interfaces hold and the canonical form names
 %% them by (identity/2, report Appendix H); the checker reads none
@@ -496,20 +498,18 @@ prelude_env() ->
     lists:foldl(fun add_interface/2, Env5#env{provided = Provided}, Stdlib).
 
 %% Report §11.1: every type the interfaces given name, in a value's scheme
-%% or a constructor's, has a declaration among them or the prelude's, but
-%% for a type of the interface's own module, which may be private, a
-%% mailbox type an exported function receives (§4.2). One that has none is
-%% the toolchain's own defect, since a module depends on each module that
-%% declares a type an interface it depends on names, so the check fails
-%% closed rather than read such a type as a built-in one.
-every_type_declared(Interfaces, #env{types = Types}) ->
+%% or a constructor's, has a declaration among them or the prelude's, or is
+%% a private type its module's interface carries, as a mailbox type an
+%% exported function receives (§4.2). One that has none is the toolchain's
+%% own defect, since a module depends on each module that declares a type
+%% an interface it depends on names, so the check fails closed rather than
+%% read such a type as a built-in one.
+every_type_declared(Interfaces, Env) ->
     Undeclared = [QualifiedName
-                  || #interface{namespace = Namespace, types = InterfaceTypes, values = Values}
-                         <- Interfaces,
+                  || #interface{types = InterfaceTypes, values = Values} <- Interfaces,
                      QualifiedName <- lists:usort(type_names({maps:values(Values),
                                                               maps:values(InterfaceTypes)}, [])),
-                     lists:droplast(QualifiedName) =/= Namespace,
-                     not is_map_key(QualifiedName, Types)],
+                     described_type(QualifiedName, Env) =:= undefined],
     case Undeclared of
         [] -> ok;
         [QualifiedName | _] ->
@@ -689,12 +689,25 @@ lookup_type_name(Span, ['Prelude'], Name, #env{types = Types, local_types = Loca
     end;
 lookup_type_name(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
-lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = Types}) ->
+lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = Types} = Env) ->
     Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Types of
         #{QualifiedName := #type_info{params = Params}} -> {QualifiedName, length(Params)};
-        _ -> unknown(Span, "type", QualifiedName)
+        _ -> unknown_type(Span, QualifiedName, Env)
+    end.
+
+%% Report §4.2, §11.5: a qualified type nothing declares is unknown, its
+%% namespace one the shell may offer to load; one another module keeps
+%% private, which that module's interface carries since an exported
+%% declaration names it (§11.1), is refused as private.
+unknown_type(Span, QualifiedName, #env{private_types = PrivateTypes}) ->
+    case is_map_key(QualifiedName, PrivateTypes) of
+        true ->
+            fail(Span, ern_namespace:text(QualifiedName) ++ " is a type "
+                       ++ ern_namespace:text(lists:droplast(QualifiedName)) ++ " keeps private");
+        false ->
+            unknown(Span, "type", QualifiedName)
     end.
 
 -spec lookup_type([atom()], env()) -> #type_info{} | undefined.
@@ -744,7 +757,7 @@ is_provided(Name, #env{provided = Provided}) ->
 
 %% Report §8.4, §11.1, Appendix E.1: a type as a value of it is described,
 %% printed or checked: one in scope, or a private type of another module
-%% that an abstract type's fields name, which its interface carries.
+%% that its exported declarations name, which its interface carries.
 -spec described_type([atom()], env()) -> #type_info{} | undefined.
 described_type(QualifiedName, #env{types = Types, private_types = PrivateTypes}) ->
     case Types of
@@ -4744,9 +4757,11 @@ first_lack(Lacks, [Type | Types]) ->
 
 %% The field types of a declared type's constructors, its arguments in
 %% place of its parameters; none for a built-in or a foreign type. A
-%% private type of another module that an abstract type's fields name is
+%% private type of another module that its exported declarations name is
 %% read from the interface that carries it (report §11.1); a regression,
-%% where `==` on such an abstract type stopped the checker. A type with no
+%% where `==` on an abstract type whose fields name one stopped the
+%% checker, and another, where a spawn on a peer of a function whose
+%% mailbox type is one stopped it too. A type with no
 %% declaration at all is the toolchain's own defect, and the check fails
 %% closed rather than read it as a built-in one.
 -spec declared_fields([atom()], [ern_types:type()], env()) -> {ok, [ern_types:type()]} | none.
@@ -5904,19 +5919,25 @@ interface_of(Declarations, #env{namespace = Namespace, types = Types, globals = 
     Lets = [QualifiedName || #let_declaration{} = Declaration <- Declarations,
                              {true, QualifiedName} <- [exported_value(Declaration, Env)]],
     #interface{namespace = Namespace, types = ExportedTypes, values = ExportedValues, lets = Lets,
-               private_types = private_types(ExportedTypes, Env)}.
+               private_types = private_types(ExportedTypes, ExportedValues, Env)}.
 
 %% Report §4.2, §8.4, §11.1: the module's private types an exported
-%% abstract type's fields name, and those theirs name, which a dependent
-%% describes the abstract type's values by and cannot name.
-private_types(ExportedTypes, #env{local_types = LocalTypes, types = Types} = Env) ->
+%% declaration names, and those theirs name, which a dependent describes a
+%% value of by and cannot name: a type an exported abstract type's fields
+%% name, and a mailbox type, wherever an arrow's effect in an exported
+%% value's type or in an exported type's field names it, since a spawn of
+%% the function makes an address of it (§6.2).
+private_types(ExportedTypes, ExportedValues,
+              #env{local_types = LocalTypes, types = Types} = Env) ->
     OwnTypes = maps:values(LocalTypes),
     Private = fun(QualifiedName) ->
                   lists:member(QualifiedName, OwnTypes)
                       andalso not is_map_key(QualifiedName, ExportedTypes)
               end,
-    Named = lists:append([constructor_tcons(TypeInfo, Env)
-                          || #type_info{abstract = true} = TypeInfo <- maps:values(ExportedTypes)]),
+    Named = lists:append([tcons(scheme_type(Scheme, Env), among)
+                          || Scheme <- maps:values(ExportedValues)]
+                         ++ [constructor_tcons(TypeInfo, Env, among)
+                             || TypeInfo <- maps:values(ExportedTypes)]),
     reached_private(Named, Private, Types, Env, #{}).
 
 reached_private([], _Private, _Types, _Env, Acc) ->
@@ -5925,7 +5946,7 @@ reached_private([QualifiedName | Rest], Private, Types, Env, Acc) ->
     case Private(QualifiedName) andalso not is_map_key(QualifiedName, Acc) of
         true ->
             TypeInfo = maps:get(QualifiedName, Types),
-            reached_private(constructor_tcons(TypeInfo, Env) ++ Rest, Private, Types, Env,
+            reached_private(constructor_tcons(TypeInfo, Env, among) ++ Rest, Private, Types, Env,
                             Acc#{QualifiedName => TypeInfo});
         false ->
             reached_private(Rest, Private, Types, Env, Acc)
@@ -5955,13 +5976,13 @@ check_exports(Declarations,
 named_types(Declaration, Globals, Types, Env) ->
     case {exported_value(Declaration, Env), exported_type(Declaration, Env)} of
         {{true, QualifiedName}, _} ->
-            tcons(scheme_type(maps:get(QualifiedName, Globals, undefined), Env));
+            tcons(scheme_type(maps:get(QualifiedName, Globals, undefined), Env), aside);
         %% report §4.2: an abstract type's constructors do not cross, so its
         %% fields may name a private type
         {false, {true, _}} when is_record(Declaration, abstract_declaration) ->
             [];
         {false, {true, TypeQualifiedName}} ->
-            constructor_tcons(maps:get(TypeQualifiedName, Types, undefined), Env);
+            constructor_tcons(maps:get(TypeQualifiedName, Types, undefined), Env, aside);
         {false, false} ->
             []
     end.
@@ -5983,17 +6004,26 @@ declared_text(Declaration) -> declaration_name(Declaration).
 scheme_type(#scheme{type = Type}, Env) -> resolve_type(Type, Env);
 scheme_type(_, _) -> none.
 
-constructor_tcons(#type_info{constructors = Constructors}, Env) ->
-    lists:append([tcons(scheme_type(Scheme, Env))
+constructor_tcons(#type_info{constructors = Constructors}, Env, Effects) ->
+    lists:append([tcons(scheme_type(Scheme, Env), Effects)
                   || #constructor_info{scheme = Scheme} <- Constructors]);
-constructor_tcons(_, _) ->
+constructor_tcons(_, _, _) ->
     [].
 
-%% The type constructors a type names, its arrows' effects aside.
-tcons({tcon, QualifiedName, Args}) -> [QualifiedName | lists:append([tcons(Arg) || Arg <- Args])];
-tcons({ttuple, Elements}) -> lists:append([tcons(Element) || Element <- Elements]);
-tcons({tfn, Params, _Effect, Result}) -> lists:append([tcons(Type) || Type <- Params ++ [Result]]);
-tcons(_) -> [].
+%% The type constructors a type names, its arrows' effects aside, the
+%% types its values hold, or among them, the types a value of it may lead
+%% a dependent to describe: a spawn of a function makes an address of its
+%% mailbox type (report §6.2, §8.4).
+tcons({tcon, QualifiedName, Args}, Effects) ->
+    [QualifiedName | lists:append([tcons(Arg, Effects) || Arg <- Args])];
+tcons({ttuple, Elements}, Effects) ->
+    lists:append([tcons(Element, Effects) || Element <- Elements]);
+tcons({tfn, Params, _Effect, Result}, aside) ->
+    lists:append([tcons(Type, aside) || Type <- Params ++ [Result]]);
+tcons({tfn, Params, Effect, Result}, among) ->
+    lists:append([tcons(Type, among) || Type <- [Effect | Params] ++ [Result]]);
+tcons(_, _) ->
+    [].
 
 exported_type(#type_declaration{export = true, name = Name}, Env) ->
     {true, Env#env.namespace ++ [Name]};

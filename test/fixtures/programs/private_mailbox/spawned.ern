@@ -1,0 +1,12 @@
+//
+// Report §3.11, §8.7: `Peer.spawn` of a function whose mailbox type another
+// module keeps private, a type known whole where the spawn is written. Run
+// alone the program is no node, and the spawn answers that no peer of the
+// name is listed.
+//
+
+export fn main() : Unit =
+    match Peer.spawn("worker", fn() = Plain.count(0), 5000) {
+        Right(_) -> Io.println("spawned")
+      | Left(error) -> Io.println(Io.show(error))
+    }

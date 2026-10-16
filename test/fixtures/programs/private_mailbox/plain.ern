@@ -1,0 +1,16 @@
+//
+// A module for the tests of a mailbox type a module keeps private, which
+// its exported function receives (report §4.2): a dependent spawns the
+// function and holds an address of a type it cannot name, which the
+// module's interface carries for the dependent's descriptors (§11.1).
+//
+
+type Msg = Add(Int)
+
+export fn count(total : Int) : Unit receiving Msg =
+    receive {
+        Add(amount) -> {
+            Io.println("added " <> Int.toString(amount));
+            count(total + amount)
+        }
+    }

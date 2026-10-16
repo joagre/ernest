@@ -1368,6 +1368,53 @@ modules() ->
     {0, Output} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Output)).
 
+%% report §4.2, §11.1, Appendix E.1: a program shows an address of a
+%% mailbox type another module keeps private, which its build describes
+%% from the interface that carries the type. A regression test: the build
+%% ended with an internal error, its link holding no such type
+private_mailbox_shown_test_() ->
+    {timeout, 60, fun private_mailbox_shown/0}.
+
+private_mailbox_shown() ->
+    {0, Output} = private_mailbox_printed("shown"),
+    ?assertMatch({match, _}, re:run(Output, "^<address [0-9]+>\n$")).
+
+%% report §4.2, §8.4, §11.1: an address of a mailbox type another module
+%% keeps private, exposed to foreign code, keeps the check of each message
+%% foreign code sends it: one of the type reaches the process, and one of
+%% no constructor of it faults the process, the cause naming the type. A
+%% regression test: the build ended with an internal error, as the shown
+%% program's did
+private_mailbox_exposed_test_() ->
+    {timeout, 60, fun private_mailbox_exposed/0}.
+
+private_mailbox_exposed() ->
+    {0, Output} = private_mailbox_printed("exposed"),
+    ?assertEqual(lists:sort([<<"added 5">>,
+                             <<"Exposed.main:12 faulted: message does not match Plain.Msg">>,
+                             <<"Fault(\"message does not match Plain.Msg\")">>]),
+                 unstamped(lines(Output))).
+
+%% report §3.11, §4.2, §8.7: `Peer.spawn` of a function whose mailbox type
+%% another module keeps private compiles, the type known whole; the program
+%% run alone lists no peer. A regression test: the bound check ended the
+%% build with an internal error, finding no declaration of the type; it
+%% does not cover a spawn that reaches a peer, which was run by hand on a
+%% bare node and has no test
+private_mailbox_spawned_test_() ->
+    {timeout, 60, fun private_mailbox_spawned/0}.
+
+private_mailbox_spawned() ->
+    ?assertEqual({0, <<"NotListed\n">>}, private_mailbox_printed("spawned")).
+
+%% What a program of fixtures/programs/private_mailbox printed, and its
+%% status, the directory built under a root of the program's own, so that
+%% each test's build is its own.
+private_mailbox_printed(Name) ->
+    Build = "build/private_mailbox/" ++ Name,
+    0 = build("--build-root " ++ Build ++ " fixtures/programs/private_mailbox"),
+    sh("../bin/ern run " ++ Build ++ "/" ++ Name ++ ".erc").
+
 %% report §4.9, §3.5, §5.6, Appendix E.25, E.26, docs/proposals/operations/operations.md: the
 %% note's three programs, its directory built as a source root over the
 %% standard library's ordered set and map, each print what the note says, in
@@ -1426,6 +1473,45 @@ locale() ->
     ok = file:write_file(File, <<"let s : Int = \"caf", 16#C3, 16#A9, "\"\n">>),
     {1, Output} = sh("sh -c 'LC_ALL=C LANG=C ../bin/ern build --source-root build " ++ File ++ "'"),
     ?assertMatch({_, _}, binary:match(Output, <<"1 | let s : Int = \"caf", 16#C3, 16#A9, "\"">>)).
+
+%% report §11.5: `ern build`, run as a command, prints a diagnostic as the
+%% catalog of docs/diagnostics.md shows it, standard output and standard
+%% error together, byte for byte as the catalog lays its console out
+%% (ern_guide_tests:printed/1): the catalog's first example, whose message
+%% quotes a character outside ASCII, `§`, whose source line holds it, and
+%% whose caret stands under it. The catalog's own test builds its examples
+%% in its host, so this one holds the command's printing, its device and
+%% its encoding, to the catalog. A regression test, written after the code;
+%% it holds one example, and the catalog's others stay its own test's
+diagnostic_as_cataloged_test_() ->
+    {timeout, 60, fun diagnostic_as_cataloged/0}.
+
+diagnostic_as_cataloged() ->
+    {Code, Console} = catalog_example(<<"### A character outside the language (">>),
+    Dir = filename:join(ern_pty:run_dir(), "ern_cataloged_" ++ os:getpid() ++ "_"
+                                           ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    File = filename:join(Dir, "example.ern"),
+    ok = file:write_file(File, Code),
+    {1, Output} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ File),
+    Printed = binary:replace(Output, list_to_binary(Dir ++ "/"), <<>>, [global]),
+    ?assertEqual(Console, iolist_to_binary(["$ ern build example.ern\n",
+                                            string:trim(Printed, trailing)])),
+    ok = file:del_dir_r(Dir).
+
+%% The program of the catalog's example under the heading that begins with
+%% Heading, each line ended, and its console, the lines between its fences.
+catalog_example(Heading) ->
+    {ok, Text} = file:read_file("../docs/diagnostics.md"),
+    Lines = binary:split(Text, <<"\n">>, [global]),
+    [_ | Section] = lists:dropwhile(fun(Line) -> string:prefix(Line, Heading) =:= nomatch end,
+                                    Lines),
+    [_ | Rest] = lists:dropwhile(fun(Line) -> Line =/= <<"```ernest-rejected">> end, Section),
+    {Code, [_ | After]} = lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest),
+    [_ | Shown] = lists:dropwhile(fun(Line) -> Line =/= <<"```console">> end, After),
+    {Console, _} = lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Shown),
+    {iolist_to_binary([[Line, <<"\n">>] || Line <- Code]),
+     iolist_to_binary(lists:join(<<"\n">>, Console))}.
 
 expected(Name) ->
     {ok, Bytes} = file:read_file("fixtures/expected/" ++ Name ++ ".out"),

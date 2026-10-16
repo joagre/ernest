@@ -74,14 +74,20 @@ monitors_let_go_test() ->
     ?assertEqual(<<"true\n">>, Output).
 
 %% The words of the runtime's reaper, which holds every wait, after the
-%% deliveries in flight have ended, each watched by a monitor, and its
-%% garbage is collected.
+%% deliveries in flight have ended, each watched by a monitor, and the
+%% reaper, which traps exits and is told of each delivery's end by a
+%% message after it, has taken every message; then its garbage is
+%% collected.
 reaper_words() ->
     [begin
          MonitorRef = erlang:monitor(process, Delivery),
          receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end
      end || {{_, _, Delivery}} <- ets:tab2list(ern_deliveries)],
     Reaper = persistent_term:get({ern_rt, reaper}),
+    ok = ern_waits:until(Reaper, fun() ->
+                                     erlang:process_info(Reaper, message_queue_len)
+                                         =:= {message_queue_len, 0}
+                                 end),
     erlang:garbage_collect(Reaper),
     {total_heap_size, Words} = erlang:process_info(Reaper, total_heap_size),
     Words.

@@ -980,6 +980,19 @@ example.ern:1:10: unknown type Shapes.Color
   |          ^^^^^^^^^^^^
 ```
 
+### A type another module keeps private (§4.2, §11.5)
+
+```ernest-rejected
+fn f(x : Supervisor.WatcherMsg) : Int = 0
+```
+
+```console
+$ ern build example.ern
+example.ern:1:10: Supervisor.WatcherMsg is a type Supervisor keeps private
+1 | fn f(x : Supervisor.WatcherMsg) : Int = 0
+  |          ^^^^^^^^^^^^^^^^^^^^^
+```
+
 ### `Prelude.` before a type the prelude lacks (§4.2)
 
 ```ernest-rejected

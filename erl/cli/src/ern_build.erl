@@ -15,8 +15,9 @@
          module_path/1, compile_order/2, compile_order/3, source_root/3, build_root/2,
          is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
-         sweep_pages/5, compile_source/5, compile_source/6, absolute/1, relative/2, write_whole/2,
-         write_output/2, write_output/3, read/1, make_dirs/1, refused/2, fail/1]).
+         compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
+         relative/2, write_whole/2, write_output/2, write_output/3, read/1, make_dirs/1,
+         refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -975,8 +976,11 @@ compiler_modules() ->
      ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_scope, ern_typecheck, ern_types,
      ern_build].
 
-%% Report §11.1: the build of ern, its version and a hash of the modules
-%% that compile, so that a compiler changed under one version is another.
+%% Report §11.1, §11.2: the build of ern, its version and a hash of the
+%% modules that compile, so that a compiler changed under one version is
+%% another; a .erc records the one that wrote it, which the build and the
+%% shell's `:load` compare.
+-spec compiler_build() -> binary().
 compiler_build() ->
     Hash = erlang:md5(term_to_binary([code_md5(ErlangModule)
                                       || ErlangModule <- compiler_modules()])),

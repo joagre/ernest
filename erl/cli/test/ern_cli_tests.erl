@@ -480,9 +480,10 @@ source_root_test() ->
     ?assert(filelib:is_regular(Dir ++ "/build/net/http.erc")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/http.erc")).
 
-%% report §11.1, §8.4, §4.2, Appendix E.1: a dependent describes an exported
-%% abstract type whose fields name a private type, to print it or check it,
-%% through the private types the interface carries, and cannot name them.
+%% report §11.1, §8.4, §4.2, §11.5, Appendix E.1: a dependent describes an
+%% exported abstract type whose fields name a private type, to print it or
+%% check it, through the private types the interface carries, and naming
+%% one is refused as private.
 %% A regression test: printing an address of `Supervisor.Msg`, whose `Join`
 %% names the private `WatcherMsg`, stopped `ern build` with an internal
 %% error, and binding one stopped the shell; it does not cover a foreign
@@ -505,7 +506,7 @@ abstract_private_fields_test() ->
     Peek = write(Dir, "peek.ern", "export fn peek(secret : Box.Secret) : Int = 0\n"),
     ?assertEqual(1, build_err(["--source-root", Dir, Peek])),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
-                                      <<"unknown type Box.Secret">>)).
+                                      <<"Box.Secret is a type Box keeps private">>)).
 
 %% report §11.1: a dependency outside the compiled subtree must have been
 %% compiled into the build directory already

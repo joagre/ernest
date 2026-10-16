@@ -96,6 +96,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Path**: §5.6's path in a record update, `#field_set{path}`, the segments after the field's name; a file's path is a `Path`, `SourcePath`, in the build and the runner alone. The indexes through a type's arguments to a variable, which a derived `compare` follows, are a `Route`.
 - **Module**: an Ernest module (§4.1); the Erlang module it compiles to is its `ErlangModule`, `ern@io`, and a build's record of one a `#build_module{}`. Not `Mod`.
 - **Interface**: a compiled module's interface (§11.1), `#interface{}`. Not `Iface`, `I`.
+- **PrivateTypes**: the private types an interface carries, those its module's exported declarations name, a mailbox type an exported function receives and a type an abstract type's fields name, with those theirs name (§4.2, §11.1), the `#interface{}`'s and the checker's env's `private_types`, which `described_type/2` reads and no name resolves to.
 - **Scheme**: a type scheme (§3.9), as the code has it, and beside it a declaration's requirement (§4.9), which no instance has.
 - **Annotation**: a type the source writes. Not `Ann`; an AST record's `type` field holds one of the four things it holds today, each named.
 - **Effect**: the `receiving` part of a function type, a mailbox type or an effect variable, or `none` where the function type receives nothing (§3.9, §6.1, Appendix H). Not `E`, `Eff`, `EffT`, `MailboxT`, nor `pure` for none.

@@ -1761,6 +1761,40 @@ load_failed_dependency() ->
     ?assertEqual(nomatch, binary:match(Output, <<"first">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
+%% report §4.2, §8.4, §11.2, §11.5: a module may keep private the mailbox
+%% type its exported function receives, and a spawn of the function at the
+%% prompt binds an address of it, which prints with its type, the session
+%% going on; the type stays private to names, and an input that writes it
+%% is refused as private. A regression test: the binding faulted the
+%% shell, which ended with status 70, since the interface carried nothing
+%% of the type for its descriptor, and the next input faulted the checker
+%% on the type the session's scope named; and an input that wrote the type
+%% was refused as `unknown type Plain.Msg`, which the last assertion,
+%% written 2026-10-16 after the code, holds to §11.5's text. It does not
+%% cover a message checked at such an address, which the integration
+%% tests' exposed program does
+private_mailbox_type_test_() ->
+    {timeout, 60, fun private_mailbox_type/0}.
+
+private_mailbox_type() ->
+    Dir = scratch("ern_private_mailbox_"),
+    ok = file:write_file(filename:join(Dir, "plain.ern"),
+                         ["type Msg = Add(Int)\n",
+                          "export fn count(total : Int) : Unit receiving Msg =\n",
+                          "    receive { Add(amount) -> count(total + amount) }\n"]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Plain\n", "let p = spawn(fn() = Plain.count(0))\n",
+                                     "p\n", "Plain.Add(1)\n",
+                                     "let q : Address(Plain.Msg) = p\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> p : Address(Plain.Msg)\n">>)),
+    ?assertMatch({match, _}, re:run(Output, "^> <address [0-9]+> : Address\\(Plain\\.Msg\\)$",
+                                    [multiline])),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown constructor Plain.Add">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<":1:17: Plain.Msg is a type Plain keeps private\n"
+                                                "1 | let q : Address(Plain.Msg) = p\n"
+                                                "  |                 ^^^^^^^^^\n">>)).
+
 %% report §11.2: a binding and a function may take the names the host gives
 %% every module, and a later input reaches them. A regression test: a
 %% `let module_info` faulted inside the shell, and a later input calling
@@ -3785,6 +3819,44 @@ load_takes_no_form_calling_a_reloaded_module() ->
     ?assertMatch({_, _}, binary:match(Output, <<"D, from d.erc\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"D, compiled again\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"M, compiled from m.ern\n> true : Bool\n">>)).
+
+%% report §11.2: `:load` takes no compiled form another build of `ern`
+%% wrote: greet.erc, beside its source, as new as it and compiled from it,
+%% its chunk naming another build of this version, is compiled afresh, and
+%% other.erc, as this build wrote it, is taken. A regression test, written
+%% 2026-10-16 after the code: the shell compared the source, the
+%% interfaces and the standard library but not the build, and a form an
+%% older build wrote kept alive a defect this build had fixed, until the
+%% file was deleted. It does not cover a compiled form with no source,
+%% which `:load` loads as `ern run` does
+load_takes_no_form_of_another_build_test_() ->
+    {timeout, 60, fun load_takes_no_form_of_another_build/0}.
+
+load_takes_no_form_of_another_build() ->
+    Dir = scratch("ern_load_other_build_"),
+    ok = file:write_file(filename:join(Dir, "greet.ern"),
+                         "export let greeting : String = \"hi\"\n"),
+    ok = file:write_file(filename:join(Dir, "other.ern"), "export let other : Int = 1\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
+    Erc = filename:join(Dir, "greet.erc"),
+    {ok, Built} = file:read_file(Erc),
+    {ok, _, Chunks} = beam_lib:all_chunks(Built),
+    Forged = [case Id of
+                  "ErnI" ->
+                      #{compiler := Compiler} = Facts = binary_to_term(Chunk),
+                      [Version | _] = binary:split(Compiler, <<"+">>),
+                      {Id, term_to_binary(Facts#{compiler := <<Version/binary, "+another">>})};
+                  _ ->
+                      {Id, Chunk}
+              end || {Id, Chunk} <- Chunks],
+    {ok, Beam} = beam_lib:build_module(Forged),
+    ok = file:write_file(Erc, Beam),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Greet\nGreet.greeting\n:load Other\nOther.other\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from greet.ern\n"
+                                                "> \"hi\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Other, from other.erc\n> 1 : Int\n">>)).
 
 %% report §8.6, §11.2, Appendix E.23: in the shell a program is told of its
 %% end as one `ern run` runs is: a subscriber an input spawned is told when

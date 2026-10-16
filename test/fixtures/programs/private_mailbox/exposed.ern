@@ -1,0 +1,20 @@
+//
+// Report §8.4: an address of a mailbox type another module keeps private,
+// exposed to foreign code behind the check of each message foreign code
+// sends it: a message of the type reaches the process, and one of no
+// constructor of it faults the process at the wait that reaches it.
+//
+
+foreign fn sent(to : Foreign.Term, message : Foreign.Term) : Foreign.Term =
+    "erlang:send/2"
+
+export fn main() : Unit receiving Down = {
+    let counter = spawn(fn() = Plain.count(0));
+    monitor(Process.fromAddress(counter), fn(down) = down);
+    let exposed = Foreign.term(counter);
+    let _ = sent(exposed, Foreign.term(#(Foreign.atom("Add"), 5)));
+    let _ = sent(exposed, Foreign.term(#(Foreign.atom("Take"), 5)));
+    receive {
+        down -> Io.println(Io.show(down.reason))
+    }
+}

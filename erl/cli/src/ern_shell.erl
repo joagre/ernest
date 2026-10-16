@@ -2625,17 +2625,17 @@ taken_or_compiled(#session{source_hashes = Loaded} = Session,
     end.
 
 %% Report §11.2: a compiled form of the module, beside its source or on the
-%% load path, compiled from that source and as new as it, against the
-%% interfaces the session holds, and calling no module the session holds
-%% at a unit of another name than its own, a reload's version among them,
-%% since the form calls each module it uses by its own; the candidates are
-%% tried in the load path's order, the source root last, and the first that
-%% qualifies is taken, with its file and the hash of the source it records.
-%% The interfaces it is held to are those a compile would check it against:
-%% Interfaces, and for a module it uses that the session has not loaded,
-%% the one its compiled form on the load path holds. None where none
-%% qualifies, or where a module it uses is found nowhere, which compiling
-%% it reports.
+%% load path, compiled from that source and as new as it, by this build of
+%% `ern`, against the interfaces the session holds, and calling no module
+%% the session holds at a unit of another name than its own, a reload's
+%% version among them, since the form calls each module it uses by its
+%% own; the candidates are tried in the load path's order, the source root
+%% last, and the first that qualifies is taken, with its file and the hash
+%% of the source it records. The interfaces it is held to are those a
+%% compile would check it against: Interfaces, and for a module it uses
+%% that the session has not loaded, the one its compiled form on the load
+%% path holds. None where none qualifies, or where a module it uses is
+%% found nowhere, which compiling it reports.
 current_form(#session{source_root = SourceRoot} = Session,
              #build_module{namespace = Namespace, dependencies = Dependencies} = Module,
              Interfaces, Units) ->
@@ -2645,7 +2645,8 @@ current_form(#session{source_root = SourceRoot} = Session,
             Against = {lists:sort([{Dependency, ern_interface:hash(Interface)}
                                    || {Dependency, Interface} <- DependencyInterfaces]),
                        [Interface || {_, Interface} <- DependencyInterfaces],
-                       ern_build:stdlib_hash()},
+                       #{stdlib => ern_build:stdlib_hash(),
+                         compiler => ern_build:compiler_build()}},
             case [Dependency || {Dependency, _} <- DependencyInterfaces,
                                 is_map_key(Dependency, Units)] of
                 [] -> first_current_form(load_path(Session), Module, Against);
@@ -2667,8 +2668,10 @@ first_current_form([Root | Roots], Module, Against) ->
 %% as new as the source, to the second, as `ern doc` compares a page's
 %% times (§11.4); of this module, compiled from this source by the path it
 %% records from Root; and compiled against the interfaces and the standard
-%% library of Against. A file that cannot be read is none, and the module
-%% is compiled from its source.
+%% library of Against, by the build of `ern` it holds, as the build's own
+%% recompile rule compares them (§11.1), so that a form another build of
+%% `ern` wrote keeps no defect this one has fixed. A file that cannot be
+%% read is none, and the module is compiled from its source.
 qualified_form(Root, #build_module{namespace = Namespace, file = File} = Module, Against) ->
     Erc = filename:join(Root, ern_build:module_path(Namespace) ++ ".erc"),
     case {modified(Erc), modified(File)} of
@@ -2682,10 +2685,11 @@ qualified_form(Root, #build_module{namespace = Namespace, file = File} = Module,
     end.
 
 compiled_against(Root, Erc, Beam, #build_module{namespace = Namespace, file = File},
-                 {DependencyHashes, DependencyInterfaces, StdlibHash}) ->
+                 {DependencyHashes, DependencyInterfaces,
+                  #{stdlib := StdlibHash, compiler := CompilerBuild}}) ->
     case ern_interface:read(Beam) of
         {ok, #{interface := #interface{namespace = Namespace}, source_path := SourcePath,
-               source_hash := Hash} = Chunk} ->
+               source_hash := Hash, compiler := CompilerBuild} = Chunk} ->
             Source = filename:join(Root, unicode:characters_to_list(SourcePath)),
             case ern_build:absolute(Source) =:= ern_build:absolute(File)
                 andalso ern_build:is_compiled_against(Chunk, DependencyHashes,

@@ -93,8 +93,9 @@ canonical(#interface{namespace = Namespace, types = Types, values = Values, lets
      lists:sort([{QualifiedName, canonical_scheme(Scheme, #{}, VariableNames)}
                  || {QualifiedName, Scheme} <- maps:to_list(Values)]),
      lists:sort(Lets),
-     %% report §11.1: a change to what an abstract type's fields name changes
-     %% how a dependent describes its values, so it is in the hash
+     %% report §11.1: a change to a private type an exported declaration
+     %% names changes how a dependent describes a value of it, so it is in
+     %% the hash
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
                  || {QualifiedName, TypeInfo} <- maps:to_list(PrivateTypes)]),
      lists:sort(maps:to_list(Identities)),
