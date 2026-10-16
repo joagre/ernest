@@ -535,6 +535,14 @@ check of this start is a check of this run there, the runner's run number beside
 runner's purge of an earlier run's code is the stated case. Regression tests for all three. Built
 before the tag.
 
+**Before the tag: `List.minimumBy` and `maximumBy`.** Decided with the user on 2026-10-17
+(`docs/language_feedback.md`'s entry 107): admitted under E.0's vocabulary rule, since a sequence's
+smallest by a key is what a reader looks for in one call and the guide's `least.ern` wrote the sort
+and the head around their absence. `List.minimumBy : (List(a), (a) -> k) -> Optional(a) needs
+k.compare` and `maximumBy` likewise, `None` of an empty list, the first of equals, beside
+`List.sort` in Appendix E.2 with their pages, written with the code since the listings are held to
+the compiler; the guide's `least.ern` then uses `minimumBy`. Built before the tag.
+
 **Before the tag: a module cycle through the load path.** The shell's half done 2026-10-17 (the
 log's *Before the Tag, the Last Builds*): the shell refuses the cycle with its modules' names, where a
 cycle through a source module loaded silently and one between two compiled forms recursed for ever.
