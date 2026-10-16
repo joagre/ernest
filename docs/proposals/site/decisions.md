@@ -312,16 +312,18 @@ The site's files as served.
   points to the guide and the report. No sentence describes another language;
   no superiority claim; no sentence answers an objection the text did not
   raise.
-- Why's four pieces are the guide's §0 list, found after its line "What Ernest
-  adds is where the parts meet:" as the documents test finds it, in its order,
-  its fourth item from 0.4.0 on: the mailbox in the function's type, a monitor's
-  `Down` arriving in the mailbox's type among it; checked replies, a call ending
-  with its callee's cause among it; purity in the type; and code by its hash
-  across nodes, its subsections any number of revisions, code moving with a
-  spawn, TLS between listed peers, and placement.
+- Why's four pieces are `guide/why.md`'s list, found after its line "What
+  Ernest adds is where the parts meet:" as the documents test finds it, in its
+  order: the mailbox in the function's type, a service a binding of such an
+  address among it; code known by its hash, any number of versions and code
+  moving with a spawn among it; a distribution built for a WAN; and little
+  else. Checked replies and purity in the type were pieces until 2026-10-15,
+  when MVP 3.26 was decided; the list is written, with a program for each,
+  and the site renders it as it stands.
 - The walk through one real program is the tour itself, which grows one
   program through every chapter (the plan's MVP 3.3).
-- No comparison page: Why's FAQ answers "why not Erlang, Elixir or Gleam".
+- No comparison page: `guide/faq.md`, at `/faq/`, answers "it looks like Gleam" and
+  "where are the supervisors", and the guide's §10 answers the Erlang programmer.
 - A root `CONTRIBUTING.md`, written before the site goes live. Not a site page.
 - `src/shell/README.md` is for a reader of the code, and not on the site.
 - The module pages are the site's Library; at the terminal, `man` shows them
