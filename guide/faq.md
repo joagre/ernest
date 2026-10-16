@@ -32,6 +32,14 @@ Unison names Erlang among its influences, and stands on parents of its own: a th
 
 A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out. A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, which turns that source's messages into the process's own as they arrive, written where the reader sees it (the guide's §4.1, report §6.5). The process's protocol is one type, read in one place, and a channel is a value: a list of messages, sent anywhere.
 
+**Why does a function that receives say `receiving M`, while one that only sends says nothing?**
+
+A `receive` reads the mailbox of the process the function runs in, and a mailbox takes messages of one type, so the function runs only in a process whose mailbox is of that type. `receiving M` is that fact in the function's type, and the compiler refuses to run the function anywhere else: as the function a `spawn` starts with a mailbox of another type, or as a guard, which runs while a message is selected (report §3.9, report §6.1). A send needs no such fact. What it sends is in the address, `Address(M)`, and it reads nothing of the sender's mailbox; neither does a spawn, an answer, or a call, which waits on its reply and not on the caller's mailbox. So a function that only sends runs in any process, stands wherever one receiving `M` is expected, and says nothing, since a type carries what keeps messages safe and nothing of what a function does (report §0, principle 5).
+
+**Is a forgotten answer caught?**
+
+Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). The caller is caught by what it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault that names how the callee ended (report §6.6). Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6). What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).
+
 **How does Ernest talk to Erlang, and to the other languages on the runtime?**
 
 Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, a library from hex among them, and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.3, report §4.7).
@@ -61,3 +69,7 @@ No. A function that needs an operation of a type it is generic in names the type
 **Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 
 It begins with `fn`, so a reader and the parser see a lambda begin at its first word. A function's number of arguments is part of its type, and `fn(x, y)` shows it where the lambda is written, in the form a declaration and a call already have.
+
+**Why is the compiler so strict, and why does it give no warnings?**
+
+A warning is a rule the compiler states and does not hold, so a program that builds with warnings is one whose author decided each, or did not, and its reader cannot tell which. Ernest gives one answer, a program builds or it does not, so that a program that builds meets every rule, and its reader knows which rules those are. The rules are few, and each catches a mistake concurrent programs are prone to: a message of a type the process does not take, a failure dropped (the guide's §0), a constructor a `match` leaves out, a value discarded without `let _` (the guide's §11). What is a habit of style the compiler leaves alone: `ern format` lays the code out, and the reader's eye does the rest.

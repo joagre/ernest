@@ -517,7 +517,8 @@ the same commit; then the log; then the code, by an agent from the settled repor
    `soundness.md`'s sentences on them; then the emitter's `held_replies`, `not_started` in
    `ern_peer` and `ern_rt`, their tests, and the glossary's *HeldReplies*. A failed spawn's
    captured reply is then any dropped reply: the caller's deadline, or the spawner's own answer.
-3. **A library that waits**, the guide's §4.4 passage,
+3. **A library that waits.** Done 2026-10-16 (the log's *Kill Darlings*, its paragraph *Item 3*):
+   the guide's §4.4 passage,
    [`guide_passage.md`](proposals/kill_darlings/guide_passage.md), after the queue, and §8.1's
    *Many at once* pointing at it, checked by `make test-guide`. The guide's §12 then gains three
    questions items 1 and 2 answer: why a function that receives carries `receiving M` and one that

@@ -868,6 +868,64 @@ took 7
 
 A `Put` answers the first caller waiting, and a `Take` answers at once or keeps its reply in the list. `main` cannot wait in the call itself, since it is `main` that puts the item. A process of its own makes the call and sends the answer on as `Took(item)`, and `main` goes on to put. A process that must keep receiving while an answer is on its way calls from such a helper; one with nothing else to do calls.
 
+**A library that waits.** A function that receives is tied to the mailbox type of the process it runs in, so a function that must wait on messages of its own, from whatever process calls it, is a process and a call. The library spawns a process whose mailbox is its own, and the caller gets the result by a call, which leaves the caller's mailbox as it was. `gathered` runs `f` on each number in a process of its own and collects the pieces as they come, in any process:
+
+```ernest
+// gather.ern
+export type Piece(a) = Piece(n : Int, value : a)
+
+type GatherMsg(a) = Collect(Reply(List(Piece(a)))) | Computed(Piece(a)) | Ended(Down)
+
+export fn gathered(numbers : List(Int), f : (Int) -> a receiving e) : List(Piece(a)) = {
+    let gatherer = spawn(fn() = run(numbers, f));
+    Address.callForever(gatherer, Collect)
+}
+
+fn run(numbers : List(Int), f : (Int) -> a receiving e) : Unit receiving GatherMsg(a) =
+    receive {
+        Collect(reply) -> {
+            let me = self();
+            List.forEach(numbers, fn(n) = {
+                let _ = spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = f(n)))),
+                                       Ended);
+                Unit
+            });
+            answer(reply, gather(List.size(numbers), 0, []))
+        }
+    }
+
+// A helper that returned has sent its piece, and its Down keeps no order with
+// that message; owed counts the helpers that returned whose piece has not come.
+fn gather(running : Int,
+          owed : Int,
+          pieces : List(Piece(a))) : List(Piece(a)) receiving GatherMsg(a) =
+    if running == 0 && owed == 0 then
+        pieces
+    else receive {
+        Computed(piece) -> gather(running, owed - 1, piece :: pieces)
+      | Ended(Down(reason = Returned)) -> gather(running - 1, owed + 1, pieces)
+      | Ended(_) -> gather(running - 1, owed, pieces)
+    }
+```
+
+```ernest
+// collect.ern
+export fn main() : Unit =
+    Gather.gathered([3, 1, 2], fn(n) = n * n)
+        |> List.sort(fn(a, b) = Int.compare(a.n, b.n))
+        |> List.forEach(fn(piece) =
+                            Io.println(Int.toString(piece.n) <> ": " <> Int.toString(piece.value)))
+```
+
+```console
+$ ern run collect.erc
+1: 1
+2: 4
+3: 9
+```
+
+`GatherMsg` is the library's own and stays private: the caller sees `gathered`'s signature and nothing of how it waits. `Collect` is a constructor, and a constructor is a function, so it stands where `Address.callForever` wants the function that builds the request. `gather` ends on what it waits for, each helper's end and each piece, and needs no deadline of its own. The helper whose `f` faults sends no piece, and its `Down` says so.
+
 **Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
 
 ```ernest
@@ -2244,7 +2302,7 @@ fn heavy(n : Int) : Int =
 
 Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
 
-**Many at once.** A compute is a call, and its caller waits for it. Work spread over the peers at once is a process for each piece, which computes and sends its piece home, spawned monitored so that its fault comes home too (§6.4). `Placed.computed` is each helper's whole work, so a piece that finds no peer runs here:
+**Many at once.** A compute is a call, and its caller waits for it. It is §4.4's `gathered` with a compute as each helper's work. Work spread over the peers at once is a process for each piece, which computes and sends its piece home, spawned monitored so that its fault comes home too (§6.4). `Placed.computed` is each helper's whole work, so a piece that finds no peer runs here:
 
 ```ernest
 // gathered.ern
