@@ -24,6 +24,9 @@ set -eu
 job=$1
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
 repository=https://github.com/joagre/ernest
+# The directories whose documents are for a user of Ernest, each installed
+# whole; the project's own, docs/ and CLAUDE.md, stay out.
+documents="report guide tour"
 
 fail() {
     echo "make $job: $*" >&2
@@ -71,28 +74,18 @@ stage() {
              assets/ernest-dark.svg; do
         shared "$f" "share/doc/ernest/$f"
     done
-    # a link into the report stays one to the installed copy, and any other
-    # link to the checkout's files goes to the repository at the release
-    kept="s|](report/|](@report@/|g"
-    linked="s|](\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
-    restored="s|](@report@/|](report/|g"
-    for f in report/language.md report/toolchain.md report/library.md; do
-        edited "$f" "share/doc/ernest/$f" "$kept; $linked; $restored"
-    done
-    # the guides, a directory below, link the same files from one level down
-    kept="s|](\\.\\./report/|](@report@/|g"
-    linked="s|](\\.\\./\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
-    restored="s|](@report@/|](../report/|g"
-    for f in guide/language.md; do
-        edited "$f" "share/doc/ernest/$f" "$kept; $linked; $restored"
+    # every document for a user of Ernest, by the directory it stands in;
+    # a directory the checkout does not hold is passed over
+    for d in $documents; do
+        [ -d "$d" ] || continue
+        for f in $(find "$d" -type f -name '*.md' ! -name '.*' | sort); do
+            document "$f"
+        done
     done
     edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
     # the directories of the installation's own, each before the one that
     # holds it, as uninstall removes them in this order where they are empty
-    for d in share/doc/ernest/report/ share/doc/ernest/guide/ share/doc/ernest/assets/ \
-             share/doc/ernest/; do
-        echo "$d" >> "$tree/installed"
-    done
+    (cd "$stage" && find share/doc/ernest -depth -type d) | sed 's|$|/|' >> "$tree/installed"
     shared editors/emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
     chmod -R u=rwX,go=rX "$stage"
 }
@@ -102,6 +95,23 @@ shared() {
     mkdir -p "$(dirname "$stage/$2")"
     cp "$1" "$stage/$2"
     echo "$2" >> "$tree/installed"
+}
+
+# A document for a user of Ernest staged under share/doc/ernest where it
+# stands in the checkout. A link into a directory of documents, or of the
+# logo, stays one to the installed copy, and any other link to a directory
+# of the checkout goes to the repository at the release, each from as many
+# directories up as the document stands down.
+document() {
+    up=$(echo "$1" | sed 's|[^/]*/|../|g; s|[^/]*$||')
+    pattern=$(echo "$up" | sed 's|\.|\\.|g')
+    kept=""
+    for d in $documents assets; do
+        kept="${kept}s|]($pattern$d/|](@kept@$d/|g; "
+    done
+    linked="s|]($pattern\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
+    restored="s|](@kept@|]($up|g"
+    edited "$1" "share/doc/ernest/$1" "$kept$linked; $restored"
 }
 
 # A document of the checkout staged outside the tree as sed's $3 edits

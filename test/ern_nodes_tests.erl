@@ -19,7 +19,7 @@
 
 -export([nodes_test/2, free_port/0, made/3, edit/2, lists/2, name/1, program/1, client/0,
          client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2,
-         says/3, prints/2, stop/2, written/2, said/1, has/2]).
+         says/3, prints/2, stop/2, written/2, said/1, wait_ms/0, has/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/fixtures/peers/`'s programs use, on every node's load path.
@@ -28,6 +28,10 @@
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
+%% The milliseconds that bound a failure in one wait of the harness's, a
+%% line, a node's end or what a node said, where a wait does not outlast
+%% them.
+-define(WAIT_MS, 30000).
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -40,6 +44,10 @@ tmp() ->
 %% makes them under, after which every node still running from a directory
 %% there is killed, however the test ended, its time running out among the
 %% ways: the cleanup is the fixture's, which outlives the test's process.
+%% Its time is Seconds, or for a test that makes a count of waits, each
+%% bounded by the harness's time for one wait, their sum.
+nodes_test({waits, Count}, Test) ->
+    nodes_test(Count * ?WAIT_MS div 1000, Test);
 nodes_test(Seconds, Test) ->
     {name, Name} = erlang:fun_info(Test, name),
     {setup, fun tmp/0, fun killed/1,
@@ -342,7 +350,7 @@ launched(Dir, Words) ->
     Command = lists:flatten([Words, " > ", Out, " 2> ", Err]),
     Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status]),
     {Port, fun() ->
-               receive {Port, {exit_status, Status}} -> Status after 30000 -> timeout end
+               receive {Port, {exit_status, Status}} -> Status after ?WAIT_MS -> timeout end
            end}.
 
 %% The pipe a stream is written to, and its reader, which writes what comes
@@ -420,17 +428,17 @@ answered(#{out := {Out, ended}, err := {Err, ended}}, {said, From}) ->
 answered(_, {said, _}) ->
     false.
 
-%% Until the node's standard error holds Part; 30 seconds, or Ms where a
-%% wait outlasts them, bound a failure.
+%% Until the node's standard error holds Part; the harness's time for one
+%% wait, or Ms where a wait outlasts it, bounds a failure.
 says(Dir, Part) ->
-    says(Dir, Part, 30000).
+    says(Dir, Part, ?WAIT_MS).
 
 says(Dir, Part, Ms) ->
     seen(Dir, err, Part, 1, Ms).
 
 %% Until the node's standard output holds Part, or holds it Count times.
 prints(Dir, Part) ->
-    prints(Dir, Part, 30000).
+    prints(Dir, Part, ?WAIT_MS).
 
 prints(Dir, Part, Ms) ->
     prints(Dir, Part, 1, Ms).
@@ -469,9 +477,14 @@ said(Dir) ->
     watcher_name(Dir) ! {said, self()},
     receive
         {said, Out, Err} -> {binary_to_list(Out), binary_to_list(Err)}
-    after 30000 ->
+    after ?WAIT_MS ->
         erlang:error({still_writing, Dir})
     end.
+
+%% The harness's time for one wait, which a test of the deployment guide's
+%% waits by too.
+wait_ms() ->
+    ?WAIT_MS.
 
 has(Text, Part) ->
     ?assertNotEqual(nomatch, string:find(Text, Part)).
@@ -668,9 +681,13 @@ other_floor(Base) ->
 
 %% report §8.7, limit 14 of the proposal: two nodes started from copies of
 %% one directory are one node to their peers; the second's dial ends the
-%% first's connection, which the peer says each time
+%% first's connection, which the peer says each time. Its limit is the sum
+%% of its seven waits, a line of b's, of a's and of b's again, three nodes'
+%% ends and what b said, each bounded by the harness's time for one wait:
+%% written on 2026-10-16, after its limit of 60 s, a number of its own, ran
+%% out under the full run's load on 2026-10-13
 replaced_test_() ->
-    nodes_test(60, fun replaced/1).
+    nodes_test({waits, 7}, fun replaced/1).
 
 replaced(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -1397,7 +1414,7 @@ compute_on_peer(Base) ->
                     - 1),
     has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:521 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:531 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
@@ -1454,16 +1471,20 @@ utilization_of_peer(Base) ->
 %% takes no send and gives a monitor Unreachable; a fault in an adapted
 %% address's function is its target's; a monitor does not outlive a loss,
 %% and the address does: a send after it reaches the same process; with
-%% its node ended, a send returns at once, a monitor gives Unreachable; and
-%% once the node starts again, the address of its earlier start is dead, a
-%% call through it ending at once, a send to it dropped, a monitor giving
-%% Unknown, and an adapted address it made dropping what is sent through
-%% it, its function not applied. A regression test: the runtime hands each
-%% to the host, and this holds that it does; and the new start applied the
-%% function of an adapted address its earlier start made. Not covered: a
-%% value crossing in pieces with other senders' messages between them, a
-%% send that waits at a full buffer, and a silence, which the detector
-%% finds in a minute
+%% its node ended and its port taking the dial and answering nothing, a
+%% send returns before the host gives the dial up, and a monitor gives
+%% Unreachable; and once the node starts again, the address of its earlier
+%% start is dead, a call through it ending before its time runs out, a send
+%% to it dropped, a monitor giving Unknown, and an adapted address it made
+%% dropping what is sent through it, its function not applied. A regression
+%% test: the runtime hands each to the host, and this holds that it does;
+%% and the new start applied the function of an adapted address its earlier
+%% start made. The silent port is a regression test too, written on
+%% 2026-10-16: the closed port refused the dial at once, so a send that
+%% waited behind the dial passed unseen, and the send's bound was a chosen
+%% 1000 ms, which failed under load. Not covered: a value crossing in
+%% pieces with other senders' messages between them, a send that waits at
+%% a full buffer, and a silence, which the detector finds in a minute
 across_test_() ->
     nodes_test(120, fun across/1).
 
@@ -1480,7 +1501,11 @@ across(Base) ->
     {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
     _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(137, WaitStore()),
+    prints(Desk, "now silence the store's port"),
+    {_, Silent} = nothing_answered(listened(Store)),
+    true = port_command(DeskPort, "go\n"),
     prints(Desk, "now restart the store"),
+    stop_holding(Silent),
     %% the first start's lines kept, since the second writes its own there
     ok = file:rename(Store ++ ".out", Store ++ ".first.out"),
     ok = file:rename(Store ++ ".err", Store ++ ".first.err"),
@@ -1996,14 +2021,14 @@ exchanged(Base) ->
              "\n"
              "export fn main() : Unit with Down =\n"
              "    match Os.arguments {\n"
-             "        [receiver] -> {\n"
-             "            let plain = Peer.spawn(receiver, Lacked.plain, 5000);\n"
+             "        [receiver, _] -> {\n"
+             "            let plain = Peer.spawn(receiver, Lacked.plain, limit());\n"
              "            Io.println(\"plain: \" <> outcome(plain));\n"
-             "            let counted = Peer.computeAt(receiver, Lacked.counted, 5000);\n"
+             "            let counted = Peer.computeAt(receiver, Lacked.counted, limit());\n"
              "            Io.println(\"counted: \" <> Io.show(counted));\n"
-             "            let told = Peer.spawn(receiver, Lacked.told, 5000);\n"
+             "            let told = Peer.spawn(receiver, Lacked.told, limit());\n"
              "            Io.println(\"told: \" <> outcome(told));\n"
-             "            let only = Peer.spawn(receiver, Lacked.callsOnly, 5000);\n"
+             "            let only = Peer.spawn(receiver, Lacked.callsOnly, limit());\n"
              "            Io.println(\"calls only: \" <> outcome(only));\n"
              "            ended(receiver);\n"
              "            ended(\"nobody\");\n"
@@ -2014,17 +2039,19 @@ exchanged(Base) ->
              "\n"
              "// Spawns and computes of what the receiver lacks that run there.\n"
              "fn received(receiver : String) : Unit with Down = {\n"
-             "    Io.println(\"raises: \" <> outcome(Peer.spawn(receiver, Lacked.raises, 5000)));\n"
-             "    let spawner = Peer.spawn(receiver, Lacked.spawner, 5000);\n"
+             "    Io.println(\"raises: \" <> outcome(Peer.spawn(receiver, Lacked.raises,"
+             " limit())));\n"
+             "    let spawner = Peer.spawn(receiver, Lacked.spawner, limit());\n"
              "    Io.println(\"spawner: \" <> outcome(spawner));\n"
-             "    let yielded = Peer.spawn(receiver, Lacked.yielded, 5000);\n"
+             "    let yielded = Peer.spawn(receiver, Lacked.yielded, limit());\n"
              "    Io.println(\"yielded: \" <> outcome(yielded));\n"
-             "    let collected = Peer.computeAt(receiver, Lacked.collected, 5000);\n"
+             "    let collected = Peer.computeAt(receiver, Lacked.collected, limit());\n"
              "    Io.println(\"collected: \" <> Io.show(collected));\n"
-             "    let named = Peer.spawn(receiver, Lacked.only, 5000);\n"
+             "    let named = Peer.spawn(receiver, Lacked.only, limit());\n"
              "    Io.println(\"only by name: \" <> outcome(named));\n"
-             "    Io.println(\"counts: \" <> outcome(Peer.spawn(receiver, Lacked.counts, 5000)));\n"
-             "    let absent = Peer.spawn(receiver, Lacked.absent, 5000);\n"
+             "    Io.println(\"counts: \" <> outcome(Peer.spawn(receiver, Lacked.counts,"
+             " limit())));\n"
+             "    let absent = Peer.spawn(receiver, Lacked.absent, limit());\n"
              "    Io.println(\"absent function: \" <> outcome(absent))\n"
              "}\n"
              "\n"
@@ -2032,7 +2059,7 @@ exchanged(Base) ->
              "// answers None, and callForever faults.\n"
              "fn ended(peer : String) : Unit with Down = {\n"
              "    let server = spawn(fn() : Unit with Ask = serve(peer));\n"
-             "    let called = Address.call(server, fn(reply) = Ask(reply), 60000);\n"
+             "    let called = Address.call(server, fn(reply) = Ask(reply), limit());\n"
              "    Io.println(\"call \" <> peer <> \": \" <> Io.show(called));\n"
              "    let _ = spawnMonitored(fn() : Unit with Never = {\n"
              "        let _ = Address.callForever(server, fn(reply) = Ask(reply));\n"
@@ -2049,7 +2076,7 @@ exchanged(Base) ->
              "        let spawned = Peer.spawn(peer, fn() : Unit with Never = {\n"
              "            Lacked.told();\n"
              "            answer(reply, 1)\n"
-             "        }, 5000);\n"
+             "        }, limit());\n"
              "        Io.println(\"server \" <> peer <> \": \" <> outcome(spawned));\n"
              "        serve(peer)\n"
              "    }\n"
@@ -2059,6 +2086,16 @@ exchanged(Base) ->
              "    match spawned {\n"
              "        Right(_) -> \"Right\"\n"
              "      | Left(failure) -> Io.show(failure)\n"
+             "    }\n"
+             "\n"
+             "// The milliseconds each spawn, compute and call here waits: the test's\n"
+             "// wait for this program, its second argument, which began before any of\n"
+             "// them, so that none answers by its time running out before the test\n"
+             "// has given the program up.\n"
+             "fn limit() : Int =\n"
+             "    match Os.arguments {\n"
+             "        [_, wait] -> Optional.withDefault(String.toInt(wait), 0)\n"
+             "      | _ -> 0\n"
              "    }\n",
     Receiver = "// Report §8.7: a node that waits, its build holding nothing of the\n"
                "// sender's.\n"
@@ -2102,9 +2139,16 @@ exchanged(Base) ->
 %% once, NotLoaded or NotListed alike, `Address.call` answering None and
 %% `Address.callForever` faulting with "callee did not start". A regression
 %% test, written after the code; that no code frame moves before NotLoaded
-%% is ern_exchange_tests', since no line marks it here
+%% is ern_exchange_tests', since no line marks it here. Each spawn, compute
+%% and call of the sender waits as long as the test waits for the sender,
+%% and the test's limit is the sum of its sixteen waits, a line of the
+%% receiver's, the sender's end, ten lines and one more of the receiver's,
+%% its end and what each node said, each bounded by the harness's time for
+%% one wait: written on 2026-10-16, after a spawn's 5000 ms, a number of its
+%% own, ran out under the full run's load on 2026-10-13 and its answer's
+%% line was missing
 exchange_test_() ->
-    nodes_test(90, fun exchange/1).
+    nodes_test({waits, 16}, fun exchange/1).
 
 exchange(Base) ->
     {SenderProgram, ReceiverProgram} = exchanged(Base),
@@ -2115,7 +2159,7 @@ exchange(Base) ->
     lists(Receiver, [{"sender", Sender, none}]),
     WaitReceiver = start(Receiver, ReceiverProgram, []),
     prints(Receiver, "ready"),
-    ?assertEqual(0, (start(Sender, SenderProgram, ["receiver"]))()),
+    ?assertEqual(0, (start(Sender, SenderProgram, ["receiver", integer_to_list(?WAIT_MS)]))()),
     Served = "the peer sender's spawn at Sender.serve:58 was not loaded: the binding Lacked.note"
              " has no value here",
     Lines = ["the peer sender's spawn at Sender.main:13 was not loaded: the binding Lacked.note"
@@ -4066,16 +4110,36 @@ readdressed(Dir, Name, Port) ->
 
 %% A listener on the loopback that takes connections and answers nothing.
 answers_nothing() ->
-    {ok, Listener} = gen_tcp:listen(0, [binary, {ip, {127, 0, 0, 1}}, {active, false}]),
-    {ok, Port} = inet:port(Listener),
+    {Port, _} = nothing_answered(0),
+    Port.
+
+%% The same on Port, or on a port the host picks where it is 0, which a
+%% node's ended start may have left in its kernel's wait: the port, and the
+%% process that holds the listener and what it took, whose end closes them.
+nothing_answered(Port) ->
+    {ok, Listener} = gen_tcp:listen(Port, [binary, {ip, {127, 0, 0, 1}}, {active, false},
+                                           {reuseaddr, true}]),
+    {ok, Bound} = inet:port(Listener),
     Holder = spawn(fun() -> receive go -> held(Listener, []) end end),
     ok = gen_tcp:controlling_process(Listener, Holder),
     Holder ! go,
-    Port.
+    {Bound, Holder}.
 
 held(Listener, Sockets) ->
     {ok, Socket} = gen_tcp:accept(Listener),
     held(Listener, [Socket | Sockets]).
+
+%% The listener and what it took closed, once their holder has ended.
+stop_holding(Holder) ->
+    MonitorRef = erlang:monitor(process, Holder),
+    exit(Holder, kill),
+    receive {'DOWN', MonitorRef, process, _, _} -> ok end.
+
+%% The port a node's `listen` names.
+listened(Dir) ->
+    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
+    [_, Port] = string:split(maps:get(<<"listen">>, json:decode(Text)), <<":">>, trailing),
+    binary_to_integer(Port).
 
 %% report §8.7, the proposal's sections 4 and 8: a network parted through
 %% a proxy that drops what passes from the desk to the store: the store,

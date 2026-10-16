@@ -9,8 +9,9 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/4, compiled_in_order/3, report_errors/4, shown/1,
-         sources/1, compiled_under/1, bytes_text/1, module_of/2, module_of/3, shape/2, segment/1,
+-export([compile/4, compile_in_memory/5, modules_of/3, compiled_in_order/3, report_errors/4,
+         shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2, module_of/3, shape/2,
+         segment/1,
          module_path/1, compile_order/2, compile_order/3, source_root/3, build_root/2,
          is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, compiler_modules/0,
@@ -34,13 +35,15 @@ compile(Job, Options, Path, ErrorDevice) ->
     {Status, _} = compile(Job, Options, Path, ErrorDevice, Emit),
     Status.
 
-%% Report §11.4: the same, writing nothing and removing nothing: every
-%% module is compiled, and the compiled modules are answered with the
-%% status, for `ern doc` to read its pages from.
--spec compile_in_memory(string(), [term()], file:filename(), io:device()) ->
-          {0 | 1, #{[atom()] => binary()}}.
-compile_in_memory(Job, Options, Path, ErrorDevice) ->
-    compile(Job, Options, Path, ErrorDevice, memory).
+%% Report §11.4: the same, writing nothing and removing nothing, for `ern
+%% doc` to read its pages from: every module is compiled but those Given
+%% holds, each the compiled module `ern doc` read from its .erc, which is
+%% not compiled again, and the compiled modules, Given's among them, are
+%% answered with the status.
+-spec compile_in_memory(string(), [term()], file:filename(), io:device(),
+                        #{[atom()] => binary()}) -> {0 | 1, #{[atom()] => binary()}}.
+compile_in_memory(Job, Options, Path, ErrorDevice, Given) ->
+    compile(Job, Options, Path, ErrorDevice, {memory, Given}).
 
 compile(Job, Options, Path, ErrorDevice, Emit) ->
     filelib:is_file(Path) orelse fail(Path ++ ": no such file or directory"),
@@ -91,6 +94,8 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
 
 %% The modules the files are, and a failure for each file whose path is
 %% none's, keyed by the file, since it has no namespace.
+-spec modules_of([file:filename()], file:filename(), tree | file) ->
+          {[#build_module{}], [{{file, file:filename()}, {refused, string()}, []}]}.
 modules_of(Files, SourceRoot, Mode) ->
     lists:foldr(fun(Source, {Modules, Misnamed}) ->
                     try module_of(absolute(Source), SourceRoot, Mode) of
@@ -128,7 +133,7 @@ compiled_in_order(Order, SourceRoot, BuildRoot) ->
                  end,
     SetAside = set_aside_installed_stdlib(SourceRoot, absolute(BuildRoot)),
     try
-        built(Order, [], {SourceRoot, [BuildRoot], memory, StdlibHash})
+        built(Order, [], {SourceRoot, [BuildRoot], {memory, #{}}, StdlibHash})
     after
         code:add_pathsa(SetAside)
     end.
@@ -697,6 +702,13 @@ stdlib_namespaces() ->
 %% the compiled module where it is kept in memory and none where it is
 %% written. Against is what the build is compiled against beside the
 %% module's dependencies, built/3's.
+%% report §11.4: a module `ern doc` read from its .erc is not compiled
+%% again, and its interface is the one its .erc holds
+build(#build_module{namespace = Namespace}, Interfaces, _SourceRoot, _DependencyRoots,
+      {memory, Given}, _Against, _Namespaces) when is_map_key(Namespace, Given) ->
+    Beam = maps:get(Namespace, Given),
+    {ok, #{interface := Interface}} = ern_interface:read(Beam),
+    {Interfaces#{Namespace => Interface}, {Namespace, [], fun(_) -> Beam end}};
 build(#build_module{namespace = Namespace, file = File, relative = Relative,
                     declarations = Declarations, dependencies = Dependencies},
       Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, Against, Namespaces) ->
@@ -775,7 +787,7 @@ emitted(erc, Namespace, {Typed, Interface, Env}, Build, OutputBase, _) ->
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     ok = write_output(Erc, Beam),
     none;
-emitted(memory, Namespace, {Typed, Interface, Env}, Build, _, _) ->
+emitted({memory, _}, Namespace, {Typed, Interface, Env}, Build, _, _) ->
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     Beam.
 

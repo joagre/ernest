@@ -217,11 +217,41 @@ make_older(File) ->
               calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
     file:change_time(File, Older).
 
+%% A directory removed whole, each directory under it made writable first,
+%% since a test that ended early, its time run out, may leave one
+%% read-only, and nothing in one can be removed: the install test's
+%% `closed`, so left, stopped the next run's cleanup with `eexist`.
 del(Dir) ->
+    opened(Dir),
     case file:del_dir_r(Dir) of
         ok -> ok;
         {error, enoent} -> ok
     end.
+
+%% Each directory under Path, Path among them, made writable and readable by
+%% its owner, a link left as it is.
+opened(Path) ->
+    case file:read_link_info(Path) of
+        {ok, #file_info{type = directory, mode = Mode}} ->
+            ok = file:change_mode(Path, Mode bor 8#700),
+            {ok, Names} = file:list_dir_all(Path),
+            lists:foreach(fun(Name) -> opened(filename:join(Path, Name)) end, Names);
+        _ ->
+            ok
+    end.
+
+%% del/1 removes a tree that holds a read-only directory with a file in it,
+%% as a test that ran out of time leaves one. A regression test, written on
+%% 2026-10-16 after the install test's `closed` stopped the next run's
+%% cleanup with `eexist`; a directory another user owns is not covered.
+del_read_only_test() ->
+    Dir = filename:absname("build/del_read_only"),
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir ++ "/closed/x"),
+    ok = file:write_file(Dir ++ "/closed/x/file", <<"held\n">>),
+    ok = file:change_mode(Dir ++ "/closed", 8#555),
+    ok = del(Dir),
+    ?assertNot(filelib:is_dir(Dir)).
 
 %% A program that runs until it is stopped: started in Dir, and stopped with
 %% the signal named once the shell condition Until holds, or after thirty

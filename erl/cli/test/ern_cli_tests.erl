@@ -2252,10 +2252,10 @@ doc_sweeps_pages_test() ->
 
 %% report §11.4: `ern doc src-dir`, with --man or without, writes a
 %% module's page only where none is there or the one there is older than
-%% the module's source or its .erc in build-root, and writes index.md every
-%% time. A page is given a time ahead of all it is made from to be current;
-%% one left alone keeps that time, and a manual page left alone was laid
-%% out by no runtime.
+%% the module's source or its .erc in build-root, and index.md only where
+%% its text would differ. A page is given a time ahead of all it is made
+%% from to be current; one left alone keeps that time, and a manual page
+%% left alone was laid out by no runtime.
 doc_writes_outdated_pages_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -2274,7 +2274,9 @@ doc_writes_outdated_pages_test() ->
     [set_modified(File, Ahead) || File <- [Index | Http ++ Main]],
     Document(),
     ?assertEqual([Ahead, Ahead, Ahead, Ahead], [modified(File) || File <- Http ++ Main]),
-    ?assert(modified(Index) < Ahead),
+    %% the index's text is the same, so it is left as it is; this line
+    %% written 2026-10-16, after the code, a regression test
+    ?assertEqual(Ahead, modified(Index)),
     %% the module's source newer than its pages
     set_modified(filename:join(SourceRoot, "net/http.ern"), Ahead + 1),
     Document(),
@@ -2287,6 +2289,110 @@ doc_writes_outdated_pages_test() ->
     Document(),
     ?assert(lists:all(fun(File) -> modified(File) < Ahead end, Main)),
     ?assertEqual([Ahead + 1, Ahead + 1], [modified(File) || File <- Http]).
+
+%% report §11.4: index.md is written where its text would differ from the
+%% one there: a module added changes it, and a link at its place is no
+%% index and is replaced. A regression test, written 2026-10-16, after the
+%% code; not covered: an index its owner may not write, which is refused
+%% as a page is
+doc_writes_index_where_it_differs_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    Index = filename:join(BuildRoot, "index.md"),
+    Document = fun() ->
+                   ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot]))
+               end,
+    Document(),
+    Ahead = os:system_time(second) + 3600,
+    set_modified(Index, Ahead),
+    write(Dir, "src/util.ern", "export fn one() : Int =\n    1\n"),
+    Document(),
+    ?assert(modified(Index) < Ahead),
+    {ok, Text} = file:read_file(Index),
+    ?assertMatch({_, _}, binary:match(Text, <<"- [Util](util.md)\n">>)),
+    Other = write(Dir, "other.md", Text),
+    ok = file:delete(Index),
+    ok = file:make_symlink(Other, Index),
+    Document(),
+    ?assertMatch({ok, #file_info{type = regular}}, file:read_link_info(Index)),
+    ?assertEqual({ok, Text}, file:read_file(Index)).
+
+%% report §11.4: a module whose .erc in build-root is as new as its source
+%% is read from the .erc and not compiled again, and one whose source is
+%% newer is compiled. The source is changed under a .erc given a later
+%% time, so that a page made from the .erc and one made from the source
+%% differ. A regression test, written 2026-10-16, after the code; a
+%% manual page is read from the .erc by the same code, and is not covered
+doc_reads_current_erc_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", BuildRoot, SourceRoot])),
+    Source = filename:join(SourceRoot, "net/http.ern"),
+    {ok, Old} = file:read_file(Source),
+    ok = file:write_file(Source, ["/// Requests, as the source says now.\n\n", Old]),
+    Now = os:system_time(second),
+    set_modified(Source, Now - 10),
+    set_modified(filename:join(BuildRoot, "net/http.erc"), Now - 5),
+    Page = filename:join(BuildRoot, "net/http.md"),
+    Said = fun() ->
+                   ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot])),
+                   {ok, Text} = file:read_file(Page),
+                   binary:match(Text, <<"as the source says now">>) =/= nomatch
+           end,
+    ?assertNot(Said()),
+    set_modified(Source, Now + 3600),
+    ?assert(Said()).
+
+%% report §11.4: where every document or page is as new as what it is made
+%% from, nothing is compiled: a source that no longer parses, older than
+%% its page and its .erc, is not read, and the job succeeds with every
+%% page left as it is. Once its page is older than it, it is compiled and
+%% the job fails. A regression test, written 2026-10-16, after the code
+doc_compiles_nothing_where_current_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", BuildRoot, SourceRoot])),
+    Document = fun(Args) ->
+                   ern_err(["doc" | Args] ++ ["--build-root", BuildRoot, SourceRoot])
+               end,
+    ?assertEqual(0, Document([])),
+    ?assertEqual(0, Document(["--man"])),
+    Source = filename:join(SourceRoot, "main.ern"),
+    ok = file:write_file(Source, "export fn main( : Unit = ()\n"),
+    Past = os:system_time(second) - 3600,
+    set_modified(Source, Past),
+    Pages = [filename:join(BuildRoot, Name) || Name <- ["main.md", "Ernest.Main.3ern"]],
+    Written = [modified(File) || File <- Pages],
+    ?assertEqual(0, Document([])),
+    ?assertEqual(0, Document(["--man"])),
+    ?assertEqual(Written, [modified(File) || File <- Pages]),
+    set_modified(Source, os:system_time(second) + 3600),
+    ?assertEqual(1, Document([])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"main.ern:1:">>)).
+
+%% report §11.4, §11.1: a .erc at a module's place that is not the module's,
+%% compiled from another source or holding another module, is not read
+%% for its page, which is made from the module compiled. A regression
+%% test, written 2026-10-16, after the code; it covers a .erc compiled from
+%% another source, and not one holding another module or one this
+%% toolchain does not read, which the same check refuses
+doc_reads_only_the_modules_erc_test() ->
+    Dir = pair(tmp()),
+    SourceRoot = filename:join(Dir, "src"),
+    BuildRoot = filename:join(Dir, "build"),
+    Elsewhere = write(Dir, "elsewhere/main.ern",
+                      "/// Another Main, compiled from elsewhere.\n\n"
+                      "export fn two() : Int =\n    2\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", filename:dirname(Elsewhere),
+                                 "--build-root", BuildRoot, Elsewhere])),
+    set_modified(filename:join(SourceRoot, "main.ern"), os:system_time(second) - 3600),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot])),
+    {ok, Page} = file:read_file(filename:join(BuildRoot, "main.md")),
+    ?assertEqual(nomatch, binary:match(Page, <<"compiled from elsewhere">>)),
+    ?assertMatch({_, _}, binary:match(Page, <<"## Main.main">>)).
 
 %% report §11.4: a page older than any file of the toolchain's own code is
 %% written again, though its module's source is older than it and no .erc

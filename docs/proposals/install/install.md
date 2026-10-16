@@ -2,7 +2,7 @@
 
 Status: built. This is the installation's design note, and changes when the installation's design does. It is not authoritative.
 
-How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed*, *The Release Has a README of Its Own* and *The Layout Completed* argue it. `installation_test_` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
+How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed*, *The Release Has a README of Its Own* and *The Layout Completed* argue it. `installation_test_` in `test/ern_install_tests.erl` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
 
 ## The layout
 
@@ -20,15 +20,15 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
-share/doc/ernest/                the report's three files under report/, the guide, the release's
-                                 README.md, the logo they show under assets/, LICENSE,
+share/doc/ernest/                every .md under report/, guide/ and tour/, where it stands, the
+                                 release's README.md, the logo they show under assets/, LICENSE,
                                  THIRD_PARTY_LICENSES, ACKNOWLEDGMENTS.md
 share/emacs/site-lisp/ernest-mode.el
 ```
 
 The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, the tests and the examples are not installed. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
 
-The documents installed are for a reader with no checkout. The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout. The report and the guide are staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. So every link of an installed document names a file installed beside it or an address.
+The documents installed are for a reader with no checkout. A document is installed by the directory it stands in: every `.md` under `report/`, `guide/` and `tour/` is for a user of Ernest, and goes in where it stands, a directory the checkout does not hold passed over; `docs/`, the proposals among it, and `CLAUDE.md` are the project's, and stay out. The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout. The documents under the three directories are staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. A link into one of the three, or to the logo under `assets/`, stays a link to the installed copy. So every link of an installed document names a file installed beside it or an address.
 
 `tools/install.sh` stages, installs, uninstalls and writes the archive. `make` builds everything installed, the manual pages included, and `make install` stages the checkout in a temporary directory outside it and installs from there, so that one run as another user writes nothing into the checkout. Nothing installed names the prefix, so a prefix moved whole runs where it is moved to.
 
@@ -52,6 +52,6 @@ It needs `sh`, `readlink` and `iconv`, and checks no version of the host.
 
 ## Removing it
 
-The tree's `installed` lists every file put outside it, one a line, relative to the prefix, and each directory of the installation's own with a slash after it, `share/doc/ernest/` and the two beneath it, each listed before the one that holds it. `make uninstall` removes the files, then those directories, in that order, where they are empty, then the tree; a file of the user's in `share/man/man3` stays, and so does every directory the prefix shares. `make install` first removes an installation already in the prefix the same way.
+The tree's `installed` lists every file put outside it, one a line, relative to the prefix, and each directory of the installation's own with a slash after it, `share/doc/ernest/` and each beneath it, each listed before the one that holds it. `make uninstall` removes the files, then those directories, in that order, where they are empty, then the tree; a file of the user's in `share/man/man3` stays, and so does every directory the prefix shares. `make install` first removes an installation already in the prefix the same way.
 
 Neither target changes anything where it cannot write. Each first checks every directory it must write, or, for one not there yet, the nearest one above it that is, and stops with that directory's name and the two ways out: to run as a user who can write there, or to give another `PREFIX`. `make install` refuses a `lib/ernest` or a `bin/ern` that is not an installation of Ernest, and `make uninstall` a prefix that holds none.

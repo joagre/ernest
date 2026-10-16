@@ -32,7 +32,7 @@ EXEC = erl/runtime/priv/ern_exec
 
 all: $(EXEC)
 	@$(MAKE) $(SIDE_BY_SIDE) -O $(APP_BUILDS)
-	@$(MAKE) -s shell manual
+	@$(MAKE) -s manual
 
 # The applications under erl/, side by side, since none needs another's
 # compiled code to compile: they share headers alone, which each
@@ -63,56 +63,87 @@ stdlib:
 
 # The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
 # its own, compiled into build/libs/<name>, which a program adds with
-# --load-path. libs/ansi is compiled first, since libs/markdown writes
-# its styles with it (report Appendix G.3). A library whose directory is
-# gone has its build removed with it, as the standard library's copies are.
+# --load-path. libs/ansi is compiled first, after the standard library,
+# since libs/markdown writes its styles with it (report Appendix G.3), and
+# the others then side by side, each against it. A library whose directory
+# is gone has its build removed with it, as the standard library's copies
+# are.
+LIBS = $(sort $(notdir $(patsubst %/,%,$(wildcard src/libs/*/))))
+LIB_BUILDS = $(LIBS:%=lib-%)
 LIB_PATH = --load-path build/libs/ansi --load-path build/libs/markdown
-libs: stdlib
-	@bin/ern build --source-root src/libs/ansi --build-root build/libs/ansi src/libs/ansi
-	@for d in src/libs/*/; do n=$$(basename $$d); [ $$n = ansi ] && continue; \
-	  bin/ern build --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n $$d \
-	  || exit 1; done
+libs: $(LIB_BUILDS)
 	@for d in build/libs/*/; do [ -d "src/libs/$$(basename $$d)" ] || rm -rf "$$d"; done
+
+lib-ansi: stdlib
+	@bin/ern build --source-root src/libs/ansi --build-root build/libs/ansi src/libs/ansi
+
+$(filter-out lib-ansi,$(LIB_BUILDS)): lib-%: lib-ansi
+	@bin/ern build --source-root src/libs/$* --load-path build/libs/ansi --build-root build/libs/$* \
+	  src/libs/$*
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): src/shell/
 # compiled by ern build into build/shell, where `ern shell` finds it on the
-# code path.
-# It renders documentation with libs/markdown, and styles it with
-# libs/ansi, which it is compiled against and which ship beside it. A copy
-# whose module is gone is removed, as the standard library's are.
-shell: stdlib libs
+# code path. A copy whose module is gone is removed, as the standard
+# library's are.
+shell: libs shell-libs
 	@bin/ern build $(LIB_PATH) --build-root build/shell src/shell
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; b=build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; \
 	  cmp -s $$f $$b || cp $$f $$b; done
-	@for l in ansi markdown; do cmp -s build/libs/$$l/$$l.erc build/shell/ern@$$l.beam \
-	  || cp build/libs/$$l/$$l.erc build/shell/ern@$$l.beam; done
 	@for b in build/shell/ern@*.beam; do m=$${b#build/shell/ern@}; \
 	  [ "$$m" = markdown.beam ] || [ "$$m" = ansi.beam ] \
 	  || [ -f build/shell/$$(echo $${m%.beam} | tr @ /).erc ] || rm -f $$b; done
 
+# The shell renders documentation with libs/markdown, and styles it with
+# libs/ansi, which it is compiled against and which ship beside it in
+# build/shell, where `ern doc --man` finds libs/markdown too.
+shell-libs: lib-ansi lib-markdown
+	@mkdir -p build/shell
+	@for l in ansi markdown; do cmp -s build/libs/$$l/$$l.erc build/shell/ern@$$l.beam \
+	  || cp build/libs/$$l/$$l.erc build/shell/ern@$$l.beam; done
+
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
 doc: all
+	@$(MAKE) -s pages-stdlib
+
+# The pages in CommonMark (report §11.4), each beside its module's .erc,
+# with index.md listing them: the prelude's and the standard library's in
+# build/stdlib, and each library's in build/libs/<name>. `ern doc` reads
+# each module from its .erc, which make has built, and compiles nothing.
+PAGES = pages-stdlib $(LIBS:%=pages-%)
+pages-stdlib:
 	@bin/ern doc --build-root build/stdlib src/stdlib
+
+$(LIBS:%=pages-%): pages-%:
+	@bin/ern doc --source-root src/libs/$* --load-path build/libs/ansi --build-root build/libs/$* \
+	  src/libs/$*
 
 # The manual pages (report §11, §11.4): the prelude's and every standard
 # library module's, beside the modules' .erc in build/stdlib, each
 # library's beside its own in build/libs, and ern(1), §11 of the report,
 # which tools/manual.ern writes into build/man with the standard library's
 # pages in its SEE ALSO. make writes them, so that make install, which a
-# user may run as another, only copies. `ern doc` writes a page only where
-# none is there or the one there is older than what it is made from (report
-# §11.4), and make writes ern(1) likewise by its prerequisites, so that a
-# make with nothing to do writes none. ern(1) is made by a make of its own,
-# which reads build/stdlib after `ern doc` has written there. A page is
-# written whole or not at all.
-manual: stdlib libs tools
-	@bin/ern doc --man --build-root build/stdlib src/stdlib
-	@for d in src/libs/*/; do n=$$(basename $$d); \
-	  bin/ern doc --man --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n \
-	  $$d || exit 1; done
+# user may run as another, only copies. What they are made from is built
+# first: the trees, and libs/markdown, which lays a page out, copied into
+# the shell's tree, where `ern doc --man` finds it. The shell is built
+# beside the pages, and every job runs side by side with those it does not
+# need. `ern doc` writes a page only where none is there or the one there
+# is older than what it is made from (report §11.4), and make writes ern(1)
+# likewise by its prerequisites, so that a make with nothing to do writes
+# none. ern(1) is made by a make of its own, which reads build/stdlib after
+# `ern doc` has written there. A page is written whole or not at all.
+MANUALS = manual-stdlib $(LIBS:%=manual-%)
+manual:
+	@$(MAKE) -s $(SIDE_BY_SIDE) -O shell tools $(MANUALS)
 	@$(MAKE) -s build/man/ern.1
+
+manual-stdlib: stdlib shell-libs
+	@bin/ern doc --man --build-root build/stdlib src/stdlib
+
+$(LIBS:%=manual-%): manual-%: lib-% shell-libs
+	@bin/ern doc --man --source-root src/libs/$* --load-path build/libs/ansi \
+	  --build-root build/libs/$* src/libs/$*
 
 # ern(1)'s SEE ALSO names the pages in build/stdlib, so the directory is a
 # prerequisite: its time changes whenever a file there is written, added or
@@ -130,23 +161,19 @@ build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 # §11.4); each library's under docs/man/libs/<name>, with an index linking
 # them; and an index over the two, which links the report's §11 for ern
 # itself, two directories up. Each index is its directory's README.md,
-# which GitHub shows when the directory is opened. They are written into
-# build/pages and replace docs/man/ whole, so a page whose module has gone
-# goes.
+# which GitHub shows when the directory is opened. They are written beside
+# the build's .erc and copied, replacing docs/man/ whole, so a page whose
+# module has gone goes.
 man: all
-	@rm -rf build/pages
-	@bin/ern doc --build-root build/pages/stdlib src/stdlib
-	@for d in src/libs/*/; do n=$$(basename $$d); \
-	  bin/ern doc --source-root $$d --load-path build/libs/ansi --build-root build/pages/libs/$$n \
-	  $$d || exit 1; done
+	@$(MAKE) -s $(SIDE_BY_SIDE) -O $(PAGES)
 	@rm -rf docs/man && mkdir docs/man
-	@cd build/pages && find . -name '*.md' ! -name index.md | tar cf - -T - \
-	  | (cd ../../docs/man && tar xf -)
-	@cp build/pages/stdlib/index.md docs/man/stdlib/README.md
+	@cd build && find stdlib $(LIBS:%=libs/%) -name '*.md' ! -name index.md | tar cf - -T - \
+	  | (cd ../docs/man && tar xf -)
+	@cp build/stdlib/index.md docs/man/stdlib/README.md
 	@{ printf '# Libraries\n\n'; \
-	  for d in src/libs/*/; do n=$$(basename $$d); \
+	  for n in $(LIBS); do \
 	    sed -n "s|^- \[\(.*\)\](\(.*\))\$$|- [\1]($$n/\2), \`libs/$$n\`|p" \
-	      build/pages/libs/$$n/index.md; done; \
+	      build/libs/$$n/index.md; done; \
 	} > docs/man/libs/README.md
 	@v=$$(cat VERSION); { \
 	  printf '# The manual pages\n\n'; \
@@ -204,15 +231,20 @@ unicode:
 # The tests by area (plan, MVP 2.6), in two runs (MVP 3.9). `make test` is
 # the light run, for every commit: the applications' unit tests, and the
 # tests of the documents and the style. `make test-full` is every area, for
-# the commit that closes a plan item and for a release. Each runs its jobs
-# side by side, as many at once as the host has cores, each job's output
-# together as it ends. One make runs each phase, since a make started with
-# a -j of its own runs apart from the count. In the full run the unit tests
-# run first, with the jobs that start no host: EUnit gives a test with no
-# time of its own five seconds, which the load of the areas that start
-# hosts would take from them. Those areas then run, each its own tests side
-# by side. Make starts the jobs in the order given, so the longest come
-# first. The tests of the applications run in parts, and in the full run
+# the commit that closes a plan item and for a release. The light run and
+# the full run's first phase run their jobs side by side, as many at once
+# as the host has cores, each job's output together as it ends. One make
+# runs each phase, since a make started with a -j of its own runs apart from
+# the count. In the full run the unit tests run first, with the jobs that
+# start no host: EUnit gives a test with no time of its own five seconds,
+# which the load of the areas that start hosts would take from them. Make
+# starts those jobs in the order given, so the longest come first. The
+# areas that start hosts then run one after another, each whatever the one
+# before it ended with: each runs its own tests side by side, as many at
+# once as the host has schedulers (test/Makefile), which is what the host
+# carries, and the six side by side ran six times as many, at a load of
+# about 117 on eight cores on 2026-10-13, where tests ran past their
+# limits. The tests of the applications run in parts, and in the full run
 # the modules under test/, are compiled first, once, so that no two parts
 # compile one module at once. A change runs its own area's target as it is
 # worked on (docs/development.md, *Building*).
@@ -225,7 +257,7 @@ test-full: all
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs test-grammar \
 	  test-typed
-	@$(MAKE) -s -j$(JOBS) -O test-shell $(PROGRAM_PARTS)
+	@$(MAKE) -s -j1 -k test-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=checker. The runtime's tests are compiled first, since the
@@ -259,15 +291,15 @@ $(APP_PARTS): test-app-%:
 # it, the well-typed programs generated and run, and the shell with the
 # terminal. The programs' parts are nodes on one machine, the manual pages,
 # the installation with the release archive, the deployment guide run on
-# nodes, and the example programs with the signals and the streams, the
-# longest first; test-programs runs them side by side. test-manual and
-# test-install both write the manual pages under build/stdlib, `ern doc
-# --man` there and make install's `make manual`, so test-install runs after
-# test-manual, always: alone it pays the pages' test, about 5 s, for a rule
-# with no case.
+# nodes, and the example programs with the signals and the streams;
+# test-programs runs them one after another, as the full run does.
+# test-manual and test-install both write the manual pages under
+# build/stdlib, `ern doc --man` there and make install's `make manual`, so
+# test-install runs after test-manual, always: alone it pays the pages'
+# test, about 5 s, for a rule with no case.
 PROGRAM_PARTS = test-nodes test-manual test-install test-deployment test-integration
 test-programs:
-	@$(MAKE) -s -j$(JOBS) -O $(PROGRAM_PARTS)
+	@$(MAKE) -s -j1 -k $(PROGRAM_PARTS)
 test-integration: all
 	@$(MAKE) -C test integration
 test-nodes: all
@@ -436,7 +468,9 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 
-.PHONY: all $(APP_BUILDS) stdlib libs shell tools manual man test test-full test-erl \
+.PHONY: all $(APP_BUILDS) stdlib libs $(LIB_BUILDS) shell shell-libs tools manual $(MANUALS) \
+        man $(PAGES) \
+        test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \
         load service bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \

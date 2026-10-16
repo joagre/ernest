@@ -77,9 +77,9 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    release/ holds the archive's own Makefile and README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
-                   in stdlib/ from make doc; pages/ from make man; release/ from
-                   make release; dialyzer/ and dialyzer.plt from make dialyzer;
-                   sanitize/ from make sanitize
+                   in stdlib/ from make doc, and each library's in libs/ too from
+                   make man; release/ from make release; dialyzer/ and
+                   dialyzer.plt from make dialyzer; sanitize/ from make sanitize
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
@@ -94,10 +94,11 @@ make              build the helper, compile every application into its ebin/, th
                   that is missing or older than what it is made from
 make test         build, then the unit tests of every application and the document
                   and style tests, side by side: the light run, a minute or two
-make test-full    build, then every area below, side by side: the whole suite
+make test-full    build, then the unit tests, then every area below, one after another, each
+                  running its own tests as many at once as the host has schedulers: the whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=checker for one
-make test-programs  the five parts below, side by side
+make test-programs  the five parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
                   signals, the streams, Os and the libraries' tests, and that the
                   measuring machine reaches every function of the library

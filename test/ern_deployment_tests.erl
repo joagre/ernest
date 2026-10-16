@@ -124,9 +124,14 @@ runbook(Base) ->
 %% are the harness's, and its counter's `Counter.serve` the upgrade tool's
 %% old loop, `UpgradeTool.serve`. It does not cover `kill -HUP`, a second
 %% `ern stop` while the first waits, which ern_nodes_tests' stop_waits
-%% covers, nor a directory another user owns or may write
+%% covers, nor a directory another user owns or may write. Its limit is
+%% the sum of its twenty waits, each bounded by the harness's time for one
+%% wait: thirteen jobs, two ports that answer, two lines, two nodes' ends
+%% and what the first said; written on 2026-10-16, after its limit of
+%% 120 s, a number of its own, ran out under the full run's load on
+%% 2026-10-13.
 one_node_test_() ->
-    ern_nodes_tests:nodes_test(120, fun one_node/1).
+    ern_nodes_tests:nodes_test({waits, 20}, fun one_node/1).
 
 one_node(Base) ->
     [[{Config, Key}]] = consoles("### 1.1"),
@@ -586,7 +591,8 @@ node(Base, Words) ->
     {Dir, Wait}.
 
 %% A job run from Base by its words after `ern`, as a person runs it: its
-%% status, its standard output and its standard error.
+%% status, its standard output and its standard error. The harness's time
+%% for one wait bounds a failure, as it bounds a node's end.
 job(Base, Words) ->
     Err = filename:join(Base, "job.err"),
     Command = lists:flatten(["cd ", Base, " && ", ?ERN, " ", Words, " 2> ", Err]),
@@ -599,6 +605,8 @@ collected(Port, Acc) ->
     receive
         {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>);
         {Port, {exit_status, Status}} -> {Status, Acc}
+    after ern_nodes_tests:wait_ms() ->
+        erlang:error({still_running, Port, Acc})
     end.
 
 %% Whether Out is the lines a console shows, a line that ends in `...` the
@@ -628,11 +636,18 @@ mapped(Words, Paths) ->
 
 %% Report §8.7: a node listens only once its initializers have their
 %% values, and where `listen` names a port says nothing of it; what shows
-%% that it listens is that the port answers, asked until it does.
+%% that it listens is that the port answers, asked until it does, the
+%% harness's time for one wait bounding a failure.
 answering(Port) ->
-    case gen_tcp:connect({127, 0, 0, 1}, Port, [], 1000) of
+    answering(Port, erlang:monotonic_time(millisecond) + ern_nodes_tests:wait_ms()).
+
+answering(Port, Deadline) ->
+    Left = Deadline - erlang:monotonic_time(millisecond),
+    Left > 0 orelse erlang:error({not_answering, Port}),
+    case gen_tcp:connect({127, 0, 0, 1}, Port, [], Left) of
         {ok, Socket} -> gen_tcp:close(Socket);
-        {error, econnrefused} -> answering(Port)
+        {error, econnrefused} -> answering(Port, Deadline);
+        {error, timeout} -> erlang:error({not_answering, Port})
     end.
 
 listening(Dir, Port) ->

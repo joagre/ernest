@@ -390,9 +390,7 @@ build(_Options, _Rest, _ErrorDevice) ->
 
 %% Report §11.4: a file's documentation to stdout, a directory's into the
 %% build directory, one document per module and an index, or with --man one
-%% manual page per module and no index. The modules are compiled first, so
-%% every document is of a module that type-checks and every dependency has
-%% an interface.
+%% manual page per module and no index.
 doc(Options, [Path], ErrorDevice) ->
     try doc_path(Options, Path, ErrorDevice)
     catch
@@ -404,12 +402,7 @@ doc(_Options, _Rest, _ErrorDevice) ->
 doc_path(Options, Path, ErrorDevice) ->
     case filelib:is_dir(Path) of
         true ->
-            %% report §11.4: the tree is compiled and nothing but its pages
-            %% is written
-            case ern_build:compile_in_memory("ern doc", Options, Path, ErrorDevice) of
-                {0, Compiled} -> doc_dir(Options, Path, Compiled, ErrorDevice);
-                {Status, _} -> Status
-            end;
+            doc_dir(Options, Path, ErrorDevice);
         false ->
             filelib:is_regular(Path) orelse ern_build:fail("no such file " ++ Path),
             try
@@ -493,67 +486,122 @@ in_runtime(Compute, ErrorDevice) ->
         Outcome -> erlang:error({libs_markdown, Outcome})
     end.
 
-doc_dir(Options, Path, Compiled, ErrorDevice) ->
+%% Report §11.4: a directory's documents, or with --man its manual pages,
+%% each written where it is not current. A page is made from its module
+%% compiled, so that every page is of a module that type-checks: a module
+%% whose .erc in build-root is as new as its source is read from it, and
+%% the rest are compiled as `ern build` compiles them, writing nothing.
+%% Where every page is current, nothing is compiled. A file whose path is
+%% no module's fails as a module that does not compile does (§11.1), whose
+%% page is never current.
+doc_dir(Options, Path, ErrorDevice) ->
     SourceRoot = ern_build:source_root(Options, Path, Path),
     BuildRoot = ern_build:build_root(Options, SourceRoot),
-    %% the modules compiled, by their files and namespaces, which is all the
-    %% pages need, so their sources are not parsed again
-    Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot)
-               || File <- ern_build:sources(Path)],
+    %% the modules by their files and namespaces, which is all that tells
+    %% whether a page is current, so no source is parsed to tell it
+    {Unsorted, Misnamed} = ern_build:modules_of(ern_build:sources(Path), SourceRoot, tree),
+    Modules = lists:sort(Unsorted),
     IsStdlib = ern_build:is_stdlib_root(SourceRoot),
-    %% report §11.4: the page of a module whose source is gone goes, as the
-    %% build's sweep takes its .erc
-    Kept = [Namespace || #build_module{namespace = Namespace} <- Modules]
-        ++ [['Prelude'] || IsStdlib],
-    %% report §11.4: every page is made by the toolchain's own code, whose
-    %% newest file is found once for the directory
-    Toolchain = toolchain_modified(),
-    case lists:member(man, Options) of
-        true ->
-            man_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain, ErrorDevice),
-            ern_build:sweep_pages(man, Path, SourceRoot, BuildRoot, Kept);
-        false ->
-            markdown_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain),
-            ern_build:sweep_pages(markdown, Path, SourceRoot, BuildRoot, Kept)
-    end,
-    0.
+    Kind = case lists:member(man, Options) of
+               true -> man;
+               false -> markdown
+           end,
+    Outdated = outdated(pages(Kind, Modules, IsStdlib, BuildRoot), code_modified(Kind)),
+    Outcome = case {Outdated, Misnamed} of
+                  {[], []} -> {0, #{}};
+                  _ -> ern_build:compile_in_memory("ern doc", Options, Path, ErrorDevice,
+                                                   read_compiled(Modules, BuildRoot))
+              end,
+    case Outcome of
+        {0, Compiled} ->
+            write_outdated(Kind, Outdated, Compiled, ErrorDevice),
+            Kind =:= markdown andalso write_index(Modules, IsStdlib, BuildRoot),
+            %% report §11.4: the page of a module whose source is gone goes,
+            %% as the build's sweep takes its .erc
+            Kept = [Namespace || #build_module{namespace = Namespace} <- Modules]
+                ++ [['Prelude'] || IsStdlib],
+            ern_build:sweep_pages(Kind, Path, SourceRoot, BuildRoot, Kept),
+            0;
+        {Status, _} ->
+            Status
+    end.
 
-%% Report §11.4: each module's document where it is not current, and the
-%% index, which is written every time. The standard library's own source
-%% root also has the prelude's page, first in the index.
-markdown_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain) ->
-    Sorted = lists:sort(Modules),
-    Documents = [{filename:join(BuildRoot, "prelude.md"), fun ern_page:prelude_page/0, []}
-                 || IsStdlib]
+%% Report §11.4: each module's page, with what makes it from the compiled
+%% modules and the times of what it is made from of its own: in CommonMark
+%% where `ern build` writes its .erc with `.md` for `.erc`, or a manual
+%% page in that directory in a file named as `man` finds it,
+%% `Ernest.Net.Http.3ern`. The standard library's own source root also has
+%% the prelude's page, at the top of its build root, first in the index.
+pages(markdown, Modules, IsStdlib, BuildRoot) ->
+    [{filename:join(BuildRoot, "prelude.md"), fun(_) -> ern_page:prelude_page() end, []}
+     || IsStdlib]
         ++ [{filename:join(BuildRoot, ern_build:module_path(Namespace) ++ ".md"),
-             fun() -> ern_page:page(maps:get(Namespace, Compiled)) end,
+             fun(Compiled) -> ern_page:page(maps:get(Namespace, Compiled)) end,
              module_modified(Module, BuildRoot)}
-            || #build_module{namespace = Namespace} = Module <- Sorted],
-    write_pages([{Output, Make()} || {Output, Make} <- outdated(Documents, [Toolchain])]),
+            || #build_module{namespace = Namespace} = Module <- Modules];
+pages(man, Modules, IsStdlib, BuildRoot) ->
+    [{man_page(BuildRoot, Namespace),
+      fun(Compiled) -> ern_page:manual(maps:get(Namespace, Compiled)) end,
+      module_modified(Module, BuildRoot)}
+     || #build_module{namespace = Namespace} = Module <- Modules]
+        ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"),
+             fun(_) -> ern_page:prelude_manual() end, []}
+            || IsStdlib].
+
+%% Report §11.4: the times of the code that makes every page: the
+%% toolchain's own, and for a manual page libs/markdown's, which lays it
+%% out.
+code_modified(markdown) -> [toolchain_modified()];
+code_modified(man) -> [toolchain_modified() | markdown_modified()].
+
+%% Report §11.4: the modules read from their .erc in build-root, each the
+%% module's own, compiled from its source, and as new as it, by namespace.
+%% A .erc this toolchain does not read is none: its module is compiled, as
+%% `ern build` compiles again a module another build of `ern` compiled
+%% (§11.1).
+read_compiled(Modules, BuildRoot) ->
+    maps:from_list([{Namespace, Beam}
+                    || #build_module{namespace = Namespace, file = File} = Module <- Modules,
+                       Erc <- [erc_of(Module, BuildRoot)],
+                       {ok, Time} <- [modified(File)],
+                       is_current(Erc, [Time]),
+                       Beam <- [ern_build:read(Erc)],
+                       is_compiled_from(Beam, Namespace, File, BuildRoot)]).
+
+is_compiled_from(Beam, Namespace, File, BuildRoot) ->
+    case {ern_interface:read(Beam), ern_docs:read(Beam)} of
+        {{ok, #{interface := #interface{namespace = Namespace}, source_path := SourcePath}},
+         {ok, _}} ->
+            Source = filename:join(BuildRoot, unicode:characters_to_list(SourcePath)),
+            ern_build:absolute(Source) =:= ern_build:absolute(File);
+        _ ->
+            false
+    end.
+
+%% Report §11.4: each page not current written, laid out from the compiled
+%% modules. libs/markdown lays out the manual pages to be written, in a
+%% started runtime, and none is started where there is none.
+write_outdated(_Kind, [], _Compiled, _ErrorDevice) ->
+    ok;
+write_outdated(markdown, Outdated, Compiled, _ErrorDevice) ->
+    write_pages([{Output, Make(Compiled)} || {Output, Make} <- Outdated]);
+write_outdated(man, Outdated, Compiled, ErrorDevice) ->
+    LaidOut = fun() -> [{Output, Make(Compiled)} || {Output, Make} <- Outdated] end,
+    write_pages(in_runtime(LaidOut, ErrorDevice)).
+
+%% Report §11.4: index.md, listing the modules, the prelude first in the
+%% standard library's own build root, written where its text would differ
+%% from the one there and left as it is otherwise. A link or anything else
+%% at its place is no index, and is replaced, as a page is.
+write_index(Modules, IsStdlib, BuildRoot) ->
     Entries = ["- [Prelude](prelude.md)\n" || IsStdlib]
         ++ [["- [", ern_namespace:text(Namespace), "](", ern_build:module_path(Namespace),
-             ".md)\n"] || #build_module{namespace = Namespace} <- Sorted],
-    ok = ern_build:write_output(filename:join(BuildRoot, "index.md"),
-                                unicode:characters_to_binary(["# Modules\n\n", Entries])).
-
-%% Report §11.4: each manual page where `ern build` writes its module's
-%% .erc, in a file named as `man` finds it, `Ernest.Net.Http.3ern`, and the
-%% prelude's at the top of the standard library's own build root, where it
-%% is not current. libs/markdown lays out the pages to be written, in a
-%% started runtime, and none is started where there is none.
-man_dir(Modules, IsStdlib, BuildRoot, Compiled, Toolchain, ErrorDevice) ->
-    Pages = [{man_page(BuildRoot, Namespace),
-              fun() -> ern_page:manual(maps:get(Namespace, Compiled)) end,
-              module_modified(Module, BuildRoot)}
-             || #build_module{namespace = Namespace} = Module <- lists:sort(Modules)]
-        ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"), fun ern_page:prelude_manual/0, []}
-            || IsStdlib],
-    case outdated(Pages, [Toolchain | markdown_modified()]) of
-        [] ->
-            ok;
-        Outdated ->
-            LaidOut = fun() -> [{Output, Make()} || {Output, Make} <- Outdated] end,
-            write_pages(in_runtime(LaidOut, ErrorDevice))
+             ".md)\n"] || #build_module{namespace = Namespace} <- Modules],
+    Text = unicode:characters_to_binary(["# Modules\n\n", Entries]),
+    Index = filename:join(BuildRoot, "index.md"),
+    case {file:read_link_info(Index), file:read_file(Index)} of
+        {{ok, #file_info{type = regular}}, {ok, Text}} -> ok;
+        _ -> ern_build:write_output(Index, Text)
     end.
 
 %% A module's manual page, in the directory of its .erc.
@@ -589,9 +637,12 @@ is_current(Page, Times) ->
 %% Report §11.4: the times of what a module's page is made from of its
 %% own: its source, and its .erc where `ern build` has written one in
 %% BuildRoot.
-module_modified(#build_module{file = File, relative = Relative}, BuildRoot) ->
-    Erc = filename:join(BuildRoot, filename:rootname(Relative)) ++ ".erc",
-    [Time || Input <- [File, Erc], {ok, Time} <- [modified(Input)]].
+module_modified(#build_module{file = File} = Module, BuildRoot) ->
+    [Time || Input <- [File, erc_of(Module, BuildRoot)], {ok, Time} <- [modified(Input)]].
+
+%% Report §11.1: where `ern build` writes a module's .erc in BuildRoot.
+erc_of(#build_module{relative = Relative}, BuildRoot) ->
+    filename:join(BuildRoot, filename:rootname(Relative)) ++ ".erc".
 
 %% Report §11.4: the newest time of the toolchain's own code, the .beam
 %% files of the applications bin/ern puts on the path, `erl/*/ebin` of the

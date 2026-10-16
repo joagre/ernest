@@ -146,29 +146,37 @@ fn across() : Unit with Msg = {
 }
 
 // The store ended by the test and started again: a monitor of a process of
-// a node out of reach, a send that returns at once, and an address of the
-// node's earlier start, which a call, a send and a monitor find dead, and
-// an adapted address its earlier start made, which drops what is sent
-// through it: the process here it adapts takes first what the same is
-// sent through one the new start made, after it.
+// a node out of reach, a send that returns at once while the dial it asks
+// for waits on a port that answers nothing, which the test holds when the
+// desk says so, and an address of the node's earlier start, which a call,
+// a send and a monitor find dead, and an adapted address its earlier start
+// made, which drops what is sent through it: the process here it adapts
+// takes first what the same is sent through one the new start made, after
+// it. A call through the dead address ends before its time runs out.
 fn restarted(counter : Address(Counter.Msg)) : Unit with Msg = {
     let first = spawnMonitored(firstTaken, Died);
     let doubled = adapted(first);
     monitor(Process.fromAddress(counter), Died);
     Io.println("now kill the store");
     ended("killed");
+    Io.println("now silence the store's port");
+    let _ = Io.readLine();
+    // Report §8.7: the milliseconds after which the host gives up a dial that
+    // nothing answers, which a send that waited behind the dial would wait
+    let dialGivenUp = 7000;
     let sent = Clock.monotonic();
     send(counter, Counter.Add(1));
-    Io.println("send at once: " <> Io.show(Clock.monotonic() - sent < 1000));
+    Io.println("send at once: " <> Io.show(Clock.monotonic() - sent < dialGivenUp));
     watched("out of reach", Process.fromAddress(counter));
     Io.println("now restart the store");
     let _ = Io.readLine();
+    let limit = 5000;
     let called = Clock.monotonic();
-    let answer = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000);
+    let answer = Address.call(counter, fn(reply) = Counter.Get(reply = reply), limit);
     Io.println("old call: "
                    <> Io.show(answer)
                    <> " "
-                   <> Io.show(Clock.monotonic() - called < 1000));
+                   <> Io.show(Clock.monotonic() - called < limit));
     send(counter, Counter.Add(1));
     watched("old monitor", Process.fromAddress(counter));
     let fresh = Shared.found(Counter.service);
@@ -218,18 +226,20 @@ foreign fn sever(process : Process) : Unit with m =
 
 // Report §8.7: each way a call to a process of another node ends, and the
 // note the store keeps of it until it is over, which the store's census
-// counts.
+// counts. A call whose request faults its callee ends before its time runs
+// out.
 fn calls() : Unit with Msg = {
     let brittle = Shared.found(Calls.brittle);
     let sleeper = Shared.found(Calls.sleeper);
     let doomed = Shared.found(Calls.doomed);
     let census = Shared.found(Census.service);
+    let limit = 10000;
     let started = Clock.monotonic();
-    let crashed = Address.call(brittle, fn(reply) = Calls.Crash(reply = reply), 10000);
+    let crashed = Address.call(brittle, fn(reply) = Calls.Crash(reply = reply), limit);
     Io.println("restarted: "
                    <> Io.show(crashed)
                    <> " "
-                   <> Io.show(Clock.monotonic() - started < 5000));
+                   <> Io.show(Clock.monotonic() - started < limit));
     faulted("restarted forever", fn() : Unit with Never = {
         let _ = Address.callForever(brittle, fn(reply) = Calls.Crash(reply = reply));
         Unit
