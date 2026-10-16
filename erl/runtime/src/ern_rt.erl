@@ -251,22 +251,25 @@ sent({Pid, Message}) ->
 %% Report §6.5, §8.7: the process this node keeps for an adapted address it
 %% made and a peer that sends to it, started by the gateway's worker for
 %% the peer, the caller, as a message to the address arrives
-%% (ern_gateway:work/1), so that a function that calls, or never finishes,
+%% (ern_gateway:work/2), so that a function that calls, or never finishes,
 %% holds the peer's messages to that address and nothing else. It applies
 %% each message handed to it, {apply, Message}, in the order handed, as a
 %% send here applies it (deliver/2), a fault in the function being the
 %% target's, and tells the worker {applied, Pid} after each; it ends when
-%% the worker tells it to, `stop`, which the worker does once none waits
-%% and at the peer's loss, so that no message handed to it is lost. The
-%% process is the runtime's, as a Down's delivery is (wrapped/3), and has
-%% no row, since Process.live lists what a program spawned and what a
-%% system module opened (Appendix E.21); it is linked to the reaper, which
-%% lives as long as the run, so that it ends with the program. None where
-%% no run is in progress to apply the function in, between two runs of
-%% `ern test` over a directory, in one host, and before the first, and the
-%% message is dropped; a process whose run ends as it starts ends at once,
-%% the messages handed to it dropped so. Its error handler is this module,
-%% as every process's the runtime starts is (run/1).
+%% the worker tells it to, `stop`, which the worker does once none waits,
+%% so that no message handed to it is lost, a loss of the peer's
+%% connection ending nothing (§8.7). The process is the runtime's, as a
+%% Down's delivery is (wrapped/3), and has no row, since Process.live
+%% lists what a program spawned and what a system module opened (Appendix
+%% E.21); it is linked to the reaper, which lives as long as the run, so
+%% that it ends with the program, and which traps its exit, so that its
+%% end, killed by the purge of the unit whose function it runs among them,
+%% ends nothing else (reaper/0). None where no run is in progress to apply
+%% the function in, between two runs of `ern test` over a directory, in one
+%% host, and before the first, and the message is dropped; a process whose
+%% run ends as it starts ends at once, the messages handed to it dropped
+%% so. Its error handler is this module, as every process's the runtime
+%% starts is (run/1).
 -spec kept(address()) -> pid() | none.
 kept(Address) ->
     Worker = erlang:self(),
@@ -765,7 +768,17 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% The reaper: spawns on request with a monitor of its own, keeps each live
 %% process's row, and tells each process that monitors another how it
 %% ended. Report §6.9: of a process that has ended it keeps nothing, so a
-%% monitor made after the end answers Unknown.
+%% monitor made after the end answers Unknown. Report §6.5, §6.9, §8.7: it
+%% holds the runtime's own processes, each delivery it starts and each
+%% process kept for an adapted address (kept/1), linked to it, so that each
+%% ends with the run as the reaper is stopped (end_program/3); it traps
+%% their exits, so that one that ends otherwise than it returns, killed by
+%% the purge of the unit whose function it runs (§11.2, Appendix E.28),
+%% ends nothing but itself (undelivered/2).
+reaper() ->
+    erlang:process_flag(trap_exit, true),
+    reaper_loop(#reaper{}).
+
 reaper_loop(Reaper) ->
     reaper_loop(Reaper, ?LOOK_SOON).
 
@@ -833,7 +846,10 @@ reaper_loop(Reaper, Wait) ->
         {'WATCHED_DOWN', _MonitorRef, process, Pid, ExitReason} ->
             unoffered(Pid),
             drop_callee_notes(Pid, ExitReason),
-            reaper_loop(Reaper#reaper{watched = maps:remove(Pid, Reaper#reaper.watched)})
+            reaper_loop(Reaper#reaper{watched = maps:remove(Pid, Reaper#reaper.watched)});
+        {'EXIT', Pid, ExitReason} ->
+            undelivered(Pid, ExitReason),
+            reaper_loop(Reaper)
     after Wait ->
         case look() of
             deadlock ->
@@ -1123,9 +1139,10 @@ wrapped(Caller, Wrap, Down) ->
 %% Report §8.6: a process that will deliver a message to the process behind
 %% Address, counted as a source from before it starts until its work is done,
 %% and linked, so that one that never finishes ends with the process that
-%% started it. Report §6.9: it is noted against its recipient and the
-%% process that started it, which ends it when the recipient restarts
-%% (canceled/1).
+%% started it, the reaper or the clock, each of which lives the run long and
+%% traps its exit (reaper/0, clock/1). Report §6.9: it is noted against its
+%% recipient and the process that started it, which ends it when the
+%% recipient restarts (canceled/1).
 counted_link(Address, Work) ->
     Recipient = process_of(Address),
     Starter = erlang:self(),
@@ -1139,6 +1156,25 @@ counted_link(Address, Work) ->
 delivered(Recipient, Starter) ->
     try ets:delete(?DELIVERIES, {Recipient, Starter, erlang:self()}) catch _:_ -> true end,
     source_end().
+
+%% Report §8.6: a process of the runtime's own that the calling process
+%% holds, ended. One that returned, a delivery done or a process kept for
+%% an address told to stop, has taken its own rows. One that ended
+%% otherwise, killed by the purge of the unit whose function it ran (§11.2,
+%% Appendix E.28) or by foreign code, delivered nothing: it is no source any
+%% more, and its row of deliveries goes. The row is found by a read of the
+%% deliveries on their way, which an end of this kind alone pays, and a
+%% purge, which makes it, reads every process of the host.
+undelivered(_Pid, normal) ->
+    ok;
+undelivered(Pid, _ExitReason) ->
+    try
+        ets:delete(?HELD, {source, Pid}),
+        ets:match_delete(?DELIVERIES, {{'_', erlang:self(), Pid}})
+    catch _:_ ->
+        true
+    end,
+    ok.
 
 %% Report §6.9: the deliveries this process started to Recipient, ended
 %% when Recipient restarts, each waited for, so that none reaches the new
@@ -2127,7 +2163,11 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% then. `read_time` reads the host's clock, or a test's.
 -record(clock, {alarms = #{}, by_recipient = #{}, read_time}).
 
+%% Report §6.5, E.15: the clock holds each alarm's delivery, a process of
+%% its own linked to it (fired/2), and traps their exits, as the reaper
+%% does its own (reaper/0).
 clock(ReadTime) ->
+    erlang:process_flag(trap_exit, true),
     _ = erlang:monitor(time_offset, clock_service),
     clock_loop(#clock{read_time = ReadTime}).
 
@@ -2144,7 +2184,10 @@ clock_loop(Clock) ->
         {new_run, Pid, Ref} ->
             Clock1 = alarms_canceled(Pid, Clock),
             Pid ! {Ref, fresh},
-            clock_loop(Clock1)
+            clock_loop(Clock1);
+        {'EXIT', Pid, ExitReason} ->
+            undelivered(Pid, ExitReason),
+            clock_loop(Clock)
     end.
 
 %% An alarm, answered once it is counted, so that the caller goes on
@@ -2272,7 +2315,7 @@ run_main(EntryPoint, Site, Options) ->
     %% report §8.6: a node can be reached from outside, and detects no deadlock
     persistent_term:put({?MODULE, node}, is_map_key(node, Options)),
     Launch = launched(Options),
-    Reaper = erlang:spawn(fun() -> reaper_loop(#reaper{}) end),
+    Reaper = erlang:spawn(fun reaper/0),
     persistent_term:put({?MODULE, reaper}, Reaper),
     Encodings = bytes_out(),
     System = started_system(Options),

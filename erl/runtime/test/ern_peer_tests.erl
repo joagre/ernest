@@ -16,7 +16,7 @@ answer_test() ->
     ok = ern_peer:tables(),
     try
         Ref = make_ref(),
-        true = ets:insert(ern_spawns, {{node(), Ref}, self()}),
+        true = ets:insert(ern_spawns, written(node(), Ref, self())),
         Started = spawn(fun() -> receive after infinity -> ok end end),
         ok = ern_peer:frame(self(), {answer, Ref, {spawned, Started}}),
         ?assertEqual({Ref, {spawned, Started}}, receive {Ref, _} = Got -> Got end),
@@ -43,7 +43,7 @@ dead_spawner_test() ->
         DeadRef = erlang:monitor(process, Dead),
         receive {'DOWN', DeadRef, process, Dead, _} -> ok end,
         Ref = make_ref(),
-        true = ets:insert(ern_spawns, {{node(), Ref}, Dead}),
+        true = ets:insert(ern_spawns, written(node(), Ref, Dead)),
         Started = spawn(fun() -> receive after infinity -> ok end end),
         MonitorRef = erlang:monitor(process, Started),
         ok = ern_peer:frame(self(), {answer, Ref, {spawned, Started}}),
@@ -51,14 +51,47 @@ dead_spawner_test() ->
         ?assertEqual([], ets:tab2list(ern_spawns)),
         Lost = 'lost@node.ernest',
         [Living, Gone, Other] = [make_ref() || _ <- [1, 2, 3]],
-        true = ets:insert(ern_spawns, [{{Lost, Living}, self()}, {{Lost, Gone}, Dead},
-                                       {{'other@node.ernest', Other}, self()}]),
-        ok = ern_peer:lost(Lost),
+        OtherRow = written('other@node.ernest', Other, self()),
+        true = ets:insert(ern_spawns, [written(Lost, Living, self()), written(Lost, Gone, Dead),
+                                       OtherRow]),
+        ok = ern_peer:lost(Lost, erlang:unique_integer([monotonic])),
         ?assertEqual({Living, {failed, 'Unreachable'}}, receive {Living, _} = Got -> Got end),
-        ?assertEqual([{{'other@node.ernest', Other}, self()}], ets:tab2list(ern_spawns))
+        ?assertEqual([OtherRow], ets:tab2list(ern_spawns))
     after
         untabled()
     end.
+
+%% report §8.7: a loss lets go of the spawns that waited on the peer when
+%% the gateway learned of it, and of none written after, a spawn whose wait
+%% began on the connection opened again: its answer, which the worker reads
+%% after the loss, goes to its waiter, and its process runs on. A
+%% regression test, written after the code: the loss took every row of the
+%% peer, so a spawn made after the reconnection was answered Unreachable,
+%% and its process ended as its answer arrived
+spawn_after_a_loss_test() ->
+    ok = ern_peer:tables(),
+    try
+        [Before, After] = [make_ref(), make_ref()],
+        true = ets:insert(ern_spawns, written(node(), Before, self())),
+        Loss = erlang:unique_integer([monotonic]),
+        true = ets:insert(ern_spawns, written(node(), After, self())),
+        ok = ern_peer:lost(node(), Loss),
+        ?assertEqual({Before, {failed, 'Unreachable'}}, receive {Before, _} = Got -> Got end),
+        Started = spawn(fun() -> receive after infinity -> ok end end),
+        ok = ern_peer:frame(self(), {answer, After, {spawned, Started}}),
+        ?assertEqual({After, {spawned, Started}}, receive {After, _} = Answer -> Answer end),
+        ?assertEqual([], ets:tab2list(ern_spawns)),
+        ?assert(erlang:is_process_alive(Started)),
+        exit(Started, kill)
+    after
+        untabled()
+    end.
+
+%% A spawn's row in the gateway's table, as the spawn writes it now: the
+%% peer's node, the spawn's reference, the waiting process and the row's
+%% place in the order of the node's moments.
+written(Node, Ref, Waiting) ->
+    {{Node, Ref}, Waiting, erlang:unique_integer([monotonic])}.
 
 %% The node's peers, {Name, Node} in the configuration's order, listed for
 %% Test, and the tables held, as the carrier lists them and the gateway

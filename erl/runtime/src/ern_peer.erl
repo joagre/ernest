@@ -24,7 +24,7 @@
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          picked/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
          hold_utilization/3, drop_utilization/1, frame/2, failed/4, reach_lacked/2,
-         foreign_lacked/1, lost/1]).
+         foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
@@ -33,10 +33,12 @@
 %% persistent term read or a table written, wait on no process.
 -waits([find/2, spawn/3, spawn_monitored/4, compute/2, compute_at/3, utilization/2]).
 
-%% A spawn waiting for its answer, {{Node, Ref}, Waiting}, by the peer's
-%% node and the spawn's reference: the waiting process. Ordered, so that a
-%% peer's loss reads that peer's rows alone, and an answer is taken only
-%% from the peer the spawn went to.
+%% A spawn waiting for its answer, {{Node, Ref}, Waiting, Order}, by the
+%% peer's node and the spawn's reference: the waiting process, and the
+%% row's place in the order of the node's moments as it was written, which
+%% a loss compares with its own (lost/2). Ordered, so that a peer's loss
+%% reads that peer's rows alone, and an answer is taken only from the peer
+%% the spawn went to.
 -define(SPAWNS, ern_spawns).
 
 %% Report §8.7: the utilization each peer last told this node, {Node,
@@ -225,7 +227,8 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
         Node ->
             Deadline = ern_rt:deadline(Ms),
             Ref = make_ref(),
-            true = ets:insert(?SPAWNS, {{Node, Ref}, erlang:self()}),
+            true = ets:insert(?SPAWNS, {{Node, Ref}, erlang:self(),
+                                        erlang:unique_integer([monotonic])}),
             Gateway = {ern_gateway, Node},
             MonitorRef = erlang:monitor(process, Gateway),
             erlang:send(Gateway, {ern_frame, erlang:self(),
@@ -249,7 +252,7 @@ spawn_answer({_, Ref} = Key, MonitorRef, Deadline) ->
     end.
 
 %% The wait given up: where this node's gateway has taken the row, its
-%% answer, or the loss's `Unreachable` (lost/1), is on its way here and is
+%% answer, or the loss's `Unreachable` (lost/2), is on its way here and is
 %% taken; otherwise none will come, and a late one ends the process it
 %% names.
 given_up({_, Ref} = Key, Error) ->
@@ -772,7 +775,7 @@ absent({QualifiedName, _}) ->
 %% waits, the process it names is ended.
 answered(From, Ref, Answer) ->
     case ets:take(?SPAWNS, {node(From), Ref}) of
-        [{_, Waiting}] ->
+        [{_, Waiting, _}] ->
             case erlang:is_process_alive(Waiting) of
                 true -> Waiting ! {Ref, Answer};
                 false -> ended(Answer)
@@ -784,17 +787,22 @@ answered(From, Ref, Answer) ->
 
 %% Report §8.7: the spawns waiting on a peer whose connection is lost, once
 %% the gateway's worker has read every frame that came before the loss:
-%% each row goes, its waiter answered `Unreachable`, as its own watch on the
-%% peer's gateway answers it, so that no row outlives a waiter that died.
-%% A row its waiter took first is its own.
--spec lost(node()) -> ok.
-lost(Node) ->
-    lists:foreach(fun({{_, Ref} = Key, Waiting}) ->
+%% each row written before the gateway learned of the loss, Order its place
+%% in the order of the node's moments, goes, its waiter answered
+%% `Unreachable`, as its own watch on the peer's gateway answers it, so
+%% that no row outlives a waiter that died. A row written later is a spawn
+%% whose wait began after the loss, its frame gone on the connection opened
+%% again, which the loss does not end. A row its waiter took first is its
+%% own.
+-spec lost(node(), integer()) -> ok.
+lost(Node, Order) ->
+    lists:foreach(fun({{_, Ref} = Key, Waiting, _}) ->
                       case ets:take(?SPAWNS, Key) of
                           [_] -> Waiting ! {Ref, {failed, 'Unreachable'}};
                           [] -> ok
                       end
-                  end, ets:select(?SPAWNS, [{{{Node, '_'}, '_'}, [], ['$_']}])).
+                  end, ets:select(?SPAWNS, [{{{Node, '_'}, '_', '$1'}, [{'<', '$1', Order}],
+                                             ['$_']}])).
 
 %% Report §8.7: a process the spawner no longer waits for is ended as its
 %% answer arrives.

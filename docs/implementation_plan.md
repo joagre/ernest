@@ -410,8 +410,10 @@ bounded. Left: about sixty limits in the nodes tests are numbers of their own, d
 once each test's waits are bounded; and `answering/1` in the deployment tests polls `connect` in
 a tight loop while a node starts, fixed before the tag.
 
-**Before the tag: the reaper and the runtime's own processes.** Found 2026-10-16 by item 2b's
-read-back. The process that applies a wrap or an adapted function (§6.5, §6.9) is linked to the
+**Before the tag: the reaper and the runtime's own processes.** Done 2026-10-16 (the log's *The
+Runtime's Own Processes*): the reaper traps exits and holds them, and so does the clock for an
+alarm's delivery; a refused `:load` under a running wrap hung the session before. Found 2026-10-16
+by item 2b's read-back. The process that applies a wrap or an adapted function (§6.5, §6.9) is linked to the
 reaper, which does not trap exits, so one that ends abnormally, killed by the purge of the unit it
 runs, ends the reaper and the run with it; the shell's check that no process runs a unit and
 `Code.load`'s kill before its purge read the process rows alone, and such a process has none. The
@@ -419,7 +421,10 @@ shape of the fix: the runtime's own processes held by a holder that lives the ru
 exits, or rows of their own that the two checks read; probed first by a reload under a wrap that is
 still running; a regression test in the runtime's tests. Fixed before the tag.
 
-**Before the tag: the gateway's worker across a loss.** Found 2026-10-16 by item 2b's read-back.
+**Before the tag: the gateway's worker across a loss.** Done 2026-10-16 (the log's *The Runtime's
+Own Processes*): one worker for a node across a loss, kept until it has taken every frame handed to
+it and keeps no process, and a loss taking the spawn rows written before the node ran it, which
+§8.7 now says. Found 2026-10-16 by item 2b's read-back.
 When a peer's connection is lost and opened again, the gateway starts a new worker for the peer
 while the old one may still hold frames, and now a process kept for an address whose function
 waits: a message sent after the loss can pass one sent before it, against §6.4's order to one
@@ -429,6 +434,20 @@ as its answer arrives. The shape of the fix: one worker for a node across a loss
 holds no frame and no process, running the loss in order and reading the frames after the
 reconnection itself; and a loss taking only the rows written before it. Regression tests in the
 gateway's and the peer's tests; fixed before the tag.
+
+**Before the tag: purges and the runtime's deliveries.** Found 2026-10-16 by the read-back of the
+reaper's fix; four decisions, each with its recommendation, for the user's eye before they are
+built. The shell's `withdraw/3` deletes and purges the units a refused `:load` or `:reload`
+brought, against §11.2, where such a unit stays loaded while the session runs, and
+`docs/memory.md` says what the code does: the code should follow §11.2 (principle 1), after which
+no purge of the shell's reaches a running delivery. `Code.load`'s purge (E.28) kills a wrap's or an
+adapted function's delivery in flight, so the monitor makes no message, against §6.9's one message
+for each `monitor`: a delivery a purge kills should fault its recipient as a wrap that faults does,
+its cause naming the load, with a sentence in §6.9 and E.28. A delivery whose recipient has ended
+runs until its function returns, out of the program's reach: it should end with the recipient, as a
+restart ends the deliveries to its process, with a §6.9 sentence. The end's tellers (`tell_all/3`)
+are linked to the runner, which traps no exit, and each applies a subscriber's wrap: they should
+be held as the reaper holds its deliveries. Fixed before the tag, once decided.
 
 **Before the tag: the shell and a private mailbox type.** Found 2026-10-15 by use. With `count`
 exported and its mailbox type `Msg` kept private, which the report's rule on exported declarations

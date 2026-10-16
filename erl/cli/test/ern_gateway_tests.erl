@@ -1,10 +1,11 @@
 %% Report §6.5, §8.7: a node's gateway's worker for a peer, as the gateway
 %% starts it, the test standing in for the gateway, which hands the worker
-%% each of the peer's frames, and for the peer, whose frames are messages
-%% to an adapted address this node made: the process the worker keeps for
-%% each such address. Each runs in a program, whose reaper the processes
-%% kept are linked to. Real nodes are test/ern_nodes_tests.erl's.
-%% Regression tests, written after the code (MVP 3.26's item 2b).
+%% each of the peer's frames and losses and answers its ask to end, and for
+%% the peer, whose frames are messages to an adapted address this node
+%% made: the process the worker keeps for each such address. Each runs in a
+%% program, whose reaper the processes kept are linked to. Real nodes are
+%% test/ern_nodes_tests.erl's. Regression tests, written after the code
+%% (MVP 3.26's item 2b, and the worker across a loss before the tag).
 -module(ern_gateway_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -22,7 +23,7 @@ adapted_in_order_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Main = erlang:self(),
-               Worker = spawn(fun() -> ern_gateway:work(?PEER) end),
+               Worker = spawn(fun() -> ern_gateway:work(?PEER, Main) end),
                Applying = fun({held, N}) ->
                                   Main ! {applying, erlang:self(), N},
                                   receive go -> {got, N} end;
@@ -59,7 +60,7 @@ adapted_in_order_test() ->
 %% test` runs a directory's tests, starts another, which applies it
 adapted_forgotten_test() ->
     Self = self(),
-    Worker = spawn(fun() -> ern_gateway:work(?PEER) end),
+    Worker = spawn(fun() -> ern_gateway:work(?PEER, Self) end),
     Applying = fun({held, Main}) ->
                        Main ! {applying, erlang:self(), held},
                        receive never -> held end;
@@ -96,22 +97,33 @@ adapted_forgotten_test() ->
     ?assertNotEqual(First, Second),
     ?assertEqual(Second, got()).
 
-%% report §6.5, §8.7: at the peer's loss each process the worker keeps
-%% applies every message it was handed before the loss, since nothing else
-%% ends at a loss, and then ends, as the worker does
-adapted_at_loss_test() ->
+%% report §6.5, §6.4, §8.7: a loss of the peer's connection while the
+%% process the worker keeps for an address holds a message ends nothing:
+%% the worker runs the loss and reads the frames that come after the
+%% connection is opened again, handing the reconnected peer's message to
+%% the same process, which applies it after the one it held, and ends once
+%% none waits; the worker, holding nothing, asks the gateway to end it with
+%% how many of its messages it has taken, and goes on where the gateway has
+%% handed it more since, its next message to the address starting another
+%% process, until it asks again and the gateway ends it. A regression test,
+%% written after the code: at the loss the worker told each process it kept
+%% to stop and ended, and the gateway handed the frames after the loss to
+%% another worker, whose process for the address applied the later message
+%% before the held one
+adapted_across_a_loss_test() ->
     Self = self(),
     ok = ern_peer:tables(),
     try
         ok = ern_rt:run_main(
                fun() ->
                    Main = erlang:self(),
-                   Worker = spawn(fun() -> ern_gateway:work(?PEER) end),
+                   Worker = spawn(fun() -> ern_gateway:work(?PEER, Main) end),
                    WorkerRef = erlang:monitor(process, Worker),
                    Applying = fun({held, N}) ->
                                       Main ! {applying, erlang:self(), N},
                                       receive go -> {got, N} end;
                                  (N) ->
+                                      Main ! {applying, erlang:self(), N},
                                       {got, N}
                               end,
                    Address = ern_rt:adapted(Main, Applying),
@@ -119,20 +131,34 @@ adapted_at_loss_test() ->
                    Worker ! frame(Address, {held, 1}),
                    Kept = applying(1),
                    KeptRef = erlang:monitor(process, Kept),
+                   Worker ! {lost, erlang:unique_integer([monotonic])},
                    Worker ! frame(Address, 2),
-                   Worker ! stop,
-                   WorkerEnded = ended(WorkerRef),
                    Kept ! go,
+                   Again = applying(2),
                    Got = [got() || _ <- [1, 2]],
                    KeptEnded = ended(KeptRef),
+                   Asked = idle(Worker),
+                   %% handed more since it asked, it goes on
+                   Worker ! frame(Address, 3),
+                   Next = applying(3),
+                   3 = got(),
+                   AskedAgain = idle(Worker),
+                   Worker ! stop,
+                   WorkerEnded = ended(WorkerRef),
                    ern_rt:untimed(),
-                   Self ! {lost, {WorkerEnded, Got, KeptEnded}}
+                   Self ! {lost, {Again =:= Kept, Next =/= Kept, Got, KeptEnded,
+                                  [Asked, AskedAgain], WorkerEnded}}
                end, <<"main">>, quiet()),
-        ?assertEqual({normal, [1, 2], normal}, wait(lost))
+        ?assertEqual({true, true, [1, 2], normal, [3, 4], normal}, wait(lost))
     after
         ets:delete(ern_spawns),
         ets:delete(ern_utilizations)
     end.
+
+%% The worker's ask to end, with how many of the gateway's messages it has
+%% taken.
+idle(Worker) ->
+    receive {idle, ?PEER, Worker, Taken} -> Taken end.
 
 %% A peer's frame to an adapted address, as the gateway hands it to the
 %% worker.

@@ -1107,6 +1107,97 @@ adapted_from_peer_test() ->
     ?assertEqual(killed, wait(endless_end)),
     ?assertEqual(none, ern_rt:kept(ern_rt:adapted(Self, fun(N) -> N end))).
 
+%% report §6.5, §6.9, §8.6, §8.7, §11.2, Appendix E.15, E.28: the runtime's
+%% own processes, a monitor's wrap's delivery, an alarm's delivery and the
+%% process kept for an adapted address, each killed while its function
+%% runs, as the purge of the unit the function is of kills it, end nothing
+%% else: the run goes on, the reaper and the clock alive, a later Down and
+%% a later alarm delivered; and a delivery killed so is no source any more,
+%% so that the deadlock the entry process then makes is found. A regression
+%% test, written after the code: each was linked to the reaper or the
+%% clock, which did not trap exits, so the kill ended it and left every
+%% later spawn, or every later alarm, waiting for ever
+own_processes_killed_test() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    Clock = ern_rt:system_process(clock),
+                    Endless = fun(_) ->
+                                  Main ! {endless, erlang:self()},
+                                  receive never -> ok end
+                              end,
+                    %% the waits count as timed, so that they are no deadlock
+                    ern_rt:timed(),
+                    _ = ern_rt:spawn_monitored(fun() -> ok end, Endless, <<"Main.main:2">>),
+                    killed(endless()),
+                    alarm(Clock, 0, ern_rt:adapted(Main, Endless)),
+                    killed(endless()),
+                    Kept = ern_rt:kept(ern_rt:adapted(Main, Endless)),
+                    Kept ! {apply, 1},
+                    killed(endless()),
+                    Reaper = persistent_term:get({ern_rt, reaper}),
+                    _ = ern_rt:spawn_monitored(fun() -> ok end, fun(Down) -> {later, Down} end,
+                                               <<"Main.main:9">>),
+                    Later = receive {later, Down} -> Down end,
+                    alarm(Clock, 0, ern_rt:adapted(Main, fun(_) -> rang end)),
+                    receive rang -> ok end,
+                    Self ! {killed, {[erlang:is_process_alive(Pid) || Pid <- [Reaper, Clock]],
+                                     Later}},
+                    ern_rt:untimed(),
+                    receive never -> ok end
+                end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({[true, true], {'Down', _, 'Returned', <<"Main.main:9">>}}, wait(killed)),
+    ?assertEqual({fault, <<"deadlock">>}, Outcome).
+
+%% report §6.5, §6.9, §8.6, §8.7, Appendix E.15: the runtime's own processes
+%% whose functions still run as the program ends, a monitor's wrap's
+%% delivery, an alarm's delivery and a process kept for an adapted address,
+%% end with it. A regression test, written after the code, which holds them
+%% to their end now that the reaper and the clock that hold them trap their
+%% exits
+own_processes_end_with_the_program_test() ->
+    Self = self(),
+    Watcher = spawn(fun() -> watching(Self) end),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Endless = fun(_) -> Main ! {endless, erlang:self()}, receive never -> ok end end,
+               ern_rt:timed(),
+               _ = ern_rt:spawn_monitored(fun() -> ok end, Endless, <<"Main.main:2">>),
+               Wrapping = endless(),
+               alarm(ern_rt:system_process(clock), 0, ern_rt:adapted(Main, Endless)),
+               Ringing = endless(),
+               Kept = ern_rt:kept(ern_rt:adapted(Main, Endless)),
+               Kept ! {apply, 1},
+               Kept = endless(),
+               Watcher ! {watch, [Wrapping, Ringing, Kept], Main},
+               receive watching -> ok end,
+               ern_rt:untimed()
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([killed, killed, killed], wait(ended)).
+
+%% The process an endless function runs in, once it runs.
+endless() ->
+    receive {endless, Pid} -> Pid end.
+
+%% Pid killed, and waited for.
+killed(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    exit(Pid, kill),
+    receive {'DOWN', MonitorRef, process, Pid, _} -> ok end.
+
+%% The processes a run names, watched from outside it, how each ended told
+%% to Tester once all have.
+watching(Tester) ->
+    receive
+        {watch, Pids, From} ->
+            MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
+            From ! watching,
+            Tester ! {ended, [receive {'DOWN', MonitorRef, process, _, ExitReason} -> ExitReason end
+                              || MonitorRef <- MonitorRefs]}
+    end.
+
 %% report §11.2, §6.9, Appendix E.18: a process spawn_root starts heads a
 %% spawn chain of its own, and every process spawned from it, directly or
 %% through one that has since ended, is started by it, and so is a

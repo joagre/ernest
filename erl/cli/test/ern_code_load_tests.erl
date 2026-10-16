@@ -113,6 +113,59 @@ load_test() ->
     %% report §11.2: nothing of the faulting load stays loaded
     ?assertNot(erlang:module_loaded('ern@plug@bad')).
 
+%% Appendix E.28, report §6.9, §11.2: a load whose binding faults while a
+%% monitor's wrap of the module it brought still runs, in the runtime's own
+%% process for the Down's delivery, is undone all the same: the purge of
+%% the module ends that process, as it ends any that runs the module's
+%% code, and nothing else, so the program goes on, a later monitor's Down
+%% delivered and the load refused alike when asked again. A regression
+%% test, written after the code: the delivery's process was linked to the
+%% runtime's reaper, which did not trap exits, so the purge ended the
+%% reaper with it, and the program waited for ever at its next monitor. The
+%% shell's refused load and reload, which purge as this load does
+%% (ern_shell's withdraw/3), are not run here
+load_under_a_running_wrap_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/watch.ern",
+          "type Msg = Spinning | Done(Int) | Ready(Reply(Unit))\n\n"
+          "fn spin(count : Int) : Int = spin(count + 1)\n\n"
+          "let watcher : Address(Msg) = spawn(fn() : Unit receiving Msg = {\n"
+          "    let watching = self();\n"
+          "    monitor(Process.fromAddress(spawn(fn() = Unit)), fn(_) = {\n"
+          "        send(watching, Spinning);\n"
+          "        Done(spin(0))\n"
+          "    });\n"
+          "    receive {\n"
+          "        Spinning -> receive {\n"
+          "            Ready(reply) -> answer(reply, Unit)\n"
+          "        }\n"
+          "    };\n"
+          "    receive {\n"
+          "        Done(_) -> Unit\n"
+          "    }\n"
+          "})\n\n"
+          "let spinning : Unit = Address.callForever(watcher, fn(reply) = Ready(reply))\n\n"
+          "let broken : Int = 1 / List.size([])\n"),
+    built(Lib, "plug/watch.ern"),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Ended(Down)\n\n"
+                 "fn shown(path : String) : Unit =\n"
+                 "    Io.println(Io.show(Code.load(Path(path))))\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    shown(\"" ++ Lib ++ "/plug/watch.erc\");\n"
+                 "    monitor(Process.fromAddress(spawn(fn() = Unit)), fn(down) = Ended(down));\n"
+                 "    receive {\n"
+                 "        Ended(_) -> Io.println(\"a later monitor told\")\n"
+                 "    };\n"
+                 "    shown(\"" ++ Lib ++ "/plug/watch.erc\")\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    Refused = <<"Left(Other(\"Plug.Watch.broken:23 faulted: division by zero\"))">>,
+    ?assertEqual([Refused, <<"a later monitor told">>, Refused],
+                 ran(filename:rootname(Main) ++ ".erc")),
+    ?assertNot(erlang:module_loaded('ern@plug@watch')).
+
 %% Appendix E.28, report §11.2: a module compiled against another
 %% interface of a module it uses than the load path holds is Invalid
 other_interface_test() ->

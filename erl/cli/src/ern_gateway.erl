@@ -1,19 +1,22 @@
 %% Report §8.7: a node's gateway, the one registered process that takes
 %% every frame of the runtime's from every peer, from the node's start, so
 %% that the frame which opens a connection finds it; each frame is handed to
-%% a worker for the sender's node, which ends with that node's connection,
-%% once it has read every frame that came before the loss. Through it go
-%% what needs a process on the receiving node: a spawn and its answer, a
-%% compute, a find, and a message to an adapted address, each read by
-%% ern_peer:frame/2, a spawn or a compute of a function the node lacks
-%% handed on to the node's exchange (ern_exchange), which the worker tells
-%% of the loss too, and a message to an adapted address handed to the
-%% process the worker keeps for the address (§6.5, ern_rt:kept/1), which
-%% applies its function; a frame it cannot read is faulty, and the node ends
-%% that peer's connection. The exchange's four frames, the request for a
-%% reach, the reach, the lacks and a code frame, it hands to the exchange
-%% as they come, and records nothing of them. A call's two notes it records
-%% itself, in the
+%% a worker for the sender's node, one across a loss of that node's
+%% connection, which runs the loss once it has read every frame that came
+%% before it, reads those that come after the connection is opened again,
+%% and ends once it holds no frame and no process kept for an address, so
+%% that a peer's messages to one address keep their order across a loss
+%% (§6.4, §6.5). Through it go what needs a process on the receiving node:
+%% a spawn and its answer, a compute, a find, and a message to an adapted
+%% address, each read by ern_peer:frame/2, a spawn or a compute of a
+%% function the node lacks handed on to the node's exchange (ern_exchange),
+%% which the worker tells of the loss too, and a message to an adapted
+%% address handed to the process the worker keeps for the address (§6.5,
+%% ern_rt:kept/1), which applies its function; a frame it cannot read is
+%% faulty, and the node ends that peer's connection. The exchange's four
+%% frames, the request for a reach, the reach, the lacks and a code frame,
+%% it hands to the exchange as they come, and records nothing of them. A
+%% call's two notes it records itself, in the
 %% order they came, so that a restart, which asks it as it asks the reaper,
 %% reads every note that came before it (§6.9), and so it does a peer's
 %% word that it ends; a compute's frame is its call's first note, which it
@@ -41,7 +44,7 @@
 %% connection to end, and is dropped, which the node says.
 -module(ern_gateway).
 
--export([start/0, reloaded/0, work/1, outcome/2]).
+-export([start/0, reloaded/0, work/2, outcome/2]).
 
 -include("ern_node.hrl").
 
@@ -51,6 +54,14 @@
 %% adapted address the peer sends to (ern_rt:kept/1), the worker's monitor
 %% of it, and how many messages it has been handed and has not applied.
 -record(kept, {pid, monitor_ref, waiting}).
+
+%% Report §8.7: the state of the worker for a peer: the peer's node, the
+%% gateway that hands it the peer's frames and losses, a #kept{} for each
+%% adapted address the peer has sent to while messages to it wait, by the
+%% address, each kept process's address by its pid, how many of the
+%% gateway's messages it has taken, and whether it has run a loss, after
+%% which it ends once it holds nothing (idled/1).
+-record(worker, {node, gateway, kept = #{}, addresses = #{}, taken = 0, lost = false}).
 
 %% The gateway registered and running, watching the node's connections to
 %% every kind of node, before the node listens, measuring the node as its
@@ -90,8 +101,9 @@ reloaded() ->
             end
     end.
 
-%% Workers holds a worker for each peer a frame has come from, while its
-%% connection lasts, Ended each peer that told this node it ends, until its
+%% Workers holds a worker for each peer a frame or a loss has come from,
+%% with how many of them it has been handed, until it holds nothing after a
+%% loss (idled/1), Ended each peer that told this node it ends, until its
 %% connection's end, Measured the node's measure of how busy it is, with
 %% what the measure keeps (measured/2), and Telling the moment of the next
 %% telling, or none while the node lists no peer (armed/1).
@@ -112,9 +124,7 @@ gateway(Workers, Ended, Measured, Telling) ->
           when is_pid(From), node(From) =/= node(), is_reference(Alias),
                node(Alias) =:= node(From) ->
             noted(fun() -> ern_rt:note_compute(From, Alias) end),
-            {Worker, Workers1} = worker(node(From), Workers),
-            Worker ! Frame,
-            gateway(Workers1, Ended, Measured, Telling);
+            gateway(hand(node(From), Frame, Workers), Ended, Measured, Telling);
         %% report §8.7, §11.2: how busy the node is, answered through the
         %% asker's alias as a find is answered, `Unreachable` between two
         %% launches of `ern test` over a directory, in one host
@@ -162,23 +172,33 @@ gateway(Workers, Ended, Measured, Telling) ->
             ern_exchange:handed(Frame),
             gateway(Workers, Ended, Measured, Telling);
         {ern_frame, From, _Body} = Frame when is_pid(From), node(From) =/= node() ->
-            Node = node(From),
-            {Worker, Workers1} = worker(Node, Workers),
-            Worker ! Frame,
-            gateway(Workers1, Ended, Measured, Telling);
+            gateway(hand(node(From), Frame, Workers), Ended, Measured, Telling);
         {nodedown, Node, _} = Event ->
             %% report §8.7: the worker reads the frames before the loss, a
             %% spawn's answer it is handing over among them, and then lets
-            %% go of the spawns waiting on the peer (ern_peer:lost/1)
-            {Worker, _} = worker(Node, Workers),
-            Worker ! stop,
+            %% go of the spawns that waited on the peer before the gateway
+            %% learned of the loss, by its place in the order of the node's
+            %% moments (ern_peer:lost/2); it reads the frames that come
+            %% after it too, the worker of the connection opened again
+            Loss = {lost, erlang:unique_integer([monotonic])},
             noted(fun() -> ern_rt:drop_notes(Node) end),
             ok = ern_peer:drop_utilization(Node),
             said(case Ended of
                      #{Node := true} -> {ended, Node};
                      _ -> Event
                  end),
-            gateway(maps:remove(Node, Workers), maps:remove(Node, Ended), Measured, Telling);
+            gateway(hand(Node, Loss, Workers), maps:remove(Node, Ended), Measured, Telling);
+        %% report §8.7: a worker that has run a loss and holds nothing ends
+        %% where it has taken every message it was handed, and is the
+        %% node's worker no longer; one handed more since asks again
+        {idle, Node, Worker, Taken} when is_pid(Worker), node(Worker) =:= node() ->
+            case Workers of
+                #{Node := {Worker, Taken}} ->
+                    Worker ! stop,
+                    gateway(maps:remove(Node, Workers), Ended, Measured, Telling);
+                #{} ->
+                    gateway(Workers, Ended, Measured, Telling)
+            end;
         %% report §8.7: a peer that connects is told at once, so that it
         %% holds this node's utilization before an interval has passed
         {nodeup, Node, _} = Event ->
@@ -302,63 +322,93 @@ said(Event) ->
 noted(Write) ->
     try Write() catch error:badarg -> ok end.
 
-worker(Node, Workers) ->
-    case Workers of
-        #{Node := Worker} -> {Worker, Workers};
-        _ ->
-            Worker = spawn(fun() -> work(Node) end),
-            {Worker, Workers#{Node => Worker}}
-    end.
+%% Report §8.7: a frame or a loss of Node's handed to the node's worker,
+%% one started where it has none, and counted, so that the worker ends only
+%% once it has taken every message it was handed (idled/1).
+hand(Node, Message, Workers) ->
+    {Worker, Handed} = case Workers of
+                           #{Node := Counted} -> Counted;
+                           #{} -> {started(Node), 0}
+                       end,
+    Worker ! Message,
+    Workers#{Node => {Worker, Handed + 1}}.
 
-%% Report §8.7: the worker for the peer of Node, which the gateway starts
-%% for each peer a frame comes from, and its tests alone: the peer's frames,
-%% read in the order they came, a spawn or a compute of a function this
-%% node lacks handed to the exchange, which asks the peer for its reach
-%% while the worker goes on with the next frame, and a message to an
+%% The worker for Node, started by this process, its gateway.
+started(Node) ->
+    Gateway = self(),
+    spawn(fun() -> work(Node, Gateway) end).
+
+%% Report §8.7: the worker for the peer of Node, which Gateway starts for
+%% each peer a frame or a loss comes from, and its tests alone: the peer's
+%% frames, read in the order they came, a spawn or a compute of a function
+%% this node lacks handed to the exchange, which asks the peer for its
+%% reach while the worker goes on with the next frame, and a message to an
 %% adapted address handed to the process kept for the address (§6.5,
-%% handed/4). At the loss, each process kept is told to stop once it has
-%% applied what it was handed, since nothing else ends at a loss, the
-%% spawns that wait on the peer are let go, and then the exchanges asked of
-%% it, the frames the worker handed it having come before, and the worker
-%% ends.
--spec work(node()) -> ok.
-work(Node) ->
-    work(Node, #{}, #{}).
+%% handed/4). At a loss, the frames before it read, the spawns that waited
+%% on the peer before it are let go, and then the exchanges asked of it, the
+%% frames the worker handed it having come before; each process kept goes
+%% on with what it was handed, since nothing else ends at a loss, and the
+%% worker reads the frames of the connection opened again after the loss,
+%% so that a message sent after the loss is applied after one sent before
+%% it to the same address (§6.4). Once it holds no kept process it asks the
+%% gateway to end it (idled/1), and ends at the gateway's `stop`.
+-spec work(node(), pid()) -> ok.
+work(Node, Gateway) ->
+    work(#worker{node = Node, gateway = Gateway}).
 
-%% Kept holds a #kept{} for each adapted address the peer has sent to
-%% while messages to it wait, by the address, and Addresses each kept
-%% process's address, by its pid.
-work(Node, Kept, Addresses) ->
+work(#worker{node = Node, taken = Taken} = State) ->
     receive
         {ern_frame, From, Body} ->
-            Read = try ern_peer:frame(From, Body)
-                   catch _:_ -> unreadable
-                   end,
-            case Read of
-                {adapted, Address, Message} ->
-                    {Kept1, Addresses1} = handed(Address, Message, Kept, Addresses),
-                    work(Node, Kept1, Addresses1);
-                {exchange, Identity} ->
-                    ern_exchange:lacking(From, Body, Identity),
-                    work(Node, Kept, Addresses);
-                _ ->
-                    outcome(Node, Read),
-                    work(Node, Kept, Addresses)
-            end;
+            work(idled(framed(From, Body, State#worker{taken = Taken + 1})));
         {applied, Pid} ->
-            {Kept1, Addresses1} = applied(Pid, Kept, Addresses),
-            work(Node, Kept1, Addresses1);
+            work(idled(applied(Pid, State)));
         %% report §6.5: a process kept that ended otherwise than told, with
         %% the run it was started in, is forgotten, and the next message to
         %% its address starts another
         {'DOWN', _, process, Pid, _} ->
-            {Address, Addresses1} = maps:take(Pid, Addresses),
-            work(Node, maps:remove(Address, Kept), Addresses1);
+            work(idled(forgotten(Pid, State)));
+        {lost, Order} ->
+            ern_peer:lost(Node, Order),
+            ern_exchange:lost(Node),
+            work(idled(State#worker{taken = Taken + 1, lost = true}));
         stop ->
-            maps:foreach(fun(Pid, _) -> Pid ! stop end, Addresses),
-            ern_peer:lost(Node),
-            ern_exchange:lost(Node)
+            ok
     end.
+
+%% A peer's frame read: a message to an adapted address handed to the
+%% process kept for it, a spawn or a compute of a function this node lacks
+%% to the exchange, and any other frame's outcome said and done.
+framed(From, Body, #worker{node = Node, kept = Kept, addresses = Addresses} = State) ->
+    Read = try ern_peer:frame(From, Body)
+           catch _:_ -> unreadable
+           end,
+    case Read of
+        {adapted, Address, Message} ->
+            {Kept1, Addresses1} = handed(Address, Message, Kept, Addresses),
+            State#worker{kept = Kept1, addresses = Addresses1};
+        {exchange, Identity} ->
+            ern_exchange:lacking(From, Body, Identity),
+            State;
+        _ ->
+            outcome(Node, Read),
+            State
+    end.
+
+%% Report §8.7: a worker that has run a loss and holds no kept process asks
+%% the gateway to end it, with how many of its messages it has taken, since
+%% the gateway alone knows whether it has handed it more.
+idled(#worker{lost = true, kept = Kept, node = Node, gateway = Gateway, taken = Taken} = State)
+  when map_size(Kept) =:= 0 ->
+    Gateway ! {idle, Node, self(), Taken},
+    State;
+idled(State) ->
+    State.
+
+%% A process kept that ended otherwise than told forgotten with its
+%% address.
+forgotten(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
+    {Address, Addresses1} = maps:take(Pid, Addresses),
+    State#worker{kept = maps:remove(Address, Kept), addresses = Addresses1}.
 
 %% Report §6.5, §8.7: a message to an adapted address handed to the process
 %% kept for the address, after every message handed to it before, and
@@ -387,16 +437,17 @@ handed(Address, Message, Kept, Addresses) ->
 %% applied, counted off; once none waits the process is told to stop and
 %% forgotten, so that it ends having applied every message it was handed,
 %% and the next message to the address starts another.
-applied(Pid, Kept, Addresses) ->
+applied(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
     #{Pid := Address} = Addresses,
     case Kept of
         #{Address := #kept{monitor_ref = MonitorRef, waiting = 1}} ->
             erlang:demonitor(MonitorRef, [flush]),
             Pid ! stop,
-            {maps:remove(Address, Kept), maps:remove(Pid, Addresses)};
+            State#worker{kept = maps:remove(Address, Kept),
+                         addresses = maps:remove(Pid, Addresses)};
         #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting}} ->
-            {Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting - 1}},
-             Addresses}
+            State#worker{kept = Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef,
+                                                       waiting = Waiting - 1}}}
     end.
 
 %% Report §8.7: what a frame's reading tells the node to say and do, here
