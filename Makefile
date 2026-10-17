@@ -302,6 +302,12 @@ test-install: all test-manual
 	@$(MAKE) -C test install
 test-docs:
 	@$(MAKE) -C test docs
+	@sh tools/paragraphs.sh
+
+# The prose paragraphs past about a hundred words, for their writer to read
+# again (CLAUDE.md, *Writing*); test-docs lists them too, and fails on none.
+paragraphs:
+	@sh tools/paragraphs.sh
 test-guide: all
 	@$(MAKE) -C test guide
 test-grammar: all
@@ -466,4 +472,5 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \
         load service bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \
+        paragraphs \
         dialyzer sanitize diagnostics

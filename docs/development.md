@@ -107,6 +107,8 @@ make test-install  the installation and the release archive, installed and run
                   where they are put; after test-manual, which it runs first,
                   since both write the manual pages
 make test-docs    the document tests and the style tests
+make paragraphs   list every prose paragraph past about a hundred words, for its writer to
+                  read again for a turn it may hide; test-docs lists them too, and fails on none
 make test-guide   the guide's examples, the report's, the README's, and the catalog of
                   diagnostics
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
