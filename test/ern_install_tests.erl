@@ -7,6 +7,14 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+%% The paths install.sh installs every tracked file of, as its `documents`
+%% names them, a directory with a slash after it.
+-define(DOCUMENTS, ["report/", "guide/", "tour/", "examples/", "editors/emacs/README.md"]).
+
+%% A file of examples/ the repository does not track, which install/0
+%% writes before the installation and removes after it, whatever its end.
+-define(UNTRACKED, "../examples/ern_install_tests_untracked.txt").
+
 %% The installation and the archive, each made by make, one after the other,
 %% since two makes at once would each write the built trees. Each make here
 %% builds before it installs, and a test that runs beside other areas runs
@@ -70,14 +78,28 @@ parts({Base, Ms}) ->
 %% shell's: written on 2026-10-17, when the copies of each under its
 %% Erlang name, which the host's loader read from the code path, went, and
 %% `ern` came to load each module from its `.erc`; it does not cover a
-%% library's build under build/libs. Answers the directory the parts
-%% after it work in.
+%% library's build under build/libs. So is that every file the repository
+%% tracks under examples/, and editors/emacs/README.md, is installed where
+%% it stands and no file it does not track, one written for the test among
+%% them; that each link of the guide's to either stays the one the guide
+%% writes and names a file installed, as no link to them into the
+%% repository remains; and that the installed examples build with the
+%% installed `ern` and its libraries: written on 2026-10-17, after the
+%% code that installs them, when the guide was found linking seven programs
+%% and the note that turns the Emacs mode on that no installation held. The
+%% examples are built as one directory, not each as its first comment
+%% builds it, and none is run here; nor is a checkout staged by another
+%% user than its owner, root among them, or a tree git does not hold.
+%% Answers the directory the parts after it work in.
 install() ->
     Version = version(),
     Base = filename:absname("build/install"),
     ok = ern_integration_tests:del(Base),
     ok = filelib:ensure_path(Base ++ "/work"),
-    _ = ern_integration_tests:succeed("make -s -C .. install PREFIX=" ++ Base ++ "/a"),
+    ok = file:write_file(?UNTRACKED, <<>>),
+    try ern_integration_tests:succeed("make -s -C .. install PREFIX=" ++ Base ++ "/a")
+    after ok = file:delete(?UNTRACKED)
+    end,
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
     ?assertEqual([], debug_information(Base ++ "/a")),
     ?assertEqual([], forms_missing(Base ++ "/a")),
@@ -89,14 +111,23 @@ install() ->
     {ok, Installed} = file:read_file(Documents ++ "README.md"),
     ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
                                                     "\n">>)),
-    ?assertEqual(lists:sort(["ACKNOWLEDGMENTS.md", "README.md" | documents()]),
+    ?assertEqual(lists:sort(["ACKNOWLEDGMENTS.md", "README.md"
+                             | [File || File <- tracked(), filename:extension(File) =:= ".md"]]),
                  lists:sort(filelib:wildcard("**/*.md", Documents))),
+    ?assertEqual(tracked(), [File || File <- installed(Documents),
+                                     lists:any(fun(Path) -> lists:prefix(Path, File) end,
+                                               ?DOCUMENTS)]),
+    ?assertNot(filelib:is_file(Documents ++ "examples/" ++ filename:basename(?UNTRACKED))),
     ?assertEqual([], dead_links(Documents)),
-    ?assert(links_to(Documents ++ "guide/language.md", "/blob/main/examples/repl.ern")),
-    ?assert(links_to(Documents ++ "guide/deployment.md",
-                     "/blob/main/examples/upgrade/v2/counter.ern")),
+    kept_links(Documents),
+    ?assert(links_to(Documents ++ "guide/language.md", "/blob/main/docs/module_doc_template.md")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
+    Examples = Base ++ "/b/share/doc/ernest/examples",
+    _ = ern_integration_tests:succeed(Ern ++ " build --build-root " ++ Base ++ "/work/examples"
+                                      " --load-path " ++ Base ++ "/b/lib/ernest/build/libs/ansi .",
+                                      [{cd, Examples}]),
+    ?assertEqual(compiled(Examples), installed(Base ++ "/work/examples")),
     %% report §8.7: an installation of the repository's build is no release,
     %% which its version text marks
     ?assertEqual({0, <<"ern ", Version/binary, "-dev\n">>}, in_work(Base, Ern ++ " --version")),
@@ -191,9 +222,10 @@ version() ->
 %% the helper, and its make install installs under a prefix, where a
 %% program that runs another through the helper runs, and its make
 %% uninstall removes it. Written with the code. The README it carries is
-%% the one it installs, and the installed guide's link to an example leads
-%% into the repository at the release's tag: a regression test, as
-%% install/0's is. The logo the README shows stands beside it in the
+%% the one it installs, and the installed guide's link to the log leads
+%% into the repository at the release's tag, as its links to the examples
+%% and the Emacs README stay its own: a regression test, as install/0's
+%% is. The logo the README shows stands beside it in the
 %% archive, as under the prefix. The installed `ern` is a release, whose
 %% version text is VERSION's alone, as the repository's build is not
 %% (report §8.7): a regression test, written after the code (finding N11).
@@ -226,9 +258,9 @@ release() ->
     %% the README beside the archive shows the logo it carries there
     ?assertEqual([], dead_links(Unpacked ++ "/")),
     Tag = "v" ++ string:trim(binary_to_list(Version)),
-    ?assert(links_to(Documents ++ "guide/language.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
-    ?assert(links_to(Documents ++ "guide/deployment.md",
-                     "/blob/" ++ Tag ++ "/examples/upgrade/v2/counter.ern")),
+    kept_links(Documents),
+    ?assert(links_to(Documents ++ "guide/language.md",
+                     "/blob/" ++ Tag ++ "/docs/module_doc_template.md")),
     Ern = Base ++ "/p/bin/ern",
     %% report §8.7: a release's version text is VERSION's alone
     ?assertEqual({0, <<"ern ", (string:trim(Version))/binary, "\n">>},
@@ -251,27 +283,54 @@ test_modules(Files) ->
              filelib:is_regular(filename:join(["..", "erl", Application, "test",
                                                filename:basename(File, ".beam") ++ ".erl"]))].
 
-%% The documents for a user of Ernest, every `.md` under report/, guide/ and
-%% tour/ but a hidden file, as install.sh finds them, each by its path in
-%% the checkout.
-documents() ->
-    [Document || Directory <- ["report", "guide", "tour"],
-                 Document <- filelib:wildcard(Directory ++ "/**/*.md", ".."),
-                 hd(filename:basename(Document)) =/= $.,
-                 filelib:is_regular(filename:join("..", Document))].
+%% The files the repository tracks under the paths install.sh installs, as
+%% it asks git for them, each by its path in the checkout.
+tracked() ->
+    Paths = lists:append(lists:join(" ", ?DOCUMENTS)),
+    lists:sort(string:lexemes(os:cmd("git -C .. ls-files -- " ++ Paths), "\n")).
 
-%% The links of the documents under a directory, at any depth, that name no
-%% file: a link's target and an image's source, a `<picture>`'s `srcset`
+%% The guide's links to a file of examples/ or editors/, each read from the
+%% checkout's guide, are in the installed guide as the checkout's writes
+%% them and name a file installed; and no link of the installed guide's
+%% leads to either in the repository.
+kept_links(Documents) ->
+    Kept = [{Guide, Target} || Guide <- filelib:wildcard("guide/*.md", ".."),
+                               Target <- link_targets("../" ++ Guide),
+                               lists:prefix("../examples/", Target)
+                                   orelse lists:prefix("../editors/", Target)],
+    ?assert(lists:member({"guide/language.md", "../editors/emacs/README.md"}, Kept)),
+    ?assert(lists:any(fun({_, Target}) -> lists:prefix("../examples/", Target) end, Kept)),
+    ?assertEqual([], [Link || {Guide, Target} = Link <- Kept,
+                              not lists:member(Target, link_targets(Documents ++ Guide))]),
+    ?assertEqual([], [Link || {Guide, Target} = Link <- Kept,
+                              not filelib:is_regular(filename:join(
+                                                       filename:dirname(Documents ++ Guide),
+                                                       Target))]),
+    ?assertEqual([], [Guide || Guide <- filelib:wildcard("guide/*.md", Documents),
+                               begin
+                                   {ok, Text} = file:read_file(Documents ++ Guide),
+                                   Pattern = "\\]\\([^)]*/blob/[^/)]+/(examples|editors)/",
+                                   re:run(Text, Pattern) =/= nomatch
+                               end]).
+
+%% The links of the documents under a directory, at any depth, that name
+%% nothing: a link's target and an image's source, a `<picture>`'s `srcset`
 %% among them, each read from the document's own directory, an address with
-%% a scheme and an anchor of the document's own aside. Each is given by the
-%% document's path under the directory. The `srcset` is read since
+%% a scheme and an anchor of the document's own aside; a target with a
+%% slash after it names a directory, and any other a file. Each is given
+%% by the document's path under the directory. The `srcset` is read since
 %% 2026-10-16, when the logo's files were renamed: a regression test, which
-%% reads a `srcset` of one address and no other.
+%% reads a `srcset` of one address and no other. A directory is read since
+%% 2026-10-17, when the installation came to hold examples/README.md, which
+%% links `upgrade/`.
 dead_links(Directory) ->
     [{lists:nthtail(length(Directory), Document), Target}
      || Document <- filelib:wildcard(Directory ++ "**/*.md"),
         Target <- link_targets(Document),
-        not filelib:is_regular(filename:join(filename:dirname(Document), Target))].
+        not names(filename:join(filename:dirname(Document), Target), lists:last(Target))].
+
+names(Path, $/) -> filelib:is_dir(Path);
+names(Path, _) -> filelib:is_regular(Path).
 
 link_targets(Document) ->
     {ok, Text} = file:read_file(Document),

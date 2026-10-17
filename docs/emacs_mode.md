@@ -2,7 +2,7 @@
 
 Status: the Emacs mode's design note, which changes when the mode does. It is not a proposal, and not authoritative.
 
-`ernest-mode` edits `.ern` files. It is `editors/emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header and in [`editors/emacs/README.md`](../editors/emacs/README.md) beside it, which a test holds equal. Emacs 29 is the first with `font-lock-operator-face`, which it uses. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
+`ernest-mode` edits `.ern` files. It is `editors/emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it, to lay out each buffer as it is saved and to show a tab or a long line, are in that file's header and in [`editors/emacs/README.md`](../editors/emacs/README.md) beside it, which a test holds equal. Emacs 29 is the first with `font-lock-operator-face`, which it uses. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
 
 ## What it is
 
@@ -20,18 +20,7 @@ It calls the toolchain only to lay out a buffer; the compiler is `M-x compile`'s
 
 ## What it leaves to the user
 
-A major mode sets buffer-local variables and turns nothing on. `fill-column` is 100 and `indent-tabs-mode` is nil, so the mode's own indentation writes no tab. A tab pasted in, or a line past 100 characters, is shown only by what the user enables. These lines in an init file show both:
-
-```elisp
-(add-hook 'ernest-mode-hook #'display-fill-column-indicator-mode)
-(add-hook 'ernest-mode-hook
-          (lambda ()
-            (setq-local whitespace-style '(face tabs lines-tail)
-                        whitespace-line-column nil)
-            (whitespace-mode)))
-```
-
-The indicator stands at `fill-column`, and `whitespace-line-column` nil makes `whitespace-mode` mark lines past `fill-column` rather than past 80. `ern format`, which the header's line runs on save, replaces a tab between tokens and keeps one inside a string or a comment. `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl` hold the repository to both rules.
+A major mode sets buffer-local variables and turns nothing on. `fill-column` is 100 and `indent-tabs-mode` is nil, so the mode's own indentation writes no tab. A tab pasted in, or a line past 100 characters, is shown only by what the user enables, and the README and the header give the lines that show both. `ern format`, which the header's line runs on save, replaces a tab between tokens and keeps one inside a string or a comment. `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl` hold the repository to both rules.
 
 An Emacs started from a desktop menu has the login session's `PATH`, not the one a shell's startup file sets, so the header's line that names `ern` by its path is the sure way to find it.
 

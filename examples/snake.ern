@@ -26,6 +26,8 @@
 //     ern build --load-path ../build/libs/ansi snake.ern
 //     ern run --load-path ../build/libs/ansi snake.erc
 //
+// Where Ernest is installed, the library is PREFIX/lib/ernest/build/libs/ansi.
+//
 
 //
 // Types

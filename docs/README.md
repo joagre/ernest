@@ -22,4 +22,4 @@ What each file and directory here is, and the two READMEs that stand beside the 
 - **[`man/`](man/)**: the manual pages as CommonMark, which `make man` writes from `main` and a release commits: the prelude's and the standard library's, and each library's.
 - **[`proposals/`](proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; and operations records are there as the record of what was built, with three programs the tests run.
 - **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
-- **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode.
+- **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode, and what it leaves to the reader's configuration.

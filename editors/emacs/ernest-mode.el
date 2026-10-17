@@ -15,8 +15,13 @@
 
 ;; `make install' puts this file in `share/emacs/site-lisp' under its
 ;; prefix, which an Emacs built for that prefix has on its `load-path'.
-;; Another Emacs, and one that loads the mode from a checkout, is given
-;; the directory that holds it:
+;; Another Emacs is given that directory, `PREFIX/share/emacs/site-lisp',
+;; here for the default prefix, `/usr/local':
+;;
+;;     (add-to-list 'load-path "/usr/local/share/emacs/site-lisp")
+;;
+;; An Emacs that loads the mode from a checkout is given the checkout's
+;; `editors/emacs':
 ;;
 ;;     (add-to-list 'load-path "~/src/ernest/editors/emacs")
 ;;
@@ -35,6 +40,20 @@
 ;; desktop menu may not have the repository's `bin/'.  This line names it:
 ;;
 ;;     (setq ernest-format-command (expand-file-name "~/src/ernest/bin/ern"))
+;;
+;; The mode turns nothing on, so a tab pasted in, or a line past 100
+;; characters, is shown only by what you enable.  These lines show both:
+;;
+;;     (add-hook 'ernest-mode-hook #'display-fill-column-indicator-mode)
+;;     (add-hook 'ernest-mode-hook
+;;               (lambda ()
+;;                 (setq-local whitespace-style '(face tabs lines-tail)
+;;                             whitespace-line-column nil)
+;;                 (whitespace-mode)))
+;;
+;; The indicator stands at the mode's `fill-column', 100, and
+;; `whitespace-line-column' nil makes `whitespace-mode' mark a line past
+;; it rather than past 80.
 
 ;;; Code:
 

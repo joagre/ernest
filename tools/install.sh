@@ -9,24 +9,27 @@
 # A staged tree is laid out as under the prefix: the toolchain's tree in
 # lib/ernest, as the repository lays it out and without the host's debug
 # information, bin/ern a relative link to its launcher, and the manual
-# pages, the documents and the Emacs mode under share. The README staged
-# is the release's, tools/release/README.md, and a document's link into the
-# checkout, to a file that is not installed, is staged as a link into the
-# repository at $ref: main from a checkout, the release's tag in an archive.
-# The tree's `installed` lists every file outside it, a directory with a
-# slash after it, so that uninstall removes exactly those. make install stages the
-# checkout and installs what it staged; the release archive is a staged
-# tree whose helper is compiled where it is installed. Nothing is changed
-# where a directory to be written cannot be.
+# pages, the documents, the examples among them, and the Emacs mode under
+# share. The README staged is the release's, tools/release/README.md, and a
+# document's link into the checkout, to a file that is not installed, is
+# staged as a link into the repository at $ref: main from a checkout, the
+# release's tag in an archive. The tree's `installed` lists every file
+# outside it, a directory with a slash after it, so that uninstall removes
+# exactly those. make install stages the checkout and installs what it
+# staged; the release archive is a staged tree whose helper is compiled
+# where it is installed. Nothing is changed where a directory to be written
+# cannot be.
 
 set -eu
 
 job=$1
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
 repository=https://github.com/joagre/ernest
-# The directories whose documents are for a user of Ernest, each installed
-# whole; the project's own, docs/ and CLAUDE.md, stay out.
-documents="report guide tour"
+# The paths whose files are for a user of Ernest, a directory with a slash
+# after it, each installed where it stands, as the repository tracks it:
+# the language's documents, the examples the guide runs, and the note that
+# turns the Emacs mode on. The project's own, docs/ and CLAUDE.md, stay out.
+documents="report/ guide/ tour/ examples/ editors/emacs/README.md"
 
 fail() {
     echo "make $job: $*" >&2
@@ -73,13 +76,19 @@ stage() {
              assets/ernest-combined-light.svg assets/ernest-combined-dark.svg; do
         shared "$f" "share/doc/ernest/$f"
     done
-    # every document for a user of Ernest, by the directory it stands in;
-    # a directory the checkout does not hold is passed over
-    for d in $documents; do
-        [ -d "$d" ] || continue
-        for f in $(find "$d" -type f -name '*.md' ! -name '.*' | sort); do
-            document "$f"
-        done
+    # every file the repository tracks under a path of documents, a
+    # document as document stages it and any other as it is, so that no
+    # draft or editor's file of the checkout goes in; a path the repository
+    # does not hold is passed over. Read as whoever installs, root among
+    # them, whose checkout it need not be, which git refuses unless told
+    # the checkout is safe.
+    tracked=$(git -c safe.directory="$repo" ls-files -- $documents) ||
+        fail "git cannot list the files the repository tracks in $repo"
+    for f in $tracked; do
+        case $f in
+            *.md) document "$f" ;;
+            *) shared "$f" "share/doc/ernest/$f" ;;
+        esac
     done
     edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
     # the directories of the installation's own, each before the one that
@@ -97,16 +106,16 @@ shared() {
 }
 
 # A document for a user of Ernest staged under share/doc/ernest where it
-# stands in the checkout. A link into a directory of documents, or of the
-# logo, stays one to the installed copy, and any other link to a directory
-# of the checkout goes to the repository at the release, each from as many
-# directories up as the document stands down.
+# stands in the checkout. A link to a path of documents, or to the logo's
+# directory, stays one to the installed copy, and any other link to a
+# directory of the checkout goes to the repository at the release, each
+# from as many directories up as the document stands down.
 document() {
     up=$(echo "$1" | sed 's|[^/]*/|../|g; s|[^/]*$||')
     pattern=$(echo "$up" | sed 's|\.|\\.|g')
     kept=""
-    for d in $documents assets; do
-        kept="${kept}s|]($pattern$d/|](@kept@$d/|g; "
+    for d in $documents assets/; do
+        kept="${kept}s|]($(echo "$up$d" | sed 's|\.|\\.|g')|](@kept@$d|g; "
     done
     linked="s|]($pattern\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
     restored="s|](@kept@|]($up|g"
@@ -208,7 +217,8 @@ release() {
 }
 
 case $job in
-    stage) ref=main && stage "$2" ;;
+    # make install's first half, whose name its messages give
+    stage) job=install && ref=main && stage "$2" ;;
     install) root=$3$4 && tree=$root/lib/ernest && install "$2" ;;
     uninstall) root=$2$3 && tree=$root/lib/ernest && uninstall ;;
     release) release "$2" "$3" ;;

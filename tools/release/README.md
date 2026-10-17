@@ -31,11 +31,12 @@ Each path below is under the prefix, `/usr/local` unless another was given, and 
 - `share/doc/ernest/guide/language.md` is the guide, *Programming in Ernest*, which teaches the language to a programmer who knows another. Start there.
 - `share/doc/ernest/guide/why.md` is the argument for the design, and `share/doc/ernest/guide/faq.md` answers the questions a reader of another language on the runtime asks first.
 - `share/doc/ernest/guide/deployment.md` is *Running Ernest*, the operator's guide to nodes, their configuration and a program's upgrade.
+- `share/doc/ernest/examples/` holds the programs the guide runs, and its `README.md` lists them by topic.
 - `man ern` is the toolchain's page and `man Ernest.List` a module's; the prelude, every module of the standard library and every library has one.
 - `share/doc/ernest/report/` holds the report, the language's definition, which everything else defers to, in three files: `language.md`, `toolchain.md` and `library.md`.
-- `share/emacs/site-lisp/ernest-mode.el` is the Emacs mode.
+- `share/emacs/site-lisp/ernest-mode.el` is the Emacs mode, and `share/doc/ernest/editors/emacs/README.md` says how to turn it on.
 
-The repository, https://github.com/joagre/ernest, holds what an installation does not: the examples and the documents the guide links to, the source of the toolchain and of the standard library, and `editors/emacs/README.md`, which says how to turn the Emacs mode on.
+The repository, https://github.com/joagre/ernest, holds what an installation does not: the source of the toolchain and of the standard library, and the project's own documents.
 
 ## License
 

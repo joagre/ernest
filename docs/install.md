@@ -20,19 +20,20 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
-share/doc/ernest/                every .md under report/, guide/ and tour/, where it stands, the
-                                 release's README.md, the logo they show under assets/, LICENSE,
+share/doc/ernest/                the tracked files of report/, guide/, tour/ and examples/, and
+                                 editors/emacs/README.md, each where it stands, the release's
+                                 README.md, the logo they show under assets/, LICENSE,
                                  THIRD_PARTY_LICENSES, ACKNOWLEDGMENTS.md
 share/emacs/site-lisp/ernest-mode.el
 ```
 
-The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, the tests and the examples are not installed. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
+The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, and the tests are not installed, but for the examples, which go in with the documents. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
 
-The documents installed are for a reader with no checkout. A document is installed by the directory it stands in: every `.md` under `report/`, `guide/` and `tour/` is for a user of Ernest, and goes in where it stands, a directory the checkout does not hold passed over; `docs/`, the proposals among it, and `CLAUDE.md` are the project's, and stay out.
+The documents installed are for a reader with no checkout. A file is installed by the path it stands in: every file the repository tracks under `report/`, `guide/`, `tour/` and `examples/`, and `editors/emacs/README.md`, is for a user of Ernest, and goes in where it stands, a path the repository does not hold passed over. The examples are the programs the guide runs, and the Emacs README the note that turns on the mode installed with them. `tools/install.sh` asks `git` for the files the repository tracks, so a file of the checkout's that it does not track, a draft or an editor's, stays out; `docs/`, the proposals among it, and `CLAUDE.md` are the project's, and stay out too.
 
 The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout.
 
-The documents under the three directories are staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. A link into one of the three, or to the logo under `assets/`, stays a link to the installed copy. So every link of an installed document names a file installed beside it or an address.
+Each `.md` of those paths is staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. A link to one of the paths installed, or to the logo under `assets/`, stays a link to the installed copy, as the guide's links to the examples and to the Emacs README do; the guide's other links outside them, to the log and to `docs/module_doc_template.md`, go to the repository. Every other file is copied as it is. So every link of an installed document names what is installed beside it, or an address.
 
 `tools/install.sh` stages, installs, uninstalls and writes the archive. `make` builds everything installed, the manual pages included, and `make install` stages the checkout in a temporary directory outside it and installs from there, so that one run as another user writes nothing into the checkout. Nothing installed names the prefix, so a prefix moved whole runs where it is moved to.
 

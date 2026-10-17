@@ -18,9 +18,8 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-17) but two decided on the 17th, a
-construct's clauses laid out alike and the examples and the Emacs README in the release, built
-before the tag; item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-17) but one decided on the 17th, a
+construct's clauses laid out alike, built before the tag; item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -593,8 +592,9 @@ first, §11.6's bullet, whose word *arm* becomes *clause*, the report's word; th
 the Emacs mode's indentation; then `make format` over every Ernest source and every block of the
 report and the guide, one commit held by the layout tests. Built before the tag.
 
-**Before the tag: the examples and the Emacs README in the release.** Decided with the user on
-2026-10-17. The guide links seven programs under `examples/` and the note that turns the Emacs mode
+**Before the tag: the examples and the Emacs README in the release.** Done 2026-10-17 (the log's
+*Before the Tag, the Last Builds*, its paragraphs on the examples and the Emacs README); decided
+with the user the same day. The guide links seven programs under `examples/` and the note that turns the Emacs mode
 on, `editors/emacs/README.md`, and an installation holds neither: the release README sends its reader
 to the repository for the programs the guide tells them to run and for the file that turns on the
 mode they installed. The installer stages the tracked files of `examples/` and the Emacs README
@@ -606,7 +606,7 @@ guide's other links outside the installed directories, the log's and `docs/modul
 stay, for rationale, and go to the repository at the release as before. `docs/install.md` states
 which directories are installed and the release README's sentence names the source and the project's
 documents alone. The install test holds each example the guide links to installed and built from
-the installation. Built before the tag.
+the installation.
 
 **Before the tag: the shell and a private mailbox type.** Done 2026-10-16 (the log's *The Shell
 on a Private Type*): the interface carries the private types an exported signature names (§11.1),
