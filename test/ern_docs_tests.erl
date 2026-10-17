@@ -157,7 +157,7 @@ anchored(Heads) ->
     Anchored.
 
 %% README.md, guide/why.md, CLAUDE.md *Who owns each fact*: the front page's
-%% list of what Ernest adds, and the programs that show it under *The four,
+%% list of what Ernest adds, and the programs that show it under *The claims,
 %% in code*, are why.md's, word for word, so that the two cannot drift apart;
 %% what follows the programs, the README's standing and why.md's reading
 %% on, is each document's own
@@ -167,7 +167,7 @@ what_ernest_adds_test() ->
 
 adds(Document) ->
     [_, Rest] = binary:split(Document, <<"What Ernest adds is where the parts meet:\n\n">>),
-    [List, Shown] = binary:split(Rest, <<"\n## The four, in code\n">>),
+    [List, Shown] = binary:split(Rest, <<"\n## The claims, in code\n">>),
     [Programs | _] = binary:split(Shown, <<"\n## ">>),
     {List, Programs}.
 

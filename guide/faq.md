@@ -90,7 +90,7 @@ Across nodes a definition is known by the hash of its form, so two nodes agree o
 
 **Is there a type class, an interface or a trait?**
 
-No. A type's members are the functions declared under its name, `Int.compare`, so a type has one `compare`. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3). The `needs` is written, never inferred, and no type is declared an instance of anything. Both stand in code under *Little else* in [Why Ernest](why.md).
+No. A type's members are the functions declared under its name, `Int.compare`, so a type has one `compare`. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3). The `needs` is written, never inferred, and no type is declared an instance of anything. All three stand in code under *Abstract types and requirements* in [Why Ernest](why.md).
 
 **Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 
