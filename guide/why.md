@@ -5,7 +5,7 @@ The argument for the design, in five claims, and a program for each that code ca
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition. What Ernest adds is where the parts meet:
 
 - **The mailbox in the function's type.** Every process receives messages of one type. A function that receives names that type in its own type, and a process's address carries it too. So the compiler checks every message sent against the mailbox it will reach, and every receive against the mailbox it reads. A server is such an address bound to a name at the top of a module. The address stays good while the process behind it is restarted after a fault. A program reaches its servers by name, and can never send one a message it does not take.
-- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. Two versions of a module run side by side. A running process moves to the new version of its function when a message tells it to. A process started on another node brings its code along, so any node can run anything. A node with no program of its own joins, and work is placed where there is room, with nothing deployed first.
+- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. A module reloaded is a new version beside its earlier ones, as many as there have been, and each runs on wherever a process still runs it. A running process moves to the new version of its function when a message tells it to. A process started on another node brings its code along, so any node can run anything. A node with no program of its own joins, and work is placed where there is room, with nothing deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address. It accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret. A laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module. Other modules hold its values and reach them through the functions it exports, so the representation can change and no caller knows. A generic function names the one operation it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: there is no type class, interface or trait.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
@@ -65,7 +65,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused with the reason.
+In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused with the reason.
 
 ```
 > let old = spawn(fn() = Counter.count(0))
@@ -80,7 +80,7 @@ input 4:1:11: the argument does not fit send: expected Counter$1.Msg, found Coun
   = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
 ```
 
-The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every one it reaches, before the process starts. `foo` may be a bare node, started with a configuration and no program:
+The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every one it reaches, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds no code of the counter's, and runs whichever version the spawn names:
 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {
