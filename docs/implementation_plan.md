@@ -33,10 +33,10 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 1 | the chain: parser, types, BEAM | 2026-09-18 | tag `mvp1` | the log's entries of 2026-09-17 and 2026-09-18; [`architecture.md`](architecture.md) |
 | MVP 2 | the rest of the report on one node | 2026-09-19 | | the log's entries of 2026-09-19 |
 | MVP 2.5 | a complete standard library | 2026-09-20 | | *The Erlang Standard Library, Read for Ernest*, *Fs by Its Structure, and the Table*, *One Token for the Project* |
-| MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](emacs_mode.md) |
+| MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](design/emacs_mode.md) |
 | The report read as a Wirth report | the report read against Wirth's register and §0, about thirty issues decided one at a time | 2026-09-23 and 2026-09-24 | | the log's entries of those two days, one an issue |
 | MVP 2.61 | the guide as the user's document | 2026-09-24, out of order | | the log's entries of 2026-09-24 |
-| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](shell_design.md); the log's entries from 2026-09-20 to 2026-09-25 |
+| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](design/shell.md); the log's entries from 2026-09-20 to 2026-09-25 |
 | `libs/markdown` | a CommonMark renderer, now under MVP 4.1 | 2026-09-25 | | Appendix G.2 |
 | The code read back after the shell | every line of Ernest and Erlang read for the principles, clumsiness and defects | 2026-09-25 | | *The Code Read Back* |
 | MVP 2.65 | the language and the toolchain read back | 2026-09-26 | | *The Report Read Cold, Its Plain Half* to *The Closing of Step 10*; the log's entries of 2026-09-25 and 2026-09-26 |
@@ -401,7 +401,9 @@ test's link check reads every depth, where it had read the top directory alone.
 Proposals*): the three design notes of built components, `emacs_mode.md`, `shell_design.md` and
 `install.md`, moved from `docs/proposals/` to `docs/` under their own names, and the spelling test
 reads them there. `docs/proposals/emacs/` and `install/` went with them; `shell/` keeps
-`attached.md`, its README pointing at the note. Each was trimmed to what its component does and
+`attached.md`, its README pointing at the note. On 2026-10-17 the three moved again, into
+`docs/design/`, as `shell.md`, `install.md` and `emacs_mode.md`, the nodes' note (MVP 3.9) to join
+them (the log's *Before the Tag, the Last Builds*). Each was trimmed to what its component does and
 why, what it does not do going to the log, and the Emacs note keeps its table of tests. Every
 pointer changed in the same commit; the log's old paths stay as history. `docs/proposals/` goes one
 proposal at a time (MVP 3.9).
@@ -603,7 +605,7 @@ relative as its links into `report/` and `guide/` do; the Emacs README names the
 `share/emacs/site-lisp` beside the checkout's directory for the `load-path` line, and says what the
 mode leaves to the reader's configuration, which the guide links the design note for today. The
 guide's other links outside the installed directories, the log's and `docs/module_doc_template.md`,
-stay, for rationale, and go to the repository at the release as before. `docs/install.md` states
+stay, for rationale, and go to the repository at the release as before. `docs/design/install.md` states
 which directories are installed and the release README's sentence names the source and the project's
 documents alone. The install test holds each example the guide links to installed and built from
 the installation.
@@ -863,7 +865,7 @@ every look is a compute wrapped by hand, and nothing of the node's own is at the
 shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping of code, so that a
 binding read is the node's, a process listed is the node's and a function called runs there without
 the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
-reload code on the node, as `erl -remsh` attaches to an Erlang node. Whether the shell's design, `docs/shell_design.md`, assumes it runs
+reload code on the node, as `erl -remsh` attaches to an Erlang node. Whether the shell's design, `docs/design/shell.md`, assumes it runs
 on the node whose code it evaluates is the proposal's first question, read against the note before
 anything is built. Nothing of
 it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings

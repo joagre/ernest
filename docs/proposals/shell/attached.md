@@ -1,6 +1,6 @@
 # A shell attached to a running node
 
-Begun 2026-10-13 for MVP 4.0. Decided with the user the same day: a shell attaches to a node by a listed name and never by an address; the attached shell is the operator's, trusted as a peer is; and the website runs the plain shell in a container per visitor, so no sandbox of the language's is built. `docs/shell_design.md` is the shell as built; this page is what attaching adds to it, and what the web machine runs instead.
+Begun 2026-10-13 for MVP 4.0. Decided with the user the same day: a shell attaches to a node by a listed name and never by an address; the attached shell is the operator's, trusted as a peer is; and the website runs the plain shell in a container per visitor, so no sandbox of the language's is built. `docs/design/shell.md` is the shell as built; this page is what attaching adds to it, and what the web machine runs instead.
 
 ## 1. Two uses
 

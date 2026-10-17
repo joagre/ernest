@@ -2,7 +2,7 @@
 
 What each file here is, and which is current.
 
-The shell's design as built, which stood here, is [`docs/shell_design.md`](../../shell_design.md) since 2026-10-16.
+The shell's design as built, which stood here, is [`docs/design/shell.md`](../../design/shell.md) since 2026-10-16.
 
 | File | What it is | Status |
 |---|---|---|

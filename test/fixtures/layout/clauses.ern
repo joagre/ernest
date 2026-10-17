@@ -1,7 +1,7 @@
 //
 // Layouts the Emacs mode is held to, beside the repository's sources: `ern
 // format` lays this file out, and the mode's corpus tests reindent it
-// unchanged (docs/emacs_mode.md). A clause whose guard spans lines has its
+// unchanged (docs/design/emacs_mode.md). A clause whose guard spans lines has its
 // body laid out from the clause's first line, a block opening its brace on
 // the arrow's line and any other body beginning the line after it, and so
 // does an `after` clause (report §11.6).

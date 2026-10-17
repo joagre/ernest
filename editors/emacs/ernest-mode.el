@@ -2,7 +2,7 @@
 
 ;;; Commentary:
 
-;; The mode for `.ern' files.  docs/emacs_mode.md designs it, and
+;; The mode for `.ern' files.  docs/design/emacs_mode.md designs it, and
 ;; says what it does.
 ;;
 ;; A buffer being edited is broken most of the time, so coloring and

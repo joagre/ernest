@@ -11,7 +11,7 @@ APPS = shared lexer parser formatter checker runtime emitter cli json
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 
 # Every Ernest source of the repository, which `make format` lays out and
-# the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
+# the Emacs mode's tests read (report §11.6, docs/design/emacs_mode.md).
 ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples/*.ern \
 		examples/upgrade/*/*.ern \
 		test/fixtures/*/*.ern test/fixtures/programs/modules/*.ern \
@@ -179,7 +179,7 @@ man: all
 	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n'; \
 	} > docs/man/README.md
 
-# The installation (docs/install.md): the toolchain's tree under
+# The installation (docs/design/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
 # pages, the documents and the Emacs mode under $(PREFIX)/share, each path
 # after $(DESTDIR), which a packager passes. make install stages the tree
@@ -201,7 +201,7 @@ uninstall:
 # The release archive, build/release/ern-$(VERSION).tar.gz: the tree make
 # install stages, the helper as its C source, which the archive's own make
 # compiles where it is installed, and a Makefile and a README of its own
-# from tools/release (docs/install.md).
+# from tools/release (docs/design/install.md).
 release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
 
@@ -325,7 +325,7 @@ service: all
 bench: all
 	@$(MAKE) -C test bench
 
-# The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
+# The Emacs mode's tests (docs/design/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test-full` will run and not have built. `format` runs
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to

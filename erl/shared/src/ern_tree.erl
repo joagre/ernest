@@ -2,7 +2,7 @@
 %% installation's lib/ernest, and the builds of its own under it, the
 %% standard library's in `build/stdlib`, the shell's in `build/shell` and
 %% the libraries' in `build/libs`, which the toolchain finds relative to
-%% its own modules (docs/install.md).
+%% its own modules (docs/design/install.md).
 -module(ern_tree).
 
 -export([tree/0, build/1]).

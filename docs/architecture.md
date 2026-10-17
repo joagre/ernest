@@ -41,7 +41,7 @@ The modules of `cli`:
 
 ### The launcher
 
-`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and `erl/*/ebin` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's two libraries is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`install.md`](install.md) lays out the installed tree.
+`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and `erl/*/ebin` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's two libraries is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
 
 `ern_cli:start/0` installs `ern_signals` again, for a caller that is no launcher, and runs `ern_cli:ern/2`, whose status the host ends with (§11.8).
 
@@ -51,7 +51,7 @@ Every job but the shell writes its text through `ern_out`, ports on descriptors 
 
 `erl/app.mk` passes `VERSION` to `erlc` as a macro, with `DEVELOPMENT` beside it, by which `ern_release:version_text/0` carries `-dev`. The release archive recompiles `ern_release` without it (`tools/install.sh`). `ern_carrier:cookie/2` reads the mark: a development build's floor is the digest of its own code (§8.7).
 
-The Emacs mode calls the toolchain only as `ern format -` ([`emacs_mode.md`](emacs_mode.md)).
+The Emacs mode calls the toolchain only as `ern format -` ([`design/emacs_mode.md`](design/emacs_mode.md)).
 
 ## Tokens and AST
 
@@ -314,7 +314,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 ### The shell
 
-The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`shell_design.md`](shell_design.md) holds the design.
+The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
 
 `ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/4`, the input a module of its own (§11.2).
 
@@ -354,7 +354,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 - **The shell**: `test/ern_shell_tests.erl` runs sessions in line mode and under the pseudo-terminal, and `test/ern_terminal_tests.erl` drives §8.2's keys, the terminal's restoration and `snake`. Both reach the harness, `test/ern_pty.py`, through `test/ern_pty.erl`.
 - **Waits**: no test sleeps (CLAUDE.md, *No fixed sleep*). `erl/runtime/test/ern_waits.erl` holds the waits the tests share, each read from what the host reports.
 - A module compiled from an application's `test/`, a wait's helper among them, ships with no installation and is outside a development build's code digest (`tools/install.sh`, `ern_carrier:is_test/1`).
-- **The Emacs mode**: `make test-emacs` runs the tests under `editors/emacs/test/` ([`emacs_mode.md`](emacs_mode.md)).
+- **The Emacs mode**: `make test-emacs` runs the tests under `editors/emacs/test/` ([`design/emacs_mode.md`](design/emacs_mode.md)).
 
 ### Outside `make test-full`
 

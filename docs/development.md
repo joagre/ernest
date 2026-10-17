@@ -116,7 +116,7 @@ make test-typed   well-typed programs generated, checked, compiled and run in on
                   each printing what an interpreter of it computes;
                   ERN_SEED=n runs a failing seed again
 make test-shell   the shell's sessions and the terminal
-make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
+make test-emacs   the Emacs mode's tests (docs/design/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test-full, whose
                   test-integration builds their programs and the benchmark's
 make service      a program run by the host's service manager, a user's systemd or
@@ -146,7 +146,7 @@ make manual       the manual pages alone, which make also writes: each module's 
                   its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
                   build/man/ern.1, which man -l shows
 make install      install under PREFIX, /usr/local by default, within DESTDIR if one
-                  is given (docs/install.md)
+                  is given (docs/design/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
@@ -219,7 +219,7 @@ bin/ern build --load-path build/libs/ets --build-root build/app app
 bin/ern run --load-path build/libs/ets build/app/main.erc
 ```
 
-The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`shell_design.md`](shell_design.md) says how it is built.
+The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`design/shell.md`](design/shell.md) says how it is built.
 
 ## What the toolchain accepts
 

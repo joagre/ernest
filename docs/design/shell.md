@@ -2,7 +2,7 @@
 
 Status: the shell's design note, which changes when the shell does. It is not a proposal, and not authoritative: the report states what the shell does.
 
-How `ern shell` is built. What the shell does is report §11.2, cited here by the names of its paragraphs, *Inputs*, *Scope*, *Editing* and the rest. How its code reads is [`src/shell/README.md`](../src/shell/README.md). Why it is built so, and how it came to be, is the decisions log's; when each part was built is the plan's.
+How `ern shell` is built. What the shell does is report §11.2, cited here by the names of its paragraphs, *Inputs*, *Scope*, *Editing* and the rest. How its code reads is [`src/shell/README.md`](../../src/shell/README.md). Why it is built so, and how it came to be, is the decisions log's; when each part was built is the plan's.
 
 ## Shape
 
@@ -62,7 +62,7 @@ The session blocks in `Io.readLine`, so a fault report waits in its mailbox. Eve
 
 ## The front end
 
-`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares, but `holdTerminal`, which the runtime answers. Where each is declared is [`src/shell/README.md`](../src/shell/README.md)'s *The front end*.
+`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares, but `holdTerminal`, which the runtime answers. Where each is declared is [`src/shell/README.md`](../../src/shell/README.md)'s *The front end*.
 
 ### The foreign interface
 
@@ -118,7 +118,7 @@ An expression's or a `let`'s module is deleted once its answer is in, unless its
 
 An input that declares, a holder, and an input whose value holds its functions are kept while the session can reach them. Each records, as it is loaded, the session's modules it calls and those whose types it names. The session collects once an input has answered and at each `:forget`: from the names in its scope and every module whose old code a process is still inside, it follows what each needs, and frees the rest, its values, code, interface and number (the log's *What the Loads Found*).
 
-Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against (the log's *A Binding That Holds a Function*). How the session's memory is checked is [`memory.md`](memory.md)'s.
+Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against (the log's *A Binding That Holds a Function*). How the session's memory is checked is [`memory.md`](../memory.md)'s.
 
 ### Loading and reloading
 

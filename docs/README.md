@@ -1,14 +1,12 @@
 # The documents
 
-What each file and directory here is, and the two READMEs that stand beside the code.
+The project's own documents: what each file and directory here is, and the two READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/).
 
 - **[`development.md`](development.md)**: where things are, how to build and test them, and what the toolchain does not do yet.
 - **[`implementation_plan.md`](implementation_plan.md)**: where the project stands and what comes next.
 - **[`decisions.md`](decisions.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
-- **[`shell_design.md`](shell_design.md)**: the shell's design note: how it is built.
-- **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode's design note: what it does, and the tests that judge it.
-- **[`install.md`](install.md)**: the installation's design note: how a checkout and the release archive are installed.
+- **[`design/`](design/)**: the design notes of built components, each changing when its component does: [`shell.md`](design/shell.md), how the shell is built; [`install.md`](design/install.md), how a checkout and the release archive are installed; [`emacs_mode.md`](design/emacs_mode.md), what the Emacs major mode does and the tests that judge it.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`soundness.md`](soundness.md)**: the argument that a well-typed program does not go wrong, kept with the rules it covers.
 - **[`otp_bugs.md`](otp_bugs.md)**: the defects found in OTP, each written as a report for OTP's tracker.
