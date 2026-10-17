@@ -10,13 +10,13 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition. What Ernest adds is where the parts meet:
 
-- **The mailbox in the function's type.** Every process receives messages of one type. A function that receives names that type in its own type, and a process's address carries it too. So the compiler checks every message sent against the mailbox it will reach, and every receive against the mailbox it reads. A server is such an address bound to a name at the top of a module. The address stays good while the process behind it is restarted after a fault. A program reaches its servers by name, and can never send one a message it does not take.
-- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. A module reloaded is a new version beside its earlier ones, as many as there have been, and each runs on wherever a process still runs it. A running process moves to the new version of its function when a message tells it to. A process started on another node brings its code along, so any node can run anything. A node with no program of its own joins, and work is placed where there is room, with nothing deployed first.
+- **The mailbox in the function's type.** Every process receives messages of one type. A function that receives says that type in its own type, and a process's address carries it too. So the compiler checks every message sent against the mailbox it will reach, and every receive against the mailbox it reads. A server is such an address bound to a name at the top of a module. The address stays good while the process behind it is restarted after a fault. A program reaches its servers by name, and can never send one a message it does not take.
+- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. A module reloaded is a new version beside its earlier ones, as many as there have been, and each keeps running wherever a process still runs it. A running process moves to the new version of its function when a message tells it to. A process started on another node brings its code along, so any node can run anything. A node with no program of its own takes part, a computation that names no node goes to one with room, and no program is deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address. It accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret. A laptop and a server, or two data centers, are two nodes with one file each naming the other.
-- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module. Other modules hold its values and reach them through the functions it exports, so the representation can change and no caller knows. A generic function names the one operation it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: there is no type class, interface or trait.
+- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module. Other modules hold its values and reach them through the functions it exports, so the representation can change and no caller knows. A generic function names the one operation it needs of its type, and the compiler supplies that type's own at each call. A type's operation is a function declared under the type's name, nothing is declared an instance of anything, and there is no type class, interface or trait.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
 
-Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
+Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; What ships with Erlang/OTP is reached through declarations that give it Ernest types, which a program may write for itself, and anything else is written in Ernest.
 
 ## The claims, in code
 
@@ -48,7 +48,9 @@ export fn main() : Unit = {
 
 `main` receives nothing, so its type names no mailbox, and it spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
-**Code known by its hash.** The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old version runs on wherever a process still runs it:
+A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, which is how `counter` would be bound at the top of a module and reached by name; the guide's §6.5 shows it.
+
+**Code known by its hash.** The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice` is a loop of the same type, sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -71,7 +73,9 @@ fn count(total : Int) : Unit receiving CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused with the reason.
+`next` is of the counter's own type, so such a message changes the loop and not the messages. A new message type is a new version of the module, which the shell shows.
+
+In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason.
 
 ```
 > let old = spawn(fn() = Counter.count(0))
@@ -86,7 +90,7 @@ input 4:1:11: the argument does not fit send: expected Counter$1.Msg, found Coun
   = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
 ```
 
-The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every one it reaches, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds no code of the counter's, and runs whichever version the spawn names:
+The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds no code of the counter's, and runs whichever version the spawn names:
 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {
@@ -95,7 +99,9 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 }
 ```
 
-**A distribution built for a WAN.** A node is a program started with a configuration directory. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name the key gives it, and is opened over TLS when an operation first needs it:
+`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it.
+
+**A distribution built for a WAN.** A node is Ernest started from a configuration directory, with a program or with none. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
 
 ```json
 {
@@ -111,6 +117,12 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
   "services": {}
 }
 ```
+
+`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. `services`, empty here, names for each service a program looks up by name the peers that may offer it.
+
+A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
+
+A peer that goes out of reach is a `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
 **Abstract types and requirements.** A reader who knows another language looks for a type class, an interface or a trait. Three things stand in their place, and each is shown here.
 
@@ -129,6 +141,8 @@ export fn size(Stack(items)) =
     List.size(items)
 ```
 
+`main.ern` uses it. `ern build` compiles the two to `main.erc`, which `ern run` runs:
+
 ```ernest
 // main.ern  (namespace Main)
 export fn main() : Unit = {
@@ -144,7 +158,7 @@ $ ern run main.erc
 
 `Stack.Stack([])` in `main.ern` is refused, so a caller holds a stack through `empty`, `push` and `size` alone. The list inside can become anything, and no caller knows.
 
-A *requirement* names the one operation a generic function needs of its type. `sorted` needs a `compare` of `a`, the type of the list's elements, and a call supplies nothing: the compiler finds the `compare` declared under that type's name.
+A *requirement* names the one operation a generic function needs of its type. `sorted` needs a `compare` of `a`, the type of the list's elements. Written with `Int.compare` it would sort integers alone. Written with `needs`, a call supplies nothing, and the compiler finds the `compare` declared under the element type's name.
 
 ```ernest
 fn sorted(list : List(a)) : List(a) needs a.compare =
@@ -162,14 +176,14 @@ $ ern run sorted.erc
 ["a", "b"]
 ```
 
-One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it.
+One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it. A type of the program's own gets one by `derives compare`, or by declaring the function under its name.
 
-An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`:
+An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the standard library's, in scope everywhere and with no order of its own, and `OrderedSet` is a library, so its type is written whole:
 
 ```ernest
 type Operations(s, a) = Operations(fromList : (List(a)) -> s, toList : (s) -> List(a))
 
-let hashed : Operations(Set(Int), Int) = Operations(..Set)
+let unordered : Operations(Set(Int), Int) = Operations(..Set)
 
 let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 
@@ -178,7 +192,7 @@ fn unique(list : List(a), operations : Operations(s, a)) : List(a) =
 
 export fn main() : Unit = {
     Io.println(Io.show(unique([3, 1, 3], ordered)));
-    Io.println(Int.toString(List.size(unique([3, 1, 3], hashed))))
+    Io.println(Int.toString(List.size(unique([3, 1, 3], unordered))))
 }
 ```
 
@@ -188,7 +202,9 @@ $ ern run unique.erc
 2
 ```
 
-`unique` is one function over two representations, and the caller chooses at each call. `Operations` is the program's own record of the two functions it uses; the standard library declares no such record. What a class, an interface or a trait would have added, a declared instance, a hierarchy, a dispatch the reader cannot see, the three do without. The guide's chapter 7 teaches them.
+`unique` is one function over two representations, and the caller chooses at each call. The unordered set's list comes in no order a program may rely on, so its size is printed. `Operations` is the program's own record of the two functions it uses; the standard library declares no such record.
+
+`sorted` and `unique` are not two ways to one thing. A requirement asks for what every element type has of its own, and a record carries what the caller chooses. What a class, an interface or a trait would have added, a declared instance, a hierarchy, a dispatch decided as the program runs, the three do without. The guide's §7 teaches them.
 
 **Little else.** No program shows this claim. Its evidence is the report under `report/`: the language, the toolchain and the library, a file each, which state everything the programs above rely on.
 
