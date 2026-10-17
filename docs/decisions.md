@@ -8485,6 +8485,8 @@ The design notes stand in `docs/design/`. The three notes of built components, t
 
 The four claims say what Ernest introduces. Each of the first three had opened with the runtime's shortcoming, a message no clause matches, a module loaded by name, a cluster on one trusted network, and said "In Ernest" after it, on the README's front page as in `why.md`; the paragraph above them already places Ernest among its sources, a reader who knows Erlang sees the difference in the plain statement, and one who does not was being told of problems they never had, so each claim now states Ernest's fact alone, and the programs under *The four, in code* keep the evidence. The sentence in `why.md` that named the test holding its list equal to the README's went too: that is the project's bookkeeping, owned by the test's comment, and no reader of the argument needs it.
 
+Read again the same day as a newcomer would read them, the claims named `CounterMsg` and `restarting` out of the blue, a definition's form, and the counts of concepts and principles, the report's words for a reader who knows Ernest, and a count without its content does not carry past its sentence. Each claim now says in plain words what Ernest does and what that gives, with no name or code the sentence does not itself explain, *hash* and *WAN* kept since a programmer knows them; the names belong to *The four, in code*, whose first sentence introduces them before its program shows them.
+
 ## The Examples Are Programs, 2026-10-16
 
 Decided with the user on 2026-10-16, after a read of every program under `examples/` as a newcomer reads it, since the first Ernest program a reader opens on disk is one of them.
