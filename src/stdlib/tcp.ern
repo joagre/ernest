@@ -47,7 +47,8 @@
 ///             };
 ///             Tcp.close(accepted)
 ///         }
-///       | Left(_) -> Unit
+///       | Left(_) ->
+///             Unit
 ///     });
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
 ///     let _ <- Tcp.write(client, String.toUtf8("ping"), 1000);

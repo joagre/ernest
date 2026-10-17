@@ -216,11 +216,10 @@ fn offeredRows(region : Region) : List(String) = {
 // The lines, each its rows, that fit in that many rows, from the first.
 fn fitting(lines : List(List(String)), room : Int) : List(List(String)) =
     match lines {
-        [] -> []
-      | rows :: rest -> if List.size(rows) > room then
+        [] ->
             []
-        else
-            rows :: fitting(rest, room - List.size(rows))
+      | rows :: rest ->
+            if List.size(rows) > room then [] else rows :: fitting(rest, room - List.size(rows))
     }
 
 // A line cut into rows of the window's width, each tab drawn to the next
@@ -251,14 +250,21 @@ fn past(graphemes : List(String),
         sequences : String,
         taken : Bool) : #(String, List(String)) =
     match sequence(graphemes) {
-        Some(#(escape, remaining)) -> past(remaining, width, used, sequences <> escape, taken)
-      | None -> match graphemes {
-            "\t" :: rest when used < width ->
-                past(rest, width, Int.min(used + tabStop - used % tabStop, width), sequences, true)
-          | grapheme :: rest when grapheme != "\t" && fits(grapheme, width - used, taken) ->
-                past(rest, width, used + Terminal.width(grapheme), sequences, true)
-          | _ -> #(sequences, graphemes)
-        }
+        Some(#(escape, remaining)) ->
+            past(remaining, width, used, sequences <> escape, taken)
+      | None ->
+            match graphemes {
+                "\t" :: rest when used < width ->
+                    past(rest,
+                         width,
+                         Int.min(used + tabStop - used % tabStop, width),
+                         sequences,
+                         true)
+              | grapheme :: rest when grapheme != "\t" && fits(grapheme, width - used, taken) ->
+                    past(rest, width, used + Terminal.width(grapheme), sequences, true)
+              | _ ->
+                    #(sequences, graphemes)
+            }
     }
 
 // Whether the grapheme goes on the row with that many columns left.
@@ -276,7 +282,8 @@ fn sequence(graphemes : List(String)) : Optional(#(String, List(String))) =
             let escape = List.take(graphemes, List.size(graphemes) - List.size(remaining));
             Some(#(String.join(escape, ""), remaining))
         }
-      | _ -> None
+      | _ ->
+            None
     }
 
 fn afterSequence(graphemes : List(String)) : List(String) =
@@ -306,7 +313,8 @@ fn tailRowsOf(region : Region) : List(String) = {
 // that row is shown.
 fn inputRows(region : Region) : List(String) =
     match String.split(region.typed, "\n") {
-        [] -> [region.prompt]
+        [] ->
+            [region.prompt]
       | first :: rest ->
             (region.prompt <> pictured(first))
                 :: List.map(rest, fn(line) = continuation <> pictured(line))
@@ -359,7 +367,8 @@ fn column(region : Region) : Int =
 fn headRows(region : Region) : List(String) = {
     let before = String.slice(region.typed, 0, region.cursor);
     let head = match String.lastIndexOf(before, "\n") {
-        None -> region.prompt <> pictured(before)
+        None ->
+            region.prompt <> pictured(before)
       | Some(index) ->
             continuation <> pictured(String.slice(before, index + 1, String.size(before)))
     };
@@ -375,10 +384,12 @@ fn expand(row : String) : String =
 
 fn expanding(graphemes : List(String), acc : String) : String =
     match graphemes {
-        [] -> acc
+        [] ->
+            acc
       | "\t" :: rest ->
             expanding(rest, acc <> String.repeat(" ", tabStop - Terminal.width(acc) % tabStop))
-      | grapheme :: rest -> expanding(rest, acc <> grapheme)
+      | grapheme :: rest ->
+            expanding(rest, acc <> grapheme)
     }
 
 // A row cut to the window's width keeps its escape sequences whole, and
@@ -397,12 +408,15 @@ fn clipping(graphemes : List(String),
             inStyle : Bool,
             taken : Bool) : String =
     match sequence(graphemes) {
-        Some(#(escape, remaining)) -> clipping(remaining, left, acc <> escape, true, taken)
-      | None -> match graphemes {
-            grapheme :: rest when fits(grapheme, left, taken) ->
-                clipping(rest, left - Terminal.width(grapheme), acc <> grapheme, inStyle, true)
-          | _ -> if inStyle then acc <> "\u{1b}[0m" else acc
-        }
+        Some(#(escape, remaining)) ->
+            clipping(remaining, left, acc <> escape, true, taken)
+      | None ->
+            match graphemes {
+                grapheme :: rest when fits(grapheme, left, taken) ->
+                    clipping(rest, left - Terminal.width(grapheme), acc <> grapheme, inStyle, true)
+              | _ ->
+                    if inStyle then acc <> "\u{1b}[0m" else acc
+            }
     }
 
 // The rows a line fills at the window's width, as the terminal wraps it,
@@ -423,24 +437,27 @@ fn filling(graphemes : List(String),
     match sequence(graphemes) {
         Some(#(escape, remaining)) ->
             filling(remaining, width, used, row <> escape, styled(style, escape), rows)
-      | None -> match graphemes {
-            [] -> #(List.reverse(rows), row)
-          | grapheme :: rest -> {
-                let columns = if grapheme == "\t" then
-                    tabStop - used % tabStop
-                else
-                    Terminal.width(grapheme);
-                if used > 0 && (used >= width || grapheme != "\t" && used + columns > width) then
-                    filling(graphemes, width, 0, style, style, row :: rows)
-                else
-                    filling(rest,
-                            width,
-                            Int.min(used + columns, width),
-                            row <> grapheme,
-                            style,
-                            rows)
+      | None ->
+            match graphemes {
+                [] ->
+                    #(List.reverse(rows), row)
+              | grapheme :: rest -> {
+                    let columns = if grapheme == "\t" then
+                        tabStop - used % tabStop
+                    else
+                        Terminal.width(grapheme);
+                    if used > 0
+                        && (used >= width || grapheme != "\t" && used + columns > width) then
+                        filling(graphemes, width, 0, style, style, row :: rows)
+                    else
+                        filling(rest,
+                                width,
+                                Int.min(used + columns, width),
+                                row <> grapheme,
+                                style,
+                                rows)
+                }
             }
-        }
     }
 
 // The style after a sequence: a reset ends every sequence before it.

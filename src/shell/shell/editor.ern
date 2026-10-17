@@ -121,7 +121,8 @@ export fn shown(state : Editing) : String =
 /// Where the cursor stands in what `shown` answers.
 export fn shownCursor(state : Editing) : Int =
     match state {
-        Editing(search = None, cursor = cursor) -> cursor
+        Editing(search = None, cursor = cursor) ->
+            cursor
       | Editing(search = Some(search), text = text, cursor = cursor) ->
             String.size(asked(search, text)) + cursor
     }
@@ -146,10 +147,14 @@ export fn edit(state : Editing, event : Terminal.Event) : Edit =
     match state {
         Editing(search = Some(search)) ->
             searching(Editing(..state, pending = Plain), search, event)
-      | Editing(pending = Meta) -> meta(Editing(..state, pending = Plain), event)
-      | Editing(pending = Bracket) -> bracket(Editing(..state, pending = Plain), event)
-      | Editing(pending = Parameters) -> sequence(Editing(..state, pending = Plain), event)
-      | Editing(pending = Plain) -> plain(state, event)
+      | Editing(pending = Meta) ->
+            meta(Editing(..state, pending = Plain), event)
+      | Editing(pending = Bracket) ->
+            bracket(Editing(..state, pending = Plain), event)
+      | Editing(pending = Parameters) ->
+            sequence(Editing(..state, pending = Plain), event)
+      | Editing(pending = Plain) ->
+            plain(state, event)
     }
 
 // Report §11.2: `Shift-Tab`, which the terminal sends as `Escape [ Z`,
@@ -167,28 +172,38 @@ fn bracket(state : Editing, event : Terminal.Event) : Edit =
 // ends it unread, and does what it does.
 fn sequence(state : Editing, event : Terminal.Event) : Edit =
     match event {
-        Terminal.Key(char) -> if char >= ' ' && char <= '?' then
-            Edited(Editing(..state, pending = Parameters))
-        else if char >= '@' && char <= '~' then
-            Edited(state)
-        else
-            plain(state, event)
-      | other -> plain(state, other)
+        Terminal.Key(char) ->
+            if char >= ' ' && char <= '?' then
+                Edited(Editing(..state, pending = Parameters))
+            else if char >= '@' && char <= '~' then
+                Edited(state)
+            else
+                plain(state, event)
+      | other ->
+            plain(state, other)
     }
 
 fn plain(state : Editing, event : Terminal.Event) : Edit =
     match event {
-        Terminal.Interrupt -> Cancel
-      | Terminal.Escape -> Edited(Editing(..state, pending = Meta))
-      | Terminal.ArrowLeft -> Edited(Editing(..state, cursor = Int.max(0, state.cursor - 1)))
+        Terminal.Interrupt ->
+            Cancel
+      | Terminal.Escape ->
+            Edited(Editing(..state, pending = Meta))
+      | Terminal.ArrowLeft ->
+            Edited(Editing(..state, cursor = Int.max(0, state.cursor - 1)))
       | Terminal.ArrowRight ->
             Edited(Editing(..state, cursor = Int.min(String.size(state.text), state.cursor + 1)))
-      | Terminal.ArrowUp -> Edited(walk(state, 1))
-      | Terminal.ArrowDown -> Edited(walk(state, -1))
-      | Terminal.Resized(_) -> Edited(state)
+      | Terminal.ArrowUp ->
+            Edited(walk(state, 1))
+      | Terminal.ArrowDown ->
+            Edited(walk(state, -1))
+      | Terminal.Resized(_) ->
+            Edited(state)
       // report §11.2: a paste goes in at the cursor, line feeds and all
-      | Terminal.Pasted(text) -> Edited(insert(state, text))
-      | Terminal.Key(char) -> character(state, char)
+      | Terminal.Pasted(text) ->
+            Edited(insert(state, text))
+      | Terminal.Key(char) ->
+            character(state, char)
     }
 
 // A character typed, which is Readline's control key where it is one.
@@ -200,8 +215,7 @@ fn character(state : Editing, char : Char) : Edit = {
       | '\u{5}' -> Edited(Editing(..state, cursor = String.size(text))) // C-e
       | '\u{2}' -> Edited(Editing(..state, cursor = Int.max(0, cursor - 1))) // C-b
       | '\u{6}' -> Edited(Editing(..state, cursor = Int.min(String.size(text), cursor + 1))) // C-f
-      | '\u{4}' -> // C-d, and on an empty line it leaves
-            if String.isEmpty(text) then Quit else Edited(deleteAt(state, cursor))
+      | '\u{4}' -> if String.isEmpty(text) then Quit else Edited(deleteAt(state, cursor)) // C-d
       | '\u{8}' or '\u{7f}' -> Edited(deleteBefore(state)) // Backspace and C-h
       | '\u{b}' -> Edited(killForwardTo(state, String.size(text))) // C-k
       | '\u{15}' -> Edited(killBackTo(state, 0)) // C-u
@@ -226,23 +240,32 @@ fn meta(state : Editing, event : Terminal.Event) : Edit = {
     match event {
         // report §11.2: another line, though the parser could run what
         // is typed
-        Terminal.Key('\r') or Terminal.Key('\n') -> Edited(newline(state))
+        Terminal.Key('\r') or Terminal.Key('\n') ->
+            Edited(newline(state))
       // report §8.2: `Escape [` and `Escape O` begin a sequence
       // `Terminal.Event` does not name (Appendix E.16), of which `Escape [
       // Z` is `Shift-Tab`
-      | Terminal.Key('[') -> Edited(Editing(..state, pending = Bracket))
-      | Terminal.Key('O') -> Edited(Editing(..state, pending = Parameters))
-      | Terminal.Key('<') -> Edited(walkTo(state, List.size(state.history)))
-      | Terminal.Key('>') -> Edited(walkTo(state, 0))
-      | Terminal.Key('b') -> Edited(Editing(..state, cursor = wordLeft(text, cursor, alphanumeric)))
+      | Terminal.Key('[') ->
+            Edited(Editing(..state, pending = Bracket))
+      | Terminal.Key('O') ->
+            Edited(Editing(..state, pending = Parameters))
+      | Terminal.Key('<') ->
+            Edited(walkTo(state, List.size(state.history)))
+      | Terminal.Key('>') ->
+            Edited(walkTo(state, 0))
+      | Terminal.Key('b') ->
+            Edited(Editing(..state, cursor = wordLeft(text, cursor, alphanumeric)))
       | Terminal.Key('f') ->
             Edited(Editing(..state, cursor = wordRight(text, cursor, alphanumeric)))
-      | Terminal.Key('d') -> Edited(killForwardTo(state, wordRight(text, cursor, alphanumeric)))
+      | Terminal.Key('d') ->
+            Edited(killForwardTo(state, wordRight(text, cursor, alphanumeric)))
       | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') ->
             Edited(killBackTo(state, wordLeft(text, cursor, alphanumeric)))
-      | Terminal.Key(_) -> Edited(state) // an unbound Meta key does nothing
+      | Terminal.Key(_) ->
+            Edited(state) // an unbound Meta key does nothing
       // every other key does what it does, `Escape` before it or not
-      | other -> plain(state, other)
+      | other ->
+            plain(state, other)
     }
 }
 
@@ -290,19 +313,25 @@ fn search(state : Editing, forward : Bool) : Editing =
 
 fn searching(state : Editing, search : Search, event : Terminal.Event) : Edit =
     match event {
-        Terminal.Key('\r') or Terminal.Key('\n') -> Submit(stop(state))
-      | Terminal.Interrupt -> Cancel
-      | Terminal.Resized(_) -> Edited(state)
-      | Terminal.Key('\u{12}') -> Edited(seek(state, Search(..search, forward = false), 1)) // C-r
-      | Terminal.Key('\u{13}') -> Edited(seek(state, Search(..search, forward = true), -1)) // C-s
-      | Terminal.Key('\u{7}') -> Edited(abandon(state, search)) // C-g
+        Terminal.Key('\r') or Terminal.Key('\n') ->
+            Submit(stop(state))
+      | Terminal.Interrupt ->
+            Cancel
+      | Terminal.Resized(_) ->
+            Edited(state)
+      | Terminal.Key('\u{12}') ->
+            Edited(seek(state, Search(..search, forward = false), 1)) // C-r
+      | Terminal.Key('\u{13}') ->
+            Edited(seek(state, Search(..search, forward = true), -1)) // C-s
+      | Terminal.Key('\u{7}') ->
+            Edited(abandon(state, search)) // C-g
       // Backspace
-      | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') -> Edited(shorten(state, search))
-      | Terminal.Key(char) -> if char < ' ' then
+      | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') ->
+            Edited(shorten(state, search))
+      | Terminal.Key(char) ->
+            if char < ' ' then edit(stop(state), event) else Edited(narrow(state, search, char))
+      | _ ->
             edit(stop(state), event)
-        else
-            Edited(narrow(state, search, char))
-      | _ -> edit(stop(state), event)
     }
 
 // The next match in the direction, the search standing where it was when
@@ -396,7 +425,8 @@ export fn insert(state : Editing, text : String) : Editing = {
 
 fn deleteBefore(state : Editing) : Editing =
     match state {
-        Editing(cursor = 0) -> state
+        Editing(cursor = 0) ->
+            state
       | Editing(text = text, cursor = cursor) ->
             Editing(..state,
                     text = String.slice(text, 0, cursor - 1) <> suffix(text, cursor),
@@ -829,11 +859,13 @@ fn plays(initial : Editing, events : List(Terminal.Event)) : Edit =
 
 fn reads(edited : Edit, text : String, cursor : Int) : Test.Result =
     match edited {
-        Edited(state) -> if state.text == text && state.cursor == cursor then
-            Test.Passed
-        else
-            Test.Failed("\"" <> state.text <> "\" at " <> Int.toString(state.cursor))
-      | other -> Test.Failed(said(other))
+        Edited(state) ->
+            if state.text == text && state.cursor == cursor then
+                Test.Passed
+            else
+                Test.Failed("\"" <> state.text <> "\" at " <> Int.toString(state.cursor))
+      | other ->
+            Test.Failed(said(other))
     }
 
 // What the reader would show, which is the line or the search's prompt

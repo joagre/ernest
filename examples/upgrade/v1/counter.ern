@@ -36,10 +36,12 @@ export fn serve() : Unit receiving CounterMsg =
 // The counter's loop.
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply = reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }

@@ -5,7 +5,8 @@ export let audit : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
 
 export fn step(entries : Int, message : Msg) : Int receiving Service.Envelope(Msg, Int) =
     match message {
-        Log(_) -> entries + 1
+        Log(_) ->
+            entries + 1
       | Entries(reply = reply) -> {
             answer(reply, entries);
             entries

@@ -171,7 +171,8 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receivi
         // children that waited on its last run go on once each is asked,
         // so that one runs `f` once
         match startCause() {
-            First -> Unit
+            First ->
+                Unit
           | _ -> {
                 List.forEach(children(watcher), fn(process) = {
                     let _ = askRestart(process);
@@ -189,11 +190,13 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receivi
 // ended ended with the group's first supervisor.
 fn runs(watcher : Address(WatcherMsg), supervisor : Address(Msg)) : Bool =
     match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), retryMs) {
-        Some(runsGroup) -> runsGroup
-      | None -> match Process.status(Process.fromAddress(watcher)) {
-            None -> false
-          | Some(_) -> runs(watcher, supervisor)
-        }
+        Some(runsGroup) ->
+            runsGroup
+      | None ->
+            match Process.status(Process.fromAddress(watcher)) {
+                None -> false
+              | Some(_) -> runs(watcher, supervisor)
+            }
     }
 
 // The supervisor's loop. `recent` counts the faults within the limit's
@@ -222,18 +225,22 @@ fn supervise(group : Group,
       | Faulted(process = process, reply = reply) -> {
             let left = settled(waiting, process);
             match group.limit {
-                Unlimited -> restartSiblings(group, process, reply, recent, left)
-              | RestartLimit(restarts = restarts, within = within) -> if recent < restarts then {
-                    Clock.alarm(Int.max(within, 1), fn(_) = Expired);
-                    restartSiblings(group, process, reply, recent + 1, left)
-                } else {
-                    answer(reply, true);
-                    fault("supervisor restart limit reached")
-                }
+                Unlimited ->
+                    restartSiblings(group, process, reply, recent, left)
+              | RestartLimit(restarts = restarts, within = within) ->
+                    if recent < restarts then {
+                        Clock.alarm(Int.max(within, 1), fn(_) = Expired);
+                        restartSiblings(group, process, reply, recent + 1, left)
+                    } else {
+                        answer(reply, true);
+                        fault("supervisor restart limit reached")
+                    }
             }
         }
-      | Expired -> supervise(group, recent - 1, waiting)
-      | Settled(child) -> supervise(group, recent, settled(waiting, child))
+      | Expired ->
+            supervise(group, recent - 1, waiting)
+      | Settled(child) ->
+            supervise(group, recent, settled(waiting, child))
     }
 
 // Appendix E.22: a child's fault that the group restarts. The siblings its
@@ -321,12 +328,13 @@ fn watching(supervisor : Address(Msg),
             members : List(Member),
             held : List(Reply(Unit))) : Unit receiving WatcherMsg =
     receive {
-        Add(member) -> if List.any(members, fn(known) = known.process == member.process) then
-            watching(supervisor, members, held)
-        else {
-            monitor(member.process, fn(_) = Gone(member.process));
-            watching(supervisor, inOrder(members, member), held)
-        }
+        Add(member) ->
+            if List.any(members, fn(known) = known.process == member.process) then
+                watching(supervisor, members, held)
+            else {
+                monitor(member.process, fn(_) = Gone(member.process));
+                watching(supervisor, inOrder(members, member), held)
+            }
       | Children(reply = reply) -> {
             answer(reply, List.map(members, fn(member) = member.process));
             watching(supervisor, members, held)
@@ -350,7 +358,8 @@ fn watching(supervisor : Address(Msg),
             send(supervisor, Settled(process));
             watching(supervisor, List.filter(members, fn(member) = member.process != process), held)
         }
-      | Hold(reply = reply) -> watching(supervisor, members, reply :: held)
+      | Hold(reply = reply) ->
+            watching(supervisor, members, reply :: held)
       | SupervisorDied -> {
             stopAll(List.reverse(members));
             release(held)
@@ -365,16 +374,19 @@ fn release(held : List(Reply(Unit))) : Unit =
 // The members with a new one among them, in the order they were spawned.
 fn inOrder(members : List(Member), member : Member) : List(Member) =
     match members {
-        [] -> [member]
-      | head :: rest -> if member.spawned < head.spawned then
-            member :: members
-        else
-            head :: inOrder(rest, member)
+        [] ->
+            [member]
+      | head :: rest ->
+            if member.spawned < head.spawned then
+                member :: members
+            else
+                head :: inOrder(rest, member)
     }
 
 fn stopAll(members : List(Member)) : Unit receiving WatcherMsg =
     match members {
-        [] -> Unit
+        [] ->
+            Unit
       | Member(process = process, spawned = _, stop = stop) :: rest -> {
             stop();
             receive {
@@ -424,8 +436,10 @@ export fn child(supervisor : Address(Msg), f : () -> Unit receiving m) : () -> U
         let watcher = join(supervisor, process, fn() = kill(address));
         // the group's limit decides when a child stops, so its own is none
         restarting(Unlimited, fn() = match startCause() {
-            First -> f()
-          | AfterFault -> runAgain(supervisor, watcher, process, f)
+            First ->
+                f()
+          | AfterFault ->
+                runAgain(supervisor, watcher, process, f)
           | Asked -> {
                 // the child that faulted waits for this one (Appendix E.22)
                 send(supervisor, Settled(process));
@@ -444,7 +458,8 @@ fn runAgain(supervisor : Address(Msg),
             process : Process,
             f : () -> Unit receiving m) : Unit receiving m =
     match Process.status(Process.fromAddress(supervisor)) {
-        None -> kill(self())
+        None ->
+            kill(self())
       | Some(_) -> {
             if Address.callForever(watcher,
                                    fn(reply) = Report(process = process, reply = reply)) then
@@ -464,11 +479,13 @@ fn join(supervisor : Address(Msg),
         stop : () -> Unit receiving WatcherMsg) : Address(WatcherMsg) = {
     let request = fn(reply) = Join(process = process, stop = stop, reply = reply);
     match Address.call(supervisor, request, retryMs) {
-        Some(watcher) -> watcher
-      | None -> match Process.status(Process.fromAddress(supervisor)) {
-            None -> fault("the supervisor has ended")
-          | Some(_) -> join(supervisor, process, stop)
-        }
+        Some(watcher) ->
+            watcher
+      | None ->
+            match Process.status(Process.fromAddress(supervisor)) {
+                None -> fault("the supervisor has ended")
+              | Some(_) -> join(supervisor, process, stop)
+            }
     }
 }
 

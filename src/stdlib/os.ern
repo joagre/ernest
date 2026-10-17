@@ -144,11 +144,13 @@ foreign fn commandLine() : List(String) =
 /// since 0.2.0
 export fn environment(name : String) : Optional(String) =
     match Map.get(variables, name) {
-        None -> None
-      | Some(bytes) -> match String.fromUtf8(bytes) {
-            Some(text) -> Some(text)
-          | None -> fault("the environment variable " <> name <> " is not UTF-8")
-        }
+        None ->
+            None
+      | Some(bytes) ->
+            match String.fromUtf8(bytes) {
+                Some(text) -> Some(text)
+              | None -> fault("the environment variable " <> name <> " is not UTF-8")
+            }
     }
 
 // Report Appendix E.23: what the host says of the program as it starts,
@@ -212,7 +214,8 @@ foreign fn hostDirectory() : String =
 ///         Io.printlnError("usage: tool file...");
 ///         Os.exit(2)
 ///     }
-///   | files -> files
+///   | files ->
+///         files
 /// }
 /// ```
 export foreign fn exit(status : Int) : a =
@@ -443,8 +446,10 @@ fn collect(program : Address(ProgramMsg),
            stdoutPieces : List(Bytes),
            stderrPieces : List(Bytes)) : Either(Io.Error, Finished) =
     match read(program, deadline - Clock.monotonic()) {
-        Right(Stdout(bytes)) -> collect(program, deadline, bytes :: stdoutPieces, stderrPieces)
-      | Right(Stderr(bytes)) -> collect(program, deadline, stdoutPieces, bytes :: stderrPieces)
+        Right(Stdout(bytes)) ->
+            collect(program, deadline, bytes :: stdoutPieces, stderrPieces)
+      | Right(Stderr(bytes)) ->
+            collect(program, deadline, stdoutPieces, bytes :: stderrPieces)
       | Right(Exited(status)) ->
             Right(Finished(status = status,
                            stdout = joined(stdoutPieces),
@@ -453,7 +458,8 @@ fn collect(program : Address(ProgramMsg),
             kill(program);
             Left(Io.Timeout)
         }
-      | Left(error) -> Left(error)
+      | Left(error) ->
+            Left(error)
     }
 
 fn joined(pieces : List(Bytes)) : Bytes =

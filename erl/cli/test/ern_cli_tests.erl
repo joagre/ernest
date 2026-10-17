@@ -120,6 +120,24 @@ format_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"broken.ern:1:">>)),
     ?assertEqual(1, ern_err(["format"])).
 
+%% report §11.6: --check names a module whose clauses start their bodies in
+%% two places, as the layout before the clauses of a construct were laid
+%% out alike had them, and ern format lays every body of the construct on
+%% the line after its arrow, a block's brace kept on its own
+format_check_clauses_test() ->
+    Dir = tmp(),
+    Before = "fn f(x) =\n    match x {\n        Some(y) -> {\n            let z = y;\n"
+             "            z\n        }\n      | None -> 0\n    }\n",
+    Module = write(Dir, "clauses.ern", Before),
+    ?assertEqual(1, ern_err(["format", "--check", Module])),
+    ?assertEqual(Module ++ "\n", binary_to_list(iolist_to_binary(?capturedOutput))),
+    ?assertEqual({ok, list_to_binary(Before)}, file:read_file(Module)),
+    ?assertEqual(0, ern_err(["format", Module])),
+    ?assertEqual({ok, <<"fn f(x) =\n    match x {\n        Some(y) -> {\n            let z = y;\n"
+                        "            z\n        }\n      | None ->\n            0\n    }\n">>},
+                 file:read_file(Module)),
+    ?assertEqual(0, ern_err(["format", "--check", Module])).
+
 %% report §11.6: a module already in the layout is not written back, named
 %% alone or under a directory: its file is the one it was, so that a
 %% layout of every source writes none it leaves as it was. A regression

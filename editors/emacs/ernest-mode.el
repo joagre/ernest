@@ -496,7 +496,7 @@ closed on it, and what it closes began on the line the bracket opened on."
   "The column the contents of the brace at BRACE step in from.
 It is the base of the line the construct holding the brace began on,
 past a bracket closed before the brace, as a match's scrutinee broken
-over lines, and past an arm's guard broken over lines.  A bracket opened
+over lines, and past a clause's guard broken over lines.  A bracket opened
 on that line whose first item holds the brace, and which holds a further
 item, aligns its items, and the brace steps from its first item; one
 whose last item holds the brace hugs it, and the brace steps from the
@@ -513,14 +513,15 @@ line.  Where nothing follows the brace yet it is taken as hugged."
             (setq base (ernest--first-item-column open)))
         (setq inner open
               open (nth 1 (syntax-ppss open))))
-      (or base (ernest--anchor-base (ernest--arm-line-p depth))))))
+      (or base (ernest--anchor-base (ernest--clause-line-p depth))))))
 
-(defun ernest--arm-line-p (depth)
+(defun ernest--clause-line-p (depth)
   "Whether the line point is on holds a clause's `->' at bracket DEPTH.
-A clause, a match's or a receive's arm or its `after', began on its
-pattern's line, and whatever its body opens steps in from there however
-many lines its guard takes, as `ern format' lays it out (report section
-11.6).  A brace an operator opens, `&& {', steps in from its own line."
+A clause of a match or a receive, its `after' among them, began on its
+pattern's line, and a block its body opens on the arrow's line steps in
+from there however many lines its guard takes, as `ern format' lays it
+out (report section 11.6).  A brace an operator opens, `&& {', steps in
+from its own line."
   (save-excursion
     (let ((found nil)
           (end (line-end-position)))
@@ -649,7 +650,7 @@ regexps here match it whatever `case-fold-search' the user has."
         (ernest--brace-base open))
        ((and open (memq first '(?\) ?\])))
         (save-excursion (goto-char open) (ernest--anchor-base)))
-       ;; a clause's bar sits two spaces to the left of its arms
+       ;; a clause's bar sits two spaces to the left of the clauses
        ((ernest--clause-bar-p)
         (max 0 (- content ernest-clause-offset)))
        ;; a `then' or an `else' returns to its `if'

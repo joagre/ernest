@@ -13,20 +13,24 @@ export fn main() : Unit receiving Msg =
             Io.println("ready " <> sizeText());
             loop()
         }
-      | Left(_) -> Io.println("no terminal, " <> sizeText())
+      | Left(_) ->
+            Io.println("no terminal, " <> sizeText())
     }
 
 fn sizeText() : String =
     match Terminal.size() {
-        Left(Io.NotATerminal) -> "no size"
-      | Left(_) -> "a size refused otherwise"
+        Left(Io.NotATerminal) ->
+            "no size"
+      | Left(_) ->
+            "a size refused otherwise"
       | Right(Terminal.Size(rows = rows, columns = columns)) ->
             Int.toString(rows) <> "x" <> Int.toString(columns)
     }
 
 fn loop() : Unit receiving Msg =
     receive {
-        Key(Terminal.Escape) -> Io.println("escape")
+        Key(Terminal.Escape) ->
+            Io.println("escape")
       | Key(Terminal.ArrowUp) -> {
             Io.println("up");
             loop()
@@ -59,5 +63,6 @@ fn loop() : Unit receiving Msg =
             Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
             loop()
         }
-      | after 10000 -> Io.println("nothing came")
+      | after 10000 ->
+            Io.println("nothing came")
     }

@@ -8,5 +8,6 @@ export fn main() : Unit =
             let total = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000);
             Io.println("asked: " <> Io.show(total))
         }
-      | Left(failure) -> Io.println("asked: " <> Io.show(failure))
+      | Left(failure) ->
+            Io.println("asked: " <> Io.show(failure))
     }

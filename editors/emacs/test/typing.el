@@ -2,7 +2,7 @@
 
 ;; The second corpus at scale.  A file truncated at line n is the buffer
 ;; a person had when they had typed that far: unbalanced brackets, a
-;; clause with no arms, a string not yet closed.  The lines above the cut
+;; match with no clauses, a string not yet closed.  The lines above the cut
 ;; are known good, so the mode must leave them where they are, but for a
 ;; line whose place is read from what follows the cut: a comment's last
 ;; line, and the contents of a brace in a bracket's first item, which align

@@ -18,8 +18,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-17) but one decided on the 17th, a
-construct's clauses laid out alike, built before the tag; item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-17); item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -581,7 +580,8 @@ call through the runtime's own error handler and never before, as the host loads
 code path holds no copy and the two Makefile loops go; the install test counts one file a module.
 Decided with the user on 2026-10-17: a wart, built before the tag.
 
-**Before the tag: a construct's clauses laid out alike.** Decided with the user on 2026-10-17. §11.6
+**Before the tag: a construct's clauses laid out alike.** Done 2026-10-17 (the log's *Before the Tag,
+the Last Builds*, its paragraphs on the clauses); decided with the user the same day. §11.6
 keeps a clause's body on the arrow's line where it fits and breaks it otherwise, so the clauses of
 one `match` or `receive` start their bodies in three places, after the arrow, after a brace and on
 the next line. The rule becomes one for the construct: where every clause's body fits on its line
@@ -590,7 +590,7 @@ line, a block's brace alone staying on the arrow's line, so that a reader runs d
 then down the bodies at one column; a `receive`'s `after` clause counts as a clause. The report
 first, §11.6's bullet, whose word *arm* becomes *clause*, the report's word; then the formatter and
 the Emacs mode's indentation; then `make format` over every Ernest source and every block of the
-report and the guide, one commit held by the layout tests. Built before the tag.
+report and the guide, one commit held by the layout tests.
 
 **Before the tag: the examples and the Emacs README in the release.** Done 2026-10-17 (the log's
 *Before the Tag, the Last Builds*, its paragraphs on the examples and the Emacs README); decided

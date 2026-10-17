@@ -47,7 +47,8 @@ export fn tallyStep(count : Int,
             answer(reply, count);
             count
         }
-      | Break -> fault("the tally was broken")
+      | Break ->
+            fault("the tally was broken")
     }
 
 /// An upgrade in place that the child's restart follows: the new loop states
@@ -76,7 +77,8 @@ fn counting(count : Int) : Unit receiving CountMsg =
             answer(reply, count);
             counting(count)
         }
-      | Crash -> fault("the counter was crashed")
+      | Crash ->
+            fault("the counter was crashed")
     }
 
 fn echoing() : Unit receiving EchoMsg =

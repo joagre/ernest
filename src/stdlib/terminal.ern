@@ -164,11 +164,13 @@ fn counted(graphemes : List(String), count : Int) : Int =
 // 0x40 to 0x7E.
 fn afterSequence(graphemes : List(String)) : List(String) =
     match graphemes {
-        [] -> []
-      | grapheme :: rest -> match String.toList(grapheme) {
-            [char] when Char.toCodePoint(char) >= 0x40 && Char.toCodePoint(char) <= 0x7E -> rest
-          | _ -> afterSequence(rest)
-        }
+        [] ->
+            []
+      | grapheme :: rest ->
+            match String.toList(grapheme) {
+                [char] when Char.toCodePoint(char) >= 0x40 && Char.toCodePoint(char) <= 0x7E -> rest
+              | _ -> afterSequence(rest)
+            }
     }
 
 // The columns of a grapheme, by its first code point that counts; a
@@ -181,13 +183,15 @@ fn graphemeColumns(grapheme : String) : Int = {
 
 fn firstColumns(codes : List(Int), emojiPresentation : Bool) : Int =
     match codes {
-        [] -> 0
-      | code :: rest -> match widthOf(code, widths) {
-            Some(Zero) -> firstColumns(rest, emojiPresentation)
-          | Some(Wide) -> 2
-          | Some(Pictographic) -> if emojiPresentation then 2 else 1
-          | None -> 1
-        }
+        [] ->
+            0
+      | code :: rest ->
+            match widthOf(code, widths) {
+                Some(Zero) -> firstColumns(rest, emojiPresentation)
+              | Some(Wide) -> 2
+              | Some(Pictographic) -> if emojiPresentation then 2 else 1
+              | None -> 1
+            }
     }
 
 let widths = tree(widthTable)
@@ -195,7 +199,8 @@ let widths = tree(widthTable)
 fn tree(entries : List(#(Int, Int, Width))) : Ranges = {
     let half = List.size(entries) / 2;
     match List.drop(entries, half) {
-        [] -> Empty
+        [] ->
+            Empty
       | #(low, high, width) :: above ->
             Branch(low = low,
                    high = high,
@@ -207,7 +212,8 @@ fn tree(entries : List(#(Int, Int, Width))) : Ranges = {
 
 fn widthOf(code : Int, ranges : Ranges) : Optional(Width) =
     match ranges {
-        Empty -> None
+        Empty ->
+            None
       | Branch(low = low, high = high, width = width, below = below, above = above) ->
             if code < low then
                 widthOf(code, below)

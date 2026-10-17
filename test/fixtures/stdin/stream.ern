@@ -11,7 +11,8 @@ export fn main() : Unit = {
 
 fn copyRest(count : Int) : Unit =
     match Io.read() {
-        None -> Io.println("bytes " <> Int.toString(count))
+        None ->
+            Io.println("bytes " <> Int.toString(count))
       | Some(bytes) -> {
             Io.write(bytes);
             copyRest(count + Bytes.size(bytes))

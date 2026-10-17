@@ -35,7 +35,8 @@ export fn named(text : String, color : Markdown.Output) : String = {
                  fn(keyword) = String.startsWith(text, keyword));
     let marks = if declared then String.size(text) :: found else found;
     match List.sort(marks, Int.compare) {
-        [] -> text
+        [] ->
+            text
       | end :: _ -> {
             let before = String.slice(text, 0, end);
             let name = Optional.withDefault(List.last(String.words(before)), "");

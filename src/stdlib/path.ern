@@ -67,11 +67,13 @@ export fn join(segments : List(String)) : Path =
 // after a separator.
 fn written(segments : List(String)) : String =
     match segments {
-        [] -> ""
-      | first :: rest -> if endsInSeparator(first) then
-            first <> String.join(rest, separator())
-        else
-            String.join(segments, separator())
+        [] ->
+            ""
+      | first :: rest ->
+            if endsInSeparator(first) then
+                first <> String.join(rest, separator())
+            else
+                String.join(segments, separator())
     }
 
 // Whether the text's last code point is the separator.
@@ -202,7 +204,8 @@ fn extended(path : Path, suffix : String) : Path = {
             let rebuilt = List.reverse(earlier) <> [stem <> suffix] <> trailing;
             Path(String.join(rebuilt, separator()))
         }
-      | [] -> path
+      | [] ->
+            path
     }
 }
 
@@ -224,11 +227,10 @@ fn extended(path : Path, suffix : String) : Path = {
 /// since 0.3.0
 export fn under(root : Path, path : Path) : Optional(Path) =
     match split(path) {
-        [] -> None
-      | segments -> if isAbsolute(path) || List.any(segments, isStep) then
+        [] ->
             None
-        else
-            Some(root <> path)
+      | segments ->
+            if isAbsolute(path) || List.any(segments, isStep) then None else Some(root <> path)
     }
 
 // A segment that names no entry but a step from where it stands.

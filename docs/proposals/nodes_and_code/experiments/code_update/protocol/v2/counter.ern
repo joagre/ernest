@@ -10,12 +10,14 @@ export let counter : Service.Handle(Msg2, Int) = Service.start(fn() = 0, step)
 
 export fn step(total : Int, message : Msg2) : Int receiving Service.Envelope(Msg2, Int) =
     match message {
-        Add2(amount) -> total + amount
+        Add2(amount) ->
+            total + amount
       | Total2(reply = reply) -> {
             answer(reply, total);
             total
         }
-      | Reset -> 0
+      | Reset ->
+            0
     }
 
 /// An old message to the new service: each constructor to its namesake.

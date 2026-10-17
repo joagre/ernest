@@ -5,7 +5,8 @@
 
 export fn main() : Unit =
     match Io.readLine() {
-        None -> Io.println("end")
+        None ->
+            Io.println("end")
       | Some(line) -> {
             Io.println("[" <> line <> "] " <> Int.toString(String.size(line)));
             main()

@@ -6,7 +6,8 @@ export let counter : Service.Handle(Msg, Int) = Service.start(fn() = 0, step)
 
 export fn step(total : Int, message : Msg) : Int receiving Service.Envelope(Msg, Int) =
     match message {
-        Add(amount) -> total + amount
+        Add(amount) ->
+            total + amount
       | Total(reply = reply) -> {
             answer(reply, total);
             total

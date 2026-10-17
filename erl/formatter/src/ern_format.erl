@@ -430,7 +430,7 @@ type_declaration(Params, Constructors, Code) ->
 
 %% A type of one alternative keeps it on its line; alternatives that run
 %% past the line break after the `=` and stand one a line, each further
-%% line led by its bar, as a `match`'s arms do (report §11.6).
+%% line led by its bar, as a `match`'s clauses do (report §11.6).
 alternatives([Constructor], Code) ->
     %% a doc block puts the one alternative on a line of its own, a step in;
     %% one that does not fit breaks after the `=`, as several do, rather than
@@ -542,14 +542,12 @@ bare_expr(#e_if{} = If, Code) ->
     {group, ladder(If, Code)};
 bare_expr(#e_match{scrutinee = Scrutinee, clauses = Clauses}, Code) ->
     [token(match), space(), expr(Scrutinee, Code), space(),
-     braces([arms(Clauses, Code), lead_trivia])];
+     braces([{clauses, [clause(Clause, Code) || Clause <- Clauses]}, lead_trivia])];
 bare_expr(#e_receive{clauses = Clauses, 'after' = After}, Code) ->
-    Arms = case {Clauses, After} of
-               {[], #after_clause{}} -> after_clause(After, Code);
-               {_, undefined} -> arms(Clauses, Code);
-               _ -> [arms(Clauses, Code), bar(after_clause(After, Code))]
-           end,
-    [token('receive'), space(), braces([Arms, lead_trivia])].
+    %% report §11.6: a receive's `after` clause is a clause
+    Templates = [clause(Clause, Code) || Clause <- Clauses]
+        ++ [after_clause(After, Code) || After =/= undefined],
+    [token('receive'), space(), braces([{clauses, Templates}, lead_trivia])].
 
 args(Args, Code) ->
     bracket(token('('), [expr(Arg, Code) || Arg <- Args], ')', last(Args), Code).
@@ -660,23 +658,19 @@ else_branch(ElseBranch, Code) ->
         other -> {nest, 4, [line, expr(ElseBranch, Code)]}
     end.
 
-%% Each arm on a line of its own, a further one led by its bar two
-%% columns to the left.
-arms([Clause | Clauses], Code) ->
-    [clause(Clause, Code) | [bar(clause(Other, Code)) || Other <- Clauses]].
-
-bar(Arm) ->
-    {nest, -2, [hardline, token('|'), space(), {nest, 2, Arm}]}.
-
+%% A clause: its head up to its `->`, its body, and whether the body is a
+%% block, whose brace stays on the arrow's line (report §11.6).
 clause(#clause{pattern = Pattern, guard = Guard, body = Body}, Code) ->
     When = case Guard of
                undefined -> [];
                _ -> [space(), token('when'), space(), expr(Guard, Code)]
            end,
-    [pattern(Pattern, Code), When, space(), token('->'), {body, expr(Body, Code)}].
+    {[pattern(Pattern, Code), When, space(), token('->')], expr(Body, Code),
+     ending(Body, Code) =:= block}.
 
 after_clause(#after_clause{timeout = Timeout, body = Body}, Code) ->
-    [token('after'), space(), expr(Timeout, Code), space(), token('->'), {body, expr(Body, Code)}].
+    {[token('after'), space(), expr(Timeout, Code), space(), token('->')], expr(Body, Code),
+     ending(Body, Code) =:= block}.
 
 %% Patterns, which have no parentheses
 
@@ -758,18 +752,49 @@ resolve({node, Node, Template}, Code, Cursor) ->
     parens(Node, Template, Code, Cursor);
 resolve({bracket, Open, Items, Close, Hug}, Code, Cursor) ->
     items(Open, Items, Close, Hug, Code, Cursor);
+resolve({clauses, [First | Rest]}, Code, Cursor) ->
+    {FirstParts, Cursor1} = clause_parts(First, Code, Cursor),
+    {Barred, Cursor2} = lists:mapfoldl(fun(Clause, Acc) -> barred_parts(Clause, Code, Acc) end,
+                                       Cursor1, Rest),
+    {{choice, clauses, clauses_placed(FirstParts, Barred, table),
+      clauses_placed(FirstParts, Barred, down)}, Cursor2};
 resolve({body, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
-    {{choice, body, [space(), Layout, mark], {nest, 4, [hardline, Layout]}}, Cursor1};
+    {{choice, body, [space(), Layout], {nest, 4, [hardline, Layout]}}, Cursor1};
 resolve({alternative, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
-    {{choice, alternative, [space(), Layout, mark], {nest, 4, [hardline, Layout]}}, Cursor1};
+    {{choice, alternative, [space(), Layout], {nest, 4, [hardline, Layout]}}, Cursor1};
 resolve({hug_then, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
     {{choice, branch, [space(), Layout, space()], [{nest, 4, [line, Layout]}, line]}, Cursor1};
 resolve({hug_else, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
     {{choice, branch, [space(), Layout], {nest, 4, [line, Layout]}}, Cursor1}.
+
+%% A clause's head and body resolved, beside whether its body is a block;
+%% a further clause's beside the bar that leads it.
+clause_parts({Head, Body, IsBlock}, Code, Cursor) ->
+    {HeadLayout, Cursor1} = resolve(Head, Code, Cursor),
+    {BodyLayout, Cursor2} = resolve(Body, Code, Cursor1),
+    {{HeadLayout, BodyLayout, IsBlock}, Cursor2}.
+
+barred_parts(Clause, Code, Cursor) ->
+    {Bar, Cursor1} = consume('|', Code, Cursor),
+    {Parts, Cursor2} = clause_parts(Clause, Code, Cursor1),
+    {{Bar, Parts}, Cursor2}.
+
+%% Report §11.6: each clause on a line of its own, a further one led by its
+%% bar two columns to the left; as a table, every body whole on its arrow's
+%% line, or every body down, beginning the line after its arrow a step in
+%% from the clause's line, a block opening its brace on the arrow's line.
+clauses_placed(First, Barred, Placement) ->
+    [clause_placed(First, Placement)
+     | [{nest, -2, [hardline, Bar, space(), {nest, 2, clause_placed(Parts, Placement)}]}
+        || {Bar, Parts} <- Barred]].
+
+clause_placed({Head, Body, _IsBlock}, table) -> [Head, space(), {whole, Body}];
+clause_placed({Head, Body, true}, down) -> [Head, space(), Body];
+clause_placed({Head, Body, false}, down) -> [Head, {nest, 4, [hardline, Body]}].
 
 %% Whether a template begins with a line break.
 leading_break(Template) when Template =:= line; Template =:= hardline ->

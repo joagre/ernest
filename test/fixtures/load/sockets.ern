@@ -13,14 +13,17 @@ let batch = 200
 
 export fn main() : Unit =
     match Tcp.listen("127.0.0.1", 0) {
-        Right(listener) -> match Tcp.port(listener) {
-            Right(port) -> {
-                let _ = spawn(fn() = serve(listener));
-                round(port, 1)
+        Right(listener) ->
+            match Tcp.port(listener) {
+                Right(port) -> {
+                    let _ = spawn(fn() = serve(listener));
+                    round(port, 1)
+                }
+              | Left(error) ->
+                    Io.println(Io.show(error))
             }
-          | Left(error) -> Io.println(Io.show(error))
-        }
-      | Left(error) -> Io.println(Io.show(error))
+      | Left(error) ->
+            Io.println(Io.show(error))
     }
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit = {
@@ -29,7 +32,8 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit = {
             let echoer = spawn(fn() = echo(socket));
             Tcp.give(socket, Process.fromAddress(echoer))
         }
-      | Left(_) -> Unit
+      | Left(_) ->
+            Unit
     };
     serve(listener)
 }
@@ -67,5 +71,6 @@ fn once(port : Int) : Unit =
             let _ = Tcp.read(client, 1000);
             Tcp.close(client)
         }
-      | Left(error) -> Io.println(Io.show(error))
+      | Left(error) ->
+            Io.println(Io.show(error))
     }

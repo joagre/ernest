@@ -128,7 +128,8 @@ fn drain(world : World, count : Int) : World receiving GameMsg =
 // One process per player: translates keys into Input.
 fn steering(id : Int, game : Address(GameMsg)) : Unit receiving Terminal.Event =
     receive {
-        Terminal.Escape or Terminal.Interrupt -> send(game, Played(Leave(id)))
+        Terminal.Escape or Terminal.Interrupt ->
+            send(game, Played(Leave(id)))
       | event -> {
             match directionOf(event) {
                 Some(direction) -> send(game, Played(Turn(id = id, direction = direction)))
@@ -166,7 +167,8 @@ fn board() : #(Int, Int) =
 fn step(world : World) : World = {
     fn movePlayer(#(acc, apples), _, player) =
         match player {
-            Player(alive = false) or Player(body = []) -> #(acc, apples)
+            Player(alive = false) or Player(body = []) ->
+                #(acc, apples)
           | Player(body = head :: rest, direction = direction, score = score) -> {
                 let next = move(world.width, world.height, head, direction);
                 let ate = List.contains(apples, next);
@@ -186,12 +188,15 @@ fn step(world : World) : World = {
 
 fn applyInput(world : World, input : Input) : World =
     match input {
-        Turn(id = id, direction = direction) -> match Map.get(world.players, id) {
-            Some(player) ->
-                World(..world, players = Map.put(world.players, id, turn(player, direction)))
-          | None -> world
-        }
-      | Leave(id) -> World(..world, players = Map.remove(world.players, id))
+        Turn(id = id, direction = direction) ->
+            match Map.get(world.players, id) {
+                Some(player) ->
+                    World(..world, players = Map.put(world.players, id, turn(player, direction)))
+              | None ->
+                    world
+            }
+      | Leave(id) ->
+            World(..world, players = Map.remove(world.players, id))
     }
 
 fn collide(players : Map(Int, Player), player : Player) : Player =
@@ -201,7 +206,8 @@ fn collide(players : Map(Int, Player), player : Player) : Player =
                 Player(..player, alive = false)
             else
                 player
-      | _ -> player
+      | _ ->
+            player
     }
 
 // Apples added on free cells until there are as many as wanted, or until
@@ -212,7 +218,8 @@ fn refill(world : World, wanted : Int) : World =
     else match freePoint(world) {
         Some(#(point, seed)) ->
             refill(World(..world, apples = point :: world.apples, seed = seed), wanted)
-      | None -> world
+      | None ->
+            world
     }
 
 fn addPlayer(world : World, id : Int) : World =
@@ -227,7 +234,8 @@ fn addPlayer(world : World, id : Int) : World =
                        alive = true);
             World(..world, players = Map.put(world.players, id, player), seed = seed)
         }
-      | None -> world
+      | None ->
+            world
     }
 
 // A cell no snake and no apple takes, drawn from those there are, and the
@@ -237,7 +245,8 @@ fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
         List.flatMap(List.range(0, world.height - 1),
                      fn(y) = List.map(List.range(0, world.width - 1), fn(x) = Point(x = x, y = y)));
     match List.filter(cells, fn(point) = !taken(world, point)) {
-        [] -> None
+        [] ->
+            None
       | free -> {
             let #(index, seed) = Random.nextInt(world.seed, List.size(free) - 1);
             Optional.map(List.get(free, index), fn(point) = #(point, seed))

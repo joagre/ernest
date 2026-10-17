@@ -7,7 +7,8 @@ type Stop = Stop(Reply(Unit))
 
 fn count(total : Int) : Unit receiving Counter.Msg =
     receive {
-        Counter.Add(amount) -> count(total + amount)
+        Counter.Add(amount) ->
+            count(total + amount)
       | Counter.Get(reply = reply) -> {
             answer(reply, total);
             count(total)
@@ -26,8 +27,10 @@ export fn main() : Unit receiving Stop = {
                     let _ = Io.readLine();
                     answer(reply, Unit)
                 }
-              | ["hold"] -> held(reply)
-              | _ -> answer(reply, Unit)
+              | ["hold"] ->
+                    held(reply)
+              | _ ->
+                    answer(reply, Unit)
             }
         }
     }

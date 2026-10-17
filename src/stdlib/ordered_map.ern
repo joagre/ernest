@@ -62,11 +62,13 @@ export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
 // the map holds and replaces its value.
 fn heldKeys(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
     match sorted {
-        #(key, value) :: #(other, later) :: rest -> if k.compare(key, other) == Equal then
-            heldKeys(#(key, later) :: rest)
-        else
-            #(key, value) :: heldKeys(#(other, later) :: rest)
-      | _ -> sorted
+        #(key, value) :: #(other, later) :: rest ->
+            if k.compare(key, other) == Equal then
+                heldKeys(#(key, later) :: rest)
+            else
+                #(key, value) :: heldKeys(#(other, later) :: rest)
+      | _ ->
+            sorted
     }
 
 /// The number of entries.
@@ -109,12 +111,14 @@ export fn get(Map(pairs) : Map(k, v), key : k) : Optional(v) needs k.compare =
 
 fn found(pairs : List(#(k, v)), key : k) : Optional(v) needs k.compare =
     match pairs {
-        [] -> None
-      | #(other, value) :: rest -> match k.compare(key, other) {
-            Less -> None
-          | Equal -> Some(value)
-          | Greater -> found(rest, key)
-        }
+        [] ->
+            None
+      | #(other, value) :: rest ->
+            match k.compare(key, other) {
+                Less -> None
+              | Equal -> Some(value)
+              | Greater -> found(rest, key)
+            }
     }
 
 /// The map with `value` at `key`. Where the map holds a key the order calls
@@ -131,12 +135,14 @@ export fn put(Map(pairs) : Map(k, v), key : k, value : v) : Map(k, v) needs k.co
 
 fn inserted(pairs : List(#(k, v)), key : k, value : v) : List(#(k, v)) needs k.compare =
     match pairs {
-        [] -> [#(key, value)]
-      | #(other, kept) :: rest -> match k.compare(key, other) {
-            Less -> #(key, value) :: pairs
-          | Equal -> #(other, value) :: rest
-          | Greater -> #(other, kept) :: inserted(rest, key, value)
-        }
+        [] ->
+            [#(key, value)]
+      | #(other, kept) :: rest ->
+            match k.compare(key, other) {
+                Less -> #(key, value) :: pairs
+              | Equal -> #(other, value) :: rest
+              | Greater -> #(other, kept) :: inserted(rest, key, value)
+            }
     }
 
 /// The map without the entry at `key`, which need not be there.
@@ -295,8 +301,10 @@ fn mergedWith(pairs : List(#(k, v)),
               others : List(#(k, v)),
               f : (k, v, v) -> v receiving e) : List(#(k, v)) receiving e needs k.compare =
     match #(pairs, others) {
-        #([], _) -> others
-      | #(_, []) -> pairs
+        #([], _) ->
+            others
+      | #(_, []) ->
+            pairs
       | #(#(key, value) :: rest, #(otherKey, otherValue) :: more) ->
             match k.compare(key, otherKey) {
                 Less -> #(key, value) :: mergedWith(rest, others, f)

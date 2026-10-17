@@ -11,7 +11,8 @@ let counter : Address(Counter.Msg) =
 
 fn count(total : Int) : Unit receiving Counter.Msg =
     receive {
-        Counter.Add(amount) -> count(total + amount)
+        Counter.Add(amount) ->
+            count(total + amount)
       | Counter.Get(reply = reply) -> {
             answer(reply, total);
             count(total)
@@ -126,7 +127,8 @@ fn opened() : Unit receiving Counter.GateMsg =
             answer(reply, n * 10);
             opened()
         }
-      | Counter.Open -> opened()
+      | Counter.Open ->
+            opened()
     }
 
 fn echoes() : Unit receiving Counter.EchoMsg =

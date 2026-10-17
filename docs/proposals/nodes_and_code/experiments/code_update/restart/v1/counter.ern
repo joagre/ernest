@@ -6,7 +6,8 @@ export let counter : Address(Msg) = spawn(fn() = count(0))
 
 fn count(total : Int) : Unit receiving Msg =
     receive {
-        Add(amount) -> count(total + amount)
+        Add(amount) ->
+            count(total + amount)
       | Total(reply = reply) -> {
             answer(reply, total);
             count(total)

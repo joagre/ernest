@@ -17,7 +17,8 @@ export let doomed : Peer.Service(Msg) = Peer.service("doomed")
 
 export fn serve() : Unit receiving Msg =
     receive {
-        Crash(reply = reply) -> fault("crashed")
+        Crash(reply = reply) ->
+            fault("crashed")
       | Echo(n = n, reply = reply) -> {
             answer(reply, n);
             serve()

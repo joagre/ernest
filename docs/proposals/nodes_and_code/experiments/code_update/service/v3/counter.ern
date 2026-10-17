@@ -6,15 +6,16 @@ export type Msg = Add(Int) | Total(reply : Reply(Int))
 
 export type Count = Count(total : Int, adds : Int)
 
-export let counter : Service.Handle(Msg, Count) = Service.start(fn() = Count(total = 0, adds = 0),
-                                                                step)
+export let counter : Service.Handle(Msg, Count) =
+    Service.start(fn() = Count(total = 0, adds = 0), step)
 
 export fn migrate(total : Int) : Count =
     Count(total = total, adds = 0)
 
 export fn step(count : Count, message : Msg) : Count receiving Service.Envelope(Msg, Count) =
     match message {
-        Add(amount) -> Count(total = count.total + amount, adds = count.adds + 1)
+        Add(amount) ->
+            Count(total = count.total + amount, adds = count.adds + 1)
       | Total(reply = reply) -> {
             answer(reply, count.total);
             count

@@ -1403,18 +1403,18 @@ compute_on_peer(Base) ->
     [has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
                  "divided: Fault(\"division by zero\")",
-                 "reported here: Desk.faulted:107 division by zero false",
+                 "reported here: Desk.faulted:109 division by zero false",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
                  " error:badarg\")",
-                 "reported here: Desk.faulted:107 foreign function erlang:binary_to_integer/1"
+                 "reported here: Desk.faulted:109 foreign function erlang:binary_to_integer/1"
                  " raised error:badarg true",
                  "killed: Left(Other(\"Killed\"))", "timed out: Left(Timeout)",
                  "with the store's end: Left(Other(\"ProgramEnd\"))"]],
-    ?assertEqual(1, length(string:split(Err, "Desk.faulted:107 faulted: division by zero\n", all))
+    ?assertEqual(1, length(string:split(Err, "Desk.faulted:109 faulted: division by zero\n", all))
                     - 1),
-    has(Err, "Desk.faulted:107 faulted: foreign function erlang:binary_to_integer/1 raised"
+    has(Err, "Desk.faulted:109 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
-    has(StoreErr, "the peer desk's compute at Desk.computes:531 was not loaded: the binding"
+    has(StoreErr, "the peer desk's compute at Desk.computes:534 was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},

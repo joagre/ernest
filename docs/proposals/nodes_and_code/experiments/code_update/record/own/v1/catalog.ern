@@ -10,7 +10,8 @@ export fn step(items : Map(String, Item),
                message : Msg) : Map(String,
                                     Item) receiving Service.Envelope(Msg, Map(String, Item)) =
     match message {
-        Add(item) -> Map.put(items, item.name, item)
+        Add(item) ->
+            Map.put(items, item.name, item)
       | Find(name = name, reply = reply) -> {
             answer(reply, Map.get(items, name));
             items

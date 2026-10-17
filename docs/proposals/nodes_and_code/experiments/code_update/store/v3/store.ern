@@ -28,21 +28,23 @@ fn opened(items : Map(String, Int)) : State2 receiving Service.Envelope(Msg, Sta
             let _ = spawn(fn() = accepting(listener, me));
             State2(items = items, listener = listener, puts = 0)
         }
-      | Left(_) -> fault("cannot listen")
+      | Left(_) ->
+            fault("cannot listen")
     }
 
 /// The node that stops, on one node: the running store hands its state to a
 /// successor started from `migrate` of it, and ends, its listener with it.
 export fn handover(old : Service.Handle(Msg, State)) : Unit receiving n =
     match old {
-        Service.Handle(loop = loop) -> send(loop, Service.Upgrade(next = fn(state) = {
-            let successor = Service.start(fn() = migrate(state), step);
-            Io.println("the successor listens on "
-                           <> Int.toString(port(successor))
-                           <> " with "
-                           <> Int.toString(size(successor))
-                           <> " keys")
-        }))
+        Service.Handle(loop = loop) ->
+            send(loop, Service.Upgrade(next = fn(state) = {
+                let successor = Service.start(fn() = migrate(state), step);
+                Io.println("the successor listens on "
+                               <> Int.toString(port(successor))
+                               <> " with "
+                               <> Int.toString(size(successor))
+                               <> " keys")
+            }))
     }
 
 export fn step(state : State2, message : Msg) : State2 receiving Service.Envelope(Msg, State2) =
@@ -81,8 +83,10 @@ export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) :
             Tcp.close(socket);
             accepting(listener, store)
         }
-      | Left(Io.Timeout) -> accepting(listener, store)
-      | Left(_) -> Unit
+      | Left(Io.Timeout) ->
+            accepting(listener, store)
+      | Left(_) ->
+            Unit
     }
 
 export fn put(key : String, value : Int) : Unit receiving n =

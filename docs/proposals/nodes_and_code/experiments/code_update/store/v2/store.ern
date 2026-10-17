@@ -18,7 +18,8 @@ export fn init() : State receiving Service.Envelope(Msg, State) =
             let _ = spawn(fn() = accepting(listener, me));
             State(items = Map.empty, listener = listener)
         }
-      | Left(_) -> fault("cannot listen")
+      | Left(_) ->
+            fault("cannot listen")
     }
 
 export fn step(state : State, message : Msg) : State receiving Service.Envelope(Msg, State) =
@@ -57,8 +58,10 @@ export fn accepting(listener : Address(Tcp.ListenerMsg), store : Address(Msg)) :
             Tcp.close(socket);
             accepting(listener, store)
         }
-      | Left(Io.Timeout) -> accepting(listener, store)
-      | Left(_) -> Unit
+      | Left(Io.Timeout) ->
+            accepting(listener, store)
+      | Left(_) ->
+            Unit
     }
 
 export fn put(key : String, value : Int) : Unit receiving n =

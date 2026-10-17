@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 16 October 2026.
+Revision of 17 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -663,7 +663,8 @@ fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) =
     match bytes {
         <<bodySize:size(16)-big, body:size(bodySize)-bytes, rest:bytes>> ->
             Some(#(bodySize, body, rest))
-      | _ -> None
+      | _ ->
+            None
     }
 ```
 
@@ -786,12 +787,14 @@ type CounterMsg =
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply = reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }
 ```
 
@@ -1312,12 +1315,14 @@ export fn main() : Unit = {
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply = reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }
 ```
 
@@ -1342,7 +1347,8 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
     else {
         Io.println("ping " <> Int.toString(round));
         match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
-            Some(_) -> ping(opponent, round - 1)
+            Some(_) ->
+                ping(opponent, round - 1)
           | None -> {
                 Io.println("pong is not answering");
                 send(opponent, Stop)
@@ -1357,7 +1363,8 @@ fn pong() : Unit receiving PongMsg =
             answer(reply, round);
             pong()
         }
-      | Stop -> Unit
+      | Stop ->
+            Unit
     }
 ```
 

@@ -57,7 +57,8 @@ export fn main() : Unit = {
             Io.println("listening on 127.0.0.1:8080");
             acceptor(sessions, 0, listener)
         }
-      | Left(error) -> Io.println("cannot listen: " <> errorText(error))
+      | Left(error) ->
+            Io.println("cannot listen: " <> errorText(error))
     }
 }
 
@@ -78,7 +79,8 @@ fn store(counts : Map(SessionId, Int)) : Unit receiving SessionMsg =
             answer(reply, visits);
             store(Map.put(counts, id, visits))
         }
-      | Forget -> sessionStore()
+      | Forget ->
+            sessionStore()
     }
 
 // The acceptor: one handler process per connection.
@@ -92,8 +94,10 @@ fn acceptor(sessions : Address(SessionMsg),
             Tcp.give(socket, Process.fromAddress(handler));
             acceptor(sessions, accepted + 1, listener)
         }
-      | Left(Io.Timeout) -> acceptor(sessions, accepted, listener)
-      | Left(error) -> Io.println("cannot accept: " <> errorText(error))
+      | Left(Io.Timeout) ->
+            acceptor(sessions, accepted, listener)
+      | Left(error) ->
+            Io.println("cannot accept: " <> errorText(error))
     }
 
 // One process per connection: reads a request, writes a response, closes.
@@ -101,30 +105,32 @@ fn handle(sessions : Address(SessionMsg),
           connection : Int,
           socket : Address(Tcp.SocketMsg)) : Unit =
     match Tcp.read(socket, 5000) {
-        Right(bytes) -> match parse(bytes) {
-            Left(_) -> {
-                let bad = Response(status = statusBadRequest, headers = [], body = "");
-                // the connection is closed whether the far end took it or not
-                let _ = Tcp.write(socket, render(bad), 5000);
-                Tcp.close(socket)
+        Right(bytes) ->
+            match parse(bytes) {
+                Left(_) -> {
+                    let bad = Response(status = statusBadRequest, headers = [], body = "");
+                    // the connection is closed whether the far end took it or not
+                    let _ = Tcp.write(socket, render(bad), 5000);
+                    Tcp.close(socket)
+                }
+              | Right(request) -> {
+                    let id = match Optional.andThen(cookie(request, "sid"), parseSessionId) {
+                        Some(found) -> found
+                      | None -> freshSessionId(connection)
+                    };
+                    let visits =
+                        Address.callForever(sessions, fn(reply) = Visit(id = id, reply = reply));
+                    let body = "Visit number " <> Int.toString(visits);
+                    let bytes =
+                        Response(status = statusOk, headers = [], body = body)
+                            |> withCookie("sid", sessionIdText(id))
+                            |> render;
+                    let _ = Tcp.write(socket, bytes, 5000);
+                    Tcp.close(socket)
+                }
             }
-          | Right(request) -> {
-                let id = match Optional.andThen(cookie(request, "sid"), parseSessionId) {
-                    Some(found) -> found
-                  | None -> freshSessionId(connection)
-                };
-                let visits =
-                    Address.callForever(sessions, fn(reply) = Visit(id = id, reply = reply));
-                let body = "Visit number " <> Int.toString(visits);
-                let bytes =
-                    Response(status = statusOk, headers = [], body = body)
-                        |> withCookie("sid", sessionIdText(id))
-                        |> render;
-                let _ = Tcp.write(socket, bytes, 5000);
-                Tcp.close(socket)
-            }
-        }
-      | Left(_) -> Tcp.close(socket) // nothing arrived in time
+      | Left(_) ->
+            Tcp.close(socket) // nothing arrived in time
     }
 
 //
@@ -142,11 +148,13 @@ fn parse(bytes : Bytes) : Either(ParseError, Request) = {
 // "GET /path HTTP/1.1"; the version is not used.
 fn requestLine(lines : List(String)) : Either(ParseError, #(String, String)) =
     match lines {
-        line :: _ -> match String.split(String.trim(line), " ") {
-            method :: path :: _ -> Right(#(method, path))
-          | _ -> Left(BadRequestLine)
-        }
-      | [] -> Left(BadRequestLine)
+        line :: _ ->
+            match String.split(String.trim(line), " ") {
+                method :: path :: _ -> Right(#(method, path))
+              | _ -> Left(BadRequestLine)
+            }
+      | [] ->
+            Left(BadRequestLine)
     }
 
 // The lines after the request line, up to the empty one. A name is lowercased,
@@ -160,16 +168,20 @@ fn headerLines(lines : List(String)) : Either(ParseError, List(#(String, String)
 fn headerPairs(lines : List(String),
                acc : List(#(String, String))) : Either(ParseError, List(#(String, String))) =
     match lines {
-        [] -> Right(List.reverse(acc))
-      | line :: rest -> if String.trim(line) == "" then
+        [] ->
             Right(List.reverse(acc))
-        else match String.split(line, ":") {
-            name :: first :: more -> {
-                let value = String.join(first :: more, ":");
-                headerPairs(rest, #(String.toLower(String.trim(name)), String.trim(value)) :: acc)
+      | line :: rest ->
+            if String.trim(line) == "" then
+                Right(List.reverse(acc))
+            else match String.split(line, ":") {
+                name :: first :: more -> {
+                    let value = String.join(first :: more, ":");
+                    headerPairs(rest,
+                                #(String.toLower(String.trim(name)), String.trim(value)) :: acc)
+                }
+              | _ ->
+                    Left(BadHeader(line))
             }
-          | _ -> Left(BadHeader(line))
-        }
     }
 
 fn render(response : Response) : Bytes = {
@@ -186,11 +198,13 @@ fn cookie(request : Request, name : String) : Optional(String) =
 
 fn cookieValue(parts : List(String), name : String) : Optional(String) =
     match parts {
-        [] -> None
-      | part :: rest -> match String.split(String.trim(part), "=") {
-            key :: value :: _ when key == name -> Some(value)
-          | _ -> cookieValue(rest, name)
-        }
+        [] ->
+            None
+      | part :: rest ->
+            match String.split(String.trim(part), "=") {
+                key :: value :: _ when key == name -> Some(value)
+              | _ -> cookieValue(rest, name)
+            }
     }
 
 fn withCookie(response : Response, name : String, value : String) : Response =

@@ -42,13 +42,16 @@ let ordered : Counts(OrderedMap.Map(String, Int)) = Counts(..OrderedMap)
 
 export fn main() : Unit =
     match Os.arguments {
-        [name] -> match Fs.read(Path(name), 5000) {
-            Right(bytes) -> match String.fromUtf8(bytes) {
-                Some(text) -> report(String.words(text))
-              | None -> fail(name <> ": not UTF-8 text")
+        [name] ->
+            match Fs.read(Path(name), 5000) {
+                Right(bytes) ->
+                    match String.fromUtf8(bytes) {
+                        Some(text) -> report(String.words(text))
+                      | None -> fail(name <> ": not UTF-8 text")
+                    }
+              | Left(error) ->
+                    fail(name <> ": " <> Io.show(error))
             }
-          | Left(error) -> fail(name <> ": " <> Io.show(error))
-        }
       | _ -> {
             Io.printlnError("usage: word_count file");
             Os.exit(2)

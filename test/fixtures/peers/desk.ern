@@ -82,10 +82,12 @@ fn spawns() : Unit receiving Msg = {
     Io.println("names no binding: " <> started(Peer.spawn("store", fn() = Unit, 5000)));
     Io.println("bindings: " <> started(Shared.tellPeers("store")));
     match Work.watchedOn("store", Died, 5000) {
-        Right(_) -> receive {
-            Died(down) -> Io.println("monitored: " <> Io.show(down.reason))
-        }
-      | Left(failure) -> Io.println("monitored: " <> Io.show(failure))
+        Right(_) ->
+            receive {
+                Died(down) -> Io.println("monitored: " <> Io.show(down.reason))
+            }
+      | Left(failure) ->
+            Io.println("monitored: " <> Io.show(failure))
     };
     Io.println("late: " <> started(Work.squareOn("store", 9, 0)));
     // a time past the longest wait the host takes at once
@@ -414,7 +416,8 @@ fn shown(what : String, downs : List(Down), process : Process) : Unit =
 // A counter of the desk's own, which a loss of the store leaves alone.
 fn counted(total : Int) : Unit receiving Counter.Msg =
     receive {
-        Counter.Add(amount) -> counted(total + amount)
+        Counter.Add(amount) ->
+            counted(total + amount)
       | Counter.Get(reply = reply) -> {
             answer(reply, total);
             counted(total)

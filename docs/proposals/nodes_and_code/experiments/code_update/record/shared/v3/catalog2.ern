@@ -2,8 +2,8 @@
 /// `Goods2.Item`; `forward` serves version 1's clients.
 export type Msg = Add(Goods2.Item) | Find(name : String, reply : Reply(Optional(Goods2.Item)))
 
-export let catalog : Service.Handle(Msg, Map(String, Goods2.Item)) = Service.start(fn() = Map.empty,
-                                                                                   step)
+export let catalog : Service.Handle(Msg, Map(String, Goods2.Item)) =
+    Service.start(fn() = Map.empty, step)
 
 export fn step(items : Map(String, Goods2.Item),
                message : Msg) : Map(String,
@@ -11,7 +11,8 @@ export fn step(items : Map(String, Goods2.Item),
                                                                             Map(String,
                                                                                 Goods2.Item)) =
     match message {
-        Add(item) -> Map.put(items, item.name, item)
+        Add(item) ->
+            Map.put(items, item.name, item)
       | Find(name = name, reply = reply) -> {
             answer(reply, Map.get(items, name));
             items
@@ -27,7 +28,8 @@ export fn forward(message : Catalog.Msg,
                   to : Address(Msg)) : Unit receiving Service.Envelope(Catalog.Msg,
                                                                        Map(String, Goods.Item)) =
     match message {
-        Catalog.Add(item) -> send(to, Add(Goods2.fromV1(item)))
+        Catalog.Add(item) ->
+            send(to, Add(Goods2.fromV1(item)))
       | Catalog.Find(name = name, reply = reply) -> {
             let found = Address.callForever(to, fn(asked) = Find(name = name, reply = asked));
             answer(reply, Optional.map(found, Goods2.toV1))

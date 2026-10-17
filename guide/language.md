@@ -46,7 +46,8 @@ type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply) -> {
             answer(reply, total);
             count(total)
@@ -61,9 +62,9 @@ export fn main() : Unit = {
 
 ```console
 $ ern build message.ern
-message.ern:14:19: the argument does not fit send: expected CounterMsg, found String
-13 |     let counter = spawn(fn() = count(0));
-14 |     send(counter, "increment")
+message.ern:15:19: the argument does not fit send: expected CounterMsg, found String
+14 |     let counter = spawn(fn() = count(0));
+15 |     send(counter, "increment")
    |     ---- send : (Address(a), a) -> Unit
    |                   ^^^^^^^^^^^
 ```
@@ -161,7 +162,8 @@ export fn main() : Unit =
             Io.printlnError("usage: greet name...");
             Os.exit(2)
         }
-      | names -> List.forEach(names, fn(name) = Io.println("hello, " <> name))
+      | names ->
+            List.forEach(names, fn(name) = Io.println("hello, " <> name))
     }
 ```
 
@@ -201,7 +203,8 @@ export fn main() : Unit =
             Io.println(String.toUpper(line));
             main()
         }
-      | None -> Unit
+      | None ->
+            Unit
     }
 ```
 
@@ -752,7 +755,8 @@ type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply) -> {
             answer(reply, total);
             count(total)
@@ -839,20 +843,24 @@ type MainMsg = Took(Int)
 // an item.
 fn queueing(items : List(Int), waiting : List(Reply(Int))) : Unit receiving QueueMsg =
     receive {
-        Put(item) -> match waiting {
-            reply :: rest -> {
-                answer(reply, item);
-                queueing(items, rest)
+        Put(item) ->
+            match waiting {
+                reply :: rest -> {
+                    answer(reply, item);
+                    queueing(items, rest)
+                }
+              | [] ->
+                    queueing(items <> [item], [])
             }
-          | [] -> queueing(items <> [item], [])
-        }
-      | Take(reply = reply) -> match items {
-            item :: rest -> {
-                answer(reply, item);
-                queueing(rest, waiting)
+      | Take(reply = reply) ->
+            match items {
+                item :: rest -> {
+                    answer(reply, item);
+                    queueing(rest, waiting)
+                }
+              | [] ->
+                    queueing([], waiting <> [reply])
             }
-          | [] -> queueing([], waiting <> [reply])
-        }
     }
 
 export fn main() : Unit receiving MainMsg = {
@@ -895,8 +903,8 @@ fn run(numbers : List(Int), f : (Int) -> a receiving e) : Unit receiving GatherM
         Collect(reply) -> {
             let me = self();
             List.forEach(numbers, fn(n) = {
-                let _ = spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = f(n)))),
-                                       Ended);
+                let _ =
+                    spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = f(n)))), Ended);
                 Unit
             });
             answer(reply, gather(List.size(numbers), 0, []))
@@ -964,7 +972,8 @@ fn consume(producer : Address(ProducerMsg), taken : Int, sum : Int) : Unit recei
             if (taken + 1) % 10 == 0 then send(producer, Credit(10)) else Unit;
             consume(producer, taken + 1, sum + value)
         }
-      | Last -> Io.println("sum " <> Int.toString(sum))
+      | Last ->
+            Io.println("sum " <> Int.toString(sum))
     }
 
 export fn main() : Unit receiving ConsumerMsg = {
@@ -995,7 +1004,8 @@ type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply) -> {
             answer(reply, total);
             count(total)
@@ -1038,12 +1048,14 @@ type CounterMsg =
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }
 ```
 
@@ -1055,12 +1067,14 @@ A replacement loop that doubles each increment:
 // counter.ern
 fn countTwice(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> countTwice(total + 2 * amount)
+        Inc(amount) ->
+            countTwice(total + 2 * amount)
       | Get(reply) -> {
             answer(reply, total);
             countTwice(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }
 ```
 
@@ -1104,7 +1118,8 @@ export type TallyMsg = Add(Map(String, Int)) | Top(limit : Int, reply : Reply(Li
 
 export fn tally(counts : Map(String, Int)) : Unit receiving TallyMsg =
     receive {
-        Add(more) -> tally(Map.fold(more, counts, add))
+        Add(more) ->
+            tally(Map.fold(more, counts, add))
       | Top(limit = limit, reply = reply) -> {
             answer(reply, top(counts, limit));
             tally(counts)
@@ -1179,7 +1194,8 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
     else {
         Io.println("ping " <> Int.toString(round));
         match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
-            Some(_) -> ping(opponent, round - 1)
+            Some(_) ->
+                ping(opponent, round - 1)
           | None -> {
                 Io.println("pong is not answering");
                 send(opponent, Stop)
@@ -1194,7 +1210,8 @@ fn pong() : Unit receiving PongMsg =
             answer(reply, round);
             pong()
         }
-      | Stop -> Unit
+      | Stop ->
+            Unit
     }
 ```
 
@@ -1363,7 +1380,8 @@ fn talk() : Unit receiving ChatMsg =
             Io.println("you: " <> text);
             talk()
         }
-      | Line(None) -> Unit
+      | Line(None) ->
+            Unit
       | Said(text) -> {
             Io.println("them: " <> text);
             talk()
@@ -1448,7 +1466,8 @@ fn collect(totals : Address(TallyMsg), left : Int) : Unit receiving MainMsg =
             Io.println("a worker faulted: " <> cause);
             collect(totals, left - 1)
         }
-      | Died(_) -> collect(totals, left)
+      | Died(_) ->
+            collect(totals, left)
     }
 ```
 
@@ -1494,7 +1513,8 @@ fn show(result : Either(String, Config)) : String =
     match result {
         Right(Config(port = port, workers = workers)) ->
             "port " <> Int.toString(port) <> ", " <> Int.toString(workers) <> " workers"
-      | Left(reason) -> "no config: " <> reason
+      | Left(reason) ->
+            "no config: " <> reason
     }
 
 export fn main() : Unit = {
@@ -1566,7 +1586,8 @@ export fn main() : Unit receiving MainMsg = {
     receive {
         WorkerDied(Down(reason = Fault(cause), site = site)) ->
             Io.println("the worker spawned at " <> site <> " faulted: " <> cause)
-      | WorkerDied(_) -> Io.println("the worker ended")
+      | WorkerDied(_) ->
+            Io.println("the worker ended")
     }
 }
 ```
@@ -1590,7 +1611,8 @@ type SupervisorMsg = Result(Int) | Ended(Down)
 
 fn supervise(jobs : List(Int)) : Unit receiving SupervisorMsg =
     match jobs {
-        [] -> Io.println("all jobs done")
+        [] ->
+            Io.println("all jobs done")
       | job :: rest -> {
             let me = self();
             let _ = spawnMonitored(fn() = send(me, Result(100 / job)), Ended);
@@ -1604,10 +1626,12 @@ fn supervise(jobs : List(Int)) : Unit receiving SupervisorMsg =
 // arrived first, and neither is left for the next worker.
 fn outcome() : String receiving SupervisorMsg =
     receive {
-        Ended(Down(reason = Fault(cause), site = _)) -> "failed, " <> cause
-      | Ended(_) -> receive {
-            Result(n) -> Int.toString(n)
-        }
+        Ended(Down(reason = Fault(cause), site = _)) ->
+            "failed, " <> cause
+      | Ended(_) ->
+            receive {
+                Result(n) -> Int.toString(n)
+            }
     }
 
 export fn main() : Unit receiving SupervisorMsg =
@@ -1617,7 +1641,7 @@ export fn main() : Unit receiving SupervisorMsg =
 ```console
 $ ern run jobs.erc
 4: 25
-Jobs.supervise:8 faulted: division by zero
+Jobs.supervise:9 faulted: division by zero
 0: failed, division by zero
 5: 20
 all jobs done
@@ -1645,12 +1669,13 @@ export fn start() : Address(CounterMsg) =
 // The counter's loop, which faults on a negative amount.
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Add(amount = amount, reply = reply) -> if amount < 0 then
-            fault("a negative amount")
-        else {
-            answer(reply, total + amount);
-            count(total + amount)
-        }
+        Add(amount = amount, reply = reply) ->
+            if amount < 0 then
+                fault("a negative amount")
+            else {
+                answer(reply, total + amount);
+                count(total + amount)
+            }
     }
 
 export fn main() : Unit = {
@@ -1695,12 +1720,13 @@ let sales : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0))
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Add(amount = amount, reply = reply) -> if amount < 0 then
-            fault("a negative amount")
-        else {
-            answer(reply, total + amount);
-            count(total + amount)
-        }
+        Add(amount = amount, reply = reply) ->
+            if amount < 0 then
+                fault("a negative amount")
+            else {
+                answer(reply, total + amount);
+                count(total + amount)
+            }
     }
 
 fn add(counter : Address(CounterMsg), amount : Int) : Optional(Int) =
@@ -2166,11 +2192,13 @@ export fn fromList(list : List(a)) : Set(a) needs a.compare =
 // kept, as `put` keeps the element already there.
 fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
     match sorted {
-        first :: second :: rest -> if a.compare(first, second) == Equal then
-            firstOfEach(first :: rest)
-        else
-            first :: firstOfEach(second :: rest)
-      | _ -> sorted
+        first :: second :: rest ->
+            if a.compare(first, second) == Equal then
+                firstOfEach(first :: rest)
+            else
+                first :: firstOfEach(second :: rest)
+      | _ ->
+            sorted
     }
 
 export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
@@ -2178,12 +2206,14 @@ export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
 
 fn has(list : List(a), element : a) : Bool needs a.compare =
     match list {
-        [] -> false
-      | head :: rest -> match a.compare(element, head) {
-            Less -> false
-          | Equal -> true
-          | Greater -> has(rest, element)
-        }
+        [] ->
+            false
+      | head :: rest ->
+            match a.compare(element, head) {
+                Less -> false
+              | Equal -> true
+              | Greater -> has(rest, element)
+            }
     }
 
 export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e needs b.compare =
@@ -2322,8 +2352,9 @@ type GatherMsg = Computed(Piece) | Ended(Down)
 fn gathered(numbers : List(Int)) : List(Piece) receiving GatherMsg = {
     let me = self();
     List.forEach(numbers, fn(n) = {
-        let _ = spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = Placed.computed(n)))),
-                               Ended);
+        let _ =
+            spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = Placed.computed(n)))),
+                           Ended);
         Unit
     });
     gather(List.size(numbers), 0, [])
@@ -2399,10 +2430,12 @@ fn heavy(n : Int) : Int =
 export fn main() : Unit receiving Msg = {
     let me = self();
     match Peer.spawn("foo", fn() = send(me, Computed(heavy(5))), 5000) {
-        Right(_) -> receive {
-            Computed(value) -> Io.println("foo computed " <> Int.toString(value))
-        }
-      | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
+        Right(_) ->
+            receive {
+                Computed(value) -> Io.println("foo computed " <> Int.toString(value))
+            }
+      | Left(failure) ->
+            Io.println("no foo: " <> Io.show(failure))
     }
 }
 ```
@@ -2442,7 +2475,8 @@ let counter : Address(Msg) = spawn(fn() = {
 // offers again, so that it reads the count the holder kept last.
 fn serve() : Unit receiving Msg =
     match Peer.offer(Counter.service, adapted(self(), Request)) {
-        Right(_) -> count(kept())
+        Right(_) ->
+            count(kept())
       | Left(holder) -> {
             monitor(holder, HolderEnded);
             receive {
@@ -2454,7 +2488,8 @@ fn serve() : Unit receiving Msg =
 
 fn count(total : Int) : Unit receiving Msg =
     receive {
-        Request(Counter.Add(amount)) -> count(total + amount)
+        Request(Counter.Add(amount)) ->
+            count(total + amount)
       | Request(Counter.Get(reply = reply)) -> {
             answer(reply, total);
             count(total)
@@ -2473,12 +2508,15 @@ fn count(total : Int) : Unit receiving Msg =
 // nothing of the store's wrote it.
 fn kept() : Int =
     match Fs.read(Path("count"), 1000) {
-        Right(bytes) -> match Optional.andThen(String.fromUtf8(bytes), String.toInt) {
-            Some(total) -> total
-          | None -> fault("the file count holds no number")
-        }
-      | Left(Io.NotFound) -> 0
-      | Left(error) -> fault("the file count cannot be read: " <> Io.show(error))
+        Right(bytes) ->
+            match Optional.andThen(String.fromUtf8(bytes), String.toInt) {
+                Some(total) -> total
+              | None -> fault("the file count holds no number")
+            }
+      | Left(Io.NotFound) ->
+            0
+      | Left(error) ->
+            fault("the file count cannot be read: " <> Io.show(error))
     }
 
 // The count written beside the file `count` and renamed over it, so that
@@ -2507,7 +2545,8 @@ export fn main() : Unit =
               | None -> Io.println("no answer")
             }
         }
-      | Left(failure) -> Io.println("no store: " <> Io.show(failure))
+      | Left(failure) ->
+            Io.println("no store: " <> Io.show(failure))
     }
 ```
 
@@ -2591,7 +2630,8 @@ export fn main() : Unit =
             let _ = Peer.spawn("alice", fn() = serve(listener), 5000);
             Unit
         }
-      | Left(error) -> Io.printlnError("cannot listen: " <> Io.show(error))
+      | Left(error) ->
+            Io.printlnError("cannot listen: " <> Io.show(error))
     }
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
@@ -2689,7 +2729,8 @@ fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) =
     match bytes {
         <<bodySize:size(16)-big, body:size(bodySize)-bytes, rest:bytes>> ->
             Some(#(bodySize, body, rest))
-      | _ -> None
+      | _ ->
+            None
     }
 ```
 
@@ -2736,8 +2777,10 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
             Tcp.give(socket, Process.fromAddress(talker));
             serve(listener)
         }
-      | Left(Io.Timeout) -> serve(listener)
-      | Left(_) -> Unit
+      | Left(Io.Timeout) ->
+            serve(listener)
+      | Left(_) ->
+            Unit
     }
 
 // The session waits on its mailbox, and its reader on the socket.
@@ -2756,8 +2799,10 @@ fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes)))
             send(recipient, Some(bytes));
             reader(socket, recipient)
         }
-      | Left(Io.Timeout) -> reader(socket, recipient)
-      | Left(_) -> send(recipient, None)
+      | Left(Io.Timeout) ->
+            reader(socket, recipient)
+      | Left(_) ->
+            send(recipient, None)
     }
 
 fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session =
@@ -2775,7 +2820,8 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session 
             Clock.alarm(10000, Tick);
             talk(socket, rest)
         }
-      | Arrived(None) -> Tcp.close(socket)
+      | Arrived(None) ->
+            Tcp.close(socket)
     }
 ```
 

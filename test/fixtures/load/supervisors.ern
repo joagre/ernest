@@ -34,7 +34,8 @@ fn working() : Unit receiving WorkMsg =
             answer(reply, 1);
             working()
         }
-      | Crash -> fault("on purpose")
+      | Crash ->
+            fault("on purpose")
     }
 
 export fn main() : Unit receiving Never =

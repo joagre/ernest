@@ -24,12 +24,14 @@ export let tally : Service.Handle(TallyMsg, Int) = {
 export fn tallyStep(count : Int,
                     message : TallyMsg) : Int receiving Service.Envelope(TallyMsg, Int) =
     match message {
-        Tally -> count + 1
+        Tally ->
+            count + 1
       | Tallied(reply = reply) -> {
             answer(reply, count);
             count
         }
-      | Break -> fault("the tally was broken")
+      | Break ->
+            fault("the tally was broken")
     }
 
 export fn tallied(handle : Service.Handle(TallyMsg, Int)) : Int receiving n =
@@ -37,12 +39,14 @@ export fn tallied(handle : Service.Handle(TallyMsg, Int)) : Int receiving n =
 
 fn counting(count : Int) : Unit receiving CountMsg =
     receive {
-        Inc -> counting(count + 1)
+        Inc ->
+            counting(count + 1)
       | Count(reply = reply) -> {
             answer(reply, count);
             counting(count)
         }
-      | Crash -> fault("the counter was crashed")
+      | Crash ->
+            fault("the counter was crashed")
     }
 
 fn echoing() : Unit receiving EchoMsg =

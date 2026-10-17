@@ -60,12 +60,14 @@ export fn main() : Unit receiving ToolMsg = {
 // The counter's loop, as the first build wrote it.
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply = reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }
 
 // The second build's loop, which says each Inc.
@@ -79,7 +81,8 @@ fn count2(total : Int) : Unit receiving CounterMsg =
             answer(reply, total);
             count2(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(migrate = migrate, next = next) ->
+            next(migrate(total))
     }
 
 // Every process of this node that runs count sent its Upgrade, and how many there were.
@@ -93,7 +96,8 @@ fn moved() : Int = {
 // it moved; a peer it could not start on is said, and passed over.
 fn moving(node : String, tool : Address(ToolMsg)) : Bool =
     match Peer.spawn(node, fn() = send(tool, Moved(node = node, count = moved())), 5000) {
-        Right(_) -> true
+        Right(_) ->
+            true
       | Left(failure) -> {
             Io.println(node <> ": " <> Io.show(failure));
             false

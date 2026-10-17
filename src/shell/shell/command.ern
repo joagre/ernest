@@ -120,14 +120,19 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
     if String.contains(line, "\n") then
         Left("a command is one line")
     else match pick(String.slice(word, 1, String.size(word))) {
-        Unknown -> Left("no command " <> word <> "; :help lists them")
-      | Ambiguous(names) -> Left(word <> " is " <> alternatives(names))
-      | Picked(Command(name = name, action = action, takes = takes)) -> match takes {
-            Needs(what = what) when String.isEmpty(argument) ->
-                Left(":" <> name <> " takes " <> what)
-          | Nothing when !String.isEmpty(argument) -> Left(":" <> name <> " takes no argument")
-          | _ -> Right(#(action, argument))
-        }
+        Unknown ->
+            Left("no command " <> word <> "; :help lists them")
+      | Ambiguous(names) ->
+            Left(word <> " is " <> alternatives(names))
+      | Picked(Command(name = name, action = action, takes = takes)) ->
+            match takes {
+                Needs(what = what) when String.isEmpty(argument) ->
+                    Left(":" <> name <> " takes " <> what)
+              | Nothing when !String.isEmpty(argument) ->
+                    Left(":" <> name <> " takes no argument")
+              | _ ->
+                    Right(#(action, argument))
+            }
     }
 }
 
@@ -136,14 +141,16 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
 fn pick(name : String) : Selection = {
     let begun = List.filter(commands, fn(command) = String.startsWith(command.name, name));
     match List.filter(begun, fn(command) = command.name == name) {
-        [whole] -> Picked(whole)
-      | _ -> if String.isEmpty(name) then
-            Unknown
-        else match begun {
-            [] -> Unknown
-          | [one] -> Picked(one)
-          | many -> Ambiguous(List.map(many, fn(command) = command.name))
-        }
+        [whole] ->
+            Picked(whole)
+      | _ ->
+            if String.isEmpty(name) then
+                Unknown
+            else match begun {
+                [] -> Unknown
+              | [one] -> Picked(one)
+              | many -> Ambiguous(List.map(many, fn(command) = command.name))
+            }
     }
 }
 
@@ -154,11 +161,13 @@ fn alternatives(names : List(String)) : String =
 // `a or b`, and `a, b or c` for three.
 fn choice(words : List(String)) : String =
     match List.last(words) {
-        None -> ""
-      | Some(last) -> if List.size(words) == 1 then
-            last
-        else
-            String.join(List.dropLast(words, 1), ", ") <> " or " <> last
+        None ->
+            ""
+      | Some(last) ->
+            if List.size(words) == 1 then
+                last
+            else
+                String.join(List.dropLast(words, 1), ", ") <> " or " <> last
     }
 
 // A command line: its first word, the command with its `:`, and what
@@ -211,9 +220,9 @@ let column = 16
 export let settings =
     [#("depth", "n"), #("length", "n"), #("output", "n"), #("timing", "on or off")]
 
-let settingsAbout = String.join(List.map(settings, fn(#(setting, value)) = setting <> " " <> value),
-                                ", ")
-    <> "; :set alone shows them"
+let settingsAbout =
+    String.join(List.map(settings, fn(#(setting, value)) = setting <> " " <> value), ", ")
+        <> "; :set alone shows them"
 
 /// Report §11.2: what `:set`'s argument sets, or the refusal that says why
 /// it sets nothing.
@@ -230,11 +239,10 @@ export fn setting(argument : String) : Either(String, Setting) =
 
 fn counted(what : String, text : String, made : (Int) -> Setting) : Either(String, Setting) =
     match String.toInt(text) {
-        Some(value) -> if value < 0 then
-            Left(":set " <> what <> " takes 0 or more")
-        else
-            Right(made(value))
-      | None -> Left(":set " <> what <> " takes a number")
+        Some(value) ->
+            if value < 0 then Left(":set " <> what <> " takes 0 or more") else Right(made(value))
+      | None ->
+            Left(":set " <> what <> " takes a number")
     }
 
 //
@@ -244,8 +252,9 @@ fn counted(what : String, text : String, made : (Int) -> Setting) : Either(Strin
 let prefixes =
     Test.Case(name = "a prefix that begins one name selects it, two are refused",
               run = fn() = match #(pick("br"), pick("b"), pick("zz")) {
-                  #(Picked(Command(name = "browse")), Ambiguous(["bindings", "browse"]), Unknown) ->
-                      Test.Passed
+                  #(Picked(Command(name = "browse")),
+                    Ambiguous(["bindings", "browse"]),
+                    Unknown) -> Test.Passed
                 | _ -> Test.Failed("pick")
               })
 
@@ -312,7 +321,8 @@ let helpLines =
                 Test.Passed
             else
                 Test.Failed(line(command))
-      | _ -> Test.Failed("browse")
+      | _ ->
+            Test.Failed("browse")
     })
 
 let settingsRead =
@@ -328,5 +338,6 @@ let settingsRead =
                               Test.Passed
                           else
                               Test.Failed(negative <> " | " <> unknown)
-                    | _ -> Test.Failed("setting")
+                    | _ ->
+                          Test.Failed("setting")
                   })

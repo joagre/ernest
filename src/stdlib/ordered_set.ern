@@ -74,11 +74,13 @@ export fn fromList(list : List(a)) : Set(a) needs a.compare =
 // kept, as `put` keeps the element already there.
 fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
     match sorted {
-        first :: second :: rest -> if a.compare(first, second) == Equal then
-            firstOfEach(first :: rest)
-        else
-            first :: firstOfEach(second :: rest)
-      | _ -> sorted
+        first :: second :: rest ->
+            if a.compare(first, second) == Equal then
+                firstOfEach(first :: rest)
+            else
+                first :: firstOfEach(second :: rest)
+      | _ ->
+            sorted
     }
 
 /// The number of elements.
@@ -109,12 +111,14 @@ export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
 
 fn has(list : List(a), element : a) : Bool needs a.compare =
     match list {
-        [] -> false
-      | head :: rest -> match a.compare(element, head) {
-            Less -> false
-          | Equal -> true
-          | Greater -> has(rest, element)
-        }
+        [] ->
+            false
+      | head :: rest ->
+            match a.compare(element, head) {
+                Less -> false
+              | Equal -> true
+              | Greater -> has(rest, element)
+            }
     }
 
 /// The set with `element`. Where the order calls an element already there
@@ -131,12 +135,14 @@ export fn put(Set(list) : Set(a), element : a) : Set(a) needs a.compare =
 
 fn inserted(list : List(a), element : a) : List(a) needs a.compare =
     match list {
-        [] -> [element]
-      | head :: rest -> match a.compare(element, head) {
-            Less -> element :: list
-          | Equal -> list
-          | Greater -> head :: inserted(rest, element)
-        }
+        [] ->
+            [element]
+      | head :: rest ->
+            match a.compare(element, head) {
+                Less -> element :: list
+              | Equal -> list
+              | Greater -> head :: inserted(rest, element)
+            }
     }
 
 /// The set without the element the order calls `Equal` to `element`, which need
@@ -272,13 +278,16 @@ export fn union(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compar
 
 fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
-        #([], _) -> other
-      | #(_, []) -> list
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> head :: merged(rest, other)
-          | Equal -> head :: merged(rest, others)
-          | Greater -> otherHead :: merged(list, others)
-        }
+        #([], _) ->
+            other
+      | #(_, []) ->
+            list
+      | #(head :: rest, otherHead :: others) ->
+            match a.compare(head, otherHead) {
+                Less -> head :: merged(rest, other)
+              | Equal -> head :: merged(rest, others)
+              | Greater -> otherHead :: merged(list, others)
+            }
     }
 
 /// The elements in both.
@@ -295,13 +304,16 @@ export fn intersection(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a
 
 fn shared(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
-        #([], _) -> []
-      | #(_, []) -> []
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> shared(rest, other)
-          | Equal -> head :: shared(rest, others)
-          | Greater -> shared(list, others)
-        }
+        #([], _) ->
+            []
+      | #(_, []) ->
+            []
+      | #(head :: rest, otherHead :: others) ->
+            match a.compare(head, otherHead) {
+                Less -> shared(rest, other)
+              | Equal -> head :: shared(rest, others)
+              | Greater -> shared(list, others)
+            }
     }
 
 /// The elements of the first set that are not in the second.
@@ -318,13 +330,16 @@ export fn difference(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.c
 
 fn remaining(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
-        #([], _) -> []
-      | #(_, []) -> list
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> head :: remaining(rest, other)
-          | Equal -> remaining(rest, others)
-          | Greater -> remaining(list, others)
-        }
+        #([], _) ->
+            []
+      | #(_, []) ->
+            list
+      | #(head :: rest, otherHead :: others) ->
+            match a.compare(head, otherHead) {
+                Less -> head :: remaining(rest, other)
+              | Equal -> remaining(rest, others)
+              | Greater -> remaining(list, others)
+            }
     }
 
 /// `true` when every element of the first set is in the second.
@@ -340,11 +355,14 @@ export fn isSubset(Set(list) : Set(a), Set(other) : Set(a)) : Bool needs a.compa
 
 fn isWithin(list : List(a), other : List(a)) : Bool needs a.compare =
     match #(list, other) {
-        #([], _) -> true
-      | #(_, []) -> false
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> false
-          | Equal -> isWithin(rest, others)
-          | Greater -> isWithin(list, others)
-        }
+        #([], _) ->
+            true
+      | #(_, []) ->
+            false
+      | #(head :: rest, otherHead :: others) ->
+            match a.compare(head, otherHead) {
+                Less -> false
+              | Equal -> isWithin(rest, others)
+              | Greater -> isWithin(list, others)
+            }
     }

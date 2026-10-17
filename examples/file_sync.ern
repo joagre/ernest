@@ -78,8 +78,10 @@ fn syncer(directory : Path,
         }
       | Put(path = path, modified = modified, bytes = bytes, reply = reply) ->
             syncer(directory, peer, store(directory, seen, path, modified, bytes, reply))
-      | Listed(_) -> syncer(directory, peer, seen) // late listing, ignore
-      | Link(_) -> syncer(directory, peer, seen) // already connected
+      | Listed(_) ->
+            syncer(directory, peer, seen) // late listing, ignore
+      | Link(_) ->
+            syncer(directory, peer, seen) // already connected
     }
 
 // Between the listing's start and Listed, a Put waits in the mailbox and is
@@ -156,11 +158,13 @@ fn writer(path : Path, bytes : Bytes, modified : Int, reply : Reply(Ack)) : Unit
 // One process per changed file: reads and sends to the peer.
 fn pusher(peer : Address(SyncMsg), Change(path = path, modified = modified) : Change) : Unit =
     match Fs.read(path, 10000) {
-        Right(bytes) -> match Path.name(path) {
-            Some(name) -> push(peer, Path(name), modified, bytes)
-          | None -> Io.println("cannot push " <> Path.toString(path) <> ", which names no file")
-        }
-      | Left(error) -> Io.println("cannot read " <> Path.toString(path) <> ": " <> errorText(error))
+        Right(bytes) ->
+            match Path.name(path) {
+                Some(name) -> push(peer, Path(name), modified, bytes)
+              | None -> Io.println("cannot push " <> Path.toString(path) <> ", which names no file")
+            }
+      | Left(error) ->
+            Io.println("cannot read " <> Path.toString(path) <> ": " <> errorText(error))
     }
 
 fn push(peer : Address(SyncMsg), path : Path, modified : Int, bytes : Bytes) : Unit =
@@ -187,11 +191,10 @@ fn diff(seen : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
 fn changed(seen : Map(Path, Int),
            Fs.Entry(path = path, modified = modified) : Fs.Entry) : Optional(Change) =
     match Map.get(seen, path) {
-        None -> Some(Change(path = path, modified = modified))
-      | Some(before) -> if modified > before then
+        None ->
             Some(Change(path = path, modified = modified))
-        else
-            None
+      | Some(before) ->
+            if modified > before then Some(Change(path = path, modified = modified)) else None
     }
 
 fn snapshot(entries : List(Fs.Entry)) : Map(Path, Int) =

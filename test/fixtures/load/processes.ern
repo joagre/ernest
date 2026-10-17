@@ -63,8 +63,9 @@ fn once() : Unit receiving Msg = {
         Ended(_) -> Unit
     };
     // a watch on the service by a process that ends before it
-    let _ = spawnMonitored(fn() : Unit receiving Msg = monitor(Process.fromAddress(keeper), Ended),
-                           Ended);
+    let _ =
+        spawnMonitored(fn() : Unit receiving Msg = monitor(Process.fromAddress(keeper), Ended),
+                       Ended);
     receive {
         Ended(_) -> Unit
     };
@@ -84,7 +85,8 @@ fn worker() : Unit receiving WorkMsg =
             answer(reply, 1);
             worker()
         }
-      | Stop -> Unit
+      | Stop ->
+            Unit
     }
 
 fn slow() : Unit receiving WorkMsg =
@@ -96,7 +98,8 @@ fn slow() : Unit receiving WorkMsg =
             answer(reply, 1);
             slow()
         }
-      | Stop -> Unit
+      | Stop ->
+            Unit
     }
 
 fn silent() : Unit receiving WorkMsg =

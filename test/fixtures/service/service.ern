@@ -16,7 +16,8 @@ export fn main() : Unit receiving Msg =
 
 fn once(marker : Path) : Unit receiving Msg =
     match Fs.stat(marker, 5000) {
-        Right(_) -> serve()
+        Right(_) ->
+            serve()
       | Left(_) -> {
             let _ = Fs.write(marker, String.toUtf8("started once\n"), 5000);
             Os.exit(1)

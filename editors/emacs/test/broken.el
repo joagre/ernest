@@ -15,10 +15,10 @@
 (require 'ernest-mode)
 
 (defconst ernest-broken-expected
-  '(("arm.ern" . "8")                   ; a match with no closing brace
-    ("bar.ern" . "4")                   ; a receive whose next line is a bare |
+  '(("bar.ern" . "4")                   ; a receive whose next line is a bare |
     ("block.ern" . "kept")              ; an unclosed block comment
     ("brace.ern" . "4")                 ; a block whose } is missing
+    ("clause.ern" . "8")                ; a match with no closing brace
     ("comma.ern" . "22")                ; a constructor with a trailing comma
     ("comment.ern" . "0")               ; a comment before a closing brace
     ("constructor.ern" . "0")           ; constructors spelled as reserved words

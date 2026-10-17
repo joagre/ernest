@@ -97,7 +97,8 @@ let audit : Address(AuditMsg) = spawn(Supervisor.child(services, fn() = recordin
 
 fn recording(entries : List(String)) : Unit receiving AuditMsg =
     receive {
-        Record(entry) -> recording(entries <> [entry])
+        Record(entry) ->
+            recording(entries <> [entry])
       | Entries(reply = reply) -> {
             answer(reply, entries);
             recording(entries)
@@ -110,7 +111,8 @@ fn recording(entries : List(String)) : Unit receiving AuditMsg =
 
 export fn main() : Unit =
     match Io.readLine() {
-        None -> Unit // end of input
+        None ->
+            Unit // end of input
       | Some(line) -> {
             match parsed(line) {
                 Some(command) -> obey(command, String.trim(line))
@@ -122,13 +124,17 @@ export fn main() : Unit =
 
 fn obey(command : Command, line : String) : Unit =
     match command {
-        Add(key = key, count = count) -> change(key, count, line)
-      | Take(key = key, count = count) -> change(key, -count, line)
-      | Count(key) -> match Address.call(store, fn(reply) = Get(key = key, reply = reply), 5000) {
-            Some(held) -> Io.println(key <> ": " <> Int.toString(held))
-          | None -> Io.println(line <> ": no answer")
-        }
-      | Audit -> Io.println("audit: " <> audited(asked(audit, fn(reply) = Entries(reply = reply))))
+        Add(key = key, count = count) ->
+            change(key, count, line)
+      | Take(key = key, count = count) ->
+            change(key, -count, line)
+      | Count(key) ->
+            match Address.call(store, fn(reply) = Get(key = key, reply = reply), 5000) {
+                Some(held) -> Io.println(key <> ": " <> Int.toString(held))
+              | None -> Io.println(line <> ": no answer")
+            }
+      | Audit ->
+            Io.println("audit: " <> audited(asked(audit, fn(reply) = Entries(reply = reply))))
     }
 
 // A change to a key's stock, recorded with an id once the store has taken it.
@@ -139,7 +145,8 @@ fn change(key : String, by : Int, line : String) : Unit =
             send(audit, Record("#" <> Int.toString(id) <> " " <> line));
             Io.println(key <> ": " <> Int.toString(held))
         }
-      | None -> Io.println(line <> ": no answer")
+      | None ->
+            Io.println(line <> ": no answer")
     }
 
 // A service's answer, asked again where none came: a service that restarts

@@ -35,18 +35,21 @@ fn accepting(listener : Address(Tcp.ListenerMsg), count : Int) : Unit receiving 
             });
             accepting(listener, count)
         }
-      | after 0 -> match Tcp.accept(listener, 200) {
-            Right(socket) -> {
-                let name = "guest" <> Int.toString(count);
-                let connection =
-                    spawn(fn() = connected(Conn(socket = socket, room = room, name = name)));
-                Tcp.give(socket, Process.fromAddress(connection));
-                send(room,
-                     Join(Member(process = Process.fromAddress(connection), address = connection)));
-                accepting(listener, count + 1)
+      | after 0 ->
+            match Tcp.accept(listener, 200) {
+                Right(socket) -> {
+                    let name = "guest" <> Int.toString(count);
+                    let connection =
+                        spawn(fn() = connected(Conn(socket = socket, room = room, name = name)));
+                    Tcp.give(socket, Process.fromAddress(connection));
+                    send(room,
+                         Join(Member(process = Process.fromAddress(connection),
+                                     address = connection)));
+                    accepting(listener, count + 1)
+                }
+              | Left(_) ->
+                    accepting(listener, count)
             }
-          | Left(_) -> accepting(listener, count)
-        }
     }
 
 fn connected(conn : Conn) : Unit receiving ConnMsg = {
@@ -68,7 +71,8 @@ fn serving(conn : Conn) : Unit receiving ConnMsg =
             let _ = Tcp.write(conn.socket, String.toUtf8(text), 5000);
             serving(conn)
         }
-      | Closed -> send(conn.room, Leave(Process.fromAddress(self())))
+      | Closed ->
+            send(conn.room, Leave(Process.fromAddress(self())))
     }
 
 fn reading(socket : Address(Tcp.SocketMsg), connection : Address(ConnMsg)) : Unit =
@@ -77,14 +81,18 @@ fn reading(socket : Address(Tcp.SocketMsg), connection : Address(ConnMsg)) : Uni
             send(connection, Read(bytes));
             reading(socket, connection)
         }
-      | Left(Io.Timeout) -> reading(socket, connection)
-      | Left(_) -> send(connection, Closed)
+      | Left(Io.Timeout) ->
+            reading(socket, connection)
+      | Left(_) ->
+            send(connection, Closed)
     }
 
 fn chatting(members : List(Member)) : Unit receiving RoomMsg =
     receive {
-        Join(member) -> chatting(member :: members)
-      | Leave(process) -> chatting(List.filter(members, fn(member) = member.process != process))
+        Join(member) ->
+            chatting(member :: members)
+      | Leave(process) ->
+            chatting(List.filter(members, fn(member) = member.process != process))
       | Say(text) -> {
             broadcast(members, Line(text));
             chatting(members)
@@ -97,7 +105,8 @@ fn chatting(members : List(Member)) : Unit receiving RoomMsg =
 
 fn broadcast(members : List(Member), message : ConnMsg) : Unit =
     match members {
-        [] -> Unit
+        [] ->
+            Unit
       | member :: rest -> {
             send(member.address, message);
             broadcast(rest, message)

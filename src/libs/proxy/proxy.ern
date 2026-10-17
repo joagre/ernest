@@ -96,7 +96,8 @@ fn found(service : Peer.Service(m),
         }
       | Left(Io.OtherType) ->
             fault("the service " <> Peer.name(service) <> " is offered at another type")
-      | Left(_) -> #(away, false)
+      | Left(_) ->
+            #(away, false)
     }
 
 // The target a find gave, each message that came while the find was under
@@ -108,7 +109,8 @@ fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) receiving 
             send(address, message);
             shared(address, present)
         }
-      | after 0 -> #(address, present)
+      | after 0 ->
+            #(address, present)
     }
 
 // Each message forwarded, the service found again first where it is away,
@@ -118,21 +120,23 @@ fn held(service : Peer.Service(m),
         caller : Process,
         target : #(Address(m), Bool)) : Unit receiving Msg(m) =
     receive {
-        Message(message) -> match target {
-            #(address, true) -> {
-                send(address, message);
-                held(service, ms, caller, target)
+        Message(message) ->
+            match target {
+                #(address, true) -> {
+                    send(address, message);
+                    held(service, ms, caller, target)
+                }
+              | #(away, false) -> {
+                    let #(address, present) = found(service, ms, away);
+                    send(address, message);
+                    held(service, ms, caller, shared(address, present))
+                }
             }
-          | #(away, false) -> {
-                let #(address, present) = found(service, ms, away);
-                send(address, message);
-                held(service, ms, caller, shared(address, present))
-            }
-        }
-      | Went(down) -> if down.process == caller then
-            Unit
-        else
-            held(service, ms, caller, without(target, down.process))
+      | Went(down) ->
+            if down.process == caller then
+                Unit
+            else
+                held(service, ms, caller, without(target, down.process))
     }
 
 // The target, no longer the service's where the process that ended is the
@@ -186,6 +190,7 @@ let endsWithItsCaller =
                   | Started(_) -> Test.Failed("a second start")
                 }
             }
-          | Ended(_) -> Test.Failed("an end before the start")
+          | Ended(_) ->
+                Test.Failed("an end before the start")
         }
     })

@@ -32,7 +32,8 @@ export fn main() : Unit =
             let total = Address.call(counter, fn(reply) = Get(reply = reply), 5000);
             Io.println("total on b: " <> Io.show(total))
         }
-      | Left(error) -> Io.println("no counter found: " <> Io.show(error))
+      | Left(error) ->
+            Io.println("no counter found: " <> Io.show(error))
     }
 
 // Node b's entry point, run with --main: its own process, offered as the service, is the
@@ -47,7 +48,8 @@ export fn serve() : Unit receiving CounterMsg = {
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Add(amount) -> count(total + amount)
+        Add(amount) ->
+            count(total + amount)
       | Get(reply = reply) -> {
             answer(reply, total);
             count(total)

@@ -166,11 +166,13 @@ export fn filter(list : List(a), keep : (a) -> Bool receiving e) : List(a) recei
 /// ```
 export fn filterMap(list : List(a), f : (a) -> Optional(b) receiving e) : List(b) receiving e =
     match list {
-        [] -> []
-      | head :: rest -> match f(head) {
-            Some(value) -> value :: filterMap(rest, f)
-          | None -> filterMap(rest, f)
-        }
+        [] ->
+            []
+      | head :: rest ->
+            match f(head) {
+                Some(value) -> value :: filterMap(rest, f)
+              | None -> filterMap(rest, f)
+            }
     }
 
 /// What `step` answers for the last element. `step` is called on each element
@@ -220,7 +222,8 @@ export fn foldRight(list : List(a), acc : b, step : (b, a) -> b receiving e) : b
 /// since 0.4.0
 export fn forEach(list : List(a), f : (a) -> Unit receiving e) : Unit receiving e =
     match list {
-        [] -> Unit
+        [] ->
+            Unit
       | head :: rest -> {
             let _ = f(head);
             forEach(rest, f)
@@ -350,12 +353,14 @@ export fn dropLast(list : List(a), count : Int) : List(a) =
 /// ```
 export fn span(list : List(a), test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e =
     match list {
-        [] -> #([], [])
-      | head :: rest -> if test(head) then {
-            let #(prefix, suffix) = span(rest, test);
-            #(head :: prefix, suffix)
-        } else
-            #([], list)
+        [] ->
+            #([], [])
+      | head :: rest ->
+            if test(head) then {
+                let #(prefix, suffix) = span(rest, test);
+                #(head :: prefix, suffix)
+            } else
+                #([], list)
     }
 
 /// The elements `test` holds for, and those it does not, each in their
@@ -370,7 +375,8 @@ export fn span(list : List(a), test : (a) -> Bool receiving e) : #(List(a), List
 export fn partition(list : List(a),
                     test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e =
     match list {
-        [] -> #([], [])
+        [] ->
+            #([], [])
       | head :: rest -> {
             // the predicate meets the elements in order, as filter's does
             let holds = test(head);
@@ -506,7 +512,8 @@ fn extremeBy(list : List(a),
              key : (a) -> k receiving e,
              beyond : Ordering) : Optional(a) receiving e needs k.compare =
     match list {
-        [] -> None
+        [] ->
+            None
       | head :: rest -> {
             let #(chosen, _) =
                 foldLeft(rest, #(head, key(head)), fn(#(_, chosenKey) as acc, element) = {
@@ -546,7 +553,8 @@ export fn zip(list : List(a), other : List(b)) : List(#(a, b)) =
 /// ```
 export fn unzip(pairs : List(#(a, b))) : #(List(a), List(b)) =
     match pairs {
-        [] -> #([], [])
+        [] ->
+            #([], [])
       | #(first, second) :: rest -> {
             let #(firsts, seconds) = unzip(rest);
             #(first :: firsts, second :: seconds)
@@ -593,7 +601,8 @@ export fn range(first : Int, last : Int) : List(Int) =
 export fn tryMap(list : List(a),
                  step : (a) -> Either(e, b) receiving x) : Either(e, List(b)) receiving x =
     match list {
-        [] -> Right([])
+        [] ->
+            Right([])
       | head :: rest -> {
             let value <- step(head);
             let values <- tryMap(rest, step);
@@ -616,7 +625,8 @@ export fn tryFold(list : List(a),
                   acc : b,
                   step : (b, a) -> Either(e, b) receiving x) : Either(e, b) receiving x =
     match list {
-        [] -> Right(acc)
+        [] ->
+            Right(acc)
       | head :: rest -> {
             let next <- step(acc, head);
             tryFold(rest, next, step)

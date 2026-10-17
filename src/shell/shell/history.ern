@@ -36,7 +36,8 @@ export let startup : Optional(Path) = Optional.map(directory, fn(path) = path <>
 /// session runs. One whose mode cannot be set is left as it stands.
 export fn keepOwn() : Unit =
     match directory {
-        None -> Unit
+        None ->
+            Unit
       | Some(path) -> {
             let _ = Fs.setMode(path, 0o700, fileMs);
             Unit
@@ -52,7 +53,8 @@ export type Unkept = Unreadable(Io.Error) | Linked | NotOwn
 /// holds more than the last thousand is trimmed to them as it is read.
 export fn read() : Either(Unkept, List(String)) =
     match file {
-        None -> Right([])
+        None ->
+            Right([])
       | Some(path) -> {
             let _ <- Either.mapLeft(makeDirectory(path), Unreadable);
             let there <- held(path);
@@ -66,21 +68,28 @@ export fn read() : Either(Unkept, List(String)) =
 // file yet is a first session's.
 fn held(path : Path) : Either(Unkept, Bool) =
     match Fs.readLink(path, fileMs) {
-        Left(Io.NotFound) -> Right(false)
-      | Left(error) -> Left(Unreadable(error))
-      | Right(Some(_)) -> Left(Linked)
-      | Right(None) -> match Fs.stat(path, fileMs) {
-            Left(error) -> Left(Unreadable(error))
-          | Right(entry) -> if entry.kind == Fs.File && entry.user == Os.user then
-                Right(true)
-            else
-                Left(NotOwn)
-        }
+        Left(Io.NotFound) ->
+            Right(false)
+      | Left(error) ->
+            Left(Unreadable(error))
+      | Right(Some(_)) ->
+            Left(Linked)
+      | Right(None) ->
+            match Fs.stat(path, fileMs) {
+                Left(error) ->
+                    Left(Unreadable(error))
+              | Right(entry) ->
+                    if entry.kind == Fs.File && entry.user == Os.user then
+                        Right(true)
+                    else
+                        Left(NotOwn)
+            }
     }
 
 fn readFile(path : Path) : Either(Io.Error, List(String)) =
     match Fs.read(path, fileMs) {
-        Left(error) -> Left(error)
+        Left(error) ->
+            Left(error)
       | Right(bytes) -> {
             let decoded <- inputs(bytes);
             trimmed(path, decoded)
@@ -93,7 +102,8 @@ fn readFile(path : Path) : Either(Io.Error, List(String)) =
 // trimmed.
 fn makeDirectory(path : Path) : Either(Io.Error, Unit) =
     match Path.parent(path) {
-        None -> Right(Unit)
+        None ->
+            Right(Unit)
       | Some(directory) -> {
             let _ <- Fs.makeDir(directory, fileMs);
             Fs.setMode(directory, 0o700, fileMs)
@@ -107,7 +117,8 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
             let lines = List.filter(String.lines(text), fn(line) = !String.isEmpty(line));
             Right(List.map(lines, decode))
         }
-      | None -> Left(Io.NotUtf8(bytes))
+      | None ->
+            Left(Io.NotUtf8(bytes))
     }
 
 // Newest first is the order the editor walks; the file is oldest first,
@@ -130,15 +141,19 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
 fn replace(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) = {
     let beside = Path.withExtension(path, "new" <> Int.toString(attempt));
     match Fs.makeFile(beside, bytes, fileMs) {
-        Left(Io.Exists) -> replace(path, bytes, attempt + 1)
-      | Left(error) -> Left(error)
-      | Right(_) -> match Fs.rename(beside, path, fileMs) {
-            Left(error) -> {
-                let _ = Fs.remove(beside, fileMs);
-                Left(error)
+        Left(Io.Exists) ->
+            replace(path, bytes, attempt + 1)
+      | Left(error) ->
+            Left(error)
+      | Right(_) ->
+            match Fs.rename(beside, path, fileMs) {
+                Left(error) -> {
+                    let _ = Fs.remove(beside, fileMs);
+                    Left(error)
+                }
+              | Right(_) ->
+                    Right(Unit)
             }
-          | Right(_) -> Right(Unit)
-        }
     }
 }
 

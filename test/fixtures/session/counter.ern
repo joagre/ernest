@@ -12,7 +12,8 @@ export fn start() : Address(Msg) =
 
 fn loop(count : Int) : Unit receiving Msg = {
     let count1 = receive {
-        Add(amount) -> count + amount
+        Add(amount) ->
+            count + amount
       | Get(reply = reply) -> {
             answer(reply, count);
             count

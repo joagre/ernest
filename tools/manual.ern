@@ -11,11 +11,13 @@
 
 export fn main() : Unit =
     match Os.arguments {
-        [report, version, pages] -> match manual(report, version, pages) {
-            Right(lines) -> Io.print(String.join(lines, "\n") <> "\n")
-          | Left(message) -> quit(message)
-        }
-      | _ -> quit("usage: manual report.md version pages-dir")
+        [report, version, pages] ->
+            match manual(report, version, pages) {
+                Right(lines) -> Io.print(String.join(lines, "\n") <> "\n")
+              | Left(message) -> quit(message)
+            }
+      | _ ->
+            quit("usage: manual report.md version pages-dir")
     }
 
 // The page's lines, or why there are none.
@@ -66,7 +68,8 @@ fn toolchain(blocks : List(Markdown.Block)) : Optional(List(Markdown.Block)) = {
             let #(section, _) = List.span(rest, fn(block) = !beginsChapter(block));
             Some(section)
         }
-      | _ -> None
+      | _ ->
+            None
     }
 }
 
@@ -102,7 +105,8 @@ fn commandLine(inline : Markdown.Inline) : Optional(String) =
                 Some(code)
             else
                 None
-      | _ -> None
+      | _ ->
+            None
     }
 
 fn usage(line : String) : Markdown.Block =
@@ -119,7 +123,8 @@ fn raised(block : Markdown.Block) : Markdown.Block =
     match block {
         Markdown.Heading(level = level, text = text) ->
             Markdown.Heading(level = level - 1, text = text)
-      | other -> other
+      | other ->
+            other
     }
 
 // The pages the directory holds, the prelude's first, then the pages

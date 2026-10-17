@@ -31,12 +31,40 @@ choice_test() ->
                  ern_pretty:render({choice, hug, Braced, <<"other">>})),
     ?assertEqual(<<"other\n">>,
                  ern_pretty:render({choice, hug, [<<"no brace">>, hardline], <<"other">>})),
-    Short = {choice, body, [<<" short">>, mark], {nest, 4, [hardline, <<"short">>]}},
-    ?assertEqual(<<"x -> short\n">>, ern_pretty:render([<<"x ->">>, Short])),
+    Short = {choice, body, [<<" short">>], {nest, 4, [hardline, <<"short">>]}},
+    ?assertEqual(<<"x = short\n">>, ern_pretty:render([<<"x =">>, Short])),
     LongBody = binary:copy(<<"y">>, 99),
-    ?assertEqual(<<"x ->\n    ", LongBody/binary, "\n">>,
-                 ern_pretty:render([<<"x ->">>, {choice, body, [<<" ">>, LongBody, mark],
-                                                  {nest, 4, [hardline, LongBody]}}])).
+    ?assertEqual(<<"x =\n    ", LongBody/binary, "\n">>,
+                 ern_pretty:render([<<"x =">>, {choice, body, [<<" ">>, LongBody],
+                                                 {nest, 4, [hardline, LongBody]}}])).
+
+%% report §11.6: a body holding a choice that its own first line holds
+%% whole is not whole for that. A regression test: the inner choice's mark
+%% was taken for the outer's
+nested_choice_test() ->
+    Inner = {choice, body, [<<" inner">>], {nest, 4, [hardline, <<"inner">>]}},
+    Body = [<<"f(">>, Inner, <<")">>, line, <<"|> ">>, binary:copy(<<"g">>, 90)],
+    ?assertEqual(<<"x =\n    f( inner)\n    |> ", (binary:copy(<<"g">>, 90))/binary, "\n">>,
+                 ern_pretty:render([<<"x =">>,
+                                    {choice, body, [<<" ">>, Body],
+                                     {nest, 4, [hardline, Body]}}])).
+
+%% report §11.6: a clauses choice takes its first layout, a table, where
+%% each whole in it stands whole on its line, and its second otherwise
+clauses_test() ->
+    Clauses = fun(Bodies) ->
+                  Table = lists:join(hardline, [[<<"x ->">>, <<" ">>, {whole, Body}]
+                                                || Body <- Bodies]),
+                  Down = lists:join(hardline, [[<<"x ->">>, {nest, 4, [hardline, Body]}]
+                                               || Body <- Bodies]),
+                  {choice, clauses, Table, Down}
+              end,
+    ?assertEqual(<<"x -> a\nx -> b\n">>, ern_pretty:render(Clauses([<<"a">>, <<"b">>]))),
+    Long = binary:copy(<<"y">>, 97),
+    ?assertEqual(<<"x ->\n    a\nx ->\n    ", Long/binary, "\n">>,
+                 ern_pretty:render(Clauses([<<"a">>, Long]))),
+    ?assertEqual(<<"x ->\n    a\nx ->\n    b\n    c\n">>,
+                 ern_pretty:render(Clauses([<<"a">>, [<<"b">>, hardline, <<"c">>]]))).
 
 %% report §11.6: a trailing comment ends its line, and a group that code
 %% would follow it in cannot stay on one line

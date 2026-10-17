@@ -26,7 +26,8 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
     else {
         Io.println("ping " <> Int.toString(round));
         match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
-            Some(_) -> ping(opponent, round - 1)
+            Some(_) ->
+                ping(opponent, round - 1)
           | None -> {
                 Io.println("pong is not answering");
                 send(opponent, Stop)
@@ -41,5 +42,6 @@ fn pong() : Unit receiving PongMsg =
             answer(reply, round);
             pong()
         }
-      | Stop -> Unit
+      | Stop ->
+            Unit
     }

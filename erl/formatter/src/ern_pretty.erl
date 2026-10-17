@@ -9,16 +9,18 @@
 %%                    around it breaks
 %%   hardline         a line break always; a group holding one breaks
 %%   blank            a blank line where a line break falls here
-%%   mark             nothing; a body choice's trial reached it
 %%   {nest, N, Inner}   Inner's line breaks indent N more
 %%   {align, Inner}     Inner's line breaks indent to the column it begins at
 %%   {group, Inner}     Inner on one line when that fits, else every break taken
 %%   {bracket, Inner}   a group, which a fit after it takes flat, so that of
 %%                      two brackets on a line the first breaks
 %%   {choice, Kind, First, Second}  First when its first line fits and, for
-%%                    hug and branch, ends in a brace, or, for body, reaches
-%%                    its mark or ends in a brace or `then`, or, for
-%%                    alternative, reaches its mark or ends in `(`; else Second
+%%                    hug and branch, ends in a brace, or, for body, holds
+%%                    First whole or ends in a brace or `then`, or, for
+%%                    alternative, holds First whole or ends in `(`; for
+%%                    clauses, First when each whole in it is; else Second
+%%   {whole, Inner}   Inner, which a clauses choice's First holds whole on
+%%                    the line it begins
 %%   {suffix, Text}   Text at the end of the line, which then ends
 -module(ern_pretty).
 
@@ -28,12 +30,13 @@
 
 -type layout() :: unicode:unicode_binary()
                 | [layout()]
-                | line | hardline | blank | mark
+                | line | hardline | blank
                 | {nest, integer(), layout()}
                 | {align, layout()}
                 | {group, layout()}
                 | {bracket, layout()}
-                | {choice, hug | branch | body | alternative, layout(), layout()}
+                | {choice, hug | branch | body | alternative | clauses, layout(), layout()}
+                | {whole, layout()}
                 | {suffix, unicode:unicode_binary()}.
 
 -define(WIDTH, 100).
@@ -42,7 +45,9 @@
 %% indentation, and whether a blank line goes with it), the line being
 %% written, reversed, the lines finished, reversed, whether anything was
 %% written, the trailing comments waiting for the line's end, and, in a
-%% choice's trial, whether its mark was reached.
+%% choice's trial, whether its mark was reached: the mark is not a layout
+%% but what the trial puts after the choice's first layout, so that a
+%% choice inside it, whose own trial is over, marks nothing.
 -record(printer, {column = 0, pending = none, line = [], lines = [], started = false,
                   suffixes = [], trial = false, marked = false}).
 
@@ -82,9 +87,16 @@ print([{Indent, Mode, Layout} | Rest], Printer) ->
             print([{Indent, GroupMode, Inner} | Rest], Printer);
         {choice, _, First, _} when Mode =:= flat -> print([{Indent, flat, First} | Rest], Printer);
         {choice, Kind, First, Second} ->
-            case accept(Kind, [{Indent, break, First} | Rest], Printer) of
+            case accept(Kind, [{Indent, break, First}, {Indent, break, mark} | Rest], Printer) of
                 true -> print([{Indent, break, First} | Rest], Printer);
                 false -> print([{Indent, break, Second} | Rest], Printer)
+            end;
+        %% a clauses choice's trial of its table catches what this throws,
+        %% so the table it takes holds every whole on its line
+        {whole, Inner} ->
+            case accept(whole, [{Indent, Mode, Inner}, {Indent, Mode, mark} | Rest], Printer) of
+                true -> print([{Indent, Mode, Inner} | Rest], Printer);
+                false -> throw(not_whole)
             end;
         {suffix, Text} -> print(Rest, Printer#printer{suffixes = [Text | Printer#printer.suffixes]})
     end.
@@ -213,14 +225,27 @@ fits(Room, [{Indent, Mode, Layout} | Rest], Ended) ->
         {choice, _, First, _} when Mode =:= flat ->
             fits(Room, [{Indent, Mode, First} | Rest], Ended);
         {choice, _, _, _} -> true;
+        {whole, Inner} when Mode =:= flat -> fits(Room, [{Indent, Mode, Inner} | Rest], Ended);
+        %% a clause's head is laid out up to its arrow, as it is where the
+        %% body begins the next line
+        {whole, _} -> true;
         {suffix, _} -> fits(Room, Rest, true)
     end.
 
+%% A construct's clauses are a table where a trial of the table holds
+%% every body whole on its arrow's line (report §11.6). What follows the
+%% clauses begins a line, so the trial ends with them.
+accept(clauses, [Table | _], Printer) ->
+    try print([Table], Printer) of
+        _ -> true
+    catch
+        throw:not_whole -> false
+    end;
 %% A choice takes its first layout when a trial of it, written up to its
 %% first line break, fits, and: for hug and branch, ends in the brace that
 %% opens what runs over lines; for body, reaches the mark after the body or
 %% ends in a brace or `then`; for alternative, reaches the mark or ends in
-%% `(`.
+%% `(`; and a whole layout reaches its mark.
 accept(Kind, Stack, Printer) ->
     Start = case Printer#printer.pending of
                 {Indent, _} ->
@@ -235,6 +260,7 @@ accept(Kind, Stack, Printer) ->
     Tried#printer.column =< ?WIDTH andalso
         case Kind of
             _ when Kind =:= hug; Kind =:= branch -> ends_with(Written, <<"{">>);
+            whole -> Tried#printer.marked;
             body -> Tried#printer.marked orelse ends_with(Written, <<"{">>)
                         orelse ends_with(Written, <<" then">>);
             %% a type's one alternative stays after its `=` where it fits

@@ -26,7 +26,8 @@ type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply) -> {
             answer(reply, total);
             count(total)
@@ -56,12 +57,14 @@ type CounterMsg =
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count(total + amount)
+        Inc(amount) ->
+            count(total + amount)
       | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(next = next) -> next(total)
+      | Upgrade(next = next) ->
+            next(total)
     }
 
 send(counter, Upgrade(next = countTwice))

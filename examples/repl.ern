@@ -72,7 +72,8 @@ export fn main() : Unit receiving ReplMsg =
 
 fn repl(env : Map(String, Value), serial : Int) : Unit receiving ReplMsg =
     match Io.readLine() {
-        None -> Unit // end of input
+        None ->
+            Unit // end of input
       | Some(text) -> {
             let #(env1, serial1) = evaluateLine(env, serial, text);
             repl(env1, serial1)
@@ -94,21 +95,25 @@ fn evaluateLine(env : Map(String, Value),
             #(env, serial)
         }
       // a line with nothing on it answers nothing
-      | Right([]) -> #(env, serial)
-      | Right(tokens) -> match parse(tokens) {
-            Left(error) -> {
-                Io.println(parseErrorText(error));
-                #(env, serial)
-            }
-          | Right(expression) -> {
-                let result = try(env, expression, serial + 1);
-                show(result);
-                match #(expression, result) {
-                    #(Let(name = name), Right(value)) -> #(Map.put(env, name, value), serial + 1)
-                  | _ -> #(env, serial + 1)
+      | Right([]) ->
+            #(env, serial)
+      | Right(tokens) ->
+            match parse(tokens) {
+                Left(error) -> {
+                    Io.println(parseErrorText(error));
+                    #(env, serial)
+                }
+              | Right(expression) -> {
+                    let result = try(env, expression, serial + 1);
+                    show(result);
+                    match #(expression, result) {
+                        #(Let(name = name), Right(value)) ->
+                            #(Map.put(env, name, value), serial + 1)
+                      | _ ->
+                            #(env, serial + 1)
+                    }
                 }
             }
-        }
     }
 
 // try as a process: evaluate in a child, wait at most two seconds,
@@ -132,8 +137,10 @@ fn await(child : Address(Never), serial : Int) : Either(TryError, Value) receivi
     receive {
         Answered(serial = carried, result = result) when carried == serial ->
             Either.mapLeft(result, Eval)
-      | Died(serial = carried) when carried == serial -> Left(Crashed) // a fault in the child
-      | Answered() or Died() -> await(child, serial) // an earlier expression's child
+      | Died(serial = carried) when carried == serial ->
+            Left(Crashed) // a fault in the child
+      | Answered() or Died() ->
+            await(child, serial) // an earlier expression's child
       | after 2000 -> {
             kill(child);
             Left(Timeout)
@@ -185,12 +192,18 @@ fn tokenize(text : String) : Either(LexError, List(Token)) =
 
 fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, List(Token)) =
     match chars {
-        [] -> Right(List.reverse(acc))
-      | ' ' :: rest -> lex(rest, index + 1, acc)
-      | '(' :: rest -> lex(rest, index + 1, OpenParen :: acc)
-      | ')' :: rest -> lex(rest, index + 1, CloseParen :: acc)
-      | '=' :: rest -> lex(rest, index + 1, Equals :: acc)
-      | '-' :: '>' :: rest -> lex(rest, index + 2, Arrow :: acc)
+        [] ->
+            Right(List.reverse(acc))
+      | ' ' :: rest ->
+            lex(rest, index + 1, acc)
+      | '(' :: rest ->
+            lex(rest, index + 1, OpenParen :: acc)
+      | ')' :: rest ->
+            lex(rest, index + 1, CloseParen :: acc)
+      | '=' :: rest ->
+            lex(rest, index + 1, Equals :: acc)
+      | '-' :: '>' :: rest ->
+            lex(rest, index + 2, Arrow :: acc)
       | char :: _ when Char.isAsciiDigit(char) -> {
             let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
             let value = Optional.withDefault(String.toInt(String.fromList(digits)), 0);
@@ -207,7 +220,8 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
         }
       | char :: rest when List.contains(['+', '-', '*', '/'], char) ->
             lex(rest, index + 1, Operator(char) :: acc)
-      | char :: _ -> Left(BadChar(char = char, index = index))
+      | char :: _ ->
+            Left(BadChar(char = char, index = index))
     }
 
 //
@@ -230,7 +244,8 @@ fn parse(tokens : List(Token)) : Either(ParseError, Expression) = {
             let #(value, remaining) <- parseExpression(more);
             Right(#(Let(name = name, value = value), remaining))
         }
-      | _ -> parseExpression(tokens)
+      | _ ->
+            parseExpression(tokens)
     };
     match rest {
         [] -> Right(expression)
@@ -244,7 +259,8 @@ fn parseExpression(tokens : List(Token)) : Either(ParseError, #(Expression, List
             let #(body, remaining) <- parseExpression(rest);
             Right(#(Function(parameter = parameter, body = body), remaining))
         }
-      | _ -> parseSum(tokens)
+      | _ ->
+            parseSum(tokens)
     }
 
 fn parseSum(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
@@ -259,7 +275,8 @@ fn sumRest(left : Expression,
             let #(right, remaining) <- parseProduct(rest);
             sumRest(Binary(operator = operator, left = left, right = right), remaining)
         }
-      | _ -> Right(#(left, tokens))
+      | _ ->
+            Right(#(left, tokens))
     }
 
 fn parseProduct(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
@@ -274,7 +291,8 @@ fn productRest(left : Expression,
             let #(right, remaining) <- parseApplication(rest);
             productRest(Binary(operator = operator, left = left, right = right), remaining)
         }
-      | _ -> Right(#(left, tokens))
+      | _ ->
+            Right(#(left, tokens))
     }
 
 fn parseApplication(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
@@ -285,15 +303,18 @@ fn parseApplication(tokens : List(Token)) : Either(ParseError, #(Expression, Lis
 fn applicationRest(callee : Expression,
                    tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
     match parseAtom(tokens) {
-        Left(_) -> Right(#(callee, tokens)) // no atom: the application is over
+        Left(_) ->
+            Right(#(callee, tokens)) // no atom: the application is over
       | Right(#(argument, rest)) ->
             applicationRest(Apply(callee = callee, argument = argument), rest)
     }
 
 fn parseAtom(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
     match tokens {
-        Number(value) :: rest -> Right(#(Literal(value), rest))
-      | Name(name) :: rest -> Right(#(Variable(name), rest))
+        Number(value) :: rest ->
+            Right(#(Literal(value), rest))
+      | Name(name) :: rest ->
+            Right(#(Variable(name), rest))
       | OpenParen :: rest -> {
             let #(inner, remaining) <- parseExpression(rest);
             match remaining {
@@ -302,8 +323,10 @@ fn parseAtom(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token
               | [] -> Left(EndOfInput)
             }
         }
-      | token :: _ -> Left(Unexpected(token))
-      | [] -> Left(EndOfInput)
+      | token :: _ ->
+            Left(Unexpected(token))
+      | [] ->
+            Left(EndOfInput)
     }
 
 //
@@ -312,14 +335,17 @@ fn parseAtom(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token
 
 fn eval(env : Map(String, Value), expression : Expression) : Either(EvalError, Value) =
     match expression {
-        Literal(value) -> Right(Integer(value))
-      | Variable(name) -> match Map.get(env, name) {
-            Some(value) -> Right(value)
-          | None -> Left(Unbound(name))
-        }
+        Literal(value) ->
+            Right(Integer(value))
+      | Variable(name) ->
+            match Map.get(env, name) {
+                Some(value) -> Right(value)
+              | None -> Left(Unbound(name))
+            }
       | Function(parameter = parameter, body = body) ->
             Right(Closure(parameter = parameter, body = body, env = env))
-      | Let(value = value) -> eval(env, value) // the REPL binds the name, see evaluateLine
+      | Let(value = value) ->
+            eval(env, value) // the REPL binds the name, see evaluateLine
       | Binary(operator = operator, left = left, right = right) -> {
             let leftValue <- eval(env, left);
             let rightValue <- eval(env, right);
@@ -331,21 +357,28 @@ fn eval(env : Map(String, Value), expression : Expression) : Either(EvalError, V
             match closure {
                 Closure(parameter = parameter, body = body, env = captured) ->
                     eval(Map.put(captured, parameter, value), body)
-              | Integer(_) -> Left(NotAFunction)
+              | Integer(_) ->
+                    Left(NotAFunction)
             }
         }
     }
 
 fn arithmetic(operator : Char, left : Value, right : Value) : Either(EvalError, Value) =
     match #(left, right) {
-        #(Integer(first), Integer(second)) -> match operator {
-            '+' -> Right(Integer(first + second))
-          | '-' -> Right(Integer(first - second))
-          | '*' -> Right(Integer(first * second))
-          | _ -> match Int.div(first, second) {
-                Some(quotient) -> Right(Integer(quotient))
-              | None -> Left(DivisionByZero)
+        #(Integer(first), Integer(second)) ->
+            match operator {
+                '+' ->
+                    Right(Integer(first + second))
+              | '-' ->
+                    Right(Integer(first - second))
+              | '*' ->
+                    Right(Integer(first * second))
+              | _ ->
+                    match Int.div(first, second) {
+                        Some(quotient) -> Right(Integer(quotient))
+                      | None -> Left(DivisionByZero)
+                    }
             }
-        }
-      | _ -> Left(NotANumber)
+      | _ ->
+            Left(NotANumber)
     }

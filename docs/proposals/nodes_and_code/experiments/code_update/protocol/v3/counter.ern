@@ -13,21 +13,25 @@ export let counter : Service.Handle(Msg3, Int) = Service.start(fn() = 0, step)
 
 export fn step(total : Int, message : Msg3) : Int receiving Service.Envelope(Msg3, Int) =
     match message {
-        Add3(amount) -> total + amount
+        Add3(amount) ->
+            total + amount
       | Stats(reply = reply) -> {
             answer(reply, total);
             total
         }
-      | Reset3 -> 0
+      | Reset3 ->
+            0
     }
 
 /// An old message to the new service; the retired `Total2` answered here.
 export fn forward(message : Msg2, to : Address(Msg3)) : Unit receiving Service.Envelope(Msg2, Int) =
     match message {
-        Add2(amount) -> send(to, Add3(amount))
+        Add2(amount) ->
+            send(to, Add3(amount))
       | Total2(reply = reply) ->
             answer(reply, Address.callForever(to, fn(stats) = Stats(reply = stats)))
-      | Reset -> send(to, Reset3)
+      | Reset ->
+            send(to, Reset3)
     }
 
 export fn add(amount : Int) : Unit receiving n =

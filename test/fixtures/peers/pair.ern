@@ -69,7 +69,8 @@ fn withSecondNode(build : String) : Either(String, #(String, Int)) = {
     let answered = match Peer.find(service, 10000) {
         Right(address) ->
             Io.show(Address.call(address, fn(reply) = Double(n = 21, reply = reply), 10000))
-      | Left(failure) -> Io.show(failure)
+      | Left(failure) ->
+            Io.show(failure)
     };
     let status <- stopped(program);
     Right(#(answered, status))
@@ -162,11 +163,13 @@ fn text(value : Json.Value) : Either(String, String) =
 
 fn texts(value : Json.Value) : Either(String, List(String)) =
     match value {
-        Json.Array(values) -> List.tryMap(values, fn(element) = match element {
-            Json.Text(text) -> Right(text)
-          | other -> Left("not a string: " <> Io.show(other))
-        })
-      | other -> Left("not an array: " <> Io.show(other))
+        Json.Array(values) ->
+            List.tryMap(values, fn(element) = match element {
+                Json.Text(text) -> Right(text)
+              | other -> Left("not a string: " <> Io.show(other))
+            })
+      | other ->
+            Left("not an array: " <> Io.show(other))
     }
 
 fn shown(either : Either(e, a)) : Either(String, a) needs e.show =

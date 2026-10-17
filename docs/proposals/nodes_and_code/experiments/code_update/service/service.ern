@@ -47,12 +47,14 @@ export fn replace(old : Handle(m, s),
                   migrate : (s) -> s2,
                   step : (s2, m2) -> s2 receiving Envelope(m2, s2)) : Unit =
     match old {
-        Handle(loop = loop) -> match successor {
-            Handle(loop = next, clients = clients) -> send(loop, Upgrade(next = fn(state) = {
-                send(next, Upgrade(next = fn(_) = run(step, migrate(state))));
-                forwarding(clients, forward)
-            }))
-        }
+        Handle(loop = loop) ->
+            match successor {
+                Handle(loop = next, clients = clients) ->
+                    send(loop, Upgrade(next = fn(state) = {
+                        send(next, Upgrade(next = fn(_) = run(step, migrate(state))));
+                        forwarding(clients, forward)
+                    }))
+            }
     }
 
 fn forwarding(successor : Address(m2),
@@ -65,5 +67,6 @@ fn forwarding(successor : Address(m2),
             forward(message, successor);
             forwarding(successor, forward)
         }
-      | Upgrade(next = _) -> forwarding(successor, forward)
+      | Upgrade(next = _) ->
+            forwarding(successor, forward)
     }

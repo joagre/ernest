@@ -19,7 +19,8 @@ export let service : Peer.Service(Msg) = Peer.service("census")
 
 export fn serve() : Unit receiving Msg =
     receive {
-        Value(_) -> serve()
+        Value(_) ->
+            serve()
       | Count(reply = reply) -> {
             answer(reply, atoms());
             serve()

@@ -35,7 +35,8 @@ fn describe(found : Optional(Snapshot)) : String =
     match found {
         Some(Snapshot(directory = directory) as snapshot) ->
             directory <> " " <> Int.toString(seen(snapshot))
-      | None -> "nothing"
+      | None ->
+            "nothing"
     }
 
 fn seen(Snapshot(seen = count) : Snapshot) : Int =

@@ -67,7 +67,8 @@ export fn completion(line : String, cursor : Int) : #(Completion, String) = {
                 let through = String.slice(line, 0, cursor - String.size(segment));
                 #(complete(segment, [], slot(through)), segment)
             }
-          | #(found, _) -> #(complete(typedWord, namesFor(typedWord), found), typedWord)
+          | #(found, _) ->
+                #(complete(typedWord, namesFor(typedWord), found), typedWord)
         }
     }
 }
@@ -112,11 +113,10 @@ fn commandNames() : List(Name) =
 // is followed by a space, where the line has none after it already.
 fn withSpace(completion : Completion, takes : Bool) : Completion =
     match completion {
-        Completion(word = completed, candidates = [_]) -> if takes then
-            Completion(..completion, word = completed <> " ")
-        else
+        Completion(word = completed, candidates = [_]) ->
+            if takes then Completion(..completion, word = completed <> " ") else completion
+      | _ ->
             completion
-      | _ -> completion
     }
 
 // Report §11.2: after a command, what completes is what the command
@@ -128,26 +128,31 @@ fn argument(line : String, cursor : Int, typedWord : String) : Completion = {
     let wordIndex = cursor - String.size(typedWord);
     let before = String.slice(line, end, wordIndex);
     match Shell.Command.completes(String.slice(line, 0, end)) {
-        Some(Shell.Command.Expressions) -> complete(typedWord, namesFor(typedWord), slot(before))
+        Some(Shell.Command.Expressions) ->
+            complete(typedWord, namesFor(typedWord), slot(before))
       // every setting takes a value after it, and `timing`'s is a word
-      | Some(Shell.Command.SettingWords) -> match String.trim(before) {
-            "" -> {
-                let names = argumentNames(Shell.Command.SettingWords, typedWord);
-                withSpace(complete(typedWord, names, Anything), cursor == String.size(line))
+      | Some(Shell.Command.SettingWords) ->
+            match String.trim(before) {
+                "" -> {
+                    let names = argumentNames(Shell.Command.SettingWords, typedWord);
+                    withSpace(complete(typedWord, names, Anything), cursor == String.size(line))
+                }
+              | "timing" -> {
+                    let timingWords =
+                        List.map(["on", "off"],
+                                 fn(value) = Name(text = value, kind = Value, shown = value));
+                    complete(typedWord, timingWords, Anything)
+                }
+              | _ ->
+                    nothing
             }
-          | "timing" -> {
-                let timingWords =
-                    List.map(["on", "off"],
-                             fn(value) = Name(text = value, kind = Value, shown = value));
-                complete(typedWord, timingWords, Anything)
-            }
-          | _ -> nothing
-        }
-      | Some(completes) -> if String.isEmpty(String.trim(before)) then
-            complete(typedWord, argumentNames(completes, typedWord), argumentSlot(completes))
-        else
+      | Some(completes) ->
+            if String.isEmpty(String.trim(before)) then
+                complete(typedWord, argumentNames(completes, typedWord), argumentSlot(completes))
+            else
+                nothing
+      | None ->
             nothing
-      | None -> nothing
     }
 }
 
@@ -165,19 +170,27 @@ fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List
         // a module is listed by its name alone, since every candidate here
         // is a module; the namespaces they are in, `Http` for
         // `Http.Parser`, complete with their dots
-        Shell.Command.Modules -> withNamespaces(List.filterMap(names(), fn(name) = match name {
-            Name(text = text, kind = Module) -> Some(Name(text = text, kind = Module, shown = text))
-          | _ -> None
-        }))
-      | Shell.Command.SourceModules -> sourceModules(typedWord)
-      | Shell.Command.Expressions -> namesFor(typedWord)
-      | Shell.Command.Names -> namesFor(typedWord)
-      | Shell.Command.SessionNames -> sessionNames()
+        Shell.Command.Modules ->
+            withNamespaces(List.filterMap(names(), fn(name) = match name {
+                Name(text = text, kind = Module) ->
+                    Some(Name(text = text, kind = Module, shown = text))
+              | _ ->
+                    None
+            }))
+      | Shell.Command.SourceModules ->
+            sourceModules(typedWord)
+      | Shell.Command.Expressions ->
+            namesFor(typedWord)
+      | Shell.Command.Names ->
+            namesFor(typedWord)
+      | Shell.Command.SessionNames ->
+            sessionNames()
       | Shell.Command.SettingWords ->
             List.map(Shell.Command.settings,
                      fn(#(setting, value)) =
                          Name(text = setting, kind = Value, shown = setting <> " " <> value))
-      | Shell.Command.Paths -> []
+      | Shell.Command.Paths ->
+            []
     }
 
 // Report §11.2: the modules `:load` may compile, read from the source
@@ -209,15 +222,16 @@ fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
                 let text = prefix <> namespace;
                 Name(text = text, kind = Namespace, shown = text <> ".")
             })
-      | Fs.Entry(path = path) -> if Path.extension(path) != Some("ern") then
-            None
-        else {
-            let named = Optional.andThen(Path.name(Path.withoutExtension(path)), segment);
-            Optional.map(named, fn(module) = {
-                let text = prefix <> module;
-                Name(text = text, kind = Module, shown = text)
-            })
-        }
+      | Fs.Entry(path = path) ->
+            if Path.extension(path) != Some("ern") then
+                None
+            else {
+                let named = Optional.andThen(Path.name(Path.withoutExtension(path)), segment);
+                Optional.map(named, fn(module) = {
+                    let text = prefix <> module;
+                    Name(text = text, kind = Module, shown = text)
+                })
+            }
     }
 
 // How long `:load`'s listing of a directory of the source root may take.
@@ -278,10 +292,14 @@ export fn isLone(completion : Completion) : Bool =
 /// the shell's own commands begin with a `:`, which is no part of a name.
 export fn complete(typedWord : String, names : List(Name), slot : Slot) : Completion =
     match matches(typedWord, admitted(names, slot)) {
-        #([], []) -> nothing
-      | #([only], []) -> Completion(word = whole(only, slot), candidates = [only])
-      | #([], [only]) -> Completion(word = whole(only, slot), candidates = [only])
-      | #([], loose) -> Completion(word = namespaced(loose, typedWord), candidates = loose)
+        #([], []) ->
+            nothing
+      | #([only], []) ->
+            Completion(word = whole(only, slot), candidates = [only])
+      | #([], [only]) ->
+            Completion(word = whole(only, slot), candidates = [only])
+      | #([], loose) ->
+            Completion(word = namespaced(loose, typedWord), candidates = loose)
       | #(exact, loose) -> {
             // report §11.2: what the names reached by prefix share, never
             // less than was typed, which a `Tab` does not take away
@@ -398,7 +416,8 @@ export fn applied(text : String,
                   typedWord : String,
                   completion : Completion) : #(String, Int) =
     match completion {
-        Completion(word = "") -> #(text, cursor)
+        Completion(word = "") ->
+            #(text, cursor)
       | Completion(word = new) -> {
             let wordIndex = cursor - String.size(typedWord);
             #(String.slice(text, 0, wordIndex)
@@ -448,10 +467,12 @@ fn reaches(parts : List(String), name : Name, byPrefix : Bool) : Bool = {
 // the starts of its words: `L.fM` reaches `List.filterMap`.
 fn every(parts : List(String), segments : List(String), byPrefix : Bool) : Bool =
     match #(parts, segments) {
-        #([], _) -> true
+        #([], _) ->
+            true
       | #(part :: rest, segment :: more) ->
             (segment == part || begins(segment, part, byPrefix)) && every(rest, more, byPrefix)
-      | #(_, []) -> false
+      | #(_, []) ->
+            false
     }
 
 // Report §11.2: a segment's first letter is matched as typed, since its
@@ -467,8 +488,10 @@ fn begins(segment : String, part : String, byPrefix : Bool) : Bool =
 // `fM` and `fm` both reach `filterMap`, `m` alone does not.
 fn abbreviates(part : List(Char), segment : List(Char), atStart : Bool) : Bool =
     match #(part, segment) {
-        #([], _) -> true
-      | #(_, []) -> false
+        #([], _) ->
+            true
+      | #(_, []) ->
+            false
       | #(wanted :: moreWanted, char :: rest) ->
             if (atStart || Char.isUpper(char)) && Char.toLower(wanted) == Char.toLower(char) then
                 abbreviates(moreWanted, rest, false)
@@ -483,11 +506,10 @@ fn abbreviates(part : List(Char), segment : List(Char), atStart : Bool) : Bool =
 fn namespaced(loose : List(Name), typedWord : String) : String = {
     let namespaces = List.unique(List.map(loose, fn(name) = namespaceOf(name.text)));
     match #(namespaces, List.last(String.split(typedWord, "."))) {
-        #([namespace], Some(last)) -> if String.isEmpty(namespace) then
+        #([namespace], Some(last)) ->
+            if String.isEmpty(namespace) then "" else namespace <> "." <> last
+      | _ ->
             ""
-        else
-            namespace <> "." <> last
-      | _ -> ""
     }
 }
 
@@ -500,7 +522,8 @@ fn namespaceOf(text : String) : String =
 // puts in even where the name is still ambiguous.
 fn common(texts : List(String)) : String =
     match texts {
-        [] -> ""
+        [] ->
+            ""
       | first :: rest ->
             List.foldLeft(rest, first, fn(shared, text) = sharedPrefix(shared, text, 0))
     }
@@ -541,11 +564,10 @@ let shortModule =
 let prefixFirst =
     Test.Case(name = "a prefix is listed before an abbreviation",
               run = fn() = match complete(word("List.f"), library(), Expression) {
-                  Completion(candidates = Name(text = first) :: _) -> if first == "List.filter" then
-                      Test.Passed
-                  else
-                      Test.Failed(first)
-                | _ -> Test.Failed("no candidates")
+                  Completion(candidates = Name(text = first) :: _) ->
+                      if first == "List.filter" then Test.Passed else Test.Failed(first)
+                | _ ->
+                      Test.Failed("no candidates")
               })
 
 let noneAtAll =
@@ -595,10 +617,8 @@ let nothingTyped = Test.Case(name = "nothing typed reaches the names of one segm
 let oneSegment =
     Test.Case(name = "a segment reaches no name deeper than it",
               run = fn() = match complete(word("L"), library(), Expression) {
-                  Completion(word = completed, candidates = [_]) -> if completed == "List." then
-                      Test.Passed
-                  else
-                      Test.Failed(completed)
+                  Completion(word = completed, candidates = [_]) ->
+                      if completed == "List." then Test.Passed else Test.Failed(completed)
                 | Completion(candidates = candidates) ->
                       Test.Failed(Int.toString(List.size(candidates)))
               })

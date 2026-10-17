@@ -35,16 +35,17 @@ export fn main() : Unit =
             Io.printlnError("shout: cannot listen: " <> Io.show(error));
             Os.exit(1)
         }
-      | Right(listener) -> match Tcp.port(listener) {
-            Left(error) -> {
-                Io.printlnError("shout: no port: " <> Io.show(error));
-                Os.exit(1)
+      | Right(listener) ->
+            match Tcp.port(listener) {
+                Left(error) -> {
+                    Io.printlnError("shout: no port: " <> Io.show(error));
+                    Os.exit(1)
+                }
+              | Right(port) -> {
+                    Io.println("listening on 127.0.0.1:" <> Int.toString(port));
+                    accepting(listener)
+                }
             }
-          | Right(port) -> {
-                Io.println("listening on 127.0.0.1:" <> Int.toString(port));
-                accepting(listener)
-            }
-        }
     }
 
 // Accepts connections for as long as the program runs, each served by a
@@ -56,22 +57,26 @@ fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit =
             Tcp.give(socket, Process.fromAddress(server));
             accepting(listener)
         }
-      | Left(Io.Timeout) -> accepting(listener)
-      | Left(error) -> Io.printlnError("shout: cannot accept: " <> Io.show(error))
+      | Left(Io.Timeout) ->
+            accepting(listener)
+      | Left(error) ->
+            Io.printlnError("shout: cannot accept: " <> Io.show(error))
     }
 
 // Answers each line that has arrived, and reads for more, until the client
 // closes the connection or falls silent.
 fn serve(socket : Address(Tcp.SocketMsg), received : Bytes) : Unit =
     match Bytes.indexOf(received, newline) {
-        Some(end) -> match Tcp.write(socket, shouted(Bytes.slice(received, 0, end)), 5000) {
-            Right(Unit) -> serve(socket, Bytes.slice(received, end + 1, Bytes.size(received)))
-          | Left(_) -> Tcp.close(socket)
-        }
-      | None -> match Tcp.read(socket, 60000) {
-            Right(more) -> serve(socket, received <> more)
-          | Left(_) -> Tcp.close(socket)
-        }
+        Some(end) ->
+            match Tcp.write(socket, shouted(Bytes.slice(received, 0, end)), 5000) {
+                Right(Unit) -> serve(socket, Bytes.slice(received, end + 1, Bytes.size(received)))
+              | Left(_) -> Tcp.close(socket)
+            }
+      | None ->
+            match Tcp.read(socket, 60000) {
+                Right(more) -> serve(socket, received <> more)
+              | Left(_) -> Tcp.close(socket)
+            }
     }
 
 // A line in capitals, with its line feed; a line that is not UTF-8 text is

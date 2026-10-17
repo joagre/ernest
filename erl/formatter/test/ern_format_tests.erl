@@ -110,7 +110,7 @@ hug_test() ->
                  laid(["let s = spawn(fn() = { tick(); s })"])).
 
 %% report §11.6: a match, a receive and a block run over lines however
-%% short, an arm a line, a further one led by its bar
+%% short, a clause a line, a further one led by its bar
 brace_test() ->
     ?assertEqual([<<"fn f(x) =">>,
                   <<"    match x {">>,
@@ -141,27 +141,162 @@ if_test() ->
                   <<"        c()">>],
                  laid(["fn g(x) = if x then { a(); b() } else c()"])).
 
-%% report §11.6: an arm's body stays on its line when it fits, or when its
-%% first line ends in a brace or `then`, and otherwise begins the next line
-arm_test() ->
+%% report §11.6: where every clause's body fits whole on its arrow's line,
+%% each stays there, a trailing comment beside it, as a table
+clauses_table_test() ->
+    fixed(["fn f(x) =",
+           "    match x {",
+           "        Some(names) -> String.join(List.map(names, fn(name) = name <> \" n\"), \", \")",
+           "      | None -> \"\" // none",
+           "    }"]).
+
+%% report §11.6: where one clause's body does not fit whole on its arrow's
+%% line, every body of the construct begins the line after its arrow, a
+%% step in from the clause's line, a short one and an `if` among them.
+%% Written in place of a test of the rule before, which held each body on
+%% its arrow's line where it fit alone, or up to a brace or `then`
+clauses_down_test() ->
     ?assertEqual([<<"fn f(x) =">>,
                   <<"    match x {">>,
                   <<"        Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->">>,
                   <<"            String.startsWith(text, \"Since \")">>,
-                  <<"      | _ -> if x then">>,
-                  <<"            \"a branch long enough that this if cannot stand on one line"
+                  <<"      | Markdown.Break ->">>,
+                  <<"            false">>,
+                  <<"      | _ ->">>,
+                  <<"            if x then">>,
+                  <<"                \"a branch long enough that this if cannot stand on one line"
                     " with its else\"">>,
-                  <<"        else">>,
-                  <<"            \"no\"">>,
+                  <<"            else">>,
+                  <<"                \"no\"">>,
                   <<"    }">>],
                  laid(["fn f(x) = match x {",
                        "    Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->"
                        " String.startsWith(text, \"Since \")",
+                       "  | Markdown.Break -> false",
                        "  | _ -> if x then \"a branch long enough that this if cannot stand on"
                        " one line with its else\" else \"no\"",
-                       "}"])).
+                       "}"])),
+    %% a comment after an arrow keeps its body off the arrow's line, and
+    %% so every body of the construct
+    ?assertEqual([<<"fn g(x) =">>,
+                  <<"    match x {">>,
+                  <<"        A -> // why">>,
+                  <<"            1">>,
+                  <<"      | B ->">>,
+                  <<"            2">>,
+                  <<"    }">>],
+                 laid(["fn g(x) = match x { A -> // why", "1 | B -> 2 }"])).
 
-%% report §11.6: a lambda has no rule of its own; its body is an arm's
+%% report §11.6: a block never fits whole, so a construct with a block
+%% clause has every body on the line after its arrow but the block's,
+%% which opens its brace on the arrow's line; a body whose first line ends
+%% in a brace or `then` begins the next line as any other
+clauses_block_test() ->
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    match x {">>,
+                  <<"        Some(y) -> {">>,
+                  <<"            let z = y;">>,
+                  <<"            z">>,
+                  <<"        }">>,
+                  <<"      | Other(y) ->">>,
+                  <<"            match y {">>,
+                  <<"                1 -> 2">>,
+                  <<"              | _ -> 3">>,
+                  <<"            }">>,
+                  <<"      | Both(c) ->">>,
+                  <<"            if c then {">>,
+                  <<"                a()">>,
+                  <<"            } else {">>,
+                  <<"                b()">>,
+                  <<"            }">>,
+                  <<"      | None ->">>,
+                  <<"            0">>,
+                  <<"    }">>],
+                 laid(["fn f(x) = match x { Some(y) -> { let z = y; z }"
+                       " | Other(y) -> match y { 1 -> 2 | _ -> 3 }"
+                       " | Both(c) -> if c then { a() } else { b() } | None -> 0 }"])).
+
+%% report §11.6: a receive's `after` clause is a clause: a table with the
+%% others where its body and theirs fit whole, every body down where its
+%% does not or another's does not, and its block's brace on its arrow's line
+after_clause_test() ->
+    fixed(["fn f() =",
+           "    receive {",
+           "        Ping -> 1",
+           "      | after 2000 -> 2",
+           "    }"]),
+    fixed(["fn f() =",
+           "    receive {",
+           "        after 2000 -> 2",
+           "    }"]),
+    ?assertEqual([<<"fn f() =">>,
+                  <<"    receive {">>,
+                  <<"        Ping ->">>,
+                  <<"            1">>,
+                  <<"      | after 2000 ->">>,
+                  <<"            String.join(List.map(names, fn(name) = name <> \" is a long name"
+                    " and more\"), \", \")">>,
+                  <<"    }">>],
+                 laid(["fn f() = receive { Ping -> 1 | after 2000 -> String.join(List.map("
+                       "names, fn(name) = name <> \" is a long name and more\"), \", \") }"])),
+    ?assertEqual([<<"fn f() =">>,
+                  <<"    receive {">>,
+                  <<"        Ping ->">>,
+                  <<"            1">>,
+                  <<"      | after 2000 -> {">>,
+                  <<"            let y = 1;">>,
+                  <<"            y + 1">>,
+                  <<"        }">>,
+                  <<"    }">>],
+                 laid(["fn f() = receive { Ping -> 1 | after 2000 -> { let y = 1; y + 1 } }"])),
+    ?assertEqual([<<"fn f() =">>,
+                  <<"    receive {">>,
+                  <<"        Ping -> {">>,
+                  <<"            ping();">>,
+                  <<"            1">>,
+                  <<"        }">>,
+                  <<"      | after 2000 ->">>,
+                  <<"            2">>,
+                  <<"    }">>],
+                 laid(["fn f() = receive { Ping -> { ping(); 1 } | after 2000 -> 2 }"])).
+
+%% report §11.6: each match decides its own clauses: one inside a body on
+%% the line after its arrow is a table where its bodies fit, and lays its
+%% own bodies down where one of its does not, whatever the match around it
+nested_clauses_test() ->
+    fixed(["fn f(x, y) =",
+           "    match x {",
+           "        A ->",
+           "            match y {",
+           "                B -> 1",
+           "              | C -> 2",
+           "            }",
+           "      | D ->",
+           "            3",
+           "    }"]),
+    fixed(["fn f(x, y) =",
+           "    match x {",
+           "        A ->",
+           "            match y {",
+           "                B -> {",
+           "                    b();",
+           "                    1",
+           "                }",
+           "              | C ->",
+           "                    2",
+           "            }",
+           "      | D ->",
+           "            3",
+           "    }"]),
+    %% a lambda's match after a bracket's last item decides its own too
+    fixed(["fn g(xs) =",
+           "    List.map(xs, fn(x) = match x {",
+           "        A -> 1",
+           "      | B -> 2",
+           "    })"]).
+
+%% report §11.6: a lambda has no rule of its own; its body after `=` is a
+%% body, as a `let`'s value is
 lambda_test() ->
     fixed(["let f = List.map(xs, fn(x) = x + 1)"]),
     ?assertEqual([<<"let names =">>,
@@ -174,9 +309,9 @@ lambda_test() ->
                        " Shell.Complete.Name(text = \":\" <> c.name, kind = Shell.Complete.Value,"
                        " shown = Shell.Command.line(c)))"])).
 
-%% report §11.6: a `let`'s value is a body, as an arm's and a lambda's
-%% are: on the `let`'s line when it fits whole or its first line ends in a
-%% brace or `then`, and otherwise on the next line, a step in
+%% report §11.6: a `let`'s value is a body, as a lambda's is: on the
+%% `let`'s line when it fits whole or its first line ends in a brace or
+%% `then`, and otherwise on the next line, a step in
 let_test() ->
     ?assertEqual([<<"let group : Address(Supervisor.Msg) =">>,
                   <<"    spawn(Supervisor.group(Supervisor.OneForAll,"
@@ -196,6 +331,25 @@ let_test() ->
                   <<"}">>],
                  laid(["fn f(x) = { let y <- Either.map(Fs.read(Path(\"a file name of thir"
                        "ty-seven character\"), 5000), String.fromUtf8); y }"])).
+
+%% report §11.6: a `let`'s value that neither fits whole on its line nor
+%% ends its first line in a brace or `then` begins the next line, though a
+%% lambda inside it fits whole on that first line. A regression test: the
+%% lambda's body was taken for the value's, which stayed on the `let`'s line
+%% with its bracket aligned far to the right
+let_lambda_test() ->
+    ?assertEqual([<<"fn f(xs) = {">>,
+                  <<"    let ys =">>,
+                  <<"        List.map(xs, fn(x) = x + 1) |> List.filter(fn(y) = y > 2)"
+                    " |> List.reverse |> List.length;">>,
+                  <<"    ys">>,
+                  <<"}">>],
+                 laid(["fn f(xs) = { let ys = List.map(xs, fn(x) = x + 1) |> List.filter("
+                       "fn(y) = y > 2) |> List.reverse |> List.length; ys }"])),
+    fixed(["let settingsAbout =",
+           "    String.join(List.map(settings, fn(#(setting, value)) = setting <> \" \" <> value),"
+           " \", \")",
+           "        <> \"; :set alone shows them\""]).
 
 %% report §11.6: a line an operator opens carries its expression on, a step
 %% in; an operator binding tighter carries on the operand above, a step more
