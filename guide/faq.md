@@ -12,9 +12,15 @@ Nodes are the language too: a node lists its peers by their public keys, a spawn
 
 **Where are `gen_server` and the supervisors?**
 
-In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4). A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry: a service is a top-level binding that holds such an address, made when the program starts and good for its life (the guide's §6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place (the guide's §6.6).
+In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4).
 
-A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6), and a module reloaded or brought by a peer runs beside its earlier versions (report §11.2). In a rolling upgrade the messages the old process has not yet taken move to the new one: `Mailbox.drained(keep)` takes them from the old mailbox in arrival order, as a list, and the new process puts them into its own with `Mailbox.refilled(messages)`, behind what it already holds; the `Mailbox` library is planned and not yet written.
+A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry: a service is a top-level binding that holds such an address, made when the program starts and good for its life (the guide's §6.5).
+
+A supervision tree is the standard library's `Supervisor`, its children restarted in place (the guide's §6.6).
+
+A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6), and a module reloaded or brought by a peer runs beside its earlier versions (report §11.2).
+
+In a rolling upgrade the messages the old process has not yet taken move to the new one: `Mailbox.drained(keep)` takes them from the old mailbox in arrival order, as a list, and the new process puts them into its own with `Mailbox.refilled(messages)`, behind what it already holds; the `Mailbox` library is planned and not yet written.
 
 Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions (the guide's §5.2, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
 
@@ -24,13 +30,19 @@ It began there. Ernest's core was taken from Unison's: types inferred with signa
 
 What was left behind is Unison's concurrency, its abilities, its exceptions and its codebase manager, since Ernest keeps modules and files and takes Erlang's processes whole; the hash serves the exchange between nodes and a module's versions, not a store in place of files (the guide's §8, report §8.7, report §11.1). Unison runs a distributed program on Unison Cloud, its hosted service or, since October 2025, its software on machines of your own; in Ernest the nodes are yours with no service between them, each listed in the other's `ernest.conf`.
 
-The idea of a function known on its own, apart from any module, has an older parent on this runtime. Joe Armstrong asked the Erlang list in May 2011 [why modules are needed at all](https://erlang.org/pipermail/erlang-questions/2011-May/058768.html): "all functions have unique distinct names", and "all functions go into a global (searchable) Key-value database". At the Erlang User Conference in 2012, in *A Few Improvements to Erlang*, he said "I don't like modules. It's a sort of love/hate relationship. The problem with modules is the classification problem", and "If you look at something like git, the way you deal with time is checksum, timestamp".
+The idea of a function known on its own, apart from any module, has an older parent on this runtime. Joe Armstrong asked the Erlang list in May 2011 [why modules are needed at all](https://erlang.org/pipermail/erlang-questions/2011-May/058768.html): "all functions have unique distinct names", and "all functions go into a global (searchable) Key-value database".
+
+At the Erlang User Conference in 2012, in *A Few Improvements to Erlang*, he said "I don't like modules. It's a sort of love/hate relationship. The problem with modules is the classification problem", and "If you look at something like git, the way you deal with time is checksum, timestamp".
 
 Unison names Erlang among its influences, and stands on parents of its own: a thing known by the hash of its content is Git's and Nix's, and its abilities are Frank's, Eff's and Koka's, from the last of which Ernest takes one rule, that a function that receives nothing stands wherever one receiving `M` is expected (the guide's §3.5). Unison's founders are named in the acknowledgments.
 
 **Why one mailbox per process, and not several typed channels?**
 
-A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out. A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §4.1, report §6.5). The process's protocol is one type, read in one place, and where another language opens a second channel an Ernest process hands out such an address: a value, sent to whoever should write to it (the guide's §5.5).
+A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out.
+
+A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §4.1, report §6.5).
+
+The process's protocol is one type, read in one place, and where another language opens a second channel an Ernest process hands out such an address: a value, sent to whoever should write to it (the guide's §5.5).
 
 **Why does a function that receives say `receiving M`, while one that only sends says nothing?**
 
@@ -48,7 +60,11 @@ Whether a reply is answered is checked as the program runs, not by the compiler.
 
 **Is a forgotten answer caught?**
 
-Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). What protects the caller is the call it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault, which ends the calling process with a cause that names how the callee ended (the guide's §6.3, report §6.6). Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6). What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).
+Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). What protects the caller is the call it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault, which ends the calling process with a cause that names how the callee ended (the guide's §6.3, report §6.6).
+
+Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6).
+
+What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).
 
 **How does Ernest talk to Erlang, and to the other languages on the runtime?**
 
@@ -82,4 +98,8 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **Why is the compiler so strict, and why does it give no warnings?**
 
-A warning is a rule the compiler states and does not hold, so a program that builds with warnings is one whose author decided each, or did not, and its reader cannot tell which. Ernest gives one answer, a program builds or it does not, so that a program that builds meets every rule, and its reader knows which rules those are. The rules are few, and each catches a mistake concurrent programs are prone to: a message of a type the process does not take, a failure dropped, an `Either` result left unread (the guide's §0), a constructor a `match` leaves out, a value discarded without `let _` (the guide's §11). What is a habit of style the compiler leaves alone: `ern format` lays the code out, and the reader's eye does the rest.
+A warning is a rule the compiler states and does not hold, so a program that builds with warnings is one whose author decided each, or did not, and its reader cannot tell which. Ernest gives one answer, a program builds or it does not, so that a program that builds meets every rule, and its reader knows which rules those are.
+
+The rules are few, and each catches a mistake concurrent programs are prone to: a message of a type the process does not take, a failure dropped, an `Either` result left unread (the guide's §0), a constructor a `match` leaves out, a value discarded without `let _` (the guide's §11).
+
+What is a habit of style the compiler leaves alone: `ern format` lays the code out, and the reader's eye does the rest.

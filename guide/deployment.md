@@ -8,7 +8,11 @@
 
 # Running Ernest
 
-This guide is for the operator: the person who runs Ernest programs as nodes, reads what they write on standard error, and decides when to restart one. It assumes nothing of the language beyond what a program's author tells you about it, and it teaches only what happens at the machine: directories, commands, lines, and the move each line asks for. A node runs on the Erlang runtime, OTP, which this guide calls the host; the host picks a port, compiles and loads what a peer sends, and counts what it holds. How a program is written to be found, placed and upgraded across nodes is the language guide's chapter 8, [*Programming in Ernest*](language.md), which this guide points at and does not repeat. The rules themselves are [the report's](../report/language.md), Ernest's definition, §8.7 and §11 above all, and every section here names the section that owns what it teaches.
+This guide is for the operator: the person who runs Ernest programs as nodes, reads what they write on standard error, and decides when to restart one. It assumes nothing of the language beyond what a program's author tells you about it, and it teaches only what happens at the machine: directories, commands, lines, and the move each line asks for.
+
+A node runs on the Erlang runtime, OTP, which this guide calls the host; the host picks a port, compiles and loads what a peer sends, and counts what it holds.
+
+How a program is written to be found, placed and upgraded across nodes is the language guide's chapter 8, [*Programming in Ernest*](language.md), which this guide points at and does not repeat. The rules themselves are [the report's](../report/language.md), Ernest's definition, §8.7 and §11 above all, and every section here names the section that owns what it teaches.
 
 The commands of sections 1, 5.3 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit, the `kill` lines and the shell session of section 6 are shown and not run. The numbers quoted were measured on one machine, eight cores, and say so.
 
@@ -25,7 +29,9 @@ MCowBQYDK2VwAyEA...
 -----END PUBLIC KEY-----
 ```
 
-`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not. The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
+`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not.
+
+The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
 The directory belongs to the user who runs the node. A node refuses to start from a directory that is not its user's own or the superuser's, from one whose files anyone beyond the owner and the owner's group may write, or whose private key others than its owner may read, and says so.
 
@@ -48,15 +54,23 @@ A file that is not JSON, names a field the node does not know or one twice, name
 $ ern run --config-dir /etc/counter/b --main Counter.serve /srv/counter/build/counter.erc
 ```
 
-`--main Counter.serve` names the function the node runs first, its *entry point*, `serve` in the module `Counter`; without it the node runs the program's `main`, and the process that runs it is the *entry process*. At its start a node computes the values of the program's top-level bindings, the named values a module declares outside any function, as any program does, and only once all have their values does it listen and dial (report §8.5, §8.7). It writes its process number to `ernest.pid` in its directory and holds the file locked for its life; a second node started from the same directory finds the lock and refuses, and the `ern run` command, not a node, says `ern run: dir is the configuration directory of the running node N, which ernest.pid names`. The host releases the lock however the node ends, so a stale file from a crash is overwritten at the next start.
+`--main Counter.serve` names the function the node runs first, its *entry point*, `serve` in the module `Counter`; without it the node runs the program's `main`, and the process that runs it is the *entry process*.
 
-`ern reload --config-dir dir` sends the node the hangup signal, and the node reads `ernest.conf` again (report §8.7, *A reload*). A peer added is listed and nothing more happens until the program reaches for it: a find of a service it offers, a spawn, which starts a process there, or a compute, which runs a function there for its value. A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3).
+At its start a node computes the values of the program's top-level bindings, the named values a module declares outside any function, as any program does, and only once all have their values does it listen and dial (report §8.5, §8.7).
+
+It writes its process number to `ernest.pid` in its directory and holds the file locked for its life; a second node started from the same directory finds the lock and refuses, and the `ern run` command, not a node, says `ern run: dir is the configuration directory of the running node N, which ernest.pid names`. The host releases the lock however the node ends, so a stale file from a crash is overwritten at the next start.
+
+`ern reload --config-dir dir` sends the node the hangup signal, and the node reads `ernest.conf` again (report §8.7, *A reload*). A peer added is listed and nothing more happens until the program reaches for it: a find of a service it offers, a spawn, which starts a process there, or a compute, which runs a function there for its value.
+
+A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3).
 
 The node says `ernest.conf was read again` and a line for each peer added, removed or renamed.
 
 `listen` and `public-key` cannot change while the node runs: a file that changes either, or breaks a rule of section 1.2, is refused with `the reload was refused, and the configuration stays as it was: ...`, and the old configuration stays. `kill -HUP` by the number in `ernest.pid` does the same, and so does the service manager's reload, section 1.5.
 
-`ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that subscribed to it are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` where one is slow, so that what a program keeps is written; then the node tells each connected peer that it ends, so that the peer says `ended` and not `lost`, and exits. A second `ern stop` while the first waits is a second termination, which ends the node at once. `kill -TERM` by the number in `ernest.pid` signals without waiting.
+`ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that subscribed to it are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` where one is slow, so that what a program keeps is written; then the node tells each connected peer that it ends, so that the peer says `ended` and not `lost`, and exits.
+
+A second `ern stop` while the first waits is a second termination, which ends the node at once. `kill -TERM` by the number in `ernest.pid` signals without waiting.
 
 Both `ern stop` and `ern reload` fail where no node holds the file, `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory`, or `no such file` where an orderly stop removed it, so that no signal reaches a process whose number the file names by chance.
 
@@ -64,7 +78,9 @@ A bare node, `ern run --config-dir dir` with no program, ends by termination alo
 
 ### 1.4 Exit statuses and the two streams
 
-A node exits with status 0 when its entry point returns, with the status an `Os.exit` gives, with 1 when its entry process faults or is killed or the program exhausts the host's memory, by the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop, and with 141 when its output can no longer be written, because what read it has ended (report §11.8). A service manager that restarts on failure restarts every exit status but 0 and no clean stop, so a node stopped by `ern stop` is not restarted and one that crashed is.
+A node exits with status 0 when its entry point returns, with the status an `Os.exit` gives, with 1 when its entry process faults or is killed or the program exhausts the host's memory, by the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop, and with 141 when its output can no longer be written, because what read it has ended (report §11.8).
+
+A service manager that restarts on failure restarts every exit status but 0 and no clean stop, so a node stopped by `ern stop` is not restarted and one that crashed is.
 
 Standard output is the program's own, and the node never changes it. Standard error is the node's: every fault, as `Counter.serve:14 faulted: division by zero`, and every line of section 7. Where standard error is a file or a pipe, and not a terminal or the journal, each line begins with its time in UTC, `2026-10-13T14:22:11.836Z the peer a connected`, so that a file of them is a log (report §11.2). The two streams together are the node's record; keep both.
 
@@ -87,7 +103,9 @@ TimeoutStopSec=30
 WantedBy=multi-user.target
 ```
 
-systemd keeps both streams in its journal, which stamps every line, and `journalctl -u counter-b` reads them. `systemctl reload counter-b` runs the reload, and `systemctl stop counter-b` sends the termination signal and waits `TimeoutStopSec` for the orderly end, after which it kills what still runs; set it longer than the slowest subscriber's answer. `Restart=on-failure` starts the node again after a crash and after an `Os.exit` with a status other than 0, and not after `ern stop`. Without a service manager, `nohup ern run --config-dir b ... >> b.log 2>&1 &` keeps a node running once its terminal has closed, with the two streams in one file, stamped.
+systemd keeps both streams in its journal, which stamps every line, and `journalctl -u counter-b` reads them. `systemctl reload counter-b` runs the reload, and `systemctl stop counter-b` sends the termination signal and waits `TimeoutStopSec` for the orderly end, after which it kills what still runs; set it longer than the slowest subscriber's answer. `Restart=on-failure` starts the node again after a crash and after an `Os.exit` with a status other than 0, and not after `ern stop`.
+
+Without a service manager, `nohup ern run --config-dir b ... >> b.log 2>&1 &` keeps a node running once its terminal has closed, with the two streams in one file, stamped.
 
 ## 2. Two nodes
 
@@ -110,17 +128,27 @@ Each node is made on its own machine with `ern config`, and the two then list ea
 
 Two nodes hold at most one connection, opened by the first operation that needs it and over TLS 1.3 with a certificate on each side (report §8.7, *Connections*).
 
-A node accepts a connection only from a peer whose key its configuration lists, and only under the name that key gives it: a node's name on the wire holds a digest of its key and its certificate carries that name, so a certificate that names another than its key gives is refused, and so is a dialed node that answers under another name than the one dialed, as a node whose directory was copied from another's does. The refusing node says why, `a node with the key ... was refused: no peer has its key`, naming an unlisted node by its key's digest since it has no name here. Connections are not transitive: that `a` knows `b` and `b` knows `c` connects `a` and `c` in no way, and each pair lists each other.
+A node accepts a connection only from a peer whose key its configuration lists, and only under the name that key gives it: a node's name on the wire holds a digest of its key and its certificate carries that name, so a certificate that names another than its key gives is refused, and so is a dialed node that answers under another name than the one dialed, as a node whose directory was copied from another's does.
 
-Two nodes connect only where they stand on one *floor*: one major and minor release of `ern` on one major release of OTP, which the handshake proves before anything passes (report §8.7). A patch release stands on the floor of its minor, so `0.4.0` and `0.4.1` connect, and `0.4.x` and `0.5.0` do not, each saying `the peer b was refused: it stands on another floor, another release or build of ern or another major release of OTP`. A build of `ern` that is no release stands on the floor of its own code's digest, so two development builds connect only where they are the same build. Nodes of different builds of the *program* connect, and agree on the code they share by a hash of each definition (section 5).
+The refusing node says why, `a node with the key ... was refused: no peer has its key`, naming an unlisted node by its key's digest since it has no name here.
+
+Connections are not transitive: that `a` knows `b` and `b` knows `c` connects `a` and `c` in no way, and each pair lists each other.
+
+Two nodes connect only where they stand on one *floor*: one major and minor release of `ern` on one major release of OTP, which the handshake proves before anything passes (report §8.7). A patch release stands on the floor of its minor, so `0.4.0` and `0.4.1` connect, and `0.4.x` and `0.5.0` do not, each saying `the peer b was refused: it stands on another floor, another release or build of ern or another major release of OTP`.
+
+A build of `ern` that is no release stands on the floor of its own code's digest, so two development builds connect only where they are the same build. Nodes of different builds of the *program* connect, and agree on the code they share by a hash of each definition (section 5).
 
 The node says `the peer b connected` as the connection opens, `the peer b ended` when `b` stopped in order, and `the peer b's connection was replaced by another from the same node` where `b` dialed anew while the old connection was alive, as after `b`'s restart.
 
 ### 2.3 A lost peer
 
-A connection is lost when the network breaks it, when the detector finds it silent, or when a faulty frame arrives (report §8.7, *A loss*). Any traffic is a sign of life; where nothing else was sent for 15 seconds a tick goes, and a peer from which nothing came in four such intervals is lost, so a silence is found between 45 and 75 seconds after the last traffic, as the host states it, while a peer that closes is found at once. The node says `the peer b was lost: it fell silent` or `the peer b was lost: it closed`.
+A connection is lost when the network breaks it, when the detector finds it silent, or when a faulty frame arrives (report §8.7, *A loss*). Any traffic is a sign of life; where nothing else was sent for 15 seconds a tick goes, and a peer from which nothing came in four such intervals is lost, so a silence is found between 45 and 75 seconds after the last traffic, as the host states it, while a peer that closes is found at once.
 
-What the program sees is the loss run on this node: every process here that watches one of `b`'s processes, through a monitor, is told so, a `Down` message with the reason `Unreachable` (the language guide's §5.2), every call waiting on one of them ends, and a process waiting forever on one faults. Nothing else ends. The connection is opened again by the next operation that needs it, never in the background: a node that is lost stays lost until a find, a spawn, a compute or an ask of its utilization (section 3.2) reaches for it, and a dial that nothing answers is given up after 7 seconds. A peer that cannot be dialed, listed without an address, is reached again only when it dials in.
+The node says `the peer b was lost: it fell silent` or `the peer b was lost: it closed`.
+
+What the program sees is the loss run on this node: every process here that watches one of `b`'s processes, through a monitor, is told so, a `Down` message with the reason `Unreachable` (the language guide's §5.2), every call waiting on one of them ends, and a process waiting forever on one faults. Nothing else ends.
+
+The connection is opened again by the next operation that needs it, never in the background: a node that is lost stays lost until a find, a spawn, a compute or an ask of its utilization (section 3.2) reaches for it, and a dial that nothing answers is given up after 7 seconds. A peer that cannot be dialed, listed without an address, is reached again only when it dials in.
 
 The move: look at `b`'s machine. If `b` stopped in order you would have read `ended`; `lost` means the network or the process. `b` restarting shows as `connected` again on `a`, or as `replaced` where `a` still believed the old connection alive.
 
@@ -136,7 +164,9 @@ A service carries a hash of its message type, the type of the messages its proce
 
 ### 3.2 How busy a node is
 
-A node measures how busy it is on one scale, 1.0 being every scheduler busy, a scheduler one of the host's threads that run processes, one for each core as a rule, below it room and above it work waiting (report §8.7, *A utilization*). `utilization` in `ernest.conf` says how: `"run-queue"`, the default, divides the processes running or ready by the number of schedulers, an instant reading and not an average; `"schedulers"` gives the fraction of the schedulers' time spent running since the number was last read, which never passes 1.0 and smooths a spiky load. A program may set the number itself, when it knows its load better than the host does; then this entry is the default it starts from.
+A node measures how busy it is on one scale, 1.0 being every scheduler busy, a scheduler one of the host's threads that run processes, one for each core as a rule, below it room and above it work waiting (report §8.7, *A utilization*). `utilization` in `ernest.conf` says how: `"run-queue"`, the default, divides the processes running or ready by the number of schedulers, an instant reading and not an average; `"schedulers"` gives the fraction of the schedulers' time spent running since the number was last read, which never passes 1.0 and smooths a spiky load.
+
+A program may set the number itself, when it knows its load better than the host does; then this entry is the default it starts from.
 
 A node that lists peers tells each of them its utilization every `utilization-interval` milliseconds, 5000 where the entry is absent, and once as a peer connects. Each node holds the last number heard from each peer, and a program's `Peer.compute` picks the less busy of two peers drawn from them; a number older than twice the interval of the peer that sent it is not used, and a peer never heard from is not chosen. Where a program places work by its own rule, the language guide's §8.1 shows it over `Peer.utilizations()`.
 
@@ -148,21 +178,29 @@ The cost of the telling is one small frame per peer per interval, which replaces
 
 ### 3.4 A bare node
 
-`ern run --config-dir dir` with no `.erc` starts a bare node (report §8.7): it holds no program of its own, evaluates the standard library and waits, listening for what its peers spawn and compute on it. The code it needs crosses with the first spawn or compute of each function (section 4), and it offers what the processes spawned on it offer, so a bare node is a worker that any program on the floor can give work to by its name. It must listen, since it never dials, and it ends by termination alone. Its first spawn is the slow one: on one machine about 250 milliseconds, most of it the host's compiler starting, against a few milliseconds for every spawn after.
+`ern run --config-dir dir` with no `.erc` starts a bare node (report §8.7): it holds no program of its own, evaluates the standard library and waits, listening for what its peers spawn and compute on it. The code it needs crosses with the first spawn or compute of each function (section 4), and it offers what the processes spawned on it offer, so a bare node is a worker that any program on the floor can give work to by its name.
+
+It must listen, since it never dials, and it ends by termination alone. Its first spawn is the slow one: on one machine about 250 milliseconds, most of it the host's compiler starting, against a few milliseconds for every spawn after.
 
 ## 4. Code across nodes, as the operator meets it
 
 ### 4.1 What crosses, and when
 
-Code crosses between nodes with a spawn and a compute, and nowhere else: not with a message, not with a find, not with a shell's load (report §8.7, *The exchange*). When a program spawns a function on a peer that lacks it, the peer asks for the definitions it lacks among the function and everything the function uses, directly or through others, each known by the hash of its definition, verifies each as it arrives, compiles them together as one module of the host's and loads it whole before the process starts. Nothing compiled ever crosses, and nothing of it runs before all of it is loaded. A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds.
+Code crosses between nodes with a spawn and a compute, and nowhere else: not with a message, not with a find, not with a shell's load (report §8.7, *The exchange*). When a program spawns a function on a peer that lacks it, the peer asks for the definitions it lacks among the function and everything the function uses, directly or through others, each known by the hash of its definition, verifies each as it arrives, compiles them together as one module of the host's and loads it whole before the process starts. Nothing compiled ever crosses, and nothing of it runs before all of it is loaded.
+
+A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds.
 
 Two things never cross: a top-level binding's value, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3).
 
 ### 4.2 What a node keeps, and when to restart
 
-A node keeps every unit of code it loads, its build's modules, the ones it was sent and the ones a program loaded, for its life (report §11.2, *What a node holds*). The host counts what they add, module names, export entries, function entries and atoms, and never gives one back, so a node that is sent new code without end slowly uses the counts up. The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, `the host has used 52429 of its 65536 module names, which it never gives back`. Past a limit the node runs on and serves what it holds; a spawn or a load that would pass it fails, and the program is given the error `Other` as a `Left`, Ernest's failed result.
+A node keeps every unit of code it loads, its build's modules, the ones it was sent and the ones a program loaded, for its life (report §11.2, *What a node holds*). The host counts what they add, module names, export entries, function entries and atoms, and never gives one back, so a node that is sent new code without end slowly uses the counts up.
 
-How fast the counts move is a question of how much new code a node is sent, not of how long it runs or how much work it does. A node that runs the same build as its peers is sent almost nothing. One that developers spawn their edits onto, or whose program loads new code into itself often, with `Code.load` (section 5.3), moves them: on one machine, a small definition spawned costs one module name, about five exports, a function entry per lambda and an atom, so two hundred such spawns a day reach four fifths of module names after about 260 such days; a program of twenty modules upgraded whole through `Code.load` reaches four fifths of function entries after about 416 upgrades.
+The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, `the host has used 52429 of its 65536 module names, which it never gives back`. Past a limit the node runs on and serves what it holds; a spawn or a load that would pass it fails, and the program is given the error `Other` as a `Left`, Ernest's failed result.
+
+How fast the counts move is a question of how much new code a node is sent, not of how long it runs or how much work it does. A node that runs the same build as its peers is sent almost nothing.
+
+One that developers spawn their edits onto, or whose program loads new code into itself often, with `Code.load` (section 5.3), moves them: on one machine, a small definition spawned costs one module name, about five exports, a function entry per lambda and an atom, so two hundred such spawns a day reach four fifths of module names after about 260 such days; a program of twenty modules upgraded whole through `Code.load` reaches four fifths of function entries after about 416 upgrades.
 
 The move is a restart at a time of your choosing: a restarted node holds its build and is sent the rest again as its peers need it, and nothing is lost but what was in its memory, which a node never promises to keep.
 
@@ -181,17 +219,23 @@ The program on the spawning side sees each of these as a failed result, a `Left`
 
 ### 5.1 Several builds on one floor
 
-Nodes of different builds of a program connect, as long as they stand on one floor of `ern` (section 2.2), and they agree on what they share by hash: a service names its message type by the hash of its definition, a spawn names its function by the hash of its definition, and a definition that did not change hashes the same in both builds. A definition's hash covers the hashes of the definitions it uses, so a fix to one function changes its hash and the hashes of the functions that use it; those cross to a node at the old build, and nothing else; two versions of a type are two types, and a service offered at one is not found at the other, which `OtherType` says (section 3.1).
+Nodes of different builds of a program connect, as long as they stand on one floor of `ern` (section 2.2), and they agree on what they share by hash: a service names its message type by the hash of its definition, a spawn names its function by the hash of its definition, and a definition that did not change hashes the same in both builds.
+
+A definition's hash covers the hashes of the definitions it uses, so a fix to one function changes its hash and the hashes of the functions that use it; those cross to a node at the old build, and nothing else; two versions of a type are two types, and a service offered at one is not found at the other, which `OtherType` says (section 3.1).
 
 A build written into a running node's build directory reaches the node at its next start and nothing before; the one way code reaches a running node from disk is `Code.load`, below (report §11.1). Put each build in a directory of its own, and point the service manager's unit at the one you mean.
 
 ### 5.2 A fix from a shell
 
-Ernest's shell, `ern shell`, is a prompt that loads a program's modules and evaluates what is typed at it; started with a configuration directory it is a node, `ern shell --config-dir dir prog.erc`, and what it loads or types it can spawn on a peer, the code crossing as any spawn's does (report §11.2). An operator with a one-line fix loads the fixed module with `:load` and spawns the function that applies it on each peer; the peer keeps the code for its life, and a restart from the old build is the old build again. The language guide's §8.1 shows the spawn; the shell's own commands are its `:help`.
+Ernest's shell, `ern shell`, is a prompt that loads a program's modules and evaluates what is typed at it; started with a configuration directory it is a node, `ern shell --config-dir dir prog.erc`, and what it loads or types it can spawn on a peer, the code crossing as any spawn's does (report §11.2).
+
+An operator with a one-line fix loads the fixed module with `:load` and spawns the function that applies it on each peer; the peer keeps the code for its life, and a restart from the old build is the old build again. The language guide's §8.1 shows the spawn; the shell's own commands are its `:help`.
 
 ### 5.3 A service moved to new code
 
-A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a tool, a program of the author's own, lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's chapter 8; the operator runs the tool. The example `examples/upgrade/` is one module, `Counter`, in two builds: the first, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern), is the counter alone, which section 8 starts on the peers, and the second, [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), the counter with a new loop and the tool. Run from `examples/`, with counters of the first build on the peers, the second runs on a node of its own and spawns on every peer a process that moves the peer's counters and says how many it moved.
+A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a tool, a program of the author's own, lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's chapter 8; the operator runs the tool.
+
+The example `examples/upgrade/` is one module, `Counter`, in two builds: the first, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern), is the counter alone, which section 8 starts on the peers, and the second, [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), the counter with a new loop and the tool. Run from `examples/`, with counters of the first build on the peers, the second runs on a node of its own and spawns on every peer a process that moves the peer's counters and says how many it moved.
 
 ```console
 $ ern build upgrade/v2
@@ -202,7 +246,9 @@ total: Some(5)
 b: 1 moved
 ```
 
-The tool moves a counter of its own first, which on its new loop says each increment message it takes, an `Inc`, as `inc 3`, and answers its total when asked, `total: Some(5)`, then spawns on each peer a process that moves the peer's and reports, one line a peer; a peer it could not start on is a line with the failure, `c: Unreachable`. The spawn carries `count2`, the new loop, to a peer at the first build, which lacks it and keeps it. A program may also load a build itself at run time, `Code.load` from its own load path, and list what runs an old function with `Code.running`, which the tool uses (report Appendix E.28).
+The tool moves a counter of its own first, which on its new loop says each increment message it takes, an `Inc`, as `inc 3`, and answers its total when asked, `total: Some(5)`, then spawns on each peer a process that moves the peer's and reports, one line a peer; a peer it could not start on is a line with the failure, `c: Unreachable`. The spawn carries `count2`, the new loop, to a peer at the first build, which lacks it and keeps it.
+
+A program may also load a build itself at run time, `Code.load` from its own load path, and list what runs an old function with `Code.running`, which the tool uses (report Appendix E.28).
 
 ## 6. Looking in
 
@@ -224,15 +270,21 @@ Right([...])
 Right(Config(limit = 500))
 ```
 
-The lambda is written at the shell and runs on `b` with `b`'s own values, as any compute does (report §8.7); `Right(...)` is a successful answer and `Left(...)` a failed one, and `5000` is how many milliseconds the shell waits for it. The first look at a node pays the dial, the lambda's crossing and the node's first compile, close to a second on a loaded machine, so its time is given generously; the looks after it cost a compute's few hundred microseconds. A binding of the program read this way is the node's, the processes listed are those on the node, and a function of the program called this way runs there.
+The lambda is written at the shell and runs on `b` with `b`'s own values, as any compute does (report §8.7); `Right(...)` is a successful answer and `Left(...)` a failed one, and `5000` is how many milliseconds the shell waits for it.
 
-`Peer.utilization(name, ms)` asks a node now rather than reading the last telling; `Peer.utilizations()` reads what the shell's node holds of its peers, each with how many milliseconds ago it was told. `Process.status(p)` on a process the list gave names the site it was spawned at, a snapshot (report Appendix E.21). A fault's trace, printed beneath the fault on the node's standard error, names the function by the name its program gives it, and names a received unit `ern$3`, which tells you the code arrived from a peer (report §11.2). Looking costs what one compute costs and changes nothing on the node.
+The first look at a node pays the dial, the lambda's crossing and the node's first compile, close to a second on a loaded machine, so its time is given generously; the looks after it cost a compute's few hundred microseconds. A binding of the program read this way is the node's, the processes listed are those on the node, and a function of the program called this way runs there.
+
+`Peer.utilization(name, ms)` asks a node now rather than reading the last telling; `Peer.utilizations()` reads what the shell's node holds of its peers, each with how many milliseconds ago it was told. `Process.status(p)` on a process the list gave names the site it was spawned at, a snapshot (report Appendix E.21).
+
+A fault's trace, printed beneath the fault on the node's standard error, names the function by the name its program gives it, and names a received unit `ern$3`, which tells you the code arrived from a peer (report §11.2). Looking costs what one compute costs and changes nothing on the node.
 
 What a shell cannot do yet is attach to a running node: run its inputs there without the wrapping compute, list the node's processes with `:processes`, and load or reload code on the node with `:load` and `:reload`, as `erl -remsh` attaches to an Erlang node. Attaching is planned and not yet built, and until then the wrapped compute is the way in; the shell's `:processes` lists the shell's own.
 
 ## 7. What a node says, and what to do
 
-Every line below is written once, on the node's standard error, with its time where that is a file or a pipe. Two are written by the `ern run` or `ern stop` command instead of a node, and name the directory as the command line gave it. The first column is the line as it is written, with the peer's name from `ernest.conf`, or `the node` and its key's digest where it is not listed; `Site` stands for a place in the program, `Module.function:line`, `Q` for a name in the program, `Module.name`, `M` for a module and `N` for a number.
+Every line below is written once, on the node's standard error, with its time where that is a file or a pipe. Two are written by the `ern run` or `ern stop` command instead of a node, and name the directory as the command line gave it.
+
+The first column is the line as it is written, with the peer's name from `ernest.conf`, or `the node` and its key's digest where it is not listed; `Site` stands for a place in the program, `Module.function:line`, `Q` for a name in the program, `Module.name`, `M` for a module and `N` for a number.
 
 | The line | What happened | The move |
 |---|---|---|
