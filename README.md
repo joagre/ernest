@@ -13,7 +13,7 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 - **The mailbox in the function's type.** Every process receives messages of one type, and a function that receives says that type in its own type. A process's address carries the type too, so the compiler checks every message sent against the mailbox it will reach, and every receive against the mailbox it reads. A server is such an address bound to a name at the top of a module, kept good while the process behind it is restarted after a fault, so a program reaches its servers by name and can never send one a message it does not take.
 - **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. Two versions of a module run side by side, and a running process moves to the new version of its function when a message tells it to. A process started on another node brings its code along, so any node can run anything: a node with no program of its own joins, and work is placed where there is room, with nothing deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
-- **Little else.** Functions and processes are the whole language, with one way to do each thing, and a report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
+- **Little else.** Functions and processes are the whole language, with one way to do each thing, and a report of three files defines all of it. There is no type class, interface or trait: an abstract type keeps its representation to its module, and a requirement names the one operation a generic function needs of its type, which the compiler supplies at each call. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
 
@@ -110,6 +110,53 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
   "services": {}
 }
 ```
+
+**Little else.** A reader who knows another language expects a type class, an interface or a trait, and Ernest has none; two things stand in their place. An *abstract type* keeps its constructor to its module: every function of `stack.ern` may take a `Stack` apart, and no other module can, so the representation can change and no caller knows. A *requirement* names the one operation a generic function needs of its type, `needs a.compare`, and the compiler supplies the type's own at each call, so `sorted([3, 1, 2])` is written with nothing more. An *operations record* is a record of functions filled from a module by naming it, `Operations(..Set)`, so code written once runs over two representations, and the caller chooses at each call.
+
+```ernest
+// stack.ern  (namespace Stack)
+export abstract type Stack(a) = Stack(List(a))
+
+export let empty = Stack([])
+
+export fn push(Stack(items), item) =
+    Stack(item :: items)
+
+export fn size(Stack(items)) =
+    List.size(items)
+```
+
+```ernest
+// little.ern  (namespace Little)
+type Operations(s, a) = Operations(fromList : (List(a)) -> s, toList : (s) -> List(a))
+
+let hashed : Operations(Set(Int), Int) = Operations(..Set)
+
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
+
+fn sorted(list : List(a)) : List(a) needs a.compare =
+    List.sort(list, a.compare)
+
+fn unique(list : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.fromList(list))
+
+export fn main() : Unit = {
+    Io.println(Int.toString(Stack.size(Stack.push(Stack.push(Stack.empty, 1), 2))));
+    Io.println(Io.show(sorted([3, 1, 2])));
+    Io.println(Io.show(unique([3, 1, 3], ordered)));
+    Io.println(Int.toString(List.size(unique([3, 1, 3], hashed))))
+}
+```
+
+```console
+$ ern run little.erc
+2
+[1, 2, 3]
+[1, 3]
+2
+```
+
+`Stack.Stack([])` outside `stack.ern` is refused, so a caller holds a stack through its operations alone. `unique` is one function over two representations, and `Operations` is the program's own record of what it uses, two fields; the standard library declares none. What a class, an interface or a trait would have added, a declared instance, a hierarchy, a dispatch the reader cannot see, the two do without. The guide's chapter 7 teaches both.
 
 ## Where it stands
 
