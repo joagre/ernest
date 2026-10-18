@@ -280,10 +280,20 @@ Every comment stays beside the token it was beside. A block comment on a line of
 
 The layout indents by steps of four spaces, and fits a line within 100 columns where these rules can:
 
-- **A line stands a step in from the line on which the innermost construct open around it began**: a bracket, a brace, an expression an operator carries on, or a body after a `=`, `->`, `then` or `else` that ends a line. A line that opens with a closing bracket or brace, or with `else`, stands at its construct's line. An item standing after its bracket counts as beginning a line there. A further clause, and a further line of a type's alternatives, opens with its bar two columns to the left, so that what follows the bar stands at the step. Only a bracket's items are aligned; nothing is lined up under an `->`, an `=` or a trailing comment.
+- **A line stands a step in from the line on which the innermost construct open around it began**: a bracket, a brace, an expression an operator carries on, or a body after a `=`, `->`, `then` or `else` that ends a line.
+
+  A line that opens with a closing bracket or brace, or with `else`, stands at its construct's line. An item standing after its bracket counts as beginning a line there.
+
+  A further clause, and a further line of a type's alternatives, opens with its bar two columns to the left, so that what follows the bar stands at the step.
+
+  Only a bracket's items are aligned; nothing is lined up under an `->`, an `=` or a trailing comment.
 - **A line that opens with a binary operator carries on the expression above it.** A further line of the same expression stands at the same step. A line whose operator binds more tightly carries on the operand begun on the line above, and stands a step further in.
 - **A block, a `match` and a `receive` run over lines however short**, a statement or a clause a line. What follows the closing brace, an `else`, a `then`, a `;`, a `)` or an operator, follows it on its line.
-- **A bracket stays on one line when the whole line fits, and otherwise holds one item a line.** A bracket is the parenthesis, square bracket or `<<` around a call's arguments, a function's parameters, a constructor's fields, declared or built, or the items of a tuple, a list or a bitstring. The first item stays on the bracket's line, each further item stands under it, and the closing bracket ends the last item's line. The outermost bracket breaks first, and of two on one line the first. A bracket of one item does not break. A comment or a doc block before the first item puts that item on a line of its own, and the items a step in.
+- **A bracket stays on one line when the whole line fits, and otherwise holds one item a line.** A bracket is the parenthesis, square bracket or `<<` around a call's arguments, a function's parameters, a constructor's fields, declared or built, or the items of a tuple, a list or a bitstring.
+
+  The first item stays on the bracket's line, each further item stands under it, and the closing bracket ends the last item's line. The outermost bracket breaks first, and of two on one line the first. A bracket of one item does not break.
+
+  A comment or a doc block before the first item puts that item on a line of its own, and the items a step in.
 - **A last item that opens a brace keeps the items on the bracket's line** where that line fits up to the brace, as a lambda whose body is a `match` does. The brace and the bracket close together.
 - **An `if` stays on one line when it fits, and otherwise breaks at every `then` and `else`.** A branch whose first line ends in a brace or a `then` stays beside its `then` or `else` when that fits: `then {`, `} else {`, `else match x {`, and `else if` are each written on one line.
 - **The clauses of a `match` or a `receive` are laid out alike.** Where every clause's body fits whole on its `->`'s line, each stays there. Otherwise every body of the construct begins the line after its `->`, a body that is a block opening its brace at the end of the `->`'s line. A `receive`'s `after` clause is a clause.
