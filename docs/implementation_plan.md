@@ -367,15 +367,17 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
 11. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
    changed since `v0.3.1`: MVP 3.0, 3.1 and 3.2, and with them MVP 3.26's two subtractions and
-   §11.6's layout of a construct's clauses; the code's reader since `v0.3.1`, the guide's over the
-   sections that teach what changed, chapter 8 and the deployment guide among them, and the
-   argument's over the paragraphs of `soundness.md` for the rules that changed, its section 7 among
-   them (the scope widened 2026-10-18, the log's *Before the Tag, the Last Builds*, its paragraph on
-   item 11 checked); and, decided
-   2026-10-13, one principles reader beside them, on Fable, reading §8.7, §11.2, Appendix E.27 and
-   E.28 and the guide's chapter 8 against §0, since this milestone wrote its rules under build
-   pressure and reversed two, the whole principles review being MVP 3.9's full review's to hold;
-   every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
+   §11.6's layout of a construct's clauses. The report's reader, K and P as one on Fable, reads what
+   the report gained with §8.7, §11.2, Appendix E.27 and E.28 at the center of its read against §0,
+   since this milestone wrote its rules under build pressure and reversed two, the whole principles
+   review being MVP 3.9's full review's to hold. The code's reader reads the node's modules alone,
+   the carrier, the gateway, the peer, the exchange and the arrival, the one area no reader has seen
+   and no user has run; the rest of the code since `v0.3.1` waits for MVP 3.9's full review, which
+   reads the code whole. The guide's reads the sections that teach what changed, chapter 8 and the
+   deployment guide among them, and the argument's the paragraphs of `soundness.md` for the rules
+   that changed, its section 7 among them (the readers' scope settled 2026-10-18, the log's *Before
+   the Tag, the Last Builds*, its paragraph on item 11's cost; the second principles reader of
+   2026-10-13 is K and P's read). Every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
    exported declaration that appeared since 0.3.1, the pages in `docs/man/`, the notes, which say what a
    program written for 0.3.1 changes and what the shell does not yet do beside a node, attach to it
    with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0, but tables in `libs/markdown`, decided with the user the same day, the log's *Tables in `libs/markdown`*; reopened 2026-10-14 for MVP 3.26 alone, the log's *Kill Darlings*, whose two subtractions the notes then state: `with` written `receiving` where a function receives and nowhere else, and no `!`), the README's *Where it stands*
