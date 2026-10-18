@@ -366,8 +366,12 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    (the log's *The Layout Completed*).
 11. **The release, Ernest 0.4.0.** The first release with nodes, and the first since `v0.3.1`: the
    review before a release as [`release_review.md`](release_review.md) says, its readers over what
-   MVP 3.0, 3.1 and 3.2 changed, the code's reader since `v0.3.1`, the guide's over chapter 8 and
-   the deployment guide, and the argument's over `soundness.md`'s section 7; and, decided
+   changed since `v0.3.1`: MVP 3.0, 3.1 and 3.2, and with them MVP 3.26's two subtractions and
+   §11.6's layout of a construct's clauses; the code's reader since `v0.3.1`, the guide's over the
+   sections that teach what changed, chapter 8 and the deployment guide among them, and the
+   argument's over the paragraphs of `soundness.md` for the rules that changed, its section 7 among
+   them (the scope widened 2026-10-18, the log's *Before the Tag, the Last Builds*, its paragraph on
+   item 11 checked); and, decided
    2026-10-13, one principles reader beside them, on Fable, reading §8.7, §11.2, Appendix E.27 and
    E.28 and the guide's chapter 8 against §0, since this milestone wrote its rules under build
    pressure and reversed two, the whole principles review being MVP 3.9's full review's to hold;
