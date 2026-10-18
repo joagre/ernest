@@ -134,6 +134,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 7. The result read back, and every surprise decided (*Done*).
 8. `make test-full` green; the conformance section written; every known gap in the plan; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
 9. The report to the user, ending with *Report conformance*, then a stop until the user's word; a push only on that word (*Done*).
+10. Where the item was its milestone's last, the same commit sweeps the plan: the milestone's section goes, its row names its proposal and the log entries that argue it, and every sentence of a later milestone that cited the section's items cites the log instead (*Where a sentence goes*).
 
 ## Style
 
