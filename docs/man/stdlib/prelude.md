@@ -151,8 +151,8 @@ type Reply(a)
 
 Where the answer to a request goes. `Address.call` makes one and puts it
 in the request, and the process that receives the request answers it with
-`answer`. A reply is answered exactly once on every path, or handed on,
-and the compiler checks it (report §6.6).
+`answer`. A process that cannot answer yet keeps the reply as it keeps
+any value, in a list or a map, and answers it when it can (report §6.6).
 
 ### Examples
 
@@ -175,7 +175,10 @@ receives nothing, and nothing can be sent to its address.
 ### Examples
 
 ```ernest
-spawn(fn() : Unit with Never = Io.println("hello"))
+{
+    let silent : Address(Never) = spawn(fn() = Io.println("hello"));
+    kill(silent)
+}
 ```
 
 ## Process
@@ -327,7 +330,7 @@ the line of the spawn, `Counter.main:19` (report §6.9).
 
 ```ernest
 {
-    let worker = spawn(fn() : Unit with Never = Unit);
+    let worker = spawn(fn() = Unit);
     monitor(Process.fromAddress(worker), fn(d : Down) = d);
     receive { Down(reason = r, site = _) -> r }
 }
@@ -402,7 +405,7 @@ Path.name(Path("/tmp/a.txt"))
 ## self
 
 ```ernest
-self() : Address(m) with m
+self() : Address(m) receiving m
 ```
 
 The address of the calling process. A process gives it to another that
@@ -414,7 +417,7 @@ is to answer or tell it something: `let me = self()`, then
 ```ernest
 {
     let me = self();
-    let _ = spawn(fn() : Unit with Never = send(me, "ready"));
+    let _ = spawn(fn() = send(me, "ready"));
     receive { s -> s }
 }
 ```
@@ -422,7 +425,7 @@ is to answer or tell it something: `let me = self()`, then
 ## send
 
 ```ernest
-send(address : Address(a), message : a) : Unit with m+
+send(address : Address(a), message : a) : Unit
 ```
 
 Puts `message` in the mailbox of the process at `address`, and returns at
@@ -441,16 +444,18 @@ send(self(), 42)
 ## spawn
 
 ```ernest
-spawn(f : () -> Unit with n) : Address(n) with m+
+spawn(f : () -> Unit receiving n) : Address(n)
 ```
 
 Starts a process that runs `f`, and answers its address. The process
 runs beside the caller, on this node, and `spawn` returns at once.
 
-The address takes the messages `f`'s mailbox type names. A process that
-receives nothing says so with `with Never` on its function: `spawn(fn() :
-Unit with Never = Io.println("hi"))` (report §6.2). The process ends when
-`f` returns, faults, or is killed.
+The address takes the messages `f`'s mailbox type names. A function that
+receives nothing is spawned as any other, and what is sent to its address
+waits unread. Where nothing fixes the mailbox type by the end of the
+definition the spawn is written in, it is `Never`:
+`spawn(fn() = Io.println("hi"))` alone answers an `Address(Never)`
+(report §6.2). The process ends when `f` returns, faults, or is killed.
 
 ### Examples
 
@@ -464,7 +469,7 @@ spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
 ## spawnMonitored
 
 ```ernest
-spawnMonitored(f : () -> Unit with n, wrap : (Down) -> m) : Address(n) with m
+spawnMonitored(f : () -> Unit receiving n, wrap : (Down) -> m) : Address(n) receiving m
 ```
 
 Starts a process as `spawn` does, and watches it from its first moment:
@@ -475,7 +480,7 @@ process can come before the watch (report §6.2, §6.9).
 ### Examples
 
 ```ernest
-spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d)
+spawnMonitored(fn() = Unit, fn(d : Down) = d)
 ```
 
 ## adapted
@@ -506,15 +511,16 @@ sender (report §6.5).
 ## Address.call
 
 ```ernest
-Address.call(address : Address(m), request : (Reply(a)) -> m, ms : Int) : Optional(a) with n+
+Address.call(address : Address(m), request : (Reply(a)) -> m, ms : Int) : Optional(a)
 ```
 
 Asks the process at `address` and waits for its answer: `Some(answer)`,
 or `None` where none came within `ms` milliseconds.
 
 `request` is given a fresh `Reply` and builds the message that carries
-it, `fn(reply) = Get(reply = reply)`. The process that receives the
-message answers it with `answer`.
+it: a constructor whose one field is the reply, `Get`, or a lambda,
+`fn(reply) = Add(amount = 5, reply = reply)`. The process that receives
+the message answers it with `answer`.
 
 `None` does not cancel the work: the process asked may still do it, and
 an answer that comes late is dropped. Where that process has ended, or
@@ -535,7 +541,7 @@ where the time has already passed (report §6.6).
 ## Address.callForever
 
 ```ernest
-Address.callForever(address : Address(m), request : (Reply(a)) -> m) : a with n+
+Address.callForever(address : Address(m), request : (Reply(a)) -> m) : a
 ```
 
 Asks as `Address.call` does, and waits for the answer without a deadline,
@@ -567,15 +573,14 @@ answers (report §6.6):
 ## answer
 
 ```ernest
-answer(reply : Reply(a), value : a) : Unit with m+
+answer(reply : Reply(a), value : a) : Unit
 ```
 
 Answers a request: sends `value` to the caller waiting on `reply`.
 
-A reply is answered exactly once on every path, or handed on, and the
-compiler checks it (report §6.6). A caller that has stopped waiting,
-after its deadline or its end, never sees the answer, and the process
-that answers is not told.
+A second answer to a reply is dropped, and a caller that has stopped
+waiting, after its deadline or its end, never sees the answer; the
+process that answers is not told (report §6.6).
 
 ### Examples
 
@@ -586,7 +591,7 @@ spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
 ## restarting
 
 ```ernest
-restarting(limit : RestartLimit, f : () -> Unit with n+) : () -> Unit with n+
+restarting(limit : RestartLimit, f : () -> Unit receiving n) : () -> Unit receiving n
 ```
 
 A function that runs `f`, and runs it again in the same process each time
@@ -614,15 +619,18 @@ A worker that faults on `0`, and runs again, at most three times in five
 seconds:
 
 ```ernest
-spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Int = receive {
-    n -> Io.println(Int.toString(100 / n))
-}))
+{
+    let limit = RestartLimit(restarts = 3, within = 5000);
+    spawn(restarting(limit, fn() : Unit receiving Int = receive {
+        n -> Io.println(Int.toString(100 / n))
+    }))
+}
 ```
 
 ## monitor
 
 ```ernest
-monitor(process : Process, wrap : (Down) -> m) : Unit with m
+monitor(process : Process, wrap : (Down) -> m) : Unit receiving m
 ```
 
 Watches a process: `wrap(d)` is put in the caller's mailbox when
@@ -646,7 +654,7 @@ process the caller starts itself is watched from its start with
 ## kill
 
 ```ernest
-kill(address : Address(a)) : Unit with m+
+kill(address : Address(a)) : Unit
 ```
 
 Ends the process at `address`. Its monitors see the reason `Killed`.
@@ -686,4 +694,4 @@ fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty her
 
 ---
 
-Generated by ern 0.3.1 from the prelude, report §9.
+Generated by ern 0.4.0 from the prelude, report §9.

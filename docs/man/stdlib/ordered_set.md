@@ -73,7 +73,7 @@ The set with no elements.
 ## OrderedSet.fromList
 
 ```ernest
-OrderedSet.fromList(list : List(a!)) : OrderedSet.Set(a!) needs a.compare
+OrderedSet.fromList(list : List(a)) : OrderedSet.Set(a) needs a.compare
 ```
 
 The set of those elements, each once.
@@ -88,7 +88,7 @@ OrderedSet.toList(OrderedSet.fromList(["b", "a", "b"]))
 ## OrderedSet.size
 
 ```ernest
-OrderedSet.size(OrderedSet.Set(a!)) : Int
+OrderedSet.size(OrderedSet.Set(a)) : Int
 ```
 
 The number of elements.
@@ -103,7 +103,7 @@ The number of elements.
 ## OrderedSet.isEmpty
 
 ```ernest
-OrderedSet.isEmpty(OrderedSet.Set(a!)) : Bool
+OrderedSet.isEmpty(OrderedSet.Set(a)) : Bool
 ```
 
 `true` for the set with no elements.
@@ -111,7 +111,7 @@ OrderedSet.isEmpty(OrderedSet.Set(a!)) : Bool
 ## OrderedSet.contains
 
 ```ernest
-OrderedSet.contains(OrderedSet.Set(a!), element : a!) : Bool needs a.compare
+OrderedSet.contains(OrderedSet.Set(a), element : a) : Bool needs a.compare
 ```
 
 `true` when an element the order calls `Equal` to `element` is in the set.
@@ -126,7 +126,7 @@ OrderedSet.contains(OrderedSet.fromList([1, 3]), 3)
 ## OrderedSet.put
 
 ```ernest
-OrderedSet.put(OrderedSet.Set(a!), element : a!) : OrderedSet.Set(a!) needs a.compare
+OrderedSet.put(OrderedSet.Set(a), element : a) : OrderedSet.Set(a) needs a.compare
 ```
 
 The set with `element`. Where the order calls an element already there
@@ -142,7 +142,7 @@ OrderedSet.toList(OrderedSet.put(OrderedSet.fromList([1, 3]), 2))
 ## OrderedSet.remove
 
 ```ernest
-OrderedSet.remove(OrderedSet.Set(a!), element : a!) : OrderedSet.Set(a!) needs a.compare
+OrderedSet.remove(OrderedSet.Set(a), element : a) : OrderedSet.Set(a) needs a.compare
 ```
 
 The set without the element the order calls `Equal` to `element`, which need
@@ -158,7 +158,7 @@ OrderedSet.toList(OrderedSet.remove(OrderedSet.fromList([1, 2]), 1))
 ## OrderedSet.map
 
 ```ernest
-OrderedSet.map(OrderedSet.Set(a), f : (a) -> b! with e) : OrderedSet.Set(b!) with e needs b.compare
+OrderedSet.map(OrderedSet.Set(a), f : (a) -> b receiving e) : OrderedSet.Set(b) receiving e needs b.compare
 ```
 
 The set of `f`'s result for each element, met in order, in the order of the
@@ -175,7 +175,7 @@ OrderedSet.toList(OrderedSet.map(OrderedSet.fromList([2, 1]), fn(n) = n * 10))
 ## OrderedSet.filter
 
 ```ernest
-OrderedSet.filter(OrderedSet.Set(a!), keep : (a!) -> Bool with e) : OrderedSet.Set(a!) with e
+OrderedSet.filter(OrderedSet.Set(a), keep : (a) -> Bool receiving e) : OrderedSet.Set(a) receiving e
 ```
 
 The elements `keep` holds for, in order.
@@ -190,7 +190,7 @@ OrderedSet.toList(OrderedSet.filter(OrderedSet.fromList([1, 2, 3]), fn(n) = n > 
 ## OrderedSet.filterMap
 
 ```ernest
-OrderedSet.filterMap(OrderedSet.Set(a), f : (a) -> Optional(b!) with e) : OrderedSet.Set(b!) with e needs b.compare
+OrderedSet.filterMap(OrderedSet.Set(a), f : (a) -> Optional(b) receiving e) : OrderedSet.Set(b) receiving e needs b.compare
 ```
 
 The values of `f`'s `Some` results, as a set in the order of their type.
@@ -205,7 +205,7 @@ OrderedSet.toList(OrderedSet.filterMap(OrderedSet.fromList(["1", "x"]), String.t
 ## OrderedSet.foldLeft
 
 ```ernest
-OrderedSet.foldLeft(OrderedSet.Set(a), acc : b, step : (b, a) -> b with e) : b with e
+OrderedSet.foldLeft(OrderedSet.Set(a), acc : b, step : (b, a) -> b receiving e) : b receiving e
 ```
 
 The accumulator after `step` has seen each element in order, the accumulator
@@ -221,7 +221,7 @@ OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, Int.+)
 ## OrderedSet.forEach
 
 ```ernest
-OrderedSet.forEach(OrderedSet.Set(a), f : (a) -> Unit with e) : Unit with e
+OrderedSet.forEach(OrderedSet.Set(a), f : (a) -> Unit receiving e) : Unit receiving e
 ```
 
 *Since 0.4.0.*
@@ -238,7 +238,7 @@ OrderedSet.forEach(OrderedSet.fromList(["a"]), Io.println)
 ## OrderedSet.any
 
 ```ernest
-OrderedSet.any(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Bool with e
+OrderedSet.any(OrderedSet.Set(a), test : (a) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for some element.
@@ -254,7 +254,7 @@ OrderedSet.any(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Bool with e
 ## OrderedSet.all
 
 ```ernest
-OrderedSet.all(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Bool with e
+OrderedSet.all(OrderedSet.Set(a), test : (a) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for every element, and for the set with no
@@ -263,7 +263,7 @@ elements.
 ## OrderedSet.find
 
 ```ernest
-OrderedSet.find(OrderedSet.Set(a!), test : (a!) -> Bool with e) : Optional(a!) with e
+OrderedSet.find(OrderedSet.Set(a), test : (a) -> Bool receiving e) : Optional(a) receiving e
 ```
 
 The first element in order that `test` holds for.
@@ -286,7 +286,7 @@ The elements, in order.
 ## OrderedSet.min
 
 ```ernest
-OrderedSet.min(OrderedSet.Set(a!)) : Optional(a!)
+OrderedSet.min(OrderedSet.Set(a)) : Optional(a)
 ```
 
 The first element in order, or `None` for the set with no elements.
@@ -301,7 +301,7 @@ The first element in order, or `None` for the set with no elements.
 ## OrderedSet.max
 
 ```ernest
-OrderedSet.max(OrderedSet.Set(a!)) : Optional(a!)
+OrderedSet.max(OrderedSet.Set(a)) : Optional(a)
 ```
 
 The last element in order, or `None` for the set with no elements.
@@ -309,7 +309,7 @@ The last element in order, or `None` for the set with no elements.
 ## OrderedSet.union
 
 ```ernest
-OrderedSet.union(OrderedSet.Set(a!), OrderedSet.Set(a!)) : OrderedSet.Set(a!) needs a.compare
+OrderedSet.union(OrderedSet.Set(a), OrderedSet.Set(a)) : OrderedSet.Set(a) needs a.compare
 ```
 
 The elements of both.
@@ -324,7 +324,7 @@ OrderedSet.toList(OrderedSet.union(OrderedSet.fromList([1]), OrderedSet.fromList
 ## OrderedSet.intersection
 
 ```ernest
-OrderedSet.intersection(OrderedSet.Set(a!), OrderedSet.Set(a!)) : OrderedSet.Set(a!) needs a.compare
+OrderedSet.intersection(OrderedSet.Set(a), OrderedSet.Set(a)) : OrderedSet.Set(a) needs a.compare
 ```
 
 The elements in both.
@@ -340,7 +340,7 @@ OrderedSet.toList(OrderedSet.intersection(OrderedSet.fromList([1, 2]),
 ## OrderedSet.difference
 
 ```ernest
-OrderedSet.difference(OrderedSet.Set(a!), OrderedSet.Set(a!)) : OrderedSet.Set(a!) needs a.compare
+OrderedSet.difference(OrderedSet.Set(a), OrderedSet.Set(a)) : OrderedSet.Set(a) needs a.compare
 ```
 
 The elements of the first set that are not in the second.
@@ -356,7 +356,7 @@ OrderedSet.toList(OrderedSet.difference(OrderedSet.fromList([1, 2]),
 ## OrderedSet.isSubset
 
 ```ernest
-OrderedSet.isSubset(OrderedSet.Set(a!), OrderedSet.Set(a!)) : Bool needs a.compare
+OrderedSet.isSubset(OrderedSet.Set(a), OrderedSet.Set(a)) : Bool needs a.compare
 ```
 
 `true` when every element of the first set is in the second.
@@ -370,4 +370,4 @@ OrderedSet.isSubset(OrderedSet.fromList([1]), OrderedSet.fromList([1, 2]))
 
 ---
 
-Generated by ern 0.3.1 from ordered_set.ern.
+Generated by ern 0.4.0 from ordered_set.ern.

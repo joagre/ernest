@@ -21,12 +21,6 @@ length. A list built one element at a time is built in front, and
 **Equality.** `contains` and `unique` compare elements with `==`, so the
 element type needs equality: a list of functions has neither.
 
-**Replies.** A list may hold a `Reply`, which must be answered exactly once
-(report §6.6). A function that drops or copies elements, `size`, `filter`
-and `take` among them, refuses such a list, and its printed type marks the
-element `!`: `List.size : (List(a!)) -> Int`. One that uses each element
-once, `map` or `foldLeft`, takes it.
-
 ## Examples
 
 Each element doubled, and a list appended:
@@ -74,7 +68,7 @@ is copied, so the cost grows with its length, and not with the second's.
 ## List.size
 
 ```ernest
-List.size(list : List(a!)) : Int
+List.size(list : List(a)) : Int
 ```
 
 The number of elements. The whole list is walked to count them.
@@ -89,7 +83,7 @@ The number of elements. The whole list is walked to count them.
 ## List.isEmpty
 
 ```ernest
-List.isEmpty(list : List(a!)) : Bool
+List.isEmpty(list : List(a)) : Bool
 ```
 
 `true` for the empty list.
@@ -97,7 +91,7 @@ List.isEmpty(list : List(a!)) : Bool
 ## List.contains
 
 ```ernest
-List.contains(list : List(a=!), element : a=!) : Bool
+List.contains(list : List(a=), element : a=) : Bool
 ```
 
 `true` when some element of the list is `==` to `element`.
@@ -112,7 +106,7 @@ List.contains(list : List(a=!), element : a=!) : Bool
 ## List.get
 
 ```ernest
-List.get(list : List(a!), index : Int) : Optional(a!)
+List.get(list : List(a), index : Int) : Optional(a)
 ```
 
 The element at `index`, counting from 0, or `None` where the list has
@@ -129,7 +123,7 @@ walked to the index.
 ## List.removeAt
 
 ```ernest
-List.removeAt(list : List(a!), index : Int) : List(a!)
+List.removeAt(list : List(a), index : Int) : List(a)
 ```
 
 *Since 0.4.0.*
@@ -149,7 +143,7 @@ element by its value, `filter` keeps the others.
 ## List.map
 
 ```ernest
-List.map(list : List(a), f : (a) -> b with e) : List(b) with e
+List.map(list : List(a), f : (a) -> b receiving e) : List(b) receiving e
 ```
 
 The list of `f(x)` for each element `x`, in order. `f` is called for the
@@ -158,7 +152,7 @@ elements from the first.
 ## List.filter
 
 ```ernest
-List.filter(list : List(a!), keep : (a!) -> Bool with e) : List(a!) with e
+List.filter(list : List(a), keep : (a) -> Bool receiving e) : List(a) receiving e
 ```
 
 The elements `keep` answers `true` for, in their order.
@@ -173,7 +167,7 @@ List.filter([1, 2, 3, 4], fn(n) = n > 2)
 ## List.filterMap
 
 ```ernest
-List.filterMap(list : List(a), f : (a) -> Optional(b) with e) : List(b) with e
+List.filterMap(list : List(a), f : (a) -> Optional(b) receiving e) : List(b) receiving e
 ```
 
 The values `f` answers `Some` for, in order. An element `f` answers
@@ -189,7 +183,7 @@ List.filterMap(["1", "x", "3"], String.toInt)
 ## List.foldLeft
 
 ```ernest
-List.foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with e
+List.foldLeft(list : List(a), acc : b, step : (b, a) -> b receiving e) : b receiving e
 ```
 
 What `step` answers for the last element. `step` is called on each element
@@ -206,7 +200,7 @@ List.foldLeft([1, 2, 3], 0, fn(sum, n) = sum + n)
 ## List.foldRight
 
 ```ernest
-List.foldRight(list : List(a), acc : b, step : (b, a) -> b with e) : b with e
+List.foldRight(list : List(a), acc : b, step : (b, a) -> b receiving e) : b receiving e
 ```
 
 The elements folded into one value, from the last. `step(acc, x)` is
@@ -224,7 +218,7 @@ List.foldRight(["a", "b"], "", fn(acc, text) = text <> acc)
 ## List.forEach
 
 ```ernest
-List.forEach(list : List(a), f : (a) -> Unit with e) : Unit with e
+List.forEach(list : List(a), f : (a) -> Unit receiving e) : Unit receiving e
 ```
 
 *Since 0.4.0.*
@@ -243,7 +237,7 @@ List.forEach([1, 2], fn(n) = Io.println(Int.toString(n)))
 ## List.any
 
 ```ernest
-List.any(list : List(a!), test : (a!) -> Bool with e) : Bool with e
+List.any(list : List(a), test : (a) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for at least one element, and `false` for the
@@ -259,7 +253,7 @@ empty list. `test` is not called after the first element it holds for.
 ## List.all
 
 ```ernest
-List.all(list : List(a!), test : (a!) -> Bool with e) : Bool with e
+List.all(list : List(a), test : (a) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for every element, and for the empty list.
@@ -268,7 +262,7 @@ List.all(list : List(a!), test : (a!) -> Bool with e) : Bool with e
 ## List.find
 
 ```ernest
-List.find(list : List(a!), test : (a!) -> Bool with e) : Optional(a!) with e
+List.find(list : List(a), test : (a) -> Bool receiving e) : Optional(a) receiving e
 ```
 
 The first element `test` holds for, or `None` where there is none.
@@ -283,7 +277,7 @@ List.find([1, 2, 3], fn(n) = n > 1)
 ## List.last
 
 ```ernest
-List.last(list : List(a!)) : Optional(a!)
+List.last(list : List(a)) : Optional(a)
 ```
 
 The last element, or `None` for the empty list. The whole list is walked
@@ -305,7 +299,7 @@ it:
 ## List.take
 
 ```ernest
-List.take(list : List(a!), count : Int) : List(a!)
+List.take(list : List(a), count : Int) : List(a)
 ```
 
 The first `count` elements, or all of them where there are fewer. A
@@ -321,7 +315,7 @@ The first `count` elements, or all of them where there are fewer. A
 ## List.drop
 
 ```ernest
-List.drop(list : List(a!), count : Int) : List(a!)
+List.drop(list : List(a), count : Int) : List(a)
 ```
 
 The list without its first `count` elements, or empty where there are
@@ -330,7 +324,7 @@ fewer. A `count` below 0 drops none.
 ## List.takeLast
 
 ```ernest
-List.takeLast(list : List(a!), count : Int) : List(a!)
+List.takeLast(list : List(a), count : Int) : List(a)
 ```
 
 *Since 0.4.0.*
@@ -348,7 +342,7 @@ The last `count` elements, or all of them where there are fewer. A
 ## List.dropLast
 
 ```ernest
-List.dropLast(list : List(a!), count : Int) : List(a!)
+List.dropLast(list : List(a), count : Int) : List(a)
 ```
 
 The list without its last `count` elements, or empty where there are
@@ -364,7 +358,7 @@ fewer. A `count` below 0 drops none.
 ## List.span
 
 ```ernest
-List.span(list : List(a!), test : (a!) -> Bool with e) : #(List(a!), List(a!)) with e
+List.span(list : List(a), test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e
 ```
 
 The list split where `test` first fails: the elements before that one,
@@ -380,7 +374,7 @@ List.span([1, 2, 3, 1], fn(n) = n < 3)
 ## List.partition
 
 ```ernest
-List.partition(list : List(a!), test : (a!) -> Bool with e) : #(List(a!), List(a!)) with e
+List.partition(list : List(a), test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e
 ```
 
 The elements `test` holds for, and those it does not, each in their
@@ -396,7 +390,7 @@ List.partition([1, 2, 3, 4], fn(n) = n % 2 == 0)
 ## List.unique
 
 ```ernest
-List.unique(list : List(a=!)) : List(a=!)
+List.unique(list : List(a=)) : List(a=)
 ```
 
 The list without repeats: the first occurrence of each element is kept,
@@ -427,7 +421,7 @@ List.indexed(["a", "b"])
 ## List.repeat
 
 ```ernest
-List.repeat(element : a!, count : Int) : List(a!)
+List.repeat(element : a, count : Int) : List(a)
 ```
 
 A list of `count` copies of `element`. A `count` below 0 gives the empty
@@ -458,7 +452,7 @@ List.reverse([1, 2, 3])
 ## List.sort
 
 ```ernest
-List.sort(list : List(a!), compare : (a!, a!) -> Ordering with e) : List(a!) with e
+List.sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(a) receiving e
 ```
 
 The elements sorted by `compare`, smallest first. `compare` is an order
@@ -475,10 +469,44 @@ List.sort([3, 1, 2], Int.compare)
 // => [1, 2, 3]
 ```
 
+## List.minimumBy
+
+```ernest
+List.minimumBy(list : List(a), key : (a) -> k receiving e) : Optional(a) receiving e needs k.compare
+```
+
+*Since 0.4.0.*
+
+The element whose `key` is the least by the key type's `compare`, or `None`
+for the empty list. Of elements whose keys `compare` calls `Equal`, the
+first is answered. `key` is called once for each element, in order.
+
+### Examples
+
+The shortest word, and the first of the two longest:
+
+```ernest
+#(List.minimumBy(["pear", "fig", "kiwi"], String.size),
+  List.maximumBy(["pear", "fig", "kiwi"], String.size))
+// => #(Some("fig"), Some("pear"))
+```
+
+## List.maximumBy
+
+```ernest
+List.maximumBy(list : List(a), key : (a) -> k receiving e) : Optional(a) receiving e needs k.compare
+```
+
+*Since 0.4.0.*
+
+The element whose `key` is the greatest by the key type's `compare`, or
+`None` for the empty list. Of elements whose keys `compare` calls `Equal`,
+the first is answered. `key` is called once for each element, in order.
+
 ## List.zip
 
 ```ernest
-List.zip(list : List(a!), other : List(b!)) : List(#(a!, b!))
+List.zip(list : List(a), other : List(b)) : List(#(a, b))
 ```
 
 The pairs of the elements at each index of both lists. The longer list's
@@ -510,7 +538,7 @@ List.unzip([#(1, "a"), #(2, "b")])
 ## List.flatMap
 
 ```ernest
-List.flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e
+List.flatMap(list : List(a), f : (a) -> List(b) receiving e) : List(b) receiving e
 ```
 
 The lists `f` answers for the elements, joined in order.
@@ -541,7 +569,7 @@ The integers from `first` to `last`, both included, counting up. Where
 ## List.tryMap
 
 ```ernest
-List.tryMap(list : List(a!), step : (a!) -> Either(e, b!) with x) : Either(e, List(b!)) with x
+List.tryMap(list : List(a), step : (a) -> Either(e, b) receiving x) : Either(e, List(b)) receiving x
 ```
 
 Calls `step` on each element in order. Where every call answers `Right(y)`,
@@ -559,7 +587,7 @@ List.tryMap(["1", "x"], fn(s) = Either.fromOptional(String.toInt(s), s))
 ## List.tryFold
 
 ```ernest
-List.tryFold(list : List(a!), acc : b, step : (b, a!) -> Either(e, b) with x) : Either(e, b) with x
+List.tryFold(list : List(a), acc : b, step : (b, a) -> Either(e, b) receiving x) : Either(e, b) receiving x
 ```
 
 Folds the list as `foldLeft` does, `step` answering `Right` of the next
@@ -576,4 +604,4 @@ List.tryFold([1, 2], 0, fn(acc, n) = if n > 1 then Left("big") else Right(acc + 
 
 ---
 
-Generated by ern 0.3.1 from list.ern.
+Generated by ern 0.4.0 from list.ern.

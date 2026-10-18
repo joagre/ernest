@@ -14,11 +14,11 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 ## Where we are
 
-**MVP 3.2 is in progress.** Its items 1 to 10 are done, code crossing with a spawn, the bare
-node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
-Ernest 0.4.0, began 2026-10-18. MVP 3.26, two subtractions from the type system, is done
-(2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-18); item 11 is in progress (the log's *The Release Review Before 0.4.0*).
+**MVP 3.2 is done**, and Ernest 0.4.0 is released, the tag `v0.4.0` of 2026-10-18 (the log's *The
+Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn, the bare node,
+`Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
+release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
+tools' five speed changes and the programs tests' defects.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -59,9 +59,8 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | 2026-10-10 | | [`mvp3.1.md`](proposals/nodes_and_code/mvp3.1.md); *The Canonical Form, Built*, *The Code Table, Built*, *The Spawn by Hash, Built*, *The Shell's Reload by Hash, Built*, *Termination Told, Built*, *Standing and the Refusal, Built*, *What MVP 3.1 Costs, Measured*, *MVP 3.1 Read*, *MVP 3.1 Done*, *The Feedback Pass Before MVP 3.2*, *A Milestone for Placing Work by Load*, *The Back End Last* |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](proposals/balancer/suggestion.md); *Placing Work by Name* |
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
-| MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0 | items 1 to 10 done by 2026-10-15; item 11, the release, waits for the user's word | | below |
-| MVP 3.26 | kill darlings: the reply's obligation goes, and the mark on every function that acts, `with` becoming `receiving`; before MVP 3.2's item 11, the tag | decided 2026-10-14 with the user; `docs/proposals/kill_darlings/` is the specification | | below |
-| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, and item 8's push against the pull across them | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first | | below |
+| MVP 3.2 | code with a spawn: the exchange, the bare node, a unit let go, and `Code`; then a release, Ernest 0.4.0, the first with nodes | items 1 to 10 done by 2026-10-15; item 11, the release, 2026-10-18 | tag `v0.4.0` | below; *The Release Review Before 0.4.0* |
+| MVP 3.27 | measured across machines: item 7's numbers again between four machines the user gives, one on a separate LAN, item 8's push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready, after MVP 3.2's item 8; the guide does not wait for it, and the release only where the machines come first | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | `--verbose` on `ern build`, `ern run` and `ern test`, then a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |

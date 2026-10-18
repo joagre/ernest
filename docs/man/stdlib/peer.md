@@ -44,7 +44,7 @@ peer, the find answers `NotListed`:
 ```ernest
 {
     let service : Peer.Service(Int) = Peer.service("squares");
-    let _ = Peer.offer(service, spawn(fn() : Unit with Int = receive {
+    let _ = Peer.offer(service, spawn(fn() : Unit receiving Int = receive {
         _ -> Unit
     }));
     Peer.find(service, 1000)
@@ -56,7 +56,7 @@ A worker started on the peer named `worker`, which a program that is no node
 does not list:
 
 ```ernest
-Peer.spawn("worker", fn() : Unit with Never = Io.println("working"), 5000)
+Peer.spawn("worker", fn() = Io.println("working"), 5000)
 // => Left(NotListed)
 ```
 
@@ -80,8 +80,9 @@ abstract type Service(m)
 
 A service as the node's peers name it: the name it is offered and found
 under, and the hash of its message type, which the compiler gives where
-the service is made. A `Service` starts nothing, and crosses to other
-nodes as any value of an unbound type does.
+the service is made. A `Service` is made by `service` alone, its type
+abstract. It starts nothing, and crosses to other nodes as any value of
+an unbound type does.
 
 ### Examples
 
@@ -135,7 +136,7 @@ The name the service was made with.
 ## Peer.offer
 
 ```ernest
-Peer.offer(service : Service(m), address : Address(m)) : Either(Process, Unit) with n+
+Peer.offer(service : Service(m), address : Address(m)) : Either(Process, Unit)
 ```
 
 Lets this node's peers find the address as the service, for as long as its
@@ -155,10 +156,10 @@ An address of another node's process faults the caller with
 ```ernest
 {
     let service : Peer.Service(Int) = Peer.service("squares");
-    let first = spawn(fn() : Unit with Int = receive {
+    let first = spawn(fn() : Unit receiving Int = receive {
         _ -> Unit
     });
-    let second = spawn(fn() : Unit with Int = receive {
+    let second = spawn(fn() : Unit receiving Int = receive {
         _ -> Unit
     });
     #(Peer.offer(service, first),
@@ -170,7 +171,7 @@ An address of another node's process faults the caller with
 ## Peer.find
 
 ```ernest
-Peer.find(service : Service(m), ms : Int) : Either(Io.Error, Address(m)) with n+
+Peer.find(service : Service(m), ms : Int) : Either(Io.Error, Address(m))
 ```
 
 The first address a peer `ernest.conf` lists for the service's name offers
@@ -185,29 +186,30 @@ passed over; where no peer offers it, the last of these is answered, and
 ## Peer.spawn
 
 ```ernest
-Peer.spawn(name : String, f : () -> Unit with m, ms : Int) : Either(Io.Error, Address(m)) with n+
+Peer.spawn(name : String, f : () -> Unit receiving m, ms : Int) : Either(Io.Error, Address(m))
 ```
 
 A process started on the peer of that name, running `f`, its address
-answered within `ms` milliseconds, the opening of a connection among them.
-`f` is a declaration's name, a lambda or a `fn` written in the same
-definition, or `restarting` over one of these, as report §3.11 says, and
-what it captured crosses to the peer; the peer's own top-level bindings and
-system processes are those `f` reaches there. `f` runs only where the peer
-holds it, by its hash, every top-level binding it reaches has its value
-there, and every module a foreign declaration it reaches calls is there.
-Otherwise the spawn answers `NotLoaded`, and the peer says on its standard
-error what it lacked; a function a shell typed is held by a peer whose build
-has a definition of its hash. A binding
-`f` does not reach keeps it from no peer. A process whose answer came too
-late is killed as it comes, and where the connection was lost meanwhile it
-runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout` and
-`NotLoaded`. `spawn` is called where it is named, and is no value.
+answered within `ms` milliseconds and the step of the attempt, the opening
+of a connection among them (report §8.7). `f` is a declaration's name, a
+lambda or a `fn` written in the same definition, or `restarting` over one of
+these, as report §3.11 says, and what it captured crosses to the peer; the
+peer's own top-level bindings and system processes are those `f` reaches
+there. A peer that lacks `f`, or a definition `f` reaches, is sent it before
+the process starts, a function a shell typed among them. `f` runs only where
+every top-level binding it reaches has its value on the peer and every
+module a foreign declaration it reaches calls is there; otherwise the spawn
+answers `NotLoaded`, and the peer says on its standard error what it lacked.
+A binding `f` does not reach keeps it from no peer. A process whose answer
+came too late is killed as it comes, and where the connection was lost
+meanwhile it runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout`,
+`NotLoaded` and `Other`, the last where the peer cannot take the code it was
+sent. `spawn` is called where it is named, and is no value.
 
 ## Peer.spawnMonitored
 
 ```ernest
-Peer.spawnMonitored(name : String, f : () -> Unit with m, wrap : (Down) -> n, ms : Int) : Either(Io.Error, Address(m)) with n
+Peer.spawnMonitored(name : String, f : () -> Unit receiving m, wrap : (Down) -> n, ms : Int) : Either(Io.Error, Address(m)) receiving n
 ```
 
 As `spawn`, the caller monitoring the process from its start: `wrap(d)` is
@@ -217,13 +219,13 @@ reach. A spawn that fails leaves no monitor.
 ### Examples
 
 ```ernest
-Peer.spawnMonitored("worker", fn() : Unit with Never = Unit, fn(down) = down, 5000)
+Peer.spawnMonitored("worker", fn() = Unit, fn(down) = down, 5000)
 ```
 
 ## Peer.compute
 
 ```ernest
-Peer.compute(f : () -> a with m, ms : Int) : Either(Io.Error, a) with n+
+Peer.compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, a)
 ```
 
 The value of `f()`, run on a peer this node picks, as `computeAt` runs it
@@ -232,9 +234,9 @@ told within two of the intervals at which that peer tells, two are drawn
 at random and the less busy taken, the first in the configuration's order
 of two equally busy; a single one is taken as it is. Where no peer is
 listed the compute answers `NotListed`, and where none has told a
-utilization the node may use, `Unreachable`; once the peer is picked, the compute is
-`computeAt`'s, and meets what it meets. `compute` is called where it is
-named, and is no value.
+utilization the node may use, `Unreachable`; once the peer is picked, the
+compute is `computeAt`'s, and meets what it meets. `compute` is called where
+it is named, and is no value.
 
 ### Errors
 
@@ -256,23 +258,24 @@ match Peer.compute(fn() = 6 * 7, 5000) {
 ## Peer.computeAt
 
 ```ernest
-Peer.computeAt(name : String, f : () -> a with m, ms : Int) : Either(Io.Error, a) with n+
+Peer.computeAt(name : String, f : () -> a receiving m, ms : Int) : Either(Io.Error, a)
 ```
 
 The value of `f()`, run in a process started on the peer of that name as
-`spawn` starts one, answered within `ms` milliseconds, the opening of a
-connection among them. `f` is what a spawn's may be, as report §3.11 says,
-and its result type is known whole where `computeAt` is written and is not
-bound to its node, since the value crosses back. The peer runs `f` only
-where it would start it for a spawn; otherwise the compute answers
-`NotLoaded`, and the peer says on its standard error what it lacked. Where
-the process ends before it answers, killed or with the peer's program, the
-compute answers `Left(Other(text))`, `text` its `Reason` as `Io.show`
-writes it, `"Killed"` or `"ProgramEnd"`. Where the time runs out, or the
-caller ends while it waits, the process is killed where it still runs;
-where the connection was lost, it runs on. A compute meets `NotListed`,
-`Unreachable`, `Timeout`, `NotLoaded` and `Other`. `computeAt` is called
-where it is named, and is no value; work on the running node is `f()`.
+`spawn` starts one, answered within `ms` milliseconds and the step of the
+attempt, the opening of a connection among them (report §8.7). `f` is what a
+spawn's may be, as report §3.11 says, and its result type is known whole
+where `computeAt` is written and is not bound to its node, since the value
+crosses back. The peer runs `f` only where it would start it for a spawn;
+otherwise the compute answers `NotLoaded`, and the peer says on its standard
+error what it lacked. Where the process ends before it answers, killed or
+with the peer's program, the compute answers `Left(Other(text))`, `text` its
+`Reason` as `Io.show` writes it, `"Killed"` or `"ProgramEnd"`. Where the
+time runs out, or the caller ends while it waits, the process is killed
+where it still runs; where the connection was lost, it runs on. A compute
+meets `NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and `Other`.
+`computeAt` is called where it is named, and is no value; work on the
+running node is `f()`.
 
 ### Errors
 
@@ -290,7 +293,7 @@ Peer.computeAt("worker", fn() = 6 * 7, 5000)
 ## Peer.utilization
 
 ```ernest
-Peer.utilization(name : String, ms : Int) : Either(Io.Error, Float) with n+
+Peer.utilization(name : String, ms : Int) : Either(Io.Error, Float)
 ```
 
 How busy the peer of that name is, answered within `ms` milliseconds: a
@@ -313,7 +316,7 @@ Peer.utilization("worker", 1000)
 ## Peer.peers
 
 ```ernest
-Peer.peers() : List(String) with n+
+Peer.peers() : List(String)
 ```
 
 The names of the peers this node lists, in the configuration's order. The
@@ -329,7 +332,7 @@ Peer.peers()
 ## Peer.utilizations
 
 ```ernest
-Peer.utilizations() : List(#(String, Float, Int)) with n+
+Peer.utilizations() : List(#(String, Float, Int))
 ```
 
 The utilizations this node holds of its peers, each peer's name, its
@@ -357,22 +360,23 @@ match List.sort(Peer.utilizations(), fn(#(_, a, _), #(_, b, _)) = Float.compare(
 ## Peer.setUtilization
 
 ```ernest
-Peer.setUtilization(x : Float) : Unit with n+
+Peer.setUtilization(x : Float) : Unit
 ```
 
 Sets the utilization this node tells its peers, and answers them when
 they ask, from now on and until it is set again or the program's run
 ends, in place of the measure its `ernest.conf`'s `utilization` names,
 which the node tells before the first and between two runs. `x` is on
-the scale from 0.0, idle, to 1.0, full; what it counts, a queue's depth
-or work promised, is the program's. The next telling carries it (report
+the node's scale, at or above 0.0: 0.0 idle, 1.0 every scheduler busy,
+and above it work waiting; what it counts, a queue's depth or work
+promised, is the program's. The next telling carries it (report
 §8.7). In a program that is no node it is accepted, and no peer is told
 it.
 
 ### Errors
 
-A number outside the scale faults the caller with
-`Fault("a utilization is from 0.0 to 1.0")`.
+A number below 0.0 faults the caller with
+`Fault("a utilization is 0.0 or above")`.
 
 ### Examples
 
@@ -383,4 +387,4 @@ Peer.setUtilization(0.25)
 
 ---
 
-Generated by ern 0.3.1 from peer.ern.
+Generated by ern 0.4.0 from peer.ern.

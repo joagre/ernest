@@ -59,7 +59,7 @@ The map with no entries.
 ## OrderedMap.fromList
 
 ```ernest
-OrderedMap.fromList(pairs : List(#(k!, v!))) : OrderedMap.Map(k!, v!) needs k.compare
+OrderedMap.fromList(pairs : List(#(k, v))) : OrderedMap.Map(k, v) needs k.compare
 ```
 
 The map of `pairs`, put in turn. Where the order calls two pairs' keys
@@ -75,7 +75,7 @@ OrderedMap.toList(OrderedMap.fromList([#(2, "b"), #(1, "a"), #(2, "c")]))
 ## OrderedMap.size
 
 ```ernest
-OrderedMap.size(OrderedMap.Map(k!, v!)) : Int
+OrderedMap.size(OrderedMap.Map(k, v)) : Int
 ```
 
 The number of entries.
@@ -90,7 +90,7 @@ The number of entries.
 ## OrderedMap.isEmpty
 
 ```ernest
-OrderedMap.isEmpty(OrderedMap.Map(k!, v!)) : Bool
+OrderedMap.isEmpty(OrderedMap.Map(k, v)) : Bool
 ```
 
 `true` for the map with no entries.
@@ -98,7 +98,7 @@ OrderedMap.isEmpty(OrderedMap.Map(k!, v!)) : Bool
 ## OrderedMap.contains
 
 ```ernest
-OrderedMap.contains(map : OrderedMap.Map(k!, v!), key : k!) : Bool needs k.compare
+OrderedMap.contains(map : OrderedMap.Map(k, v), key : k) : Bool needs k.compare
 ```
 
 `true` when a key the order calls `Equal` to `key` has a value.
@@ -114,7 +114,7 @@ OrderedMap.contains(map : OrderedMap.Map(k!, v!), key : k!) : Bool needs k.compa
 ## OrderedMap.get
 
 ```ernest
-OrderedMap.get(OrderedMap.Map(k!, v!), key : k!) : Optional(v!) needs k.compare
+OrderedMap.get(OrderedMap.Map(k, v), key : k) : Optional(v) needs k.compare
 ```
 
 The value at the key the order calls `Equal` to `key`, or `None`.
@@ -129,7 +129,7 @@ OrderedMap.get(OrderedMap.fromList([#("a", 1)]), "a")
 ## OrderedMap.put
 
 ```ernest
-OrderedMap.put(OrderedMap.Map(k!, v!), key : k!, value : v!) : OrderedMap.Map(k!, v!) needs k.compare
+OrderedMap.put(OrderedMap.Map(k, v), key : k, value : v) : OrderedMap.Map(k, v) needs k.compare
 ```
 
 The map with `value` at `key`. Where the map holds a key the order calls
@@ -145,7 +145,7 @@ OrderedMap.toList(OrderedMap.put(OrderedMap.fromList([#(2, "b")]), 1, "a"))
 ## OrderedMap.remove
 
 ```ernest
-OrderedMap.remove(OrderedMap.Map(k!, v!), key : k!) : OrderedMap.Map(k!, v!) needs k.compare
+OrderedMap.remove(OrderedMap.Map(k, v), key : k) : OrderedMap.Map(k, v) needs k.compare
 ```
 
 The map without the entry at `key`, which need not be there.
@@ -160,7 +160,7 @@ OrderedMap.keys(OrderedMap.remove(OrderedMap.fromList([#(1, "a"), #(2, "b")]), 1
 ## OrderedMap.update
 
 ```ernest
-OrderedMap.update(map : OrderedMap.Map(k!, v!), key : k!, f : (Optional(v!)) -> v! with e) : OrderedMap.Map(k!, v!) with e needs k.compare
+OrderedMap.update(map : OrderedMap.Map(k, v), key : k, f : (Optional(v)) -> v receiving e) : OrderedMap.Map(k, v) receiving e needs k.compare
 ```
 
 The map with `f`'s value at `key`, `f` given the value there, or `None`.
@@ -176,7 +176,7 @@ OrderedMap.get(OrderedMap.update(OrderedMap.empty, "n", fn(o) = Optional.withDef
 ## OrderedMap.map
 
 ```ernest
-OrderedMap.map(OrderedMap.Map(k!, v), f : (k!, v) -> w with e) : OrderedMap.Map(k!, w) with e
+OrderedMap.map(OrderedMap.Map(k, v), f : (k, v) -> w receiving e) : OrderedMap.Map(k, w) receiving e
 ```
 
 The map with each value replaced by `f`'s, `f` given the key beside it, in
@@ -192,7 +192,7 @@ OrderedMap.values(OrderedMap.map(OrderedMap.fromList([#(1, 10)]), fn(key, value)
 ## OrderedMap.filter
 
 ```ernest
-OrderedMap.filter(OrderedMap.Map(k!, v!), keep : (k!, v!) -> Bool with e) : OrderedMap.Map(k!, v!) with e
+OrderedMap.filter(OrderedMap.Map(k, v), keep : (k, v) -> Bool receiving e) : OrderedMap.Map(k, v) receiving e
 ```
 
 The entries `keep` holds for, in order.
@@ -208,7 +208,7 @@ OrderedMap.keys(OrderedMap.filter(OrderedMap.fromList([#(1, "a"), #(2, "b")]),
 ## OrderedMap.filterMap
 
 ```ernest
-OrderedMap.filterMap(OrderedMap.Map(k!, v), f : (k!, v) -> Optional(w) with e) : OrderedMap.Map(k!, w) with e
+OrderedMap.filterMap(OrderedMap.Map(k, v), f : (k, v) -> Optional(w) receiving e) : OrderedMap.Map(k, w) receiving e
 ```
 
 The entries whose value `f` maps to `Some`, with that value.
@@ -224,7 +224,7 @@ OrderedMap.toList(OrderedMap.filterMap(OrderedMap.fromList([#(1, "1"), #(2, "x")
 ## OrderedMap.foldLeft
 
 ```ernest
-OrderedMap.foldLeft(OrderedMap.Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e
+OrderedMap.foldLeft(OrderedMap.Map(k, v), acc : b, step : (b, k, v) -> b receiving e) : b receiving e
 ```
 
 The accumulator after `step` has seen each entry in order, the accumulator
@@ -242,7 +242,7 @@ OrderedMap.foldLeft(OrderedMap.fromList([#(1, 2), #(3, 4)]),
 ## OrderedMap.forEach
 
 ```ernest
-OrderedMap.forEach(OrderedMap.Map(k, v), f : (k, v) -> Unit with e) : Unit with e
+OrderedMap.forEach(OrderedMap.Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e
 ```
 
 *Since 0.4.0.*
@@ -259,7 +259,7 @@ OrderedMap.forEach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(v
 ## OrderedMap.any
 
 ```ernest
-OrderedMap.any(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool with e
+OrderedMap.any(OrderedMap.Map(k, v), test : (k, v) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for some entry.
@@ -275,7 +275,7 @@ OrderedMap.any(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool wi
 ## OrderedMap.all
 
 ```ernest
-OrderedMap.all(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool with e
+OrderedMap.all(OrderedMap.Map(k, v), test : (k, v) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for every entry, and for the map with no entries.
@@ -283,7 +283,7 @@ OrderedMap.all(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Bool wi
 ## OrderedMap.find
 
 ```ernest
-OrderedMap.find(OrderedMap.Map(k!, v!), test : (k!, v!) -> Bool with e) : Optional(#(k!, v!)) with e
+OrderedMap.find(OrderedMap.Map(k, v), test : (k, v) -> Bool receiving e) : Optional(#(k, v)) receiving e
 ```
 
 The first entry in order that `test` holds for.
@@ -298,7 +298,7 @@ OrderedMap.find(OrderedMap.fromList([#(2, "b"), #(1, "a")]), fn(key, _) = key > 
 ## OrderedMap.merge
 
 ```ernest
-OrderedMap.merge(map : OrderedMap.Map(k!, v!), other : OrderedMap.Map(k!, v!)) : OrderedMap.Map(k!, v!) needs k.compare
+OrderedMap.merge(map : OrderedMap.Map(k, v), other : OrderedMap.Map(k, v)) : OrderedMap.Map(k, v) needs k.compare
 ```
 
 The entries of both maps. Where both have a key, the value of `other` is
@@ -315,7 +315,7 @@ OrderedMap.toList(OrderedMap.merge(OrderedMap.fromList([#(1, "a")]),
 ## OrderedMap.mergeWith
 
 ```ernest
-OrderedMap.mergeWith(OrderedMap.Map(k!, v!), OrderedMap.Map(k!, v!), f : (k!, v!, v!) -> v! with e) : OrderedMap.Map(k!, v!) with e needs k.compare
+OrderedMap.mergeWith(OrderedMap.Map(k, v), OrderedMap.Map(k, v), f : (k, v, v) -> v receiving e) : OrderedMap.Map(k, v) receiving e needs k.compare
 ```
 
 The entries of both maps. Where both have a key, the value is `f`'s, given
@@ -341,7 +341,7 @@ The entries, in order.
 ## OrderedMap.keys
 
 ```ernest
-OrderedMap.keys(OrderedMap.Map(k, v!)) : List(k)
+OrderedMap.keys(OrderedMap.Map(k, v)) : List(k)
 ```
 
 The keys, in order.
@@ -349,11 +349,11 @@ The keys, in order.
 ## OrderedMap.values
 
 ```ernest
-OrderedMap.values(OrderedMap.Map(k!, v)) : List(v)
+OrderedMap.values(OrderedMap.Map(k, v)) : List(v)
 ```
 
 The values, in the keys' order.
 
 ---
 
-Generated by ern 0.3.1 from ordered_map.ern.
+Generated by ern 0.4.0 from ordered_map.ern.

@@ -50,7 +50,7 @@ The map with no entries.
 ## Map.size
 
 ```ernest
-Map.size(map : Map(k=!, v!)) : Int
+Map.size(map : Map(k=, v)) : Int
 ```
 
 The number of entries.
@@ -65,7 +65,7 @@ The number of entries.
 ## Map.isEmpty
 
 ```ernest
-Map.isEmpty(map : Map(k=!, v!)) : Bool
+Map.isEmpty(map : Map(k=, v)) : Bool
 ```
 
 `true` for the map with no entries.
@@ -73,7 +73,7 @@ Map.isEmpty(map : Map(k=!, v!)) : Bool
 ## Map.contains
 
 ```ernest
-Map.contains(map : Map(k=!, v!), key : k=!) : Bool
+Map.contains(map : Map(k=, v), key : k=) : Bool
 ```
 
 `true` when the map has an entry with that key.
@@ -88,7 +88,7 @@ Map.contains(map : Map(k=!, v!), key : k=!) : Bool
 ## Map.get
 
 ```ernest
-Map.get(map : Map(k=!, v!), key : k=!) : Optional(v!)
+Map.get(map : Map(k=, v), key : k=) : Optional(v)
 ```
 
 The value at that key, or `None` where the map has no entry for it.
@@ -103,7 +103,7 @@ The value at that key, or `None` where the map has no entry for it.
 ## Map.put
 
 ```ernest
-Map.put(map : Map(k=!, v!), key : k=!, value : v!) : Map(k=!, v!)
+Map.put(map : Map(k=, v), key : k=, value : v) : Map(k=, v)
 ```
 
 The map with that entry added. An entry the map had at that key is
@@ -123,7 +123,7 @@ replaced. The map given is left as it was.
 ## Map.remove
 
 ```ernest
-Map.remove(map : Map(k=!, v!), key : k=!) : Map(k=!, v!)
+Map.remove(map : Map(k=, v), key : k=) : Map(k=, v)
 ```
 
 The map without the entry at that key. A map that has no such entry is
@@ -139,7 +139,7 @@ Map.toList(Map.remove(Map.fromList([#("a", 1)]), "a"))
 ## Map.update
 
 ```ernest
-Map.update(map : Map(k=!, v!), key : k=!, f : (Optional(v!)) -> v! with e) : Map(k=!, v!) with e
+Map.update(map : Map(k=, v), key : k=, f : (Optional(v)) -> v receiving e) : Map(k=, v) receiving e
 ```
 
 The map with the value at that key replaced by `f` of it. `f` is given
@@ -156,7 +156,7 @@ Map.get(Map.update(Map.empty, "n", fn(o) = Optional.withDefault(o, 0) + 1), "n")
 ## Map.map
 
 ```ernest
-Map.map(map : Map(k=!, v!), f : (k=!, v!) -> w with e) : Map(k=!, w) with e
+Map.map(map : Map(k=, v), f : (k=, v) -> w receiving e) : Map(k=, w) receiving e
 ```
 
 The map with each value replaced by `f(key, value)`. The keys stay as
@@ -165,7 +165,7 @@ they are.
 ## Map.filter
 
 ```ernest
-Map.filter(map : Map(k=!, v!), keep : (k=!, v!) -> Bool with e) : Map(k=!, v!) with e
+Map.filter(map : Map(k=, v), keep : (k=, v) -> Bool receiving e) : Map(k=, v) receiving e
 ```
 
 The map of the entries `keep(key, value)` is `true` for.
@@ -180,7 +180,7 @@ Map.toList(Map.filter(Map.fromList([#("a", 1), #("b", 2)]), fn(_, n) = n > 1))
 ## Map.filterMap
 
 ```ernest
-Map.filterMap(map : Map(k=!, v!), f : (k=!, v!) -> Optional(w!) with e) : Map(k=!, w!) with e
+Map.filterMap(map : Map(k=, v), f : (k=, v) -> Optional(w) receiving e) : Map(k=, w) receiving e
 ```
 
 The map of the entries `f(key, value)` answers `Some(w)` for, each with
@@ -196,7 +196,7 @@ Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]), fn(_, s) = St
 ## Map.fold
 
 ```ernest
-Map.fold(map : Map(k=!, v!), acc : b, step : (b, k=!, v!) -> b with e) : b with e
+Map.fold(map : Map(k=, v), acc : b, step : (b, k=, v) -> b receiving e) : b receiving e
 ```
 
 *Since 0.4.0.*
@@ -216,7 +216,7 @@ Map.fold(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
 ## Map.forEach
 
 ```ernest
-Map.forEach(map : Map(k=!, v!), f : (k=!, v!) -> Unit with e) : Unit with e
+Map.forEach(map : Map(k=, v), f : (k=, v) -> Unit receiving e) : Unit receiving e
 ```
 
 *Since 0.4.0.*
@@ -234,7 +234,7 @@ Map.forEach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
 ## Map.any
 
 ```ernest
-Map.any(map : Map(k=!, v!), test : (k=!, v!) -> Bool with e) : Bool with e
+Map.any(map : Map(k=, v), test : (k=, v) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test(key, value)` holds for at least one entry, and `false`
@@ -251,7 +251,7 @@ for the map with no entries.
 ## Map.all
 
 ```ernest
-Map.all(map : Map(k=!, v!), test : (k=!, v!) -> Bool with e) : Bool with e
+Map.all(map : Map(k=, v), test : (k=, v) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test(key, value)` holds for every entry, and for the map
@@ -260,7 +260,7 @@ with no entries.
 ## Map.find
 
 ```ernest
-Map.find(map : Map(k=!, v!), test : (k=!, v!) -> Bool with e) : Optional(#(k=!, v!)) with e
+Map.find(map : Map(k=, v), test : (k=, v) -> Bool receiving e) : Optional(#(k=, v)) receiving e
 ```
 
 An entry `test(key, value)` holds for, or `None` where there is none.
@@ -276,7 +276,7 @@ Map.find(Map.fromList([#("a", 1)]), fn(_, n) = n == 1)
 ## Map.merge
 
 ```ernest
-Map.merge(map : Map(k=!, v!), other : Map(k=!, v!)) : Map(k=!, v!)
+Map.merge(map : Map(k=, v), other : Map(k=, v)) : Map(k=, v)
 ```
 
 The entries of both maps. Where both have a key, the second map's value
@@ -292,7 +292,7 @@ Map.toList(Map.merge(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)])))
 ## Map.mergeWith
 
 ```ernest
-Map.mergeWith(map : Map(k=!, v!), other : Map(k=!, v!), f : (k=!, v!, v!) -> v! with e) : Map(k=!, v!) with e
+Map.mergeWith(map : Map(k=, v), other : Map(k=, v), f : (k=, v, v) -> v receiving e) : Map(k=, v) receiving e
 ```
 
 The entries of both maps. Where both have a key, its value is
@@ -314,7 +314,7 @@ The entries of both maps. Where both have a key, its value is
 ## Map.fromList
 
 ```ernest
-Map.fromList(pairs : List(#(k=!, v!))) : Map(k=!, v!)
+Map.fromList(pairs : List(#(k=, v))) : Map(k=, v)
 ```
 
 The map of those pairs. Where a key occurs more than once, its last pair
@@ -330,7 +330,7 @@ Map.toList(Map.fromList([#("a", 1), #("a", 2)]))
 ## Map.toList
 
 ```ernest
-Map.toList(map : Map(k=!, v!)) : List(#(k=!, v!))
+Map.toList(map : Map(k=, v)) : List(#(k=, v))
 ```
 
 The entries as pairs, in unspecified order.
@@ -338,7 +338,7 @@ The entries as pairs, in unspecified order.
 ## Map.keys
 
 ```ernest
-Map.keys(map : Map(k=!, v!)) : List(k=!)
+Map.keys(map : Map(k=, v)) : List(k=)
 ```
 
 The keys, in unspecified order.
@@ -353,11 +353,11 @@ The keys, in unspecified order.
 ## Map.values
 
 ```ernest
-Map.values(map : Map(k=!, v!)) : List(v!)
+Map.values(map : Map(k=, v)) : List(v)
 ```
 
 The values, in unspecified order.
 
 ---
 
-Generated by ern 0.3.1 from map.ern.
+Generated by ern 0.4.0 from map.ern.

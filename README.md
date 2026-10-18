@@ -58,7 +58,7 @@ count is 8
 
 ## Where it stands
 
-It is young. Programs run on one node and across nodes; 0.4.0, the first release with nodes, is the plan's next tag, and where the project stands is "Where we are" in the [plan](docs/implementation_plan.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+It is young. Programs run on one node and across nodes, and 0.4.0, the first release with nodes, is the latest release. Where the project stands is "Where we are" in the [plan](docs/implementation_plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 

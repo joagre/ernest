@@ -50,7 +50,7 @@ The set with no elements.
 ## Set.size
 
 ```ernest
-Set.size(set : Set(a=!)) : Int
+Set.size(set : Set(a=)) : Int
 ```
 
 The number of elements.
@@ -65,7 +65,7 @@ The number of elements.
 ## Set.isEmpty
 
 ```ernest
-Set.isEmpty(set : Set(a=!)) : Bool
+Set.isEmpty(set : Set(a=)) : Bool
 ```
 
 `true` for the set with no elements.
@@ -73,7 +73,7 @@ Set.isEmpty(set : Set(a=!)) : Bool
 ## Set.contains
 
 ```ernest
-Set.contains(set : Set(a=!), element : a=!) : Bool
+Set.contains(set : Set(a=), element : a=) : Bool
 ```
 
 `true` when `element` is in the set.
@@ -81,7 +81,7 @@ Set.contains(set : Set(a=!), element : a=!) : Bool
 ## Set.put
 
 ```ernest
-Set.put(set : Set(a=!), element : a=!) : Set(a=!)
+Set.put(set : Set(a=), element : a=) : Set(a=)
 ```
 
 The set with `element` in it. A set that already holds it is answered as it
@@ -90,7 +90,7 @@ is.
 ## Set.remove
 
 ```ernest
-Set.remove(set : Set(a=!), element : a=!) : Set(a=!)
+Set.remove(set : Set(a=), element : a=) : Set(a=)
 ```
 
 The set without `element`. A set that does not hold it is answered as it is.
@@ -105,7 +105,7 @@ Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 ## Set.map
 
 ```ernest
-Set.map(set : Set(a=!), f : (a=!) -> b= with e) : Set(b=) with e
+Set.map(set : Set(a=), f : (a=) -> b= receiving e) : Set(b=) receiving e
 ```
 
 The set of `f(x)` for each element `x`. Two elements `f` maps to equal
@@ -121,7 +121,7 @@ List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)), Int.compare
 ## Set.filter
 
 ```ernest
-Set.filter(set : Set(a=!), keep : (a=!) -> Bool with e) : Set(a=!) with e
+Set.filter(set : Set(a=), keep : (a=) -> Bool receiving e) : Set(a=) receiving e
 ```
 
 The set of the elements `keep` answers `true` for.
@@ -136,7 +136,7 @@ Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 ## Set.filterMap
 
 ```ernest
-Set.filterMap(set : Set(a=!), f : (a=!) -> Optional(b=!) with e) : Set(b=!) with e
+Set.filterMap(set : Set(a=), f : (a=) -> Optional(b=) receiving e) : Set(b=) receiving e
 ```
 
 The set of the values `f` answers `Some` for; an element `f` answers `None`
@@ -152,7 +152,7 @@ Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
 ## Set.fold
 
 ```ernest
-Set.fold(set : Set(a=!), acc : b, step : (b, a=!) -> b with e) : b with e
+Set.fold(set : Set(a=), acc : b, step : (b, a=) -> b receiving e) : b receiving e
 ```
 
 *Since 0.4.0.*
@@ -172,7 +172,7 @@ Set.fold(Set.fromList([1, 2]), 0, Int.+)
 ## Set.forEach
 
 ```ernest
-Set.forEach(set : Set(a=!), f : (a=!) -> Unit with e) : Unit with e
+Set.forEach(set : Set(a=), f : (a=) -> Unit receiving e) : Unit receiving e
 ```
 
 *Since 0.4.0.*
@@ -189,7 +189,7 @@ Set.forEach(Set.fromList(["a"]), Io.println)
 ## Set.any
 
 ```ernest
-Set.any(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
+Set.any(set : Set(a=), test : (a=) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for at least one element, and `false` for the empty
@@ -205,7 +205,7 @@ set.
 ## Set.all
 
 ```ernest
-Set.all(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
+Set.all(set : Set(a=), test : (a=) -> Bool receiving e) : Bool receiving e
 ```
 
 `true` when `test` holds for every element, and for the empty set.
@@ -213,7 +213,7 @@ Set.all(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
 ## Set.find
 
 ```ernest
-Set.find(set : Set(a=!), test : (a=!) -> Bool with e) : Optional(a=!) with e
+Set.find(set : Set(a=), test : (a=) -> Bool receiving e) : Optional(a=) receiving e
 ```
 
 An element `test` holds for, or `None` where there is none. Where it holds
@@ -229,7 +229,7 @@ Set.find(Set.fromList([1, 2]), fn(n) = n > 1)
 ## Set.fromList
 
 ```ernest
-Set.fromList(list : List(a=!)) : Set(a=!)
+Set.fromList(list : List(a=)) : Set(a=)
 ```
 
 The set of the list's elements, each once.
@@ -237,7 +237,7 @@ The set of the list's elements, each once.
 ## Set.toList
 
 ```ernest
-Set.toList(set : Set(a=!)) : List(a=!)
+Set.toList(set : Set(a=)) : List(a=)
 ```
 
 The elements, in unspecified order.
@@ -245,7 +245,7 @@ The elements, in unspecified order.
 ## Set.union
 
 ```ernest
-Set.union(set : Set(a=!), other : Set(a=!)) : Set(a=!)
+Set.union(set : Set(a=), other : Set(a=)) : Set(a=)
 ```
 
 The set of the elements in either set.
@@ -260,7 +260,7 @@ List.sort(Set.toList(Set.union(Set.fromList([1]), Set.fromList([2]))), Int.compa
 ## Set.intersection
 
 ```ernest
-Set.intersection(set : Set(a=!), other : Set(a=!)) : Set(a=!)
+Set.intersection(set : Set(a=), other : Set(a=)) : Set(a=)
 ```
 
 The set of the elements in both sets.
@@ -275,7 +275,7 @@ Set.toList(Set.intersection(Set.fromList([1, 2]), Set.fromList([2, 3])))
 ## Set.difference
 
 ```ernest
-Set.difference(set : Set(a=!), other : Set(a=!)) : Set(a=!)
+Set.difference(set : Set(a=), other : Set(a=)) : Set(a=)
 ```
 
 The elements of `set` that are not in `other`.
@@ -283,7 +283,7 @@ The elements of `set` that are not in `other`.
 ## Set.isSubset
 
 ```ernest
-Set.isSubset(set : Set(a=!), other : Set(a=!)) : Bool
+Set.isSubset(set : Set(a=), other : Set(a=)) : Bool
 ```
 
 `true` when every element of `set` is in `other`. The empty set is a subset
@@ -298,4 +298,4 @@ Set.isSubset(Set.fromList([1]), Set.fromList([1, 2]))
 
 ---
 
-Generated by ern 0.3.1 from set.ern.
+Generated by ern 0.4.0 from set.ern.

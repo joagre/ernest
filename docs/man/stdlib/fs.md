@@ -107,7 +107,7 @@ Fs.Entry(path = Path("a.txt"), modified = 0, size = 5, kind = Fs.File, mode = 0o
 ## Fs.read
 
 ```ernest
-Fs.read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m+
+Fs.read(path : Path, ms : Int) : Either(Io.Error, Bytes)
 ```
 
 The whole file, as its bytes. A file that is not there is
@@ -117,7 +117,7 @@ too large to hold whole is read a part at a time with `readRange`.
 ## Fs.readRange
 
 ```ernest
-Fs.readRange(path : Path, offset : Int, count : Int, ms : Int) : Either(Io.Error, Bytes) with m+
+Fs.readRange(path : Path, offset : Int, count : Int, ms : Int) : Either(Io.Error, Bytes)
 ```
 
 Up to `count` bytes of the file, starting `offset` bytes from its
@@ -141,7 +141,7 @@ below 0 counts as 0.
 ## Fs.write
 
 ```ernest
-Fs.write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Writes the bytes as the whole of the file. A file that is not there is
@@ -152,7 +152,7 @@ there, and `makeDir` makes it; where it is not, the answer is
 ## Fs.append
 
 ```ernest
-Fs.append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Writes the bytes after what the file holds. A file that is not there is
@@ -172,7 +172,7 @@ created.
 ## Fs.list
 
 ```ernest
-Fs.list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m+
+Fs.list(path : Path, ms : Int) : Either(Io.Error, List(Entry))
 ```
 
 The entries of the directory, in unspecified order, each path the
@@ -204,7 +204,7 @@ a link is a `Link`, whatever it leads to.
 ## Fs.stat
 
 ```ernest
-Fs.stat(path : Path, ms : Int) : Either(Io.Error, Entry) with m+
+Fs.stat(path : Path, ms : Int) : Either(Io.Error, Entry)
 ```
 
 What the path leads to, as an `Entry`: its kind, its size, its
@@ -224,7 +224,7 @@ so the entry is of what a link leads to; `list` describes a link itself.
 ## Fs.makeDir
 
 ```ernest
-Fs.makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.makeDir(path : Path, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Makes the directory, and any directory above it that is not there. A
@@ -233,7 +233,7 @@ directory that is already there is not an error.
 ## Fs.remove
 
 ```ernest
-Fs.remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.remove(path : Path, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Removes a file, a link, or an empty directory; a link is removed, not
@@ -253,7 +253,7 @@ what it leads to.
 ## Fs.rename
 
 ```ernest
-Fs.rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Renames what the first path names to the second path. A file at the second
@@ -276,7 +276,7 @@ over it. A link is renamed itself, not what it leads to.
 ## Fs.copy
 
 ```ernest
-Fs.copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Copies the regular file at the first path to the second. A file already
@@ -298,7 +298,7 @@ takes away.
 ## Fs.makeSymlink
 
 ```ernest
-Fs.makeSymlink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.makeSymlink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit)
 ```
 
 *Since 0.4.0.*
@@ -321,7 +321,7 @@ something is `Left(Exists)`.
 ## Fs.makeHardLink
 
 ```ernest
-Fs.makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit)
 ```
 
 *Since 0.2.0.*
@@ -346,7 +346,7 @@ anything but a regular file, a link among them, is `Left(NotAFile)`.
 ## Fs.readLink
 
 ```ernest
-Fs.readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) with m+
+Fs.readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path))
 ```
 
 The path a symbolic link holds, as it was written, or `None` where the
@@ -369,7 +369,7 @@ UTF-8 is `Left(NotUtf8(target))`, the target's bytes.
 ## Fs.makeFile
 
 ```ernest
-Fs.makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit)
 ```
 
 *Since 0.2.0.*
@@ -392,7 +392,7 @@ file or a temporary file needs.
 ## Fs.setModified
 
 ```ernest
-Fs.setModified(path : Path, modified : Int, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.setModified(path : Path, modified : Int, ms : Int) : Either(Io.Error, Unit)
 ```
 
 Sets the modification time, in milliseconds since the epoch as
@@ -412,7 +412,7 @@ Sets the modification time, in milliseconds since the epoch as
 ## Fs.setMode
 
 ```ernest
-Fs.setMode(path : Path, mode : Int, ms : Int) : Either(Io.Error, Unit) with m+
+Fs.setMode(path : Path, mode : Int, ms : Int) : Either(Io.Error, Unit)
 ```
 
 *Since 0.2.0.*
@@ -435,4 +435,4 @@ bit `0o1000`, which the host does not write, is `Left(Invalid)`.
 
 ---
 
-Generated by ern 0.3.1 from fs.ern.
+Generated by ern 0.4.0 from fs.ern.
