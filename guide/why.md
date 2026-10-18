@@ -2,7 +2,11 @@
 
 The argument for the design, in five claims, and a program for each but the last. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition. What Ernest adds is where the parts meet:
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
+
+Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
+
+What Ernest adds is where the parts meet:
 
 - **The mailbox in the function's type.** Every process receives messages of one type. A function that receives says that type in its own type, and a process's address carries it too. So the compiler checks every message sent against the mailbox it will reach, and every receive against the mailbox it reads. A server is such an address bound to a name at the top of a module. The address stays good while the process behind it is restarted after a fault. A program reaches its servers by name, and can never send one a message it does not take.
 - **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. A module reloaded is a new version beside its earlier ones, as many as there have been, and each keeps running wherever a process still runs it. A running process moves to the new version of its function when a message tells it to. A process started on another node brings its code along, so any node can run anything. A node with no program of its own takes part, a computation that names no node goes to one with room, and no program is deployed first.
