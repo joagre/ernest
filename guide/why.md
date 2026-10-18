@@ -14,10 +14,21 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 
 ## The claims, in code
 
-**The mailbox in the function's type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`:
+**The mailbox in the function's type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`. `counter` is the program's counter, bound at the top of the module and started under `restarting`, so any module sends to it by name, and a fault in `count` starts it again with the address kept:
 
 ```ernest
-type CounterMsg = Inc(Int) | Get(Reply(Int))
+export type CounterMsg = Inc(Int) | Get(Reply(Int))
+
+export let counter : Address(CounterMsg) = spawn(restarting(Unlimited, fn() = count(0)))
+
+export fn main() : Unit = {
+    send(counter, Inc(5));
+    send(counter, Inc(3));
+    match Address.call(counter, Get, 1000) {
+        Some(total) -> Io.println("count is " <> Int.toString(total))
+      | None -> Io.println("counter did not answer")
+    }
+}
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
@@ -28,21 +39,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
             count(total)
         }
     }
-
-export fn main() : Unit = {
-    let counter = spawn(fn() = count(0));
-    send(counter, Inc(5));
-    send(counter, Inc(3));
-    match Address.call(counter, Get, 1000) {
-        Some(total) -> Io.println("count is " <> Int.toString(total))
-      | None -> Io.println("counter did not answer")
-    }
-}
 ```
 
-`main` receives nothing, so its type names no mailbox, and it spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+`main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
-A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, which is how `counter` would be bound at the top of a module and reached by name; the guide's §6.5 shows it.
+A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, so the name `counter` stays good; the guide's §6.5 shows a restart.
 
 **Code known by its hash.** The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice` is a loop of the same type, sent as a value:
 
