@@ -2966,7 +2966,7 @@ let _ = Peer.spawn(node, fn() = List.forEach(Code.running(count),
 
 A type that carries `Upgrade` holds a function, so it is bound to its node (§8.4). A process reached from another node, a service or one spawned on a peer, is offered through an adapted address (§5.5) of a type without it, and its upgrade is sent on its own node.
 
-New code that is not in the program's build comes by `Code.load(path)`, which loads a compiled module and its reach on the running node and evaluates their bindings (report Appendix E.28). [`examples/upgrade`](../examples/upgrade/) is the whole of it, a counter's two builds and the second's tool moving the first's counters here and on every peer, and the deployment guide's §5.3 is the operator's side of the move.
+New code that is not in the program's build comes by `Code.load(path)`, which loads a compiled module and its reach on the running node and evaluates their bindings (report Appendix E.28). The example `examples/upgrade` is the whole of it, a counter's two builds, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern) and [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), and the second's tool moving the first's counters here and on every peer, and the deployment guide's §5.3 is the operator's side of the move.
 
 ## 9. Tools
 

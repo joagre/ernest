@@ -653,6 +653,8 @@ answered_by_another_key(Base) ->
     {OutA, ErrA} = said(A),
     has(OutA, "utilization: Left(Unreachable)"),
     has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:cataloged(ErrA, "7", "answered the dial", [{"c", "c"}, {"b", "b"}]),
     ?assertEqual(nomatch, string:find(ErrA, "connected")).
 
 %% report §8.7: a node that ends tells each connected peer so, and then its
