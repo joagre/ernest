@@ -156,21 +156,6 @@ anchored(Heads) ->
           end, #{}, Heads),
     Anchored.
 
-%% README.md, guide/why.md, CLAUDE.md *Who owns each fact*: the front page's
-%% list of what Ernest adds, and the programs that show it under *The claims,
-%% in code*, are why.md's, word for word, so that the two cannot drift apart;
-%% what follows the programs, the README's standing and why.md's reading
-%% on, is each document's own
-what_ernest_adds_test() ->
-    ?assertEqual(adds(ern_repository:read("guide/why.md")),
-                 adds(ern_repository:read("README.md"))).
-
-adds(Document) ->
-    [_, Rest] = binary:split(Document, <<"What Ernest adds is where the parts meet:\n\n">>),
-    [List, Shown] = binary:split(Rest, <<"\n## The claims, in code\n">>),
-    [Programs | _] = binary:split(Shown, <<"\n## ">>),
-    {List, Programs}.
-
 %% docs/style.md, docs/development.md "The layout of the repository": a document that says
 %% where things are names things that are there, from the repository's root
 %% or, as src/shell/README.md does, from its own directory. The report and the

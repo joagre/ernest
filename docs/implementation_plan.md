@@ -18,7 +18,7 @@ and a feature declined in the log's *Later*; nothing stands between.
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
 Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-17); item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-18); item 11 waits for the user's word.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
@@ -374,9 +374,8 @@ under load outlasted before its first prompt, is the file's 30. No number chosen
    every finding fixed, planned or dropped; then `VERSION` at 0.4.0, the `since` of every module and
    exported declaration that appeared since 0.3.1, the pages in `docs/man/`, the notes, which say what a
    program written for 0.3.1 changes and what the shell does not yet do beside a node, attach to it
-   with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0, but tables in `libs/markdown`, decided with the user the same day, the log's *Tables in `libs/markdown`*; reopened 2026-10-14 for MVP 3.26 alone, the log's *Kill Darlings*, whose two subtractions the notes then state: `with` written `receiving` where a function receives and nowhere else, and no `!`), the README rewritten from
-   `docs/proposals/handouts/readme_after_mvp3_2.md`, which then goes, the language guide's §0 list
-   changing with its fourth bullet, the tag `v0.4.0` and the archive (decided with the user on
+   with its inputs run there, which MVP 4.0 brings and the deployment guide's section 6 says (decided 2026-10-13: nothing more goes into 0.4.0, but tables in `libs/markdown`, decided with the user the same day, the log's *Tables in `libs/markdown`*; reopened 2026-10-14 for MVP 3.26 alone, the log's *Kill Darlings*, whose two subtractions the notes then state: `with` written `receiving` where a function receives and nowhere else, and no `!`), the README's *Where it stands*
+   brought to 0.4.0 (the README itself rewritten 2026-10-18, the paragraph below), the tag `v0.4.0` and the archive (decided with the user on
    2026-10-10, the log's *Ernest 0.4.0 Ends MVP 3.2*, and on 2026-10-13 for the README).
 
 **Before the tag: the tools' speed.** Done 2026-10-13: pages written only where out of date, a
@@ -609,6 +608,15 @@ stay, for rationale, and go to the repository at the release as before. `docs/de
 which directories are installed and the release README's sentence names the source and the project's
 documents alone. The install test holds each example the guide links to installed and built from
 the installation.
+
+**Before the tag: the README says what Ernest is and where to begin.** Done 2026-10-18 (the log's
+*Before the Tag, the Last Builds*, its paragraph on the README); decided with the user the same day.
+The README had become a copy of *Why Ernest*, its five claims and their programs word for word,
+held equal by a test. It holds now what it owns: the paragraph that says what Ernest is, the five
+claims a line each, linking to the argument's headings, the counter as the one program, where the
+project stands, installing, and where to read on. The equality test went with the copy, and so did
+the handout `docs/proposals/handouts/readme_after_mvp3_2.md`, written for this README before the
+week's work and superseded by it.
 
 **Before the tag: the shell and a private mailbox type.** Done 2026-10-16 (the log's *The Shell
 on a Private Type*): the interface carries the private types an exported signature names (§11.1),

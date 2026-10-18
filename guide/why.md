@@ -14,7 +14,9 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 
 ## The claims, in code
 
-**The mailbox in the function's type.** A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`. `counter` is the program's counter, bound at the top of the module and started under `restarting`, so any module sends to it by name, and a fault in `count` starts it again with the address kept:
+### The mailbox in the function's type
+
+A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`. `counter` is the program's counter, bound at the top of the module and started under `restarting`, so any module sends to it by name, and a fault in `count` starts it again with the address kept:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -45,7 +47,9 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, so the name `counter` stays good; the guide's §6.5 shows a restart.
 
-**Code known by its hash.** The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice` is a loop of the same type, sent as a value:
+### Code known by its hash
+
+The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice` is a loop of the same type, sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -96,7 +100,9 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 `Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it.
 
-**A distribution built for a WAN.** A node is Ernest started from a configuration directory, with a program or with none. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
+### A distribution built for a WAN
+
+A node is Ernest started from a configuration directory, with a program or with none. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
 
 ```json
 {
@@ -119,7 +125,9 @@ A listed peer is trusted whole. One that may spawn on a node may run anything on
 
 A peer that goes out of reach is a `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
-**Abstract types and requirements.** A reader who knows another language looks for a type class, an interface or a trait. Three things stand in their place, and each is shown here.
+### Abstract types and requirements
+
+A reader who knows another language looks for a type class, an interface or a trait. Three things stand in their place, and each is shown here.
 
 An *abstract type* keeps its constructor to its module. Every function of `stack.ern` takes a `Stack` apart, and no other module can:
 
@@ -201,7 +209,9 @@ $ ern run unique.erc
 
 `sorted` and `unique` are not two ways to one thing. A requirement asks for what every element type has of its own, and a record carries what the caller chooses. What a class, an interface or a trait would have added, a declared instance, a hierarchy, a dispatch decided as the program runs, the three do without. The guide's §7 teaches them.
 
-**Little else.** No program shows this claim. Its evidence is the report under `report/`: the language, the toolchain and the library, a file each, which state everything the programs above rely on.
+### Little else
+
+No program shows this claim. Its evidence is the report under `report/`: the language, the toolchain and the library, a file each, which state everything the programs above rely on.
 
 ## Reading on
 
