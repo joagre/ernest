@@ -1,9 +1,11 @@
 #!/bin/sh
 # Every prose paragraph past about a hundred words in the tracked documents,
-# for its writer to read again for a turn it may hide (CLAUDE.md, *Writing*):
-# path, line, words and the paragraph's first words. A list, not a limit:
-# a paragraph that holds one thing stays whole. The log, the proposals and
-# the generated pages are left out.
+# a list item among them, for its writer to read again for a turn it may
+# hide (CLAUDE.md, *Writing*): path, line, words and the paragraph's first
+# words. A list, not a limit: a paragraph that holds one thing stays whole.
+# A list item is a paragraph of its own, which ends at the next item, at a
+# blank line or where its indentation ends. The log, the proposals and the
+# generated pages are left out.
 cd "$(dirname "$0")/.." || exit 1
 git ls-files -- '*.md' ':!docs/decisions.md' ':!docs/proposals/' ':!docs/man/' |
 while read -r file; do
@@ -11,15 +13,19 @@ while read -r file; do
         function flush() {
             if (!skip && words > 100)
                 printf "%s:%d: %d words  %s\n", file, start, words, substr(first, 1, 60)
-            words = 0
+            words = 0; item = 0
         }
         /^(```|~~~)/ { fence = !fence; flush(); next }
         fence { next }
         /^[ \t]*$/ { flush(); next }
+        /^[ \t]*(-|\*|[0-9]+[a-z]?\.) / { flush(); item = 1 }
         {
             if (words == 0) {
                 start = NR; first = $0
-                skip = ($0 ~ /^(#|\||<|- |[0-9]+\. )/)
+                skip = ($0 ~ /^(#|\||<)/)
+                indent = match($0, /[^ \t]/) - 1
+            } else if (item && match($0, /[^ \t]/) - 1 <= indent) {
+                flush(); item = 0; start = NR; first = $0; skip = 0
             }
             words += NF
         }

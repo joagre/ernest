@@ -121,7 +121,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating. Clear before short: plain sentences, one rule per sentence, its exception and its example in sentences of their own. Cut a sentence for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
 - **A paragraph is one turn of the text, in every document and in a message to the user.** It says one thing, with that thing's exception and example, and a new paragraph begins where the text turns to the next thing.
 
-  A break is made where it helps the reader take the next thing in, and nowhere else: never at a count of words, never to shorten, and never later than the turn. A paragraph past about a hundred words, which `make paragraphs` lists, is read again for a turn it may hide, and left whole where it holds one thing.
+  A break is made where it helps the reader take the next thing in, and nowhere else: never at a count of words, never to shorten, and never later than the turn. A paragraph past about a hundred words, a list item among them, which `make paragraphs` lists, is read again for a turn it may hide, and left whole where it holds one thing.
 
   This binds an answer in the guide's §12, a log entry, a README and a proposal as it binds the report: the writer who has filled a block with five points has written five paragraphs.
 - **The plan, the log, a proposal and a commit message are plain and short.** One point to a sentence, in the order a reader needs it, without chains of clauses; the register above is the report's and the guide's alone.
