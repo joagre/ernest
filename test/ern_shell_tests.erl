@@ -444,6 +444,26 @@ prelude_shown() ->
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).
 
+%% report §11.2, §9: `:browse Address` lists the prelude's functions under
+%% `Address`, each with its type, as `:browse Prelude` lists them, though
+%% no module is named so; a name that names no module nor such a namespace
+%% is still refused. A regression test, written after the fix (the release
+%% review before 0.4.0 found `:browse Address` answering that no module
+%% Address is in scope, where `:doc Address` answered)
+browse_address_test_() ->
+    {timeout, 60, fun browse_address/0}.
+
+browse_address() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":browse Address\n:browse Nowhere\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    [?assertMatch({_, _}, binary:match(Output, Text))
+     || Text <- [<<"Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)\n">>,
+                 <<"Address.callForever : (Address(m), (Reply(a)) -> m) -> a\n">>,
+                 <<"no module Nowhere is in scope">>]],
+    ?assertEqual(nomatch, binary:match(Output, <<"no module Address">>)).
+
 %% report §8.5, §11.2: a file whose top-level binding faults does not start
 %% the shell, and the binding is named with its line. A regression test:
 %% the shell printed a bare `fault:`

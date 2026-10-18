@@ -54,10 +54,13 @@ port_please(_Name, Host, _Timeout) ->
 %% an address, or a name the host resolves at each dial in the node's
 %% family; none for a peer listed without one, or for a node listed by no
 %% peer, which is never dialed. A name that resolves only to the other
-%% family fails as a dial refused does, and the node says why.
+%% family fails as a dial refused does, and the node says why. The host
+%% asks it in the process that dials, which records the host dialed, so
+%% that the certificate that answers is bound to it (ern_carrier:dialing/1).
 -spec address_please(term(), term(), inet:address_family()) ->
           {ok, inet:ip_address(), inet:port_number(), pos_integer()} | {error, term()}.
 address_please(_Name, Host, Family) ->
+    ok = ern_carrier:dialing(text(Host)),
     case ern_carrier:peer(text(Host)) of
         #peer{address = {Address, Port}} when is_tuple(Address) ->
             {ok, Address, Port, ?DISTRIBUTION};

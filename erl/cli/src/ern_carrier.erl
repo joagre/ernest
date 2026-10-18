@@ -2,16 +2,17 @@
 %% what hurts in it turned off. The flags the host boots with, which the
 %% launcher asks for before it starts the host (boot_flags/2); the node's
 %% name on the carrier, a constant at its key's digest (name/1, host/1);
-%% the floor's digest, which is the host's cookie (cookie/0); the
-%% rule that accepts a peer by its listed key, under the name that key gives
-%% (verify/3, which the host's TLS calls); the listener started once the
-%% bindings have their values (start/2); a reload, which hangup asks for
-%% (reload/0); the end in order, told to the peers (depart/0); and the
-%% lines a node says of its peers, one each on its standard error.
+%% the floor's digest, which is the host's cookie (cookie/0); the rule
+%% that accepts a peer by its listed key, under the name that key gives
+%% and, on a dial, under the name dialed (verify/3, which the host's TLS
+%% calls, and dialing/1, which the port map calls); the listener started
+%% once the bindings have their values (start/2); a reload, which hangup
+%% asks for (reload/0); the end in order, told to the peers (depart/0); and
+%% the lines a node says of its peers, one each on its standard error.
 -module(ern_carrier).
 
 -export([boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
-         configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, listed/1,
+         configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, dialing/1, listed/1,
          names_own_host/1, say/1, named/1, said/1, filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
@@ -34,6 +35,10 @@
 -define(TICK_TIME, "60").
 -define(SETUP_TIME, "7").
 -define(BUFFER, "1024").
+
+%% Report §8.7: the key under which the process that dials a peer holds the
+%% host it dials (dialing/1).
+-define(DIALED, {?MODULE, dialed}).
 
 %%
 %% The host's boot
@@ -64,11 +69,12 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
         ++ interface(Listen).
 
 %% Report §8.7: the TLS options of one side: the node's own certificate as
-%% the one the host trusts, so that a peer's is checked by the rule alone.
+%% the one the host trusts, so that a peer's is checked by the rule alone,
+%% which is told the side it checks for.
 tls(Side, Certificate, Key) ->
     [{"certfile", Certificate}, {"keyfile", Key}, {"cacertfile", Certificate},
      {"verify", "verify_peer"}, {"versions", "tlsv1.3"},
-     {"verify_fun", "{ern_carrier,verify,[]}"}]
+     {"verify_fun", "{ern_carrier,verify," ++ Side ++ "}"}]
         ++ [{"fail_if_no_peer_cert", "true"} || Side =:= "server"].
 
 interface({{0, 0, 0, 0}, _}) -> [];
@@ -115,24 +121,36 @@ cookie() ->
 -spec cookie(string(), fun(() -> binary())) -> string().
 cookie(VersionText, CodeDigest) ->
     Floor = case string:split(VersionText, "-") of
-                [Release] ->
-                    [Major, Minor, _Patch] = string:split(Release, ".", all),
-                    {?PROTOCOL, ern_canonical:form_version(), list_to_integer(Major),
-                     list_to_integer(Minor), erlang:system_info(otp_release)};
                 [_, "dev"] ->
-                    CodeDigest()
+                    CodeDigest();
+                _ ->
+                    {Major, Minor} = release(VersionText),
+                    {?PROTOCOL, ern_canonical:form_version(), Major, Minor,
+                     erlang:system_info(otp_release)}
             end,
     binary_to_list(binary:encode_hex(crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
                                      lowercase)).
+
+%% A release's major and minor, of the three whole numbers of its version,
+%% `0.4.0`; a version text of another shape, which no build of `ern` writes,
+%% a development build's ending in `-dev`, is refused, naming it.
+release(VersionText) ->
+    case [string:to_integer(Part) || Part <- string:split(VersionText, ".", all)] of
+        [{Major, ""}, {Minor, ""}, {Patch, ""}]
+          when Major >= 0, Minor >= 0, Patch >= 0 ->
+            {Major, Minor};
+        _ ->
+            ern_build:fail("the version text " ++ VersionText ++ " is neither a release's,"
+                           " three whole numbers, nor a development build's, ending in -dev")
+    end.
 
 %% Report §8.7: the digest of a development build's own code: each module
 %% of the toolchain's, its applications', the standard library's, the
 %% shell's and the two libraries the shell is compiled against, every
 %% module compiled from an application's tests aside, by the digest of its
 %% code, which the host's module_info(md5) answers too, in the order of
-%% their names. Read from the files, loading none of them: 36 milliseconds
-%% for the 91 modules of the tree at 0.3.1 where the host has read no file
-%% so before, as at a node's first start, which alone asks.
+%% their names. Read from the files, loading none of them, at a node's
+%% first start, which alone asks.
 code_digest() ->
     Applications = [File || File <- filelib:wildcard(filename:join(ern_tree:tree(),
                                                                    "erl/*/ebin/*.beam")),
@@ -276,9 +294,12 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
 %% may watch, the frame goes after their Downs on the connection, and the
 %% host's own question, whether the peer is there, after the frame, so that
 %% its answer comes once they have arrived; a peer that fell silent is given
-%% up by the detector, which answers it.
+%% up by the detector, which answers it. The gateway tells no peer how busy
+%% the node is once the frame has gone (ern_gateway:departing/0), since a
+%% peer takes a telling after it for a node that goes on.
 -spec depart() -> ok.
 depart() ->
+    ok = ern_gateway:departing(),
     lists:foreach(fun(Node) ->
                       erlang:send({ern_gateway, Node}, {ern_frame, self(), node_ends}),
                       _ = net_adm:ping(Node)
@@ -313,19 +334,22 @@ peer(Host) ->
 %% host's checks of them, which come as a bad certificate, are answered by
 %% the key; an extension is the host's. A key not listed, and a
 %% certificate that names another host than its key gives, are refused, and
-%% the node says so. A node this node dials answers under the name dialed,
-%% which the host's handshake checks (dist_util).
--spec verify(#'OTPCertificate'{}, term(), term()) ->
-          {valid, term()} | {unknown, term()} | {fail, term()}.
-verify(_Certificate, {extension, _}, State) ->
-    {unknown, State};
-verify(_Certificate, valid, State) ->
-    {valid, State};
-verify(Certificate, _Event, State) ->
+%% the node says so. A node this node dials must answer under the name
+%% dialed: the host's handshake checks only the name the answering node
+%% gives, which a node may give falsely, and checks no dialed name against
+%% a certificate that signs itself, so on the client's side the rule takes
+%% a key only where it gives the host dialed (dialed/0), and the node says
+%% which peer answered the dial of which.
+-spec verify(#'OTPCertificate'{}, term(), client | server) ->
+          {valid, client | server} | {unknown, client | server} | {fail, term()}.
+verify(_Certificate, {extension, _}, Side) ->
+    {unknown, Side};
+verify(_Certificate, valid, Side) ->
+    {valid, Side};
+verify(Certificate, _Event, Side) ->
     case {listed(Certificate), names_own_host(Certificate)} of
-        {{listed, #peer{public_key = Key}}, true} ->
-            ok = allow([Key]),
-            {valid, State};
+        {{listed, Peer}, true} ->
+            answered(Side, Peer);
         {{listed, #peer{name = Name}}, false} ->
             say(["the peer ", Name, " was refused: its certificate names another host than its"
                                     " key gives"]),
@@ -334,6 +358,45 @@ verify(Certificate, _Event, State) ->
             say(["a node with the key ", Digest, " was refused: no peer has its key"]),
             {fail, not_listed}
     end.
+
+%% A listed key whose certificate names its own host: taken on the server's
+%% side, and on the client's where it gives the host dialed.
+answered(server, #peer{public_key = Key}) ->
+    ok = allow([Key]),
+    {valid, server};
+answered(client, #peer{name = Name, public_key = Key}) ->
+    Host = host(Key),
+    case dialed() of
+        Host ->
+            ok = allow([Key]),
+            {valid, client};
+        Dialed ->
+            say(["the peer ", Name, " was refused: it answered the dial of ", host_named(Dialed)]),
+            {fail, not_dialed}
+    end.
+
+%% Report §8.7: the host the process that dials a peer dials, recorded in
+%% its dictionary as the port map answers the peer's address
+%% (ern_epmd:address_please/3), where it stays for the connection's life,
+%% the process's: so that the rule binds the certificate that answers the
+%% dial to the host dialed (dialed/0).
+-spec dialing(string()) -> ok.
+dialing(Host) ->
+    _ = put(?DIALED, Host),
+    ok.
+
+%% The host dialed for the connection whose certificate the rule checks on
+%% the client's side. The host's TLS gives the check nothing of its
+%% connection but the certificate, and runs it in the connection's own
+%% process, which monitors the process that dialed, its controlling
+%% process, the one process it monitors that holds a host dialed
+%% (dialing/1); a check that finds none fails, and the dial with it.
+dialed() ->
+    {monitors, Monitored} = process_info(self(), monitors),
+    [Host] = [Host || {process, Pid} <- Monitored, is_pid(Pid),
+                      {_, Host} <- [process_info(Pid, {dictionary, ?DIALED})],
+                      Host =/= undefined],
+    Host.
 
 %% The peer a certificate's key is listed for, or the key's digest where it
 %% is listed for none.
@@ -386,7 +449,10 @@ say(Text) ->
 %% digest where it is not listed.
 -spec named(atom()) -> iodata().
 named(Node) ->
-    Host = lists:last(string:split(atom_to_list(Node), "@")),
+    host_named(lists:last(string:split(atom_to_list(Node), "@"))).
+
+%% A peer as a line names it by the host of its name on the carrier.
+host_named(Host) ->
     case peer(Host) of
         #peer{name = Name} -> ["the peer ", Name];
         none -> ["the node ", [Char || Char <- Host, Char =/= $.]]

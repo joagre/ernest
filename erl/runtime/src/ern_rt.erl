@@ -70,7 +70,8 @@
          exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
          binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
-         spawn_order/1, init_stdlib/0, stdlib_modules/0, init_modules/1, initialized/1, offer/2,
+         spawn_order/1, gateway/0, init_stdlib/0, stdlib_modules/0, init_modules/1, initialized/1,
+         offer/2,
          offered/2, set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3,
          drop_note/1, note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
 
@@ -3216,8 +3217,11 @@ emptied() ->
     after 0 -> ok
     end.
 
-%% Report §8.7: a node's gateway, which a restart asks too, so that every
-%% call's note that came before it is recorded when the restart reads them.
+%% Report §8.7: a node's gateway, by the name it registers (ern_gateway),
+%% or none before it starts and in a program that is no node, the one
+%% place its process is found; a restart asks it too, so that every call's
+%% note that came before it is recorded when the restart reads them.
+-spec gateway() -> [pid()].
 gateway() ->
     case erlang:whereis(ern_gateway) of
         undefined -> [];

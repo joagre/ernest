@@ -4,7 +4,7 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 **It looks like Gleam. What differs?**
 
-The types are the same family, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax. Ernest owes Gleam its look: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment and `todo` were taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
+The types are the same family, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax. Ernest owes Gleam its look: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
 Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach, since in Ernest the process is the language: a function that receives names its mailbox's type, a `receive` is checked against it, every `send` against the address it reaches, a request carries a `Reply`, a value the server answers once and the caller waits on, and `spawn`, `monitor` and `Address.call` are the prelude's, so the compiler sees all of them (the guide's §4).
 
@@ -19,8 +19,6 @@ A process that must come back runs its function under `restarting`, which runs t
 A supervision tree is the standard library's `Supervisor`, its children restarted in place (the guide's §6.6).
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6), and a module reloaded or brought by a peer runs beside its earlier versions (report §11.2).
-
-In a rolling upgrade the messages the old process has not yet taken move to the new one: `Mailbox.drained(keep)` takes them from the old mailbox in arrival order, as a list, and the new process puts them into its own with `Mailbox.refilled(messages)`, behind what it already holds; the `Mailbox` library is planned and not yet written.
 
 Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions (the guide's §5.2, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
 
@@ -40,7 +38,7 @@ Unison names Erlang among its influences, and stands on parents of its own: a th
 
 A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out.
 
-A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §4.1, report §6.5).
+A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §5.5, report §6.5).
 
 The process's protocol is one type, read in one place, and where another language opens a second channel an Ernest process hands out such an address: a value, sent to whoever should write to it (the guide's §5.5).
 
@@ -70,13 +68,13 @@ What nothing catches is `Address.callForever` on a callee that lives on and neve
 
 Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, a library from hex among them, and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.3, report §4.7).
 
-The foreign side promises the declared types. A return value that breaks the promise faults the caller when the call returns, and where a program hands an address to foreign code, a message the foreign side sends to it is checked by a process the runtime puts in front of the address, so that a compiled `receive` never sees a value of the wrong shape (report §8.4).
+The foreign side promises the declared types. A return value that breaks the promise faults the caller when the call returns, and where a program hands an address to foreign code, a message the foreign side sends to it is checked on delivery, so that a compiled `receive` never sees a value of the wrong shape (report §8.4).
 
 The standard library stands on the host through such declarations (the guide's §8.5), and an Ernest program is otherwise written in Ernest: it is not an OTP application, no Erlang or Elixir module is built with it, and foreign code reaches it only through what the program hands it, an address or a function (report §8.4).
 
 **What does "built for a WAN" mean?**
 
-That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.7).
+That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.1).
 
 There is no mesh, so a program's nodes talk where its configuration says and nowhere else; no port mapper, so one port per node is opened; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
 

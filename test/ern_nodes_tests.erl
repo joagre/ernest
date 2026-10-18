@@ -157,6 +157,8 @@ export fn main() : Unit receiving Unit =
             let _ = Io.readLine();
             Unit
         }
+      | [\"utilization\", peer] ->
+            Io.println(\"utilization: \" <> Io.show(Peer.utilization(peer, 5000)))
       | [\"hold\", peer] -> {
             Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
             held()
@@ -179,7 +181,8 @@ send(Node) ->
     'Unit'.
 site(Node, Hash) ->
     Spawned = {function, binary:decode_hex(Hash)},
-    Frame = {spawn, make_ref(), Spawned, <<255>>, false},
+    %% the site alone out of shape, the spawner waiting nothing
+    Frame = {spawn, make_ref(), Spawned, <<255>>, false, 0},
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
     'Unit'.
 ">>),
@@ -600,8 +603,7 @@ bound(Base) ->
 %% report §8.7: a node it dials must answer under the name it dialed: the
 %% address a lists for the peer b is the port of c, another peer it lists,
 %% which answers under its own name, and the dial fails, neither node
-%% connected; the host's handshake refuses the answer, and neither says
-%% anything of it
+%% connected; a refuses c's key for the dial of b and says so
 answered_test_() ->
     nodes_test(60, fun answered/1).
 
@@ -621,8 +623,127 @@ answered(Base) ->
     {OutA, ErrA} = said(A),
     {_, ErrC} = said(C),
     has(OutA, "connect: false"),
+    has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
     ?assertEqual(nomatch, string:find(ErrA, "connected")),
     ?assertEqual(nomatch, string:find(ErrC, "connected")).
+
+%% report §8.7: a node it dials must answer under the name it dialed, and a
+%% key is taken only under the name that key gives it: the address a lists
+%% for the peer b is held by a bare `erl` with the key of c, another peer a
+%% lists, which names itself b, and the dial fails as a refused one does,
+%% the program answered `Unreachable`, the node saying why. Written
+%% before its fix, it failed: a took the holder of c's key for b, the
+%% certificate bound to no host dialed
+answered_by_another_key_test_() ->
+    nodes_test(60, fun answered_by_another_key/1).
+
+answered_by_another_key(Base) ->
+    PortB = free_port(),
+    A = made(Base, "a", none),
+    B = made(Base, "b", none),
+    C = made(Base, "c", none),
+    lists(A, [{"b", B, PortB}, {"c", C, none}]),
+    Root = filename:join(Base, "build"),
+    Program = program(Root),
+    {Holder, Held} = answering(Root, name(B), key_files(C), ern_carrier:cookie(), PortB),
+    WaitA = start(A, Program, ["utilization", "b"]),
+    ?assertEqual(0, WaitA()),
+    true = port_command(Holder, "go\n"),
+    {0, _} = Held(),
+    {OutA, ErrA} = said(A),
+    has(OutA, "utilization: Left(Unreachable)"),
+    has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
+    ?assertEqual(nomatch, string:find(ErrA, "connected")).
+
+%% report §8.7: a node that ends tells each connected peer so, and then its
+%% connections close, telling none how busy it is after its word: a holder
+%% of b's key, a bare `erl`, that says it ends and then tells a how busy it
+%% is, its connection lasting, has not ended, and a says it was lost when
+%% it closes, not that it ended. A regression test, written after the fix
+%% (the release review before 0.4.0 found a peer's word that it ends kept
+%% while its connection lasted); it does not cover a peer that says it
+%% ends and stays connected telling nothing, whose word stands until its
+%% connection's end
+told_after_its_end_test_() ->
+    nodes_test(60, fun told_after_its_end/1).
+
+told_after_its_end(Base) ->
+    PortA = free_port(),
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", none),
+    lists(A, [{"b", B, none}]),
+    Root = filename:join(Base, "build"),
+    Program = program(Root),
+    Source = filename:join(Root, "ern_nodes_ender.erl"),
+    ok = file:write_file(Source, <<"
+-module(ern_nodes_ender).
+-export([main/0]).
+main() ->
+    {ok, [[Target]]} = init:get_argument(ern_nodes_target),
+    Node = list_to_atom(Target),
+    true = net_kernel:connect_node(Node),
+    erlang:send({ern_gateway, Node}, {ern_frame, self(), node_ends}),
+    erlang:send({ern_gateway, Node}, {ern_frame, self(), {telling, 0.5, 5000}}),
+    %% a call over the connection, whose answer comes once the frames before
+    %% it have arrived
+    Node = erpc:call(Node, erlang, node, [], 10000),
+    halt().
+">>),
+    {ok, _} = compile:file(Source, [{outdir, Root}]),
+    WaitA = start(A, Program, []),
+    prints(A, "waiting"),
+    {_, Ender} = client(Root, name(B), key_files(B), ern_carrier:cookie(), PortA, name(A), [],
+                        "ern_nodes_ender"),
+    ?assertMatch({0, _}, Ender()),
+    says(A, "the peer b was lost: it closed"),
+    stop(A, WaitA),
+    {_, ErrA} = said(A),
+    has(ErrA, "the peer b connected"),
+    ?assertEqual(nomatch, string:find(ErrA, "the peer b ended")).
+
+%% A bare `erl` that listens on Port as Name, presenting the certificate and
+%% key given and asking for none, with the cookie given, until a line comes
+%% on its standard input; answered once it listens, with the port whose
+%% writes are its standard input and the function that waits for its end.
+answering(Root, Name, {Certificate, Key}, Cookie, Port) ->
+    Source = filename:join(Root, "ern_nodes_answering.erl"),
+    ok = file:write_file(Source, <<"
+-module(ern_nodes_answering).
+-export([main/0]).
+main() ->
+    io:format(\"listening~n\"),
+    _ = io:get_line(\"\"),
+    halt().
+">>),
+    {ok, _} = compile:file(Source, [{outdir, Root}]),
+    Tls = lists:append([["server_" ++ Option, Value]
+                        || {Option, Value} <- [{"certfile", Certificate}, {"keyfile", Key},
+                                               {"verify", "verify_none"},
+                                               {"versions", "tlsv1.3"}]]),
+    Digits = integer_to_list(Port),
+    Arguments = ["-noshell", "-pa", Root, "-name", Name, "-proto_dist", "inet_tls",
+                 "-ssl_dist_opt" | Tls]
+        ++ ["-epmd_module", "ern_nodes_client", "-start_epmd", "false", "-connect_all", "false",
+            "-setcookie", Cookie, "-kernel", "inet_dist_listen_min", Digits,
+            "-kernel", "inet_dist_listen_max", Digits, "-ern_nodes_port", Digits,
+            "-s", "ern_nodes_answering", "main"],
+    Holder = open_port({spawn_executable, os:find_executable("erl")},
+                       [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
+    listening(Holder, <<>>),
+    {Holder, fun() -> collected(Holder, <<>>) end}.
+
+listening(Holder, Acc) ->
+    case binary:match(Acc, <<"listening">>) of
+        nomatch ->
+            receive
+                {Holder, {data, Bytes}} -> listening(Holder, <<Acc/binary, Bytes/binary>>);
+                {Holder, {exit_status, Status}} -> erlang:error({ended, Status, Acc})
+            after ?WAIT_MS ->
+                erlang:error({not_listening, Acc})
+            end;
+        _ ->
+            ok
+    end.
 
 %% report §8.7: two nodes of different builds connect, the cookie being
 %% the floor's digest and holding nothing of the build. A regression test
@@ -839,6 +960,41 @@ missing_module(Base) ->
     ?assertEqual({1, <<"ern run: cannot find module Extra (extra.erc), which User needs, on the"
                        " load path: a node reads every module of its load path\n">>},
                  Run(["--config-dir ", Lone, " ", Main])),
+    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
+
+%% report §11.2, §8.7: a file at a module's path that holds another module
+%% is refused before anything runs, and a node, which reads every module of
+%% its load path, names the file and the module it holds, not the module
+%% missing at the path of the one it holds; the same program run as no
+%% node does not read the file, and runs. A regression test, written after
+%% the fix (the release review before 0.4.0 found the node saying the
+%% module the file holds was not on the load path)
+misplaced_module_test_() ->
+    nodes_test(60, fun misplaced_module/1).
+
+misplaced_module(Base) ->
+    Lone = made(Base, "lone", none),
+    Source = filename:join(Base, "src"),
+    Build = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "main.ern"),
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
+    ok = file:write_file(filename:join(Source, "extra.ern"),
+                         "export fn double(n : Int) : Int = n * 2\n"),
+    0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
+    Moved = filename:join(Build, "moved.erc"),
+    ok = file:rename(filename:join(Build, "extra.erc"), Moved),
+    Main = filename:join(Build, "main.erc"),
+    Run = fun(Words) ->
+              Port = open_port({spawn_executable, "/bin/sh"},
+                               [{args, ["-c", lists:flatten([?ERN, " run ", Words, " 2>&1"])]},
+                                exit_status, binary]),
+              collected(Port, <<>>)
+          end,
+    ?assertEqual({0, <<"ran\n">>}, Run(Main)),
+    Refusal = "ern run: " ++ ern_build:shown(Moved) ++ " holds Extra, not Moved; build it again"
+        " from its source root\n",
+    ?assertEqual({1, list_to_binary(Refusal)}, Run(["--config-dir ", Lone, " ", Main])),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
 %% report §8.7: a node runs over its listener's family of addresses, IPv6
@@ -2787,8 +2943,9 @@ lost_build(Root) ->
 %% is given, answers the request for its reach with that hash and the
 %% other's, and sends the other's code frame, read from the file it is
 %% given, or a frame its bytes do not match; its gateway is its own
-%% process, which the node sends its frames to (report §8.7). Each step it
-%% sees, a line.
+%% process, which the node sends its frames to (report §8.7), and each of
+%% its spawns waits the milliseconds its command line gives, the harness's
+%% time for one wait. Each step it sees, a line.
 spawner() ->
     <<"
 -module(ern_nodes_spawner).
@@ -2848,7 +3005,8 @@ sent(Node, Body) ->
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Body}).
 spawned(Node, Hash) ->
     Ref = make_ref(),
-    sent(Node, {spawn, Ref, {function, Hash}, <<\"Lost.z:1\">>, false}),
+    sent(Node, {spawn, Ref, {function, Hash}, <<\"Lost.z:1\">>, false,
+                list_to_integer(argument(ern_nodes_ms))}),
     Ref.
 requested() ->
     receive {ern_frame, _, {reach_request, Exchange, _}} -> Exchange end.
@@ -2872,9 +3030,10 @@ caught_up(Node) ->
 %% connection closed before the reach was whole, a new exchange lacks it
 %% again, as it lacked it before; and then a peer of the program's, whose
 %% first spawn gives up before its exchange ends, its time a millisecond,
-%% spawns the function again and it runs, from the one unit the node made,
-%% `ern$1`, whose name its fault's trace shows: the exchanges that broke
-%% made none, and the late one made it whole. A regression test, written
+%% which the node then drops at that time, saying so, spawns the function
+%% again and it runs, from the one unit the node made, `ern$1`, whose name
+%% its fault's trace shows: the exchanges that broke or ran out of time
+%% made none, and the next made it whole. A regression test, written
 %% after the code; the exchange's state after a loss is ern_exchange_tests'
 %% loss_test's, and the late spawn's process, killed as its answer
 %% arrives, is not observed
@@ -2908,7 +3067,7 @@ broken_exchange(Base) ->
     PortB = bound_port(B),
     {_, Spawner} = client(Root, name(Z), key_files(Z), ern_carrier:cookie(), PortB, name(B),
                           ["-ern_nodes_hash", binary_to_list(binary:encode_hex(Waits)),
-                           "-ern_nodes_frame", Frame],
+                           "-ern_nodes_frame", Frame, "-ern_nodes_ms", integer_to_list(?WAIT_MS)],
                           "ern_nodes_spawner"),
     {0, SpawnerOut} = Spawner(),
     [has(SpawnerOut, Line) || Line <- ["no longer held: Other", "late frame: the connection lives",
@@ -2927,6 +3086,8 @@ broken_exchange(Base) ->
     [has(ErrB, Line)
      || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
                  " holds the function's reach",
+                 "the peer a's spawn at Lost.late:" ++ integer_to_list(line_of(Source, "late: "))
+                 ++ " was not loaded: its time ran out before the function's reach arrived",
                  "the peer z sent a frame this node cannot read, and its connection was ended",
                  "'ern$1':'Lost.waits'/0"]],
     [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["'ern$2'", "could not take"]],

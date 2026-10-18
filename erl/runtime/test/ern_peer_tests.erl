@@ -9,6 +9,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
+%% Report §8.7: the milliseconds a spawn's or a compute's frame says its
+%% sender waits, here a stand-in's; eunit's time for one test, which no
+%% test here outlasts.
+-define(MS, 5000).
+
 %% report §8.7: a spawn's answer goes to the process that waits for it, and
 %% one that comes after the spawner stopped waiting ends the process it
 %% names
@@ -192,11 +197,12 @@ pick_test() ->
             end).
 
 %% report §8.7, Appendix E.27, §7.4: `Peer.setUtilization` sets the
-%% utilization the node tells and answers, on the scale from 0.0 to 1.0,
-%% its ends among it, a later one in its place; a number outside the scale
-%% faults the caller and sets nothing. The launch's table, which a launch
-%% makes, stands in for one here. A regression test, written after the
-%% code
+%% utilization the node tells and answers, at or above 0.0, 1.0 and work
+%% waiting above it among them, a later one in its place; a number below
+%% 0.0 faults the caller and sets nothing. The launch's table, which a
+%% launch makes, stands in for one here. A regression test, written after
+%% the code; the numbers above 1.0 since the release review before 0.4.0,
+%% which found them refused
 set_utilization_test() ->
     undefined = ets:whereis(ern_launch),
     ern_launch = ets:new(ern_launch, [named_table, public]),
@@ -205,10 +211,10 @@ set_utilization_test() ->
         [begin
              ?assertEqual('Unit', ern_peer:set_utilization(Utilization)),
              ?assertEqual(Utilization, ern_rt:program_utilization())
-         end || Utilization <- [0.0, 1.0, 0.25]],
-        [?assertThrow({ern, fault, <<"a utilization is from 0.0 to 1.0">>},
+         end || Utilization <- [0.0, 1.0, 1.5, 0.25]],
+        [?assertThrow({ern, fault, <<"a utilization is 0.0 or above">>},
                       ern_peer:set_utilization(Utilization))
-         || Utilization <- [1.5, -0.25, 1.0000001]],
+         || Utilization <- [-0.25, -1.0e-9]],
         ?assertEqual(0.25, ern_rt:program_utilization())
     after
         ets:delete(ern_launch)
@@ -237,16 +243,18 @@ faulty_fields_test() ->
                      {find, 1, <<"Int">>, make_ref()},
                      {adapted, {adapted, Wrap, Here, Elsewhere, make_ref()}, 1},
                      {adapted, not_an_address, 1},
-                     {spawn, make_ref(), not_a_function, <<"s">>, false},
-                     {spawn, make_ref(), {function, <<"short">>}, <<"s">>, false},
-                     {spawn, make_ref(), {lambda, <<0:256>>, 0, []}, <<"s">>, false},
-                     {spawn, make_ref(), {foreign, []}, <<"s">>, false},
-                     {spawn, make_ref(), {foreign, [peer, tests]}, <<"s">>, false},
+                     {spawn, make_ref(), not_a_function, <<"s">>, false, ?MS},
+                     {spawn, make_ref(), {function, <<"short">>}, <<"s">>, false, ?MS},
+                     {spawn, make_ref(), {lambda, <<0:256>>, 0, []}, <<"s">>, false, ?MS},
+                     {spawn, make_ref(), {foreign, []}, <<"s">>, false, ?MS},
+                     {spawn, make_ref(), {foreign, [peer, tests]}, <<"s">>, false, ?MS},
                      {spawn, make_ref(), {restarting, 'Unlimited',
                                           {restarting, 'Unlimited', {function, <<0:256>>}}},
-                      <<"s">>, false},
+                      <<"s">>, false, ?MS},
                      {spawn, make_ref(), {restarting, forever, {function, <<0:256>>}}, <<"s">>,
-                      false},
+                      false, ?MS},
+                     %% a spawn whose milliseconds are not a whole number
+                     {spawn, make_ref(), {function, <<0:256>>}, <<"s">>, false, 1.5},
                      %% a telling the gateway does not hold, its utilization
                      %% or its interval out of shape, which it leaves to the
                      %% worker
@@ -272,7 +280,7 @@ no_run_test() ->
         ?assertEqual({Alias, 'Unreachable'}, receive {Alias, _} = Found -> Found end),
         Ref = make_ref(),
         Quiet = {function, maps:get(['Peerquiet', quiet], Hashes)},
-        ok = ern_peer:frame(self(), {spawn, Ref, Quiet, <<"M.f:1">>, false}),
+        ok = ern_peer:frame(self(), {spawn, Ref, Quiet, <<"M.f:1">>, false, ?MS}),
         ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
                      receive {ern_frame, _, Body} -> Body end),
         %% the reaper of a run that has ended answers nothing
@@ -322,7 +330,7 @@ spawn_by_identity_test() ->
                Spawn = fun(Spawned) ->
                            Ref = make_ref(),
                            Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>,
-                                                          false}),
+                                                          false, ?MS}),
                            receive {ern_frame, _, {answer, Ref, Answer}} -> {Answer, Read} end
                        end,
                {LambdaHash, Position, 1} = Lambda,
@@ -333,8 +341,9 @@ spawn_by_identity_test() ->
                          Spawn({foreign, [<<"Peerreach">>, <<"missing">>]})],
                Wrong = ern_peer:frame(self(), {spawn, make_ref(),
                                                {lambda, LambdaHash, Position, []},
-                                               <<"M.f:1">>, false}),
-               Lacking = [ern_peer:frame(self(), {spawn, make_ref(), Lacked, <<"M.f:1">>, false})
+                                               <<"M.f:1">>, false, ?MS}),
+               Lacking = [ern_peer:frame(self(), {spawn, make_ref(), Lacked, <<"M.f:1">>, false,
+                                                  ?MS})
                           || Lacked <- [{function, <<7:256>>}, {lambda, <<8:256>>, 2, [1]},
                                         {restarting, 'Unlimited', {function, <<9:256>>}},
                                         {foreign, [<<"Peernone">>, <<"never">>]}]],
@@ -487,7 +496,7 @@ computed_here_test() ->
                              ok = ern_rt:note_compute(self(), Alias),
                              Before(Alias),
                              Read = ern_peer:frame(self(), {compute, Alias, Identity(Name),
-                                                            <<"M.f:1">>}),
+                                                            <<"M.f:1">>, ?MS}),
                              {Read, Alias}
                          end,
                Plain = fun(_) -> ok end,
@@ -576,7 +585,8 @@ computed_restarting_test() ->
                Compute = fun(Spawned) ->
                              Alias = erlang:alias([reply]),
                              ok = ern_rt:note_compute(self(), Alias),
-                             ok = ern_peer:frame(self(), {compute, Alias, Spawned, <<"M.f:1">>}),
+                             ok = ern_peer:frame(self(),
+                                                 {compute, Alias, Spawned, <<"M.f:1">>, ?MS}),
                              Answer(Alias)
                          end,
                Restarted = Compute({restarting, {'RestartLimit', 1, 60000}, Identity(flaky)}),
@@ -608,10 +618,10 @@ computed_restarting_test() ->
 %% regression test, written after the code
 compute_caller_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>} end,
+    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
     Gateway = fun Gateway(Told, Answers) ->
                   receive
-                      {ern_frame, From, {compute, Alias, _, _}} ->
+                      {ern_frame, From, {compute, Alias, _, _, _}} ->
                           Told ! {noted, From},
                           case Answers of
                               [Answer | Rest] ->
@@ -702,7 +712,7 @@ group_binding_test() ->
                true = register(ern_gateway, self()),
                Ref = make_ref(),
                Spawned = {function, maps:get(['Peergroup', ordered], Hashes)},
-               Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>, false}),
+               Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>, false, ?MS}),
                receive {ern_frame, _, {answer, Ref, Answer}} -> Self ! {spawned, Answer, Read} end
            end,
     try

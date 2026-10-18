@@ -1060,7 +1060,7 @@ $ ern build example.ern
 example.ern:1:13: constructor String is named as the type String
 1 | type Word = String
   |             ^^^^^^
-  | = help: there are no type aliases (§3.1)
+  | = help: there are no type aliases (report §3.1)
 ```
 
 ### A field named twice in a constructor (§3.5)
@@ -1593,7 +1593,7 @@ example.ern:3:8: f is exported and its type names Box, which this module keeps p
 2 | 
 3 | export fn f() : Box = Box(1)
   |        ^^^^^^^^^^^^^^^^^^^^^
-  | = help: export Box, or declare it `abstract type` so that its constructors stay private (§4.4)
+  | = help: export Box, or declare it `abstract type` so that its constructors stay private (report §4.4)
 ```
 
 ## Fields and construction (report §3.5, §5.6)
@@ -1955,7 +1955,7 @@ example.ern:3:41: `Prelude.Set` names no namespace: `Prelude.` reaches one of th
 2 | 
 3 | let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)
   |                                         ^^^^^^^^^^^
-  | = help: write the namespace after `..` as it is, `..Set` (§5.6)
+  | = help: write the namespace after `..` as it is, `..Set` (report §5.6)
 ```
 
 ### A filled field of another type (§5.6)
@@ -2463,7 +2463,7 @@ fn sum(list : List(a)) : a needs a.zero, a.+ =
 
 ```console
 $ ern build example.ern
-example.ern:1:34: zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)
+example.ern:1:34: zero is not a member: a requirement names compare, negate, an operator or show (report §4.8, E.1)
 1 | fn sum(list : List(a)) : a needs a.zero, a.+ =
   |                                  ^^^^^^
 ```
@@ -2904,7 +2904,7 @@ fn f(x) = if x then f(1) else 2
 
 ```console
 $ ern build example.ern
-example.ern:1:23: the argument of a recursive call does not fit f at its own type (§3.9): expected Bool, found Int
+example.ern:1:23: the argument of a recursive call does not fit f at its own type (report §3.9): expected Bool, found Int
 1 | fn f(x) = if x then f(1) else 2
   |                     - f : (Bool) -> a
   |                       ^
@@ -3210,7 +3210,7 @@ $ ern build example.ern
 example.ern:8:16: wait needs a mailbox, and a guard receives nothing
 7 |     match n {
 8 |         k when wait() -> k
-  |                ------ a guard receives nothing (§5.9)
+  |                ------ a guard receives nothing (report §5.9)
   |                ^^^^^^
   | = help: compute the value before the match
 ```
@@ -3860,7 +3860,7 @@ example.ern:3:16: a `receive` guard combines `true`, `false`, Bool variables, an
 2 |     receive {
 3 |         b when Bool.not(b) -> 1
   |                ^^^^^^^^^^^
-  | = help: receive the message and `match` it
+  | = help: bind what the guard needs with a `let` before the `receive` and compare that; or receive the message and `match` it, which takes it out of the mailbox
 ```
 
 ### A `receive` guard that compares a computed value (§6.3)
@@ -3894,7 +3894,7 @@ $ ern build example.ern
 example.ern:1:49: Peer.service names a service at a message type known whole, and here it is m
 1 | fn serviceOf(name : String) : Peer.Service(m) = Peer.service(name)
   |                                                 ^^^^^^^^^^^^
-  | = help: annotate the service where it is bound, `let service : Peer.Service(Msg) = Peer.service("name")` (§3.11)
+  | = help: annotate the service where it is bound, `let service : Peer.Service(Msg) = Peer.service("name")` (report §3.11)
 ```
 
 ### A service at a type bound to its node (§3.11)
@@ -3911,7 +3911,7 @@ example.ern:3:35: Peer.service names a service at Msg, which is bound to its nod
 2 | 
 3 | let service : Peer.Service(Msg) = Peer.service("jobs")
   |                                   ^^^^^^^^^^^^
-  | = help: a service's message type crosses to the node's peers, so the process offered as the service receives values that cross (§3.11)
+  | = help: a service's message type crosses to the node's peers, so the process offered as the service receives values that cross (report §3.11)
 ```
 
 ### `Peer.spawn` taken as a value (§3.11)
@@ -3929,7 +3929,7 @@ example.ern:2:17: Peer.spawn is called where it is named, so that the compiler s
 1 | fn starter() : Unit = {
 2 |     let start = Peer.spawn;
   |                 ^^^^^^^^^^
-  | = help: call it: `Peer.spawn(name, fn() = ..., ms)` (§3.11)
+  | = help: call it: `Peer.spawn(name, fn() = ..., ms)` (report §3.11)
 ```
 
 ### A spawn on a peer of a function that came as a value (§3.11)
@@ -3947,7 +3947,7 @@ example.ern:2:30: Peer.spawn starts f, a function that came as a value, whose ca
 1 | fn startOn(name : String, f : () -> Unit) : Unit = {
 2 |     let _ = Peer.spawn(name, f, 1000);
   |                              ^
-  | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (§3.11)
+  | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (report §3.11)
 ```
 
 ### A spawn on a peer of a top-level `let` (§3.11)
@@ -3967,7 +3967,7 @@ example.ern:4:34: Peer.spawn starts job, a top-level `let`, whose value may hold
 3 | fn start() : Unit = {
 4 |     let _ = Peer.spawn("worker", job, 1000);
   |                                  ^^^
-  | = help: declare it with `fn`, or write a lambda at the spawn (§3.11)
+  | = help: declare it with `fn`, or write a lambda at the spawn (report §3.11)
 ```
 
 ### A spawn on a peer of a function a call answers (§3.11)
@@ -3987,7 +3987,7 @@ example.ern:4:34: Peer.spawn starts a function written where the compiler sees w
 3 | fn start() : Unit = {
 4 |     let _ = Peer.spawn("worker", job(), 1000);
   |                                  ^^^^^
-  | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (§3.11)
+  | = help: write the lambda at the spawn, bind it with `let`, or declare it with `fn`, in this definition (report §3.11)
 ```
 
 ### A capture whose type holds a type variable (§3.11, §3.9)
@@ -4006,7 +4006,7 @@ example.ern:2:71: the function Peer.spawn starts captures values, whose type Lis
 1 | fn startWith(name : String, values : List(a)) : Unit = {
 2 |     let _ = Peer.spawn(name, fn() = Io.println(Int.toString(List.size(values))),
   |                                                                       ^^^^^^
-  | = help: a value a spawn on a peer captures has a type known whole, since a type variable could stand for one bound to its node (§3.11)
+  | = help: a value a spawn on a peer captures has a type known whole, since a type variable could stand for one bound to its node (report §3.11)
 ```
 
 ### A capture of a type bound to its node (§3.11)
@@ -4024,7 +4024,7 @@ example.ern:2:48: the function Peer.spawn starts captures describe, a function, 
 1 | fn startWith(name : String, describe : (Int) -> String) : Unit = {
 2 |     let _ = Peer.spawn(name, fn() = Io.println(describe(1)), 1000);
   |                                                ^^^^^^^^
-  | = help: a value of a bound type never crosses to another node; give the process what crosses (§3.11)
+  | = help: a value of a bound type never crosses to another node; give the process what crosses (report §3.11)
 ```
 
 ### A spawned function that uses a member of the requirement in force (§3.11)
@@ -4045,7 +4045,7 @@ example.ern:2:30: Peer.spawn starts a function that uses a.show, a member of the
 1 | fn startWith(name : String, sample : a) : Unit needs a.show = {
 2 |     let _ = Peer.spawn(name, fn() = {
   |                              ^^^^^^^^
-  | = help: give the process what it needs as a value it captures, or spawn on this node (§3.11)
+  | = help: give the process what it needs as a value it captures, or spawn on this node (report §3.11)
 ```
 
 ### A spawned process whose mailbox type is not known whole (§3.11)
@@ -4066,7 +4066,7 @@ example.ern:7:26: Peer.spawn starts a process whose mailbox type a is not known 
 6 | fn start() : Either(Io.Error, Address(a)) =
 7 |     Peer.spawn("worker", idle, 1000)
   |                          ^^^^
-  | = help: give the function its mailbox type, `fn() : Unit receiving Msg = ...`: an instance of this definition could make the variable a type bound to its node (§3.11)
+  | = help: give the function its mailbox type, `fn() : Unit receiving Msg = ...`: an instance of this definition could make the variable a type bound to its node (report §3.11)
 ```
 
 ### A spawned process whose mailbox type is bound to its node (§3.11)
@@ -4091,7 +4091,7 @@ example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to
 8 | fn start() : Unit = {
 9 |     let _ = Peer.spawn("worker", serve, 1000);
   |                                  ^^^^^
-  | = help: the spawn answers an address that may cross to another node, so its messages are values that cross (§3.11)
+  | = help: the spawn answers an address that may cross to another node, so its messages are values that cross (report §3.11)
 ```
 
 ### A compute whose function answers a value bound to its node (§3.11)
@@ -4109,7 +4109,7 @@ example.ern:2:26: Peer.compute answers a value of type (Int) -> Int, which is bo
 1 | fn adder() : Unit = {
 2 |     let _ = Peer.compute(fn() = fn(n : Int) = n + 1, 1000);
   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: the value crosses back to this node, so its type is one that crosses; answer what crosses (§3.11)
+  | = help: the value crosses back to this node, so its type is one that crosses; answer what crosses (report §3.11)
 ```
 
 ### A compute whose function's result type holds a type variable (§3.11, §3.9)
@@ -4127,7 +4127,7 @@ example.ern:2:38: Peer.computeAt answers a value of type List(a), which holds a 
 1 | fn empties() : Unit = {
 2 |     let _ = Peer.computeAt("worker", fn() = [], 1000);
   |                                      ^^^^^^^^^
-  | = help: give the function its result type, `fn() : Int = ...`: the value crosses back to this node, and its type is known whole where the compute is written (§3.11)
+  | = help: give the function its result type, `fn() : Int = ...`: the value crosses back to this node, and its type is known whole where the compute is written (report §3.11)
 ```
 
 ### A compute's process whose mailbox type is bound to its node (§3.11)
@@ -4152,7 +4152,7 @@ example.ern:9:38: Peer.computeAt starts a process whose mailbox type Msg is boun
 8 | fn start() : Unit = {
 9 |     let _ = Peer.computeAt("worker", serve, 1000);
   |                                      ^^^^^
-  | = help: the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses (§3.11)
+  | = help: the function a peer runs, a compute's as a spawn's, has a mailbox type that crosses (report §3.11)
 ```
 
 ### `Peer.compute` taken as a value (§3.11)
@@ -4170,7 +4170,7 @@ example.ern:2:15: Peer.compute is called where it is named, so that the compiler
 1 | fn computer() : Unit = {
 2 |     let run = Peer.compute;
   |               ^^^^^^^^^^^^
-  | = help: call it: `Peer.compute(fn() = ..., ms)` (§3.11)
+  | = help: call it: `Peer.compute(fn() = ..., ms)` (report §3.11)
 ```
 
 ### `Code.running` taken as a value (§3.11)
@@ -4188,7 +4188,7 @@ example.ern:2:16: Code.running is called where it is named, so that the compiler
 1 | fn lister() : Unit = {
 2 |     let list = Code.running;
   |                ^^^^^^^^^^^^
-  | = help: call it: `Code.running(f)`, `f` a top-level `fn` (§3.11)
+  | = help: call it: `Code.running(f)`, `f` a top-level `fn` (report §3.11)
 ```
 
 ### `Code.running` of a local (§3.11)
@@ -4213,7 +4213,7 @@ example.ern:10:31: Code.running lists the processes that run a declaration, and 
  9 |     let f = loop;
 10 |     List.forEach(Code.running(f), fn(process) = send(process, Stop))
    |                               ^
-   | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
+   | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (report §3.11)
 ```
 
 ### `Code.running` of a lambda (§3.11)
@@ -4229,7 +4229,7 @@ example.ern:2:28: Code.running lists the processes that run a declaration, named
 1 | fn listed() : Int =
 2 |     List.size(Code.running(fn() = Unit))
   |                            ^^^^^^^^^^^
-  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
+  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (report §3.11)
 ```
 
 ### `Code.running` of a top-level `let` (§3.11)
@@ -4247,7 +4247,7 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and l
 3 | fn listed() : Int =
 4 |     List.size(Code.running(loop))
   |                            ^^^^
-  | = help: declare the function with `fn` and name it: `Code.running(count)` (§3.11)
+  | = help: declare the function with `fn` and name it: `Code.running(count)` (report §3.11)
 ```
 
 ### `Code.running` of a foreign declaration (§3.11)
@@ -4265,7 +4265,7 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and w
 3 | fn listed() : Int =
 4 |     List.size(Code.running(waits))
   |                            ^^^^^
-  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
+  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (report §3.11)
 ```
 
 ### `Code.running` of the prelude's function (§3.11)
@@ -4281,7 +4281,7 @@ example.ern:2:28: Code.running lists the processes that run a declaration, and s
 1 | fn listed() : Int =
 2 |     List.size(Code.running(spawn))
   |                            ^^^^^
-  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (§3.11)
+  | = help: name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (report §3.11)
 ```
 
 ### `Code.running` of a function whose result type is not `Unit` (§3.11)
@@ -4302,7 +4302,7 @@ example.ern:7:28: Code.running lists the processes that run total, whose result 
 6 | fn listed() : Int =
 7 |     List.size(Code.running(total))
   |                            ^^^^^
-  | = help: a process runs a function whose result type is `Unit` (§3.11)
+  | = help: a process runs a function whose result type is `Unit` (report §3.11)
 ```
 
 ### `Code.running` of a function whose mailbox type holds a type variable (§3.11)
@@ -4323,5 +4323,5 @@ example.ern:7:28: Code.running lists the processes that run say, whose mailbox t
 6 | fn listed() : Int =
 7 |     List.size(Code.running(say))
   |                            ^^^
-  | = help: give say its mailbox type, `fn say(...) : Unit receiving Msg = ...`: every process listed has it (§3.11)
+  | = help: give say its mailbox type, `fn say(...) : Unit receiving Msg = ...`: every process listed has it (report §3.11)
 ```

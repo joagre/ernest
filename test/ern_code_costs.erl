@@ -383,9 +383,9 @@ reach_name(Size, Variant, Place) ->
     io_lib:format("r~Bv~Bd~B", [Size, Variant, Place]).
 
 %% A function that spawns or computes, on the peer it is given, the function
-%% of the case its argument names.
+%% of the case its argument names; it receives nothing (report §3.9).
 dispatch(Name, Parameter, Answer, Form, Cases) ->
-    [io_lib:format("export fn ~s(peer : String, ~s : Int) : Either(Io.Error, ~s) receiving m =~n"
+    [io_lib:format("export fn ~s(peer : String, ~s : Int) : Either(Io.Error, ~s) =~n"
                    "    match ~s {~n", [Name, Parameter, Answer, Parameter]),
      lists:join("      | ", [io_lib:format("~s -> ~s(peer, ~s, 30000)~n", [Case, Form, Function])
                              || {Case, Function} <- Cases]),

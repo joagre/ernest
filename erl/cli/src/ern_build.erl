@@ -583,7 +583,7 @@ namespace_clash(#build_module{namespace = Namespace, relative = Relative,
 clash(SourceRoot, ChildRelative, Type, ParentRelative, Namespace) ->
     fail(shown(filename:join(SourceRoot, ChildRelative)) ++ " and type " ++ atom_to_list(Type)
          ++ " in " ++ shown(filename:join(SourceRoot, ParentRelative))
-         ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (§4.2)").
+         ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (report §4.2)").
 
 %% The types a source declares: as the build parsed it, where it is a
 %% module of the build, else parsed here.

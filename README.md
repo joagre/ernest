@@ -12,7 +12,7 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 
 Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
 
-What Ernest adds is where the parts meet, five claims that [Why Ernest](guide/why.md) argues with a program for each:
+What Ernest adds is where the parts meet, five claims that [Why Ernest](guide/why.md) argues, with a program for each but the last:
 
 - **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives says what it receives, and the compiler checks every message against the mailbox it will reach.
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
@@ -22,7 +22,7 @@ What Ernest adds is where the parts meet, five claims that [Why Ernest](guide/wh
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
 
-A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs. `counter` is bound at the top of the module under `restarting`, so any module sends to it by name, and a fault starts it again with the address kept:
+A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs. `counter` is bound at the top of the module under `restarting(Unlimited, f)`, which runs `f` again after every fault in the same process, so any module sends to it by name and a fault keeps the address:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -49,6 +49,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
+```console
+$ ern run counter.erc
+count is 8
+```
+
 `main` receives nothing, so its type names no mailbox. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits at most 1000 milliseconds: `None` is an answer that did not come. The same counter on a node that holds none of its code, and the rest of the argument, is [Why Ernest](guide/why.md).
 
 ## Where it stands
@@ -70,7 +75,7 @@ ern shell                          # :quit to leave
 man ern                            # the toolchain; man Ernest.List for a module
 ```
 
-Or from a release: download `ern-<version>.tar.gz` from the [releases page](https://github.com/joagre/ernest/releases), and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive is compiled where it is installed.
+Or from a release: download `ern-<version>.tar.gz` from the [releases page](https://github.com/joagre/ernest/releases), and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 
 Two nodes on one machine take three more commands: `ern config` makes a node's directory with its key, `ern run --config-dir` starts the node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
 
@@ -81,7 +86,7 @@ Two nodes on one machine take three more commands: `ern config` makes a node's d
 - **[The guide](guide/language.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here. Beside it, [Why Ernest](guide/why.md) is the argument for the design, and [the questions](guide/faq.md) answer what a reader of another BEAM language asks first.
 - **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, its peers, and a running program given new code.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them by topic, with what each shows.
-- **[The manual pages](docs/man/)**, as `make man` last wrote them from `main`, the prelude's, every standard library module's and every library's, as `man Ernest.List` shows them where Ernest is installed.
+- **[The manual pages](docs/man/)**, as Markdown: the prelude's, every standard library module's and every library's, which `man Ernest.List` shows where Ernest is installed.
 - **[The report](report/language.md)** is where the details are: the language's definition, which everything else defers to, in three files under `report/`, the language, the toolchain and the standard library.
 - **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain, and says how the repository is laid out: `report/` and `guide/` are the language, `src/` holds the Ernest a release ships and `erl/` the Erlang, `editors/` holds the editor modes, and `docs/` every other document.
 

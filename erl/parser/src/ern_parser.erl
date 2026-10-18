@@ -433,7 +433,7 @@ member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Res
     {Line, Column, _, _} = Position,
     {_, _, End, _} = NamePosition,
     NoMember = atom_to_list(Name) ++ " is not a member: a requirement names compare, negate, an"
-               " operator or show (§4.8, E.1)",
+               " operator or show (report §4.8, E.1)",
     lists:member(Name, [compare, negate, show]) orelse fail({Line, Column, End}, NoMember),
     spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
 member([{ident, _, _}, {'.', _}, Token | _]) ->

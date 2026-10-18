@@ -1485,7 +1485,7 @@ entry_point(Options, Namespace) ->
                         Given -> main_of(Given, Namespace)
                     end,
     Name = ern_namespace:text(Namespace ++ [EntryFunction]),
-    Shape = "; an entry point is an exported fn of type () -> Unit (§8.1)",
+    Shape = "; an entry point is an exported fn of type () -> Unit (report §8.1)",
     case entry_shape(ern_namespace:erlang_module(Namespace), EntryFunction) of
         entry -> ok;
         missing -> ern_build:fail("no exported function " ++ Name ++ Shape);
@@ -1621,14 +1621,30 @@ no_cycle(Namespace, Waiting) ->
 %% Report §8.7: every compiled module on the load path loaded, as the
 %% modules a program uses are, with the same checks, and none initialized.
 whole_build(LoadPath) ->
-    Namespaces = [Namespace
+    Namespaces = [placed(Root, File, Beam, Namespace)
                   || Root <- LoadPath, File <- ern_build:compiled_under(Root),
+                     Beam <- [ern_build:read(File)],
                      {ok, #{interface := #interface{namespace = Namespace}}}
-                         <- [ern_interface:read(ern_build:read(File))]],
+                         <- [ern_interface:read(Beam)]],
     Loaded = [ErlangModule || {ErlangModule, _} <- code:all_loaded()],
     lists:foldl(fun(Namespace, Acc) -> load(Namespace, LoadPath, Acc, node) end, Loaded,
                 Namespaces),
     ok.
+
+%% Report §11.2: the namespace of a compiled module of the load path, which
+%% stands at the path of its namespace under its root; one at another
+%% module's path is refused as a program's load refuses it, naming the file
+%% and the module it holds (held_chunk/3), and not as the module its
+%% namespace names, missing at its own path.
+placed(Root, File, Beam, Namespace) ->
+    case filename:join(Root, ern_build:module_path(Namespace) ++ ".erc") =:= File of
+        true ->
+            Namespace;
+        false ->
+            Components = filename:split(filename:rootname(ern_build:relative(File, Root))),
+            _ = held_chunk(ern_namespace:namespace(Components), File, Beam),
+            Namespace
+    end.
 
 %% Report §11.2: a module's compiled form, found by its namespace on the
 %% load path. One the path lacks is named with the module that uses it;

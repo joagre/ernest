@@ -1161,7 +1161,9 @@ constructors(QualifiedName, ScopeConstructors, #session{interfaces = Interfaces}
              maps:get(Name, ScopeConstructors, none) =:= ConstructorQualifiedName].
 
 %% Report §11.2, §4.2: the exports of a module in scope, its types and then
-%% its values, each with its type as §11.5 prints it.
+%% its values, each with its type as §11.5 prints it; the prelude's, and
+%% the prelude's functions under a namespace that is no module's, `Address`
+%% (§9).
 -spec browse(#session{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
 browse(Session, Text) ->
     case module_name(Session, Text) of
@@ -1191,6 +1193,17 @@ prelude_listing(#session{prelude = Env}) ->
                                           ern_types:format_scheme(Scheme, TypeState)])
             || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values(Env) ++ Shown)].
 
+%% Report §11.2, §9: the prelude's functions under a namespace no module
+%% of the session's or the standard library's has, `Address.call` and
+%% `Address.callForever`, each with its type, as `:browse Prelude` lists
+%% them; none for any other namespace.
+prelude_namespace_listing(Namespace, #session{prelude = Env}) ->
+    TypeState = ern_typecheck:type_state(Env),
+    [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
+                                   ern_types:format_scheme(Scheme, TypeState)])
+     || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values(Env)),
+        lists:droplast(QualifiedName) =:= Namespace].
+
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
 browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
@@ -1198,8 +1211,13 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
     InScope = Interfaces ++ ern_prelude:stdlib_interfaces(),
     case [Interface || #interface{namespace = Found} = Interface <- InScope, Found =:= Namespace] of
         [] ->
-            {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope",
-                       (load_suffix(Session, Text))/binary>>};
+            case prelude_namespace_listing(Namespace, Session) of
+                [] ->
+                    {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope",
+                               (load_suffix(Session, Text))/binary>>};
+                Lines ->
+                    {'Right', Lines}
+            end;
         Found ->
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
             ScopeState = ern_typecheck:scope_state(checked_interfaces(Session) ++ [Last],

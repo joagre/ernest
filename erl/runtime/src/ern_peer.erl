@@ -23,7 +23,8 @@
 -export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          picked/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
-         hold_utilization/3, drop_utilization/1, frame/2, failed/4, reach_lacked/2,
+         hold_utilization/3, drop_utilization/1, frame/2, failed/4, unstarted/2, ms/1,
+         reach_lacked/2,
          foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
@@ -214,10 +215,12 @@ spawn_monitored(_Name, _Function, _Wrap, _Ms) ->
 spawn_monitored(Name, Spawned, Wrap, Ms, Site) ->
     spawned(Name, Spawned, Wrap, Ms, Site).
 
-%% The spawn: its frame to the peer's gateway, whose answer comes through
-%% this node's gateway to the waiting process while it waits; a monitored
-%% spawn's process waits on the peer until its monitor is made, so that it
-%% is monitored from its start, and a failed one leaves no monitor.
+%% The spawn: its frame to the peer's gateway, carrying the milliseconds
+%% the spawner waits, by which the peer's exchange gives up a reach that
+%% does not arrive (ern_exchange), whose answer comes through this node's
+%% gateway to the waiting process while it waits; a monitored spawn's
+%% process waits on the peer until its monitor is made, so that it is
+%% monitored from its start, and a failed one leaves no monitor.
 spawned(Name, Spawned, Wrap, Ms, Site) ->
     case node_of(Name) of
         none ->
@@ -232,7 +235,7 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
             Gateway = {ern_gateway, Node},
             MonitorRef = erlang:monitor(process, Gateway),
             erlang:send(Gateway, {ern_frame, erlang:self(),
-                                  {spawn, Ref, Spawned, Site, Wrap =/= none}}),
+                                  {spawn, Ref, Spawned, Site, Wrap =/= none, Ms}}),
             Answer = spawn_answer({Node, Ref}, MonitorRef, Deadline),
             erlang:demonitor(MonitorRef, [flush]),
             started(Answer, Ref, Wrap)
@@ -309,9 +312,11 @@ compute_at(Name, Spawned, Ms, Site) ->
     end.
 
 %% The compute on the peer's node, whose frame is the call's first note,
-%% and whose wait is a call's (ern_rt:compute/3).
+%% carrying the milliseconds the caller waits as a spawn's frame does, and
+%% whose wait is a call's (ern_rt:compute/3).
 computed(Node, Spawned, Ms, Site) ->
-    ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Site} end, ern_rt:deadline(Ms)).
+    ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Site, Ms} end,
+                   ern_rt:deadline(Ms)).
 
 %% Report §8.7: the peer a compute that names none runs on, the one
 %% picked: of the peers whose utilization this node may use, each heard
@@ -406,14 +411,15 @@ held(Node) ->
     end.
 
 %% Report §8.7, Appendix E.27, §7.4: the utilization this node tells its
-%% peers and answers them from now on, set by its program, on the scale
-%% from 0.0 to 1.0; one outside it faults the caller.
+%% peers and answers them from now on, set by its program, on the node's
+%% scale, 1.0 every scheduler busy and above it work waiting, at or above
+%% 0.0; one below faults the caller.
 -spec set_utilization(float()) -> 'Unit'.
-set_utilization(Utilization) when Utilization >= 0.0, Utilization =< 1.0 ->
+set_utilization(Utilization) when Utilization >= 0.0 ->
     ok = ern_rt:set_utilization(Utilization),
     'Unit';
 set_utilization(_Utilization) ->
-    ern_rt:fault(<<"a utilization is from 0.0 to 1.0">>).
+    ern_rt:fault(<<"a utilization is 0.0 or above">>).
 
 %% Report §8.7: a peer's telling, held by the gateway as it comes, its
 %% utilization, the moment it came and the peer's interval, in place of the
@@ -466,8 +472,8 @@ frame(_From, {find, Name, Hash, Alias})
 %% report §8.7: a spawn's site is the spawner's words, read as UTF-8 here,
 %% once, as the frame arrives: a site that is not is a frame no compiler
 %% writes, which this node cannot read
-frame(From, {spawn, Ref, Spawned, Site, Monitored})
-  when is_reference(Ref), is_binary(Site), is_boolean(Monitored) ->
+frame(From, {spawn, Ref, Spawned, Site, Monitored, Ms})
+  when is_reference(Ref), is_binary(Site), is_boolean(Monitored), is_integer(Ms) ->
     case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
         false ->
             unreadable;
@@ -482,8 +488,8 @@ frame(From, {spawn, Ref, Spawned, Site, Monitored})
             Read
     end;
 %% report §8.7: a compute's site, read as a spawn's is
-frame(From, {compute, Alias, Spawned, Site})
-  when is_reference(Alias), node(Alias) =:= node(From), is_binary(Site) ->
+frame(From, {compute, Alias, Spawned, Site, Ms})
+  when is_reference(Alias), node(Alias) =:= node(From), is_binary(Site), is_integer(Ms) ->
     case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
         false ->
             unreadable;
@@ -573,13 +579,30 @@ not_loaded(Kind, Site, Lacked) ->
 %% says of it, Lacked being what it lacked or why it did not start it.
 -spec failed(pid(), tuple(), 'NotLoaded' | {'Other', binary()}, iodata()) ->
           {not_loaded, spawn | compute, binary(), iodata()}.
-failed(From, {spawn, Ref, _Spawned, Site, _Monitored}, Error, Lacked) ->
+failed(From, {spawn, Ref, _Spawned, _Site, _Monitored, _Ms} = Body, Error, Lacked) ->
     erlang:send({ern_gateway, node(From)},
                 {ern_frame, erlang:self(), {answer, Ref, {failed, Error}}}),
-    {not_loaded, spawn, Site, Lacked};
-failed(_From, {compute, Alias, _Spawned, Site}, Error, Lacked) ->
+    unstarted(Body, Lacked);
+failed(_From, {compute, Alias, _Spawned, _Site, _Ms} = Body, Error, Lacked) ->
     ern_rt:computed(Alias, Error),
+    unstarted(Body, Lacked).
+
+%% Report §8.7: what the node says of a spawn or a compute frame, read by
+%% frame/2, that it starts no process for, Lacked being what it lacked or
+%% why it did not start it, answered or not.
+-spec unstarted(tuple(), iodata()) -> {not_loaded, spawn | compute, binary(), iodata()}.
+unstarted({spawn, _Ref, _Spawned, Site, _Monitored, _Ms}, Lacked) ->
+    {not_loaded, spawn, Site, Lacked};
+unstarted({compute, _Alias, _Spawned, Site, _Ms}, Lacked) ->
     {not_loaded, compute, Site, Lacked}.
+
+%% Report §8.7: the milliseconds the sender of a spawn or a compute frame,
+%% read by frame/2, waits for its answer, which the frame carries.
+-spec ms(tuple()) -> integer().
+ms({spawn, _Ref, _Spawned, _Site, _Monitored, Ms}) ->
+    Ms;
+ms({compute, _Alias, _Spawned, _Site, Ms}) ->
+    Ms.
 
 %% Report §8.7: what this node lacks of a reach a peer gave, before any of
 %% its code crosses, or none: the first foreign declaration whose module is
@@ -598,7 +621,7 @@ reach_lacked(Bindings, Foreigns) ->
             case [QualifiedName || {QualifiedName, Hash} <- Bindings,
                                    not has_value(QualifiedName, Hash)] of
                 [] -> none;
-                [QualifiedName | _] -> ["the binding ", named_text(QualifiedName),
+                [QualifiedName | _] -> ["the binding ", qualified_text(QualifiedName),
                                         " has no value here"]
             end
     end.
@@ -613,10 +636,10 @@ reach_lacked(Bindings, Foreigns) ->
 -spec foreign_lacked({[binary()], binary(), binary(), term(), term()}) -> iodata() | none.
 foreign_lacked({QualifiedName, HostModule, HostFunction, Scheme, _}) ->
     Module = ["the module ", ern_show:controls(HostModule, line), ", which ",
-              named_text(QualifiedName), " calls, "],
+              qualified_text(QualifiedName), " calls, "],
     case is_present(HostModule) andalso code:ensure_loaded(binary_to_atom(HostModule)) of
         {module, Loaded} ->
-            Arity = scheme_arity(Scheme),
+            Arity = ern_canonical:scheme_arity(Scheme),
             Exported = case existing_atoms([HostFunction]) of
                            [Function] -> erlang:function_exported(Loaded, Function, Arity);
                            none -> false
@@ -633,13 +656,11 @@ no_function(HostFunction, Arity) ->
     ["has no function ", ern_show:controls(HostFunction, line), "/", integer_to_list(Arity),
      " here"].
 
-%% The arity a foreign declaration's function is called with: its
-%% parameters and its requirement's members (report §4.9).
-scheme_arity({scheme, _, {arrow, Params, _, _}, Requirement}) ->
-    length(Params) + length(Requirement).
-
-named_text(QualifiedName) ->
-    ern_show:controls(iolist_to_binary(lists:join(".", QualifiedName)), line).
+%% A qualified name as a line writes it, its segments atoms of this node's
+%% or a peer's text, which may be any bytes, its controls shown.
+qualified_text(QualifiedName) ->
+    ern_show:controls(iolist_to_binary(lists:join(".", ern_namespace:text_segments(QualifiedName))),
+                      line).
 
 %% Whether a module a peer names by its text is on this node, loaded or
 %% where the host loads it from (ern_code:present/1); one whose name is no
@@ -704,10 +725,6 @@ unit_function({_, _, _, _}, _, _) ->
 unit_function(none, _, Identity) ->
     {lacks, Identity}.
 
-%% A qualified name as a line writes it, its segments atoms or a peer's text.
-identity_text(QualifiedName) ->
-    ern_show:controls(unicode:characters_to_binary(ern_namespace:text(QualifiedName)), line).
-
 existing_atoms(Names) ->
     try [binary_to_existing_atom(Name) || Name <- Names]
     catch error:badarg -> none
@@ -730,13 +747,14 @@ absent_module(Unit, QualifiedNames) ->
     end.
 
 lacked_module(Called, QualifiedName) ->
-    Named = identity_text(QualifiedName),
+    Named = qualified_text(QualifiedName),
     case ern_code:foreign(Called, QualifiedName) of
         [] ->
             case ern_code:declared(Called, QualifiedName) of
                 [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
-                    linked_to_fault({[text(Segment) || Segment <- QualifiedName],
-                                     text(HostModule), text(HostFunction), Scheme, Printing},
+                    linked_to_fault({ern_namespace:text_segments(QualifiedName),
+                                     ern_namespace:text_segment(HostModule),
+                                     ern_namespace:text_segment(HostFunction), Scheme, Printing},
                                     Named);
                 [] ->
                     ["this node does not have ", Named]
@@ -762,13 +780,9 @@ linked_to_fault({_, HostModule, _, _, _} = Declaration, Named) ->
         Lacked -> Lacked
     end.
 
-%% A name a unit records, an atom of this node's or a peer's text.
-text(Name) when is_atom(Name) -> atom_to_binary(Name);
-text(Name) -> Name.
-
 %% A binding of the reach without its value here, as what this node lacked.
 absent({QualifiedName, _}) ->
-    ["the binding ", identity_text(QualifiedName), " has no value here"].
+    ["the binding ", qualified_text(QualifiedName), " has no value here"].
 
 %% A spawn's answer, taken only from the peer the spawn went to: handed to
 %% the process that waits for it, where it lives; where it does not, or none

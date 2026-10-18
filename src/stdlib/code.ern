@@ -71,9 +71,11 @@
 /// in the order `ern run` evaluates a program's before `main`, each in a body of
 /// mailbox type `Never` (report §8.5).
 ///
-/// A file that is no `.erc` of this `ern`, or that was compiled against another
-/// interface than the node holds, answers `Left(Invalid)`, and a module the load
-/// path lacks `Left(NotFound)`. A binding that faults answers `Left(Other(text))`,
+/// A file that is no `.erc` of this `ern`, one compiled against another interface
+/// than the node holds, a module of a cycle through the load path (report §4.1),
+/// and a directory or a file at a module's path that holds another module
+/// (report §11.2) answer `Left(Invalid)`, and a module the load path lacks
+/// `Left(NotFound)`. A binding that faults answers `Left(Other(text))`,
 /// `text` the fault as `ern run` reports it, `Init.bad:3 faulted: division by
 /// zero`: nothing is loaded, and every process the evaluation started is killed.
 /// So does a load the node cannot make, `text` its reason, a count of the host's

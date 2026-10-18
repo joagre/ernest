@@ -41,7 +41,11 @@
 %% each spawn and compute that waits again as the gateway's worker reads
 %% it, which starts it, or answers it `Other` with the reason it could
 %% not. Two spawns that wait on
-%% one identity share one exchange, and are answered together. A frame it
+%% one identity share one exchange, and are answered together. An exchange
+%% runs within the time of the spawns that wait on it, the milliseconds
+%% their frames carry, and is dropped with its forms once the last of them
+%% has run out, each spawn said and left unanswered, its spawner having
+%% answered itself `Timeout`. A frame it
 %% cannot read, a form whose hash is not the one named among them, is
 %% faulty, and the node ends the peer's connection, as the gateway's worker
 %% does (ern_gateway's outcome/2). A loss drops the exchanges asked of the
@@ -56,29 +60,30 @@
 %% and kept for the node's life, since neither changes while it runs.
 %%
 %% The frames, each {ern_frame, From, Body}, From this node's exchange or a
-%% peer's: {reach_request, Exchange, Identity}; {reach, Exchange,
-%% Identities, Bindings, Foreigns}, or {reach, Exchange, none}; {lacks,
-%% Exchange, Hashes}; {code_frame, Exchange, Hashes, Bytes, References,
-%% Sources}. Exchange is the reference the asking node made for the
-%% exchange, an Identity is ern_peer:identity(), a hash the 32 bytes of a
-%% SHA-256, a name a list of its segments as text, which makes no atom
-%% where a peer sends it; Bindings are {QualifiedName, Hash}, Foreigns
-%% {QualifiedName, HostModule, HostFunction, Scheme, Printing}, the scheme
-%% as a form writes it (Appendix H), Hashes the definition alone or the
-%% group's members in order, Bytes what that definition or group is hashed
-%% as (Appendix H), References the hashes its forms name, a binding's among
-%% them, and Sources the bytes of the host's external term format of a
-%% list of {Name, Sourced, Printing, Calls}, one for each of Hashes in
-%% order: the definition's name, its form with the lines of its source, the
-%% locals' names left out (§11.1), which, stripped of its source, is the
-%% form the bytes hold, and holds no atom the form does not, so that it is
-%% read once the form is, making none; Printing is {Namespace, Shadows},
-%% the namespace its module's forms write its types under and the prelude
-%% names its types shadow, as text, by which a type prints in a cause as
-%% the module writes it (§11.5); and Calls the foreign declarations its
-%% form calls, in the order of their names, each {QualifiedName,
-%% HostModule, HostFunction, Printing}, as text, the scheme being the one
-%% the form writes (§8.7).
+%% peer's: {reach_request, Exchange, Identity}; {reach, Exchange, Identities,
+%% Bindings, Foreigns}, or {reach, Exchange, none}; {lacks, Exchange, Hashes};
+%% {code_frame, Exchange, Hashes, Bytes, References, Sources}. Exchange is the
+%% reference the asking node made for the exchange, an Identity is
+%% ern_peer:identity(), a hash the 32 bytes of a SHA-256, a name a list of its
+%% segments as text, which makes no atom where a peer sends it; Bindings are
+%% {QualifiedName, Hash}, Foreigns {QualifiedName, HostModule, HostFunction,
+%% Scheme, Printing}, the scheme as a form writes it (Appendix H), Hashes the
+%% definition alone or the group's members in order, Bytes what that
+%% definition or group is hashed as (Appendix H), References the hashes its
+%% forms name, a binding's among them, which §8.7 has the frame carry and the
+%% node it arrives at recomputes from the forms, a frame whose References
+%% differ from them being faulty, and uses no further, and Sources the bytes
+%% of the host's external term format of a list of {Name, Sourced, Printing,
+%% Calls}, one for each of Hashes in order: the definition's name, its form
+%% with the lines of its source, the locals' names left out (§11.1), which,
+%% stripped of its source, is the form the bytes hold, and holds no atom the
+%% form does not, so that it is read once the form is, making none; Printing
+%% is {Namespace, Shadows}, the namespace its module's forms write its types
+%% under and the prelude names its types shadow, as text, by which a type
+%% prints in a cause as the module writes it (§11.5); and Calls the foreign
+%% declarations its form calls, in the order of their names, each
+%% {QualifiedName, HostModule, HostFunction, Printing}, as text, the scheme
+%% being the one the form writes (§8.7).
 -module(ern_exchange).
 
 -export([start/0, handed/1, lacking/3, lost/1]).
@@ -92,16 +97,22 @@
 %% reach or a definition at the lacks.
 -define(NO_LONGER_HELD, <<"the spawner's node no longer holds the function's reach">>).
 
+%% Report §8.7: why the node did not start a spawn whose time ran out before
+%% the reach of its function arrived.
+-define(TIMED_OUT, <<"its time ran out before the function's reach arrived">>).
+
 %% An exchange this node asked a peer for, under the reference its frames
 %% carry: the identity it asks the reach of; the node asked, the spawner's
 %% of the first spawn that waits; the frames waiting on it, each {From,
-%% Body} as the gateway's worker read it, in the order they came; the reach
-%% once read, {Identities, Bindings, Foreigns}; the hashes still lacked, a
-%% map, none before the reach; the code frames verified, the last first,
-%% each its members, {#definition{}, Calls}, named by the names the frame
-%% gave them, with the foreign declarations each calls, held apart from the
-%% code table.
--record(exchange, {identity, node, waiting, reach = none, lacked = none, arrived = []}).
+%% Body} as the gateway's worker read it, in the order they came; the
+%% moment the last of their times runs out, each counted from its frame's
+%% coming; the reach once read, {Identities, Bindings, Foreigns}; the
+%% hashes still lacked, a map, none before the reach; the code frames
+%% verified, the last first, each its members, {#definition{}, Calls},
+%% named by the names the frame gave them, with the foreign declarations
+%% each calls, held apart from the code table.
+-record(exchange, {identity, node, waiting, deadline, reach = none, lacked = none,
+                   arrived = []}).
 
 %% The exchanges by their references, and the reference of each by the
 %% identity it asks for, which a second spawn joins; the count the pool's
@@ -161,7 +172,9 @@ loop(State) ->
                     loop(State1)
             end;
         {lost, Node} ->
-            loop(dropped(Node, State))
+            loop(dropped(Node, State));
+        {deadline, Ref} ->
+            loop(timed(Ref, State))
     end.
 
 %%
@@ -169,27 +182,61 @@ loop(State) ->
 %%
 
 %% Report §8.7: a spawn or a compute this node lacks the function of joins
-%% the exchange that asks for its identity, or asks the spawner's node for
-%% the reach.
+%% the exchange that asks for its identity, whose time it lengthens to its
+%% own where its own ends later, or asks the spawner's node for the reach;
+%% its time is the milliseconds its spawner waits, from its frame's coming,
+%% so that it never runs out before the spawner's own.
 asked(From, Body, Identity, #state{exchanges = Exchanges, asked = Asked} = State) ->
+    Deadline = ern_rt:deadline(ern_peer:ms(Body)),
     case Asked of
         #{Identity := Ref} ->
-            #{Ref := #exchange{waiting = Waiting} = Exchange} = Exchanges,
-            State#state{exchanges = Exchanges#{Ref := Exchange#exchange{
-                                                          waiting = Waiting ++ [{From, Body}]}}};
+            #{Ref := #exchange{waiting = Waiting, deadline = Latest} = Exchange} = Exchanges,
+            Joined = Exchange#exchange{waiting = Waiting ++ [{From, Body}],
+                                       deadline = max(Latest, Deadline)},
+            State#state{exchanges = Exchanges#{Ref := Joined}};
         _ ->
-            ask(Identity, [{From, Body}], State)
+            ask(Identity, [{From, Body}], Deadline, State)
     end.
 
 %% The request for a reach, of the node of the first of the spawns that
-%% wait.
-ask(Identity, [{From, _} | _] = Waiting, #state{exchanges = Exchanges, asked = Asked} = State) ->
+%% wait, and the timer towards the moment its time runs out.
+ask(Identity, [{From, _} | _] = Waiting, Deadline,
+    #state{exchanges = Exchanges, asked = Asked} = State) ->
     Ref = make_ref(),
     Node = node(From),
     erlang:send({ern_gateway, Node}, {ern_frame, self(), {reach_request, Ref, Identity}}),
+    ok = armed(Ref, Deadline),
     State#state{exchanges = Exchanges#{Ref => #exchange{identity = Identity, node = Node,
-                                                        waiting = Waiting}},
+                                                        waiting = Waiting,
+                                                        deadline = Deadline}},
                 asked = Asked#{Identity => Ref}}.
+
+%% Report §8.7: an exchange whose time has run out, every spawner that
+%% waits on it having given up at its own, `Timeout` its answer, dropped
+%% with its forms, each spawn said as one the node did not start and left
+%% unanswered, so that no answer of this node's comes before a spawner's
+%% own; one whose time a later spawn lengthened waits on; one that has
+%% ended is none. The host's timer takes a slice of a long time at once,
+%% and is set again until the moment comes (ern_rt:remaining/1).
+timed(Ref, #state{exchanges = Exchanges} = State) ->
+    case Exchanges of
+        #{Ref := #exchange{deadline = Deadline, waiting = Waiting}} ->
+            case ern_rt:remaining(Deadline) of
+                0 ->
+                    [ok = ern_gateway:outcome(node(From), ern_peer:unstarted(Body, ?TIMED_OUT))
+                     || {From, Body} <- Waiting],
+                    ended(Ref, State);
+                _ ->
+                    ok = armed(Ref, Deadline),
+                    State
+            end;
+        #{} ->
+            State
+    end.
+
+armed(Ref, Deadline) ->
+    _ = erlang:send_after(ern_rt:remaining(Deadline), self(), {deadline, Ref}),
+    ok.
 
 %% Report §8.7: a frame of the exchange's, each field of it checked, or
 %% unreadable. A reach or a code frame of an exchange this node no longer
@@ -244,6 +291,9 @@ frame(From, {code_frame, Ref, Hashes, Bytes, References, Sources}, State)
             %% lacking, a binding of its, comes with those it did
             true = lists:any(fun(Hash) -> is_map_key(Hash, Lacked) end, Hashes),
             {ok, Forms} = ern_canonical:verified(Hashes, Bytes),
+            %% the hashes the frame says its forms name, a check on the
+            %% frame alone: the arrival reads its references from the
+            %% forms themselves (ern_arrival)
             References = referenced(Forms),
             arrived(Ref, Exchange, framed(Hashes, Bytes, Forms, Sources), State)
     end.
@@ -389,10 +439,11 @@ started({From, Body}) ->
 %% Report §8.7: the spawner's node no longer holds what it was asked for:
 %% the spawns it asked for answered so, and those of any other node that
 %% waited on the exchange asking their own nodes anew.
-no_longer_held(Ref, #exchange{node = Node, identity = Identity, waiting = Waiting}, State) ->
+no_longer_held(Ref, #exchange{node = Node, identity = Identity, waiting = Waiting,
+                               deadline = Deadline}, State) ->
     {Asked, Others} = lists:partition(fun({From, _}) -> node(From) =:= Node end, Waiting),
     answered(Asked, {'Other', ?NO_LONGER_HELD}, ?NO_LONGER_HELD),
-    again(Identity, Others, ended(Ref, State)).
+    again(Identity, Others, Deadline, ended(Ref, State)).
 
 %% Each frame that waits answered with Error, and said with Lacked.
 answered(Waiting, Error, Lacked) ->
@@ -403,23 +454,24 @@ answered(Waiting, Error, Lacked) ->
 
 %% Report §8.7: a loss of Node, or a faulty frame from it, whose connection
 %% then ends: each exchange asked of it dropped with its forms, its spawns
-%% of other nodes asking their own anew, and every spawn of Node's dropped,
-%% none waiting on it any more.
+%% of other nodes asking their own anew within the time the exchange had,
+%% and every spawn of Node's dropped, none waiting on it any more.
 dropped(Node, #state{exchanges = Exchanges} = State) ->
-    maps:fold(fun(Ref, #exchange{node = Asked, identity = Identity, waiting = Waiting} = Exchange,
+    maps:fold(fun(Ref, #exchange{node = Asked, identity = Identity, waiting = Waiting,
+                                 deadline = Deadline} = Exchange,
                   Acc) ->
                   Others = [Frame || {From, _} = Frame <- Waiting, node(From) =/= Node],
                   case Asked of
-                      Node -> again(Identity, Others, ended(Ref, Acc));
+                      Node -> again(Identity, Others, Deadline, ended(Ref, Acc));
                       _ when Others =:= [] -> ended(Ref, Acc);
                       _ -> kept(Ref, Exchange#exchange{waiting = Others}, Acc)
                   end
               end, State, Exchanges).
 
-again(_Identity, [], State) ->
+again(_Identity, [], _Deadline, State) ->
     State;
-again(Identity, Waiting, State) ->
-    ask(Identity, Waiting, State).
+again(Identity, Waiting, Deadline, State) ->
+    ask(Identity, Waiting, Deadline, State).
 
 kept(Ref, Exchange, #state{exchanges = Exchanges} = State) ->
     State#state{exchanges = Exchanges#{Ref := Exchange}}.
@@ -482,7 +534,7 @@ reach(Key, Hash) ->
                         {{ok, Implemented}, _} ->
                             {lists:usort([Defined || #definition{hash = Defined, kind = Kind}
                                                          <- Definitions, Kind =/= binding]),
-                             [{texts(QualifiedName), BindingHash}
+                             [{ern_namespace:text_segments(QualifiedName), BindingHash}
                               || {QualifiedName, BindingHash} <- Bindings],
                              Implemented};
                         {none, _} ->
@@ -527,7 +579,8 @@ implementations(Unit, Foreigns, Read) ->
     {Found, Read1} = lists:mapfoldl(fun(QualifiedName, Acc) ->
                                         {Implemented, Acc1} =
                                             implementation(Called, QualifiedName, Acc),
-                                        {{texts(QualifiedName), Implemented}, Acc1}
+                                        Named = ern_namespace:text_segments(QualifiedName),
+                                        {{Named, Implemented}, Acc1}
                                     end, Read, Foreigns),
     case lists:keymember(none, 2, Found) of
         false ->
@@ -541,7 +594,7 @@ implementations(Unit, Foreigns, Read) ->
 implementation(Called, QualifiedName, Read) ->
     case ern_code:foreign(Called, QualifiedName) of
         [{Holder, HostModule, HostFunction} | _] ->
-            case declared(Holder, texts(QualifiedName), Read) of
+            case declared(Holder, ern_namespace:text_segments(QualifiedName), Read) of
                 {{Scheme, Printing}, Read1} ->
                     {{atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing},
                      Read1};
@@ -551,7 +604,8 @@ implementation(Called, QualifiedName, Read) ->
         [] ->
             case ern_code:declared(Called, QualifiedName) of
                 [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
-                    {{text(HostModule), text(HostFunction), Scheme, Printing}, Read};
+                    {{ern_namespace:text_segment(HostModule),
+                      ern_namespace:text_segment(HostFunction), Scheme, Printing}, Read};
                 [] ->
                     {none, Read}
             end
@@ -563,7 +617,7 @@ declared(Holder, Name, Read) ->
     case recorded(Holder, Read) of
         {#recorded{foreign = Recorded}, Read1} ->
             case [{Scheme, Printing} || {QualifiedName, Scheme, _, _, Printing} <- Recorded,
-                                        texts(QualifiedName) =:= Name] of
+                                        ern_namespace:text_segments(QualifiedName) =:= Name] of
                 [Declared | _] -> {Declared, Read1};
                 [] -> {none, Read1}
             end;
@@ -646,7 +700,7 @@ code_frame(Members, Forms, Calls) ->
             none;
         false ->
             Sources = [{case Name of
-                            none -> texts(QualifiedName);
+                            none -> ern_namespace:text_segments(QualifiedName);
                             _ -> Name
                         end,
                         case Sourced of
@@ -737,7 +791,7 @@ forms(Members) ->
 %% Report §8.7: the qualified names of the foreign declarations a form
 %% calls, as text, each once, in order, as a code frame names them.
 called_names(Form) ->
-    lists:usort([texts(QualifiedName)
+    lists:usort([ern_namespace:text_segments(QualifiedName)
                  || {foreign, QualifiedName, _} <- ern_compile:references([Form])]).
 
 %% Report §8.7: the hashes forms reference, a binding's among them, as a
@@ -747,14 +801,6 @@ referenced(Forms) ->
                      {hash, Hash} -> Hash;
                      {binding, _, Hash} -> Hash
                  end || Reference <- ern_canonical:references(Forms)]).
-
-%% A qualified name as text, its segments atoms or a peer's text already.
-texts(QualifiedName) ->
-    [text(Segment) || Segment <- QualifiedName].
-
-%% A name as text, an atom of this node's or a peer's text already.
-text(Name) when is_atom(Name) -> atom_to_binary(Name);
-text(Name) -> Name.
 
 is_identity({function, Hash}) -> is_hash(Hash);
 is_identity({lambda, Hash, Position}) -> is_hash(Hash) andalso is_integer(Position)

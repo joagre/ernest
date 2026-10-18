@@ -882,16 +882,16 @@ compute_as_value_help_test() ->
                    with_peer("fn f() : Unit = { let c = " ++ Form ++ "; Unit }\n"),
                Text
            end,
-    ?assertEqual("call it: `Peer.compute(fn() = ..., ms)` (§3.11)", Help("Peer.compute")),
-    ?assertEqual("call it: `Peer.computeAt(name, fn() = ..., ms)` (§3.11)",
+    ?assertEqual("call it: `Peer.compute(fn() = ..., ms)` (report §3.11)", Help("Peer.compute")),
+    ?assertEqual("call it: `Peer.computeAt(name, fn() = ..., ms)` (report §3.11)",
                  Help("Peer.computeAt")).
 
 %% report §3.11, Appendix E.28: Code.running names a top-level `fn` of any
 %% arity whose result type is Unit and whose mailbox type, read from its
 %% declaration, holds no type variable where it has one, and the call is
 %% List(Address(m)), m that mailbox type, so a send over the list is
-%% checked against it, and a variable nothing fixes for a function that
-%% receives nothing; a local, a lambda, a top-level `let`, a foreign
+%% checked against it, and Never for a function that receives nothing
+%% (code_running_never_test); a local, a lambda, a top-level `let`, a foreign
 %% declaration and the prelude's name are refused, so are a result type
 %% other than Unit and a mailbox type that holds a type variable, and
 %% Code.running is called where it is named. A regression test, written
@@ -944,6 +944,40 @@ code_running_test() ->
     ?assertEqual("Code.running is called where it is named, so that the compiler sees the"
                  " declaration it names",
                  peer_refusal("fn f() : Unit = { let r = Code.running; Unit }\n")).
+
+%% report §3.11, Appendix E.28, §6.2: Code.running of a function that
+%% receives nothing answers addresses at Never, since the function runs in
+%% a process whose mailbox type it does not know: its declaration's, though
+%% the function stands at the call for one that receives (§3.9). A send to
+%% one is refused, `expected Never`, a send over the list too, and an
+%% annotation of another mailbox type; `kill` over it is not. A regression
+%% test, written after the fix (the release review before 0.4.0 found the
+%% addresses at a variable nothing fixed, a send of 42 to a process that
+%% received another type compiling and breaking its mailbox at run time);
+%% it does not run a program
+code_running_never_test() ->
+    Work = "fn work(n : Int) : Unit = if n == 0 then Unit else work(n - 1)
+",
+    ?assertEqual(ok, peer_ok(Work ++ "fn f() : List(Address(Never)) = Code.running(work)
+")),
+    ?assertEqual(ok, peer_ok(Work ++ "fn f() : Unit = List.forEach(Code.running(work), kill)
+")),
+    ?assertEqual("the argument does not fit send: expected Never, found Int",
+                 peer_refusal(Work ++ "fn f() : Unit = match Code.running(work) {
+"
+                              "    [p] -> send(p, 42)
+  | _ -> Unit
+}
+")),
+    ?assertEqual("the argument does not fit List.forEach: expected (Address(Never)) -> Unit,"
+                 " found (Address(Int)) -> Unit",
+                 peer_refusal(Work ++ "fn f() : Unit =
+"
+                              "    List.forEach(Code.running(work), fn(q) = send(q, 42))
+")),
+    ?assertMatch({error, _},
+                 peer_ok(Work ++ "fn f() : List(Address(Int)) = Code.running(work)
+")).
 
 %% report §3.11, §8.7, §3.9: the value a compute answers crosses back, so
 %% the result type of its function is known whole where the compute is
@@ -1775,7 +1809,7 @@ type_declarations_test() ->
 %% `type Word = String` declared a constructor `String` and was accepted
 no_alias_test() ->
     ?assertEqual({"constructor String is named as the type String",
-                  "there are no type aliases (§3.1)"},
+                  "there are no type aliases (report §3.1)"},
                  refusal_and_help("type Word = String")),
     ?assertMatch({error, [#diagnostic{span = {1, 13, _}}]}, check("type Word = String")),
     ?assertEqual("constructor List is named as the type List",
@@ -1879,11 +1913,11 @@ polymorphic_recursion_is_refused_test() ->
     %% report §11.5: at the recursive call's argument, as any call is;
     %% §3.9's rule for a recursive group refuses the type that once
     %% exercised this, so a list does
-    ?assertEqual({"the argument of a recursive call does not fit depth at its own type (§3.9):"
-                  " a type that would contain itself (a against List(a))", Help},
+    ?assertEqual({"the argument of a recursive call does not fit depth at its own type"
+                  " (report §3.9): a type that would contain itself (a against List(a))", Help},
                  refusal_and_help("fn depth(x : a) : Int = 1 + depth([x])")),
-    ?assertEqual({"the argument of a recursive call does not fit both at its own type (§3.9):"
-                  " expected a, found Bool", Help},
+    ?assertEqual({"the argument of a recursive call does not fit both at its own type"
+                  " (report §3.9): expected a, found Bool", Help},
                  refusal_and_help("fn f() : Int = {\n"
                                   "    fn both(x : a, n : Int) : Int ="
                                   " if n == 0 then 0 else both(true, n - 1);\n"
@@ -2239,6 +2273,36 @@ unfixed_mailbox_is_never_test() ->
                  " an address; annotate it",
                  refusal("fn hold(value : a) : Unit receiving a = receive { next -> hold(next) }\n"
                          "let shared = spawn(fn() = hold(None))")).
+
+%% report §4.6, §3.9, §6.2: a call's binding that is not generalized has
+%% each type variable left in its type that stands in no value position,
+%% after `receiving` or in a type argument whose parameter the type's
+%% fields hold in none, Never, as a spawned function's unfixed mailbox type
+%% is: a test case a helper builds, its annotation's variable among them,
+%% and a function a call returns that receives; one a call returns that
+%% receives nothing receives nothing, the variable by which it stands for
+%% one that receives (§3.9) none, and is no longer refused; a variable in a
+%% value position beside one is still refused. A regression test, written after
+%% the fix (the release review before 0.4.0 found `let t = case("x")`
+%% refused, "annotate it"); it does not cover a group of bindings
+not_generalized_effect_only_is_never_test() ->
+    Case = "fn case(name : String) : Test.Case(m) =\n"
+           "    Test.Case(name = name, run = fn() = Test.Passed)\n",
+    ?assertEqual("Test.Case(Never)", type_of(Case ++ "export let t = case(\"x\")", t)),
+    ?assertEqual("Test.Case(Never)",
+                 type_of(Case ++ "export let u : Test.Case(m) = case(\"y\")", u)),
+    ?assertEqual("() -> Unit receiving Never",
+                 type_of("fn make() : () -> Unit receiving m = fn() = receive { _ -> Unit }\n"
+                         "export let f = make()", f)),
+    ?assertEqual("() -> Unit",
+                 type_of("fn make() = fn() = Io.println(\"k\")\nexport let k = make()", k)),
+    ?assertEqual(ok, ok("fn make() = fn() = Io.println(\"k\")\nlet k = make()\n"
+                        "fn main() : Unit = k()\n")),
+    ?assertEqual("the type of g is not determined ((a) -> a receiving Never), and a top-level"
+                 " `let` whose initializer is no value is not generalized where its type holds"
+                 " a function; annotate it",
+                 refusal("fn make() : (a) -> a receiving m = fn(x) = receive { _ -> x }\n"
+                         "let g = make()")).
 
 %% report §4.6: a call's binding whose type, read through the fields of the
 %% declared types it names, holds a function type, a foreign type, an
@@ -3117,7 +3181,7 @@ effect_placement_test() ->
                        "fn f(n : Int) : Int receiving Never = match n {"
                        " k when wait() -> 1 | _ -> 0 }\n"),
     ?assertEqual("wait needs a mailbox, and a guard receives nothing", Guard#diagnostic.message),
-    ?assertEqual([{{2, 56, {2, 62}}, "a guard receives nothing (§5.9)"}],
+    ?assertEqual([{{2, 56, {2, 62}}, "a guard receives nothing (report §5.9)"}],
                  Guard#diagnostic.labels),
     ?assertEqual("compute the value before the match", Guard#diagnostic.help),
     Receive = diagnostic("fn f() : Unit = receive { after 1 -> Unit }\n"),
@@ -3323,7 +3387,10 @@ bitstring_pattern_test() ->
                  refusal("fn f(b : Bytes) = { let <<x>> = b; x }")).
 
 %% report §6.3: a receive guard is a guard expression, and calls nothing;
-%% a match guard is any Bool expression
+%% a match guard is any Bool expression. The help offers a `let` before
+%% the `receive` first, which keeps the message in the mailbox, a regression
+%% test of the help, written after it (the release review before 0.4.0
+%% found the help to `match` alone, which takes the message out)
 receive_guard_test() ->
     Source = "type Msg = N(Int) | Stop\n",
     ?assertEqual(ok, ok(Source ++ "fn big(k : Int) : Bool = k > 100\n"
@@ -3338,7 +3405,9 @@ receive_guard_test() ->
                             " receive { N(k) when big(k) -> Unit | _ -> Unit }"),
     ?assertEqual("a `receive` guard combines `true`, `false`, Bool variables, and comparisons"
                  " with `!`, `&&`, and `||`, and calls nothing", Diagnostic#diagnostic.message),
-    ?assertEqual("receive the message and `match` it", Diagnostic#diagnostic.help).
+    ?assertEqual("bind what the guard needs with a `let` before the `receive` and compare"
+                 " that; or receive the message and `match` it, which takes it out of the"
+                 " mailbox", Diagnostic#diagnostic.help).
 
 %% report §6.3: each form of a guard expression: `true`, `false`, a Bool
 %% operand, `!` before a guard expression, and a comparison whose operands
@@ -3533,7 +3602,7 @@ member_not_declared_test() ->
 show_named_in_body_test() ->
     ?assertEqual({"unknown name a",
                   "a.show names nothing in a body; under needs a.show, write the value with"
-                  " Io.show (§4.9)"},
+                  " Io.show (report §4.9)"},
                  refusal_and_help("fn describe(x : a) : String needs a.show = a.show(x)")),
     ?assertEqual(ok, ok("fn describe(x : a) : String needs a.show = Io.show(x)")).
 
@@ -3677,7 +3746,7 @@ fill_beside_a_constructor_test() ->
     ?assertEqual(ok, ok(Ops ++ "let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)\n"
                         "let mode : Mode = OrderedSet\n")),
     ?assertEqual({"`Prelude.Set` names no namespace: `Prelude.` reaches one of the prelude's"
-                  " names", "write the namespace after `..` as it is, `..Set` (§5.6)"},
+                  " names", "write the namespace after `..` as it is, `..Set` (report §5.6)"},
                  refusal_and_help(Ops ++ "let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)\n")).
 
 %% report §11.5: a selected field called is named as written where its

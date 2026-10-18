@@ -1108,7 +1108,7 @@ requirement_test() ->
         declaration("fn f(x : a, y : b) : a receiving m needs a.compare, b.+, a.show = x"),
     #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
     ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show"
-                 " (§4.8, E.1)",
+                 " (report §4.8, E.1)",
                  refusal("fn f(x : a) : a needs a.zero = x")),
     %% the member underlined whole: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},

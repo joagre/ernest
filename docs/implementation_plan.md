@@ -768,6 +768,13 @@ a peer's connection lost and opened again under a function that waits, which no 
 copies of compiled modules, `rm -f build/*/ern@*.beam` in the `stdlib` and `shell` rules, go here,
 every checkout having been built since 0.4.0.
 
+**After the tag: the annotation out of the hash.** Found by the release review before 0.4.0 (the
+log's *The Release Review Before 0.4.0*, KP30), decided with the user 2026-10-18: Appendix H hashes
+a type annotation as written beside the scheme that already holds the type, so `fn f(x : Int) : Int`
+and `fn f(x) : Int` are one typed tree and two hashes, shipped twice. The form hashes the scheme and
+the body, the annotation going to Appendix H's *What is left out*, and the form's version changes
+with it, which is why it waits for the tag: the first change of the form since 0.4.0's floor.
+
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
@@ -829,7 +836,10 @@ log's *The First Release Is for Others*:
   is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is shaped so; `nodes.md`
   and `code.md` for the intent and the alternatives weighed at the start, several of which the build
   changed; `set_aside/` for one line each on what went and why; `experiments/` for the numbers a cost
-  section quotes; `other_systems.md` for the comparison. A proposal that
+  section quotes; `other_systems.md` for the comparison. The paragraphs of §8.7 that state the runtime's machinery a
+  program never sees, its frames, the gateway's workers and the notes' bookkeeping, move into the
+  note then, with their Appendix F entries, and §8.7 keeps what a program meets, as the release
+  review before 0.4.0 found (the log's *The Release Review Before 0.4.0*, KP26). A proposal that
   redesigned a rule of the language and built no component, kill darlings, the balancer's suggestion
   and the placement push, becomes no note, its outcome being the report's (decided with the user on
   2026-10-17).
@@ -902,7 +912,10 @@ it.
    own, `$Session3.T`, and the code table keeping each session's units apart, since operators attach
    to one node at once; `:detach` in `:quit`'s place; what an input's process is on the node and who
    its root is; what `:processes`, `:load` and `:reload` do there; what the session shows when the
-   node is lost; and the deployment guide's section 6 rewritten over it. The attached shell is the
+   node is lost; and the deployment guide's sections 5.3 and 6 rewritten over it, the upgrade of the
+   language guide's §8.9 becoming a `:load` of the new build at the node's prompt with `Code.running`
+   run there, and `docs/development.md`'s row on attaching gone with the gap (asked by the user
+   2026-10-18). The attached shell is the
    operator's alone, trusted as a peer is, with no sandbox: the website runs the plain shell in a
    container per visitor (MVP 4.2).
 3. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a

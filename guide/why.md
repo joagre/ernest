@@ -47,6 +47,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
+```console
+$ ern run counter.erc
+count is 8
+```
+
 `main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, so the name `counter` stays good; the guide's §6.5 shows a restart.
@@ -185,7 +190,7 @@ $ ern run sorted.erc
 
 One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it. A type of the program's own gets one by `derives compare`, or by declaring the function under its name.
 
-An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the standard library's, in scope everywhere and with no order of its own, and `OrderedSet` is a library, so its type is written whole:
+An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the prelude's type, in scope everywhere and with no order of its own; `OrderedSet` is a module of the standard library, so its type is written whole, `OrderedSet.Set`:
 
 ```ernest
 type Operations(s, a) = Operations(fromList : (List(a)) -> s, toList : (s) -> List(a))

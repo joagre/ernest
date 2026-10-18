@@ -150,6 +150,13 @@
 -define(NEVER, {tcon, ['Never'], []}).
 -define(ARITH, ['+', '-', '*', '/', '%']).
 -define(ORDER, ['<', '<=', '>', '>=']).
+%% Report §6.3: the help for a `receive` guard that calls: what the guard
+%% needs, bound before the `receive`, keeps the guard and the message it
+%% leaves in the mailbox; a `match` after the `receive` takes the message
+%% out, another program, and comes second.
+-define(GUARD_CALLS_HELP,
+        "bind what the guard needs with a `let` before the `receive` and compare that; or"
+        " receive the message and `match` it, which takes it out of the mailbox").
 
 %%
 %% Entry points
@@ -325,7 +332,7 @@ no_alias(Declarations, #env{types = Types} = Env) ->
             ok;
         [{Span, Name} | _] ->
             fail(Span, "constructor " ++ atom_to_list(Name) ++ " is named as the type "
-                 ++ atom_to_list(Name), [], "there are no type aliases (§3.1)")
+                 ++ atom_to_list(Name), [], "there are no type aliases (report §3.1)")
     end.
 
 %% Report §11.1: the host holds a name of at most 255 characters, so a
@@ -1570,7 +1577,9 @@ generalized(_, Variable, #env{type_state = TypeState}) ->
 
 %% Report §4.6: the scheme of a top-level let whose initializer is or holds
 %% a call, which has the type the call gives, generalized where that type
-%% is data (non_data/2), and otherwise keeping no type variable.
+%% is data (non_data/2), and otherwise keeping no type variable: one that
+%% stands in no value position (§3.9) is Never, as a spawned function's
+%% unfixed mailbox type is (§6.2), and any other is a type error.
 call_scheme(Span, Name, Variable, #env{type_state = TypeState} = Env) ->
     case ern_types:free_variables(Variable, TypeState) =:= [] orelse non_data(Variable, Env) of
         true ->
@@ -1578,10 +1587,43 @@ call_scheme(Span, Name, Variable, #env{type_state = TypeState} = Env) ->
         none ->
             ern_types:generalize(Variable, TypeState);
         Held ->
-            fail(Span, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
-                       ++ ern_types:format(Variable, TypeState)
-                       ++ "), and a top-level `let` whose initializer is no value is not"
-                       " generalized where its type holds " ++ Held ++ "; annotate it")
+            TypeState1 = never_in_no_value_position(Variable, TypeState),
+            case ern_types:free_variables(Variable, TypeState1) of
+                [] ->
+                    {ern_types:monomorphic(ern_types:substitute(Variable, TypeState1)),
+                     TypeState1};
+                _ ->
+                    fail(Span, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
+                               ++ ern_types:format(Variable, TypeState1)
+                               ++ "), and a top-level `let` whose initializer is no value is"
+                               " not generalized where its type holds " ++ Held
+                               ++ "; annotate it")
+            end
+    end.
+
+%% Report §4.6, §3.9: each type variable left in Type that stands in no
+%% value position, after `receiving` or in a type argument whose parameter
+%% no field holds in one, bound to Never; one whose restriction Never does
+%% not meet is left free. A function type's own effect variable that occurs
+%% nowhere else is none first, as generalization writes it: it is no
+%% variable of the type the call gives but the one by which a function
+%% that receives nothing stands for one that receives (§3.9), so that a
+%% function a call answers that receives nothing receives nothing.
+never_in_no_value_position(Type, TypeState) ->
+    Substituted = ern_types:substitute(Type, TypeState),
+    Elided = ern_types:elided(Substituted, TypeState),
+    Nones = ern_types:free_variables(Substituted, TypeState)
+        -- ern_types:free_variables(Elided, TypeState),
+    TypeState1 = lists:foldl(fun(Id, Acc) -> bound_to({tvar, Id}, none, Acc) end, TypeState,
+                             Nones),
+    Nevers = ern_types:free_variables(Elided, TypeState1)
+        -- ern_types:value_variables(Elided, TypeState1),
+    lists:foldl(fun(Id, Acc) -> bound_to({tvar, Id}, ?NEVER, Acc) end, TypeState1, Nevers).
+
+bound_to(Variable, Type, TypeState) ->
+    case ern_types:unify(Variable, Type, TypeState) of
+        {ok, TypeState1} -> TypeState1;
+        {error, _} -> TypeState
     end.
 
 %% Report §4.6: what of a type keeps a value of it from being data, which
@@ -3157,7 +3199,7 @@ fill_namespace(#e_constructor{span = Span, namespace = ['Prelude'], name = Name,
                               base = undefined}, _) ->
     fail(Span, "`Prelude." ++ atom_to_list(Name) ++ "` names no namespace: `Prelude.` reaches"
                " one of the prelude's names", [],
-         "write the namespace after `..` as it is, `.." ++ atom_to_list(Name) ++ "` (§5.6)");
+         "write the namespace after `..` as it is, `.." ++ atom_to_list(Name) ++ "` (report §5.6)");
 fill_namespace(#e_constructor{namespace = Namespace, name = Name, args = none, base = undefined},
                _) ->
     {namespace, Namespace ++ [Name]};
@@ -3435,7 +3477,7 @@ supply(Span, Type, service, _Need, _Outer, #env{type_state = TypeState} = Env) -
         orelse fail(Span, "Peer.service names a service at a message type known whole, and here"
                           " it is " ++ Text, [],
                     "annotate the service where it is bound, `let service : Peer.Service(Msg) ="
-                    " Peer.service(\"name\")` (§3.11)"),
+                    " Peer.service(\"name\")` (report §3.11)"),
     case ern_bound:binds(Message, Env) of
         false ->
             {#service_type{type = Message}, Env};
@@ -3443,7 +3485,7 @@ supply(Span, Type, service, _Need, _Outer, #env{type_state = TypeState} = Env) -
             fail(Span, "Peer.service names a service at " ++ Text ++ ", which is bound to its"
                        " node, since it holds " ++ Why, [],
                  "a service's message type crosses to the node's peers, so the process offered"
-                 " as the service receives values that cross (§3.11)")
+                 " as the service receives values that cross (report §3.11)")
     end;
 supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
     %% report §8.4, Appendix E.12: Foreign.term gives its value at a type
@@ -4216,23 +4258,44 @@ infer(Expr, Env) when is_record(Expr, e_if); is_record(Expr, e_match); is_record
 
 %% Report §3.11, Appendix E.28: `Code.running(f)` answers the addresses of
 %% processes whose mailbox type is f's, the effect of f where the call
-%% names it, and a variable nothing fixes where f receives nothing; what f
-%% may be is read once the definition is inferred (ern_bound).
+%% names it, and `Never` where f's declaration receives nothing, since it
+%% runs in a process whose mailbox type it does not know (§6.2), so that
+%% nothing is sent to one: the declaration's and not the use's, a function
+%% that receives nothing standing at a use for one that receives (§3.9);
+%% what f may be is read once the definition is inferred (ern_bound).
 running_mailbox(#e_var{referent = #remote_declaration{namespace = ['Code'],
                                                             member_of = undefined,
                                                             name = running}},
                 [Function], ResultType, #env{type_state = TypeState} = Env) ->
     case {ern_types:resolve(node_type(Function), TypeState),
           ern_types:resolve(ResultType, TypeState)} of
-        {{tfn, _, Effect, _}, {tcon, ['List'], [Address]}} when Effect =/= none ->
+        {{tfn, _, Effect, _}, {tcon, ['List'], [Address]}} ->
             %% the call's mailbox type is a fresh variable of its scheme's
             {tcon, ['Address'], [Mailbox]} = ern_types:resolve(Address, TypeState),
-            bound(Mailbox, Effect, Env);
+            case declared_effect(Function, Env) of
+                none -> bound(Mailbox, ?NEVER, Env);
+                _ -> bound(Mailbox, Effect, Env)
+            end;
         _ ->
             Env
     end;
 running_mailbox(_, _, _, Env) ->
     Env.
+
+%% The effect of the top-level declaration a name resolved to, as the
+%% checker holds it now, or undefined for any other expression.
+declared_effect(#e_var{referent = Referent}, #env{type_state = TypeState} = Env) ->
+    case declaration_scheme(Referent, Env) of
+        #scheme{type = Type} ->
+            case ern_types:resolve(Type, TypeState) of
+                {tfn, _, Effect, _} -> ern_types:resolve(Effect, TypeState);
+                _ -> undefined
+            end;
+        undefined ->
+            undefined
+    end;
+declared_effect(_, _) ->
+    undefined.
 
 %% Report §11.5: after a sequence's first element, its type is the origin
 %% of the rest's expected type.
@@ -4425,7 +4488,7 @@ receive_guard(#e_var{} = Variable, Env) ->
 receive_guard(Guard, _) ->
     fail(ern_ast:span(Guard), "a `receive` guard combines `true`, `false`, Bool variables, and"
                               " comparisons with `!`, `&&`, and `||`, and calls nothing",
-         [], "receive the message and `match` it").
+         [], ?GUARD_CALLS_HELP).
 
 %% Report §6.3: a `receive` guard orders Int, Float, String and Char, the
 %% host's own order, and no type whose order is its `compare`.
@@ -4452,7 +4515,7 @@ guard_operand(#e_var{referent = Referent} = Variable, Env) ->
     is_top_let(Referent, Env)
         orelse fail(ern_ast:span(Variable),
                     callee_name(Variable) ++ " is a function, and a `receive` guard calls nothing",
-                    [], "receive the message and `match` it");
+                    [], ?GUARD_CALLS_HELP);
 guard_operand(Operand, _) ->
     fail(ern_ast:span(Operand), "a comparison in a `receive` guard compares variables, literals,"
                                 " and nullary constructors",
@@ -4551,7 +4614,7 @@ argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
                 end,
     case Recursive of
         true -> {help, "the argument of a recursive call does not fit " ++ Name ++ " at its own"
-                       " type (§3.9)",
+                       " type (report §3.9)",
                  "declare a second function for the call at another type"};
         false -> "the argument does not fit " ++ Name
     end.
@@ -4903,7 +4966,7 @@ check_guard(_Kind, undefined, Env) ->
     {undefined, Env};
 check_guard(Kind, Guard, Env) ->
     Origin = #effect_origin{what = "a guard", span = ern_ast:span(Guard),
-                            label = "a guard receives nothing (§5.9)",
+                            label = "a guard receives nothing (report §5.9)",
                             help = "compute the value before the match"},
     Guarded = Env#env{effect = none, effect_origin = Origin},
     {TypedGuard, _, GuardEnv} = check_expr(Guard, ?BOOL, "a guard is a Bool", undefined, Guarded),
@@ -5860,7 +5923,7 @@ selection_operand(#e_var{namespace = [], name = Name} = Operand, show, Env) ->
             throw({type_error,
                    Diagnostic#diagnostic{help = Variable ++ ".show names nothing in a body;"
                                          " under needs " ++ Variable ++ ".show, write the"
-                                         " value with Io.show (§4.9)"}})
+                                         " value with Io.show (report §4.9)"}})
     end;
 selection_operand(Operand, _Field, Env) ->
     infer(Operand, Env).
@@ -6075,7 +6138,7 @@ private_type_diagnostic(Declaration, QualifiedName) ->
                 message = declared_text(Declaration) ++ " is exported and its type names "
                           ++ atom_to_list(Name) ++ ", which this module keeps private",
                 help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
-                       " its constructors stay private (§4.4)"}.
+                       " its constructors stay private (report §4.4)"}.
 
 declared_text(#type_declaration{name = Name}) -> atom_to_list(Name);
 declared_text(#abstract_declaration{declaration = #type_declaration{name = Name}}) ->

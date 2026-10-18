@@ -34,7 +34,7 @@
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
          interface/2, declared_type/4, stripped/1, recorded_source/2, lambdas/2, unit_reaches/2,
-         references/1, verified/2, is_verified/1, encode/1, read/1]).
+         scheme_arity/1, references/1, verified/2, is_verified/1, encode/1, read/1]).
 
 -export_type([canonical/0, reach/0, source/0]).
 
@@ -554,6 +554,14 @@ functions(#definition{qualified_name = QualifiedName, hash = Hash, form = Form},
 %%
 %% A code frame, report §8.7 and Appendix H
 %%
+
+%% Report §4.9, Appendix H: the arity a foreign declaration's function is
+%% called with, of its scheme as a form writes it: its parameters and its
+%% requirement's members.
+-spec scheme_arity({scheme, term(), {arrow, [term()], term(), term()}, [term()]}) ->
+          non_neg_integer().
+scheme_arity({scheme, _, {arrow, Params, _, _}, Requirement}) ->
+    length(Params) + length(Requirement).
 
 %% Report §8.7, Appendix H: what forms reference by hash, a member of their
 %% own group aside, as the forms write it: a function or a type by its

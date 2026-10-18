@@ -214,7 +214,7 @@ in_group(Term, _, _) ->
 %% node never making an atom of a peer's name.
 called_foreign(Compiled, Declared, Foreigns) ->
     Reached = [Name || {Name, _, _, _, _} <- Foreigns],
-    Calls = lists:ukeysort(1, [{texts(QualifiedName), Reference}
+    Calls = lists:ukeysort(1, [{ern_namespace:text_segments(QualifiedName), Reference}
                                || {foreign, QualifiedName, _} = Reference
                                       <- ern_compile:references(definition_forms(Compiled))]),
     lists:foldr(fun({Name, {foreign, QualifiedName, Scheme} = Reference},
@@ -247,13 +247,6 @@ held(Name) ->
 
 definition_forms(Compiled) ->
     [Form || #definition{form = Form} <- Compiled].
-
-%% A qualified name as text, its segments atoms or a peer's text already.
-texts(QualifiedName) ->
-    [case Segment of
-         _ when is_atom(Segment) -> atom_to_binary(Segment);
-         _ -> Segment
-     end || Segment <- QualifiedName].
 
 %% Report §8.7, §8.4: a foreign declaration of the reach as a function of
 %% the unit's, by its qualified name as the forms that call it write it,
@@ -366,16 +359,12 @@ external({foreign, QualifiedName, Scheme} = Reference, {Functions, Others, Types
     case Lacked of
         #{Reference := Text} ->
             {Functions, Others, Types,
-             [{Reference, scheme_arity(Scheme), function, foreign, Text} | Lacking]};
+             [{Reference, ern_canonical:scheme_arity(Scheme), function, foreign, Text}
+              | Lacking]};
         #{} ->
             throw({unlinked, ["it calls a foreign function its reach did not declare, ",
                               ern_namespace:text(QualifiedName)]})
     end.
-
-%% The arity a foreign declaration's function is called with: its
-%% parameters and its requirement's members (report §4.9).
-scheme_arity({scheme, _, {arrow, Params, _, _}, Requirement}) ->
-    length(Params) + length(Requirement).
 
 %% Report §8.4, §11.5: each type of References with its name and its
 %% constructors as its form writes them, a program's from the forms the

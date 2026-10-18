@@ -351,7 +351,9 @@ refused_code(Base) ->
     {_, Taker} = ern_nodes_tests:client(Root, ern_nodes_tests:name(Z),
                                         ern_nodes_tests:key_files(Z), ern_carrier:cookie(),
                                         PortB, ern_nodes_tests:name(B),
-                                        ["-ern_deployment_frame", Frame], "ern_deployment_taker"),
+                                        ["-ern_deployment_frame", Frame, "-ern_deployment_ms",
+                                         integer_to_list(ern_nodes_tests:wait_ms())],
+                                        "ern_deployment_taker"),
     {0, Answer} = Taker(),
     ern_nodes_tests:has(binary_to_list(Answer), "answer: {failed,{'Other',<<\"this node could"
                                                 " not take the code it received: "),
@@ -368,7 +370,8 @@ refused_code(Base) ->
 %% is given, answers the request for its reach with that function alone,
 %% sends its code frame where the node lacks it, and prints the spawn's
 %% answer; its gateway is its own process, to which the node sends its
-%% frames (report §8.7).
+%% frames (report §8.7), and its spawn waits the milliseconds its command
+%% line gives, the harness's time for one wait.
 taker() ->
     <<"
 -module(ern_deployment_taker).
@@ -379,7 +382,8 @@ main() ->
     true = register(ern_gateway, self()),
     true = net_kernel:connect_node(Node),
     Spawn = make_ref(),
-    sent(Node, {spawn, Spawn, {function, Hash}, <<\"Taker.main:1\">>, false}),
+    sent(Node, {spawn, Spawn, {function, Hash}, <<\"Taker.main:1\">>, false,
+                list_to_integer(argument(ern_deployment_ms))}),
     Exchange = receive {ern_frame, _, {reach_request, Asked, _}} -> Asked end,
     sent(Node, {reach, Exchange, [Hash], [], []}),
     [Hash] = receive {ern_frame, _, {lacks, Exchange, Lacks}} -> Lacks end,

@@ -10,7 +10,7 @@
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
          erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2, text/1,
-         segment_text/1]).
+         segment_text/1, text_segments/1, text_segment/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -133,3 +133,15 @@ text(QualifiedName) ->
 segment_text(Segment) when is_atom(Segment) -> atom_to_list(Segment);
 segment_text(Segment) when is_binary(Segment) -> unicode:characters_to_list(Segment);
 segment_text(Segment) -> Segment.
+
+%% Report §8.7: a qualified name as a peer's frame writes it, each segment
+%% as text, which makes no atom where a peer sends it (text_segment/1).
+-spec text_segments([atom() | binary()]) -> [binary()].
+text_segments(QualifiedName) ->
+    [text_segment(Segment) || Segment <- QualifiedName].
+
+%% A segment or a name as text: an atom's of this node's, or a peer's text
+%% already, which may be any bytes.
+-spec text_segment(atom() | binary()) -> binary().
+text_segment(Segment) when is_atom(Segment) -> atom_to_binary(Segment);
+text_segment(Segment) when is_binary(Segment) -> Segment.

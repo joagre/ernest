@@ -73,6 +73,14 @@ cookie_test() ->
     ?assertEqual(Digest(<<1>>), ern_carrier:cookie("0.3.1-dev", Code(<<1>>))),
     ?assertNotEqual(ern_carrier:cookie("0.3.1-dev", Code(<<1>>)),
                     ern_carrier:cookie("0.3.1-dev", Code(<<2>>))),
+    %% a version text of another shape is refused plainly, naming it; a
+    %% regression test, written after the fix (the release review before
+    %% 0.4.0 found a badmatch)
+    [?assertThrow({cli_error, _}, ern_carrier:cookie(Text, Unasked))
+     || Text <- ["0.3", "0.3.1.2", "0.x.1", "0.3.1-rc1", "-1.3.1"]],
+    ?assertThrow({cli_error, "the version text 0.3 is neither a release's, three whole numbers,"
+                             " nor a development build's, ending in -dev"},
+                 ern_carrier:cookie("0.3", Unasked)),
     %% the repository's build is no release, and stands on its code's digest
     {ok, Version} = file:read_file("../../../VERSION"),
     Release = binary_to_list(string:trim(Version)),
@@ -102,7 +110,8 @@ boot_flags_test() ->
                    ["server_keyfile", filename:join(Dir, "private-key.pem")],
                    ["server_cacertfile", filename:join(Dir, "certificate.pem")],
                    ["server_verify", "verify_peer"], ["server_versions", "tlsv1.3"],
-                   ["server_verify_fun", "{ern_carrier,verify,[]}"],
+                   ["server_verify_fun", "{ern_carrier,verify,server}"],
+                   ["client_verify_fun", "{ern_carrier,verify,client}"],
                    ["server_fail_if_no_peer_cert", "true"],
                    ["client_verify", "verify_peer"], ["client_versions", "tlsv1.3"],
                    ["-epmd_module", "ern_epmd"], ["-start_epmd", "false"],
@@ -136,9 +145,55 @@ listed_test() ->
     ?assertEqual({unlisted, Unlisted}, ern_carrier:listed(certificate(Stranger))),
     ?assertEqual({unlisted, digest(Own#configuration.public_key)},
                  ern_carrier:listed(certificate(Own))),
-    ?assertEqual({unknown, state}, ern_carrier:verify(certificate(Peer), {extension, x}, state)),
-    ?assertEqual({valid, state},
-                 ern_carrier:verify(certificate(Peer), {bad_cert, selfsigned_peer}, state)).
+    ?assertEqual({unknown, server},
+                 ern_carrier:verify(certificate(Peer), {extension, x}, server)),
+    ?assertEqual({valid, server},
+                 ern_carrier:verify(certificate(Peer), {bad_cert, selfsigned_peer}, server)).
+
+%% report §8.7: a node it dials must answer under the name it dialed: on
+%% the client's side the rule takes a listed key only where it gives the
+%% host the process that dialed recorded as it asked the peer's address,
+%% the process the connection's own monitors, and refuses another listed
+%% key, the node saying which peer answered the dial of which. A regression
+%% test, written after the fix (the release review before 0.4.0 found a
+%% listed key taken for any peer dialed); test/ern_nodes_tests.erl's
+%% answered_by_another_key_test_ dials through the host's TLS
+dialed_test() ->
+    Own = configured(),
+    Peer = configured(),
+    Other = configured(),
+    Self = self(),
+    Peers = [#peer{name = <<"store">>, public_key = Peer#configuration.public_key,
+                   address = {{127, 0, 0, 1}, 8654}},
+             #peer{name = <<"desk">>, public_key = Other#configuration.public_key,
+                   address = {{127, 0, 0, 1}, 8655}}],
+    ok = ern_carrier:list(Own#configuration{peers = Peers}),
+    Dialed = ern_carrier:host(Peer#configuration.public_key),
+    %% the process that dials, outside the run, waits until the run ends
+    Dialer = spawn(fun() ->
+                       {ok, _, 8654, _} = ern_epmd:address_please("ernest", Dialed, inet),
+                       Self ! dialing,
+                       receive done -> ok end
+                   end),
+    receive dialing -> ok end,
+    Main = fun() ->
+                   Checked = fun(Certificate) ->
+                                 MonitorRef = erlang:monitor(process, Dialer),
+                                 Verified = ern_carrier:verify(Certificate,
+                                                               {bad_cert, selfsigned_peer},
+                                                               client),
+                                 erlang:demonitor(MonitorRef),
+                                 Verified
+                             end,
+                   Self ! {verified, Checked(certificate(Peer)), Checked(certificate(Other))}
+           end,
+    Said = fun(Bytes) -> Self ! {said, Bytes} end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => Said, stderr => Said})),
+    Dialer ! done,
+    ?assertEqual({verified, {valid, client}, {fail, not_dialed}},
+                 receive {verified, _, _} = Verified -> Verified end),
+    ?assertEqual({said, <<"the peer desk was refused: it answered the dial of the peer store\n">>},
+                 receive {said, _} = Line -> Line end).
 
 %% report §8.7: the lines a node says of its connections: a peer connected,
 %% by its name, or by its key's digest where it is not listed; a peer lost,
@@ -226,7 +281,8 @@ other_host_test() ->
              #peer{name = <<"desk">>, public_key = Other#configuration.public_key}],
     Main = fun() ->
                    ok = ern_carrier:list(Own#configuration{peers = Peers}),
-                   Self ! {verified, ern_carrier:verify(Forged, {bad_cert, selfsigned_peer}, s)}
+                   Self ! {verified, ern_carrier:verify(Forged, {bad_cert, selfsigned_peer},
+                                                        server)}
            end,
     Said = fun(Bytes) -> Self ! {said, Bytes} end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => Said, stderr => Said})),

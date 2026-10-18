@@ -9,6 +9,12 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
+%% Report §8.7: the milliseconds a spawn's or a compute's frame says its
+%% spawner waits, by which the exchange gives up a reach that does not
+%% arrive: eunit's time for one test, which no test here outlasts, so that
+%% no exchange's time runs out but where a test gives it none.
+-define(MS, 5000).
+
 -define(REACHED,
         "export type Shape = Square(Int) | Circle(Int)\n"
         "let side : Int = 3\n"
@@ -179,7 +185,7 @@ received_whole_test() ->
                ok = ern_exchange:lacking(self(), spawned(JoinedRef, Work), Work),
                Alias = erlang:alias([reply]),
                ok = ern_rt:note_compute(self(), Alias),
-               ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>}, Work),
+               ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>, ?MS}, Work),
                ok = catch_up(),
                AskedAgain = waiting(),
                Identities = [Hash(Name) || Name <- [work, area, 'Shape', isEven, isOdd]] ++ [Held],
@@ -265,7 +271,8 @@ received_linked_test() ->
                    ok = ern_rt:init_modules([BoundUnit]),
                    Alias = erlang:alias([reply]),
                    ok = ern_rt:note_compute(self(), Alias),
-                   ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>}, Work),
+                   ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>, ?MS},
+                                             Work),
                    {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, _}} ->
                                              {From, R}
                                      end,
@@ -356,7 +363,7 @@ received_beyond_reach_test() ->
                    Alias = erlang:alias([reply]),
                    ok = ern_rt:note_compute(self(), Alias),
                    ok = ern_exchange:lacking(self(), {compute, Alias, {lambda, Outer, 1, []},
-                                                      <<"M.f:3">>}, Lambda),
+                                                      <<"M.f:3">>, ?MS}, Lambda),
                    {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, Lambda}} ->
                                              {From, R}
                                      end,
@@ -672,6 +679,45 @@ no_longer_held_test() ->
     Line = <<"the node nohost's spawn at M.f:1 was not loaded: ", Text/binary, "\n">>,
     ?assertEqual([Line, Line], Said()).
 
+%% report §8.7: the exchange runs within the spawn's time: one whose spawner
+%% waits nothing is dropped with its forms once its time has run out, its
+%% spawn said and left unanswered, its spawner answering itself, and a
+%% reach of it that comes later is passed over; a spawn that joins an
+%% exchange with a shorter time leaves it the longer, which has not run out
+%% at its timer's message. A
+%% regression test, written after the fix (the release review before 0.4.0
+%% found an exchange a peer never completed kept until the connection's
+%% loss); it does not cover a compute's exchange, whose time is its frame's
+%% as a spawn's is, nor two nodes
+timed_out_test() ->
+    Work = {function, <<11:256>>},
+    Joined = {function, <<12:256>>},
+    Self = self(),
+    Main = fun() ->
+               true = register(ern_gateway, self()),
+               ok = ern_exchange:start(),
+               ok = ern_exchange:lacking(self(), spawned(make_ref(), Work, 0), Work),
+               {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, _}} -> {From, R} end,
+               ok = catch_up(),
+               Exchange ! {deadline, Ref},
+               Exchange ! {ern_frame, self(), {reach, Ref, [<<11:256>>], [], []}},
+               ok = catch_up(),
+               Late = waiting(),
+               ok = ern_exchange:lacking(self(), spawned(make_ref(), Joined), Joined),
+               JoinedRef = receive {ern_frame, _, {reach_request, J, _}} -> J end,
+               ok = ern_exchange:lacking(self(), spawned(make_ref(), Joined, 0), Joined),
+               Exchange ! {deadline, JoinedRef},
+               Exchange ! {ern_frame, self(), {reach, JoinedRef, [<<12:256>>], [], []}},
+               Lacks = receive {ern_frame, _, {lacks, JoinedRef, L}} -> L end,
+               Self ! {timed, Late, Lacks}
+           end,
+    {Said, Options} = said(),
+    ?assertEqual(ok, run(Main, Options)),
+    Text = <<"its time ran out before the function's reach arrived">>,
+    ?assertEqual({timed, [], [<<12:256>>]}, receive {timed, _, _} = Got -> Got end),
+    ?assertEqual([<<"the node nohost's spawn at M.f:1 was not loaded: ", Text/binary, "\n">>],
+                 Said()).
+
 %%
 %% Helpers
 %%
@@ -723,8 +769,13 @@ scratch_dir() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
-spawned(Ref, {function, Hash}) ->
-    {spawn, Ref, {function, Hash}, <<"M.f:1">>, false}.
+spawned(Ref, Function) ->
+    spawned(Ref, Function, ?MS).
+
+%% A spawn's frame, as the gateway's worker hands it on, whose spawner
+%% waits Ms.
+spawned(Ref, {function, Hash}, Ms) ->
+    {spawn, Ref, {function, Hash}, <<"M.f:1">>, false, Ms}.
 
 %% A code frame for a definition alone or a group's members in order, each
 %% with its name, its form with the lines of its source, and the foreign
@@ -737,24 +788,20 @@ code_frame(Ref, Members, Foreign) ->
     Forms = [Form || #definition{form = Form} <- Members],
     {code_frame, Ref, [Hash || #definition{hash = Hash} <- Members],
      ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
-     term_to_binary([{texts(QualifiedName), Sourced, Printing, calls(Form, Foreign)}
+     term_to_binary([{ern_namespace:text_segments(QualifiedName), Sourced, Printing,
+                      calls(Form, Foreign)}
                      || #definition{qualified_name = QualifiedName, form = Form,
                                     sourced = Sourced, printing = Printing} <- Members])}.
 
 %% The foreign declarations a form calls, in the order of their names, as a
 %% code frame carries them.
 calls(Form, Foreign) ->
-    Called = lists:usort([texts(QualifiedName)
+    Called = lists:usort([ern_namespace:text_segments(QualifiedName)
                           || {foreign, QualifiedName, _} <- ern_compile:references([Form])]),
-    [{Name, text(HostModule), text(HostFunction), Printing}
+    [{Name, ern_namespace:text_segment(HostModule), ern_namespace:text_segment(HostFunction),
+      Printing}
      || Name <- Called, {QualifiedName, _, HostModule, HostFunction, Printing} <- Foreign,
-        texts(QualifiedName) =:= Name].
-
-texts(QualifiedName) ->
-    [text(Segment) || Segment <- QualifiedName].
-
-text(Segment) when is_atom(Segment) -> atom_to_binary(Segment);
-text(Segment) -> Segment.
+        ern_namespace:text_segments(QualifiedName) =:= Name].
 
 %% The names of the locals a form with its source's lines holds.
 local_names({'$at', {_, _, Name}, Node}) ->

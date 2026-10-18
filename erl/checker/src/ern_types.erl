@@ -6,7 +6,7 @@
 -export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
          add_restriction/3, unfixed/2, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
-         monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
+         monomorphic/1, generalize/2, generalize/3, elided/2, instantiate/2, instance/2,
          replace_variables/2,
          mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
          args_in_value/3, effect_variables/1, set_scope/5, printing/1, printed_scope/1,
@@ -314,6 +314,13 @@ generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeS
                                           Name =/= undefined]),
     Quantified = [{Id, (maps:get(Id, Variables))#type_variable.restrictions} || Id <- Ids],
     {#scheme{quantified = Quantified, type = Elided, names = Names}, TypeState}.
+
+%% Report §3.9: a type with the substitution applied, each function type's
+%% own effect variable that occurs nowhere else none, as generalization
+%% writes it (elided_own_effect/3).
+-spec elided(type(), type_state()) -> type().
+elided(Type, TypeState) ->
+    elided_own_effect(substitute(Type, TypeState), [], TypeState).
 
 %% Report §3.9, §11.5: a function type's own effect variable that occurs
 %% nowhere else in the type, unrestricted and not kept, is none, in the

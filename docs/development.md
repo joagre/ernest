@@ -229,5 +229,6 @@ The toolchain is the report, on one node and across nodes. Everything the report
 
 | Construct | Until | What you see today |
 |---|---|---|
+| `ern shell` attached to a running node, its inputs run there and `:processes`, `:load` and `:reload` acting on the node | MVP 4.0 | A shell started beside the node, each look a compute on it (the deployment guide's §6) |
 
 Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.
