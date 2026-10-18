@@ -126,12 +126,13 @@ last chapters need, and before MVP 3.9, whose newcomer reads it: it is the langu
 test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordered*).
 
 - **First, a clause's body all or none** (decided with the user on 2026-10-14, the log's *Clause
-  Bodies All or None*): in a `match` or a `receive`, every clause's body stands beside its
-  pattern, or every one goes on the line below it, indented; a block's `{` stays after the
-  arrow. They stay beside where every one fits, and one that does not, a block or a body too
-  long, sends them all below. §11.6 says so first, then `ern format` and its tests, then `make
-  format` lays every source and example out once, so that the tour is written in the layout
-  it keeps.
+  Bodies All or None*): in a `match` or a `receive`, every clause's body stands beside its pattern,
+  or every one goes on the line below it, indented; a block's `{` stays after the arrow. They stay
+  beside where every one fits, and one that does not, a block or a body too long, sends them all
+  below.
+
+  §11.6 says so first, then `ern format` and its tests, then `make format` lays every source and
+  example out once, so that the tour is written in the layout it keeps.
 - **Second, the library `Mailbox`** under `src/libs/`, decided with the user on 2026-10-14 (the
   log's *Kill Darlings*): `drained(keep)`, every message of the caller's mailbox that `keep` says,
   in arrival order, by a selective receive with `after 0`, and `refilled(messages)`, which puts
@@ -139,13 +140,14 @@ test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordere
   anywhere. It moves what has arrived, never what will arrive, which its doc block says; redirecting
   the senders is the program's protocol. Written where the rolling upgrade's chapter needs it, by
   Appendix E.0 a library's and not the standard library's.
-- **The outline first, written with the user**, as a design is: the chapters, the program's
-  growth from one to the next, and what each shows, explicitly or by the way. A first sketch to
-  start from, not a decision: the counter and its client calling with a reply; faults, restarts
-  and a supervisor; a fix in the shell, two versions side by side as two types, and the service
-  moved by its own `Upgrade`; its total kept across the program's end with `Os.terminating`;
-  three nodes, a key and a find, `Standing`, a balancer; a bare node given its work with the
-  code; and the rolling upgrade, an old and a new build connected meanwhile.
+- **The outline first, written with the user**, as a design is: the chapters, the program's growth
+  from one to the next, and what each shows, explicitly or by the way.
+
+  A first sketch to start from, not a decision: the counter and its client calling with a reply;
+  faults, restarts and a supervisor; a fix in the shell, two versions side by side as two types, and
+  the service moved by its own `Upgrade`; its total kept across the program's end with
+  `Os.terminating`; three nodes, a key and a find, `Standing`, a balancer; a bare node given its
+  work with the code; and the rolling upgrade, an old and a new build connected meanwhile.
 - **It narrates and points, and teaches no rule a third time**: what a rule is and why is the
   report's and the guides', and the tour names the section.
 - **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
@@ -165,27 +167,32 @@ log's *The First Release Is for Others*:
 - **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
   gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
   one design note under `docs/` beside the shell's, once MVP 3.27's measurements have settled their
-  figures; the proposals then stay as the record of how the design was weighed. Its sources, in
-  order: §8.7 and §11.2 and the code as built, with `architecture.md`'s map, for what the component
-  is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is shaped so; `nodes.md`
-  and `code.md` for the intent and the alternatives weighed at the start, several of which the build
-  changed; `set_aside/` for one line each on what went and why; `experiments/` for the numbers a cost
-  section quotes; `other_systems.md` for the comparison. The paragraphs of §8.7 that state the runtime's machinery a
-  program never sees, its frames, the gateway's workers and the notes' bookkeeping, move into the
-  note then, with their Appendix F entries, and §8.7 keeps what a program meets, as the release
-  review before 0.4.0 found (the log's *The Release Review Before 0.4.0*, KP26). A proposal that
-  redesigned a rule of the language and built no component, kill darlings, the balancer's suggestion
-  and the placement push, becomes no note, its outcome being the report's (decided with the user on
-  2026-10-17).
-- **`make test` split in two**, done 2026-10-13, taken early (the log's *The Light Run and the
-  Full Run*). `make test` is the light run, the applications' unit tests and the document and
-  style tests, 85 s, for every commit; `make test-full` is every area, about ten minutes, for
-  the commit that closes a plan item and for a release; a commit of documents alone runs
-  `make test-docs`. `test-programs` runs as five targets, `test-integration`, `test-nodes`,
-  `test-deployment`, `test-manual` and `test-install`, the last after `test-manual`, since
-  both write the manual pages; `docs/development.md`'s *Building* has the table of which
-  targets a change runs. No test went or was made shallower. CLAUDE.md's *Tests* states which
-  run guards which commit.
+  figures; the proposals then stay as the record of how the design was weighed.
+
+  Its sources, in order: §8.7 and §11.2 and the code as built, with `architecture.md`'s map, for
+  what the component is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is
+  shaped so; `nodes.md` and `code.md` for the intent and the alternatives weighed at the start,
+  several of which the build changed; `set_aside/` for one line each on what went and why;
+  `experiments/` for the numbers a cost section quotes; `other_systems.md` for the comparison.
+
+  The paragraphs of §8.7 that state the runtime's machinery a program never sees, its frames, the
+  gateway's workers and the notes' bookkeeping, move into the note then, with their Appendix F
+  entries, and §8.7 keeps what a program meets, as the release review before 0.4.0 found (the log's
+  *The Release Review Before 0.4.0*, KP26).
+
+  A proposal that redesigned a rule of the language and built no component, kill darlings, the
+  balancer's suggestion and the placement push, becomes no note, its outcome being the report's
+  (decided with the user on 2026-10-17).
+- **`make test` split in two**, done 2026-10-13, taken early (the log's *The Light Run and the Full
+  Run*). `make test` is the light run, the applications' unit tests and the document and style
+  tests, 85 s, for every commit; `make test-full` is every area, about ten minutes, for the commit
+  that closes a plan item and for a release; a commit of documents alone runs `make test-docs`.
+
+  `test-programs` runs as five targets, `test-integration`, `test-nodes`, `test-deployment`,
+  `test-manual` and `test-install`, the last after `test-manual`, since both write the manual pages;
+  `docs/development.md`'s *Building* has the table of which targets a change runs.
+
+  No test went or was made shallower. CLAUDE.md's *Tests* states which run guards which commit.
 - **Lighter documents**, done 2026-10-13 (the log's *Lighter Documents*). The plan's finished
   milestones are rows of its table of milestones, each with its date, its release and the log
   entries that argue it, and the paragraphs went, a third of the plan; CLAUDE.md and
@@ -199,15 +206,18 @@ log's *The First Release Is for Others*:
   numbers kept for good (the log's *The Language Argued Before Peers*).
 - **The proposals built by then go**, decided 2026-10-16 (the log's *The Design Notes Leave the
   Proposals*). A proposal's directory goes when the milestone built from it closes, after one pass
-  takes to the log what it still argues that the log lacks; the review runs that pass over every
-  proposal built by 0.5.0, `nodes_and_code/`, `operations/`, `kill_darlings/`, `placement/` and,
-  once MVP 3.27 has measured against it, `balancer/`, and finds the operations programs and the
-  code-update experiments, which the tests run, a home under `examples/` or `test/fixtures/`, or
-  lets them go with their tests. The attached shell's, the site's and `ernest_host/` stay for the
-  milestones after 0.5.0, each going as its milestone closes; the last to go takes
-  `docs/README.md`'s line, `docs/development.md`'s layout and CLAUDE.md's *Proposals* and
-  *Handouts and scratch* paragraphs with it. CLAUDE.md's sentence that a built proposal is kept
-  changes in the commit that removes the first directory.
+  takes to the log what it still argues that the log lacks.
+
+  The review runs that pass over every proposal built by 0.5.0, `nodes_and_code/`, `operations/`,
+  `kill_darlings/`, `placement/` and, once MVP 3.27 has measured against it, `balancer/`, and finds
+  the operations programs and the code-update experiments, which the tests run, a home under
+  `examples/` or `test/fixtures/`, or lets them go with their tests.
+
+  The attached shell's, the site's and `ernest_host/` stay for the milestones after 0.5.0, each
+  going as its milestone closes; the last to go takes `docs/README.md`'s line,
+  `docs/development.md`'s layout and CLAUDE.md's *Proposals* and *Handouts and scratch* paragraphs
+  with it. CLAUDE.md's sentence that a built proposal is kept changes in the commit that removes the
+  first directory.
 - **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
   0.4.0 and that a release may still refuse a program the previous release accepted, as every
   release before 1.0 may (the log's *A Release Carries No History*); no section of the report states
@@ -233,25 +243,32 @@ it.
    `ern build`, `ern run` and `ern test` take `--verbose` and write on standard error one line for
    each decision they make without saying: the source root and build root taken, each module
    compiled, as its namespace, its file and the `.erc` written, each module read from the load path
-   with the directory that supplied it, and each stale `.erc` the cleanup removed; the default
-   stays silent, and standard output stays `--emit-erl`'s and the program's. §11.1 and §11.2 state
-   the lines, `ern --help` lists the flag, and a test reads the lines of a build, a run and a test.
-   About a day, first in the milestone since it touches `ern_build`, the runner and §11 alone.
+   with the directory that supplied it, and each stale `.erc` the cleanup removed; the default stays
+   silent, and standard output stays `--emit-erl`'s and the program's.
+
+   §11.1 and §11.2 state the lines, `ern --help` lists the flag, and a test reads the lines of a
+   build, a run and a test. About a day, first in the milestone since it touches `ern_build`, the
+   runner and §11 alone.
+
    The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
    what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
 2. **The design**, discussed with the user first in `docs/proposals/shell/attached.md` (begun
    2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell
    --config-dir ops --attach name` to a listed peer over the carrier, never a process number or an
-   address, since a node is reached by its key (decided 2026-10-13); a session's namespace of its
-   own, `$Session3.T`, and the code table keeping each session's units apart, since operators attach
-   to one node at once; `:detach` in `:quit`'s place; what an input's process is on the node and who
-   its root is; what `:processes`, `:load` and `:reload` do there; what the session shows when the
-   node is lost; and the deployment guide's sections 5.3 and 6 rewritten over it, the upgrade of the
-   language guide's §8.9 becoming a `:load` of the new build at the node's prompt with `Code.running`
-   run there, and `docs/development.md`'s row on attaching gone with the gap (asked by the user
-   2026-10-18). The attached shell is the
-   operator's alone, trusted as a peer is, with no sandbox: the website runs the plain shell in a
-   container per visitor (MVP 4.2).
+   address, since a node is reached by its key (decided 2026-10-13).
+
+   A session's namespace of its own, `$Session3.T`, and the code table keeping each session's units
+   apart, since operators attach to one node at once; `:detach` in `:quit`'s place; what an input's
+   process is on the node and who its root is; what `:processes`, `:load` and `:reload` do there;
+   what the session shows when the node is lost.
+
+   The deployment guide's sections 5.3 and 6 rewritten over it, the upgrade of the language
+   guide's §8.9 becoming a `:load` of the new build at the node's prompt with `Code.running` run
+   there, and `docs/development.md`'s row on attaching gone with the gap (asked by the user
+   2026-10-18).
+
+   The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website
+   runs the plain shell in a container per visitor (MVP 4.2).
 3. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
    program's node, the guide's section 6 run by them, and the release that follows.
 
@@ -355,13 +372,14 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
    check an unfinished input, designed first.
 4. **A shell attached to a running node**: MVP 4.0's since 2026-10-13, the first milestone
    after 0.5.0.
-5. **Whether the session owns what its inputs open**, a decision with the user: a socket and
-   a running program an input opens end with the input's process, their owner (§11.2), and
-   the session could own them instead, so that they live until it ends, by a way the shell
-   names an owner for its inputs (`findings.md`'s C1-2, placed here 2026-09-30). Half decided
-   2026-10-10 by feedback entry 91: what a `:load`'s binding opens is the evaluation process's,
-   which lives while the session runs (§11.2), so the decision left is the input's own process
-   alone, which MVP 3.1's read kept ending with the input (its W10).
+5. **Whether the session owns what its inputs open**, a decision with the user: a socket and a
+   running program an input opens end with the input's process, their owner (§11.2), and the session
+   could own them instead, so that they live until it ends, by a way the shell names an owner for
+   its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
+
+   Half decided 2026-10-10 by feedback entry 91: what a `:load`'s binding opens is the evaluation
+   process's, which lives while the session runs (§11.2), so the decision left is the input's own
+   process alone, which MVP 3.1's read kept ending with the input (its W10).
 6. **A previous version at the prompt**, a decision with the user: whether a previous version's
    constructors may be written at the prompt, `Counter$1.Inc`, and whether `:processes` names
    the version a process runs (`language_feedback.md`'s entries 97 and 98, placed here

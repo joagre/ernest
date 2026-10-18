@@ -551,7 +551,11 @@ The names every module may use without a module's name before them, `Some`, `Lef
 Three more rules concern processes, and are for after §4:
 
 - **A system process is used through its module**, never by `send`.
-- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. `Timeout` is `Io.Error`'s, whichever module answers it, `Peer.find` (§8.2) among them. There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
+- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. `Timeout` is `Io.Error`'s, whichever module answers it, `Peer.find` (§8.2) among them.
+
+  There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7).
+
+  A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
 - **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§3.4). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
@@ -2984,7 +2988,9 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1. A termination tells the processes that subscribed with `Os.termination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1.
+
+  A termination tells the processes that subscribed with `Os.termination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
@@ -3042,7 +3048,11 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A function says in its type whether it receives, `receiving M`, and one that only sends says nothing (§3.4).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
-- There are no registered names, and none are needed: a registry exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5). Addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, through a service binding, a top-level binding that holds one (§6.5), or, from another node, by the name it is offered under (§8.2).
+- There are no registered names, and none are needed: a registry exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5).
+
+  Addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send.
+
+  A process is reached through an address it was given, through a service binding, a top-level binding that holds one (§6.5), or, from another node, by the name it is offered under (§8.2).
 - There are no atoms in the language: constructors are the tags. `Foreign.atom` makes one for a foreign call.
 - There are no OTP behaviors. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). A new version of a module arrives by the shell's `:reload`, by `Code.load` (report Appendix E.28), or with a peer's spawn or compute (§8.1).

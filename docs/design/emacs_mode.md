@@ -14,7 +14,11 @@ Derived from `prog-mode`, not from CC Mode.
 - `imenu`, `beginning-of-defun`, `end-of-defun` and `add-log-current-defun-function`.
 - An entry of `compilation-error-regexp-alist` for `file:line:col: message`, which takes a file name with a space in it.
 - `auto-mode-alist` for `.ern`.
-- `ernest-format-buffer`, which lays out the buffer with `ern format -` (report §11.6). It replaces only the white space that differs, so point, the mark and every window stay on their text. A buffer that does not parse is left as it is, and the diagnostic is shown in the buffer `*ern format*`, naming the buffer's file, or the buffer where it visits none, where the formatter names standard input `-`. `ernest-format-on-save-mode` runs it as a buffer is saved and never refuses the save; a formatter that cannot run is reported in `*ern format*` too. `ernest-format-command` names the `ern` it runs, which is otherwise looked for on `exec-path`.
+- `ernest-format-buffer`, which lays out the buffer with `ern format -` (report §11.6). It replaces only the white space that differs, so point, the mark and every window stay on their text.
+
+  A buffer that does not parse is left as it is, and the diagnostic is shown in the buffer `*ern format*`, naming the buffer's file, or the buffer where it visits none, where the formatter names standard input `-`.
+
+  `ernest-format-on-save-mode` runs it as a buffer is saved and never refuses the save; a formatter that cannot run is reported in `*ern format*` too. `ernest-format-command` names the `ern` it runs, which is otherwise looked for on `exec-path`.
 
 It calls the toolchain only to lay out a buffer; the compiler is `M-x compile`'s.
 
