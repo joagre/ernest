@@ -16,9 +16,9 @@ and a feature declined in the log's *Later*; nothing stands between.
 
 **MVP 3.2 is in progress.** Its items 1 to 10 are done, code crossing with a spawn, the bare
 node, `Code`, the pick, the deployment guide and the repository laid out again, and its item 11,
-Ernest 0.4.0, waits for the user's word. MVP 3.26, two subtractions from the type system, is done
+Ernest 0.4.0, began 2026-10-18. MVP 3.26, two subtractions from the type system, is done
 (2026-10-16), and so are the tools' five speed changes and the programs tests' defects. Every
-paragraph before the tag, in MVP 3.2 below, is done (2026-10-18); item 11 waits for the user's word.
+paragraph before the tag, in MVP 3.2 below, is done (2026-10-18); item 11 is in progress (the log's *The Release Review Before 0.4.0*).
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A

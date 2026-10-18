@@ -10,9 +10,17 @@
 %% `sort`, or [MemberOf, Name] for a member, as a fun. The standard library
 %% is loaded first, as a run's start loads it, since a test calls it from a
 %% process of its own, which loads no unit at its first call
-%% (ern_rt:stdlib_modules/0).
+%% (ern_rt:stdlib_modules/0). Report §8.6: the scan of the library and the
+%% loads are the host's work, waits on its file server and code server, so
+%% they are counted as a foreign call is, as every host call an Ernest
+%% program makes is counted; a test that calls this inside a run would
+%% otherwise be a process waiting with nothing in flight to the reaper,
+%% which found a deadlock in fs_test under load (2026-10-18).
 -spec function(module(), atom() | [atom()]) -> function().
 function(Unit, Name) ->
+    ern_rt:in_foreign(fun() -> resolve(Unit, Name) end).
+
+resolve(Unit, Name) ->
     _ = ern_rt:stdlib_modules(),
     {module, Unit} = ern_code:ensure_loaded(Unit),
     [Namespace] = [Namespace || {Namespace, {calls, _}} <- Unit:'$code'()],
