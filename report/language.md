@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 18 October 2026.
+Revision of 20 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -822,6 +822,8 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 lists and those a standard library function's section gives, the supervisor's among them (Appendix E.22), each with its text. A process that is killed, or that ends with the program, has not faulted.
 
+A fault carries a trace, the host's stack where the fault was met, at the moment it was (Appendix E.21); the fault's report shows it (§11.2), and `Down` carries the cause alone.
+
 ### 7.4 Causes of faults
 
 A function answers a failure as a value: `Optional` where the failure has no cause the program can act on, `Either` where it has one (§7.1, E.0 shape rule 4). A function faults only where it cannot return, where its result is a `Float` the finite range cannot hold (§3.1), or where the failure is the runtime's own, a boundary crossed, a limit of the host met. An operator and a construction the grammar gives fault.
@@ -935,7 +937,7 @@ A type variable that a parameter's type names matches any value, in a foreign fu
 - `Reply(a)` → an alias: foreign code answers `v` by sending `{Alias, v}` to it.
 - Foreign values → as foreign code made them; Ernest does not inspect them.
 
-A process's end is a host term too, the `Reason` of §9.3 as the host sees it. The runtime ends a process with one of these terms; any other end is the host's (§6.9). A process that returned exits `normal`. One that faulted exits `{ern, fault, Cause}`. Where the fault is a failure in the runtime or a foreign function's raise (§7.4), it exits `{ern, fault, Cause, Trace}`, `Trace` the trace of Appendix E.21 as text. One killed, by `kill` or by its owner's death (§6.9), exits `{ern, killed}`, and one ended with the program `{ern, program_end}`. A socket or a listener the program closed exits `{ern, closed}`, which is `Returned` (§6.9).
+A process's end is a host term too, the `Reason` of §9.3 as the host sees it. The runtime ends a process with one of these terms; any other end is the host's (§6.9). A process that returned exits `normal`. One that faulted exits `{ern, fault, Cause, Trace}`, `Trace` its trace (§7.3, Appendix E.21) as text. One killed, by `kill` or by its owner's death (§6.9), exits `{ern, killed}`, and one ended with the program `{ern, program_end}`. A socket or a listener the program closed exits `{ern, closed}`, which is `Returned` (§6.9).
 
 Same-named constructors of different types share an atom; the receiver's declared type disambiguates. Cross-node transport uses the runtime's external term format for these representations. A `foreign fn` implementation is named `module:function/arity`, the arity its parameter count. The function is named as the host names it, an operator among them: `erlang:+/2`. A name not of that form, or whose arity is not the parameter count, is a compile-time error. A module or function the host lacks when the call is made raises, and the call faults as §7.4 says: `Fault("foreign function m:f/n raised error:undef")`.
 
@@ -1214,7 +1216,7 @@ The prelude binds no system reference. Each is a private binding of its system m
 - A spawn or a compute whose function the peer lacks costs the crossing of what the peer lacks of its reach and the peer's compile of it, once for each definition on each node, within the spawn's time (§8.7).
 
   A node holds the code it receives, and the code it loads after its start, as units of the host's beside its build's, for its life (§11.1, §11.2); each unit adds to the host's counts of module names, export entries, function entries and atoms, which never fall in the host's life, so a node sent code without end nears a limit of the host's, said once at four fifths (§11.2).
-- A raise in the host or in a foreign function costs the frames the host keeps of the stack, 64 (Appendix E.28), a cost a deep stack alone pays; a trace shows twelve of them (Appendix E.21).
+- A raise, a fault's among them, costs the frames the host keeps of the stack, 64 (Appendix E.28), a cost a deep stack alone pays; a trace shows twelve of them (Appendix E.21).
 - Memory is the host's. A program that exhausts it ends at once, every process with it: no process faults, no monitor is told, and the host's message is written to standard error (§11.8).
 - `Int` has arbitrary precision. A result beyond the host's integers faults with `Fault("error:system_limit")`, a limit of the host met (§7.4).
 - Bitstrings are constructed and matched by the runtime's bit syntax (§5.11).
@@ -1549,6 +1551,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **telling** — the frame a node sends each peer every `utilization-interval` with how busy it is, which the peer holds to draw a peer for `Peer.compute`. §8.7.
 - **tick** — a sign of life the host sends a peer where nothing else was sent for 15 seconds. §8.7.
 - **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
+- **trace** — the host's stack where a fault was met, at the moment it was, as text, a frame a line written as a spawn site is; a fault's report shows it and `Down` leaves it out. §7.3, §11.2, Appendix E.21.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`. §3.2.
 - **type scheme** — a type with its quantified variables and their inferred restrictions, as a generalized binding has. §3.9.
 - **type variable** — a lowercase identifier in type position, over which a definition is generalized as §3.9 says. §3.9.

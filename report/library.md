@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 18 October 2026.
+Revision of 20 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -674,7 +674,9 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 `faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes' and the runtime's own excepted (§6.9), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§8.2): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
-In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it or, where it is listed no more, by its node as §8.7's lines name one, and is `None` where no peer did, and `trace` is the innermost twelve frames of the host's stack beneath a failure in the runtime or a foreign function's raise, a function to a line, and empty beneath a cause of §7.4.
+In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it or, where it is listed no more, by its node as §8.7's lines name one, and is `None` where no peer did.
+
+`trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line. A frame of Ernest code is written as a spawn site is (§6.9), the function's name and its line, `Counter.worker:23`, a lambda's or a local function's name after the definition's as §11.1 names it; a frame of the host's is the function as the host names it, then its line, `lists:nth/2:213`, without a line where the host has none.
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity)

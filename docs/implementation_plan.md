@@ -109,6 +109,13 @@ and `fn f(x) : Int` are one typed tree and two hashes, shipped twice. The form h
 the body, the annotation going to Appendix H's *What is left out*, and the form's version changes
 with it, which is why it waits for the tag: the first change of the form since 0.4.0's floor.
 
+**After the tag: every fault carries a trace.** Decided with the user 2026-10-20 (the log's *Every
+Fault Carries a Trace*): §7.3 gives every fault the host's stack where it was met, where the report
+had given it to a failure in the runtime and a foreign raise alone, and E.21 writes a frame as a
+spawn site is written, `Counter.worker:23`. The runtime keeps the stack it already has at every
+fault, a deadlock's from the waiting process, and writes the frames in the site's shape; `ern run`,
+`ern test` and the shell print them beneath the fault's line; the two-element exit term of §8.4 goes.
+
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
