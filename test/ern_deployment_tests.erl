@@ -42,9 +42,13 @@
 %% with status 143, and the shell saying that b ended. The guide's
 %% directories are relative, and the test runs the commands from the
 %% directory that holds them, the ports the harness's. It does not cover
-%% the counters' totals after the move, nor a shell's monitor at b's stop
+%% the counters' totals after the move, nor a shell's monitor at b's stop.
+%% Its limit is the sum of its twenty-eight waits, each bounded by the
+%% harness's time for one wait: ten jobs, two ports that answer, nine
+%% lines, four ends, the tool's, the two nodes' and the shell's, and what
+%% three nodes said
 runbook_test_() ->
-    ern_nodes_tests:nodes_test(180, fun runbook/1).
+    ern_nodes_tests:nodes_test({waits, 28}, fun runbook/1).
 
 runbook(Base) ->
     [Directories, Started, Reloaded, Moved, Stopped] = consoles("## 8."),
@@ -72,8 +76,10 @@ runbook(Base) ->
     ern_nodes_tests:prints(Ops, ") : Either(Io.Error, List(Process))"),
     ern_nodes_tests:has(ern_nodes_tests:written(Ops, out), "Right([<process "),
     ern_nodes_tests:says(B, "the peer ops connected"),
-    true = port_command(Shell, "Peer.computeAt(\"b\", fn() = List.map(Process.live(),"
-                               " Process.status), 5000)\n"),
+    %% the compute given the harness's time for one wait, the step it is of
+    true = port_command(Shell, ["Peer.computeAt(\"b\", fn() = List.map(Process.live(),"
+                                " Process.status), ",
+                                integer_to_list(ern_nodes_tests:wait_ms()), ")\n"]),
     ern_nodes_tests:prints(Ops, "Some(Status(site = \"Counter.serve\""),
     %% a peer added to b's file, and the reload
     [] = ran(Base, [{"config --config-dir d", []}]),
@@ -215,9 +221,11 @@ no_node(Base, Job, Dir) ->
 %% `Os.exit` gives, and with 1 when its entry process faults, the fault's
 %% line on standard error, a pipe here, beginning with its time; status
 %% 143 by `ern stop` is the runbook's. It does not cover status 141 nor a
-%% killed entry process
+%% killed entry process. Its limit is the sum of its seven waits, each
+%% bounded by the harness's time for one wait: the build, and each of the
+%% three nodes' end and what it said
 statuses_test_() ->
-    ern_nodes_tests:nodes_test(90, fun statuses/1).
+    ern_nodes_tests:nodes_test({waits, 7}, fun statuses/1).
 
 statuses(Base) ->
     ok = file:write_file(filename:join(Base, "statuses.ern"),
@@ -258,9 +266,11 @@ statuses(Base) ->
 %% prints the lines it shows, b's counter moved though b lacked the new
 %% loop; and the tool run again with a peer listed that nothing answers,
 %% which is a line with the failure. It does not cover a build loaded with
-%% `Code.load`
+%% `Code.load`. Its limit is the sum of its eight waits, each bounded by
+%% the harness's time for one wait: two builds, a port that answers, the
+%% ends of the tool's two runs and of b, and what the tool's two runs said
 upgrade_test_() ->
-    ern_nodes_tests:nodes_test(90, fun upgrade/1).
+    ern_nodes_tests:nodes_test({waits, 8}, fun upgrade/1).
 
 upgrade(Base) ->
     [[Build, {Tool, _} = Moved]] = consoles("### 5.3"),
@@ -288,10 +298,13 @@ upgrade(Base) ->
 
 %% guide/deployment.md, section 7; report §8.7: a peer silent past the
 %% detector's intervals, here stopped by the host's signal, is lost, and
-%% the node says it fell silent. The one test that waits as long as the
-%% detector does, about a minute
+%% the node says it fell silent. The one test here that waits as long as
+%% the detector does, about a minute. Its limit is the sum of its nine
+%% waits, each bounded by the harness's time for one wait, and the
+%% detector's time beside the one that waits for it: the test program's
+%% three builds, three lines, two nodes' ends and what a said
 fell_silent_test_() ->
-    ern_nodes_tests:nodes_test(150, fun fell_silent/1).
+    ern_nodes_tests:nodes_test({waits, 9, ern_nodes_tests:detector_ms()}, fun fell_silent/1).
 
 fell_silent(Base) ->
     PortB = ern_nodes_tests:free_port(),
@@ -307,9 +320,10 @@ fell_silent(Base) ->
     {ok, Number} = file:read_file(filename:join(B, "ernest.pid")),
     Frozen = string:trim(binary_to_list(Number)),
     "" = os:cmd("kill -STOP " ++ Frozen),
-    %% the guide's latest, 75 seconds after the last traffic, and one of its
-    %% 15-second intervals more for a host the other tests load
-    ern_nodes_tests:says(A, "the peer b was lost: it fell silent", 90000),
+    %% the guide's latest, 75 seconds after the last traffic, beside the
+    %% step's own time
+    ern_nodes_tests:says(A, "the peer b was lost: it fell silent",
+                         ern_nodes_tests:wait_ms() + ern_nodes_tests:detector_ms()),
     "" = os:cmd("kill -CONT " ++ Frozen),
     ern_nodes_tests:stop(A, WaitA),
     ern_nodes_tests:stop(B, WaitB),
@@ -322,9 +336,12 @@ fell_silent(Base) ->
 %% holds, sent by a peer of the test's own that plays the spawner's part
 %% of the exchange, is not loaded, the spawn answered Other and the node
 %% saying why, naming the peer and the site. It does not cover a count of
-%% the host's passed, the other reason the guide names
+%% the host's passed, the other reason the guide names. Its limit is the
+%% sum of its seven waits, each bounded by the harness's time for one wait:
+%% two host modules compiled, two lines, the peer's run, the node's end and
+%% what it said
 refused_code_test_() ->
-    ern_nodes_tests:nodes_test(90, fun refused_code/1).
+    ern_nodes_tests:nodes_test({waits, 7}, fun refused_code/1).
 
 refused_code(Base) ->
     Root = filename:join(Base, "build"),
@@ -404,9 +421,10 @@ sent(Node, Body) ->
 %% of a limit of the host's the runtime says the line the guide quotes,
 %% given the counts a load would read, in a host of its own, whose counts
 %% no other test's loads then change. It does not cover a node that loads
-%% its way there, which would take hours
+%% its way there, which would take hours. Its limit is its one wait, the
+%% host's run, bounded by the harness's time for one wait
 four_fifths_test_() ->
-    {timeout, 60, fun four_fifths/0}.
+    {timeout, ern_nodes_tests:wait_ms() div 1000, fun four_fifths/0}.
 
 four_fifths() ->
     Counts = "[{module_names, 52429, 65536}, {exports, 1, 524288}, {lambdas, 1, 524288},"

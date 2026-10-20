@@ -55,12 +55,9 @@ $(EXEC): erl/runtime/c_src/ern_exec.c
 # The standard library written in Ernest: src/stdlib/ compiled by ern build
 # into build/stdlib, where the checker reads its interfaces and a run loads
 # its modules (report §11.1, plan MVP 2.5). ern build recompiles what a
-# changed compiler changes (report §11.1). A copy under the Erlang name,
-# which an earlier build put beside each module for the host's loader, is
-# removed.
+# changed compiler changes (report §11.1).
 stdlib:
 	@bin/ern build --build-root build/stdlib src/stdlib
-	@rm -f build/stdlib/ern@*.beam
 
 # The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
 # its own, compiled into build/libs/<name>, which a program adds with
@@ -85,12 +82,9 @@ $(filter-out lib-ansi,$(LIB_BUILDS)): lib-%: lib-ansi
 # compiled by ern build into build/shell, where `ern shell` loads it by
 # namespace, with libs/ansi and libs/markdown, which it renders and styles
 # documentation with and is compiled against, from their builds under
-# build/libs. The copies an earlier build put in build/shell for the
-# host's loader, of the shell's modules and of the two libraries, are
-# removed.
+# build/libs.
 shell: libs
 	@bin/ern build $(LIB_PATH) --build-root build/shell src/shell
-	@rm -f build/shell/ern@*.beam
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).

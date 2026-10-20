@@ -19,7 +19,7 @@
 
 -export([nodes_test/2, free_port/0, made/3, edit/2, lists/2, name/1, program/1, client/0,
          client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2,
-         says/3, prints/2, stop/2, written/2, said/1, wait_ms/0, has/2]).
+         says/3, prints/2, stop/2, written/2, said/1, wait_ms/0, detector_ms/0, has/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/fixtures/peers/`'s programs use, on every node's load path.
@@ -528,6 +528,11 @@ said(Dir) ->
 wait_ms() ->
     ?WAIT_MS.
 
+%% The detector's latest, which a test of the deployment guide's that
+%% waits for it is given beside its step's own time.
+detector_ms() ->
+    ?DETECTOR_MS.
+
 has(Text, Part) ->
     ?assertNotEqual(nomatch, string:find(Text, Part)).
 
@@ -994,15 +999,10 @@ missing_module(Base) ->
     0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
     ok = file:delete(filename:join(Build, "extra.erc")),
     Main = filename:join(Build, "main.erc"),
-    Run = fun(Words) ->
-              Port = open_port({spawn_executable, "/bin/sh"},
-                               [{args, ["-c", lists:flatten([?ERN, " run ", Words, " 2>&1"])]},
-                                exit_status, binary]),
-              collected(Port, ?WAIT_MS)
-          end,
-    ?assertEqual({0, <<"ran\n">>}, Run(Main)),
-    ?assertEqual({1, <<"ern run: cannot find module Extra (extra.erc), which User needs, on the"
-                       " load path: a node reads every module of its load path\n">>},
+    Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
+    ?assertEqual({0, "ran\n"}, Run(Main)),
+    ?assertEqual({1, "ern run: cannot find module Extra (extra.erc), which User needs, on the"
+                     " load path: a node reads every module of its load path\n"},
                  Run(["--config-dir ", Lone, " ", Main])),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
@@ -1029,16 +1029,11 @@ misplaced_module(Base) ->
     Moved = filename:join(Build, "moved.erc"),
     ok = file:rename(filename:join(Build, "extra.erc"), Moved),
     Main = filename:join(Build, "main.erc"),
-    Run = fun(Words) ->
-              Port = open_port({spawn_executable, "/bin/sh"},
-                               [{args, ["-c", lists:flatten([?ERN, " run ", Words, " 2>&1"])]},
-                                exit_status, binary]),
-              collected(Port, ?WAIT_MS)
-          end,
-    ?assertEqual({0, <<"ran\n">>}, Run(Main)),
+    Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
+    ?assertEqual({0, "ran\n"}, Run(Main)),
     Refusal = "ern run: " ++ ern_build:shown(Moved) ++ " holds Extra, not Moved; build it again"
         " from its source root\n",
-    ?assertEqual({1, list_to_binary(Refusal)}, Run(["--config-dir ", Lone, " ", Main])),
+    ?assertEqual({1, Refusal}, Run(["--config-dir ", Lone, " ", Main])),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
 %% report §8.7: a node runs over its listener's family of addresses, IPv6
@@ -1113,15 +1108,13 @@ refused_configuration(Base) ->
     A = made(Base, "a", none),
     edit(A, fun(Conf) -> Conf#{<<"peers">> => #{}} end),
     Program = program(filename:join(Base, "build")),
-    Run = ?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1; echo status $?",
-    Said = os:cmd(Run),
+    Run = ?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1",
+    {1, Said} = finished(Run),
     has(Said, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": peers is not a JSON array"),
-    has(Said, "status 1"),
     edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilization">> => <<"cpu">>} end),
-    Measured = os:cmd(Run),
+    {1, Measured} = finished(Run),
     has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": utilization is \"cpu\","
-                  " which is neither \"run-queue\" nor \"schedulers\""),
-    has(Measured, "status 1").
+                  " which is neither \"run-queue\" nor \"schedulers\"").
 
 %% report §8.7, §11.2: a node refused once its start has begun, by a module
 %% on its load path the program never uses whose dependency the path lacks,
@@ -1140,10 +1133,9 @@ refused_after_start(Base) ->
     ok = file:write_file(filename:join(Root, "used.ern"), "export fn g() : Int = 1\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
     ok = file:delete(filename:join(Root, "used.erc")),
-    Said = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ filename:join(Root, "prog.erc")
-                  ++ " 2>&1; echo status $?"),
+    {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ filename:join(Root, "prog.erc")
+                         ++ " 2>&1"),
     has(Said, "Used"),
-    has(Said, "status 1"),
     ?assertEqual(nomatch, string:find(Said, "ran")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
@@ -1168,11 +1160,9 @@ carrier_not_started(Base) ->
     0 = ern_cli:ern(["build", Root], group_leader()),
     Program = filename:join(Root, "prog.erc"),
     Out = filename:join(Base, "out"),
-    Said = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out
-                  ++ "; echo status $?"),
+    {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out),
     ok = gen_tcp:close(Held),
     has(Said, "Prog.main faulted: the node's carrier did not start: "),
-    has(Said, "status 1"),
     ?assertEqual({ok, <<>>}, file:read_file(Out)),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))),
     %% the line as the deployment guide quotes it
@@ -1199,7 +1189,7 @@ no_deadlock(Base) ->
                          "}\n"),
     0 = ern_cli:ern(["build", Root], group_leader()),
     Program = filename:join(Root, "waits.erc"),
-    {Micros, Plain} = timer:tc(fun() -> os:cmd(?ERN ++ " run " ++ Program ++ " 2>&1") end),
+    {Micros, {1, Plain}} = timer:tc(fun() -> finished(?ERN ++ " run " ++ Program ++ " 2>&1") end),
     has(Plain, "deadlock"),
     {Port, Wait} = started(A, Program, []),
     prints(A, "waiting"),
@@ -1855,11 +1845,10 @@ adapted_calls(Base) ->
     [has(Out, Line)
      || Line <- ["found meanwhile: Right", "through the gate: 50", "gated: Returned"]].
 
-%% `ern <job> --config-dir Dir` run as a person runs it, its status.
+%% `ern <job> --config-dir Dir` run as a person runs it: its status, and
+%% what it said.
 signaled(Job, Dir) ->
-    Said = os:cmd(?ERN ++ " " ++ Job ++ " --config-dir " ++ Dir ++ " 2>&1; echo status $?"),
-    {match, [Status]} = re:run(Said, "status ([0-9]+)", [{capture, all_but_first, list}]),
-    {list_to_integer(Status), Said}.
+    finished(?ERN ++ " " ++ Job ++ " --config-dir " ++ Dir ++ " 2>&1").
 
 %% report §8.6, §8.7, §11.2: `ern stop` sends the node its directory names
 %% termination, saying only that it was delivered; the node stops in order,
@@ -1915,10 +1904,9 @@ pid_lock(Base) ->
     prints(A, "waiting"),
     {ok, Number} = file:read_file(PidFile),
     ?assertNotEqual(Killed, Number),
-    Again = os:cmd(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1; echo status $?"),
+    {1, Again} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1"),
     has(Again, " is the configuration directory of the running node "
                ++ string:trim(binary_to_list(Number)) ++ ", which ernest.pid names"),
-    has(Again, "status 1"),
     stop(A, WaitA),
     {_, Err} = said(A),
     ?assertEqual(nomatch, string:find(Err, "configuration directory")),
@@ -2751,17 +2739,16 @@ bare_node_refused_test_() ->
 
 bare_node_refused(Base) ->
     C = made(Base, "c", none),
-    Refused = os:cmd(?ERN ++ " run --config-dir " ++ C ++ " 2>&1; echo status $?"),
-    has(Refused, "ern run: a bare node listens: " ++ filename:join(C, "ernest.conf")
-                 ++ " has no listen\nstatus 1"),
+    {1, Refused} = finished(?ERN ++ " run --config-dir " ++ C ++ " 2>&1"),
+    ?assert(lists:suffix("ern run: a bare node listens: " ++ filename:join(C, "ernest.conf")
+                         ++ " has no listen\n", Refused)),
     ?assertNot(filelib:is_file(filename:join(C, "ernest.pid"))),
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Held),
     D = made(Base, "d", Port),
-    Taken = os:cmd(?ERN ++ " run --config-dir " ++ D ++ " 2>&1; echo status $?"),
+    {1, Taken} = finished(?ERN ++ " run --config-dir " ++ D ++ " 2>&1"),
     ok = gen_tcp:close(Held),
     has(Taken, "bare node faulted: the node's carrier did not start: "),
-    has(Taken, "status 1"),
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
 %% report §8.7, §8.4, Appendix E.27: a lambda crosses as the definition
@@ -4318,6 +4305,18 @@ second_build(Base) ->
                      filename:join(Base, "second-build")]
                     ++ lists:append([["--load-path", Library] || Library <- ?LIBRARIES])
                     ++ [Root], group_leader()).
+
+%% A command run by /bin/sh to its end, as a person runs it: its status,
+%% and what it wrote on its standard output, its standard error among it
+%% where the command sends it there. The harness's time for one wait bounds
+%% a failure, as ern_deployment_tests:job/2 bounds a job's. A host's `kill`,
+%% `ps` or `mkfifo` is run by os:cmd, since it returns once its one call to
+%% the system has, and waits on nothing a test runs.
+finished(Command) ->
+    Port = open_port({spawn_executable, "/bin/sh"},
+                     [{args, ["-c", lists:flatten(Command)]}, exit_status, binary]),
+    {Status, Said} = collected(Port, ?WAIT_MS),
+    {Status, binary_to_list(Said)}.
 
 %% A port's output to its end, and its exit status, within Ms.
 collected(Port, Ms) ->

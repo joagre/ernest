@@ -112,20 +112,24 @@ mark(Round) ->
     'Unit'.
 
 %% The node, every process but the sampler collected first, and the host
-%% given a moment to count the heaps the collections freed: it frees a
-%% collected heap's blocks later, on the scheduler that made them, and
-%% tells nothing when it has, so no event shows it and nothing it waits
-%% for gives the time. Measured on 2026-10-08: without the wait the shell's
-%% load varied by 1.2 MB from round to round, and with it by about 15 KB
-%% (the log's *The Tests Wait on What They Mean*). The memory is
+%% given the time to count the heaps the collections freed. The memory is
 %% what is in use: it leaves out the structures the host keeps for
-%% processes to come, which it trims when it likes, the samples' own table,
-%% the sampler, and the words of every heap that hold nothing.
+%% processes to come, which it trims when it likes, the samples' own
+%% table, the sampler, and the words of every heap that hold nothing.
 sample(Round) ->
     Sampler = self(),
     Others = [Pid || Pid <- erlang:processes(), Pid =/= Sampler],
     [erlang:garbage_collect(Pid) || Pid <- Others],
-    timer:sleep(100),
+    %% The host frees a collected heap's blocks later, on the scheduler that
+    %% made them, once the scheduler that collected the heap has gone idle
+    %% or run half a time slice more, and tells nothing when it has, so no
+    %% event shows it. This wait lets the schedulers go idle, nothing else
+    %% running while the load's caller waits for the sampler, and its time
+    %% is the least the host's timer waits, its one millisecond. Measured on
+    %% 2026-10-21: the shell's load varied by 2.2 MB from round to round
+    %% without the wait, and by about 30 KB with it, as with the 100 ms it
+    %% waited before (the log's *The Tests Wait on What They Mean*).
+    receive after 1 -> ok end,
     ReaperMemory = reaper_memory(),
     Unused = lists:sum([unused(Pid) || Pid <- Others]),
     {memory, SamplerMemory} = erlang:process_info(Sampler, memory),

@@ -4,7 +4,7 @@ How the project checks that nothing grows with the work done: the loads that mea
 
 ## The loads
 
-`make load` runs each load in an Erlang node of its own. It prints each load's samples and whether it stayed flat, and writes the same to `test/build/load/<load>.txt`. It takes about 110 seconds (measured 2026-09-30).
+`make load` runs each load in an Erlang node of its own. It prints each load's samples and whether it stayed flat, and writes the same to `test/build/load/<load>.txt`. It takes about 90 seconds (measured 2026-10-21).
 
 A load does the same work in each of fourteen rounds and calls `mark(round)` after each, a `foreign fn` of `test/ern_load.erl`. The programs are under `test/fixtures/load/`; the harness writes the shell's session.
 
@@ -18,7 +18,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)` aft
 | `alarms` | 500 times: an alarm after a millisecond and one at the time now, each taken, and a wait that times out |
 | `shell` | 101 inputs at the prompt in line mode: expressions, `let`s, a function as a value, a value of a type, output, a process spawned, and `:type`, `:bindings`, `:doc` and `:faults`; the function, the type and what the process runs are declared once, before the first round, since an input that declares is kept while the session runs |
 
-`mark` waits until what the round set going has ended, collects every other process's garbage, and samples the node at rest. Its comments give the steps, and the one chosen wait, 100 milliseconds for the host to count the heaps it freed, which nothing the host reports shows (the log's *A Load Samples a Node at Rest* and *The Tests Wait on What They Mean*). A sample holds:
+`mark` waits until what the round set going has ended, collects every other process's garbage, and samples the node at rest. Its comments give the steps, and the one wait that is a time, the host timer's millisecond, in which the schedulers go idle and the host counts the heaps it freed, which nothing the host reports shows (the log's *A Load Samples a Node at Rest* and *The Tests Wait on What They Mean*). A sample holds:
 
 - `memory`, the node's memory in use, without the harness's own and the unused words of every heap;
 - `code`, the loaded code's memory;
