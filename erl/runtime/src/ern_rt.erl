@@ -196,17 +196,20 @@
 %% and the fault's cause, or none for the runtime's own calls.
 -type check() :: none | {term(), binary()}.
 
-%% The reaper's state. monitors: #{Pid => [{Caller, Wrap}]}, the monitors
-%% of each process and the process that made each; Wrap(Down) is sent to
-%% Caller, or for the runner, whose monitor is made with the spawn so that
-%% no race can take the entry process's cause, {raw, Tag}: {Tag, Site,
-%% ExitReason}. monitoring: #{Caller => [Pid]}, the processes each caller
-%% monitors, so that a caller's death takes its monitors with it: nothing
-%% is left to deliver them to. monitor_refs: #{Pid => MonitorRef}, a
-%% process the runtime did not start, monitored here only while a monitor
-%% of it stands. watched: #{Pid => true}, a process the runtime did not
-%% start that holds an offer or a call's note (report §8.7), watched once
-%% until it ends, so that they end with it.
+%% The reaper's state. monitors: #{Pid => #{Caller => [Wrap]}}, the
+%% monitors of each process by the process that made them, a Wrap for
+%% each; Wrap(Down) is sent to Caller, or for the runner, whose monitor is
+%% made with the spawn so that no race can take the entry process's cause,
+%% {raw, Tag}: {Tag, Site, ExitReason}. monitoring: #{Caller => #{Pid =>
+%% true}}, the processes each caller monitors, so that a caller's death
+%% takes its monitors with it: nothing is left to deliver them to. Each is
+%% read and written by its key alone, so that a monitor, an end and a
+%% caller's death cost the same however many monitors other processes
+%% hold. monitor_refs: #{Pid => MonitorRef}, a process the runtime did not
+%% start, monitored here only while a monitor of it stands. watched:
+%% #{Pid => true}, a process the runtime did not start that holds an offer
+%% or a call's note (report §8.7), watched once until it ends, so that
+%% they end with it.
 -record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, watched = #{}}).
 
 %% A subscriber the end has told and waits for (report §8.6): its spawn
@@ -973,8 +976,7 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% compute, {compute, Node, Caller, Alias}, whose process starts only once
 %% its note names it (is_noted/2), and otherwise never runs, answered
 %% `over`.
-spawned(From, Ref, Function, Site, SpawnMonitors, Chain,
-        #reaper{monitors = Monitors, monitoring = Monitoring} = Reaper) ->
+spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
     Started = fun() -> receive Ref -> run(Function) end end,
     {Pid, _MonitorRef} = erlang:spawn_monitor(Started),
     {Root, Peer} = case Chain of
@@ -992,13 +994,7 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain,
             exit(Pid, {ern, killed}),
             From ! {Ref, over}
     end,
-    Monitoring1 = lists:foldl(fun({Caller, _}, Acc) -> added(Caller, Pid, Acc) end,
-                              Monitoring, SpawnMonitors),
-    Monitors1 = case SpawnMonitors of
-                    [] -> Monitors;
-                    _ -> Monitors#{Pid => SpawnMonitors}
-                end,
-    Reaper#reaper{monitors = Monitors1, monitoring = Monitoring1}.
+    monitors_kept(Pid, SpawnMonitors, Reaper).
 
 %% Report Appendix E.18, E.23: a listener, a socket or a running program,
 %% which its system process starts, is a process of the program's as one
@@ -1035,7 +1031,7 @@ monitored(Pid, Caller, Wrap, Ref,
                            MonitorRefs
                    end,
     Caller ! {Ref, monitored},
-    Reaper#reaper{monitors = added(Pid, {Caller, Wrap}, Monitors),
+    Reaper#reaper{monitors = monitor_kept(Pid, Caller, Wrap, Monitors),
                   monitoring = added(Caller, Pid, Monitoring), monitor_refs = MonitorRefs1}.
 
 %% Report §6.9: a restarted process's monitors and its subscriptions to
@@ -1056,8 +1052,8 @@ new_run(Pid, Ref, Reaper) ->
 %% the runtime's own the reaper holds, a teller's (held_ended/3).
 monitors_canceled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
                                   monitor_refs = MonitorRefs} = Reaper) ->
-    {Monitors1, MonitorRefs1} = unmonitored(Caller, maps:get(Caller, Monitoring, []), Monitors,
-                                            MonitorRefs),
+    {Monitors1, MonitorRefs1} = unmonitored(Caller, maps:keys(maps:get(Caller, Monitoring, #{})),
+                                            Monitors, MonitorRefs),
     Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Caller, Monitoring),
                   monitor_refs = MonitorRefs1}.
 
@@ -1075,9 +1071,10 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
             %% nothing monitored it, and it monitored nothing
             Reaper;
         true ->
-            Monitoring1 = lists:foldl(fun({Caller, _}, Acc) -> forgotten(Caller, Pid, Acc) end,
-                                      maps:remove(Pid, Monitoring), maps:get(Pid, Monitors, [])),
-            {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:get(Pid, Monitoring, []),
+            Monitoring1 = lists:foldl(fun(Caller, Acc) -> forgotten(Caller, Pid, Acc) end,
+                                      maps:remove(Pid, Monitoring),
+                                      maps:keys(maps:get(Pid, Monitors, #{}))),
+            {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:keys(maps:get(Pid, Monitoring, #{})),
                                                     maps:remove(Pid, Monitors),
                                                     maps:remove(Pid, MonitorRefs)),
             Reaper#reaper{monitors = Monitors1, monitoring = Monitoring1,
@@ -1098,11 +1095,11 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
             Down = {'Down', Pid, reason(Ended), Site},
             lists:foreach(fun({Caller, {raw, Tag}}) -> Caller ! {Tag, Site, ExitReason};
                              ({Caller, Wrap}) -> wrapped(Caller, Wrap, Down)
-                          end, maps:get(Pid, Monitors, []));
+                          end, monitors_of(Pid, Monitors));
         [] ->
             Down = {'Down', Pid, reason(ExitReason), <<>>},
             lists:foreach(fun({Caller, Wrap}) -> wrapped(Caller, Wrap, Down) end,
-                          maps:get(Pid, Monitors, [])),
+                          monitors_of(Pid, Monitors)),
             is_map_key(Pid, MonitorRefs) andalso source_end()
     end.
 
@@ -1193,17 +1190,50 @@ wait_for_end(Pid) ->
 ended_program() ->
     receive _ -> ended_program() end.
 
-%% Lists, a map to lists, with Value added to Key's list.
-added(Key, Value, Lists) ->
-    maps:update_with(Key, fun(Values) -> [Value | Values] end, [Value], Lists).
+%% Sets, a map to sets, each a map to true, with Value put in Key's set:
+%% a process a caller monitors, among the processes it monitors; the
+%% clock's timer, among its recipient's.
+added(Key, Value, Sets) ->
+    case Sets of
+        #{Key := Set} -> Sets#{Key := Set#{Value => true}};
+        #{} -> Sets#{Key => #{Value => true}}
+    end.
 
-%% Lists, a map to lists, with Gone taken from Key's list, and Key gone with
-%% the list's last: a process that ended, from the processes its caller
-%% monitors; the clock's timer that fired, from its recipient's.
-forgotten(Key, Gone, Lists) ->
-    case maps:get(Key, Lists, []) -- [Gone] of
-        [] -> maps:remove(Key, Lists);
-        Left -> Lists#{Key => Left}
+%% Sets, with Gone taken from Key's set, and Key gone with the set's last:
+%% a process that ended, from the processes its caller monitors; the
+%% clock's timer that fired, from its recipient's.
+forgotten(Key, Gone, Sets) ->
+    case Sets of
+        #{Key := #{Gone := _} = Set} when map_size(Set) =:= 1 -> maps:remove(Key, Sets);
+        #{Key := Set} -> Sets#{Key := maps:remove(Gone, Set)};
+        #{} -> Sets
+    end.
+
+%% The monitors made with a spawn of Pid kept, as monitored/5 keeps one.
+monitors_kept(_Pid, [], Reaper) ->
+    Reaper;
+monitors_kept(Pid, [{Caller, Wrap} | Rest],
+              #reaper{monitors = Monitors, monitoring = Monitoring} = Reaper) ->
+    monitors_kept(Pid, Rest, Reaper#reaper{monitors = monitor_kept(Pid, Caller, Wrap, Monitors),
+                                           monitoring = added(Caller, Pid, Monitoring)}).
+
+%% Monitors, with Caller's monitor of Pid, Wrap, beside those it made of
+%% Pid before: each monitor call is one message (report §6.9).
+monitor_kept(Pid, Caller, Wrap, Monitors) ->
+    case Monitors of
+        #{Pid := #{Caller := Wraps} = ByCaller} ->
+            Monitors#{Pid := ByCaller#{Caller := [Wrap | Wraps]}};
+        #{Pid := ByCaller} ->
+            Monitors#{Pid := ByCaller#{Caller => [Wrap]}};
+        #{} ->
+            Monitors#{Pid => #{Caller => [Wrap]}}
+    end.
+
+%% The monitors of Pid, each {Caller, Wrap}.
+monitors_of(Pid, Monitors) ->
+    case Monitors of
+        #{Pid := ByCaller} -> [{Caller, Wrap} || Caller := Wraps <- ByCaller, Wrap <- Wraps];
+        #{} -> []
     end.
 
 %% The monitors of a caller that died, taken from the processes it
@@ -1213,15 +1243,15 @@ forgotten(Key, Gone, Lists) ->
 unmonitored(_Caller, [], Monitors, MonitorRefs) ->
     {Monitors, MonitorRefs};
 unmonitored(Caller, [Pid | Rest], Monitors, MonitorRefs) ->
-    case [Monitor || {OtherCaller, _} = Monitor <- maps:get(Pid, Monitors, []),
-                     OtherCaller =/= Caller] of
-        [] when is_map_key(Pid, MonitorRefs) ->
+    Left = maps:remove(Caller, maps:get(Pid, Monitors, #{})),
+    case map_size(Left) of
+        0 when is_map_key(Pid, MonitorRefs) ->
             erlang:demonitor(maps:get(Pid, MonitorRefs), [flush]),
             source_end(),
             unmonitored(Caller, Rest, maps:remove(Pid, Monitors), maps:remove(Pid, MonitorRefs));
-        [] ->
+        0 ->
             unmonitored(Caller, Rest, maps:remove(Pid, Monitors), MonitorRefs);
-        Left ->
+        _ ->
             unmonitored(Caller, Rest, Monitors#{Pid => Left}, MonitorRefs)
     end.
 
@@ -1244,8 +1274,9 @@ wrapped(Caller, Wrap, Down) ->
 %% It is noted against its recipient and the process that started it, and
 %% ended when the recipient restarts or ends (abandoned/1); one whose
 %% recipient has ended already, an alarm's that fires after its process's
-%% end among them, ends before it starts, the row written first, so that an
-%% end the reaper learns of after the look finds it.
+%% end among them, ends before it starts with every delivery to that
+%% recipient, the row written first, so that an end the reaper learns of
+%% after the look finds it.
 counted_link(Address, Work) ->
     Recipient = process_of(Address),
     Starter = erlang:self(),
@@ -1253,11 +1284,10 @@ counted_link(Address, Work) ->
                                 acting_for(Recipient),
                                 receive go -> Work(), delivered(Recipient, Starter) end
                             end),
-    Delivery = {Recipient, Starter, Pid},
-    try ets:insert(?DELIVERIES, {Delivery}) catch _:_ -> true end,
+    try ets:insert(?DELIVERIES, {{Recipient, Starter, Pid}}) catch _:_ -> true end,
     source_begin(Pid),
     case node(Recipient) =:= node() andalso not erlang:is_process_alive(Recipient) of
-        true -> ended_deliveries([Delivery]);
+        true -> abandoned(Recipient);
         false -> Pid ! go
     end,
     Pid.
@@ -1313,22 +1343,17 @@ held_ended(Pid, ExitReason, Reaper) ->
 %% clock ends them too where it is asked, so that a delivery it started as
 %% the reaper was asked is ended (alarms_canceled/2). A process kept for an
 %% adapted address (kept/1) is no delivery to its target, and runs on.
+%% Their rows are read by their key's prefix, the recipient, which the
+%% ordered table reads as one range, and each delivery's rows are taken
+%% first, so that the process that started it, told of its end, finds none
+%% to take (undelivered/2); it is unlinked first where this process
+%% started it, so that it is told nothing. Report §6.6: a call the
+%% delivery's function was making ends with it, its rows gone (uncalled/1),
+%% as a process's at its end (delivered_down/3).
 abandoned(Recipient) ->
-    ended_deliveries(deliveries({Recipient, '_', '_'})).
-
-%% The deliveries in flight a pattern of their rows names, each {Recipient,
-%% Starter, Pid}, its recipient given, which the ordered table reads as one
-%% range, the recipient's own rows and no other's.
-deliveries(Pattern) ->
-    try ets:select(?DELIVERIES, [{{Pattern}, [], [{element, 1, '$_'}]}]) catch _:_ -> [] end.
-
-%% Deliveries ended, each killed and waited for: its rows taken first, so
-%% that the process that started it, told of its end, finds none to take
-%% (undelivered/2), and unlinked first where this process started it, so
-%% that it is told nothing. Report §6.6: a call the delivery's function was
-%% making ends with it, its rows gone (uncalled/1), as a process's at its
-%% end (delivered_down/3).
-ended_deliveries(Deliveries) ->
+    Deliveries = try ets:select(?DELIVERIES, [{{{Recipient, '_', '_'}}, [], [{element, 1, '$_'}]}])
+                 catch _:_ -> []
+                 end,
     lists:foreach(fun({_, Starter, Pid} = Delivery) ->
                       try
                           ets:delete(?DELIVERIES, Delivery),
@@ -2419,7 +2444,7 @@ set_again(#clock{alarms = Alarms} = Clock) ->
 alarms_canceled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient,
                             monitor_refs = MonitorRefs} = Clock) ->
     {Timers, ByRecipient1} = case maps:take(Pid, ByRecipient) of
-                                 {Own, Others} -> {Own, Others};
+                                 {Own, Others} -> {maps:keys(Own), Others};
                                  error -> {[], ByRecipient}
                              end,
     lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
@@ -3076,23 +3101,25 @@ restarting(Limit, F) ->
 %% by a priority message to an alias of its own that the runtime keeps
 %% beside it, taken before its other messages at its next wait. The
 %% outermost restarting function of the process is the one asked, and the
-%% one whose start start_cause/0 tells; one nested in it is neither.
+%% one whose start start_cause/0 tells; one nested in it is neither. The
+%% alias's row is what a supervisor reads (ask_restart/1); the process
+%% itself reads in its own dictionary whether a restarting function runs,
+%% by the start cause the outermost sets.
 restartable() ->
-    case ets_lookup(?RESTARTS, erlang:self()) of
-        [_] ->
-            inner;
-        [] ->
+    case get('$ern_start') of
+        undefined ->
             ets:insert(?RESTARTS, {erlang:self(), erlang:alias([priority])}),
             put('$ern_start', 'First'),
-            outer
+            outer;
+        _ ->
+            inner
     end.
 
 %% The outermost restarting function has ended: the process is no longer
 %% asked to restart.
 unrestartable() ->
-    [{_, Alias}] = ets_lookup(?RESTARTS, erlang:self()),
+    [{_, Alias}] = ets:take(?RESTARTS, erlang:self()),
     erlang:unalias(Alias),
-    ets:delete(?RESTARTS, erlang:self()),
     erase('$ern_start'),
     %% a request that came as the function returned is not taken later
     receive '$ern_restart' -> ok after 0 -> ok end.
@@ -3125,10 +3152,11 @@ start_cause() ->
     end.
 
 %% Appendix E.22: whether a restarting function already runs in the calling
-%% process, its outermost one, which a child's function would nest in.
+%% process, its outermost one, which a child's function would nest in: the
+%% outermost's start cause stands while it runs (restartable/0).
 -spec is_restarting() -> boolean().
 is_restarting() ->
-    ets_lookup(?RESTARTS, erlang:self()) =/= [].
+    get('$ern_start') =/= undefined.
 
 %% Appendix E.22: whether a process runs on the caller's node, where a
 %% supervisor and its children run (§8.7).

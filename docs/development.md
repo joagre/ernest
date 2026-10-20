@@ -150,10 +150,13 @@ make bench        what each of a few operations costs in Ernest beside the same
                   counts, a utilization, a compute on a peer picked and on one named,
                   the pick alone, what connected nodes exchange idle with their tellings,
                   and the sizes of an .erc and a code frame; then what each piece of
-                  Ernest's spawn adds to the host's, on every scheduler and on one, the
-                  spawn alone with no end between, a model of the reaper a piece at a
-                  time, and each of the reaper's table operations alone, in
-                  test/build/bench/spawn.txt; not part of make test-full
+                  Ernest's spawn, spawnMonitored and monitor adds to the host's, on every
+                  scheduler and on one, the spawn alone with no end between, a model of
+                  the reaper a piece at a time, and each table operation of the reaper's
+                  and of a Down's delivery alone, in test/build/bench/spawn.txt,
+                  spawn_monitored.txt and monitor.txt; then what each piece of entering
+                  restarting adds to the host's try, with a hundred messages waiting too,
+                  in restarting.txt; not part of make test-full
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk

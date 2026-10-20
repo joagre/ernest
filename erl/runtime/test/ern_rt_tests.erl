@@ -665,6 +665,35 @@ monitor_test() ->
                  wait(d2)),
     ?assertEqual({'Down', Victim, 'Killed', <<"Main.main:7">>}, wait(d3)).
 
+%% report §6.9: each monitor call produces one message, whoever else
+%% monitors the process: a process monitored twice by one caller and once
+%% by another gives the first two Downs and the other one. A regression
+%% test, written after the code (MVP 3.27 item 3, a process's monitors
+%% held by their callers and a caller's by the processes it monitors, each
+%% read by its key alone, so that an end and a caller's death cost the
+%% same however many monitors other processes hold); it does not cover
+%% that cost, which no test measures
+monitors_by_caller_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Watched = ern_rt:spawn(gated(fun() -> ok end), <<"Main.main:3">>),
+               _ = ern_rt:spawn(fun() ->
+                                    ern_rt:monitor(Watched, fun(_) -> other end),
+                                    Main ! monitored,
+                                    receive other -> Main ! other end
+                                end, <<"Main.main:4">>),
+               ern_rt:monitor(Watched, fun(_) -> first end),
+               ern_rt:monitor(Watched, fun(_) -> second end),
+               ern_rt:timed(),
+               receive monitored -> ok end,
+               Watched ! go,
+               Self ! {downs, lists:sort([receive Down -> Down end || _ <- [1, 2, 3]])},
+               ern_rt:untimed()
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([first, other, second], wait(downs)).
+
 %% report §6.9, §8.6: the runtime keeps nothing of a process that has
 %% ended, so a monitor made after its end answers Unknown with no spawn
 %% site. A regression test: the runtime kept a row for every process that
@@ -1239,6 +1268,53 @@ deliveries_end_with_their_recipient_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({killed, true}, wait(ended)).
 
+%% report §6.9: a delivery to a process that has ended ends with it, and so
+%% does every other delivery to that process, where the process had ended
+%% before the delivery started: here a caller the runtime did not start,
+%% whose end the reaper is not told of, so that the Down of the process it
+%% monitored finds it ended. That Down is not delivered, the wrap that
+%% spins for an earlier Down to it ends too, no row of the deliveries
+%% stays, and nothing can deliver, so the entry process's wait is a
+%% deadlock. A regression test, written after the code (MVP 3.27 item 3,
+%% a delivery to an ended recipient ending every delivery to it): the wrap
+%% that spun was ended by nothing; it does not cover a delivery the clock
+%% or a teller starts to a process that has ended
+deliveries_to_an_ended_caller_test_() ->
+    {timeout, 30, fun deliveries_to_an_ended_caller/0}.
+
+deliveries_to_an_ended_caller() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    Spinning = fun(_) -> Main ! {endless, erlang:self()}, spin() end,
+                    Watched = ern_rt:spawn(fun() -> receive stop -> ok end end,
+                                           <<"Main.main:4">>),
+                    Caller = spawn(fun() ->
+                                       _ = ern_rt:spawn_monitored(fun() -> ok end, Spinning,
+                                                                  <<"Main.main:6">>),
+                                       ern_rt:monitor(Watched, fun(_) -> Self ! delivered end),
+                                       Main ! monitoring,
+                                       receive never -> ok end
+                                   end),
+                    ern_rt:timed(),
+                    Spinner = endless(),
+                    receive monitoring -> ok end,
+                    killed(Caller),
+                    SpinnerRef = erlang:monitor(process, Spinner),
+                    Watched ! stop,
+                    receive {'DOWN', SpinnerRef, process, Spinner, _} -> ok end,
+                    %% the reaper answers a spawn once it has handled the
+                    %% end that came before it
+                    _ = ern_rt:spawn(fun() -> ok end, <<"Main.main:16">>),
+                    Self ! {rows, ets:tab2list(ern_deliveries)},
+                    ern_rt:untimed(),
+                    receive never -> ok end
+                end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome),
+    ?assertEqual([], wait(rows)),
+    ?assertEqual(none, receive delivered -> delivered after 0 -> none end).
+
 %% report §6.9, §6.6: a delivery ended with its recipient while its wrap
 %% waits in a call ends the call with it: the call's rows go, as a
 %% process's go at its end. A regression test, written after the code,
@@ -1604,6 +1680,38 @@ waiting() ->
 subscribe(Tty) ->
     Self = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Self, Reply} end, 5000).
+
+%% report §6.9, Appendix E.22: a restarting function marks its process
+%% while it runs, the outermost alone: in it and in a restarting function
+%% nested in it the process is restarting, the row a supervisor asks
+%% through stands and the start cause is the outermost's; once the
+%% outermost returns, the process is not restarting, the row has gone and
+%% no restart can be asked of it. A regression test, written after the
+%% code (MVP 3.27 item 3, the process's own question read from its
+%% dictionary, the row taken at the end); it does not cover a request to
+%% restart that comes as the function returns, which nothing here orders
+restarting_marks_its_process_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Pid = erlang:self(),
+               Marks = fun() ->
+                           {ern_rt:is_restarting(), ets:member(ern_restarts, Pid),
+                            ern_rt:start_cause()}
+                       end,
+               Before = Marks(),
+               Inside = (ern_rt:restarting(
+                           'Unlimited',
+                           fun() ->
+                               Outer = Marks(),
+                               Nested = (ern_rt:restarting('Unlimited', Marks))(),
+                               {Outer, Nested, Marks()}
+                           end))(),
+               Self ! {marks, {Before, Inside, Marks(), ern_rt:ask_restart(Pid)}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Unmarked = {false, false, 'First'},
+    Marked = {true, true, 'First'},
+    ?assertEqual({Unmarked, {Marked, Marked, Marked}, Unmarked, false}, wait(marks)).
 
 %% report §6.9, Appendix E.22: a process that is not restarting is never
 %% asked, nor is one that has ended; a restarting one restarts at its wait,
