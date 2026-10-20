@@ -8581,6 +8581,8 @@ Second, a trace of a stack shallower than twelve frames ends in the runtime's ow
 
 Third, `ern test` reports a test's own fault by its line alone (§11.2), so a test that faults deep in the code it tests shows nothing of where, the one fault a developer meets most. The recommendation is the test's trace beneath its line, as every other fault's is (principle 3).
 
+**Decided, 2026-10-20**, with the user, the three together. A lambda's frame is its definition's name and the lambda's line (E.21): the line tells the lambda apart, and a name the line already gives is not worth a call at every application (principle 5). A trace ends with the outermost frame of the program's code, and the runtime's frames beneath it are left out (E.21): they are the same scaffolding under every fault and say nothing of the program, where a frame of the runtime's above the program's code, a shim's wait or the place a failure in the runtime was met, is the evidence a toolchain defect needs, which leaving out every frame of the runtime's own would hide (principle 3). A test's own fault is reported by its line with its trace beneath it, as every other fault is (§11.2, principle 3).
+
 ## The Examples Are Programs, 2026-10-16
 
 Decided with the user on 2026-10-16, after a read of every program under `examples/` as a newcomer reads it, since the first Ernest program a reader opens on disk is one of them.

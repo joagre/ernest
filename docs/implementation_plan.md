@@ -109,13 +109,11 @@ and `fn f(x) : Int` are one typed tree and two hashes, shipped twice. The form h
 the body, the annotation going to Appendix H's *What is left out*, and the form's version changes
 with it, which is why it waits for the tag: the first change of the form since 0.4.0's floor.
 
-**Three decisions on the trace.** Every fault carries a trace, built 2026-10-20 (the log's *Every
-Fault Carries a Trace*), and the build left three questions for the user, each with the log's
-recommendation, to decide before MVP 3.3 begins. A lambda the host compiles to a fun of its
-definition's function is named in a trace by its definition, `Jobs.supervise:9`, where E.21 names
-it by its position, `Jobs.supervise$1:9`, which the host's stack does not carry. A trace shows the
-runtime's own frames, `ern_rt:run/1:1914`, whose lines move with each change of the runtime and
-which the guide's consoles show. And `ern test` prints a test's own fault without its trace (§11.2).
+**Every fault carries a trace**, built 2026-10-20 (the log's *Every Fault Carries a Trace*): §7.3
+gives every fault the host's stack where it was met, E.21 writes a frame as a spawn site is written
+and ends the trace at the program's outermost frame, and `ern run`, `ern test` and the shell print it
+beneath the fault's line. The three questions the build left, a lambda's frame, the runtime's frames
+and a test's own fault, were decided the same day, in the log.
 
 ## MVP 3.3 (the tour)
 

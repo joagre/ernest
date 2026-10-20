@@ -676,7 +676,7 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it or, where it is listed no more, by its node as §8.7's lines name one, and is `None` where no peer did.
 
-`trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line. A frame of Ernest code is written as a spawn site is (§6.9), the function's name and its line, `Counter.worker:23`, a lambda's or a local function's name after the definition's as §11.1 names it; a frame of the host's is the function as the host names it, then its line, `lists:nth/2:213`, without a line where the host has none.
+`trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line, ending with the outermost frame of the program's code; the runtime's frames beneath it are left out. A frame of Ernest code is written as a spawn site is (§6.9), the function's name and its line, `Counter.worker:23`; a lambda's frame is its definition's name and the lambda's line; a frame of the host's is the function as the host names it, then its line, `lists:nth/2:213`, without a line where the host has none.
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity)
