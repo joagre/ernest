@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 20 October 2026.
+Revision of 21 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -904,7 +904,7 @@ The module `Peer` (Appendix E.27) acts on a peer by its listed name: `Peer.spawn
 
 The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them (§8.2). Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process: a bad return value or reply when the call returns, a bad message on delivery. A bad message's fault takes the message's place in the receiver's mailbox, and the receiver faults at the wait that reaches it, in a `receive` or for a call's answer, as at a fault of its own, which `restarting` restarts (§6.9).
 
-**What is checked.** The standard library and the system processes are the runtime's own, and what passes between them and a program is not checked: the return of one of the library's foreign functions, a message from a system process, an address or a `Reply` given to either, and the answer to a call the library makes. A message from a peer is not checked on arrival: its type is known at both ends and the same at both (§3.11), and a value of another type a faulty peer sends is met where the receiving process matches on it (§8.7). Everything else is checked where it crosses.
+**What is checked.** The standard library and the system processes are the runtime's own, and what passes between them and a program is not checked: the return of one of the library's foreign functions, a message from a system process, an address or a `Reply` given to either, and the answer to a call the library makes. A message from a peer is not checked on arrival: its type is known at both ends and the same at both (§3.11), and a value of another type a faulty peer sends is met where the receiving process matches on it (§8.7). Everything else is checked where it crosses. A message foreign code sends to a process by its host identity, which a foreign function's implementation has as its caller, crosses nothing and is not checked: a foreign function without `receiving` promises to deliver none (§4.7).
 
 **Addresses and answers.** An address that foreign code gives, in a return, a reply, a message, or an argument it calls an Ernest function with, is *foreign* unless it names a process of the program. An address of the program's that foreign code gives back is the program's own at the type it crossed at, and foreign at any other. What is sent to it at another type is checked as a message foreign code sends. A process of the program's whose address foreign code was never given, one it names by its own `self()` in a `foreign fn` or by a `Process` it was given, is a bad value where foreign code gives it as an address, except as an `Address(Never)`, through which no message passes.
 

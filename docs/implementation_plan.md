@@ -190,9 +190,10 @@ and a test's own fault, were decided the same day, in the log.
 ## MVP 3.28 (what stands before the tour), about a week
 
 Four items of a day each, then seven that `docs/language_feedback.md` left, decided with the
-user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less. Two more, 133 and
-134 from `ernest-epx`'s ray tracer, were weighed and left alone the same day (the log's *The Ray
-Tracer's Two Asks*).
+user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less, and one from
+`ernest-epx`'s window, decided on 2026-10-21 (the log's *The Window's Three Asks*). Two more, 133
+and 134 from `ernest-epx`'s ray tracer, were weighed and left alone on 2026-10-20 (the log's *The
+Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-10-21.
 
 - **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
   (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
@@ -262,6 +263,15 @@ Tracer's Two Asks*).
 - **Doc examples run by `ern test`** (feedback 127; principle 1). `ern test` runs a module's
   `// =>` examples as cases, as Ernest's own test runs its libraries', so that a library's page is
   held true by its own tests. §11.2 and §11.4 first.
+- **A type and the module of its operations share a name** (feedback 136; principles 4 and 1),
+  decided with the user on 2026-10-21 (the log's *The Window's Three Asks*). The prelude's `Map` is
+  a type and a module of one name, which §9 allows the prelude alone; a type declared in a module
+  shares its namespace with the child module of its name, `Epx.Window` in `epx.ern` beside
+  `epx/window.ern`, as the prelude's types do, a member and a function of one name a compile-time
+  error.
+
+  Discussed with the user before it is built, since it touches lookup; §4.2 and §9 first, then the
+  checker, then a test of a library's type found through both names.
 
 ## MVP 3.3 (the tour)
 
