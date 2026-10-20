@@ -182,7 +182,9 @@ and a test's own fault, were decided the same day, in the log.
 ## MVP 3.28 (what stands before the tour), about a week
 
 Three items of a day each, then seven that `docs/language_feedback.md` left, decided with the
-user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less.
+user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less. Two more, 133 and
+134 from `ernest-epx`'s ray tracer, were weighed and left alone the same day (the log's *The Ray
+Tracer's Two Asks*).
 
 - **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
   (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
