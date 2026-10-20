@@ -7,10 +7,10 @@ export fn listed() : List(String) =
     peers
 
 export fn tellPeers(name : String) : Either(Io.Error, Address(Never)) =
-    Peer.spawn(name, fn() = Io.println("the peers here: " <> Io.show(peers)), 5000)
+    Peer.spawn(name, fn() = Io.println("the peers here: " <> Io.show(peers)), Harness.waitMs())
 
 export fn found(service : Peer.Service(m)) : Address(m) =
-    match Peer.find(service, 5000) {
+    match Peer.find(service, Harness.waitMs()) {
         Right(address) -> address
       | Left(failure) -> fault(Io.show(failure))
     }

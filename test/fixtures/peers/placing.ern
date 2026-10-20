@@ -5,7 +5,7 @@
 // Whether each of the host's services, cpu, memory and disk, answers a
 // reading on the peer, which writes it to its standard output.
 export fn readingsOn(name : String) : Either(Io.Error, Address(Never)) =
-    Peer.spawn(name, fn() = Io.println("readings there: " <> readings()), 5000)
+    Peer.spawn(name, fn() = Io.println("readings there: " <> readings()), Harness.waitMs())
 
 export fn readings() : String =
     Io.show(#(answers(Utilization.cpu()),

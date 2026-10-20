@@ -2,10 +2,11 @@
 // it and asks it.
 
 export fn main() : Unit =
-    match Peer.find(Counter.service, 5000) {
+    match Peer.find(Counter.service, Harness.waitMs()) {
         Right(counter) -> {
             send(counter, Counter.Add(3));
-            let total = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 5000);
+            let total =
+                Address.call(counter, fn(reply) = Counter.Get(reply = reply), Harness.waitMs());
             Io.println("asked: " <> Io.show(total))
         }
       | Left(failure) ->

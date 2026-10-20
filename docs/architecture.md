@@ -350,7 +350,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 
 ### Nodes, the shell and waits
 
-- **Nodes**: `test/ern_nodes_tests.erl` runs real nodes on one machine, each an `ern run --config-dir` of its own, its streams read by a watcher registered under the node's directory. Its programs are under `test/fixtures/peers/`, beside `ern_peers_host.erl`.
+- **Nodes**: `test/ern_nodes_tests.erl` runs real nodes on one machine, each an `ern run --config-dir` of its own, its streams read by a watcher registered under the node's directory. Its programs are under `test/fixtures/peers/`, beside `ern_peers_host.erl`, and `harness.ern` there holds the time each of their waits is given, the harness's `wait_ms/0`, which a test holds equal.
 - **Deployment**: `test/ern_deployment_tests.erl` runs the deployment guide through the same harness, its consoles, its section 8, and each line its sections 7 and 4.3 quote (`catalog_test`).
 - **The shell**: `test/ern_shell_tests.erl` runs sessions in line mode and under the pseudo-terminal, and `test/ern_terminal_tests.erl` drives §8.2's keys, the terminal's restoration and `snake`. Both reach the harness, `test/ern_pty.py`, through `test/ern_pty.erl`.
 - **Waits**: no test sleeps (CLAUDE.md, *No fixed sleep*). `erl/runtime/test/ern_waits.erl` holds the waits the tests share, each read from what the host reports.

@@ -8,7 +8,8 @@
 // `ernest.conf`, listing `a`, starts `b` with `Os`, on the same build or on
 // the second, waits for it to offer its service, finds it through
 // `Peer.find`, or through a proxy, and calls it where the find
-// answers it, and ends it with `ern stop`.
+// answers it, and ends it with `ern stop`. Each wait is given the test's
+// time for one step (Harness.waitMs).
 
 export type Msg = Double(n : Int, reply : Reply(Int))
 
@@ -66,9 +67,11 @@ let proxyAtAnotherType =
 // its program the file `pair.json` names under Build.
 fn withSecondNode(build : String) : Either(String, #(String, Int)) = {
     let program <- started(build);
-    let answered = match Peer.find(service, 10000) {
+    let answered = match Peer.find(service, Harness.waitMs()) {
         Right(address) ->
-            Io.show(Address.call(address, fn(reply) = Double(n = 21, reply = reply), 10000))
+            Io.show(Address.call(address,
+                                 fn(reply) = Double(n = 21, reply = reply),
+                                 Harness.waitMs()))
       | Left(failure) ->
             Io.show(failure)
     };
@@ -78,18 +81,17 @@ fn withSecondNode(build : String) : Either(String, #(String, Int)) = {
 
 // What a call through a proxy for the service answered once the second
 // node ran, how the proxy's process ended, what a call answered
-// after that, and the status the second node ended with; each wait's time
-// bounds a failure, and no success waits on it.
+// after that, and the status the second node ended with.
 fn proxyAgainst(build : String) : Either(String, #(String, String, String, Int)) receiving Ended = {
-    let proxy = Proxy.start(service, 10000);
+    let proxy = Proxy.start(service, Harness.waitMs());
     monitor(Process.fromAddress(proxy), Ended);
     let program <- started(build);
-    let first = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let first = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), Harness.waitMs());
     let ended = receive {
         Ended(down) -> Io.show(down.reason)
-      | after 30000 -> "no end"
+      | after Harness.waitMs() -> "no end"
     };
-    let second = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), 10000);
+    let second = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), Harness.waitMs());
     let status <- stopped(program);
     Right(#(Io.show(first), ended, Io.show(second), status))
 }
@@ -127,13 +129,13 @@ fn started(build : String) : Either(String, Address(Os.ProgramMsg)) = {
 // The status the second node ended with, stopped by `ern stop`.
 fn stopped(program : Address(Os.ProgramMsg)) : Either(String, Int) = {
     let stop = Os.Command(program = "ern", arguments = ["stop", "--config-dir", "b"], input = <<>>);
-    let _ <- shown(Os.run(stop, 10000));
+    let _ <- shown(Os.run(stop, Harness.waitMs()));
     ended(program)
 }
 
 // The JSON a file of the working directory holds.
 fn readJson(path : List(String)) : Either(String, Json.Value) = {
-    let bytes <- shown(Fs.read(Path.join(path), 10000));
+    let bytes <- shown(Fs.read(Path.join(path), Harness.waitMs()));
     let text <-
         Either.fromOptional(String.fromUtf8(bytes),
                             Path.toString(Path.join(path)) <> " is not UTF-8");
@@ -141,7 +143,7 @@ fn readJson(path : List(String)) : Either(String, Json.Value) = {
 }
 
 fn written(path : List(String), text : String) : Either(String, Unit) =
-    shown(Fs.write(Path.join(path), String.toUtf8(text), 10000))
+    shown(Fs.write(Path.join(path), String.toUtf8(text), Harness.waitMs()))
 
 fn member(value : Json.Value, name : String) : Either(String, Json.Value) =
     match value {
@@ -175,12 +177,11 @@ fn texts(value : Json.Value) : Either(String, List(String)) =
 fn shown(either : Either(e, a)) : Either(String, a) needs e.show =
     Either.mapLeft(either, fn(error) = Io.show(error))
 
-// Until the program has written the bytes on its standard output; each
-// read's time bounds a failure, and no success waits on it.
+// Until the program has written the bytes on its standard output.
 fn said(program : Address(Os.ProgramMsg), bytes : Bytes, seen : Bytes) : Either(String, Unit) =
     if Bytes.contains(seen, bytes) then
         Right(Unit)
-    else match Os.read(program, 30000) {
+    else match Os.read(program, Harness.waitMs()) {
         Right(Os.Stdout(more)) -> said(program, bytes, seen <> more)
       | Right(Os.Stderr(_)) -> said(program, bytes, seen)
       | Right(Os.Exited(status)) -> Left("the second node ended with " <> Int.toString(status))
@@ -189,7 +190,7 @@ fn said(program : Address(Os.ProgramMsg), bytes : Bytes, seen : Bytes) : Either(
 
 // The status the program ended with, once its output has ended.
 fn ended(program : Address(Os.ProgramMsg)) : Either(String, Int) =
-    match Os.read(program, 30000) {
+    match Os.read(program, Harness.waitMs()) {
         Right(Os.Exited(status)) -> Right(status)
       | Right(_) -> ended(program)
       | Left(error) -> Left(Io.show(error))

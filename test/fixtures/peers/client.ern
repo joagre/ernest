@@ -2,17 +2,30 @@
 // the standard input, the counter's node stopped, started again and
 // replaced by another between the lines. While the counter's node is
 // stopped an add is sent through it too, which is dropped: the counter of
-// the node started again counts from 0, and answers 0.
+// the node started again counts from 0, and answers 0. The proxy's finds
+// and the calls are given the test's time for one step (Harness.waitMs),
+// but the call while the counter's node is stopped, which no counter can
+// answer: an absence, it waits as long as the first call took to be
+// answered.
 
 export fn main() : Unit = {
-    let counter = Proxy.start(Counter.service, 2000);
+    let counter = Proxy.start(Counter.service, Harness.waitMs());
     Io.println("proxy started");
-    List.forEach(["first", "away", "back", "other"], fn(label) = ask(counter, label))
+    let present = ask(counter, "first", Harness.waitMs());
+    let _ = ask(counter, "away", present);
+    List.forEach(["back", "other"], fn(label) = {
+        let _ = ask(counter, label, Harness.waitMs());
+        Unit
+    })
 }
 
-fn ask(counter : Address(Counter.Msg), label : String) : Unit = {
+// The call through the proxy once a line comes, given ms, and the
+// milliseconds it took.
+fn ask(counter : Address(Counter.Msg), label : String, ms : Int) : Int = {
     let _ = Io.readLine();
     if label == "away" then send(counter, Counter.Add(5)) else Unit;
-    let answered = Address.call(counter, fn(reply) = Counter.Get(reply = reply), 3000);
-    Io.println(label <> ": " <> Io.show(answered))
+    let called = Clock.monotonic();
+    let answered = Address.call(counter, fn(reply) = Counter.Get(reply = reply), ms);
+    Io.println(label <> ": " <> Io.show(answered));
+    Clock.monotonic() - called
 }

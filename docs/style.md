@@ -183,6 +183,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **BuildsFunctions**: whether a module's code builds a function value, a fun of its own code that an expression or a supply emits and that may be held anywhere, which the emitter marks (`function_value/2`) and its interface chunk records, `builds_functions`, and by which the shell keeps an input (§11.2). Not `HasFuns`, `Closures`.
 - **Calls**: the units a unit's code calls, which its `'$code'/0` lists last and its code-table row holds; with the unit itself and transitively, `ern_code:called/1`, the units a reach's bindings and foreign declarations are read in (§8.7). Not `Deps`, which are §8.5's declared dependencies.
 - **Machine, Clone**: a computer MVP 3.27's tools start nodes on, a line of `test/machines/machines.txt`, `ern_machine`: this one, `local`, whose commands run in the plain shell, or another, reached over ssh through one ssh connection held for the run, which holds a clone of the repository that only `git pull` and `make` write; a node made and run on one is an `ern_machine_node`. Not `Remote`, `Box`, `Server`.
+- **WaitMs**: the harness's time for one wait, `ern_nodes_tests:wait_ms/0`, which bounds one step of a nodes test's, a test's limit its steps counted in it, `{waits, Count}`, and which the programs the tests run give each of their waits, `Harness.waitMs()` under `test/fixtures/peers/` and `waitMs()` in a program a test writes.
 - **Message**: a message. Not `Msg`.
 
 **Ernest**

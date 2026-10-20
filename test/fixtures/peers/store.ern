@@ -6,6 +6,7 @@
 // the desk calls, and a watcher of the processes the desk's computes start
 // here; says each fault its subscriber of faults is told of; and waits.
 
+// Restarting, its window the scenario's: no test faults the counter.
 let counter : Address(Counter.Msg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
@@ -45,6 +46,8 @@ export fn main() : Unit receiving Unit = {
     let _ =
         Peer.offer(Counter.strict,
                    adapted(fragile, fn(n) = if n < 0 then fault("negative") else n));
+    // the scenario's restarts, more than the requests that fault it, which
+    // come within the window
     let _ =
         Peer.offer(Calls.brittle,
                    spawn(restarting(RestartLimit(restarts = 10, within = 60000),
