@@ -160,10 +160,10 @@ come first.
    **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
    Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
    foreign fault beside the reply, so the host reads from the mailbox's start and not from the
-   reply's reference. Decided with the user on 2026-10-20: discussed as its own question after the
-   nodes tests' limits below, before the milestone closes, since it reaches the report; the shape
-   of its fix is a receive that reads from the reply's reference, with the restart and the foreign
-   fault read another way.
+   reply's reference. Decided with the user on 2026-10-21 (the log's *The Rows That Grew*, *The
+   call's wait, decided*): left as it is, its cost stated in §10, since every marked wait that still
+   takes a restart asked for needs an identity on every ask and a loop in every compiled `receive`;
+   the change is dropped.
 
 The nodes tests' limits, built 2026-10-21 (the log's *The Nodes Tests' Bounds*): every limit is a
 count of the test's steps in the harness's time for one wait, and every deadline in a program a test
