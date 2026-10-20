@@ -189,12 +189,18 @@ and a test's own fault, were decided the same day, in the log.
 
 ## MVP 3.28 (what stands before the tour), about a week
 
-Four items of a day each, then seven that `docs/language_feedback.md` left, decided with the
+A sitting over the log's *Later* list first, then four items of a day each, then seven that
+`docs/language_feedback.md` left, decided with the
 user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less, and one from
 `ernest-epx`'s window, decided on 2026-10-21 (the log's *The Window's Three Asks*). Two more, 133
 and 134 from `ernest-epx`'s ray tracer, were weighed and left alone on 2026-10-20 (the log's *The
 Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-10-21.
 
+- **The log's *Later* list sorted**, decided with the user on 2026-10-21 (the log's *The Window's
+  Three Asks*): a feature left out is dropped, its verdict in the log, or goes into a milestone, and
+  nothing is kept for later. Each of the list's thirty entries goes into a milestone or is dropped
+  in a dated entry that names the principle, the standing section goes, and every document that
+  pointed at it points at the entry instead. First, so that this milestone's list is whole.
 - **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
   (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
   is the formatter's work and not the tour's, and comes before the tour so that the tour is written
