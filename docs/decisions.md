@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-20.** [The Machines](#the-machines-2026-10-20). [Every Fault Carries a Trace](#every-fault-carries-a-trace-2026-10-20). [The Tour, Shorter](#the-tour-shorter-2026-10-20).
+**2026-10-20.** [The Numbers Across Machines](#the-numbers-across-machines-2026-10-20). [The Machines](#the-machines-2026-10-20). [Every Fault Carries a Trace](#every-fault-carries-a-trace-2026-10-20). [The Tour, Shorter](#the-tour-shorter-2026-10-20).
 
 **2026-10-17.** [Before the Tag, the Last Builds](#before-the-tag-the-last-builds-2026-10-17).
 
@@ -8556,6 +8556,78 @@ MVP 3.2's item 11 began on the user's word, as `release_review.md` says: a fresh
 The host's own times are up a sixth on most rows, the loop alone 9.3 against 7.9, so the machine is slower than it was and the ratio is what is compared. Four rows are better, `Map.put`, `List.size`, `<>` and `Bytes.size`, by the shims MVP 2.99d moved and the measurements since. One is a tenth worse, send and receive, the noise the review before 0.3.1 took for the machine's own. Two are worse beyond it. `String.size` is 1.3 against 1.0: since MVP 3.1 named a unit's functions by their position, a foreign function is called through its unit's function and not as the host's function at the call, one call more, 24 nanoseconds on the host's 107, a fraction of the operation as §10 asks, and the plain form, which the code frame's foreign declarations rest on. A spawn is 5.6 against 3.4, and against 4.6 on 2026-10-10 (*What MVP 3.1 Costs, Measured*), where §10 put a round trip to the reaper in a spawn by design: the call's two sides read as they read then, and the reaper does more at each process's end since, the deliveries to it ended, its offers dropped and a compute's notes told, three table operations on tables the bench leaves empty, which the bench's loop pays at the reaper, the one process every spawn and every end goes through. Whether that is the whole of the two microseconds is not measured today. It is planned, in MVP 3.27 with the measurements across machines: the spawn's end at the reaper measured by itself, and what costs brought back toward the host's. The release ships with the row as it stands, which the user decides at the tag.
 
 **The newcomer's program**, `pubsub`, is published beside the archive with the two scripts it was tried on; it builds and runs under the release as it did under `fb2324e8`.
+
+## The Numbers Across Machines, 2026-10-20
+
+MVP 3.27 item 2, measured 2026-10-20 on the three wired machines of *The Machines*: the laptop, eight cores, where the measuring node runs; bee, two cores; xena, four. The host's ping between any two of them is 0.7 ms over TCP and 1.1 over TLS, against 0.1 on one machine and 3.5 over Wi-Fi. Every number is a median over seven runs with its range unless said otherwise, `make bench-machines` run twice with the two runs within five percent on every row, and every table kept under `test/build/bench/`. The one-machine numbers beside them are those of 2026-10-13 (*The Report for Code with a Spawn*), which a one-machine run of the same day confirmed.
+
+**Between two nodes.** The node table, the laptop's desk against bee's store:
+
+```
+µs                                          wired   one machine   Wi-Fi
+the host's ping, over TCP                     696        95        3522
+the host's ping, over TLS                    1096       122        3634
+a call to the other node's process           1166       153        3748
+a message there and back                     1083       113        3596
+  through its adapted address there          1151       122        3516
+a find of its service                        1083       137        3623
+a spawn there                                1331       176        3711
+a compute there                              1264       165        3754
+a utilization of it                          1020       152        3635
+```
+
+Every row is the ping and a little, as it was on one machine. TLS costs 1.6 times TCP's ping wired, 1.3 on one machine and 1.0 over Wi-Fi, whose air hides it. The gateway's step, the difference of two such rows, is within the jitter wired as it was on Wi-Fi, minus 29 and plus 67 µs across the two runs, against 8.6 µs on one machine.
+
+**Code that crosses.** A spawn whose code crosses onto a bare node on bee costs 17.0 ms for one definition, 27.2 for five and 71.9 for twenty, and a compute 8.3, 15.5 and 38.1, against 7.4, 8.7 and 23.1 and 4.7, 9.0 and 23.5 on one machine. A function the peer holds costs 1.2 to 1.5 ms spawned and 0.85 to 0.95 computed, the wire's round trip, against 350 and 400 µs. Most of the difference is bee's compiler, 6.1, 16.8 and 49.2 ms for the three reaches against 2.4, 4.6 and 13.2 on the laptop, and the rest is the exchange's three round trips at about 1.4 ms each where they were 0.4. A fix and its one, five and twenty callers cross in 11.8, 15.6 and 42.4 ms, two, six and twenty-one definitions as before.
+
+The dial and the first spawn are the peer's processor's. A dial costs 365 ms to bee and 224 to 272 to xena against 115 on one machine; a bare node's first spawn 637 ms on bee and 303 to 342 on xena against 254, bee's compiler taking 357 ms for its first run and 121 for the prelude's environment where the laptop's took 139 and 50. The host's counts an arrival adds are the same, as they must be, a unit's and not the wire's: the development day's figures stand at 260, 411, 2,081 and 4,071 days.
+
+**The push against the pull.** The pick alone, the utilizations read and the draw, costs 3.4 µs across machines as on one, and a read of eight utilizations 3.2; `Peer.utilization` of one peer costs 987 µs, a round trip; a compute on a peer picked of eight 1.25 ms against 1.06 on the peer named, the eight lying on both machines. The pull's `Placement.leastBusy` asked each peer at the pick, 233 µs over one peer and 600 over three on one machine, which across a wire would be at least one round trip of a millisecond at every pick, where the push's telling costs 0.4 packets a second a connection at the default interval, 2.0 at one second and 4.0 at half, two a telling each way: three idle nodes exchange 1.2 packets a second across machines as on one, and no idle scheduler of theirs rises above 0.1 percent at any interval. The proposal's cost argument stands as measured.
+
+**The push's experiment.** `make bench-pick`, 32 minutes, runs `push.md`'s section 5 from the laptop: a burst of a hundred computes of a hundred milliseconds' work, sent as fast as the node can, then a stream of one every 50 ms for a minute, under `Peer.compute`'s two choices and under the least busy written over `Peer.utilizations()` as the guide's §8.1 writes it. The work is a loop calibrated to 100 ms on the median peer machine, 135 ms on bee and 78 on xena, and the peers stand in the configuration's order, bee's first. Two arrangements: one bare node on each of bee and xena, where the two rules coincide by construction; and two on bee and four on xena, as many as their processors, where they differ, with the stream run again at intervals of 1000 and 500 ms. The measuring node's schedulers stayed at 0.1 percent busy throughout.
+
+**A burst falls by the configuration's order.** The hundred computes of a burst, by peer:
+
+```
+                                               two choices             the least busy
+bee1, xena1                                    100, 0                  100, 0
+  the burst's wall time, ms                    6490                    6481
+bee1, bee2, xena1, xena2, xena3, xena4         32, 25, 19, 13, 6, 0    100, 0, 0, 0, 0, 0
+  the burst's wall time, ms                    3706 (3468 to 4643)     6502
+```
+
+At a node idle at its telling the run-queue measure reads exactly 0.0, so every peer of an idle table ties, and §8.7 gives a tie to the first in the configuration's order; the burst is sent within milliseconds, no telling comes between, and the table stands as it was. Under the least busy the first minimum is the first peer, and all hundred land on bee, the slowest machine, 6.5 s where the two machines together would take about a second and a half. Under two choices the fall is the draw's arithmetic: of the fifteen pairs of six peers, the first peer is the earlier in five, the second in four, down to none for the last, 33, 27, 20, 13, 7 and 0 percent, and the measured 32, 25, 19, 13, 6 and 0. The last peer listed got no work from any burst and the first the most, by nothing but its line in `ernest.conf`.
+
+**The stream.** With six peers, a compute's round trip and the computes by peer:
+
+```
+                                     two choices                     the least busy
+interval 5000 ms, round trip, ms     90 (73 to 627)                  3671 (73 to 12923)
+  computes by peer                   219, 236, 262, 209, 174, 109    518, 399, 250, 33, 0, 0
+  bee's processors idle, %           49                              1.4
+interval 1000 ms, round trip, ms     91 (73 to 493)                  306 (73 to 892)
+interval 500 ms, round trip, ms      88 (72 to 413)                  394 (73 to 927)
+```
+
+The stream carries about three packets a compute on the wire, and the least busy's herding shows in them too, 25 a second on bee's first node against 0.4 on xena's last. With two peers the rules coincide and each interval's hundred computes go to the peer that was idle at its last telling, so the work flips peer every interval and bee cannot keep up in its turn: 136 ms a round trip, 2.7 s at worst.
+
+**The verdict.** Two choices holds under the stream across a wire: 90 ms a round trip with six peers at every interval tried, no knee between 5000 and 500 ms, so the default of five seconds stands, as the proposal's section 7.3 left this stream to show. The least busy over `Peer.utilizations()` herds as the proposal said a stale table makes it herd, 3.7 s a round trip at the default interval, better at one second and no better at half, since the measure is the instant's and the tie the order's. What two choices does not do is spread a burst onto an idle table: there every peer ties, and the draw ends in the order.
+
+**The tie, a decision for the user.** §8.7's and E.27's tie, two equally busy taken as the first in the configuration's order, was written for a pick where a tie is a coincidence; under the run-queue measure an idle peer reads 0.0 exactly, so the tie is the common case, and a draw at random ends in a choice by order. Recommended: of two equally busy, the first drawn, which is random since the draw is. A burst onto an idle table then falls uniformly, a sixth on each of six, which is what placing with no information should do, and nothing else of the rule changes; the guide's §8.1 states the same tie and `ern_peer_tests` holds the order's, and both change with it. Principle 1 decides: an operator does not expect a peer's line in `ernest.conf` to decide where work lands.
+
+Counting into a peer's utilization the computes this node has in flight on it, so that a burst spreads by what the node itself sent, was weighed and set aside: it makes a second source for a number the report defines as what the peer told, so that `Peer.utilizations()` would say one number and the pick use another (principle 2), and the stream shows two choices needs nothing at the stream's rate; what would change it is a program in use whose fan-out lands whole on one peer after the tie is random.
+
+The experiment runs again after the change, under the `"schedulers"` measure too, which no run of this day used.
+
+**The guide's rule of the least busy** names a peer for every compute between two tellings and takes a utilization older than the pick would use, which it did not say; its §8.1 says so now, and `docs/language_feedback.md` 117 and 118 hold what writing the measuring program felt, that a program cannot say where its compute ran, and that a burst falls by the order.
+
+**The far peer, a preview.** The laptop on Wi-Fi as a peer beside xena, the measuring node on bee, in both orders of the two: under the stream the far peer drew its share, 500 of 1,200 computes listed second and 800 listed first, the two rules coinciding and the counts differing between them by which peer was idle at its telling; the burst went whole to the first listed, as wired. The far peer's round trip of 4 to 8 ms over the air against 0.3 over the wire is nothing beside a hundred milliseconds of work, so the push does not see the distance, and should not, since a far peer is not a busy one. The node on the separate LAN measures a steady distance when it comes.
+
+**The spawn, piece by piece.** `make bench`'s fifth part, `test/ern_spawn_costs.erl`. Ernest's spawn of a process that returns costs 8.17 µs on eight schedulers against the host's 1.51, 5.4 times, and 5.91 where the process waits with no end between, 3.9 times, so the end at the reaper is 2.26 µs of the 6.66 Ernest adds, the reaper's own table operations about 1.1 of it and the `'DOWN'` and the schedulers' wake-ups the rest. On one scheduler, a model of the reaper built a piece at a time reaches 5.04 of the runtime's 5.46 µs: the round trip §10 states, the spawner waiting for the runtime's word, 1.28 µs over the host's spawn; the monitor and its `'DOWN'` 0.13; the start's word 0.30; the error handler and the `try` 0.26; the process's row 0.42; its root read from the spawner's row 0.02, 92 ns alone; the end's handling 1.03; the deliveries' read at the end 0.29, 382 ns alone; the reaper's wait with a deadline for its look for a deadlock 0.28.
+
+**What grew the ratio from 4.6 to 5.6.** MVP 3.1's tree and 0.4.0's built and run interleaved over the same loop of two hundred thousand spawns: 7.3 µs a spawn against 8.4, 4.8 and 5.5 times the host's 1.5. Two reads came between. The root read from the spawner's row at each spawn (2026-10-10, MVP 3.1's read, so that what a shell load started is known whatever code it runs, §11.2) and the deliveries' read at each end (2026-10-16, the deliveries to a process let go at its end, `docs/memory.md`); without either 0.4.0 runs at MVP 3.1's 7.4. Each is the host's read of a key's prefix, about 350 ns however it is written.
+
+**Brought back toward the host's.** The reaper read a callee's rows at an end through a match specification with a guard on each row, 659 ns; it reads them by their key alone now and tells them apart in clauses, the same thing in the plain form, 407 ns, and the spawn went from 8.26 to 7.99 µs, 5.5 to 5.3 times the host's over 21 runs; `make bench`'s own row says 4.6 at its fastest of three. The two reads kept are what the root and the let-go need, about 0.8 µs, a tenth of a spawn, stated here. What would remove it is a trick each, and none is made: a mark on the row that the process has deliveries, offers or notes, a second path for speed; a sentinel and `ets:next` for a prefix; the root cached in the process dictionary, a second place for one fact that `rooted/2` would leave stale; a skip of the read while the table is empty. Recommended: the plain form stays, by CLAUDE.md's rule that no code is kept only to go faster. Three other rows of the bench grew since MVP 3.1 and were outside this measure, a monitor of an ended process at 25.6 times the host's against 17.7, `spawnMonitored` at 10.2 against 8.8, and entering `restarting` at 99 times a `try`; they are measured piece by piece as the spawn was, MVP 3.27's item 3.
 
 ## The Machines, 2026-10-20
 

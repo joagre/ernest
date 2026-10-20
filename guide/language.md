@@ -2398,6 +2398,8 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
+The rule takes the utilizations as the node holds them, one older than the pick would use among them, and names the same peer for every compute between two tellings, so a burst sent within one interval lands whole on the first peer the minimum finds. A rule that spreads a burst draws, as the pick does, or filters by the age the list gives.
+
 Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
 
 **Many at once.** A compute is a call, and its caller waits for it. It is §4.4's `gathered` with a compute as each helper's work. Work spread over the peers at once is a process for each piece, which computes and sends its piece home, spawned monitored so that its fault comes home too (§6.4). `Placed.computed` is each helper's whole work, so a piece that finds no peer runs here:

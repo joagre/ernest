@@ -104,20 +104,26 @@ come first.
    the laptop, so that the three are wired and the tooling stands; the fallback is the measuring node
    on a wired machine, a small change the log names. The node on the separate LAN comes last, when it
    comes.
-2. **The numbers.** The tables of 2026-10-13 again across machines, and the push's experiment of
-   `docs/proposals/placement/push.md`'s section 5; the log's paragraph beside them; `docs/memory.md`
-   where a measured fact changes; the deployment guide's numbers for two nodes and for code across
-   nodes corrected from them.
+2. **The numbers.** Measured 2026-10-20 wired (the log's *The Numbers Across Machines*): the
+   tables of 2026-10-13 again across machines, every round trip the wire's millisecond and a crossing
+   spawn's cost the peer's compiler; the push's experiment of `docs/proposals/placement/push.md`'s
+   section 5, `make bench-pick`, under which two choices holds under the stream at every interval
+   and the least busy herds; the far peer's preview with the laptop on Wi-Fi; the deployment guide's
+   numbers corrected.
 
-   With them, the spawn's end at the reaper measured by itself, the
-   bench's spawn row standing at 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's
-   *The Release Review Before 0.4.0*), and what costs brought back toward the host's.
+   The spawn measured piece by piece: the ratio's growth since MVP 3.1 is two reads the root and the
+   let-go need, the reaper's read of a callee's notes is brought to the plain form, and the rest is
+   stated in the log.
 
-   One more run
-   of the burst experiment with the laptop back on Wi-Fi as a peer alone, the measuring node on a
-   wired machine: a preview of the far peer's row, since the push's choices draw by utilization and a
-   far peer is not a busy one, which the node on the separate LAN measures with a steady distance
-   when it comes (decided with the user 2026-10-20).
+   **Decided with the user:** the tie of §8.7 and Appendix E.27, two equally busy peers taken as the
+   first in the configuration's order, which sent every burst onto an idle table by that order, goes
+   to the first drawn, which is random; recommended in the log, built on the user's word with the
+   guide's §8.1 and `ern_peer_tests`, and the experiment run again after it, under the
+   `"schedulers"` measure too, which `make bench-pick` gains a parameter for.
+3. **The rows that grew.** The bench's three other rows that grew since MVP 3.1, a monitor of an
+   ended process at 25.6 times the host's against 17.7, `spawnMonitored` at 10.2 against 8.8, and
+   entering `restarting` at 99 times a `try`, each measured piece by piece as the spawn was, in `make
+   bench`'s fifth part, and what costs brought back in the plain form, the rest stated in the log.
 
 The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
 test waits for, as the log's *The Programs Tests' Bounds* leaves them; and a nodes test of

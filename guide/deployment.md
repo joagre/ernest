@@ -14,7 +14,7 @@ A node runs on the Erlang runtime, OTP, which this guide calls the host; the hos
 
 How a program is written to be found, placed and upgraded across nodes is the language guide's chapter 8, [*Programming in Ernest*](language.md), which this guide points at and does not repeat. The rules themselves are [the report's](../report/language.md), Ernest's definition, §8.7 and §11 above all, and every section here names the section that owns what it teaches.
 
-The commands of sections 1, 5.3 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit, the `kill` lines and the shell session of section 6 are shown and not run. The numbers quoted were measured on one machine, eight cores, and say so.
+The commands of sections 1, 5.3 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit, the `kill` lines and the shell session of section 6 are shown and not run. The numbers quoted were measured on one machine, eight cores, and across three machines wired on one LAN, and each says which.
 
 ## 1. One node
 
@@ -170,7 +170,7 @@ A program may set the number itself, when it knows its load better than the host
 
 A node that lists peers tells each of them its utilization every `utilization-interval` milliseconds, 5000 where the entry is absent, and once as a peer connects. Each node holds the last number heard from each peer, and a program's `Peer.compute` picks the less busy of two peers drawn from them; a number older than twice the interval of the peer that sent it is not used, and a peer never heard from is not chosen. Where a program places work by its own rule, the language guide's §8.1 shows it over `Peer.utilizations()`.
 
-The cost of the telling is one small frame per peer per interval, which replaces the host's own idle ticks rather than adding to them: on one machine, three idle nodes exchanged about 1.2 packets a second at the default interval. A shorter interval buys fresher numbers for more frames; a longer one the reverse.
+The cost of the telling is one small frame per peer per interval, which replaces the host's own idle ticks rather than adding to them: three idle nodes exchanged about 1.2 packets a second at the default interval, on one machine and across machines alike, each connection carrying two packets a telling. A shorter interval buys fresher numbers for more frames; a longer one the reverse.
 
 ### 3.3 The host's measures
 
@@ -180,7 +180,7 @@ The cost of the telling is one small frame per peer per interval, which replaces
 
 `ern run --config-dir dir` with no `.erc` starts a bare node (report §8.7): it holds no program of its own, evaluates the standard library and waits, listening for what its peers spawn and compute on it. The code it needs crosses with the first spawn or compute of each function (section 4), and it offers what the processes spawned on it offer, so a bare node is a worker that any program on the floor can give work to by its name.
 
-It must listen, since it never dials, and it ends by termination alone. Its first spawn is the slow one: on one machine about 250 milliseconds, most of it the host's compiler starting, against a few milliseconds for every spawn after.
+It must listen, since it never dials, and it ends by termination alone. Its first spawn is the slow one: about 250 milliseconds on a machine of eight cores and 650 on one of two, most of it the host's compiler starting, against the exchange's own cost for every spawn after (section 4.1).
 
 ## 4. Code across nodes, as the operator meets it
 
@@ -188,7 +188,7 @@ It must listen, since it never dials, and it ends by termination alone. Its firs
 
 Code crosses between nodes with a spawn and a compute, and nowhere else: not with a message, not with a find, not with a shell's load (report §8.7, *The exchange*). When a program spawns a function on a peer that lacks it, the peer asks for the definitions it lacks among the function and everything the function uses, directly or through others, each known by the hash of its definition, verifies each as it arrives, compiles them together as one module of the host's and loads it whole before the process starts. Nothing compiled ever crosses, and nothing of it runs before all of it is loaded.
 
-A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds.
+A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds; across a wire to a machine of two cores, 17, 27 and 72, most of it that machine's compiler, against about a millisecond and a half, the wire's round trip, for a function it holds.
 
 Two things never cross: a top-level binding's value, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3).
 
