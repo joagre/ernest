@@ -165,11 +165,16 @@ come first.
    of its fix is a receive that reads from the reply's reference, with the restart and the foreign
    fault read another way.
 
-The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
-test waits for, as the log's *The Programs Tests' Bounds* leaves them; and a nodes test of
-a peer's connection lost and opened again under a function that waits, which no test runs today and
-§8.7's sentence that a loss ends the waits that began before the node ran it describes, joins them
-(decided with the user on 2026-10-16).
+The nodes tests' limits, built 2026-10-21 (the log's *The Nodes Tests' Bounds*): every limit is a
+count of the test's steps in the harness's time for one wait, and every deadline in a program a test
+runs is that time, the one chosen number, 30 s, which bounds a failure alone and stays, decided with
+the user on 2026-10-21. The nodes test of a peer's connection lost and opened again under a function
+that waits joins them, and found no defect.
+
+Three bounds of the same kind remain and go here: the deployment tests' five limits of their own,
+90 to 180 s, counted as the nodes tests' are; the commands the nodes tests run by `os:cmd` with no
+bound, bounded as the deployment tests' `job/2` bounds its; and the loads' sleep of 100 ms in
+`test/ern_load.erl`, a number of its own, derived from what it waits for.
 
 The two Makefile lines that remove an old checkout's `.beam`
 copies of compiled modules, `rm -f build/*/ern@*.beam` in the `stdlib` and `shell` rules, go here,
