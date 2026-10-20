@@ -189,21 +189,32 @@ Road to 1.0, Ordered*).
 - **The outline first, written with the user**, as a design is: the chapters, the program's growth
   from one to the next, and what each shows, explicitly or by the way.
 
-  A first sketch to start from, not a decision, eight chapters of a screen of code and half a
-  screen of prose each, a tenth of the guide's length: the counter as a process, a send and a
-  call; a wrong message and the compiler's line; a client written with functions and values, the
-  one place the plain language appears, by the way; a fault, a restart and a monitor; the counter
-  as a module, with an abstract type and a requirement; a fix in the shell, two versions side by
-  side and `Upgrade`; a bare node, the code traveling with the spawn; the counter moved to new
-  code on the peer, and the handover to `guide/deployment.md`.
+  The sketch to start from, read against the five claims on 2026-10-20 (the log's *The Tour,
+  Shorter*, its paragraph *The outline, read against the claims*): seven chapters of a screen of
+  code and half a screen of prose each, a tenth of the guide's length. Each chapter is the
+  program's change, so a feature appears where the program first needs it:
+
+  1. The counter, spawned plain; a send, a call with a timeout, and a `String` sent and refused.
+  2. A client, a function that parses a line and sends: the one place the plain language appears,
+     by the way.
+  3. A fault, `restarting`, and a monitor's `Down`.
+  4. The counter as a module that counts per key: its tally an abstract type, its report sorted by
+     a requirement, and its one test, `ern test`, the one item outside the five claims, admitted
+     because a module worth keeping gets a test.
+  5. A fix in the shell: two versions side by side, and `Upgrade`.
+  6. A `main`, a bare node, and the spawn carrying the code.
+  7. The peer's counter moved to new code by the smallest tool, a spawn on the peer that runs
+     `Code.running` there; then the handover to `guide/deployment.md`'s §8, which runs the same
+     move across three nodes with `examples/upgrade/`, the tour's counter staying its own.
 - **Code first.** No paragraph stands before the code it is about: a chapter is the program's
   change, what was run, what it printed, then the prose, a sentence for each line that needs one.
 - **It says do, and points for why**, teaching no rule a third time: what a rule is and why is the
   report's and the guides', and the tour names the section, `the guide's §4.4`. Where the program
   meets the operator's world, `ern config`, a peer's key, it names the deployment guide's section
   and goes on.
-- **The shell is its medium wherever a chapter fits in it**, so that the website's shell (MVP 4.2)
-  can run a page as it stands; a file where a module is the point.
+- **The shell is its medium through the fix in the shell**, `:load` and inputs, so that the reload
+  and `Counter$1.Msg` land in the medium the reader has been in, and so that the website's shell
+  (MVP 4.2) can run a page as it stands; a `main` and `ern run` from the node's chapter on.
 - **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
   one program grown across the five claims is the language's hardest test before 0.5.0.
