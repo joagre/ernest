@@ -47,7 +47,9 @@ Each fact has one owner. Every other document points at the owner and does not r
 
 Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not.
 
-A built proposal is kept as the record of its design, its status line saying so, until its milestone's row names the log entries that argue it and nothing else cites the directory; then it goes, after a reading decided with the user of what it holds that no owner has yet, an experiment's finding or a table of what other systems do, which goes first to the design note or the log that keeps it. Meanwhile it does not change but in its form, a paragraph broken where it turns with every decision, fact and number kept; a program under it that the tests still run follows the library's names, since the tests hold it to the library and not to the proposal.
+A built proposal is kept as the record of its design, its status line saying so, until its milestone's row names the log entries that argue it and nothing else cites the directory; then it goes, after a reading decided with the user of what it holds that no owner has yet, an experiment's finding or a table of what other systems do, which goes first to the design note or the log that keeps it.
+
+Meanwhile it does not change but in its form, a paragraph broken where it turns with every decision, fact and number kept; a program under it that the tests still run follows the library's names, since the tests hold it to the library and not to the proposal.
 
 **Handouts and scratch.** `docs/proposals/handouts/` holds a copy written for one reader outside the project, in that reader's terms, citing nothing; nothing points at it, and it goes when its reader is done. A `scratch/` directory inside a proposal's own directory, untracked, is the user's own thinking: no session edits it, commits it or builds on it.
 
