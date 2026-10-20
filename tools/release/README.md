@@ -40,4 +40,4 @@ The repository, https://github.com/joagre/ernest, holds what an installation doe
 
 ## License
 
-Ernest is released under the terms in `share/doc/ernest/LICENSE`. Third-party components are listed, with their licenses, in `share/doc/ernest/THIRD_PARTY_LICENSES`.
+Ernest is released under the Zero-Clause BSD license, 0BSD, the terms in `share/doc/ernest/LICENSE`. Third-party components are listed, with their licenses, in `share/doc/ernest/THIRD_PARTY_LICENSES`.
