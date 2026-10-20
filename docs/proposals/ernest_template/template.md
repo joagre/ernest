@@ -54,8 +54,9 @@ docs/release.md      what a release runs to be ready, section 6
 docs/style.md        the rules an Ernest program is written by, a verbatim copy of
                      this repository's, its first line naming the release it was
                      cut from; no application edits it
-lib/                 not committed: each dependency as make lib unpacks it, and
-                     each of Ernest's own libraries the program wants, section 4
+lib/                 not committed: each dependency as make lib unpacks it, each
+                     of Ernest's own libraries the program wants, and each Erlang
+                     application's ebin and priv, section 4
 build/               not committed: what ern build writes
 ```
 
@@ -67,6 +68,7 @@ What appears when needed, named in `CLAUDE.md`:
 - `test/`, for what a module's tests cannot do: a program run end to end, started with arguments and standard input by `Os.run` and its output held to what is expected by `Test.equal`. It is a second source root of Ernest modules, built into `test/build/` against `build/` and run by `ern test`, so that one tool runs every test; it holds no scripts.
 - `THIRD_PARTY_LICENSES`, with the first borrowed file; `ACKNOWLEDGMENTS.md`, with the first name.
 - For a library: `examples/`, with its README listing the programs by topic, and `docs/man/`, which `make man` writes and a release commits.
+- `erl/`, for a program that stands on Erlang code: one read-only git submodule per Erlang application, pinned to a commit and never a copy, which `make lib` builds by the application's own `make`; the repository is cloned with `--recursive`.
 
 ## 4. The Makefile, the launcher and the archive
 
@@ -77,11 +79,12 @@ NAME        = tally               # the launcher and the entry module, src/tally
 ERN_VERSION = 0.4                 # the floor, section 2
 LIBS        = json                # Ernest's own libraries the program wants
 DEPS        = https://github.com/joagre/ernest-websocket/releases/download/v0.3.0/ernest-websocket-0.3.0.tar.gz
+ERL_DEPS    = tree_db epx         # the Erlang applications under erl/, in build order
 ```
 
 The entry point is `main` of the module the launcher is named for, `src/<name>.ern`; an operator who wants another runs `ern run --main` directly, as the deployment guide shows. A library sets `NAME` for its archive alone and has no launcher.
 
-**The load path.** Everything a program loads beyond the standard library stands under `lib/<name>/build`, one shape for Ernest's own libraries and for dependencies alike, so that the load path is the one glob `lib/*/build` in the Makefile and the launcher both, and no path is written twice. `make lib` makes it: for each of `LIBS`, `lib/json/build` is a symbolic link to Ernest's root of that library, found beside `ern` under `../lib/ernest/build/libs` and then `../build/libs`, and refused with both paths where neither is there; for each of `DEPS`, the archive is fetched and unpacked under `lib/` where its directory is not there already. A dependency is named by its archive's URL alone, whose last component names the directory, `ernest-websocket-0.3.0`, and whose version is the pin. A dependency a dependency needs is listed too, before it, since `all` builds them in the order listed; the template resolves nothing, which is Ernest's decision for another day.
+**The load path.** Everything a program loads beyond the standard library stands under `lib/`: `lib/<name>/build` for Ernest's own libraries and for dependencies alike, and `lib/<app>/ebin` for an Erlang application, with its `priv` linked beside it, so that the load path is the one glob, `lib/*/build` and `lib/*/ebin`, in the Makefile and the launcher both, and no path is written twice. `ern run` adds each load-path directory to the host's code path, so the host finds a NIF and an application's files from `priv/` beside `ebin/` as it does anywhere. `make lib` makes it: for each of `LIBS`, `lib/json/build` is a symbolic link to Ernest's root of that library, found beside `ern` under `../lib/ernest/build/libs` and then `../build/libs`, and refused with both paths where neither is there; for each of `DEPS`, the archive is fetched and unpacked under `lib/` where its directory is not there already. A dependency is named by its archive's URL alone, whose last component names the directory, `ernest-websocket-0.3.0`, and whose version is the pin. A dependency a dependency needs is listed too, before it, since `all` builds them in the order listed; the template resolves nothing, which is Ernest's decision for another day.
 
 **The build.** `all` checks the floor, then builds each dependency's `src/` into its own `build/` with `lib/*/build` on the load path, then the application's `src/` into `build/`. A dependency is built by the consumer's own `ern`, whatever built the archive, and §11.1's rule makes that free where nothing changed.
 
@@ -204,6 +207,10 @@ Found while the template was built, the same day:
 - **A template cannot ship an empty directory**, and `make` on a copy with no `src/` fails in `ern`'s words. Decided: `name.ern` under `src/`, a placeholder entry module the copy renames and writes, so that the template's own `make test` is green and a copy begins green; `docs/proposals/` appears with the first proposal.
 - **A document that names a file that appears later** fails the checker, which holds every backticked path to what is there. Decided: such a file is named bare, `language_feedback.md` under `docs/`, as this proposal names the template's documents.
 - **How a copy is made.** Decided: `ernest-template` is a GitHub template repository, *Use this template* making the copy, and is tagged when the way of working changes; the copy's first log entry names the tag, from which `docs/style.md` and the checker are refreshed. No archive of the template is made.
+
+Found by the first copy, `ernest-epx`, the same day, and built as the template's `v0.2.0`:
+
+- **An Erlang application is not a dependency `make lib` fetches.** epx, the pixel library the first copy stands on, is Erlang with a NIF and its own Makefile, with tree_db beside it. Decided: an Erlang application is a read-only git submodule under `erl/`, pinned and never copied, named in `ERL_DEPS` in build order, built by its own `make` and linked as `lib/<app>/ebin` and `priv`; the load path gains `lib/*/ebin`. rebar3 was set aside: epx's port configuration is rebar2's, its dependency unpinned, and the tool is not on the machine. Tried before being written: a pixmap made, filled and read through the NIF from a scratch Ernest program.
 
 ## 11. Once decided
 
