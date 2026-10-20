@@ -35,14 +35,16 @@ CLAUDE.md            the working rules, section 5, importing docs/style.md
 LICENSE              the license
 VERSION              the program's version, one line, which make release reads
 Makefile             the targets of section 4, one file
-.gitignore           *.erc, build/, lib/, test/build/ and .ernest/, which holds a
-                     private key
-bin/NAME             the launcher, a POSIX sh script, section 4; an application's,
-                     not a library's
+.gitignore           *.erc, build/, lib/, test/build/, tools/build/ and .ernest/,
+                     which holds a private key
+bin/name             the launcher, a POSIX sh script, section 4, renamed for the
+                     program on the copy; an application's, not a library's
 src/                 the Ernest source, one source root; a module's tests in the
                      module
-src/tools/docs.ern   Tools.Docs, the checker: the paths the documents name exist,
-                     and each paragraph past about a hundred words is listed
+src/name.ern         the entry module, a placeholder renamed and written on the copy
+tools/docs.ern       Docs, the checker: the paths the documents name exist, and each
+                     paragraph past about a hundred words is listed; a source root
+                     of its own, built into tools/build/ and outside the archive
 docs/plan.md         the roadmap and where we are: milestones, each with its items,
                      and the table of those done
 docs/log.md          the dated rationale, never normative
@@ -52,7 +54,6 @@ docs/release.md      what a release runs to be ready, section 6
 docs/style.md        the rules an Ernest program is written by, a verbatim copy of
                      this repository's, its first line naming the release it was
                      cut from; no application edits it
-docs/proposals/      what is designed, a directory for each proposal, as here
 lib/                 not committed: each dependency as make lib unpacks it, and
                      each of Ernest's own libraries the program wants, section 4
 build/               not committed: what ern build writes
@@ -62,6 +63,7 @@ What appears when needed, named in `CLAUDE.md`:
 
 - `language_feedback.md`, at its first line: what writing Ernest felt against the principles, in the shape of this repository's file, so that a line is carried to it by copy. The template's applications are where the language is used in anger, and this file is the road back.
 - `findings.md`, while a review's findings are open, with the same rule as here: it goes when every line is done, dropped or planned.
+- `proposals/`, with the first proposal, a directory for each, as here.
 - `test/`, for what a module's tests cannot do: a program run end to end, started with arguments and standard input by `Os.run` and its output held to what is expected by `Test.equal`. It is a second source root of Ernest modules, built into `test/build/` against `build/` and run by `ern test`, so that one tool runs every test; it holds no scripts.
 - `THIRD_PARTY_LICENSES`, with the first borrowed file; `ACKNOWLEDGMENTS.md`, with the first name.
 - For a library: `examples/`, with its README listing the programs by topic, and `docs/man/`, which `make man` writes and a release commits.
@@ -71,24 +73,25 @@ What appears when needed, named in `CLAUDE.md`:
 One Makefile at the top, which names the roots once. The variables an application edits stand first; the targets follow and are the same in every application, so that a reader who knows one knows all. Eight targets: `all`, `test`, `format`, `doc`, `run`, `lib`, `release` and `clean`; there is no light run and no full run, since an application's whole suite runs in seconds, and where one day it does not, that is a defect of the tests to measure, as *The tools are fast* says.
 
 ```
-NAME        = tally
-MAIN        = Tally.main          # empty for a library
+NAME        = tally               # the launcher and the entry module, src/tally.ern
 ERN_VERSION = 0.4                 # the floor, section 2
 LIBS        = json                # Ernest's own libraries the program wants
 DEPS        = https://github.com/joagre/ernest-websocket/releases/download/v0.3.0/ernest-websocket-0.3.0.tar.gz
 ```
 
+The entry point is `main` of the module the launcher is named for, `src/<name>.ern`; an operator who wants another runs `ern run --main` directly, as the deployment guide shows. A library sets `NAME` for its archive alone and has no launcher.
+
 **The load path.** Everything a program loads beyond the standard library stands under `lib/<name>/build`, one shape for Ernest's own libraries and for dependencies alike, so that the load path is the one glob `lib/*/build` in the Makefile and the launcher both, and no path is written twice. `make lib` makes it: for each of `LIBS`, `lib/json/build` is a symbolic link to Ernest's root of that library, found beside `ern` under `../lib/ernest/build/libs` and then `../build/libs`, and refused with both paths where neither is there; for each of `DEPS`, the archive is fetched and unpacked under `lib/` where its directory is not there already. A dependency is named by its archive's URL alone, whose last component names the directory, `ernest-websocket-0.3.0`, and whose version is the pin. A dependency a dependency needs is listed too, before it, since `all` builds them in the order listed; the template resolves nothing, which is Ernest's decision for another day.
 
 **The build.** `all` checks the floor, then builds each dependency's `src/` into its own `build/` with `lib/*/build` on the load path, then the application's `src/` into `build/`. A dependency is built by the consumer's own `ern`, whatever built the archive, and §11.1's rule makes that free where nothing changed.
 
-**The tests.** `test` runs `ern format --check src`, `ern test build` with the load path, `ern run build/tools/docs.erc`, and, where `test/` exists, its build into `test/build/` and `ern test test/build`.
+**The tests.** `test` runs `ern format --check` over every source root, `ern test build` with the load path, the checker's build into `tools/build/`, its tests and its run, and, where `test/` exists, its build into `test/build/` and `ern test test/build`. Each root beside `src/` builds into a `build/` of its own, so that `ern test build` runs the program's tests alone and the archive holds the program alone.
 
 **The floor.** `version` compares the first two numbers of `ern --version` with `ERN_VERSION` and refuses another floor with both texts, `ern 0.4 expected, ern 0.5.0 found`; a development build of the floor passes. `release` demands a release and refuses a development build, since the archive's compiled modules go to machines that run a release.
 
-**The launcher.** `bin/<name>` runs `ern run` with the load path `lib/*/build` relative to its own directory and `--main $(MAIN)` on `build/<name>.erc`, so that an operator and a service unit run one command from a checkout and from an unpacked archive alike. It forwards a leading `--config-dir dir`, the one option an operator gives, to `ern run`, and everything after it to the program. A library has no launcher, and its `run` refuses with a sentence.
+**The launcher.** `bin/<name>` runs `ern run` on `build/<name>.erc`, the module its own name names, with the load path `lib/*/build` relative to its own directory, so that an operator and a service unit run one command from a checkout and from an unpacked archive alike. It forwards a leading `--config-dir dir`, the one option an operator gives, to `ern run`, and everything after it to the program. A library has no launcher, and its `run` refuses with a sentence.
 
-**The archive.** `release` runs `test`, then writes `build/<name>-<version>.tar.gz`, which unpacks to `<name>-<version>/` holding `bin/` where there is one, `src/`, `build/`, `lib/` with each link copied through, `README.md` and `LICENSE`. One shape for an application and a library, so that any archive can be a dependency and `make lib` reads one shape. The source travels so that a consumer builds the modules with its own `ern`; the compiled modules travel so that an operator runs the application as it is, under any release of its floor.
+**The archive.** `release` runs `test`, then writes `build/<name>-<version>.tar.gz`, which unpacks to `<name>-<version>/` holding `bin/` where there is one, `src/`, `build/`, `lib/` with each link copied through, `README.md` and `LICENSE`. One shape for an application and a library, so that any archive can be a dependency and `make lib` reads one shape. The source travels so that a consumer builds the modules with its own `ern`; the compiled modules travel so that an operator runs the application as it is, under any release of its floor. The `lib/` that travels serves the operator, for whom the archive is whole; a consumer's load path is its own `lib/*/build`, so a consumer lists every dependency itself, and an archive's `lib/` is not read as one.
 
 `clean` removes `build/`, `test/build/` and `lib/`, which `make lib` restores.
 
@@ -194,8 +197,16 @@ The design read back whole after the ten, as a reader who knows Ernest would, an
 - **A second source root's build under `build/` would have run its tests twice**, since `ern test build` runs every module under it. Decided: `test/` builds into `test/build/`, which is the directory the user's first list named.
 - **A development build's archive.** Decided: `make release` refuses it, section 4.
 
+Found while the template was built, the same day:
+
+- **The checker under `src/` would have gone into every archive**, so that two dependencies begun from the template would both carry `Tools.Docs`, one module name under two roots of the load path. Decided: the checker is `Docs` under `tools/`, a source root of its own built into `tools/build/`, outside the archive, as `test/` is.
+- **`MAIN` said what the launcher's name says.** The launcher runs the module it is named for, and the Makefile's `NAME` names both. Decided: no `MAIN`; `ern run --main` is the operator's.
+- **A template cannot ship an empty directory**, and `make` on a copy with no `src/` fails in `ern`'s words. Decided: `name.ern` under `src/`, a placeholder entry module the copy renames and writes, so that the template's own `make test` is green and a copy begins green; `docs/proposals/` appears with the first proposal.
+- **A document that names a file that appears later** fails the checker, which holds every backticked path to what is there. Decided: such a file is named bare, `language_feedback.md` under `docs/`, as this proposal names the template's documents.
+- **How a copy is made.** Decided: `ernest-template` is a GitHub template repository, *Use this template* making the copy, and is tagged when the way of working changes; the copy's first log entry names the tag, from which `docs/style.md` and the checker are refreshed. No archive of the template is made.
+
 ## 11. Once decided
 
-Decided. The repository `ernest-template` is written: its files as section 3 lists them, `CLAUDE.md` as section 5 cuts it, the Makefile, the launcher and the archive as section 4 says, and `Tools.Docs`. The first application is copied from it, and what the copy teaches comes back to the template, and to this proposal's record where it changes the design.
+Built 2026-10-20, the repository's first commit: its files as section 3 lists them, `CLAUDE.md` as section 5 cuts it, the Makefile, the launcher and the archive as section 4 says, and `Docs`. Its `make test` is green against the checkout's `ern`, its archive was made by the release's recipe and run from where it was unpacked, and the archive was fetched and built as a dependency of a second copy. The tag and the repository on GitHub are the user's. The first application is copied from it, and what the copy teaches comes back to the template, and to this proposal's record where it changes the design.
 
 In this repository nothing changes but four lines of `docs/language_feedback.md`, section 7's, and one sentence of `README.md` that says where an application begins, once the template exists.
