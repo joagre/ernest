@@ -88,6 +88,7 @@ Two nodes on one machine take three more commands: `ern config` makes a node's d
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them by topic, with what each shows.
 - **[The manual pages](docs/man/)**, as Markdown: the prelude's, every standard library module's and every library's, which `man Ernest.List` shows where Ernest is installed.
 - **[The report](report/language.md)** is where the details are: the language's definition, which everything else defers to, in three files under `report/`, the language, the toolchain and the standard library.
+- **[`ernest-template`](https://github.com/joagre/ernest-template)** is where an application written in Ernest begins: a repository copied with *Use this template*, with one Makefile, the documents and the working rules of this repository cut to an application's size, and `TEMPLATE.md` saying why.
 - **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain, and says how the repository is laid out: `report/` and `guide/` are the language, `src/` holds the Ernest a release ships and `erl/` the Erlang, `editors/` holds the editor modes, and `docs/` every other document.
 
 ## License
