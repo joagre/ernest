@@ -388,13 +388,17 @@ tags() ->
 
 %% The exported declarations of the module at the tag, each its kind and
 %% its name as the source writes them, or none where the tag has no such
-%% file. A tag's source is read by its lines, since the parser of today
-%% need not read it.
+%% file, at its path today or where the releases before the move held it.
+%% A tag's source is read by its lines, since the parser of today need not
+%% read it.
 shipped(Tag, Relative) ->
-    case os:cmd("git -C " ++ ?ROOT ++ " show " ++ Tag ++ ":" ++ released(Relative)
-                ++ " 2>/dev/null") of
-        "" -> none;
-        Text ->
+    Show = fun(Path) -> os:cmd("git -C " ++ ?ROOT ++ " show " ++ Tag ++ ":" ++ Path
+                               ++ " 2>/dev/null")
+           end,
+    case lists:dropwhile(fun(Text) -> Text =:= "" end,
+                         [Show(Relative), Show(released(Relative))]) of
+        [] -> none;
+        [Text | _] ->
             Pattern = "^export\\s+(?:foreign\\s+|abstract\\s+)?(fn|let|type)\\s+([^\\s(:=]+)",
             Options = [global, multiline, unicode, {capture, all_but_first, list}],
             case re:run(unicode:characters_to_binary(Text), Pattern, Options) of
