@@ -106,15 +106,25 @@ come first.
 2. **The numbers.** The tables of 2026-10-13 again across machines, and the push's experiment of
    `docs/proposals/placement/push.md`'s section 5; the log's paragraph beside them; `docs/memory.md`
    where a measured fact changes; the deployment guide's numbers for two nodes and for code across
-   nodes corrected from them. With them, the spawn's end at the reaper measured by itself, the
+   nodes corrected from them.
+
+   With them, the spawn's end at the reaper measured by itself, the
    bench's spawn row standing at 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's
    *The Release Review Before 0.4.0*), and what costs brought back toward the host's.
+
+   One more run
+   of the burst experiment with the laptop back on Wi-Fi as a peer alone, the measuring node on a
+   wired machine: a preview of the far peer's row, since the push's choices draw by utilization and a
+   far peer is not a busy one, which the node on the separate LAN measures with a steady distance
+   when it comes (decided with the user 2026-10-20).
 
 The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
 test waits for, as the log's *The Programs Tests' Bounds* leaves them; and a nodes test of
 a peer's connection lost and opened again under a function that waits, which no test runs today and
 §8.7's sentence that a loss ends the waits that began before the node ran it describes, joins them
-(decided with the user on 2026-10-16). The two Makefile lines that remove an old checkout's `.beam`
+(decided with the user on 2026-10-16).
+
+The two Makefile lines that remove an old checkout's `.beam`
 copies of compiled modules, `rm -f build/*/ern@*.beam` in the `stdlib` and `shell` rules, go here,
 every checkout having been built since 0.4.0.
 
