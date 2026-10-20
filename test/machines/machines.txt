@@ -8,6 +8,6 @@
 # A host is given as an address: ssh knows the other two by theirs, and
 # a dial to an address times the carrier without a name's resolution.
 
-eve     192.168.68.123  local
+eve     192.168.68.116  local
 bee     192.168.68.114  /home/jocke/src/ernest  /home/jocke/ernest-bench
 xena    192.168.68.115  /home/jocke/src/ernest  /home/jocke/ernest-bench
