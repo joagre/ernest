@@ -61,11 +61,11 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    them, and the Erlang they compile to; and bench/, input/, layout/,
                    load/, peers/, service/, session/, stdin/ and terminal/, the
                    programs and inputs tests run
-test/machines/     machines.txt, the user's machines that make bench-machines and
-                   nodes.sh start nodes on, a line each: its name, the host ssh takes
-                   and its peers dial, and its clone of the repository and the
-                   directory its nodes go in, outside the clone, or local for this
-                   machine; and nodes.sh: check, each machine's commit, version and
+test/machines/     machines.txt, the user's machines that make bench-machines, make
+                   bench-pick and nodes.sh start nodes on, a line each: its name, the
+                   host ssh takes and its peers dial, and its clone of the repository
+                   and the directory its nodes go in, outside the clone, or local for
+                   this machine; and nodes.sh: check, each machine's commit, version and
                    floor against this checkout's; pull, each clone pulled and built by
                    make, the only writes to a clone; start, a bare node on each machine
                    on port 8654, listing every other, and a shell's directory here that
@@ -149,8 +149,11 @@ make bench        what each of a few operations costs in Ernest beside the same
                   what an arrival, a Code.load and a day's spawns add to the host's
                   counts, a utilization, a compute on a peer picked and on one named,
                   the pick alone, what connected nodes exchange idle with their tellings,
-                  and the sizes of an .erc and a code frame; not part of make
-                  test-full
+                  and the sizes of an .erc and a code frame; then what each piece of
+                  Ernest's spawn adds to the host's, on every scheduler and on one, the
+                  spawn alone with no end between, a model of the reaper a piece at a
+                  time, and each of the reaper's table operations alone, in
+                  test/build/bench/spawn.txt; not part of make test-full
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk
@@ -159,6 +162,22 @@ make bench-machines  make bench's two node parts across the machines of
                   measuring node here; each part's table in test/build/bench/, in
                   nodes-machines.txt and code-machines.txt; run by hand, on the user's
                   machines alone, and not part of make test-full
+make bench-pick   the push's experiment of docs/proposals/placement/push.md's section 5
+                  across the machines of test/machines/machines.txt: from a measuring
+                  node, a burst of a hundred computes of a hundred milliseconds' work and
+                  a stream of one every 50 ms for a minute, counted on each peer under
+                  Peer.compute's pick and under the least busy over Peer.utilizations(),
+                  with their round trips, the packets each connection carried a second,
+                  each node's schedulers busy and each machine's processors idle, over
+                  the stream and at rest; by default the measuring node here and bare
+                  nodes, one on each other machine, then as many as its processors, the
+                  stream again at utilization-interval 1000 and 500; MEASURING=name puts
+                  the measuring node on that machine, PEERS=bee:2,xena:4 names the
+                  peers, INTERVALS=1000,500 the intervals the last arrangement's
+                  stream runs again at, RUNS=7,3 the bursts and streams; its table in
+                  test/build/bench/pick-machines.txt, each run's lines in
+                  test/build/bench/pick-machines-raw/; about 32 minutes by default; run
+                  by hand, on the user's machines alone, and not part of make test-full
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          write every page: the manual pages make writes, and docs/man/, main's pages

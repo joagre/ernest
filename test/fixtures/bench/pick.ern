@@ -1,0 +1,295 @@
+//
+// make bench-pick's measuring program (test/ern_pick_costs.erl): the push's
+// experiment of docs/proposals/placement/push.md's section 5, from a node
+// that lists the peers its arguments name. A compute's work is a loop of
+// arithmetic counted in steps, and it answers the node it ran on and the
+// microseconds the work took there. Each line printed is a measurement, a
+// kind and what was read, which ern_pick_costs reads.
+//
+
+// Where a compute is sent: by the push's pick, by the least busy of the
+// peers, or to the peer named.
+type Rule = TwoChoices | LeastBusy | At(String)
+
+// A compute's answer, sent home by the process that waited for it: its
+// place in the burst or the stream, when it was sent and answered, by this
+// node's monotonic clock in microseconds, and what it answered.
+type Done = Done(index : Int, sent : Int, answered : Int, answer : Either(Io.Error, #(String, Int)))
+
+// The steps of a compute's work, the milliseconds between two tellings of
+// the peers, the peers in the configuration's order, and each peer's name
+// on the carrier beside its name here.
+type Setup =
+    Setup(steps : Int, interval : Int, peers : List(String), carriers : List(#(String, String)))
+
+foreign fn here() : String =
+    "ern_pick_probe:here/0"
+
+foreign fn sampled() : List(String) =
+    "ern_pick_probe:sampled/0"
+
+export fn main() : Unit receiving Done =
+    match Os.arguments {
+        "calibrate" :: steps :: runs :: peers ->
+            calibrated(number(steps), number(runs), peers)
+      | "measure" :: steps :: bursts :: streams :: interval :: peers ->
+            measured(Setup(steps = number(steps),
+                           interval = number(interval),
+                           peers = peers,
+                           carriers = named(peers)),
+                     number(bursts),
+                     number(streams))
+      | _ ->
+            fault("usage: calibrate steps runs peer... | "
+                      <> "measure steps bursts streams interval peer...")
+    }
+
+fn number(text : String) : Int =
+    match String.toInt(text) {
+        Some(count) -> count
+      | None -> fault("not a number: " <> text)
+    }
+
+fn said(words : List(String)) : Unit =
+    Io.println(String.join(words, " "))
+
+// Each peer's name on the carrier, by which a compute's answer says where
+// it ran, asked of the peer, which dials it and brings the probe's
+// function there.
+fn named(peers : List(String)) : List(#(String, String)) =
+    List.map(peers, fn(peer) = match Peer.computeAt(peer, here, 60000) {
+        Right(carrier) -> {
+            said(["peer", peer, carrier]);
+            #(carrier, peer)
+        }
+      | Left(error) ->
+            fault("the peer " <> peer <> " answered " <> Io.show(error))
+    })
+
+//
+// The work
+//
+
+// Where each rule sends the work (report §8.7, Appendix E.27): the push's
+// pick, two peers drawn at random and the less busy taken; the least busy
+// of every peer the node holds a utilization of, a rule of the program's
+// own over the table, as the guide's §8.1 writes it; and the peer named.
+// A compute waits as long as the stream lasts, which none of the
+// experiment's can rightly pass.
+fn computed(rule : Rule, steps : Int) : Either(Io.Error, #(String, Int)) =
+    match rule {
+        TwoChoices ->
+            Peer.compute(fn() = worked(steps), 60000)
+      | LeastBusy ->
+            match List.minimumBy(Peer.utilizations(), fn(#(_, utilization, _)) = utilization) {
+                Some(#(name, _, _)) -> Peer.computeAt(name, fn() = worked(steps), 60000)
+              | None -> Left(Io.Unreachable)
+            }
+      | At(name) ->
+            Peer.computeAt(name, fn() = worked(steps), 60000)
+    }
+
+// The work: the loop's steps, timed where they run, and the node they ran
+// on.
+fn worked(steps : Int) : #(String, Int) = {
+    let started = Clock.monotonicMicros();
+    let _ = spin(steps, 1);
+    #(here(), Clock.monotonicMicros() - started)
+}
+
+fn spin(steps : Int, acc : Int) : Int =
+    if steps == 0 then acc else spin(steps - 1, (acc * 31 + steps) % 1000003)
+
+// The work's time alone on each idle peer, the runs of each peer one after
+// another, a line each.
+fn calibrated(steps : Int, runs : Int, peers : List(String)) : Unit = {
+    let _ = named(peers);
+    List.forEach(peers, fn(peer) = List.forEach(List.range(1, runs), fn(_) = alone(peer, steps)))
+}
+
+fn alone(peer : String, steps : Int) : Unit =
+    match computed(At(peer), steps) {
+        Right(#(_, micros)) -> said(["calibration", peer, Int.toString(micros)])
+      | Left(error) -> said(["calibration", peer, "failed", Io.show(error)])
+    }
+
+//
+// The experiment
+//
+
+// Each peer given the work's definition first, which brings both rules'
+// lambdas with it, and the probe's sample; then the bursts and the
+// streams, the two rules taking turns, and the nodes at rest.
+fn measured(setup : Setup, bursts : Int, streams : Int) : Unit receiving Done = {
+    List.forEach(setup.peers, fn(peer) = {
+        let _ = computed(At(peer), 1);
+        let _ = Peer.computeAt(peer, sampled, 60000);
+        Unit
+    });
+    let _ = sampled();
+    turns(setup, bursts, burst);
+    turns(setup, streams, stream);
+    idle(setup)
+}
+
+// Runs of each rule, the two taking turns, so that what changes over the
+// runs falls on both.
+fn turns(setup : Setup,
+         runs : Int,
+         run : (Setup, Rule, Int) -> Unit receiving Done) : Unit receiving Done =
+    List.forEach(List.range(1, runs), fn(index) = {
+        run(setup, TwoChoices, index);
+        run(setup, LeastBusy, index)
+    })
+
+// push.md section 5: a burst of a hundred computes, each in a process of
+// its own, sent as fast as this node starts them, on tellings made since
+// the last burst's or stream's work ended.
+fn burst(setup : Setup, rule : Rule, run : Int) : Unit receiving Done = {
+    settled(setup, Clock.monotonic());
+    let home = self();
+    let started = Clock.monotonicMicros();
+    List.forEach(List.range(1, 100), fn(index) = asked(home, setup.steps, rule, index));
+    reported(setup, ["burst", ruleName(rule), Int.toString(run)], started, taken(100, []))
+}
+
+// push.md section 5: a steady stream, one compute every fifty milliseconds
+// for a minute, each sent at its moment counted from the stream's start, so
+// that one sent late moves none after it, with the host's counts on every
+// node at the stream's start and once every answer has come.
+fn stream(setup : Setup, rule : Rule, run : Int) : Unit receiving Done = {
+    settled(setup, Clock.monotonic());
+    let label = ["stream", ruleName(rule), Int.toString(run)];
+    opened(setup, label);
+    let home = self();
+    let started = Clock.monotonicMicros();
+    paced(home, setup.steps, rule, 1, started);
+    let answers = taken(1200, []);
+    closed(setup, label);
+    reported(setup, label, started, answers)
+}
+
+// The index-th compute of the stream sent at its moment, fifty
+// milliseconds after the one before it, and the rest after it; the answers
+// wait in the mailbox meanwhile.
+fn paced(home : Address(Done),
+         steps : Int,
+         rule : Rule,
+         index : Int,
+         started : Int) : Unit receiving Done =
+    if index > 1200 then
+        Unit
+    else {
+        let early = started + (index - 1) * 50000 - Clock.monotonicMicros();
+        receive {
+            after Int.max(0, (early + 999) / 1000) -> Unit
+        };
+        asked(home, steps, rule, index);
+        paced(home, steps, rule, index + 1, started)
+    }
+
+// A compute sent from a process of its own, which sends its answer home.
+fn asked(home : Address(Done), steps : Int, rule : Rule, index : Int) : Unit = {
+    let _ = spawn(fn() = {
+        let sent = Clock.monotonicMicros();
+        let answer = computed(rule, steps);
+        send(home,
+             Done(index = index, sent = sent, answered = Clock.monotonicMicros(), answer = answer))
+    });
+    Unit
+}
+
+fn taken(count : Int, answers : List(Done)) : List(Done) receiving Done =
+    if count == 0 then
+        answers
+    else receive {
+        Done() as done -> taken(count - 1, done :: answers)
+    }
+
+// Each compute's line: the label, its index, when it was sent and answered
+// from the start, in microseconds, and the peer it ran on with the work's
+// microseconds there, or the failure it answered.
+fn reported(setup : Setup, label : List(String), started : Int, answers : List(Done)) : Unit =
+    List.forEach(answers, fn(done) = said(label <> line(setup, started, done)))
+
+fn line(setup : Setup, started : Int, done : Done) : List(String) = {
+    let times =
+        [Int.toString(done.index),
+         Int.toString(done.sent - started),
+         Int.toString(done.answered - started)];
+    match done.answer {
+        Right(#(carrier, micros)) -> times <> [peerOf(setup, carrier), Int.toString(micros)]
+      | Left(error) -> times <> ["failed", Io.show(error)]
+    }
+}
+
+fn peerOf(setup : Setup, carrier : String) : String =
+    match List.find(setup.carriers, fn(#(named, _)) = named == carrier) {
+        Some(#(_, peer)) -> peer
+      | None -> carrier
+    }
+
+fn ruleName(rule : Rule) : String =
+    match rule {
+        TwoChoices -> "two"
+      | LeastBusy -> "least"
+      | At(peer) -> peer
+    }
+
+// Report §8.7: until every peer has told this node how busy it is since
+// the moment `since`, so that a burst or a stream starts on tellings made
+// once the last one's work had ended; the utilizations read again when the
+// first peer still to tell is due, an interval after its last telling,
+// since a telling is the runtime's frame and no program's, and the table
+// changes at a telling alone.
+fn settled(setup : Setup, since : Int) : Unit receiving Done = {
+    let now = Clock.monotonic();
+    let rows = Peer.utilizations();
+    let told = List.filter(rows, fn(#(_, _, age)) = now - age >= since);
+    if List.size(told) == List.size(setup.peers) then
+        Unit
+    else {
+        let ages =
+            List.map(List.filter(rows, fn(#(_, _, age)) = now - age < since),
+                     fn(#(_, _, age)) = age);
+        let due = setup.interval - List.foldLeft(ages, 0, Int.max);
+        receive {
+            after Int.max(due, 1) -> settled(setup, since)
+        }
+    }
+}
+
+// push.md section 5: the frames and the processors' time of the nodes at
+// rest, over four of the tellings' intervals, a rate that nothing but the
+// time can show.
+fn idle(setup : Setup) : Unit receiving Done = {
+    settled(setup, Clock.monotonic());
+    let label = ["idle", "rest", "1"];
+    opened(setup, label);
+    receive {
+        after 4 * setup.interval -> Unit
+    };
+    closed(setup, label)
+}
+
+// The host's counts on every node at a window's start, the peers first, so
+// that this node's own, read last, leave out the computes that read
+// theirs; and at its end, this node's first.
+fn opened(setup : Setup, label : List(String)) : Unit = {
+    List.forEach(setup.peers, fn(peer) = peerSampled(["open"] <> label, peer));
+    ownSampled(["open"] <> label)
+}
+
+fn closed(setup : Setup, label : List(String)) : Unit = {
+    ownSampled(["close"] <> label);
+    List.forEach(setup.peers, fn(peer) = peerSampled(["close"] <> label, peer))
+}
+
+fn peerSampled(label : List(String), peer : String) : Unit =
+    match Peer.computeAt(peer, sampled, 60000) {
+        Right(lines) -> List.forEach(lines, fn(line) = said(label <> [peer, line]))
+      | Left(error) -> said(label <> [peer, "failed", Io.show(error)])
+    }
+
+fn ownSampled(label : List(String)) : Unit =
+    List.forEach(sampled(), fn(line) = said(label <> ["a", line]))

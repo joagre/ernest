@@ -103,14 +103,15 @@ install: $(BEAMS) prepare
 # load among them, so that a change that breaks one is seen by `make
 # test-full`.
 measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
-	  $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam machines
+	  $(EBIN)/ern_spawn_costs.beam $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam \
+	  $(EBIN)/ern_pick_costs.beam machines
 	@mkdir -p build/load build/bench/probe build/service
-	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl
+	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl \
+	  fixtures/bench/ern_pick_probe.erl
 	@for p in $(LOADS); do \
 	  ../bin/ern build --source-root fixtures/load --build-root build/load fixtures/load/$$p.ern \
 	  || exit 1; done
-	@../bin/ern build --source-root fixtures/bench --build-root build/bench \
-	  fixtures/bench/bench.ern
+	@../bin/ern build --build-root build/bench fixtures/bench
 	@../bin/ern build --source-root fixtures/service --build-root build/service \
 	  fixtures/service/service.ern
 
@@ -189,10 +190,12 @@ service: measured
 # then every function of the library measured against the host's by
 # ern_measure (plan MVP 2.99d item 1), its whole table in
 # build/bench/library.txt; then the costs between two nodes, ern_node_costs,
-# and MVP 3.2's of code that crosses, ern_code_costs, on nodes it starts.
-# Not part of `make test-full`, since it measures and asserts nothing.
+# and MVP 3.2's of code that crosses, ern_code_costs, on nodes it starts;
+# then the spawn's pieces, ern_spawn_costs, its table in
+# build/bench/spawn.txt. Not part of `make test-full`, since it measures
+# and asserts nothing.
 bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam \
-	  $(EBIN)/ern_code_costs.beam measured named
+	  $(EBIN)/ern_code_costs.beam $(EBIN)/ern_spawn_costs.beam measured named
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt 2> build/bench/faults.txt \
 	  || { tail -20 build/bench/faults.txt >&2; exit 1; }
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
@@ -202,6 +205,8 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	  -eval 'ern_node_costs:main(["build/bench/nodes"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_code_costs:main(["build/bench/code"])'
+	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
+	  -eval 'ern_spawn_costs:main(["build/bench/spawn.txt"])'
 
 # The bench's two node parts across the machines of machines/machines.txt
 # (plan, MVP 3.27 item 1): ern_node_costs's store on the first machine
@@ -221,6 +226,25 @@ ACROSS = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_$(1)_costs:main(["build/bench/$(2)-machines", "machines/machines.txt"])' \
 	  > build/bench/$(2)-machines.txt; \
 	  status=$$?; cat build/bench/$(2)-machines.txt; exit $$status
+
+# The push's experiment across the machines of machines/machines.txt
+# (plan, MVP 3.27 item 2, ern_pick_costs): a burst and a stream of
+# computes from a measuring node, falling over bare nodes under the push's
+# pick and under the least busy, with the packets and the processors'
+# time beside them. MEASURING names the machine the measuring node runs
+# on, this one by default; PEERS the peers, machine:count,..., in place of
+# the two arrangements of the default; INTERVALS the utilization-intervals
+# the last arrangement's stream runs at again, 1000,500 by default; RUNS the
+# bursts and the streams, 7,3. Its table is written to build/bench/pick-machines.txt and printed,
+# each run's lines kept in build/bench/pick-machines-raw/. Not part of
+# `make test-full`.
+bench-pick: $(EBIN)/ern_pick_costs.beam measured named
+	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
+	  -eval 'ern_pick_costs:main(["build/bench/pick-machines", "machines/machines.txt", $(PICK)])' \
+	  > build/bench/pick-machines.txt; \
+	  status=$$?; cat build/bench/pick-machines.txt; exit $$status
+
+PICK = "$(MEASURING)", "$(PEERS)", "$(INTERVALS)", "$(RUNS)"
 
 # The machines' tools, which test/machines/nodes.sh runs and the bench's
 # node parts call (ern_machines).
@@ -244,4 +268,4 @@ $(EBIN):
 	mkdir -p $(EBIN)
 
 .PHONY: integration nodes deployment manual install docs guide grammar typed shell prepare \
-	named measured xref load service bench bench-machines machines clean
+	named measured xref load service bench bench-machines bench-pick machines clean

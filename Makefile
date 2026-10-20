@@ -337,6 +337,13 @@ bench: all
 bench-machines: all
 	@$(MAKE) -C test bench-machines
 
+# The push's experiment across the machines of test/machines/machines.txt
+# (plan, MVP 3.27 item 2), each machine checked against this checkout
+# first; run by hand, on the user's machines, with MEASURING, PEERS,
+# INTERVALS and RUNS as test/Makefile says.
+bench-pick: all
+	@$(MAKE) -C test bench-pick
+
 # The Emacs mode's tests (docs/design/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test-full` will run and not have built. `format` runs
@@ -476,7 +483,8 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         man $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \
-        load service bench bench-machines test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
+        load service bench bench-machines bench-pick \
+        test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \
         paragraphs \

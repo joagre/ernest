@@ -3583,21 +3583,23 @@ dropped_note(Reply) ->
 %% A compute's process that ends before it answers, killed or with the
 %% program, tells its caller how through the note, since the caller
 %% watches no process of this node, whichever node the caller's is; one
-%% whose note has gone tells no one.
+%% whose note has gone tells no one. The callee's rows are read by their
+%% key's prefix alone and told apart here, a read the host makes in less
+%% time than one that tests each row (MVP 3.27's measure of the spawn).
 drop_callee_notes(Pid, ExitReason) ->
-    Remote = ets:select(?CALLEES, [{{{Pid, '$1'}, '$2'},
-                                    [{'orelse', {'=/=', {node, '$1'}, node()}, {is_tuple, '$2'}}],
-                                    [{{'$1', '$2'}}]}]),
+    Callers = ets:select(?CALLEES, [{{{Pid, '$1'}, '$2'}, [], [{{'$1', '$2'}}]}]),
     lists:foreach(fun({Caller, {compute, Alias}}) ->
                           ets:delete(?CALLEES, {Pid, Caller}),
                           case ets:take(?NOTES, {node(Alias), Alias}) of
                               [_] -> Alias ! {Alias, ended, reason(ExitReason)};
                               [] -> ok
                           end;
-                     ({Caller, Reply}) ->
+                     ({Caller, Reply}) when node(Caller) =/= node() ->
                           ets:delete(?CALLEES, {Pid, Caller}),
-                          ets:delete(?NOTES, {node(Reply), Reply})
-                  end, Remote).
+                          ets:delete(?NOTES, {node(Reply), Reply});
+                     ({_, _}) ->
+                          ok
+                  end, Callers).
 
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and

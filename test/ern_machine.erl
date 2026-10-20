@@ -10,7 +10,7 @@
 -module(ern_machine).
 
 -export([local/0, machine/4, name/1, host/1, interface/1, is_local/1, clone/1, ern/1,
-         directory/1, directory/2, open/2, opened/1, closed/1, run/2, ran/2, copied/3,
+         directory/1, directory/2, open/2, opened/1, closed/1, run/2, ran/2, load/1, copied/3,
          launched/2, seen/2, ended/1, quoted/1, fail/1]).
 
 %% A machine: its name, the host ssh and scp take and its peers dial, the
@@ -154,6 +154,15 @@ ran(Machine, Command) ->
             fail(io_lib:format("on ~s, `~ts` ended with status ~B: ~ts",
                                [Machine#machine.name, Command, Status, string:trim(Output)]))
     end.
+
+%% The machine's load average of the last minute, as ern_measure reads it,
+%% Linux's or the BSDs' and macOS's, and its processors.
+-spec load(machine()) -> {string(), string()}.
+load(Machine) ->
+    Said = ran(Machine, "{ cat /proc/loadavg 2> /dev/null || sysctl -n vm.loadavg; }"
+                        " && getconf _NPROCESSORS_ONLN"),
+    [Average, Processors] = string:lexemes(Said, "\n"),
+    {hd(string:lexemes(Average, "{ ")), Processors}.
 
 %% The regular files of the local directory Dir on the machine, in a
 %% directory of the same name under Base's (directory/2), which answers;

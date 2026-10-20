@@ -48,10 +48,11 @@
 %% connections; each one's first spawn is a bare node's first.
 -define(BARE, ["t", "c", "p", "d", "l", "q1", "q2"]).
 
-%% Prints the tables, the nodes' directories and the programs under Dir,
-%% and halts: every node on this machine, or, given the machines' file, the
-%% measuring node here and the others over the machines after this one,
-%% whose directories go at the end.
+%% Prints the tables, the nodes' directories, the programs and the
+%% measuring program's lines, lines.txt, under Dir, and halts: every node
+%% on this machine, or, given the machines' file, the measuring node here
+%% and the others over the machines after this one, whose directories go
+%% at the end.
 -spec main([string()]) -> no_return().
 main([Dir]) ->
     Local = ern_machine:local(),
@@ -78,7 +79,7 @@ main([Dir, File]) ->
 %% machines in turn.
 costs(Dir, Local, Placing) ->
     Machines = lists:uniq([Local | Placing]),
-    Loads = [{Machine, load(Machine)} || Machine <- Machines],
+    Loads = [{Machine, ern_machine:load(Machine)} || Machine <- Machines],
     [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
      || Machine <- Machines],
     ok = filelib:ensure_path(Dir),
@@ -87,6 +88,10 @@ costs(Dir, Local, Placing) ->
     {A, Ported, _} = Nodes = started(Dir, #{old => Old, loads => LoadsDir, probe => Probe},
                                      Local, Placing),
     Lines = measured(Base, New, Probe, Nodes),
+    %% each run's own lines kept beside the nodes, so that a wide range
+    %% can be read node by node (plan, MVP 3.27 item 2)
+    ok = file:write_file(filename:join(Base, "lines.txt"),
+                         [[lists:join(" ", Line), "\n"] || Line <- Lines]),
     stopped(Nodes),
     OnCarrier = maps:from_list([{"a", ern_machine_node:carrier_name(A)}
                                 | [{Name, ern_machine_node:carrier_name(Node)}
@@ -118,14 +123,6 @@ header(Local, Placing, Loads, Ported) ->
               [lists:join(", ", [io_lib:format("~s ~s on ~s processors",
                                                [ern_machine:name(Machine), Load, Processors])
                                  || {Machine, {Load, Processors}} <- Loads])]).
-
-%% The machine's load average of the last minute, as ern_measure reads it,
-%% Linux's or the BSDs' and macOS's, and its processors.
-load(Machine) ->
-    Said = ern_machine:ran(Machine, "{ cat /proc/loadavg 2> /dev/null || sysctl -n vm.loadavg; }"
-                                    " && getconf _NPROCESSORS_ONLN"),
-    [Average, Processors] = string:lexemes(Said, "\n"),
-    {hd(string:lexemes(Average, "{ ")), Processors}.
 
 %%
 %% The programs
