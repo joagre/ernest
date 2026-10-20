@@ -124,17 +124,29 @@ come first.
 3. **The rows that grew.** Measured 2026-10-20 (the log's *The Rows That Grew*): the bench's
    three other rows that grew since MVP 3.1, a monitor of an ended process, `spawnMonitored` and
    entering `restarting`, each measured piece by piece in `make bench`'s fifth part, in
-   `spawn_monitored.txt`, `monitor.txt` and `restarting.txt`.
+   `spawn_monitored.txt`, `monitor.txt`, `restarting.txt` and `burst.txt`.
 
-   The two monitors' growth is one commit's read of the deliveries in flight at every end, about 2 µs, whose plain form stays, the
-   bag that would remove it growing with what a process has in flight; entering `restarting` costs
-   about 0.6 µs, most of it E.22's ask, which stays, and 70 ns came back in the plain form.
+   The two monitors' growth is one commit's read of the deliveries in flight at every end, about
+   2 µs, whose plain form stays, the bag that would remove it growing with what a process has in
+   flight; entering `restarting` costs about 0.6 µs, most of it E.22's ask, which stays, and 70 ns
+   came back in the plain form.
 
    A quadratic in the reaper's and the clock's bookkeeping of a burst, older than MVP 3.1, is fixed.
-   Nothing had measured a burst against its size, so a burst part joins `make bench`'s fifth part,
-   decided with the user on 2026-10-20: one process monitoring many that end, many callers of one
-   process ending, many deliveries in flight to one process, and one process's alarms firing, each
-   timed at several sizes, so that a cost growing faster than the burst shows.
+   Nothing had measured a burst against its size, so the fifth part's `burst.txt`, decided with the
+   user on 2026-10-20, times four bursts at 1,000, 5,000 and 25,000: one process monitoring many
+   that end, many callers of one process ending, many deliveries in flight to one process, and one
+   process's alarms firing, each as nanoseconds an element with its ratio to the smallest size.
+
+   **The reaper's and the clock's mailboxes on their heaps**, found 2026-10-20 by the burst part
+   (the log's *The Rows That Grew*, *Beyond the bench's sizes*): a caller's end costs 6.3 µs at a
+   thousand callers and 27 at two hundred thousand, the reaper's collections of a heap that holds a
+   burst of `'DOWN'`s, and an alarm's firing rises the same way; the host's own setting for a process
+   that takes bursts, its message queue off its heap, made the callers' burst flat in a scratch
+   build.
+
+   Decided here with the user: the setting on the reaper and the clock, kept where no row of `make
+   bench`'s spawn and monitor, which take one message at a time, worsens, measured by the fifth
+   part; the shape of its fix is one process flag in each.
 
    **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
    Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
