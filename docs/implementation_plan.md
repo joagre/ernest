@@ -20,7 +20,7 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
 The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.28 the formatter's
-clause rule, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
+clause rule, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, a libs flag, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -65,6 +65,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process on one node to its move to new code on a peer, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | `--verbose` on `ern build`, `ern run` and `ern test`, then a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
+| MVP 4.05 | a libs flag: `--libs dir` on `ern run`, `ern test` and `ern shell`, each `dir/*/ebin` on the load path, one flag for the Erlang applications a program's foreign functions call | made 2026-10-20; before ehttpd, its first user | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 | | below |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | below |
 | MVP 4.3 | the shell's second round | | | below |
@@ -343,6 +344,18 @@ it.
    runs the plain shell in a container per visitor (MVP 4.2).
 3. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
    program's node, the guide's section 6 run by them, and the release that follows.
+
+## MVP 4.05 (a libs flag), about a day
+
+Decided with the user on 2026-10-20 (the log's *A Libs Flag Instead of the Environment*). Erlang
+code comes as applications, `lib/<app>/ebin`, and a program whose foreign functions call several
+names each directory with a `--load-path` of its own today (§11.2). `--libs dir` on `ern run`,
+`ern test` and `ern shell` puts each `dir/*/ebin` on the load path, as the host's `ERL_LIBS` would,
+in the command and not in the environment, which `ern` keeps clearing (§11.2).
+
+§11.2 gains the
+flag's sentence first, then `ern_cli`, then a test of a foreign function found through it; `ern
+build` needs nothing, since the checker reads no `.beam`. Its first user is ehttpd, MVP 4.1.
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
 
