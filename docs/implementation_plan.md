@@ -150,11 +150,11 @@ come first.
    reaper's makes every burst flat but costs the spawn 7 percent and the monitor 8, so the reaper
    stays on the heap by that condition, its end's cost under a burst stated in the log.
 
-   **Whether the reaper's mailbox goes off its heap after all** is decided with the user before the
-   milestone closes: §10's clause, that what the runtime adds grows with nothing but the operation's
-   own input, against a constant 0.5 µs on every spawn and 1 µs on every monitor; the recommendation
-   is the heap, since the growth is the host's collection, a caller's end 2.4 times dearer at two
-   hundred thousand, and a program whose burst shows it would change the answer.
+   **The reaper's mailbox stays on its heap**, decided with the user on 2026-10-20: §10's clause,
+   that what the runtime adds grows with nothing but the operation's own input, weighed against a
+   constant 0.5 µs on every spawn and 1 µs on every monitor; the growth is the host's collection, a
+   caller's end 2.4 times dearer at two hundred thousand, and a program whose burst shows it would
+   change the answer, which the burst part measures.
 
    **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
    Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
@@ -189,7 +189,7 @@ and a test's own fault, were decided the same day, in the log.
 
 ## MVP 3.28 (what stands before the tour), about a week
 
-Three items of a day each, then seven that `docs/language_feedback.md` left, decided with the
+Four items of a day each, then seven that `docs/language_feedback.md` left, decided with the
 user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less. Two more, 133 and
 134 from `ernest-epx`'s ray tracer, were weighed and left alone the same day (the log's *The Ray
 Tracer's Two Asks*).
@@ -227,6 +227,14 @@ Tracer's Two Asks*).
 
   The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
   what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
+- **A `make` with nothing to do**, found 2026-10-20 while MVP 3.27's item 3 measured (the log's
+  *The Rows That Grew*, *Found beside the item*) and made an item at the user's word: it takes
+  3.0 s and 14 s of processor time, fourteen times the host's start of 0.22 s, where CLAUDE.md's
+  rule gives a job with nothing to do about one start; the last investigation (the log's *The Tools
+  Measured Again*) left it at 13.0 s before the Makefiles ran their jobs side by side.
+
+  Measured where the time goes, each start of the host and each job counted, and brought toward one
+  start; what cannot be is stated in the log with its reason.
 - **Four messages that name the form** (feedback 114, 115, 116 and 131; principle 1). `fn(Int) ->
   Int` as a type names `(Int) -> Int`; `()` as a value names `Unit`; `Down(_, _)` in a pattern says
   a constructor has one positional field, as the declaration's message does; and `ern build --help`
