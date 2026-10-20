@@ -19,8 +19,8 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 `Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
-The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.3 the tour and MVP 3.9
-the review; the attached shell, ehttpd, the website, the shell's second round and the back end
+The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.28 the formatter's
+clause rule, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -61,7 +61,8 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between the machines the user gives, three on one LAN and a fourth on a separate LAN when it comes, the push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready; the guide does not wait for it, and the release only where the machines come first | | below |
-| MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user | | below |
+| MVP 3.28 | a clause's body all or none: in a `match` or a `receive`, every clause's body beside its pattern or every one below it, which §11.6 states and `ern format` writes | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps | | below |
+| MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process on one node to its move to new code on a peer, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | `--verbose` on `ern build`, `ern run` and `ern test`, then a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 | | below |
@@ -141,6 +142,18 @@ and ends the trace at the program's outermost frame, and `ern run`, `ern test` a
 beneath the fault's line. The three questions the build left, a lambda's frame, the runtime's frames
 and a test's own fault, were decided the same day, in the log.
 
+## MVP 3.28 (a clause's body all or none), about a day
+
+Decided with the user on 2026-10-14 as the tour's first item (the log's *Clause Bodies All or
+None*) and made a milestone of its own on 2026-10-20, since it is the formatter's work and not the
+tour's, and comes before the tour so that the tour is written in the layout it keeps. In a `match`
+or a `receive`, every clause's body stands beside its pattern, or every one goes on the line below
+it, indented; a block's `{` stays after the arrow. They stay beside where every one fits, and one
+that does not, a block or a body too long, sends them all below.
+
+§11.6 says so first, then `ern format` and its tests, then `make format` lays every source and
+example out once.
+
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
@@ -149,42 +162,51 @@ toolchain, the guide for the programmer learning the language, and the tour a cr
 is a directory of its own at the top level, its document and the programs it grows side by side,
 and the README opens on the three doors, each with the reader it is for, what it gives and how
 long it takes, so that a reader chooses one and walks in; CLAUDE.md's table of owners gains its
-row when the tour exists. One program, the counter of the guide and the proposals, grown chapter by chapter
-through every part of Ernest that matters, each shown working, from a process with a typed
-mailbox on one node to a rolling upgrade across three nodes written in Ernest. Decided with the
-user on 2026-10-10 (the log's *The Tour*); `guide/deployment.md` stays about deployment (the log's *The Report for Code with a
-Spawn*). It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its
-last chapters need, and before MVP 3.9, whose newcomer reads it: it is the language's hardest
-test, so what it finds is found before 0.5.0 (the log's *The Road to 1.0, Ordered*).
+row when the tour exists, with `why.md` the paragraph before them, as the website has it (MVP
+4.2). Decided with the user on 2026-10-10 (the log's *The Tour*).
 
-- **First, a clause's body all or none** (decided with the user on 2026-10-14, the log's *Clause
-  Bodies All or None*): in a `match` or a `receive`, every clause's body stands beside its pattern,
-  or every one goes on the line below it, indented; a block's `{` stays after the arrow. They stay
-  beside where every one fits, and one that does not, a block or a body too long, sends them all
-  below.
+Its reader is the guide's reader in a hurry: a programmer who has used a functional language, who
+is told nothing the guide's section number would not, and that section is named (decided with the
+user on 2026-10-20, the log's *The Tour, Shorter*).
 
-  §11.6 says so first, then `ern format` and its tests, then `make format` lays every source and
-  example out once, so that the tour is written in the layout it keeps.
-- **Second, the library `Mailbox`** under `src/libs/`, decided with the user on 2026-10-14 (the
-  log's *Kill Darlings*): `drained(keep)`, every message of the caller's mailbox that `keep` says,
-  in arrival order, by a selective receive with `after 0`, and `refilled(messages)`, which puts
-  them into the caller's own mailbox behind what it holds; a channel is a `List(m)`, a value sent
-  anywhere. It moves what has arrived, never what will arrive, which its doc block says; redirecting
-  the senders is the program's protocol. Written where the rolling upgrade's chapter needs it, by
-  Appendix E.0 a library's and not the standard library's.
+One program, the counter of the guide and `why.md`, grown chapter by chapter from a process with
+a typed mailbox on one node to its move to new code on a peer, and no further: the tour stops
+where the operator's work begins and hands over to `guide/deployment.md`, which stays about
+running nodes (the log's *The Report for Code with a Spawn*).
+
+The tour is the guide turned inside out: the guide's axis is the rule, and a program illustrates
+it; the tour's axis is the program, and a rule appears where the program needs it next. `why.md`'s
+five claims are the test the outline passes, each met somewhere along the program's growth and
+nothing in the tour there for another reason; they are not its chapters. Decided with the user on
+2026-10-20 (the log's *The Tour, Shorter*), which took out the rolling upgrade across three nodes,
+`Standing` and the balancer, and with them the library `Mailbox`, now under the log's *Later*.
+
+It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its last chapters
+need, and before MVP 3.9, whose newcomer reads it: one program across the language's most
+important features is its hardest test, so what it finds is found before 0.5.0 (the log's *The
+Road to 1.0, Ordered*).
+
 - **The outline first, written with the user**, as a design is: the chapters, the program's growth
   from one to the next, and what each shows, explicitly or by the way.
 
-  A first sketch to start from, not a decision: the counter and its client calling with a reply;
-  faults, restarts and a supervisor; a fix in the shell, two versions side by side as two types, and
-  the service moved by its own `Upgrade`; its total kept across the program's end with
-  `Os.terminating`; three nodes, a key and a find, `Standing`, a balancer; a bare node given its
-  work with the code; and the rolling upgrade, an old and a new build connected meanwhile.
-- **It narrates and points, and teaches no rule a third time**: what a rule is and why is the
-  report's and the guides', and the tour names the section.
+  A first sketch to start from, not a decision, eight chapters of a screen of code and half a
+  screen of prose each, a tenth of the guide's length: the counter as a process, a send and a
+  call; a wrong message and the compiler's line; a client written with functions and values, the
+  one place the plain language appears, by the way; a fault, a restart and a monitor; the counter
+  as a module, with an abstract type and a requirement; a fix in the shell, two versions side by
+  side and `Upgrade`; a bare node, the code traveling with the spawn; the counter moved to new
+  code on the peer, and the handover to `guide/deployment.md`.
+- **Code first.** No paragraph stands before the code it is about: a chapter is the program's
+  change, what was run, what it printed, then the prose, a sentence for each line that needs one.
+- **It says do, and points for why**, teaching no rule a third time: what a rule is and why is the
+  report's and the guides', and the tour names the section, `the guide's §4.4`. Where the program
+  meets the operator's world, `ern config`, a peer's key, it names the deployment guide's section
+  and goes on.
+- **The shell is its medium wherever a chapter fits in it**, so that the website's shell (MVP 4.2)
+  can run a page as it stands; a file where a module is the point.
 - **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
-  one program grown across every feature is the language's hardest test before 0.5.0.
+  one program grown across the five claims is the language's hardest test before 0.5.0.
 
 ## MVP 3.9 (the review, and Ernest 0.5.0)
 
