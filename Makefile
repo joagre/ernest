@@ -331,6 +331,12 @@ service: all
 bench: all
 	@$(MAKE) -C test bench
 
+# The bench's two node parts across the machines of
+# test/machines/machines.txt (plan, MVP 3.27 item 1), each machine checked
+# against this checkout first; run by hand, on the user's machines.
+bench-machines: all
+	@$(MAKE) -C test bench-machines
+
 # The Emacs mode's tests (docs/design/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test-full` will run and not have built. `format` runs
@@ -470,7 +476,8 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         man $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \
-        load service bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
+        load service bench bench-machines test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
+        clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \
         paragraphs \
         dialyzer sanitize diagnostics

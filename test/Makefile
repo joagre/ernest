@@ -1,8 +1,9 @@
 # The tests that span the applications, by area: the programs in five
 # parts (the example programs, the signals and the streams,
 # ern_integration_tests, with the measuring machine's reach over every
-# function, ern_measure_tests; nodes on one machine, ern_nodes_tests; the
-# deployment guide run on them, ern_deployment_tests; the manual pages,
+# function, ern_measure_tests; nodes on one machine, ern_nodes_tests and
+# ern_machine_tests; the deployment guide run on them,
+# ern_deployment_tests; the manual pages,
 # ern_manual_tests; and the installation and the release,
 # ern_install_tests), the documents and the style, the guide's examples,
 # the grammar with the programs generated from it, the well-typed programs
@@ -22,7 +23,7 @@ ERLC_FLAGS = +debug_info -Werror
 INTEGRATION = ern_integration_tests
 # a launch of its own, which shares no host with the programs' runs
 MEASURE = ern_measure_tests
-NODES = ern_nodes_tests
+NODES = ern_nodes_tests ern_machine_tests
 DEPLOYMENT = ern_deployment_tests
 MANUAL = ern_manual_tests
 INSTALL = ern_install_tests
@@ -102,7 +103,7 @@ install: $(BEAMS) prepare
 # load among them, so that a change that breaks one is seen by `make
 # test-full`.
 measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
-	  $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam
+	  $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam machines
 	@mkdir -p build/load build/bench/probe build/service
 	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl
 	@for p in $(LOADS); do \
@@ -202,6 +203,29 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_code_costs:main(["build/bench/code"])'
 
+# The bench's two node parts across the machines of machines/machines.txt
+# (plan, MVP 3.27 item 1): ern_node_costs's store on the first machine
+# after this one and its desk here, and ern_code_costs's nodes over the
+# machines after this one in turn, its measuring node here, each machine
+# checked first (ern_machines). Each table is written to
+# build/bench/<part>-machines.txt and printed. Not part of `make
+# test-full`, which runs on any checkout and these on the user's machines
+# alone.
+bench-machines: $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam measured named
+	@$(call ACROSS,node,nodes)
+	@$(call ACROSS,code,code)
+
+# The part ern_$(1)_costs run across the machines, its table written to
+# build/bench/$(2)-machines.txt and printed, whatever its outcome.
+ACROSS = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
+	  -eval 'ern_$(1)_costs:main(["build/bench/$(2)-machines", "machines/machines.txt"])' \
+	  > build/bench/$(2)-machines.txt; \
+	  status=$$?; cat build/bench/$(2)-machines.txt; exit $$status
+
+# The machines' tools, which test/machines/nodes.sh runs and the bench's
+# node parts call (ern_machines).
+machines: $(EBIN)/ern_machine.beam $(EBIN)/ern_machine_node.beam $(EBIN)/ern_machines.beam
+
 clean:
 	rm -rf $(EBIN) build
 
@@ -220,4 +244,4 @@ $(EBIN):
 	mkdir -p $(EBIN)
 
 .PHONY: integration nodes deployment manual install docs guide grammar typed shell prepare \
-	named measured xref load service bench clean
+	named measured xref load service bench bench-machines machines clean

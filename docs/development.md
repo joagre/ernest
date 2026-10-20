@@ -49,8 +49,10 @@ test/              what spans applications: the integration, nodes, deployment g
                    document, style, guide, grammar, generated-program, shell and
                    terminal tests, the harnesses of the loads, the benchmark, the
                    service manager's checks and the pseudo-terminal, ern_grammar.erl,
-                   which reads Appendix A, and ern_repository.erl, which the document
-                   and style tests read the repository through
+                   which reads Appendix A, ern_repository.erl, which the document
+                   and style tests read the repository through, and ern_machine,
+                   ern_machine_node and ern_machines, which run nodes on the machines
+                   of test/machines/
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
@@ -59,6 +61,15 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    them, and the Erlang they compile to; and bench/, input/, layout/,
                    load/, peers/, service/, session/, stdin/ and terminal/, the
                    programs and inputs tests run
+test/machines/     machines.txt, the user's machines that make bench-machines and
+                   nodes.sh start nodes on, a line each: its name, the host ssh takes
+                   and its peers dial, and its clone of the repository and the
+                   directory its nodes go in, outside the clone, or local for this
+                   machine; and nodes.sh: check, each machine's commit, version and
+                   floor against this checkout's; pull, each clone pulled and built by
+                   make, the only writes to a clone; start, a bare node on each machine
+                   on port 8654, listing every other, and a shell's directory here that
+                   lists them; stop; and status
 bin/               ern, the launcher, a POSIX sh script
 src/stdlib/        the standard library as Ernest source
 src/libs/          the first-party libraries, each a source root a program adds
@@ -140,6 +151,14 @@ make bench        what each of a few operations costs in Ernest beside the same
                   the pick alone, what connected nodes exchange idle with their tellings,
                   and the sizes of an .erc and a code frame; not part of make
                   test-full
+make bench-machines  make bench's two node parts across the machines of
+                  test/machines/machines.txt, each checked against this checkout
+                  first: the store on the first machine after this one and the desk
+                  here, with the host's ping over TCP between the two; then the
+                  code's nodes over the machines after this one in turn, the
+                  measuring node here; each part's table in test/build/bench/, in
+                  nodes-machines.txt and code-machines.txt; run by hand, on the user's
+                  machines alone, and not part of make test-full
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          write every page: the manual pages make writes, and docs/man/, main's pages

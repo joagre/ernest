@@ -19,7 +19,11 @@
 %% module and the modules `Code.load` loads are written here, built, and
 %% run as a person runs them: seven bare nodes listening on ports the host
 %% picks, a node of the fixed module's old build, and the measuring node,
-%% which lists them all. The nodes show their work through
+%% which lists them all. `make bench` starts them all on this machine;
+%% `make bench-machines` the eight over the machines after this one of
+%% test/machines/machines.txt in turn, so that q1 and q2 stand on two
+%% machines where there are two, and the measuring node here (plan, MVP
+%% 3.27 item 1). The nodes show their work through
 %% `fixtures/bench/ern_code_probe.erl`, on each one's load path, whose functions the
 %% measuring program runs on a peer by a compute of their names: the host's
 %% trace of the exchange's steps, the runtime's reading of the host's
@@ -31,7 +35,6 @@
 
 -include_lib("checker/include/ern_canonical.hrl").
 
--define(ERN, filename:absname("../bin/ern")).
 -define(STDLIB, filename:absname("../build/stdlib")).
 %% Each measurement's runs, the reaches' and the fixes' sizes in definitions,
 %% the definitions of a development day, and the rounds a run of a
@@ -46,39 +49,83 @@
 -define(BARE, ["t", "c", "p", "d", "l", "q1", "q2"]).
 
 %% Prints the tables, the nodes' directories and the programs under Dir,
-%% and halts.
+%% and halts: every node on this machine, or, given the machines' file, the
+%% measuring node here and the others over the machines after this one,
+%% whose directories go at the end.
 -spec main([string()]) -> no_return().
 main([Dir]) ->
-    Load = load(),
-    _ = file:del_dir_r(Dir),
+    Local = ern_machine:local(),
+    costs(Dir, Local, [Local]),
+    halt(0);
+main([Dir, File]) ->
+    ern_machines:reported(
+      fun() ->
+          Machines = ern_machines:ready(File),
+          try ern_machines:remote(Machines) of
+              [] ->
+                  ern_machine:fail(File ++ " names no machine but this one");
+              Remote ->
+                  try costs(Dir, ern_machines:local(Machines), Remote)
+                  after [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
+                         || Machine <- Remote]
+                  end
+          after ern_machines:closed(Machines)
+          end
+      end),
+    halt(0).
+
+%% The tables, the measuring node on Local and the others on Placing's
+%% machines in turn.
+costs(Dir, Local, Placing) ->
+    Machines = lists:uniq([Local | Placing]),
+    Loads = [{Machine, load(Machine)} || Machine <- Machines],
+    [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
+     || Machine <- Machines],
     ok = filelib:ensure_path(Dir),
     Base = filename:absname(Dir),
-    {New, Old, Loads, Probe} = built(Base),
-    {A, Ported} = Nodes = started(Base, Old, Probe),
-    Lines = measured(Base, New, Loads, Probe, Nodes),
+    {New, Old, LoadsDir, Probe} = built(Base),
+    {A, Ported, _} = Nodes = started(Dir, #{old => Old, loads => LoadsDir, probe => Probe},
+                                     Local, Placing),
+    Lines = measured(Base, New, Probe, Nodes),
     stopped(Nodes),
-    OnCarrier = maps:from_list([{"a", carrier_name(A)}
-                              | [{Name, carrier_name(NodeDir)}
-                                 || {Name, NodeDir, _, _} <- Ported]]),
-    io:format("MVP 3.2's costs, on nodes of this machine, the load average before ~s on ~B"
-              " processors~n", [Load, erlang:system_info(logical_processors_available)]),
+    OnCarrier = maps:from_list([{"a", ern_machine_node:carrier_name(A)}
+                                | [{Name, ern_machine_node:carrier_name(Node)}
+                                   || {Name, Node, _, _} <- Ported]]),
+    header(Local, Placing, Loads, Ported),
     io:format("each a median of ~B runs, with their range~n", [?RUNS]),
     crossing_table(Lines),
-    cold_table(),
+    cold_table(hd(Placing)),
     steps_table(Lines, New),
     lists:foreach(fun(Table) -> Table(Lines) end,
                   [fun fix_table/1, fun counts_table/1, fun pick_table/1]),
     idle_table(Lines, OnCarrier),
-    sizes_table(Lines, New),
-    halt(0).
+    sizes_table(Lines, New).
 
-%% The load average of the last minute, as ern_measure reads it: Linux's,
-%% or the BSDs' and macOS's.
-load() ->
-    case file:read_file("/proc/loadavg") of
-        {ok, Text} -> hd(string:lexemes(binary_to_list(Text), " "));
-        _ -> hd(string:lexemes(os:cmd("sysctl -n vm.loadavg"), "{ "))
-    end.
+%% Where the nodes ran, and each machine's load average before the run.
+header(Local, [Local], [{_, {Load, Processors}}], _) ->
+    io:format("MVP 3.2's costs, on nodes of this machine, the load average before ~s on ~s"
+              " processors~n", [Load, Processors]);
+header(Local, Placing, Loads, Ported) ->
+    io:format("MVP 3.2's costs, measured from ~s, on nodes of ~s:~n",
+              [ern_machine:name(Local), lists:join(" and ", [ern_machine:name(Machine)
+                                                            || Machine <- Placing])]),
+    [io:format("  ~s on ~s~n", [lists:join(", ", [Name || {Name, Node, _, _} <- Ported,
+                                                         ern_machine_node:machine(Node)
+                                                             =:= Machine]),
+                                 ern_machine:name(Machine)])
+     || Machine <- Placing],
+    io:format("the load averages before: ~s~n",
+              [lists:join(", ", [io_lib:format("~s ~s on ~s processors",
+                                               [ern_machine:name(Machine), Load, Processors])
+                                 || {Machine, {Load, Processors}} <- Loads])]).
+
+%% The machine's load average of the last minute, as ern_measure reads it,
+%% Linux's or the BSDs' and macOS's, and its processors.
+load(Machine) ->
+    Said = ern_machine:ran(Machine, "{ cat /proc/loadavg 2> /dev/null || sysctl -n vm.loadavg; }"
+                                    " && getconf _NPROCESSORS_ONLN"),
+    [Average, Processors] = string:lexemes(Said, "\n"),
+    {hd(string:lexemes(Average, "{ ")), Processors}.
 
 %%
 %% The programs
@@ -511,158 +558,86 @@ loaded(Index) ->
 
 %% The bare nodes and the old build's node started, each listening on a port
 %% the host picks and listing the measuring node, `a`, whose configuration
-%% lists them all; q1 and q2 list each other. Answers each node's name,
-%% directory, port and process, the measuring node's directory first.
-started(Base, Old, Probe) ->
-    A = configured(Base, "a", none),
-    Bare = [{Name, configured(Base, Name, 0)} || Name <- ?BARE],
-    F = configured(Base, "f", 0),
-    [listed(Dir, [{"a", A, none}]) || {_, Dir} <- [{"f", F} | Bare]],
-    Running = [launched(Name, Dir, [?ERN, " run --config-dir ", Dir, " --load-path ", Probe])
-               || {Name, Dir} <- Bare]
-        ++ [launched("f", F, [?ERN, " run --config-dir ", F, " --load-path ", Probe, " ",
-                              filename:join(Old, "serve.erc")])],
-    Ported = [{Name, Dir, port_bound(Reader), Reader} || {Name, Dir, Reader} <- Running],
-    Port = fun(Name) -> hd([Bound || {Named, _, Bound, _} <- Ported, Named =:= Name]) end,
-    Dir = fun(Name) -> hd([Path || {Named, Path, _, _} <- Ported, Named =:= Name]) end,
+%% lists them all; q1 and q2 list each other. The measuring node is on
+%% Local, and the others on Placing's machines in turn, each of which holds
+%% the programs, the probe, the old build and the modules `Code.load`
+%% loads. Answers the measuring node; each other's name, node, port and
+%% reader; and where each machine holds the programs.
+started(Dir, Programs, Local, Placing) ->
+    Nodes = fun(Machine) -> filename:join(ern_machine:directory(Machine, Dir), "nodes") end,
+    Copied = [{Machine, #{Kind => ern_machine:copied(Machine, Path, Dir)
+                          || Kind := Path <- Programs}}
+              || Machine <- lists:uniq(Placing)],
+    A = ern_machine_node:configured(Local, Nodes(Local), "a", none),
+    Placed = lists:zip(?BARE ++ ["f"], cycled(Placing, length(?BARE) + 1)),
+    Configured = [{Name, ern_machine_node:configured(Machine, Nodes(Machine), Name, 0)}
+                  || {Name, Machine} <- Placed],
+    [ern_machine_node:listed(Node, [{A, none}]) || {_, Node} <- Configured],
+    Running = [{Name, Node, ern_machine_node:started(Node, words(Name, Node, Copied))}
+               || {Name, Node} <- Configured],
+    Ported = [{Name, Node, ern_machine_node:port_bound(Reader), Reader}
+              || {Name, Node, Reader} <- Running],
+    Peer = fun(Name) ->
+               hd([{Node, ern_machine_node:address(Node, Port)}
+                   || {Named, Node, Port, _} <- Ported, Named =:= Name])
+           end,
     %% q1 and q2 dial each other for the idle window; the listing holds from
     %% their next dial, which a reload reads
-    listed(Dir("q1"), [{"a", A, none}, {"q2", Dir("q2"), Port("q2")}]),
-    listed(Dir("q2"), [{"a", A, none}, {"q1", Dir("q1"), Port("q1")}]),
-    [reloaded(Dir(Name), Reader)
-     || {Name, _, _, Reader} <- Ported, lists:member(Name, ["q1", "q2"])],
-    listed(A, [{Name, Path, Bound} || {Name, Path, Bound, _} <- Ported]),
-    {A, Ported}.
+    ern_machine_node:listed(element(1, Peer("q1")), [{A, none}, Peer("q2")]),
+    ern_machine_node:listed(element(1, Peer("q2")), [{A, none}, Peer("q1")]),
+    [ern_machine_node:reloaded(Node, Reader)
+     || {Name, Node, _, Reader} <- Ported, lists:member(Name, ["q1", "q2"])],
+    ern_machine_node:listed(A, [Peer(Name) || {Name, _, _, _} <- Ported]),
+    {A, Ported, Copied}.
 
-configured(Base, Name, Listen) ->
-    Dir = filename:join([Base, "nodes", Name]),
-    _ = ern_node:create(Dir),
-    edit(Dir, fun(Conf) ->
-                  case Listen of
-                      none -> maps:remove(<<"listen">>, Conf);
-                      Port -> Conf#{<<"listen">> => address(Port)}
-                  end
-              end),
-    Dir.
+%% Count of Machines' members, the first again after the last.
+cycled(Machines, Count) ->
+    [lists:nth(Index rem length(Machines) + 1, Machines) || Index <- lists:seq(0, Count - 1)].
 
-address(Port) ->
-    list_to_binary("127.0.0.1:" ++ integer_to_list(Port)).
+%% What follows `ern run --config-dir` for each node: the probe on its load
+%% path, and for f the old build's program.
+words("f", Node, Copied) ->
+    #{probe := Probe, old := Old} = on(Node, Copied),
+    ["--load-path", Probe, filename:join(Old, "serve.erc")];
+words(_, Node, Copied) ->
+    #{probe := Probe} = on(Node, Copied),
+    ["--load-path", Probe].
 
-edit(Dir, Change) ->
-    File = filename:join(Dir, "ernest.conf"),
-    {ok, Text} = file:read_file(File),
-    ok = file:write_file(File, json:encode(Change(json:decode(Text)))).
-
-public(Dir) ->
-    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
-    maps:get(<<"public-key">>, json:decode(Text)).
-
-%% A node's name on the carrier, which the host's counts of its connections
-%% name it by (report §8.7).
-carrier_name(Dir) ->
-    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
-    atom_to_list(ern_carrier:name(Der)).
-
-%% Dir lists each of Peers, {Name, PeerDir, Port}, a port or none.
-listed(Dir, Peers) ->
-    edit(Dir, fun(Conf) ->
-                  Conf#{<<"peers">> => [peer(Name, PeerDir, Port)
-                                        || {Name, PeerDir, Port} <- Peers]}
-              end).
-
-peer(Name, Dir, none) ->
-    #{<<"name">> => list_to_binary(Name), <<"public-key">> => public(Dir)};
-peer(Name, Dir, Port) ->
-    (peer(Name, Dir, none))#{<<"network-address">> => address(Port)}.
-
-%% A node started by the command Words, its standard output and standard
-%% error read by a process of its own, which keeps them so that the node
-%% never waits on a full pipe.
-launched(Name, Dir, Words) ->
-    Command = lists:flatten(["exec ", Words, " 2>&1"]),
-    Self = self(),
-    Reader = spawn(fun() ->
-                       Port = open_port({spawn_executable, "/bin/sh"},
-                                        [{args, ["-c", Command]}, binary, exit_status]),
-                       Self ! {self(), opened},
-                       read(Port, <<>>, [])
-                   end),
-    receive {Reader, opened} -> {Name, Dir, Reader} end.
-
-%% The reader keeps what the node said, and who waits for a pattern in it
-%% or for its end.
-read(Port, Said, Waiting) ->
-    receive
-        {Port, {data, Bytes}} ->
-            Said1 = <<Said/binary, Bytes/binary>>,
-            read(Port, Said1, [Wait || Wait <- Waiting, not told(Said1, Wait)]);
-        {Port, {exit_status, Status}} ->
-            [From ! {self(), ended, Status, Said} || {_, From} <- Waiting],
-            ended(Status, Said);
-        {waiting, Pattern, From} ->
-            case told(Said, {Pattern, From}) of
-                true -> read(Port, Said, Waiting);
-                false -> read(Port, Said, [{Pattern, From} | Waiting])
-            end;
-        {ended, From} ->
-            read(Port, Said, [{ended, From} | Waiting])
-    end.
-
-told(_, {ended, _}) ->
-    false;
-told(Said, {Pattern, From}) ->
-    case re:run(Said, Pattern, [{capture, all_but_first, list}]) of
-        {match, Captured} -> From ! {self(), seen, Captured}, true;
-        nomatch -> false
-    end.
-
-ended(Status, Said) ->
-    receive
-        {waiting, _, From} -> From ! {self(), ended, Status, Said};
-        {ended, From} -> From ! {self(), ended, Status, Said}
-    end,
-    ended(Status, Said).
-
-%% Until the node's output matches Pattern; answers what it captured, or
-%% fails with what the node said where it ended first.
-seen(Reader, Pattern) ->
-    Reader ! {waiting, Pattern, self()},
-    receive
-        {Reader, seen, Captured} -> Captured;
-        {Reader, ended, Status, Said} -> erlang:error({ended, Status, Said})
-    end.
-
-%% Report §8.7: the port a node whose `listen` names port 0 bound, once it
-%% says so.
-port_bound(Reader) ->
-    [Port] = seen(Reader, "listening on port ([0-9]+)"),
-    list_to_integer(Port).
-
-%% Report §8.7, §11.2: a node sent hangup reads `ernest.conf` again, and
-%% says so.
-reloaded(Dir, Reader) ->
-    "" = os:cmd(lists:flatten([?ERN, " reload --config-dir ", Dir])),
-    _ = seen(Reader, "ernest.conf was read again"),
-    ok.
+%% Where the node's machine holds the programs.
+on(Node, Copied) ->
+    {_, Paths} = lists:keyfind(ern_machine_node:machine(Node), 1, Copied),
+    Paths.
 
 %% Each node ended by termination, once the measuring program has ended.
-stopped({_, Ported}) ->
+stopped({_, Ported, _}) ->
     [begin
-         _ = os:cmd(lists:flatten([?ERN, " stop --config-dir ", Dir])),
-         Reader ! {ended, self()},
-         receive {Reader, ended, _, _} -> ok end
-     end || {_, Dir, _, Reader} <- Ported].
+         ern_machine_node:stopped(Node),
+         _ = ern_machine:ended(Reader)
+     end || {_, Node, _, Reader} <- Ported],
+    ok.
 
-%% The measuring program run on its node, `a`, which lists them all: its
-%% lines, each split into its words.
-measured(Base, New, Loads, Probe, {A, _}) ->
-    Names = ?BARE ++ ["f"],
-    Command = lists:flatten([?ERN, " run --config-dir ", A,
-                             " --load-path ", Probe, " ", filename:join(New, "costs.erc"),
-                             [[" ", Name] || Name <- Names], " ", Loads,
-                             " 2> ", filename:join(Base, "a.err")]),
-    Said = os:cmd(Command),
-    [string:lexemes(Line, " ") || Line <- string:lexemes(Said, "\n")].
+%% The measuring program run on its node, `a`, which lists them all, given
+%% the nodes' names and the directory of the modules `Code.load` loads on
+%% l's machine: its lines, each split into its words.
+measured(Base, New, Probe, {A, Ported, Copied}) ->
+    Machine = ern_machine_node:machine(A),
+    [L] = [Node || {"l", Node, _, _} <- Ported],
+    #{loads := Loads} = on(L, Copied),
+    Words = ["--load-path", Probe, filename:join(New, "costs.erc")]
+        ++ [Name || {Name, _, _, _} <- Ported] ++ [Loads],
+    Errors = filename:join(Base, "a.err"),
+    Command = lists:flatten([ern_machine:quoted(ern_machine:ern(Machine)), " run --config-dir ",
+                             ern_machine:quoted(ern_machine_node:config_dir(A)),
+                             [[" ", ern_machine:quoted(Word)] || Word <- Words],
+                             " 2> ", ern_machine:quoted(Errors)]),
+    case ern_machine:run(Machine, Command) of
+        {0, Said} ->
+            [string:lexemes(Line, " ") || Line <- string:lexemes(Said, "\n")];
+        {Status, Said} ->
+            {ok, Error} = file:read_file(Errors),
+            ern_machine:fail(io_lib:format("the measuring program ended with status ~B: ~ts~ts",
+                                           [Status, Said, Error]))
+    end.
 
 %%
 %% The tables
@@ -732,9 +707,8 @@ crossing_table(Lines) ->
 %% does, each in a host of its own started as `ern run` starts one: the
 %% prelude's environment built, which the exchange keeps for the node's
 %% life, and the host's compiler run once, its modules loaded, beside a
-%% second run.
-cold_table() ->
-    Tree = filename:absname(".."),
+%% second run; on the machine of the first bare node, t, with its tree.
+cold_table(Machine) ->
     Eval = "Forms = fun(Name) -> [{attribute, 1, module, Name}, {attribute, 1, export, [{f, 0}]},"
            " {function, 1, f, 0, [{clause, 1, [], [], [{atom, 1, ok}]}]}] end,"
            " {Prelude, _} = timer:tc(fun ern_typecheck:prelude_env/0),"
@@ -742,10 +716,14 @@ cold_table() ->
            " {Warm, {ok, _, _}} = timer:tc(fun() -> ern_compile:compiled(Forms(warm), []) end),"
            " io:format(\"~B ~B ~B~n\", [Prelude, Cold, Warm]), halt().",
     Command = lists:flatten(["erl +B -boot no_dot_erlang -noshell -noinput -pa ",
-                             filename:join(Tree, "erl/*/ebin"), " -eval '", Eval, "'"]),
-    Runs = [[list_to_integer(Word) || Word <- string:lexemes(os:cmd(Command), " \n")]
+                             ern_machine:quoted(ern_machine:clone(Machine)), "/erl/*/ebin",
+                             " -eval ", ern_machine:quoted(Eval)]),
+    Runs = [[list_to_integer(Word) || Word <- string:lexemes(ern_machine:ran(Machine, Command),
+                                                             " \n")]
             || _ <- lists:seq(1, ?RUNS)],
-    heading("a bare node's first arrival, in a fresh host", "µs"),
+    heading(["a bare node's first arrival, in a fresh host"
+             | [[" on ", ern_machine:name(Machine)] || not ern_machine:is_local(Machine)]],
+            "µs"),
     row("the prelude's environment built", [Prelude || [Prelude, _, _] <- Runs]),
     row("the host's compiler, its first run", [Cold || [_, Cold, _] <- Runs]),
     row("  its second", [Warm || [_, _, Warm] <- Runs]).

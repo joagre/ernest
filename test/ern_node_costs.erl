@@ -1,6 +1,6 @@
 %% `make bench`'s third part (docs/development.md), the costs the peer
-%% proposal's section 9 left to measure, between two nodes on this machine:
-%% the desk of test/fixtures/peers/ times, against the store, the host's own round
+%% proposal's section 9 left to measure, between two nodes: the desk of
+%% test/fixtures/peers/ times, against the store, the host's own round
 %% trip, its ping, over TLS; a call to a process there, five of the host's
 %% signals, beside a call to one here; and a round trip to the store's
 %% echo, the message sent straight and through the adapted address made on
@@ -8,32 +8,84 @@
 %% counter; a spawn on the store of a process that ends at once; a compute
 %% there of a function that answers at once, which §10 costs at a spawn's
 %% and a call's answer; and a utilization of the store, its frame and its
-%% answer. Two
-%% plain nodes of the host's time its ping over TCP, which TLS is set
-%% beside. It measures and asserts nothing, so it is not part of `make
-%% test`.
+%% answer. Two plain nodes of the host's, on the same two machines, time
+%% its ping over TCP, which TLS is set beside. `make bench` starts both
+%% nodes on this machine; `make bench-machines` the store on the first
+%% machine after this one of test/machines/machines.txt and the desk here
+%% (plan, MVP 3.27 item 1). It measures and asserts nothing, so it is not
+%% part of `make test`.
 -module(ern_node_costs).
 
 -export([main/1]).
 
--define(ERN, filename:absname("../bin/ern")).
--define(LIBRARIES, [filename:absname("../build/libs/" ++ Library)
-                    || Library <- ["json", "proxy", "utilization"]]).
+%% The libraries `test/fixtures/peers/`'s programs use, on each node's load
+%% path, from the tree of its machine.
+-define(LIBRARIES, ["json", "proxy", "utilization"]).
+-define(SERVICES, [<<"counter">>, <<"brittle">>, <<"echo">>, <<"echo-adapted">>]).
 
-%% Prints the table, the nodes' directories under Dir, and halts.
+%% Prints the table, the nodes' directories under Dir, and halts: both
+%% nodes on this machine, or, given the machines' file, the store on the
+%% first machine after this one, whose directory goes at the end.
 -spec main([string()]) -> no_return().
 main([Dir]) ->
-    _ = file:del_dir_r(Dir),
+    Local = ern_machine:local(),
+    measured(Dir, Local, Local, "between two nodes on this machine"),
+    halt(0);
+main([Dir, File]) ->
+    ern_machines:reported(
+      fun() ->
+          Machines = ern_machines:ready(File),
+          Local = ern_machines:local(Machines),
+          try ern_machines:remote(Machines) of
+              [Other | _] ->
+                  try measured(Dir, Other, Local,
+                               io_lib:format("between ~s and ~s", [ern_machine:name(Local),
+                                                                   ern_machine:name(Other)]))
+                  after ern_machine_node:cleared(Other, ern_machine:directory(Other, Dir))
+                  end;
+              [] ->
+                  ern_machine:fail(File ++ " names no machine but this one")
+          after ern_machines:closed(Machines)
+          end
+      end),
+    halt(0).
+
+%% The table between the store on Store's machine and the desk on Desk's.
+measured(Dir, StoreMachine, DeskMachine, Heading) ->
+    [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
+     || Machine <- lists:uniq([StoreMachine, DeskMachine])],
     ok = filelib:ensure_path(Dir),
     Root = filename:absname(filename:join(Dir, "build")),
-    0 = ern_cli:ern(["build", "--build-root", Root] ++ load_path() ++ ["fixtures/peers"],
-                    group_leader()),
+    Libraries = [filename:join([ern_tree:tree(), "build/libs", Library])
+                 || Library <- ?LIBRARIES],
+    0 = ern_cli:ern(["build", "--build-root", Root]
+                    ++ lists:append([["--load-path", Library] || Library <- Libraries])
+                    ++ ["fixtures/peers"], group_leader()),
     {ok, _} = compile:file("fixtures/peers/ern_peers_host.erl", [{outdir, Root}]),
-    {Store, Desk} = configured(filename:absname(Dir)),
-    Stopped = started(Store, filename:join(Root, "store.erc")),
+    StoreRoot = ern_machine:copied(StoreMachine, Root, Dir),
+    Store = ern_machine_node:configured(StoreMachine, ern_machine:directory(StoreMachine, Dir),
+                                        "store", 0),
+    Desk = ern_machine_node:configured(DeskMachine, ern_machine:directory(DeskMachine, Dir),
+                                       "desk", none),
+    ern_machine_node:listed(Store, [{Desk, none}]),
+    Reader = ern_machine_node:started(Store, load_path(StoreMachine)
+                                         ++ [filename:join(StoreRoot, "store.erc")]),
+    Port = ern_machine_node:port_bound(Reader),
+    %% the store says on its standard output that it has made its offers
+    _ = ern_machine:seen(Reader, "offered"),
+    ern_machine_node:listed(Desk, [{Store, ern_machine_node:address(Store, Port)}]),
+    ern_machine_node:edited(Desk, fun(Conf) ->
+                                      Conf#{<<"services">> =>
+                                                maps:from_list([{Name, [<<"store">>]}
+                                                                || Name <- ?SERVICES])}
+                                  end),
     Costs = desk_costs(Desk, filename:join(Root, "desk.erc")),
-    Stopped(),
-    Tcp = tcp_ping(),
+    ern_machine_node:stopped(Store),
+    _ = ern_machine:ended(Reader),
+    Tcp = tcp_ping(StoreMachine, DeskMachine),
+    table(Heading, Costs, Tcp).
+
+table(Heading, Costs, Tcp) ->
     Ping = maps:get("ping", Costs),
     Rows = [{"the host's ping, over TLS", Ping, none},
             {"the host's ping, over TCP", Tcp, none},
@@ -54,108 +106,66 @@ main([Dir]) ->
             {"  beside the host's ping", maps:get("compute", Costs) / Ping, ratio},
             {"a utilization of the other node", maps:get("utilization", Costs), none},
             {"  beside the host's ping", maps:get("utilization", Costs) / Ping, ratio}],
-    io:format("~-48s ~12s~n", ["between two nodes on this machine", "µs or ratio"]),
+    io:format("~-48ts ~12s~n", [Heading, "µs or ratio"]),
     lists:foreach(fun({Name, Value, none}) -> io:format("~-48ts ~12.1f~n", [Name, Value]);
                      ({Name, Value, ratio}) -> io:format("~-48ts ~11.1fx~n", [Name, Value])
-                  end, Rows),
-    halt(0).
+                  end, Rows).
 
-load_path() ->
-    lists:append([["--load-path", Library] || Library <- ?LIBRARIES]).
+%% The libraries on the load path, each from the machine's tree.
+load_path(Machine) ->
+    lists:append([["--load-path", filename:join([ern_machine:clone(Machine), "build/libs",
+                                                  Library])]
+                  || Library <- ?LIBRARIES]).
 
-%% The store, which listens, and the desk, which lists it, each a directory
-%% `ern config` made, the desk's services naming the store for each it
-%% times.
-configured(Dir) ->
-    Store = filename:join(Dir, "store"),
-    Desk = filename:join(Dir, "desk"),
-    _ = ern_node:create(Store),
-    _ = ern_node:create(Desk),
-    Port = free_port(),
-    edit(Store, fun(Conf) ->
-                    Conf#{<<"listen">> => address(Port),
-                          <<"peers">> => [#{<<"name">> => <<"desk">>,
-                                            <<"public-key">> => public(Desk)}]}
-                end),
-    Services = [<<"counter">>, <<"brittle">>, <<"echo">>, <<"echo-adapted">>],
-    edit(Desk, fun(Conf) ->
-                   (maps:remove(<<"listen">>, Conf))#{
-                       <<"peers">> => [#{<<"name">> => <<"store">>,
-                                         <<"public-key">> => public(Store),
-                                         <<"network-address">> => address(Port)}],
-                       <<"services">> => maps:from_list([{Name, [<<"store">>]}
-                                                         || Name <- Services])}
-               end),
-    {Store, Desk}.
-
-free_port() ->
-    {ok, Socket} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
-    {ok, Port} = inet:port(Socket),
-    ok = gen_tcp:close(Socket),
-    Port.
-
-address(Port) ->
-    list_to_binary("127.0.0.1:" ++ integer_to_list(Port)).
-
-edit(Dir, Change) ->
-    File = filename:join(Dir, "ernest.conf"),
-    {ok, Text} = file:read_file(File),
-    ok = file:write_file(File, json:encode(Change(json:decode(Text)))).
-
-public(Dir) ->
-    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
-    maps:get(<<"public-key">>, json:decode(Text)).
-
-%% The store running, once it has made its offers; answers what ends it.
-started(Store, Program) ->
-    Command = lists:flatten([?ERN, " run --config-dir ", Store,
-                             [[" ", Word] || Word <- load_path()], " ", Program,
-                             " 2> ", Store, ".err"]),
-    Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
-    offered(Port, <<>>),
-    fun() ->
-        {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
-        _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
-        receive {Port, {exit_status, _}} -> ok end
-    end.
-
-%% Until the store says on its standard output, which the port reads, that
-%% it has made its offers.
-offered(Port, Said) ->
-    case binary:match(Said, <<"offered">>) of
-        nomatch ->
-            receive {Port, {data, Bytes}} -> offered(Port, <<Said/binary, Bytes/binary>>) end;
-        _ -> ok
-    end.
-
-%% The desk's lines, `key microseconds`, as a map.
+%% The desk's lines, `key microseconds`, as a map; its standard error,
+%% where it fails, beside them.
 desk_costs(Desk, Program) ->
-    Said = os:cmd(lists:flatten([?ERN, " run --config-dir ", Desk,
-                                 [[" ", Word] || Word <- load_path()], " ", Program,
-                                 " costs 2>/dev/null"])),
-    maps:from_list([{Key, list_to_float(Value)}
-                    || Line <- string:lexemes(Said, "\n"),
-                       [Key, Value] <- [string:lexemes(Line, " ")]]).
+    Machine = ern_machine_node:machine(Desk),
+    Errors = ern_machine_node:config_dir(Desk) ++ ".err",
+    Command = lists:flatten([ern_machine:quoted(ern_machine:ern(Machine)), " run --config-dir ",
+                             ern_machine:quoted(ern_machine_node:config_dir(Desk)),
+                             [[" ", ern_machine:quoted(Word)] || Word <- load_path(Machine)],
+                             " ", ern_machine:quoted(Program), " costs 2> ",
+                             ern_machine:quoted(Errors)]),
+    case ern_machine:run(Machine, Command) of
+        {0, Said} ->
+            maps:from_list([{Key, list_to_float(Value)}
+                            || Line <- string:lexemes(Said, "\n"),
+                               [Key, Value] <- [string:lexemes(Line, " ")]]);
+        {Status, Said} ->
+            ern_machine:fail(io_lib:format("the desk ended with status ~B: ~ts~ts",
+                                           [Status, Said,
+                                            ern_machine:ran(Machine, "cat "
+                                                            ++ ern_machine:quoted(Errors))]))
+    end.
 
 %% The microseconds of the host's ping between two plain nodes of its own,
-%% over TCP, the second started first and ended by the first once it has
-%% timed it.
-tcp_ping() ->
+%% over TCP, with no port mapper, which would outlive them: the second on
+%% Second's machine, listening on a port it picks and says, the first on
+%% First's, which only dials it at that port, times the ping and ends it.
+tcp_ping(Second, First) ->
     Cookie = "ern_node_costs",
-    %% the second says so once its distribution has started
-    Second = open_port({spawn_executable, os:find_executable("erl")},
-                       [{args, ["-sname", "ern_costs_b", "-setcookie", Cookie, "-noinput",
-                                "-eval", "io:format(\"up~n\")"]},
-                        exit_status, binary]),
-    receive {Second, {data, <<"up", _/binary>>}} -> ok end,
-    Timing = "[_, Host] = string:split(atom_to_list(node()), \"@\"),"
-             " Other = list_to_atom(\"ern_costs_b@\" ++ Host),"
+    Listening = "{ok, Socket} = gen_tcp:listen(0, []), {ok, Port} = inet:port(Socket),"
+                " ok = gen_tcp:close(Socket),"
+                " ok = application:set_env(kernel, erl_epmd_node_listen_port, Port),"
+                " {ok, _} = net_kernel:start(list_to_atom(\"ern_costs_b@"
+                ++ ern_machine:host(Second) ++ "\"), #{name_domain => longnames}),"
+                " io:format(\"up ~B~n\", [Port]).",
+    Reader = ern_machine:launched(Second, lists:flatten(["erl -noinput -start_epmd false",
+                                                         " -setcookie ", Cookie, " -eval ",
+                                                         ern_machine:quoted(Listening)])),
+    [Port] = ern_machine:seen(Reader, "up ([0-9]+)"),
+    Timing = "ok = application:set_env(kernel, erl_epmd_node_listen_port, " ++ Port ++ "),"
+             " {ok, _} = net_kernel:start(list_to_atom(\"ern_costs_a@"
+             ++ ern_machine:host(First) ++ "\"), #{name_domain => longnames}),"
+             " Other = list_to_atom(\"ern_costs_b@" ++ ern_machine:host(Second) ++ "\"),"
              " pong = net_adm:ping(Other),"
              " Started = erlang:monotonic_time(microsecond),"
              " [pong = net_adm:ping(Other) || _ <- lists:seq(1, 5000)],"
              " io:format(\"~p~n\", [(erlang:monotonic_time(microsecond) - Started) / 5000]),"
              " rpc:call(Other, erlang, halt, []), halt().",
-    Said = os:cmd(lists:flatten(["erl -sname ern_costs_a -setcookie ", Cookie,
-                                 " -noinput -eval '", Timing, "'"])),
-    receive {Second, {exit_status, _}} -> ok end,
+    Said = ern_machine:ran(First, lists:flatten(["erl -noinput -start_epmd false",
+                                                 " -dist_listen false -setcookie ", Cookie,
+                                                 " -eval ", ern_machine:quoted(Timing)])),
+    _ = ern_machine:ended(Reader),
     list_to_float(string:trim(Said)).

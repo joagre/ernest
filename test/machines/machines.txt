@@ -1,0 +1,13 @@
+# The machines `make bench-machines` and test/machines/nodes.sh start nodes
+# on (plan, MVP 3.27 item 1), a line each: the machine's name, which its
+# node is listed under; the host ssh and scp take and its peers dial; and
+# the clone of the repository there and the directory its nodes'
+# configuration directories, programs and output go in, outside the clone,
+# both absolute, or `local` for this machine, whose commands run in the
+# plain shell from this checkout and whose nodes go under test/build.
+# A host is given as an address: ssh knows the other two by theirs, and
+# a dial to an address times the carrier without a name's resolution.
+
+eve     192.168.68.123  local
+bee     192.168.68.114  /home/jocke/src/ernest  /home/jocke/ernest-bench
+xena    192.168.68.115  /home/jocke/src/ernest  /home/jocke/ernest-bench
