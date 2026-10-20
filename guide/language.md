@@ -2380,7 +2380,7 @@ fn heavy(n : Int) : Int =
 
 The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler busy, below it room and above it work waiting, measured as the node's `"utilization"` entry says, by its run queue where it says nothing.
 
-`Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first in the configuration's order where the two are equal; a utilization older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its utilization.
+`Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal; a utilization older than two of its teller's intervals, which the telling carries, is not used, and a peer's loss drops its utilization.
 
 Where no peer has told a utilization the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 
