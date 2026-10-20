@@ -1362,8 +1362,13 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
                                                 exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
-    Reporter = fun({'FaultReport', Process, _, _, _, _, _} = FaultReport, Peer) ->
-                   ets:member(Running, Process) orelse Report(FaultReport, Peer)
+    %% report §11.2: a test's own fault is its line, its trace beneath it,
+    %% which its row keeps until its end is here
+    Reporter = fun({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
+                   case ets:member(Running, Process) of
+                       true -> ets:insert(Running, {Process, Trace});
+                       false -> Report(FaultReport, Peer)
+                   end
                end,
     Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),
     ets:delete(Running),
@@ -1417,7 +1422,8 @@ tests_entry(ErlangModule, Caller, Running) ->
 %% own, monitored from its start so that a fault is reported, however soon
 %% it comes, and not taken for the entry process's (report §6.9). A deadlock while it
 %% runs is its fault (§11.2). Its line goes through standard output's
-%% process, after what the test wrote there; whether it passed is returned.
+%% process, after what the test wrote there, the trace of its fault beneath
+%% it, which the reporter kept in its row; whether it passed is returned.
 run_test({'Case', Name, Run}, Running) ->
     Self = ern_rt:self(),
     Ref = make_ref(),
@@ -1436,11 +1442,15 @@ run_test({'Case', Name, Run}, Running) ->
                   {Ref, down, {'Down', _, Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
     ok = ern_rt:deadlock_victim(none),
-    ets:delete(Running, Pid),
+    Trace = case ets:take(Running, Pid) of
+                [{_, Faulted}] -> Faulted;
+                [{_}] -> <<>>
+            end,
     %% report §11.2: a test's name is written as a cause is, its controls
-    %% escaped
+    %% escaped, and beneath the line of a test that faulted its trace
     ern_rt:send(ern_rt:system_process(stdout),
-                <<(ern_show:controls(Name, line))/binary, ": ", Outcome/binary, "\n">>),
+                iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n",
+                                  indented_trace(Trace)])),
     Outcome =:= <<"passed">>.
 
 %% A test that returned still sends its Down; it is taken so that it is not

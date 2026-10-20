@@ -43,7 +43,7 @@
 
 -export([ensure_loaded/1, own_file/1, load/3, loaded/2, loaded/3, unloaded/1, spawnable/1,
          holders/1, linkable/1, valued/1, forms/1, called/1, absent_binding/1, absent_binding/2,
-         foreign/2, declared/1, declared/2, present/1, function/2, function_text/2, is_free/1,
+         foreign/2, declared/1, declared/2, present/1, function/2, function_text/3, is_free/1,
          is_held/2, fresh_unit/1, unit_beside/2, placement/4, running/1, hashes/1,
          binding_keys/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
 
@@ -233,6 +233,8 @@ rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) 
     [{{foreign, texts(QualifiedName)}, Unit,
       {foreign, HostModule, HostFunction, Function, Arity}}];
 rows(_, _, {sites, _}) ->
+    [];
+rows(_, _, {initializers, _}) ->
     [];
 rows(_, _, {calls, _}) ->
     [].
@@ -544,37 +546,42 @@ held_function({foreign, _, _, Function, Arity}) -> [{Function, Arity}];
 held_function(_) -> [].
 
 %% Report Appendix E.21, §11.2: a function of a loaded Unit as a fault's
-%% trace names it, by the name the unit's spawn sites write the
-%% declaration that holds it (§6.9), read back from its '$code'/0. A
-%% definition's or a foreign function's function, '$3', is named by its
-%% qualified name under the namespace the unit's sites name its
-%% declarations under, `Geo.area`, a member's `Geo.Vec.+`, a reload's
+%% trace names it at the frame's Line, by the name the unit's spawn sites
+%% write the declaration that holds it (§6.9), read back from its
+%% '$code'/0. A definition's or a foreign function's function, '$3', is
+%% named by its qualified name under the namespace the unit's sites name
+%% its declarations under, `Geo.area`, a member's `Geo.Vec.+`, a reload's
 %% version's `Counter$2.worker`, and in a shell's session by its own name;
 %% a definition its recorded forms name otherwise, an input's expression
-%% among them, `input 3`, by that name where the node keeps them. A local
-%% function lifted to its own function, '$3.2', and the entry a spawn on a
-%% peer starts a lambda or a local function by, '$3.2.entry', are named by
-%% their definition's name and their position (§11.1), `Geo.area$2`. A fun
-%% the host names after the function it is written in, `-'$3'/1-fun-0-`,
-%% is named as that function is, `Geo.area`, since the host's numbering of
-%% its funs is no position of Appendix H's. A unit an exchange made names
-%% each by the name its code frame gave it, as text, the sender's,
-%% `Counter.worker` (§8.7). None for any other function and for a module
-%% that is no unit, which keep the host's names.
--spec function_text(module(), atom()) -> string() | none.
-function_text(Unit, Function) ->
+%% among them, `input 3`, by that name where the node keeps them. The
+%% unit's '$init'/0, where every top-level binding's initializer is
+%% evaluated, is named at a line by the binding whose source holds it,
+%% the last to begin at or before it. A local function lifted to its own
+%% function, '$3.2', and the entry a spawn on a peer starts a lambda or a
+%% local function by, '$3.2.entry', are named by their definition's name
+%% and their position (§11.1), `Geo.area$2`. A lambda the host compiles
+%% to a fun of the function it is written in, `-'$3'/1-fun-0-`, is named
+%% as that function is, its definition's name, `Geo.area`, the frame's
+%% line its own (E.21). A unit an exchange made names each by the name its
+%% code frame gave it, as text, the sender's, `Counter.worker` (§8.7). None
+%% for any other function and for a module that is no unit, which keep the
+%% host's names.
+-spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
+function_text(Unit, Function, Line) ->
     case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
-        true -> named_function(atom_to_list(Function), Unit, Unit:'$code'());
+        true -> named_function(atom_to_list(Function), Line, Unit, Unit:'$code'());
         false -> none
     end.
 
-named_function("-" ++ Fun, Unit, Code) ->
+named_function("-" ++ Fun, Line, Unit, Code) ->
     %% the host's name of a fun: -Function/Arity-fun-Index-
     case string:split(Fun, "/", trailing) of
-        [Enclosing, _] -> named_function(Enclosing, Unit, Code);
+        [Enclosing, _] -> named_function(Enclosing, Line, Unit, Code);
         _ -> none
     end;
-named_function("$" ++ Numbered, Unit, Code) ->
+named_function("$init", Line, Unit, Code) ->
+    initializer_name(Line, Unit, Code);
+named_function("$" ++ Numbered, _, Unit, Code) ->
     case string:split(Numbered, ".", all) of
         [Number] -> declared_name("$" ++ Number, Unit, Code);
         [Number, Position] -> positioned(declared_name("$" ++ Number, Unit, Code), Position);
@@ -582,7 +589,7 @@ named_function("$" ++ Numbered, Unit, Code) ->
             positioned(declared_name("$" ++ Number, Unit, Code), Position);
         _ -> none
     end;
-named_function(_, _, _) ->
+named_function(_, _, _, _) ->
     none.
 
 positioned(none, _) -> none;
@@ -593,13 +600,31 @@ positioned(Name, Position) -> Name ++ "$" ++ Position.
 declared_name(Function, Unit, Code) ->
     case [{QualifiedName, Held} || {QualifiedName, Held} <- Code, {Held1, _} <- held_function(Held),
                                    atom_to_list(Held1) =:= Function] of
-        [{QualifiedName, Held} | _] ->
-            case recorded_name(Unit, Held) of
-                none -> sites_name(QualifiedName, Code);
-                Name -> ern_namespace:text(Name)
-            end;
-        [] ->
-            none
+        [{QualifiedName, Held} | _] -> site_name(QualifiedName, Held, Unit, Code);
+        [] -> none
+    end.
+
+%% The binding whose initializer holds Line of '$init'/0: of the unit's
+%% bindings, which '$code'/0 lists by their first lines in order
+%% (ern_emitter:initializers/2), the last to begin at or before it, since
+%% the initializers alone are evaluated there and no two declarations'
+%% lines cross; none at no line.
+initializer_name(none, _, _) ->
+    none;
+initializer_name(Line, Unit, Code) ->
+    Begun = [QualifiedName || {_, {initializers, Initializers}} <- Code,
+                              {First, QualifiedName} <- Initializers, First =< Line],
+    Rows = [Held || Begun =/= [], {QualifiedName, {binding, _, _} = Held} <- Code,
+                    QualifiedName =:= lists:last(Begun)],
+    case Rows of
+        [Held | _] -> site_name(lists:last(Begun), Held, Unit, Code);
+        [] -> none
+    end.
+
+site_name(QualifiedName, Held, Unit, Code) ->
+    case recorded_name(Unit, Held) of
+        none -> sites_name(QualifiedName, Code);
+        Name -> ern_namespace:text(Name)
     end.
 
 %% The name Unit's recorded forms give a definition its sites write by

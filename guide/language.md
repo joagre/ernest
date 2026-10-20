@@ -1622,13 +1622,12 @@ Faults.main:10 faulted: division by zero
     erlang:'div'/2
     Faults.average:4
     Faults.worker:7
-    ern_rt:run/1:1914
 the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
-`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first five lines are `ern run`'s own: it writes every fault to standard error as it happens, a line of the spawn site and the cause, whatever the program does about it.
+`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first four lines are `ern run`'s own: it writes every fault to standard error as it happens, a line of the spawn site and the cause, whatever the program does about it.
 
-Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7, and last the runtime's own frame. A frame of the program is named as a spawn site is (report §7.3, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
+Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's beneath it left out (report §7.3, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
 Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
 
@@ -1678,7 +1677,6 @@ $ ern run jobs.erc
 Jobs.supervise:9 faulted: division by zero
     erlang:'div'/2
     Jobs.supervise:9
-    ern_rt:run/1:1914
 0: failed, division by zero
 5: 20
 all jobs done
@@ -1729,9 +1727,6 @@ $ ern run counter.erc
 Some(2)
 Counter.start:9 faulted, restarted: a negative amount
     Counter.count:16
-    ern_rt:restarts/4:3137
-    ern_rt:'-restarting/2-fun-0-'/2:3056
-    ern_rt:run/1:1914
 None
 Some(3)
 ```
@@ -1787,9 +1782,6 @@ $ ern run pair.erc
 Some(2) Some(5)
 Pair.visits:7 faulted, restarted: a negative amount
     Pair.count:15
-    ern_rt:restarts/4:3137
-    ern_rt:'-restarting/2-fun-0-'/2:3056
-    ern_rt:run/1:1914
 None
 Some(1) Some(1)
 ```

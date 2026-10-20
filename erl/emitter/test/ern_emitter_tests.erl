@@ -435,8 +435,9 @@ units_from_forms(Root, Files, LoadPath) ->
     length(Made).
 
 %% The unit made with the source and from its forms alone, the same code but
-%% for the source's lines, names and sites' lines, and the host compiles the
-%% second.
+%% for the source's lines, names and sites' lines, and the bindings' first
+%% lines its '$code'/0 lists (ern_emitter:initializers/2), and the host
+%% compiles the second.
 same_but_the_source(Sourced, Alone) ->
     {WithSource, _} = ern_emitter:unit(Sourced),
     {FromForms, _} = ern_emitter:unit(Alone),
@@ -444,8 +445,13 @@ same_but_the_source(Sourced, Alone) ->
     ?assertEqual(ok, same_code(normalize(WithSource), normalize(FromForms))).
 
 %% Two normalized forms the same but where a string of the first is the
-%% second's with a line after a colon, a spawn site's (report §6.9).
+%% second's with a line after a colon, a spawn site's (report §6.9), and
+%% where the first lists its bindings' first lines and the second, with no
+%% source, none (Appendix E.21).
 same_code({string, Anno, Text}, {string, Anno, Text}) ->
+    ok;
+same_code({tuple, Anno, [{atom, _, initializers} = Tag, _]},
+          {tuple, Anno, [Tag, {nil, _}]}) ->
     ok;
 same_code({string, Anno, WithLine}, {string, Anno, Text}) ->
     case lists:prefix(Text ++ ":", WithLine)
@@ -518,12 +524,14 @@ beam_functions(Beam) ->
 %% is written, by the name its sites give the definition and its line: a
 %% foreign function's by its name alone, where the host gives no line, a
 %% member's by its type's and its own, a local function lifted to a
-%% function of its own by its definition's name and its position, a fun
-%% the host compiles a lambda to by its definition's name, and the standard
-%% library's by its own; a frame of the host's by the function as the host
-%% names it, and its line where it gives one. A regression test of the
-%% frame's shape, written after the code (the log's *Every Fault Carries a
-%% Trace*); a received definition's frame is test/ern_nodes_tests'
+%% function of its own by its definition's name and its position, a
+%% lambda's frame by its definition's name and the lambda's line, and the
+%% standard library's by its own; a frame of the host's or the runtime's
+%% above the program's by the function as the host names it, and its line
+%% where it gives one; and the trace ends with the program's outermost
+%% frame, `main`'s, the runtime's beneath it left out. A regression test of
+%% the frame's shape, written after the code (the log's *Every Fault
+%% Carries a Trace*); a received definition's frame is test/ern_nodes_tests'
 trace_names_functions_test() ->
     Text = "foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
            "type Vec = Vec(Int)\n"
@@ -541,7 +549,7 @@ trace_names_functions_test() ->
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
                   <<"Traced.boom">>, <<"Traced.Vec.+$1:4">>, <<"Traced.Vec.+:5">>,
                   <<"Traced.helper:8">>, <<"List.map:", _/binary>>, <<"Traced.helper:8">>,
-                  <<"Traced.main:11">> | _],
+                  <<"Traced.main:11">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).
 
 %% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
@@ -595,6 +603,32 @@ local_names(Terms) when is_list(Terms) ->
     lists:append([local_names(Term) || Term <- Terms]);
 local_names(_) ->
     [].
+
+%% Appendix E.21, E.28, report §10: a fault's trace is the innermost twelve
+%% frames of the host's stack, which the runtime keeps 64 of from its
+%% start (E.28), the host eight unless told, the innermost first: under a
+%% recursion twenty deep, the host's raise and the runtime's foreign call
+%% above the program's frames, then the foreign function's and the
+%% recursion's. A regression test of a defect MVP 3.2's item 6 found, a
+%% trace of eight lines under a deeper stack, written in Ernest since the
+%% trace ends with the program's frames
+trace_twelve_frames_test() ->
+    Text = "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+           "fn nested(count : Int, text : String) : Int =\n"
+           "    if count == 0 then parsed(text) else 1 + again(count - 1, text)\n"
+           "fn again(count : Int, text : String) : Int = 1 + nested(count, text)\n"
+           "export fn main() : Unit = Io.println(Int.toString(nested(20, \"x\")))\n",
+    {{fault, _, Trace}, _} = run(['Deep'], Text, #{}),
+    Frames = binary:split(Trace, <<"\n">>, [global, trim]),
+    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
+                  <<"Deep.parsed">> | _], Frames),
+    %% each call returns to another function than the last, so that the
+    %% host keeps every frame, which it does not of a function's own
+    %% recursion; `nested`'s last call is a tail call, which leaves no frame
+    Again = <<"Deep.again:4">>,
+    Nested = <<"Deep.nested:3">>,
+    ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again],
+                 lists:nthtail(3, Frames)).
 
 %% report Appendix H, §6.9, §11.2: two definitions whose forms are one
 %% term are one definition: a reference to either within their module is

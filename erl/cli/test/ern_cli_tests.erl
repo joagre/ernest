@@ -1310,7 +1310,10 @@ test_receives_test() ->
 
 %% report Appendix E.24, §11.2: ern test runs every top-level let of type Test.Case,
 %% exported or not, each in its own process, reports each, and exits 1
-%% unless every one passed
+%% unless every one passed; a test's own fault is its line, its trace
+%% beneath it, four spaces in, the test's lambda's frame by its
+%% definition's name and its line (Appendix E.21), a regression test of
+%% the trace, written after the code, where the line came alone
 test_runner_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
@@ -1326,7 +1329,8 @@ test_runner_test() ->
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({match, _}, re:run(Output, "adds two: passed\n")),
     ?assertMatch({match, _}, re:run(Output, "wrong: failed: expected 3\n")),
-    ?assertMatch({match, _}, re:run(Output, "divides: faulted: division by zero\n")),
+    ?assertMatch({match, _}, re:run(Output, "divides: faulted: division by zero\n"
+                                            "    erlang:'div'/2\n    Checks.divides:7\n")),
     write(Dir, "src2/ok.ern",
           "let fine = Test.Case(name = \"fine\", run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
@@ -1428,7 +1432,7 @@ test_runner_streams() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
     ?assertEqual(<<"inside first\nfirst: passed\nstuck: faulted: deadlock\nlast: passed\n">>,
-                 iolist_to_binary(?capturedOutput)).
+                 untraced(?capturedOutput)).
 
 %% report §8.6, §11.2: while the end waits, a process that waits with
 %% nothing in flight is no deadlock. Under `ern test` a deadlock while a
@@ -1498,7 +1502,7 @@ test_runner_os_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
     ?assertEqual(<<"none: passed\nexits: faulted: exited with status 2\nlater: passed\n">>,
-                 iolist_to_binary(?capturedOutput)).
+                 untraced(?capturedOutput)).
 
 %% report §11: a link where `ern build` writes a `.erc` is replaced by the
 %% module, and what the link named is left as it was. A regression test:
@@ -2037,9 +2041,10 @@ error_names_file_from_cwd_test() ->
 %% report §8.6, §7.4: a fault in main is reported on stderr with its
 %% cause, status 1; report §7.3, §11.2, Appendix E.21: beneath the line its
 %% trace, a frame a line indented by four spaces, the innermost first, the
-%% host's division and then main's frame by its name and its line. A
-%% regression test of the trace, written after the code, where a cause of
-%% §7.4 had none
+%% host's division and then main's frame by its name and its line, the
+%% outermost of the program's, with which the trace ends. A regression
+%% test of the trace, written after the code, where a cause of §7.4 had
+%% none
 fault_test() ->
     Dir = tmp(),
     File = write(Dir, "boom.ern",
@@ -2050,7 +2055,7 @@ fault_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "boom.erc")])),
     ?assertMatch([<<"Boom.main faulted: division by zero">>, <<"    erlang:'div'/2">>,
-                  <<"    Boom.main:3">>, <<"    ern_rt:run/1:", _/binary>>, <<>>],
+                  <<"    Boom.main:3">>, <<>>],
                  binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global])).
 
 %% What was written, without the trace beneath each fault's line, its

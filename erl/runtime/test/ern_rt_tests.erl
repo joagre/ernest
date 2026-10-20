@@ -189,9 +189,9 @@ end_takes_late_spawns() ->
 %% FaultReport, a restart among them, and the runtime's reporter as it
 %% happens; a second subscription replaces the first; a kill is no fault;
 %% the report of a process no peer spawned names no peer, a regression
-%% test of `peer`, written after the code (finding N12); report §7.3: the
-%% report of a division by zero carries its trace, the host's division
-%% first, a regression test written after the code, which held it empty
+%% test of `peer`, written after the code (finding N12); report §7.3,
+%% Appendix E.21: the report carries its trace, empty here, where the
+%% processes run no frame of a program's
 fault_reports_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -210,8 +210,7 @@ fault_reports_test() ->
                Reports = [receive {report, First} -> First end,
                           receive {report, Second} -> Second end],
                Self ! {reports, lists:sort([{Site, Cause, Restarted}
-                                            || {'FaultReport', _, Site, Cause, Restarted,
-                                                <<"erlang:'div'/2\n", _/binary>>,
+                                            || {'FaultReport', _, Site, Cause, Restarted, <<>>,
                                                 'None'} <- Reports])},
                %% every report started is delivered, so one to the first
                %% subscription would be in the mailbox
@@ -494,12 +493,13 @@ deadlock_after_a_wait() ->
 %% timed receive, clock alarm, or foreign call pending, is a deadlock, the
 %% entry process's fault `deadlock` (§7.4); each
 %% of those is a source that can still deliver, so the detector, looking
-%% while one is pending, finds no deadlock. Report §7.3: the deadlock's
-%% trace is the entry process's stack where it waits, a regression test
-%% written after the code, where the fault had none
+%% while one is pending, finds no deadlock. Report §7.3, Appendix E.21: the
+%% deadlock's trace is the entry process's stack where it waits, empty
+%% here, where no frame of it is a program's; a program's frame there is
+%% ern_reaper_tests'
 deadlock_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
-    ?assertMatch({fault, <<"deadlock">>, <<"ern_rt_tests:'-deadlock_test/0-fun-", _/binary>>},
+    ?assertMatch({fault, <<"deadlock">>, <<>>},
                  ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
     ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
@@ -693,13 +693,14 @@ gated(Function) ->
     fun() -> receive go -> Function() end end.
 
 %% report §7.3, §6.9, §11.2: a failure of the runtime is the host's class
-%% and reason, the entry process's fault carries its trace beside it, the
-%% innermost frame first, and a monitor's Down carries the text alone. A
-%% regression test: the stack was dropped.
+%% and reason, the entry process's fault carries its trace beside it,
+%% empty where no frame is a program's (Appendix E.21), and a monitor's
+%% Down carries the text alone. A regression test: the stack was dropped;
+%% a trace with a program's frames is ern_emitter_tests'.
 runtime_failure_test() ->
     Self = self(),
     Bad = fun() -> binary_to_integer(atom_to_binary(zero_text())) end,
-    ?assertMatch({fault, <<"error:badarg">>, <<"erlang:binary_to_integer/1\n", _/binary>>},
+    ?assertMatch({fault, <<"error:badarg">>, <<>>},
                  ern_rt:run_main(Bad, <<"main">>, #{stdout => fun(_) -> ok end})),
     ok = ern_rt:run_main(
            fun() ->
@@ -807,7 +808,8 @@ clock_now_reads_the_host() ->
 %% §7.4 and a failure of the runtime alike (§7.3), {ern, killed},
 %% {ern, program_end}; a socket's {ern, closed} is ern_tcp_tests'. The
 %% division's term is a regression test of the one fault term, written
-%% after the code, where it had no trace
+%% after the code, where it had no trace; its trace is empty here, where
+%% no frame is a program's (Appendix E.21)
 host_exit_reason_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -834,8 +836,7 @@ host_exit_reason_test() ->
                receive {'DOWN', _, process, Failed, FailedReason} -> Self ! {r4, FailedReason} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(normal, wait(r1)),
-    ?assertMatch({ern, fault, <<"division by zero">>, <<"erlang:'div'/2\n", _/binary>>},
-                 wait(r2)),
+    ?assertEqual({ern, fault, <<"division by zero">>, <<>>}, wait(r2)),
     ?assertEqual({ern, killed}, wait(r3)),
     ?assertMatch({ern, fault, <<"error:boom">>, Trace} when is_binary(Trace), wait(r4)),
     %% a process still alive when main returns ends with the program
@@ -859,13 +860,13 @@ host_exit_reason_test() ->
     after 2000 -> error(no_program_end)
     end.
 
-%% Appendix E.21, report §10: a fault's trace is the innermost twelve
-%% frames of the host's stack, which keeps 64 from the runtime's start
-%% (E.28), eight unless told, the innermost first, a frame of the host's
-%% the function as the host names it and its line where it gives one. A
-%% regression test of a defect MVP 3.2's item 6 found, a trace of eight
-%% lines under a deeper stack
-trace_twelve_frames_test() ->
+%% Appendix E.21: a trace ends with the outermost frame of the program's
+%% code, the frames beneath it left out, so a stack that holds no frame of
+%% a unit of Ernest code, here twenty of this module's beneath the host's
+%% raise, has an empty trace. A regression test, written after the code;
+%% the twelve frames a program's deep stack keeps are ern_emitter_tests'
+%% trace_twelve_frames_test's
+trace_without_program_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -875,14 +876,7 @@ trace_twelve_frames_test() ->
                Failed ! <<"x">>,
                receive {'DOWN', _, process, Failed, Reason} -> Self ! {trace, Reason} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    {ern, fault, <<"error:badarg">>, Trace} = wait(trace),
-    Frames = binary:split(Trace, <<"\n">>, [global, trim]),
-    ?assertEqual(12, length(Frames)),
-    %% the host's raise has no line; each frame under it is this module's
-    %% with its line
-    ?assertEqual(<<"erlang:binary_to_integer/1">>, hd(Frames)),
-    ?assertMatch([<<"ern_rt_tests:nested_again/2:", _/binary>>,
-                  <<"ern_rt_tests:nested/2:", _/binary>> | _], tl(Frames)).
+    ?assertEqual({ern, fault, <<"error:badarg">>, <<>>}, wait(trace)).
 
 %% Twice N calls deep, each returning to another function than the last,
 %% so that the host keeps each frame, and then a raise of a function the

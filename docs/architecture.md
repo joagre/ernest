@@ -115,7 +115,7 @@ All three compile through `ern_compile:compiled/2`.
 
 A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
-A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/2`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under among it, and the name the recorded forms give an input's expression (E.21).
+A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/3`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under and each binding's first line among it, and the name the recorded forms give an input's expression; a frame of `'$init'/0` is named by the binding whose source holds its line, and the frames beneath the program's outermost are left out (E.21).
 
 ### What the emitter writes
 
@@ -260,7 +260,7 @@ The code table (§8.7) is `ern_code`'s bag of that name, made at its first use b
 
 Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`, `{unit, Unit}`, `{binding, QualifiedName, Hash}`, `{foreign, QualifiedName}`, `{declared, QualifiedName}`, and `{forms, Unit}` for what a unit's compiled form records. The module's header comment gives each row.
 
-- Its lookups are `function/2`, `function_text/2`, `spawnable/1`, `holders/1`, `linkable/1`, `valued/1`, `forms/1`, `called/1`, `absent_binding/1,2`, `foreign/2`, `declared/1,2` and `present/1`. Where several units hold an identity, `answering/1` picks one (§8.7, §11.2).
+- Its lookups are `function/2`, `function_text/3`, `spawnable/1`, `holders/1`, `linkable/1`, `valued/1`, `forms/1`, `called/1`, `absent_binding/1,2`, `foreign/2`, `declared/1,2` and `present/1`. Where several units hold an identity, `answering/1` picks one (§8.7, §11.2).
 - `running/1` is `Code.running`, and `hashes/1` is `Code.hashes` (E.28).
 - `is_free/1`, `is_held/2`, `fresh_unit/1`, `unit_beside/2` and `placement/4` name and place a unit for the shell's load and `Code.load`. `binding_keys/1` gives the values a refused load erases.
 - The host's limits (§11.2) are `counts/0`, the sums `ern_code_sums` keeps (`summed/1`), and `nearing/0`. `ern_cli:say_limits/0` says the lines at a run's start, at each arrival and `Code.load`, and at each load of the shell's.

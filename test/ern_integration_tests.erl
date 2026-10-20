@@ -1620,8 +1620,9 @@ lines(Bytes) ->
     lists:sort(binary:split(Bytes, <<"\n">>, [global, trim])).
 
 %% Report §11.2: standard error's lines without the trace beneath each
-%% fault's line, its frames each indented by four spaces, whose lines name
-%% the runtime's; stamped_test_ reads the trace itself.
+%% fault's line, its frames each indented by four spaces, whose frames
+%% above the program's name the host's and the runtime's lines;
+%% stamped_test_ reads the trace itself.
 untraced(Lines) ->
     [Line || Line <- Lines, not is_frame(Line)].
 

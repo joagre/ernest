@@ -162,6 +162,8 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
                            code_function(code(Placed, ForeignPlaced, Entries, Context3)
                                          ++ [{Unit#unit.form_namespace,
                                               {sites, site_name([], Unit)}},
+                                             {Unit#unit.form_namespace,
+                                              {initializers, initializers(Placed, Context3)}},
                                              {Namespace, {calls, Calls}}]);
                        false ->
                            []
@@ -606,12 +608,13 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% with its entry and its reach; under the namespace the forms name what
 %% it declares under, the namespace its spawn sites name its declarations
 %% under (site_name/2), by which a fault's trace names its functions
-%% (ern_code:function_text/2), none for an input of a shell's session,
-%% whose sites name them by their own names; and, last, under the module's
+%% (ern_code:function_text/3), none for an input of a shell's session,
+%% whose sites name them by their own names; under the same namespace each
+%% binding's first line (initializers/2); and, last, under the module's
 %% namespace, the units its code calls (calls/3). Each qualified name is
 %% the forms' (Appendix H): an input of a shell's session names what it
 %% declares under the session's one namespace, by which a reach finds it.
-%% The last two rows are the unit's, which unit/1 adds. A literal
+%% The last three rows are the unit's, which unit/1 adds. A literal
 %% '$code'/0 answers, so that a load reads it without decoding the
 %% module's chunks, which costs more than the load.
 code(Placed, ForeignPlaced, Entries,
@@ -631,6 +634,18 @@ code(Placed, ForeignPlaced, Entries,
                        || #entry{function = Function, arity = Arity,
                                  qualified_name = QualifiedName, hash = Hash,
                                  position = Position} <- Entries]).
+
+%% Report Appendix E.21: each top-level binding's first line and its
+%% qualified name as the forms write it, in the order of the lines, by
+%% which a fault's trace names a frame of '$init'/0, where every
+%% initializer is evaluated, by the binding whose source holds the
+%% frame's line (ern_code:function_text/3); a binding without its source
+%% has none.
+initializers(Placed, #emit_context{unit = Unit, own = #own{forms = Forms}}) ->
+    lists:sort([{Line, form_name(QualifiedName, Unit)}
+                || {Position, #definition{kind = binding, qualified_name = QualifiedName}}
+                       <- Placed,
+                   {{Line, _, _}, _} <- [sourced(element(2, maps:get(Position, Forms)))]]).
 
 definition_code(Position, #definition{kind = function, qualified_name = QualifiedName, hash = Hash},
                 Form, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->
@@ -1590,7 +1605,7 @@ holds_function(_) -> false.
 %% (docs/memory.md). A form without its source names the declaration
 %% alone. Report §8.7: a definition of an exchange's unit by the name the
 %% code frame gave it, its lines the sender's. A fault's trace writes a
-%% frame of the unit's code by the same name and line (ern_code:function_text/2).
+%% frame of the unit's code by the same name and line (ern_code:function_text/3).
 site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace} = Unit,
                            erlang_module = ErlangModule, declaration = Declaration}) ->
     case {site_name(Declaration, Unit), Source} of

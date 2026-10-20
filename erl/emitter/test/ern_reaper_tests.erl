@@ -9,12 +9,14 @@
 
 %% report §8.6, §7.4: a program whose every process waits forever ends
 %% with the entry process's fault, `deadlock`; a timed receive is a source
-%% and ends by itself
+%% and ends by itself. Report §7.3, Appendix E.21: the deadlock's trace is
+%% the entry process's stack where the runtime finds it waiting, `main`'s
+%% frame, a regression test written after the code, where it had none
 deadlock_test() ->
     {Result1, _} = ern_emitter_tests:run(
         "type Msg = Ping\n"
         "export fn main() : Unit receiving Msg = receive { Ping -> Unit }\n"),
-    ?assertMatch({fault, <<"deadlock">>, _}, Result1),
+    ?assertEqual({fault, <<"deadlock">>, <<"M.main:2\n">>}, Result1),
     {Result2, Output} = ern_emitter_tests:run(
         "type Msg = Ping\n"
         "export fn main() : Unit receiving Msg = receive {\n"
@@ -37,7 +39,10 @@ call_forever_deadlock_test() ->
         "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
         "    Unit\n"
         "}\n"),
-    ?assertMatch({fault, <<"deadlock">>, _}, Result).
+    %% Appendix E.21: the runtime's wait above the program's frame stays
+    ?assertMatch({fault, <<"deadlock">>, <<"ern_rt:call_forever/3:", _/binary>>}, Result),
+    {fault, _, Trace} = Result,
+    ?assertEqual(<<"M.main:5">>, lists:last(binary:split(Trace, <<"\n">>, [global, trim]))).
 
 %% report §6.9: a wait on a process is kept while its waiter lives: a
 %% watcher that ends takes its waits with it, and a process that ends
