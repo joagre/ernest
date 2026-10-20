@@ -121,10 +121,22 @@ come first.
    with `ern_peer_tests`, and the experiment run again under both measures, which `make bench-pick`'s
    `UTILIZATION=` sets: a burst onto an idle table falls at random under the default measure and by
    the idle readings under the averaged one, which the log states and leaves.
-3. **The rows that grew.** The bench's three other rows that grew since MVP 3.1, a monitor of an
-   ended process at 25.6 times the host's against 17.7, `spawnMonitored` at 10.2 against 8.8, and
-   entering `restarting` at 99 times a `try`, each measured piece by piece as the spawn was, in `make
-   bench`'s fifth part, and what costs brought back in the plain form, the rest stated in the log.
+3. **The rows that grew.** Measured 2026-10-20 (the log's *The Rows That Grew*): the bench's
+   three other rows that grew since MVP 3.1, a monitor of an ended process, `spawnMonitored` and
+   entering `restarting`, each measured piece by piece in `make bench`'s fifth part, in
+   `spawn_monitored.txt`, `monitor.txt` and `restarting.txt`.
+
+   The two monitors' growth is one commit's read of the deliveries in flight at every end, about 2 µs, whose plain form stays, the
+   bag that would remove it growing with what a process has in flight; entering `restarting` costs
+   about 0.6 µs, most of it E.22's ask, which stays, and 70 ns came back in the plain form. A
+   quadratic in the reaper's and the clock's bookkeeping of a burst, older than MVP 3.1, is fixed.
+
+   **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
+   Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
+   foreign fault beside the reply, so the host reads from the mailbox's start and not from the
+   reply's reference. Decided here with the user before the milestone closes; the shape of its fix
+   is a receive that reads from the reply's reference, with the restart and the foreign fault read
+   another way.
 
 The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
 test waits for, as the log's *The Programs Tests' Bounds* leaves them; and a nodes test of
