@@ -524,9 +524,9 @@ beam_functions(Beam) ->
 %% is written, by the name its sites give the definition and its line: a
 %% foreign function's by its name alone, where the host gives no line, a
 %% member's by its type's and its own, a local function lifted to a
-%% function of its own by its definition's name and its position, a
-%% lambda's frame by its definition's name and the lambda's line, and the
-%% standard library's by its own; a frame of the host's or the runtime's
+%% function of its own and a lambda by the top-level declaration they are
+%% written in and the frame's line, as a spawn site there is named, and
+%% the standard library's by its own; a frame of the host's or the runtime's
 %% above the program's by the function as the host names it, and its line
 %% where it gives one; and the trace ends with the program's outermost
 %% frame, `main`'s, the runtime's beneath it left out. A regression test of
@@ -547,7 +547,7 @@ trace_names_functions_test() ->
     {Result, _} = run(['Traced'], Text, #{}),
     {fault, _, Trace} = Result,
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
-                  <<"Traced.boom">>, <<"Traced.Vec.+$1:4">>, <<"Traced.Vec.+:5">>,
+                  <<"Traced.boom">>, <<"Traced.Vec.+:4">>, <<"Traced.Vec.+:5">>,
                   <<"Traced.helper:8">>, <<"List.map:", _/binary>>, <<"Traced.helper:8">>,
                   <<"Traced.main:11">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).

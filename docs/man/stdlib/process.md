@@ -81,8 +81,9 @@ the peer whose spawn started the process, as the configuration lists it
 (report §8.7), or `None`. The trace is the innermost twelve frames of the
 host's stack where the fault was met, the innermost first, a frame a line,
 ending with the outermost frame of the program's code; a frame of Ernest
-code is written as a spawn site is, `Main.worker:3`, a lambda's by its
-definition's name (report §7.3, Appendix E.21).
+code is written as a spawn site is, the top-level declaration the code is
+written in and the frame's line, `Main.worker:3` (report §7.3, Appendix
+E.21).
 
 ### Examples
 

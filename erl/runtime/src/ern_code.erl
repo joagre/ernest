@@ -556,13 +556,12 @@ held_function(_) -> [].
 %% among them, `input 3`, by that name where the node keeps them. The
 %% unit's '$init'/0, where every top-level binding's initializer is
 %% evaluated, is named at a line by the binding whose source holds it,
-%% the last to begin at or before it. A local function lifted to its own
-%% function, '$3.2', and the entry a spawn on a peer starts a lambda or a
-%% local function by, '$3.2.entry', are named by their definition's name
-%% and their position (§11.1), `Geo.area$2`. A lambda the host compiles
-%% to a fun of the function it is written in, `-'$3'/1-fun-0-`, is named
-%% as that function is, its definition's name, `Geo.area`, the frame's
-%% line its own (E.21). A unit an exchange made names each by the name its
+%% the last to begin at or before it. A lambda or a local function is
+%% named as the top-level declaration it is written in is, `Geo.area`, the
+%% frame's line its own, as a spawn site at the same place is (E.21): one
+%% lifted to a function of its own, '$3.2', the entry a spawn on a peer
+%% starts one by, '$3.2.entry', and a fun the host compiles one to,
+%% `-'$3'/1-fun-0-`, alike. A unit an exchange made names each by the name its
 %% code frame gave it, as text, the sender's, `Counter.worker` (§8.7). None
 %% for any other function and for a module that is no unit, which keep the
 %% host's names.
@@ -582,18 +581,15 @@ named_function("-" ++ Fun, Line, Unit, Code) ->
 named_function("$init", Line, Unit, Code) ->
     initializer_name(Line, Unit, Code);
 named_function("$" ++ Numbered, _, Unit, Code) ->
+    %% '$3', '$3.2' and '$3.2.entry' are the definition '$3''s code
     case string:split(Numbered, ".", all) of
         [Number] -> declared_name("$" ++ Number, Unit, Code);
-        [Number, Position] -> positioned(declared_name("$" ++ Number, Unit, Code), Position);
-        [Number, Position, "entry"] ->
-            positioned(declared_name("$" ++ Number, Unit, Code), Position);
+        [Number, _] -> declared_name("$" ++ Number, Unit, Code);
+        [Number, _, "entry"] -> declared_name("$" ++ Number, Unit, Code);
         _ -> none
     end;
 named_function(_, _, _, _) ->
     none.
-
-positioned(none, _) -> none;
-positioned(Name, Position) -> Name ++ "$" ++ Position.
 
 %% The name a definition or a foreign function is written by in a site of
 %% Unit, where the unit holds it in the function Function.
