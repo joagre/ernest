@@ -8,7 +8,7 @@ to [`development.md`](development.md).
 
 Read "Where we are" first, then the table of milestones; the milestones to come follow in order. A gap
 stands in the milestone whose item closes it, a defect of OTP's in [`otp_bugs.md`](otp_bugs.md),
-and a feature declined in the log's *Later*; nothing stands between.
+and a feature declined in a dated entry of the log; nothing stands between.
 
 ---
 
@@ -196,11 +196,11 @@ user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less, and
 and 134 from `ernest-epx`'s ray tracer, were weighed and left alone on 2026-10-20 (the log's *The
 Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-10-21.
 
-- **The log's *Later* list sorted**, decided with the user on 2026-10-21 (the log's *The Window's
-  Three Asks*): a feature left out is dropped, its verdict in the log, or goes into a milestone, and
-  nothing is kept for later. Each of the list's thirty entries goes into a milestone or is dropped
-  in a dated entry that names the principle, the standing section goes, and every document that
-  pointed at it points at the entry instead. First, so that this milestone's list is whole.
+- **The log's *Later* list sorted**, done 2026-10-21 (the log's *The Later List Sorted*): a feature
+  left out is dropped, its verdict in the log, or goes into a milestone, and nothing is kept for
+  later. Of the list's thirty entries, sixteen were history or verdicts a dated entry argues, three
+  stand in MVP 4.1 already, and eleven set aside with a condition are dropped, each with its
+  principle; the section is gone, and what pointed at it points at the entries.
 - **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
   (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
   is the formatter's work and not the tour's, and comes before the tour so that the tour is written
@@ -305,7 +305,8 @@ it; the tour's axis is the program, and a rule appears where the program needs i
 five claims are the test the outline passes, each met somewhere along the program's growth and
 nothing in the tour there for another reason; they are not its chapters. Decided with the user on
 2026-10-20 (the log's *The Tour, Shorter*), which took out the rolling upgrade across three nodes,
-`Standing` and the balancer, and with them the library `Mailbox`, now under the log's *Later*.
+`Standing` and the balancer, and with them the library `Mailbox`, dropped on 2026-10-21 (the
+log's *The Later List Sorted*).
 
 It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its last chapters
 need, and before MVP 3.9, whose newcomer reads it: one program across the language's most
@@ -521,14 +522,17 @@ in MVP 3.1). Named so far:
   pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`.
 - **A listing by bytes in `Fs`**, decided when a program must manage a directory others
   write by names it does not choose: `Fs.names` and `Fs.removeName`, through E.0's rules,
-  beside an `Fs.list` that stays whole or an error (§8.2; the log's *Later*, S17).
+  beside an `Fs.list` that stays whole or an error (§8.2; the log's *The Full Review's Questions,
+  One by One*, S17).
 - **A read and a write in `Fs` that refuse a link under a root**, decided when a program
   serving files from a root others can write is written: `Fs.readUnder` and `Fs.writeUnder`,
   through E.0 rule 1, walking by opened directories in the runtime's helper, started per call
-  or resident as that program's cost decides (E.17; the log's *Later*, S16).
+  or resident as that program's cost decides (E.17; the log's *The Full Review's Questions, One by
+  One*, S16).
 - **A file made with a mode in `Fs`**, decided when a program must write a file only its owner
   may read into a directory others may enter: a function beside `makeFile` that takes the mode,
-  through E.0 rule 1, opening with it in the runtime's helper (E.17; the log's *Later*, S9).
+  through E.0 rule 1, opening with it in the runtime's helper (E.17; the log's *The Full Review's
+  Questions, One by One*, S9).
 - **`Udp`**, a system module of Appendix E beside `Tcp` and not a library, admitted by E.0
   rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
   with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is
