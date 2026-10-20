@@ -117,9 +117,10 @@ come first.
 
    **Decided with the user:** the tie of §8.7 and Appendix E.27, two equally busy peers taken as the
    first in the configuration's order, which sent every burst onto an idle table by that order, goes
-   to the first drawn, which is random; decided 2026-10-20 and stated in §8.7 and the guide's §8.1, built
-   with `ern_peer_tests`, and the experiment run again after it, under the
-   `"schedulers"` measure too, which `make bench-pick` gains a parameter for.
+   to the first drawn, which is random; decided 2026-10-20, stated in §8.7 and the guide's §8.1, built
+   with `ern_peer_tests`, and the experiment run again under both measures, which `make bench-pick`'s
+   `UTILIZATION=` sets: a burst onto an idle table falls at random under the default measure and by
+   the idle readings under the averaged one, which the log states and leaves.
 3. **The rows that grew.** The bench's three other rows that grew since MVP 3.1, a monitor of an
    ended process at 25.6 times the host's against 17.7, `spawnMonitored` at 10.2 against 8.8, and
    entering `restarting` at 99 times a `try`, each measured piece by piece as the spawn was, in `make
