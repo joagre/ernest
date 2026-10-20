@@ -61,7 +61,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between the machines the user gives, three on one LAN and a fourth on a separate LAN when it comes, the push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready; the guide does not wait for it, and the release only where the machines come first | | below |
-| MVP 3.28 | a clause's body all or none: in a `match` or a `receive`, every clause's body beside its pattern or every one below it, which §11.6 states and `ern format` writes; a libs flag, `--libs dir` on `ern run`, `ern test` and `ern shell`, each `dir/*/ebin` on the load path; and `--verbose` on `ern build`, `ern run` and `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05 and `--verbose` from MVP 4.0 the same day | | below |
+| MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05, `--verbose` from MVP 4.0, and the feedback's seven added the same day | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process on one node to its move to new code on a peer, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -149,9 +149,10 @@ and ends the trace at the program's outermost frame, and `ern run`, `ern test` a
 beneath the fault's line. The three questions the build left, a lambda's frame, the runtime's frames
 and a test's own fault, were decided the same day, in the log.
 
-## MVP 3.28 (a clause's body all or none, a libs flag, and `--verbose`), about three days
+## MVP 3.28 (what stands before the tour), about a week
 
-Three items of a day each, before the tour.
+Three items of a day each, then seven that `docs/language_feedback.md` left, decided with the
+user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less.
 
 - **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
   (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
@@ -186,6 +187,33 @@ Three items of a day each, before the tour.
 
   The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
   what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
+- **Four messages that name the form** (feedback 114, 115, 116 and 131; principle 1). `fn(Int) ->
+  Int` as a type names `(Int) -> Int`; `()` as a value names `Unit`; `Down(_, _)` in a pattern says
+  a constructor has one positional field, as the declaration's message does; and `ern build --help`
+  says the source root defaults to the working directory. §11.5 and §11.1 first, then the parser
+  and the checker, then the catalog.
+- **The rules of an Ernest program installed** (feedback 119; principle 4). `docs/style.md`'s
+  *Ernest* section and the glossary's Ernest part become `guide/style.md`, installed with the guide,
+  and `docs/style.md` keeps the repository's rules and points there; CLAUDE.md's owner table gains
+  the row, and the style test reads both.
+- **The libraries on the default load path** (feedback 120; principles 3 and 5). The toolchain's
+  own libraries' build root joins the default load path of `ern build`, `ern run`, `ern test` and
+  `ern shell`, as the standard library's does, so that no program asks where they are. §11.1 and
+  §11.2 first, then `ern_tree` and the runner, then a program built against `libs/markdown` with no
+  `--load-path`.
+- **`ok` as `Unit`** (feedback 123; principle 1). A foreign function declared `Unit` whose host
+  result is the atom `ok` answers `Unit`, one more comparison in the return check §7.4 states; a
+  representation decision, so E.0 and the log say so. §7.4 and §8.4 first, then the boundary.
+- **`Test.faults`** (feedback 124; principle 1, E.0's rules). E.24 gains a case that a call
+  faults, `Test.faults(run, cause)`, `Passed` where `run` faults with that cause and `Failed`
+  otherwise, and `ern test` writes no trace for a fault a test expected. E.24 and §11.2 first.
+- **The foreign call measured** (feedback 125; CLAUDE.md's *Design*, a multiple where a fraction
+  is promised). A bare `foreign fn` at two and a half times the host's call, measured piece by piece
+  in `make bench`'s fifth part as MVP 3.27 measures the monitor, and brought back to the plain form
+  that costs a fraction; what cannot be is stated in the log.
+- **Doc examples run by `ern test`** (feedback 127; principle 1). `ern test` runs a module's
+  `// =>` examples as cases, as Ernest's own test runs its libraries', so that a library's page is
+  held true by its own tests. §11.2 and §11.4 first.
 
 ## MVP 3.3 (the tour)
 
@@ -250,7 +278,9 @@ Road to 1.0, Ordered*).
   (MVP 4.2) can run a page as it stands; a `main` and `ern run` from the node's chapter on.
 - **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
-  one program grown across the five claims is the language's hardest test before 0.5.0.
+  one program grown across the five claims is the language's hardest test before 0.5.0. Among what
+  it decides is a call to many processes at once, feedback 5, which the log's *Kill Darlings* left
+  to the program the idiom cannot write well.
 
 ## MVP 3.9 (the review, and Ernest 0.5.0)
 

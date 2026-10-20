@@ -6,41 +6,18 @@ What writing Ernest has felt against the principles, and what a reader found tha
 2. **`receiving M` spreads up the chain.** A helper that starts a monitored process on another's behalf must declare that process's mailbox type, and so must every function up to the one whose mailbox it is. The same newcomer.
 3. **Addresses have no equality**, so a broker keeps two maps that must agree, name to address for delivery and `Process` to name for a `Down`, where one map keyed by the process would do. The same newcomer.
 4. **A receive guard may not call `Process.fromAddress`**, and a precondition is `if c then fault(...) else Unit`, since `if` has no form without `else`. The same newcomer, minor.
-5. **A call to many processes at once** is §4.4's `gathered`, thirty-five lines a use; a publication delivered by one call after another lets a slow subscriber hold the sender a deadline each time. The same newcomer.
-
-114. **A function type written as Gleam writes one** (2026-10-20, the programs written to try every fault's trace), `fn(Int) -> Int`, is refused with "`fn` is a reserved word, and names nothing", which does not name the type's form, `(Int) -> Int`. Principle 1.
-
-115. **The unit value written `()`** (2026-10-20, the same programs), as Gleam, OCaml and Haskell write it, is refused with "expected an expression instead of `)`", which does not name `Unit`. Principle 1.
-
-116. **A constructor of several fields matched by position** (2026-10-20, the same programs), `Down(_, _)`, is refused by the parser with "expected `)` instead of `,`", where the same shape in a declaration has "a constructor has exactly one positional field" and its help. Principle 1.
-
 117. **Where `Peer.compute` ran is invisible** (2026-10-20, MVP 3.27's measuring program for the push's experiment, `test/fixtures/bench/pick.ern`). The answer is `f`'s value alone, and `f` cannot name the node it runs on, since a node has no name for itself (§8.7). A program that would say or count where its work went writes its own pick over `Peer.utilizations()` and `Peer.computeAt`, or, as the measuring program does, calls a foreign function for the host's name of the node. Principle 3.
-
-
-119. **The rules an Ernest program is written by are not installed** (2026-10-20, `ernest-template`, whose `TEMPLATE.md` at https://github.com/joagre/ernest-template records its design). `docs/style.md`'s *Every language*, *Ernest* and the glossary's *Ernest* part bind every Ernest program, and an installation holds the report and the guide but not them, so the template carries a verbatim copy, refreshed by hand. Were the file split into the rules of Ernest programs and the rules of this repository, and the first installed under `share/doc/ernest/`, a program's `CLAUDE.md` would import it there. Principle 4.
-
-120. **A program cannot ask where Ernest's libraries are** (2026-10-20, the same). The template's `make lib` guesses from where `ern` is, `../lib/ernest/build/libs` and then `../build/libs`, which the installation and the checkout each lay out otherwise. A way for `ern` to say its library root, as the shell knows it, would make the guess a fact. Principle 3.
 
 121. **A program cannot know its own version** (2026-10-20, the same). `VERSION` names the release, and a program that prints `--version` keeps the same text in a `let`, which a test holds equal to the file, two owners of one fact. Principle 4.
 
 122. **A dependency is a directory, and nothing resolves one** (2026-10-20, the same). The template lists each dependency's release archive by its URL, unpacks it under `lib/`, builds it with the consumer's `ern` and puts `lib/*/build` on the load path, and a dependency's own dependencies are the consumer's to list, since the load path is all §11.2 has. Whether Ernest decides how a library is fetched, pinned and resolved is a decision of its own; until then the template follows the load path. Principle 2.
 
-123. **An Erlang function that answers `ok` cannot be declared to answer `Unit`** (2026-10-20, `ernest-epx`, the shims over epx). `Unit` crosses as the atom `'Unit'`, so `foreign fn flip(pixmap : Pixmap) : Unit = "epx:pixmap_flip/1"` faults at its return with `foreign return does not match Unit`, and a shim over such a function is declared at `Foreign.Term` and its answer dropped, `let _ = rawFlip(pixmap); Unit`, thirteen times in one module. Principle 1.
-
-124. **A test that a function faults is a process, a monitor and a receive** (2026-10-20, the same). `Test` has `equal` and nothing for a fault, so a library writes its own helper that spawns the call under a monitor and reads the cause from the `Down`, and `ern test` then reports each expected fault on standard error with its trace among the passes, nine in one run, as it reports one no test expected. Principle 1.
-
-125. **A foreign call costs about two and a half times the host's call** (2026-10-20, `ernest-epx`'s release review, its cold reader). A million calls of `epx:pixmap_put_pixel/4` through a bare `foreign fn` take 730 to 890 ms where the same loop in Erlang takes 340 ms, and the library's own checks add nothing to it, so the cost is the runtime's foreign call. What Ernest adds to a host operation costs a fraction of it (CLAUDE.md, *Design*); here it costs a multiple. Principle 3.
-
 126. **No labeled arguments** (2026-10-20, the same). `blendArea(source, target, alpha, sourceX, sourceY, targetX, targetY, width, height)` is nine positional arguments, seven of them `Int`, and a swapped pair type-checks; the cold reader wrote a call by counting against the signature and called it the hardest part of the program. Principle 1.
-
-127. **A doc block's `// =>` examples are not run outside Ernest's repository** (2026-10-20, the same, its code reader). `ern test` and `ern doc` accept a wrong value after `// =>`, and only Ernest's own `ern_doc_tests` runs its libraries' examples, so a library holds its page by hand. Principle 1.
 
 128. **A nullary constructor crosses as its quoted spelling**, `'Argb'` (2026-10-20, the same). Every enumeration epx names by atom needs a hand-written match each way, `formatAtom` and `operationAtom` spelling twenty-three atoms, and the inverse scans a hand-kept list of the constructors, since a sum type's constructors cannot be enumerated. Principle 2.
 
 129. **A record crosses as a tagged tuple**, `{'Color', A, R, G, B}` (2026-10-20, the same), so epx's `{A, R, G, B}` is converted on every call, in by a function and out by a match. Principle 2.
 
 130. **A foreign declaration has one result type** (2026-10-20, the same), so `epx:pixmap_info_/2`, whose result's type depends on its key, is declared twice, at `Int` and at `Foreign.Term`. Principle 1.
-
-131. **The default source root surprises** (2026-10-20, the same, its cold reader). `ern build src/probes.ern` run from the file's parent names the module `Src.Probes`, so `--main Probes.faultChannel` is refused; the root defaults to the working directory, which `ern build --help` does not say, though the error itself is clear. Principle 1.
 
 132. **A deadline at the call is a bare number** (2026-10-20, the same). In `Fs.write(path, bytes, 5000)` nothing at the call says the `5000` is milliseconds to wait; both examples carry it and a reader looks it up in E.17. Principle 3.
