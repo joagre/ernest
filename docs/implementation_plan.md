@@ -93,10 +93,16 @@ across a wire, as `docs/proposals/placement/push.md`'s section 5 asks.
 It runs when the user's machines are ready, and the release waits for it only where the machines
 come first.
 
-1. **The machines.** A node's configuration directory and key on each machine, made with `ern config`
-   and listed as peers across the machines, a script that starts and stops them, and `make bench`'s
-   node parts run between them, which take the machines' nodes where today they start their own on
-   this machine; the node on the separate LAN last, when it comes.
+1. **The machines.** Built 2026-10-20 (the log's *The Machines*): `test/machines/machines.txt` lists
+   the machines, `test/machines/nodes.sh` checks, pulls, starts and stops a bare node on each, and
+   `make bench-machines` runs the bench's two node parts across them, the measuring node here. The
+   first run found the laptop on Wi-Fi, 3.6 ms a round trip against 0.33 ms between the two wired
+   machines, so every number measured from it is the Wi-Fi's.
+
+   **Decided with the user:** a cable for
+   the laptop, so that the three are wired and the tooling stands; the fallback is the measuring node
+   on a wired machine, a small change the log names. The node on the separate LAN comes last, when it
+   comes.
 2. **The numbers.** The tables of 2026-10-13 again across machines, and the push's experiment of
    `docs/proposals/placement/push.md`'s section 5; the log's paragraph beside them; `docs/memory.md`
    where a measured fact changes; the deployment guide's numbers for two nodes and for code across
