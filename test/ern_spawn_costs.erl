@@ -31,7 +31,7 @@
 %% measures and asserts nothing, so it is not part of `make test-full`.
 -module(ern_spawn_costs).
 
--export([main/1, measured/2, timed/2, launched/1, table/3]).
+-export([main/1, measured/2, timed/2, launched/1, launched/2, table/3]).
 
 %% Each spawn and monitor loop's iterations, an operation loop's, the runs
 %% of each row, and the processes that wait at once for the spawn alone.
@@ -207,13 +207,18 @@ host_monitors(Count) ->
 %% run` starts one (report §11.2), its output dropped. The host's rows are
 %% measured outside a launch: a wait for a host's 'DOWN' in one would be a
 %% deadlock to the runtime, which counts no host monitor as a source.
--spec launched(fun((pos_integer()) -> {integer(), pos_integer()})) ->
-          fun((pos_integer()) -> {integer(), pos_integer()}).
+-spec launched(fun((pos_integer()) -> Measured)) -> fun((pos_integer()) -> Measured).
 launched(Measure) ->
+    launched(Measure, #{}).
+
+%% The same in a launch given Options beside, a test's clock among them
+%% (ern_rt:run_main/3).
+-spec launched(fun((pos_integer()) -> Measured), map()) -> fun((pos_integer()) -> Measured).
+launched(Measure, Options) ->
     fun(Count) ->
         Self = self(),
         ok = ern_rt:run_main(fun() -> Self ! {measured, Measure(Count)}, 'Unit' end,
-                             <<"Spawn.main">>, #{stdout => fun(_) -> ok end}),
+                             <<"Spawn.main">>, Options#{stdout => fun(_) -> ok end}),
         receive {measured, Measured} -> Measured end
     end.
 

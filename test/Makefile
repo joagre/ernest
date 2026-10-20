@@ -103,8 +103,8 @@ install: $(BEAMS) prepare
 # load among them, so that a change that breaks one is seen by `make
 # test-full`.
 measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
-	  $(EBIN)/ern_spawn_costs.beam $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_node_costs.beam \
-	  $(EBIN)/ern_code_costs.beam $(EBIN)/ern_pick_costs.beam machines
+	  $(EBIN)/ern_spawn_costs.beam $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam \
+	  $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam $(EBIN)/ern_pick_costs.beam machines
 	@mkdir -p build/load build/bench/probe build/service
 	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl \
 	  fixtures/bench/ern_pick_probe.erl
@@ -194,11 +194,12 @@ service: measured
 # then the pieces of a spawn, a spawnMonitored and a monitor,
 # ern_spawn_costs, their tables in build/bench/spawn.txt,
 # spawn_monitored.txt and monitor.txt, and of entering restarting,
-# ern_restarting_costs, in build/bench/restarting.txt. Not part of `make
-# test-full`, since it measures and asserts nothing.
+# ern_restarting_costs, in build/bench/restarting.txt; and four bursts
+# against their size, ern_burst_costs, in build/bench/burst.txt. Not part
+# of `make test-full`, since it measures and asserts nothing.
 bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam \
 	  $(EBIN)/ern_code_costs.beam $(EBIN)/ern_spawn_costs.beam \
-	  $(EBIN)/ern_restarting_costs.beam measured named
+	  $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam measured named
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt 2> build/bench/faults.txt \
 	  || { tail -20 build/bench/faults.txt >&2; exit 1; }
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
@@ -212,6 +213,8 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	  -eval 'ern_spawn_costs:main(["build/bench"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_restarting_costs:main(["build/bench"])'
+	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
+	  -eval 'ern_burst_costs:main(["build/bench"])'
 
 # The bench's two node parts across the machines of machines/machines.txt
 # (plan, MVP 3.27 item 1): ern_node_costs's store on the first machine

@@ -156,7 +156,11 @@ make bench        what each of a few operations costs in Ernest beside the same
                   and of a Down's delivery alone, in test/build/bench/spawn.txt,
                   spawn_monitored.txt and monitor.txt; then what each piece of entering
                   restarting adds to the host's try, with a hundred messages waiting too,
-                  in restarting.txt; not part of make test-full
+                  in restarting.txt; then four bursts at 1,000, 5,000 and 25,000, a
+                  process's monitors of processes that end, callers of one process that
+                  end, deliveries in flight to one process, started and delivered, and a
+                  process's alarms firing at once, each element's time beside the
+                  smallest burst's, in burst.txt; not part of make test-full
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk
