@@ -10,7 +10,7 @@
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
          erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2, text/1,
-         segment_text/1, text_segments/1, text_segment/1]).
+         segment_text/1, site_text/2, text_segments/1, text_segment/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -133,6 +133,15 @@ text(QualifiedName) ->
 segment_text(Segment) when is_atom(Segment) -> atom_to_list(Segment);
 segment_text(Segment) when is_binary(Segment) -> unicode:characters_to_list(Segment);
 segment_text(Segment) -> Segment.
+
+%% Report §6.9, Appendix E.21: a name and the line of the source it stands
+%% at, as a spawn site and a fault's frame write them, `Counter.worker:23`,
+%% and the name alone where no line is known.
+-spec site_text([atom() | binary() | string()], pos_integer() | none) -> binary().
+site_text(QualifiedName, none) ->
+    unicode:characters_to_binary(text(QualifiedName));
+site_text(QualifiedName, Line) ->
+    unicode:characters_to_binary([text(QualifiedName), $:, integer_to_list(Line)]).
 
 %% Report §8.7: a qualified name as a peer's frame writes it, each segment
 %% as text, which makes no atom where a peer sends it (text_segment/1).

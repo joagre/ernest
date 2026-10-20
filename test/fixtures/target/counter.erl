@@ -69,13 +69,15 @@
 %%
 %% Every receive takes first the restart a supervisor asks for (report
 %% §6.9), which arrives before every other message, and then the fault a
-%% foreign message that did not match left in its place (§8.4).
+%% foreign message that did not match, or a function on a message's way,
+%% left in its place (§8.4, §6.5), raised here, so that its trace holds
+%% this function where the fault was met here (§7.3).
 '$3'(Total) ->
     receive
         '$ern_restart' ->
             ern_rt:restart_now();
-        {'$ern_fault', Cause} ->
-            ern_rt:fault(Cause);
+        {'$ern_fault', Fault} ->
+            erlang:throw(Fault);
         {'Inc', Amount} ->
             '$3'(Total + Amount);
         {'Get', Reply} ->

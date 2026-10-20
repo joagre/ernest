@@ -20,7 +20,7 @@
 %% module (declared_type/4). The chunk records beside each form the lines
 %% of its source and its name, the locals' names left out, so that a
 %% definition shipped onward or loaded from its compiled form is compiled
-%% with them (recorded_source/2, §8.7, §11.1); and each reach a unit's
+%% with them (recorded_source/1, §8.7, §11.1); and each reach a unit's
 %% `'$code'/0` lists, computed from its forms (unit_reaches/2).
 %%
 %% A form is made in two steps. The walk writes each definition with a
@@ -33,7 +33,8 @@
 -module(ern_canonical).
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
-         interface/2, declared_type/4, stripped/1, recorded_source/2, lambdas/2, unit_reaches/2,
+         interface/2, declared_type/4, stripped/1, session_source/2, recorded_source/1, lambdas/2,
+         unit_reaches/2,
          scheme_arity/1, references/1, verified/2, is_verified/1, encode/1, read/1]).
 
 -export_type([canonical/0, reach/0, source/0]).
@@ -386,19 +387,32 @@ stripped([Head | Tail]) ->
 stripped(Term) ->
     Term.
 
+%% Report §11.2: a sourced form of an input of a shell's session with the
+%% lines of its source as the session counts them, Offset lines after those
+%% the build counted, the locals' names kept, so that the input's code, its
+%% spawn sites and a fault's trace in it name the session's lines.
+-spec session_source(term(), non_neg_integer()) -> term().
+session_source({'$at', {Line, Column, Name}, Node}, Offset) ->
+    {'$at', {Line + Offset, Column, Name}, session_source(Node, Offset)};
+session_source(Term, Offset) when is_tuple(Term) ->
+    list_to_tuple(session_source(tuple_to_list(Term), Offset));
+session_source([Head | Tail], Offset) ->
+    [session_source(Head, Offset) | session_source(Tail, Offset)];
+session_source(Term, _) ->
+    Term.
+
 %% Report §11.1, §8.7: a sourced form as the `.erc` records it and a code
-%% frame carries it: the lines of its source, Offset lines after those the
-%% build counted, for an input of a shell's session, whose lines its
-%% session counts (§11.2), and the locals' names left out, so that a node
-%% that reads it makes no atom of a name.
--spec recorded_source(term(), non_neg_integer()) -> term().
-recorded_source({'$at', {Line, Column, _}, Node}, Offset) ->
-    {'$at', {Line + Offset, Column, none}, recorded_source(Node, Offset)};
-recorded_source(Term, Offset) when is_tuple(Term) ->
-    list_to_tuple(recorded_source(tuple_to_list(Term), Offset));
-recorded_source([Head | Tail], Offset) ->
-    [recorded_source(Head, Offset) | recorded_source(Tail, Offset)];
-recorded_source(Term, _) ->
+%% frame carries it: the lines of its source, an input's as its session
+%% counts them (session_source/2), and the locals' names left out, so that
+%% a node that reads it makes no atom of a name.
+-spec recorded_source(term()) -> term().
+recorded_source({'$at', {Line, Column, _}, Node}) ->
+    {'$at', {Line, Column, none}, recorded_source(Node)};
+recorded_source(Term) when is_tuple(Term) ->
+    list_to_tuple(recorded_source(tuple_to_list(Term)));
+recorded_source([Head | Tail]) ->
+    [recorded_source(Head) | recorded_source(Tail)];
+recorded_source(Term) ->
     Term.
 
 close({'$own', QualifiedName}, Linking) ->

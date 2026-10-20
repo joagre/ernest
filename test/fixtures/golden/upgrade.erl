@@ -38,7 +38,7 @@
 '$3'(Total_7) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_12} -> ern_rt:fault(Cause_12);
+        {'$ern_fault', Fault_12} -> erlang:throw(Fault_12);
         {'Inc', Amount_8} -> '$3'(Total_7 + Amount_8);
         {'Get', Reply_9} ->
             ern_rt:answer(Reply_9, Total_7),
@@ -51,7 +51,7 @@
 '$4'(Total_13) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_18} -> ern_rt:fault(Cause_18);
+        {'$ern_fault', Fault_18} -> erlang:throw(Fault_18);
         {'Inc', Amount_14} -> '$4'(Total_13 + 2 * Amount_14);
         {'Get', Reply_15} ->
             ern_rt:answer(Reply_15, Total_13),

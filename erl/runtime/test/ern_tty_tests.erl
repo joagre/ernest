@@ -105,7 +105,7 @@ dead_subscriber_test_() ->
 
 dead_subscriber() ->
     Never = fun() -> receive after infinity -> eof end end,
-    ?assertEqual({fault, <<"deadlock">>},
+    ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(
                    fun() ->
                        Tty = ern_rt:system_process(terminal),
@@ -129,7 +129,7 @@ utf8_keys_test() ->
                              receive Key -> Self ! {key, Key} end
                          end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Cut}),
     ?assertEqual({'Key', 16#e9}, wait(key)),
-    ?assertEqual({fault, <<"the standard input is not UTF-8">>},
+    ?assertMatch({fault, <<"the standard input is not UTF-8">>, _},
                  ern_rt:run_main(fun() ->
                                      subscribe(ern_rt:system_process(terminal)),
                                      receive never -> ok end
@@ -161,7 +161,7 @@ not_a_terminal_test() ->
 %% for ever. It ran a program with its standard input closed until such an
 %% input came to refuse the subscription; the keys here end instead
 keys_at_end_of_input_test() ->
-    ?assertEqual({fault, <<"deadlock">>},
+    ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
                                      subscribe(ern_rt:system_process(terminal)),
                                      receive never -> ok end

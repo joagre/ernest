@@ -42,7 +42,8 @@
 %% site_namespace: the namespace its spawn sites name its declarations
 %% under, a reload's version's, `Counter$2` (§11.2);
 %% session_offset: false, or, for an input of the shell's, the lines before
-%% its first in its file, with which its spawn sites are written (§11.2);
+%% its first in its file, after which its definitions' lines are counted
+%% (ern_compile), its sites naming what it declares by its own name (§11.2);
 %% lacked: for a unit of an exchange, each function that faults naming
 %% what the node lacks, {Function, Arity, Text}, to which the link takes a
 %% reference beyond the spawned function's reach, a binding without its

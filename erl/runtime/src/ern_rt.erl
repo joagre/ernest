@@ -257,8 +257,9 @@ adapted_way({adapted, Function, Target, Maker, Launch}, Message) when node(Maker
                 Adapted -> adapted_way(Target, Adapted)
             catch
                 Class:Error:Stack ->
-                    {'Fault', Cause} = reason(fault_exit_reason(Class, Error, Stack)),
-                    {fault, process_of(Target), Cause}
+                    %% report §7.3: the trace is where the fault was met,
+                    %% here, though the target faults
+                    {fault, process_of(Target), fault_exit_reason(Class, Error, Stack)}
             end;
         false ->
             dropped
@@ -268,8 +269,8 @@ adapted_way(Address, Message) ->
 
 sent(dropped) ->
     ok;
-sent({fault, Pid, Cause}) ->
-    Pid ! {'$ern_fault', Cause};
+sent({fault, Pid, Fault}) ->
+    Pid ! {'$ern_fault', Fault};
 %% report §6.5, §8.7: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, where the process kept
 %% for the address and this node applies the function (kept/1)
@@ -557,8 +558,9 @@ waited_answer(Reply, Deadline, Check) ->
         {Reply, fault, Cause} -> fault(Cause);
         {'DOWN', Reply, process, _, _} -> closed(erlang:self()), 'None';
         '$ern_restart' -> '$ern_restart';
-        %% report §8.4: a foreign message's fault, taken at a call's wait
-        {'$ern_fault', Cause} -> fault(Cause)
+        %% report §8.4, §6.5: a foreign message's fault, or one met on a
+        %% message's way, taken at a call's wait
+        {'$ern_fault', Fault} -> throw(Fault)
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> 'None';
@@ -599,8 +601,9 @@ call_forever(Address, Request, Check) ->
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart;
-                     %% report §8.4: a foreign message's fault, taken there too
-                     {'$ern_fault', ForeignCause} -> {fault, ForeignCause}
+                     %% report §8.4, §6.5: a foreign message's fault, or one
+                     %% met on a message's way, taken there too
+                     {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
                  end
              after
                  settled(Reply)
@@ -608,6 +611,7 @@ call_forever(Address, Request, Check) ->
     case Answer of
         {answered, Answered} -> Answered;
         {fault, Cause} -> fault(Cause);
+        {thrown, Fault} -> throw(Fault);
         %% report §6.6, Appendix E.18: a socket or a listener the program
         %% closed ended as a function returns, and its caller learns why
         {ended, {ern, closed}} -> fault(<<"callee was closed">>);
@@ -710,10 +714,9 @@ compute(Node, Frame, Deadline) ->
     case Answer of
         {'Right', _} = Value -> Value;
         {'Left', _} = Failure -> Failure;
-        {faulted, Cause, <<>>} -> fault(Cause);
         {faulted, Cause, Trace} -> fault(Cause, Trace);
         {ended, Reason} -> {'Left', {'Other', ern_show:show(?REASON, Reason)}};
-        {fault, Cause} -> fault(Cause);
+        {thrown, Fault} -> throw(Fault);
         '$ern_restart' -> restart_now()
     end.
 
@@ -734,9 +737,9 @@ computed_answer(Alias, MonitorRef, Deadline) ->
         '$ern_restart' ->
             over(Alias),
             '$ern_restart';
-        {'$ern_fault', Cause} ->
+        {'$ern_fault', Fault} ->
             over(Alias),
-            {fault, Cause}
+            {thrown, Fault}
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 ->
@@ -845,8 +848,7 @@ reason(normal) -> 'Returned';
 reason({ern, closed}) -> 'Returned';
 reason({ern, killed}) -> 'Killed';
 reason({ern, program_end}) -> 'ProgramEnd';
-reason({ern, fault, Cause}) -> {'Fault', Cause};
-%% report §6.9, §11.2: the host's stack is the report's, never the cause's
+%% report §7.3, §11.2: the trace is the fault's report's, never the cause's
 reason({ern, fault, Cause, _Trace}) -> {'Fault', Cause};
 %% report §8.7: a compute's process dies of the fault it carried to its
 %% caller as any process dies of a fault
@@ -1149,7 +1151,7 @@ is_wait_over() ->
 deadlock() ->
     case ets:take(?LAUNCH, deadlock_victim) of
         [{_, Victim}] ->
-            exit(Victim, {ern, fault, <<"deadlock">>});
+            found_fault(Victim, <<"deadlock">>);
         [] ->
             {Runner, Launch} = persistent_term:get({?MODULE, runner}),
             Runner ! {deadlock, Launch}
@@ -1524,9 +1526,10 @@ termination(Address) ->
 %% that lives as long as the run; a process that restarts sends it its
 %% fault.
 report(Pid, Site, Peer, Fault, Restarted) ->
+    %% report §6.9: a process the host ended otherwise met no fault, and
+    %% its trace is empty
     {Cause, Trace} = case Fault of
                          {ern, fault, FaultCause, FaultTrace} -> {FaultCause, FaultTrace};
-                         {ern, fault, FaultCause} -> {FaultCause, <<>>};
                          _ -> {'Fault', Described} = reason(Fault), {Described, <<>>}
                      end,
     Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace, ern_peer:name(Peer)},
@@ -1587,10 +1590,7 @@ answered_compute({faulted, Fault}, Alias) ->
     is_program_ending(erlang:self()) andalso end_with_program(),
     case dropped_note(Alias) of
         true ->
-            {Cause, Trace} = case Fault of
-                                 {ern, fault, FaultCause} -> {FaultCause, <<>>};
-                                 {ern, fault, FaultCause, FaultTrace} -> {FaultCause, FaultTrace}
-                             end,
+            {ern, fault, Cause, Trace} = Fault,
             Alias ! {Alias, faulted, Cause, Trace},
             throw({ern, carried, Cause, Trace});
         false ->
@@ -1916,85 +1916,70 @@ run(Function) ->
         Class:Error:Stack -> exit(fault_exit_reason(Class, Error, Stack))
     end.
 
-%% Report §7.3, §7.4: what a host error is as an Ernest fault. A failure of
-%% the runtime is the host's class and reason, and carries the host's stack
-%% beside it for the report a person reads (§11.2).
+%% Report §7.3, §7.4: what a host error is as an Ernest fault, with its
+%% trace, the host's stack where it was met (Appendix E.21): a fault a
+%% process meets in its own code has the stack the raise kept, a throw of
+%% the prelude's `fault` and the runtime's among them, whose stack is the
+%% throw's; one raised with its trace, a foreign function's raise and a
+%% fault met on a message's way (§6.5), keeps it, and one a compute
+%% carried keeps the peer's (§8.7). A failure of the runtime is the host's
+%% class and reason.
 -spec fault_exit_reason(error | exit | throw, term(), list()) -> tuple().
-fault_exit_reason(error, badarith, _) -> {ern, fault, <<"division by zero">>};
-fault_exit_reason(throw, {ern, fault, Cause}, _) -> {ern, fault, Cause};
-fault_exit_reason(throw, {ern, fault, Cause, Trace}, _) -> {ern, fault, Cause, Trace};
-fault_exit_reason(throw, {ern, carried, Cause, Trace}, _) -> {ern, carried, Cause, Trace};
+fault_exit_reason(error, badarith, Stack) -> {ern, fault, <<"division by zero">>, trace(Stack)};
+fault_exit_reason(throw, {ern, fault, Cause}, Stack) -> {ern, fault, Cause, trace(Stack)};
+fault_exit_reason(throw, {ern, fault, _, _} = Fault, _) -> Fault;
+fault_exit_reason(throw, {ern, carried, _, _} = Carried, _) -> Carried;
 fault_exit_reason(Class, Error, Stack) ->
     {ern, fault, format("~p:~p", [Class, Error]), trace(Stack)}.
 
-%% Report §7.4, §9.6: a fault with the cause given, the prelude's `fault`
-%% and every fault the runtime raises.
+%% Report §7.4, §9.6: a fault with the cause given, every fault the
+%% runtime raises and the prelude's `fault` taken as a value, whose trace
+%% is the stack of the throw (fault_exit_reason/3); a call of `fault` the
+%% code raises in place as this does (ern_emitter:raised/1).
 -spec fault(binary()) -> no_return().
 fault(Cause) ->
     throw({ern, fault, Cause}).
 
-%% A fault with the host's stack beside its cause, a foreign function's
-%% raise (§7.4).
+%% A fault with the trace of where it was met beside its cause, a foreign
+%% function's raise (§7.4) and one a compute carried from a peer (§8.7).
 -spec fault(binary(), binary()) -> no_return().
 fault(Cause, Trace) ->
     throw({ern, fault, Cause, Trace}).
 
-%% Report §11.2: the host's stack as lines to print beneath a fault, the
-%% innermost first, each a function and where in its source it was. A
-%% unit's function, which the unit names by its position (§11.1), is shown by
-%% the name the unit's build gives its definition (ern_code:function_text/2),
-%% written as the host writes a function's name.
+%% Report §7.3, §8.6, §8.2: a fault the runtime gives a process from
+%% outside it, a deadlock, or the end a system process asks for, the
+%% process's end, its trace the process's stack where the runtime finds it
+%% waiting.
+found_fault(Pid, Cause) ->
+    Stack = case erlang:process_info(Pid, current_stacktrace) of
+                {current_stacktrace, Found} -> Found;
+                undefined -> []
+            end,
+    exit(Pid, {ern, fault, Cause, trace(Stack)}).
+
+%% Appendix E.21: a fault's trace, the innermost twelve frames of the
+%% host's stack, the innermost first, a frame a line. A frame of Ernest
+%% code is written as a spawn site is (§6.9), by the name the unit's sites
+%% write its function by (ern_code:function_text/2) and its line,
+%% `Counter.worker:23`; a frame of the host's by the function as the host
+%% names it and its line, `lists:nth/2:213`; either without a line where
+%% the host gives none. Report §11.2: the printer indents it.
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
-    unicode:characters_to_binary(
-      [io_lib:format("    ~p:~ts/~p~ts~n", [ErlangModule, function_shown(ErlangModule, Function),
-                                             arity(Arguments), place(Info)])
-       || {ErlangModule, Function, Arguments, Info} <- lists:sublist(Stack, 12)]).
+    unicode:characters_to_binary([[trace_line(Entry), $\n] || Entry <- lists:sublist(Stack, 12)]).
 
-function_shown(ErlangModule, Function) ->
+trace_line({ErlangModule, Function, Arguments, Info}) ->
+    Line = proplists:get_value(line, Info, none),
     case ern_code:function_text(ErlangModule, Function) of
-        none -> io_lib:format("~p", [Function]);
-        Text -> atom_written(Text)
+        none ->
+            Host = io_lib:format("~tw:~tw/~B", [ErlangModule, Function, arity(Arguments)]),
+            ern_namespace:site_text([Host], Line);
+        Name ->
+            ern_namespace:site_text([Name], Line)
     end.
-
-%% A name as the host writes an atom of it, quoted where it is no plain
-%% atom, without making the atom: a word of a lower-case letter followed by
-%% letters, digits, `_` and `@`, and no reserved word, is written as it is.
-atom_written([First | Rest] = Text) when First >= $a, First =< $z ->
-    Plain = lists:all(fun(Char) ->
-                              (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso Char =< $Z)
-                                  orelse (Char >= $0 andalso Char =< $9)
-                                  orelse Char =:= $_ orelse Char =:= $@
-                      end, Rest),
-    case Plain andalso not lists:member(Text, reserved_words()) of
-        true -> Text;
-        false -> quoted_atom(Text)
-    end;
-atom_written(Text) ->
-    quoted_atom(Text).
-
-quoted_atom(Text) ->
-    [$' | lists:append([case Char of
-                            $' -> "\\'";
-                            $\\ -> "\\\\";
-                            _ -> [Char]
-                        end || Char <- Text])] ++ "'".
-
-%% The host's reserved words, which it quotes as atoms.
-reserved_words() ->
-    ["after", "and", "andalso", "band", "begin", "bnot", "bor", "bsl", "bsr", "bxor", "case",
-     "catch", "cond", "div", "else", "end", "fun", "if", "let", "maybe", "not", "of", "or",
-     "orelse", "receive", "rem", "try", "when", "xor"].
 
 arity(Arguments) when is_list(Arguments) -> length(Arguments);
 arity(Arguments) -> Arguments.
-
-place(Info) ->
-    case {proplists:get_value(file, Info), proplists:get_value(line, Info)} of
-        {undefined, _} -> "";
-        {File, undefined} -> io_lib:format(" (~ts)", [File]);
-        {File, Line} -> io_lib:format(" (~ts:~B)", [File, Line])
-    end.
 
 %%
 %% Report §8.2, §9.7: system references
@@ -2891,10 +2876,10 @@ entry_end(EntryProcess, Launch) ->
                  {Other, _} -> {fault, format("~p", [Other])}
              end, Site};
         {deadlock, Launch} ->
-            exit(EntryProcess, {ern, fault, <<"deadlock">>}),
+            found_fault(EntryProcess, <<"deadlock">>),
             entry_end(EntryProcess, Launch);
         {fault, Launch, Cause} ->
-            exit(EntryProcess, {ern, fault, Cause}),
+            found_fault(EntryProcess, Cause),
             entry_end(EntryProcess, Launch);
         {exit, Launch, Status} ->
             {{exit, Status}, none};
@@ -3177,13 +3162,12 @@ restarts(F, Allowed, Times, Level) ->
                     restarts(F, Allowed, Recent, Level);
                 false ->
                     %% raised again as the fault it is, for run/1 to end the
-                    %% process with, its stack beside it where it had one
+                    %% process with, its trace beside it
                     throw(Fault)
             end
     end.
 
-%% A fault's cause, with or without the host's stack beside it.
-fault_cause({ern, fault, Cause}) -> Cause;
+%% A fault's cause, its trace beside it.
 fault_cause({ern, fault, Cause, _Trace}) -> Cause.
 
 %% Report §6.9: a restart begins a new run with nothing of the old. What

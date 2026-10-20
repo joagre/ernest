@@ -1105,8 +1105,8 @@ no_main_file(run) ->
 %% Report §11.2: every fault on standard error as it happens, a line each:
 %% the spawn site and the cause; after the cause, for a process a peer
 %% spawned, the peer, named as a node's line names it (§8.7), since the
-%% site is the spawner's; and beneath a failure of the runtime or a foreign
-%% function's raise the host's stack. It goes through standard error's
+%% site is the spawner's; and beneath it the fault's trace (§7.3,
+%% indented_trace/1). It goes through standard error's
 %% process, so that it keeps its place among what the program wrote there,
 %% and is flushed with it when the program ends. The runtime's own
 %% subscriber of Process.faults (Appendix E.21), given the peer's node or
@@ -1125,8 +1125,15 @@ report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace, _}, Peer, 
                 end,
     ern_rt:send(ern_rt:system_process(stderr),
                 iolist_to_binary([stamp(Stamped), Site, Faulted, ern_show:controls(Cause, line),
-                                  SpawnedBy, "\n",
-                                  ern_show:controls(iolist_to_binary(Trace), lines)])).
+                                  SpawnedBy, "\n", indented_trace(Trace)])).
+
+%% Report §11.2, Appendix E.21: a fault's trace as it is printed beneath
+%% the fault's line, a frame a line, each indented by four spaces, a
+%% control character written as its escape.
+-spec indented_trace(binary()) -> iodata().
+indented_trace(Trace) ->
+    [["    ", ern_show:controls(Frame, line), "\n"]
+     || Frame <- binary:split(Trace, <<"\n">>, [global, trim_all])].
 
 %% Report §11.2, §8.7: what a line on standard error begins with, a fault's
 %% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
@@ -1298,28 +1305,28 @@ report_outcome(_ErrorDevice, _Fault) -> 1.
 %% standard input gave it, which ends the shell and is said as its end,
 %% not as an input's fault (§11.8). Every such cause is the standard
 %% input's, `the standard input is not UTF-8`.
-report_shell_outcome(ErrorDevice, {fault, Cause}) ->
+report_shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
     case ern_rt:by_input(Cause) of
         true ->
             <<"the ", Input/binary>> = Cause,
             io:format(ErrorDevice, "the shell ends: its ~ts~n", [ern_show:controls(Input, line)]),
             1;
         false ->
-            io:format(ErrorDevice, "fault: ~ts~n", [ern_show:controls(Cause, line)]),
+            io:format(ErrorDevice, "fault: ~ts~n~ts",
+                      [ern_show:controls(Cause, line), indented_trace(Trace)]),
             70
     end;
+%% report §6.9: a shell the host ended otherwise met no fault, and has no
+%% trace
+report_shell_outcome(ErrorDevice, {fault, Cause}) ->
+    report_shell_outcome(ErrorDevice, {fault, Cause, <<>>});
 %% report §8.5, §11.2: a binding that faulted before the shell began
-report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause}) ->
-    io:format(ErrorDevice, "~ts faulted: ~ts~n", [Site, ern_show:controls(Cause, line)]),
-    1;
 report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     io:format(ErrorDevice, "~ts faulted: ~ts~n~ts",
-              [Site, ern_show:controls(Cause, line), ern_show:controls(Trace, lines)]),
+              [Site, ern_show:controls(Cause, line), indented_trace(Trace)]),
     1;
-report_shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
-    io:format(ErrorDevice, "fault: ~ts~n~ts",
-              [ern_show:controls(Cause, line), ern_show:controls(Trace, lines)]),
-    70;
+report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause}) ->
+    report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, <<>>});
 report_shell_outcome(ErrorDevice, Other) -> report_outcome(ErrorDevice, Other).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies

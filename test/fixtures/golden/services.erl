@@ -20,14 +20,16 @@
 '$7'(Stock_1) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_8} -> ern_rt:fault(Cause_8);
+        {'$ern_fault', Fault_8} -> erlang:throw(Fault_8);
         {'Change', Key_2, By_3, Reply_4} ->
             Held_5 = '$18'(Stock_1, Key_2),
             case Held_5 + By_3 < 0 of
                 true ->
-                    ern_rt:fault(<<Key_2/binary, ": cannot take ",
-                                   (ern@int:'$24'(-By_3))/binary, " of ",
-                                   (ern@int:'$24'(Held_5))/binary>>);
+                    erlang:throw({ern,
+                                  fault,
+                                  <<Key_2/binary, ": cannot take ",
+                                    (ern@int:'$24'(-By_3))/binary, " of ",
+                                    (ern@int:'$24'(Held_5))/binary>>});
                 false ->
                     ern_rt:answer(Reply_4, Held_5 + By_3),
                     '$7'(ern@map:'$4'(Stock_1, Key_2, Held_5 + By_3))
@@ -44,7 +46,7 @@
 '$9'(Next_9) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_11} -> ern_rt:fault(Cause_11);
+        {'$ern_fault', Fault_11} -> erlang:throw(Fault_11);
         {'NextId', Reply_10} ->
             ern_rt:answer(Reply_10, Next_9),
             '$9'(Next_9 + 1)
@@ -57,7 +59,7 @@
 '$11'(Entries_12) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_15} -> ern_rt:fault(Cause_15);
+        {'$ern_fault', Fault_15} -> erlang:throw(Fault_15);
         {'Record', Entry_13} ->
             '$11'(ern@list:'$1'(Entries_12, [Entry_13]));
         {'Entries', Reply_14} ->

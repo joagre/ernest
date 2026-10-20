@@ -48,7 +48,7 @@ stdin_failure_test() ->
           end,
     Self = self(),
     Quiet = #{stdout => fun(_) -> ok end},
-    ?assertEqual({fault, <<"the standard input could not be read: eio">>},
+    ?assertMatch({fault, <<"the standard input could not be read: eio">>, _},
                  ern_rt:run_main(Ask, <<"main">>, Quiet#{stdin => fun() -> {error, eio} end})),
     ?assertEqual(ok, ern_rt:run_main(fun() -> Self ! {line, Ask()} end, <<"main">>,
                                      Quiet#{stdin => fun() -> "\n" end})),
@@ -189,7 +189,9 @@ end_takes_late_spawns() ->
 %% FaultReport, a restart among them, and the runtime's reporter as it
 %% happens; a second subscription replaces the first; a kill is no fault;
 %% the report of a process no peer spawned names no peer, a regression
-%% test of `peer`, written after the code (finding N12)
+%% test of `peer`, written after the code (finding N12); report §7.3: the
+%% report of a division by zero carries its trace, the host's division
+%% first, a regression test written after the code, which held it empty
 fault_reports_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -208,7 +210,8 @@ fault_reports_test() ->
                Reports = [receive {report, First} -> First end,
                           receive {report, Second} -> Second end],
                Self ! {reports, lists:sort([{Site, Cause, Restarted}
-                                            || {'FaultReport', _, Site, Cause, Restarted, <<>>,
+                                            || {'FaultReport', _, Site, Cause, Restarted,
+                                                <<"erlang:'div'/2\n", _/binary>>,
                                                 'None'} <- Reports])},
                %% every report started is delivered, so one to the first
                %% subscription would be in the mailbox
@@ -269,7 +272,7 @@ call_leaves_nothing_test() ->
 %% does not keep a deadlock from being found. A regression test: the
 %% detector read a dead one as busy, and the program waited for ever
 dead_system_process_test() ->
-    ?assertEqual({fault, <<"deadlock">>},
+    ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
                                      exit(ern_rt:system_process(clock), kill),
                                      receive never -> ok end
@@ -472,7 +475,8 @@ deadlock_after_a_wait() ->
     Quiet = #{stdout => fun(_) -> ok end},
     Elapsed = fun(Entry) ->
                   Start = erlang:monotonic_time(millisecond),
-                  ?assertEqual({fault, <<"deadlock">>}, ern_rt:run_main(Entry, <<"main">>, Quiet)),
+                  ?assertMatch({fault, <<"deadlock">>, _},
+                               ern_rt:run_main(Entry, <<"main">>, Quiet)),
                   erlang:monotonic_time(millisecond) - Start
               end,
     AtOnce = Elapsed(fun() -> receive never -> ok end end),
@@ -490,12 +494,14 @@ deadlock_after_a_wait() ->
 %% timed receive, clock alarm, or foreign call pending, is a deadlock, the
 %% entry process's fault `deadlock` (§7.4); each
 %% of those is a source that can still deliver, so the detector, looking
-%% while one is pending, finds no deadlock
+%% while one is pending, finds no deadlock. Report §7.3: the deadlock's
+%% trace is the entry process's stack where it waits, a regression test
+%% written after the code, where the fault had none
 deadlock_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
-    ?assertEqual({fault, <<"deadlock">>},
+    ?assertMatch({fault, <<"deadlock">>, <<"ern_rt_tests:'-deadlock_test/0-fun-", _/binary>>},
                  ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
-    ?assertEqual({fault, <<"deadlock">>},
+    ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
                                      _ = ern_rt:spawn(fun() -> receive x -> ok end end,
                                                       <<"s">>),
@@ -687,13 +693,13 @@ gated(Function) ->
     fun() -> receive go -> Function() end end.
 
 %% report §7.3, §6.9, §11.2: a failure of the runtime is the host's class
-%% and reason, the entry process's fault carries the host's stack beside
-%% it, and a monitor's Down carries the text alone. A regression test: the
-%% stack was dropped.
+%% and reason, the entry process's fault carries its trace beside it, the
+%% innermost frame first, and a monitor's Down carries the text alone. A
+%% regression test: the stack was dropped.
 runtime_failure_test() ->
     Self = self(),
     Bad = fun() -> binary_to_integer(atom_to_binary(zero_text())) end,
-    ?assertMatch({fault, <<"error:badarg">>, <<"    erlang:binary_to_integer/1", _/binary>>},
+    ?assertMatch({fault, <<"error:badarg">>, <<"erlang:binary_to_integer/1\n", _/binary>>},
                  ern_rt:run_main(Bad, <<"main">>, #{stdout => fun(_) -> ok end})),
     ok = ern_rt:run_main(
            fun() ->
@@ -759,7 +765,7 @@ adapted_test() ->
 
 %% report §8.6: main's fault is reported; other processes get ProgramEnd
 main_fault_test() ->
-    ?assertEqual({fault, <<"division by zero">>},
+    ?assertMatch({fault, <<"division by zero">>, _},
                  ern_rt:run_main(fun() -> 1 div zero() end, <<"main">>,
                                  #{stdout => fun(_) -> ok end})).
 
@@ -797,9 +803,11 @@ clock_now_reads_the_host() ->
     ?assert(is_integer(Now) andalso abs(Now - erlang:system_time(millisecond)) < 1000).
 
 %% report §8.4: a process's end is a host term, since foreign code may
-%% observe it: normal, {ern, fault, Text}, {ern, fault, Text, Trace} for a
-%% failure of the runtime, {ern, killed}, {ern, program_end}; a socket's
-%% {ern, closed} is ern_tcp_tests'
+%% observe it: normal, {ern, fault, Text, Trace} for every fault, a cause of
+%% §7.4 and a failure of the runtime alike (§7.3), {ern, killed},
+%% {ern, program_end}; a socket's {ern, closed} is ern_tcp_tests'. The
+%% division's term is a regression test of the one fault term, written
+%% after the code, where it had no trace
 host_exit_reason_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -826,7 +834,8 @@ host_exit_reason_test() ->
                receive {'DOWN', _, process, Failed, FailedReason} -> Self ! {r4, FailedReason} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(normal, wait(r1)),
-    ?assertEqual({ern, fault, <<"division by zero">>}, wait(r2)),
+    ?assertMatch({ern, fault, <<"division by zero">>, <<"erlang:'div'/2\n", _/binary>>},
+                 wait(r2)),
     ?assertEqual({ern, killed}, wait(r3)),
     ?assertMatch({ern, fault, <<"error:boom">>, Trace} when is_binary(Trace), wait(r4)),
     %% a process still alive when main returns ends with the program
@@ -852,8 +861,10 @@ host_exit_reason_test() ->
 
 %% Appendix E.21, report §10: a fault's trace is the innermost twelve
 %% frames of the host's stack, which keeps 64 from the runtime's start
-%% (E.28), eight unless told. A regression test of a defect MVP 3.2's
-%% item 6 found, a trace of eight lines under a deeper stack
+%% (E.28), eight unless told, the innermost first, a frame of the host's
+%% the function as the host names it and its line where it gives one. A
+%% regression test of a defect MVP 3.2's item 6 found, a trace of eight
+%% lines under a deeper stack
 trace_twelve_frames_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -865,7 +876,13 @@ trace_twelve_frames_test() ->
                receive {'DOWN', _, process, Failed, Reason} -> Self ! {trace, Reason} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {ern, fault, <<"error:badarg">>, Trace} = wait(trace),
-    ?assertEqual(12, length(binary:split(Trace, <<"\n">>, [global, trim]))).
+    Frames = binary:split(Trace, <<"\n">>, [global, trim]),
+    ?assertEqual(12, length(Frames)),
+    %% the host's raise has no line; each frame under it is this module's
+    %% with its line
+    ?assertEqual(<<"erlang:binary_to_integer/1">>, hd(Frames)),
+    ?assertMatch([<<"ern_rt_tests:nested_again/2:", _/binary>>,
+                  <<"ern_rt_tests:nested/2:", _/binary>> | _], tl(Frames)).
 
 %% Twice N calls deep, each returning to another function than the last,
 %% so that the host keeps each frame, and then a raise of a function the
@@ -1028,7 +1045,7 @@ adapted_fault_restarts_test() ->
                Run = fun() ->
                          ern_rt:send(Sender, run),
                          receive
-                             {'$ern_fault', Cause} -> ern_rt:fault(Cause);
+                             {'$ern_fault', Fault} -> erlang:throw(Fault);
                              {took, Taken} -> ern_rt:send(Sender, {took, Taken})
                          end
                      end,
@@ -1149,7 +1166,7 @@ own_processes_killed_test() ->
                     receive never -> ok end
                 end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({[true, true], {'Down', _, 'Returned', <<"Main.main:9">>}}, wait(killed)),
-    ?assertEqual({fault, <<"deadlock">>}, Outcome).
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
 
 %% report §6.5, §6.9, §8.6, §8.7, Appendix E.15: the runtime's own processes
 %% whose functions still run as the program ends, a monitor's wrap's
@@ -1409,7 +1426,7 @@ alarm_after_its_process_ended() ->
                     receive {'DOWN', MonitorRef, process, Setter, _} -> ok end,
                     receive never -> ok end
                 end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({fault, <<"deadlock">>}, Outcome),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome),
     ?assertEqual(none, receive ran -> ran after 0 -> none end).
 
 %% report §8.6, §11.2: a subscriber's delivery of the end's word killed
@@ -1581,10 +1598,10 @@ zero() ->
     list_to_integer("0").
 
 %% A wait for nothing, as the compiler writes a receive: a fault that took
-%% a message's place is taken first (report §8.4).
+%% a message's place is taken first, and raised here (report §8.4, §7.3).
 waiting() ->
     receive
-        {'$ern_fault', Cause} -> ern_rt:fault(Cause);
+        {'$ern_fault', Fault} -> erlang:throw(Fault);
         never -> ok
     end.
 

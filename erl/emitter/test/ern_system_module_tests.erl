@@ -18,7 +18,7 @@ terminal_is_lines_or_keys_test() ->
         "    let _ = Terminal.subscribe(Pressed);\n"
         "    receive { Pressed(_) -> Unit }\n"
         "}\n"),
-    ?assertEqual({fault, <<"the terminal is already read as lines">>}, Result1).
+    ?assertMatch({fault, <<"the terminal is already read as lines">>, _}, Result1).
 
 %% report §8.2, §7.4: a claim of the terminal the other way faults the
 %% process that makes it, and the first claim stands: a worker that
@@ -326,13 +326,13 @@ os_exit_test() ->
                      "    let _ = spawn(fn() = Os.exit(5));\n"
                      "    receive { _ -> Unit }\n"
                      "}\n")),
-    ?assertEqual({{fault, <<"an exit status is from 0 to 255">>}, <<>>},
+    ?assertMatch({{fault, <<"an exit status is from 0 to 255">>, _}, <<>>},
                  ern_emitter_tests:run("export fn main() : Unit = Os.exit(256)\n")).
 
 %% report §11.2: where Os.exit faults its caller, as in the shell and under
 %% `ern test`, it ends only the process that calls it
 os_exit_faults_where_asked_test() ->
-    ?assertEqual({{fault, <<"exited with status 2">>}, <<>>},
+    ?assertMatch({{fault, <<"exited with status 2">>, _}, <<>>},
                  ern_emitter_tests:run(
                      ['M'], "export fn main() : Unit = Os.exit(2)\n",
                      #{exit => fault})).

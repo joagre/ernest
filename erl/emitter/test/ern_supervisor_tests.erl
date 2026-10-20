@@ -167,7 +167,7 @@ call_ends_at_asked_restart_test() ->
         "    let _ = Address.callForever(b, fn(r) = Slow(reply = r, trigger = trigger));\n"
         "    Io.println(\"answered\")\n"
         "}\n"),
-    ?assertEqual({fault, <<"callee was restarted">>}, Result).
+    ?assertMatch({fault, <<"callee was restarted">>, _}, Result).
 
 %% Appendix E.22: past its limit a group faults; at the root it dies, and
 %% its watcher kills its children
@@ -316,7 +316,7 @@ child_of_ended_supervisor_test() ->
         "    let c = Supervisor.child(sup, fn() : Unit receiving Seen = Unit);\n"
         "    c()\n"
         "}\n"),
-    ?assertEqual({fault, <<"the supervisor has ended">>}, Result).
+    ?assertMatch({fault, <<"the supervisor has ended">>, _}, Result).
 
 %% Appendix E.22: a child's function run where a restarting function already
 %% runs in its process faults, inside another child's as inside a plain

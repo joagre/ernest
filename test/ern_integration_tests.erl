@@ -123,7 +123,7 @@ services_test_() ->
 services() ->
     0 = build(?BUILD ++ "../examples/services.ern"),
     {0, Output} = sh("../bin/ern run build/services.erc < fixtures/input/services.in"),
-    ?assertEqual(expected("services"), unstamped(lines(Output))).
+    ?assertEqual(expected("services"), untraced(unstamped(lines(Output)))).
 
 %% report §3.5, §4.9, §5.6, Appendix E.3, E.26: word_count counts the words
 %% of the file its command line names in both maps, the ordered map's
@@ -604,7 +604,7 @@ stdin() ->
                     ++ ErrorFile)),
     {ok, Said} = file:read_file(ErrorFile),
     ?assertEqual([<<"Lines.main faulted: the standard input is not UTF-8">>],
-                 unstamped(lines(Said))),
+                 untraced(unstamped(lines(Said)))),
     ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
                  Launch("head\\n\\377\\303\\251tail\\n", "stream")),
     %% a read does not wait for more than has arrived: the second byte is
@@ -975,9 +975,9 @@ closed_stream() ->
     ?assertEqual({0, <<>>}, sh(Ern ++ " --version >/dev/null")).
 
 %% report §11.2: a fault line writes a control character of the cause as
-%% its escape, so that a fault is one line. A regression test: a cause's
-%% line feed wrote a second line, which forged another fault, and its
-%% escape reached the terminal as itself
+%% its escape, so that a fault is one line, its trace beneath it. A
+%% regression test: a cause's line feed wrote a second line, which forged
+%% another fault, and its escape reached the terminal as itself
 fault_line_escaped_test_() ->
     {timeout, 60, fun fault_line_escaped/0}.
 
@@ -993,12 +993,15 @@ fault_line_escaped() ->
     {ok, Text} = file:read_file(ErrorFile),
     ?assertMatch({_, _}, binary:match(Text, <<"Forged.main faulted: a\\u{1B}[31m\\nX.main"
                                               " faulted: forged\n">>)),
-    ?assertEqual(1, length(binary:matches(Text, <<"\n">>))).
+    ?assertEqual(1, length(untraced(binary:split(Text, <<"\n">>, [global, trim])))).
 
 %% report §11.2: where standard error is a file, a fault line begins with
 %% the time, in UTC as RFC 3339 writes it; where it is a service manager's
 %% journal, as JOURNAL_STREAM names it, it does not, and a terminal's is
-%% ern_terminal_tests' to show. Written with the code.
+%% ern_terminal_tests' to show. Written with the code. Report §7.3, §11.2:
+%% beneath the line its trace, a frame a line, indented by four spaces and
+%% not stamped, a regression test written after the code, where a cause of
+%% §7.4 had none
 stamped_test_() ->
     {timeout, 60, fun stamped/0}.
 
@@ -1017,12 +1020,14 @@ stamped() ->
     {ok, Stamped} = file:read_file(ErrorFile),
     ?assertMatch({match, _}, re:run(Stamped, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
                                              "[0-9]{2}\\.[0-9]{3}Z Faulty\\.main faulted: "
-                                             "division by zero\n$")),
+                                             "division by zero\n    erlang:'div'/2\n"
+                                             "    Faulty\\.main:3\n(    [^\n]*\n)*$")),
     ok = file:write_file(ErrorFile, <<>>),
     {ok, #file_info{major_device = Device, inode = Inode}} = file:read_file_info(ErrorFile),
     {1, _} = sh("env JOURNAL_STREAM=" ++ integer_to_list(Device) ++ ":" ++ integer_to_list(Inode)
                 ++ " ../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ ErrorFile),
-    ?assertEqual({ok, <<"Faulty.main faulted: division by zero\n">>}, file:read_file(ErrorFile)).
+    ?assertMatch({ok, <<"Faulty.main faulted: division by zero\n    erlang:'div'/2\n"
+                        "    Faulty.main:3\n", _/binary>>}, file:read_file(ErrorFile)).
 
 %% report §8.6, §11.2: the host's termination and hangup end `ern run` by the
 %% signal itself once its output is flushed, so that the process that started
@@ -1194,7 +1199,7 @@ fault_before_its_end() ->
           ?assertEqual([<<"the end waits for 1 subscriber: Faulty.main:14">>,
                         <<"Faulty.main:14 faulted: division by zero">>,
                         <<"the subscriber Faulty.main:14 ended without answering">>],
-                       unstamped_lines(Output))
+                       untraced(unstamped_lines(Output)))
       end, lists:seq(1, 5)).
 
 %% report §8.6, §6.9, §11.2, Appendix E.23: a subscriber that faults when
@@ -1257,7 +1262,7 @@ restarted_subscriber() ->
     ?assertEqual({0, <<"told again\n">>},
                  sh("../bin/ern run " ++ Dir ++ "/restarted.erc 2> " ++ ErrorFile)),
     {ok, Said} = file:read_file(ErrorFile),
-    [Waits, Faulted, Restarted, Too | Answers] = unstamped_lines(Said),
+    [Waits, Faulted, Restarted, Too | Answers] = untraced(unstamped_lines(Said)),
     ?assertEqual({<<"the end waits for 2 subscribers: Restarted.main:27, Restarted.main:29">>,
                   <<"Restarted.main:29 faulted, restarted: division by zero">>,
                   <<"the subscriber Restarted.main:29 restarted without answering">>,
@@ -1287,7 +1292,7 @@ fault_while_the_end_waits() ->
     ?assertEqual([<<"the end waits for 1 subscriber: Waited.started:16">>,
                   <<"Waited.started:15 faulted: division by zero">>,
                   <<"the subscriber Waited.started:16 answered">>],
-                 unstamped_lines(Said)).
+                 untraced(unstamped_lines(Said))).
 
 %% report §8.6, §11.2: as above where a termination began the end, main a
 %% subscriber too, which answers and returns; the keeper has the worker
@@ -1319,7 +1324,7 @@ fault_while_a_termination_waits() ->
     {ok, Said} = file:read_file(ErrorFile),
     Faulted = <<"Waited.started:15 faulted: division by zero">>,
     KeeperAnswered = <<"the subscriber Waited.started:16 answered">>,
-    [Waits | Lines] = unstamped_lines(Said),
+    [Waits | Lines] = untraced(unstamped_lines(Said)),
     ?assertEqual(<<"the end waits for 2 subscribers: Waited.main, Waited.started:16">>, Waits),
     ?assertEqual(lists:sort([<<"the subscriber Waited.main answered">>, Faulted, KeeperAnswered]),
                  lists:sort(Lines)),
@@ -1487,7 +1492,7 @@ private_mailbox_exposed() ->
     ?assertEqual(lists:sort([<<"added 5">>,
                              <<"Exposed.main:12 faulted: message does not match Plain.Msg">>,
                              <<"Fault(\"message does not match Plain.Msg\")">>]),
-                 unstamped(lines(Output))).
+                 untraced(unstamped(lines(Output)))).
 
 %% report §3.11, §4.2, §8.7: `Peer.spawn` of a function whose mailbox type
 %% another module keeps private compiles, the type known whole; the program
@@ -1613,6 +1618,15 @@ expected(Name) ->
 
 lines(Bytes) ->
     lists:sort(binary:split(Bytes, <<"\n">>, [global, trim])).
+
+%% Report §11.2: standard error's lines without the trace beneath each
+%% fault's line, its frames each indented by four spaces, whose lines name
+%% the runtime's; stamped_test_ reads the trace itself.
+untraced(Lines) ->
+    [Line || Line <- Lines, not is_frame(Line)].
+
+is_frame(<<"    ", _/binary>>) -> true;
+is_frame(_) -> false.
 
 %% Report §11.2: `ern run`'s fault lines as a terminal shows them, without
 %% the time a line begins with where standard error is a file or a pipe,

@@ -2035,7 +2035,11 @@ error_names_file_from_cwd_test() ->
     end.
 
 %% report §8.6, §7.4: a fault in main is reported on stderr with its
-%% cause, status 1
+%% cause, status 1; report §7.3, §11.2, Appendix E.21: beneath the line its
+%% trace, a frame a line indented by four spaces, the innermost first, the
+%% host's division and then main's frame by its name and its line. A
+%% regression test of the trace, written after the code, where a cause of
+%% §7.4 had none
 fault_test() ->
     Dir = tmp(),
     File = write(Dir, "boom.ern",
@@ -2045,7 +2049,19 @@ fault_test() ->
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "boom.erc")])),
-    ?assertEqual(<<"Boom.main faulted: division by zero\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertMatch([<<"Boom.main faulted: division by zero">>, <<"    erlang:'div'/2">>,
+                  <<"    Boom.main:3">>, <<"    ern_rt:run/1:", _/binary>>, <<>>],
+                 binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global])).
+
+%% What was written, without the trace beneath each fault's line, its
+%% frames each indented by four spaces (report §11.2), which fault_test
+%% reads.
+untraced(Written) ->
+    Lines = binary:split(iolist_to_binary(Written), <<"\n">>, [global]),
+    iolist_to_binary(lists:join(<<"\n">>, [Line || Line <- Lines, not is_frame(Line)])).
+
+is_frame(<<"    ", _/binary>>) -> true;
+is_frame(_) -> false.
 
 %% report §11.2, §6.9: `ern run` reports every fault of every process on
 %% standard error as it happens, a worker's and a restart's among them,
@@ -2068,14 +2084,13 @@ worker_faults_test() ->
     %% writes, which nothing orders between them
     ?assertEqual(lists:sort([<<"Workers.main:4 faulted, restarted: division by zero">>,
                              <<"Workers.main:4 faulted: division by zero">>, <<"done">>]),
-                 lists:sort(binary:split(iolist_to_binary(?capturedOutput), <<"\n">>,
+                 lists:sort(binary:split(untraced(?capturedOutput), <<"\n">>,
                                          [global, trim]))).
 
 %% report §11.2, §7.3, §7.4: beneath a foreign function's raise the fault
-%% line has the host's stack, a function to a line, naming the function
-%% that raised; beneath a §7.4 cause, as above, it has nothing. A
-%% regression test: the stack was dropped, and a failure of the runtime
-%% named no module and no line.
+%% line has its trace, as every fault's has, naming first the function
+%% that raised, as the host names it. A regression test: the stack was
+%% dropped, and a failure of the runtime named no module and no line.
 fault_stack_test() ->
     Dir = tmp(),
     File = write(Dir, "raise.ern",
@@ -3020,7 +3035,7 @@ init_only_dependencies_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"hello, world\nLib.Boom.boom:2 faulted: division by zero\n">>,
-                 iolist_to_binary(?capturedOutput)).
+                 untraced(?capturedOutput)).
 
 %% report §7.3, §8.6, §11.2: a faulting main is status 1
 fault_status_test() ->

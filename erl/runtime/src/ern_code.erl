@@ -232,6 +232,8 @@ rows(Unit, _, {type, Hash}) ->
 rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
     [{{foreign, texts(QualifiedName)}, Unit,
       {foreign, HostModule, HostFunction, Function, Arity}}];
+rows(_, _, {sites, _}) ->
+    [];
 rows(_, _, {calls, _}) ->
     [].
 
@@ -541,68 +543,93 @@ held_function({binding, _, {_, Function}}) -> [{Function, 0}];
 held_function({foreign, _, _, Function, Arity}) -> [{Function, Arity}];
 held_function(_) -> [].
 
-%% Report §11.2: a function of a loaded Unit as a fault's trace and the
-%% shell show it, by the name the unit's build gives the definition that
-%% holds it, read back from its '$code'/0: a definition's or a foreign
-%% function's function, '$3', by its own name, `area` or `Vec.+`; a local
-%% function lifted to its own function, '$3.2', by its definition's and its
-%% position, `area$2`; the entry a spawn on a peer starts a lambda or a
-%% local function by, '$3.2.entry', `area$spawn$2`; and a fun the host
-%% names after the function it is written in, `-'$3'/1-fun-0-`, after that
-%% function's name, `-area/1-fun-0-`. A unit an exchange made shows each
-%% by the name its code frame gave it, as text, the sender's, after no
-%% module's namespace, `Counter.worker` (§8.7). None for any other function
-%% and for a module that is no unit, which keep the host's names.
+%% Report Appendix E.21, §11.2: a function of a loaded Unit as a fault's
+%% trace names it, by the name the unit's spawn sites write the
+%% declaration that holds it (§6.9), read back from its '$code'/0. A
+%% definition's or a foreign function's function, '$3', is named by its
+%% qualified name under the namespace the unit's sites name its
+%% declarations under, `Geo.area`, a member's `Geo.Vec.+`, a reload's
+%% version's `Counter$2.worker`, and in a shell's session by its own name;
+%% a definition its recorded forms name otherwise, an input's expression
+%% among them, `input 3`, by that name where the node keeps them. A local
+%% function lifted to its own function, '$3.2', and the entry a spawn on a
+%% peer starts a lambda or a local function by, '$3.2.entry', are named by
+%% their definition's name and their position (§11.1), `Geo.area$2`. A fun
+%% the host names after the function it is written in, `-'$3'/1-fun-0-`,
+%% is named as that function is, `Geo.area`, since the host's numbering of
+%% its funs is no position of Appendix H's. A unit an exchange made names
+%% each by the name its code frame gave it, as text, the sender's,
+%% `Counter.worker` (§8.7). None for any other function and for a module
+%% that is no unit, which keep the host's names.
 -spec function_text(module(), atom()) -> string() | none.
 function_text(Unit, Function) ->
     case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
-        true -> named_function(atom_to_list(Function), Unit:'$code'());
+        true -> named_function(atom_to_list(Function), Unit, Unit:'$code'());
         false -> none
     end.
 
-named_function("-" ++ Fun, Code) ->
+named_function("-" ++ Fun, Unit, Code) ->
     %% the host's name of a fun: -Function/Arity-fun-Index-
     case string:split(Fun, "/", trailing) of
-        [Enclosing, Rest] ->
-            case named_function(Enclosing, Code) of
-                none -> none;
-                Named -> "-" ++ Named ++ "/" ++ Rest
+        [Enclosing, _] -> named_function(Enclosing, Unit, Code);
+        _ -> none
+    end;
+named_function("$" ++ Numbered, Unit, Code) ->
+    case string:split(Numbered, ".", all) of
+        [Number] -> declared_name("$" ++ Number, Unit, Code);
+        [Number, Position] -> positioned(declared_name("$" ++ Number, Unit, Code), Position);
+        [Number, Position, "entry"] ->
+            positioned(declared_name("$" ++ Number, Unit, Code), Position);
+        _ -> none
+    end;
+named_function(_, _, _) ->
+    none.
+
+positioned(none, _) -> none;
+positioned(Name, Position) -> Name ++ "$" ++ Position.
+
+%% The name a definition or a foreign function is written by in a site of
+%% Unit, where the unit holds it in the function Function.
+declared_name(Function, Unit, Code) ->
+    case [{QualifiedName, Held} || {QualifiedName, Held} <- Code, {Held1, _} <- held_function(Held),
+                                   atom_to_list(Held1) =:= Function] of
+        [{QualifiedName, Held} | _] ->
+            case recorded_name(Unit, Held) of
+                none -> sites_name(QualifiedName, Code);
+                Name -> ern_namespace:text(Name)
+            end;
+        [] ->
+            none
+    end.
+
+%% The name Unit's recorded forms give a definition its sites write by
+%% another than its qualified name (ern_canonical.hrl), found by its hash,
+%% where the code table keeps them, as it keeps those of every unit no file
+%% holds; none for a foreign function, which has no form.
+recorded_name(Unit, Held) ->
+    Hash = case Held of
+               {function, FunctionHash, _, _, _} -> FunctionHash;
+               {binding, BindingHash, _} -> BindingHash;
+               _ -> none
+           end,
+    case Hash =/= none andalso lookup({forms, Unit}) of
+        [{_, _, #recorded{definitions = Definitions}}] ->
+            case [Name || #definition{hash = Named, name = Name} <- Definitions, Named =:= Hash] of
+                [Name | _] -> Name;
+                [] -> none
             end;
         _ ->
             none
-    end;
-named_function("$" ++ Numbered, Code) ->
-    case string:split(Numbered, ".", all) of
-        [Number] ->
-            declared_name("$" ++ Number, Code);
-        [Number, Position] ->
-            suffixed(declared_name("$" ++ Number, Code), "$" ++ Position);
-        [Number, Position, "entry"] ->
-            suffixed(declared_name("$" ++ Number, Code), "$spawn$" ++ Position);
-        _ ->
-            none
-    end;
-named_function(_, _) ->
-    none.
+    end.
 
-suffixed(none, _) -> none;
-suffixed(Name, Suffix) -> Name ++ Suffix.
-
-%% The name a definition or a foreign function is declared by, its own,
-%% after its module's namespace, `area` or `Vec.+`, where the unit holds it
-%% in the function Function.
-declared_name(Function, Code) ->
-    Namespaces = [Namespace || {Namespace, {calls, _}} <- Code],
-    case [QualifiedName || {QualifiedName, Held} <- Code, {Held1, _} <- held_function(Held),
-                           atom_to_list(Held1) =:= Function] of
-        [QualifiedName | _] ->
-            Declared = case [Namespace || Namespace <- Namespaces,
-                                          lists:prefix(Namespace, QualifiedName)] of
-                           [Namespace | _] -> lists:nthtail(length(Namespace), QualifiedName);
-                           [] -> tl(QualifiedName)
-                       end,
-            lists:append(lists:join(".", [ern_namespace:segment_text(Name)
-                                          || Name <- Declared]));
+%% A qualified name under the namespace the unit's forms name its
+%% declarations under, written under the one its sites name them under,
+%% which '$code'/0 lists (ern_emitter:code/4).
+sites_name(QualifiedName, Code) ->
+    case [{FormNamespace, SiteNamespace} || {FormNamespace, {sites, SiteNamespace}} <- Code] of
+        [{FormNamespace, SiteNamespace}] ->
+            Declaration = lists:nthtail(length(FormNamespace), QualifiedName),
+            ern_namespace:text(SiteNamespace ++ Declaration);
         [] ->
             none
     end.

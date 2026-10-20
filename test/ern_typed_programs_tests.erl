@@ -105,7 +105,13 @@ run(ErlangModule, Beam) ->
     Ended = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                             #{init => Init, stdout => Collect, stderr => fun(_) -> ok end,
                               stdin => fun() -> eof end}),
-    {Ended, collected(Tag, [])}.
+    {as_computed(Ended), collected(Tag, [])}.
+
+%% How a program ended as the interpreter computes it: a fault by its cause,
+%% since its trace is the host's stack where it was met (report §7.3), which
+%% the interpreter does not model.
+as_computed({fault, Cause, _Trace}) -> {fault, Cause};
+as_computed(Ended) -> Ended.
 
 collected(Tag, Acc) ->
     receive

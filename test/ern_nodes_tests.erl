@@ -1533,8 +1533,9 @@ spawn_on_peer(Base) ->
 %% a value back; a name that is no peer's NotListed; a function whose
 %% binding has no value on the store NotLoaded, which the store says; a
 %% fault in the function the caller's, which the caller's node reports once,
-%% with the caller's site, its subscriber of faults told of it, the host's
-%% stack beneath where it crossed, and the store reports nothing, its
+%% with the caller's site, its subscriber of faults told of it, the trace
+%% that crossed with it beneath, a cause of §7.4's as a raise's (§7.3, a
+%% regression test of 2026-10-20), and the store reports nothing, its
 %% subscriber told nothing; a process killed before it answers Other with
 %% its Reason; a process whose caller ends while it waits, and one whose
 %% time runs out, killed on the store, whose watcher, monitoring each, says
@@ -1561,7 +1562,7 @@ compute_on_peer(Base) ->
     [has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
                  "divided: Fault(\"division by zero\")",
-                 "reported here: Desk.faulted:109 division by zero false",
+                 "reported here: Desk.faulted:109 division by zero true",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
                  " error:badarg\")",
                  "reported here: Desk.faulted:109 foreign function erlang:binary_to_integer/1"
@@ -1570,6 +1571,7 @@ compute_on_peer(Base) ->
                  "with the store's end: Left(Other(\"ProgramEnd\"))"]],
     ?assertEqual(1, length(string:split(Err, "Desk.faulted:109 faulted: division by zero\n", all))
                     - 1),
+    has(Err, "Desk.faulted:109 faulted: division by zero\n    erlang:'div'/2\n"),
     has(Err, "Desk.faulted:109 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg\n    erlang:binary_to_integer/1\n"),
     has(StoreErr, "the peer desk's compute at Desk.computes:534 was not loaded: the binding"
@@ -2349,7 +2351,7 @@ exchange(Base) ->
              Served,
              "Sender.received:26 faulted: foreign function erlang:binary_to_integer/1 raised"
              " error:badarg, spawned by the peer sender",
-             "'Lacked.raises'/0",
+             "\n    Lacked.raises:19\n",
              "Lacked.spawner:22 faulted: the child",
              "Sender.received:29 faulted: foreign return does not match Unit, spawned by the peer"
              " sender",
@@ -2554,8 +2556,10 @@ line_of(Text, Part) ->
 %% names the binding is NotLoaded, the node saying so; a fault in received
 %% code is reported there at the spawn's site, the sender's, with the peer
 %% that spawned it; a function that crossed with the first lambda's
-%% enclosing definition ships nothing at its own spawns, the traces of both
-%% its faults naming the unit that definition was loaded in; the entry
+%% enclosing definition is spawned twice and faults twice, the traces of
+%% both its faults naming its frame by its name and the sender's line
+%% (Appendix E.21), which since 2026-10-20 names no unit, so that it shipped
+%% nothing at its own spawns is ern_exchange_tests' alone; the entry
 %% process is among its live processes, under the site `bare node`; `ern
 %% stop` ends it by termination, with nothing said of its entry process and
 %% its ernest.pid gone; and started again, a process spawned there that
@@ -2598,9 +2602,8 @@ bare_node(Base) ->
                  "picked: Right(42)", "binding: NotLoaded", "divides: Right",
                  "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
     ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
-    {match, [[First], [Second]]} = re:run(ErrB, "'(ern\\$[0-9]+)':'Bare\\.raises'/0",
-                                          [global, {capture, all_but_first, list}]),
-    ?assertEqual(First, Second),
+    Raises = "\n    Bare.raises:" ++ integer_to_list(line_of(Source, "fn raises()")) ++ "\n",
+    ?assertEqual(2, length(string:split(ErrB, Raises, all)) - 1),
     [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["killed", "bare node"]],
     ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))),
     %% started again, ended by a process spawned there
@@ -2826,11 +2829,12 @@ relay(Base) ->
 %% spawn crosses the leaf and the callers whose hashes changed with it,
 %% which the node compiles into one unit of its own, and nothing the node
 %% holds. The fixed leaf raises there, and its fault's trace shows each
-%% changed definition's frame in that unit, `ern$1`, and the frame of the
-%% function no fix changed, which the node held, in its build's unit. A
-%% regression test, written after the code; which definitions cross
-%% exactly is ern_exchange_tests' received_whole_test's, and the costs of a
-%% fix's callers ern_code_costs' (make bench)
+%% changed definition's frame by its name and the sender's line, the
+%% lambda's by its definition's, and the frame of the function no fix
+%% changed, which the node held, by its build's line (Appendix E.21,
+%% §11.2). A regression test, written after the code; which definitions
+%% cross exactly is ern_exchange_tests' received_whole_test's, and the
+%% costs of a fix's callers ern_code_costs' (make bench)
 fix_from_shell_test_() ->
     nodes_test(90, fun fix_from_shell/1).
 
@@ -2885,10 +2889,11 @@ fix_from_shell(Base) ->
     ?assertEqual(0, WaitDesk()),
     stop(B, WaitB),
     {_, ErrB} = said(B),
-    [has(ErrB, Frame) || Frame <- ["'ern$1':'Fix.leaf'/1", "'ern$1':'Fix.middle'/1",
-                                   "ern@fix:aside/1"]],
+    %% the fix's file has a line more above its leaf than the build's
+    [has(ErrB, Frame) || Frame <- ["\n    Fix.leaf:6\n", "\n    Fix.middle:8\n",
+                                   "\n    Fix.aside:12\n"]],
     [?assertEqual(nomatch, string:find(ErrB, Part))
-     || Part <- ["'ern$1':'Fix.aside'", "'ern$2'", "was not loaded", "could not take"]].
+     || Part <- ["Fix.aside:13", "ern$", "was not loaded", "could not take"]].
 
 %% Two builds of a program, the second of which the test's own spawner
 %% plays through a bare `erl`: a function that waits for a number and then
@@ -3033,12 +3038,13 @@ caught_up(Node) ->
 %% again, as it lacked it before; and then a peer of the program's, whose
 %% first spawn gives up before its exchange ends, its time a millisecond,
 %% which the node then drops at that time, saying so, spawns the function
-%% again and it runs, from the one unit the node made, `ern$1`, whose name
-%% its fault's trace shows: the exchanges that broke or ran out of time
-%% made none, and the next made it whole. A regression test, written
-%% after the code; the exchange's state after a loss is ern_exchange_tests'
-%% loss_test's, and the late spawn's process, killed as its answer
-%% arrives, is not observed
+%% again and it runs, its fault's trace naming its frame by its name and
+%% the sender's line (Appendix E.21): the exchanges that broke or ran out
+%% of time made nothing that runs, and the next made it whole. A regression
+%% test, written after the code; that the node made one unit, which a trace
+%% named until 2026-10-20 and names no more, is not observed, the
+%% exchange's state after a loss is ern_exchange_tests' loss_test's, and
+%% the late spawn's process, killed as its answer arrives, is not observed
 broken_exchange_test_() ->
     nodes_test(90, fun broken_exchange/1).
 
@@ -3091,8 +3097,9 @@ broken_exchange(Base) ->
                  "the peer a's spawn at Lost.late:" ++ integer_to_list(line_of(Source, "late: "))
                  ++ " was not loaded: its time ran out before the function's reach arrived",
                  "the peer z sent a frame this node cannot read, and its connection was ended",
-                 "'ern$1':'Lost.waits'/0"]],
-    [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["'ern$2'", "could not take"]],
+                 "\n    Lost.waits:" ++ integer_to_list(line_of(Source, "parsed(\"x\") + n"))
+                 ++ "\n"]],
+    [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["ern$", "could not take"]],
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "4.3", "no longer holds the function's reach",
                                    [{"a", "z"}, {"Counter.main:19", "Lost.z:1"}]).

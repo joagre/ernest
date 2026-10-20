@@ -1619,10 +1619,18 @@ export fn main() : Unit receiving MainMsg = {
 ```console
 $ ern run faults.erc
 Faults.main:10 faulted: division by zero
+    erlang:'div'/2
+    Faults.average:4
+    Faults.worker:7
+    ern_rt:run/1:1914
 the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
-`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it. Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
+`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first five lines are `ern run`'s own: it writes every fault to standard error as it happens, a line of the spawn site and the cause, whatever the program does about it.
+
+Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7, and last the runtime's own frame. A frame of the program is named as a spawn site is (report §7.3, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
+
+Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
 
 Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6).
 
@@ -1668,12 +1676,15 @@ export fn main() : Unit receiving SupervisorMsg =
 $ ern run jobs.erc
 4: 25
 Jobs.supervise:9 faulted: division by zero
+    erlang:'div'/2
+    Jobs.supervise:9
+    ern_rt:run/1:1914
 0: failed, division by zero
 5: 20
 all jobs done
 ```
 
-A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints, so what became of each job is said in one place; the second line is `ern run`'s report of the fault, on standard error. A worker reports by a message to its supervisor, which knows the job and decides what follows.
+A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints, so what became of each job is said in one place; the second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error. A worker reports by a message to its supervisor, which knows the job and decides what follows.
 
 What must survive a fault lives in the process that does not fault: here the list of jobs is the watcher's. A long-lived process restarts in place instead, which §6.5 shows, and a group of them restarts together under the standard library's `Supervisor`, which §6.6 shows. A process that must not outlive another monitors it and returns when it dies.
 
@@ -1717,6 +1728,10 @@ export fn main() : Unit = {
 $ ern run counter.erc
 Some(2)
 Counter.start:9 faulted, restarted: a negative amount
+    Counter.count:16
+    ern_rt:restarts/4:3137
+    ern_rt:'-restarting/2-fun-0-'/2:3056
+    ern_rt:run/1:1914
 None
 Some(3)
 ```
@@ -1727,7 +1742,7 @@ Some(3)
 
 After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
 
-The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
+The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error (§6.3).
 
 `fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `reply`: the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's.
 
@@ -1771,6 +1786,10 @@ export fn main() : Unit = {
 $ ern run pair.erc
 Some(2) Some(5)
 Pair.visits:7 faulted, restarted: a negative amount
+    Pair.count:15
+    ern_rt:restarts/4:3137
+    ern_rt:'-restarting/2-fun-0-'/2:3056
+    ern_rt:run/1:1914
 None
 Some(1) Some(1)
 ```
@@ -2347,7 +2366,7 @@ The compute takes with it the values the lambda captured, and nothing more. The 
 
 On the peer the function has the peer's system processes, so an `Io.println` in it prints there, and a top-level binding it names is the peer's, so a service binding names the peer's service. Its value crosses back at the type the compiler found where `compute` is written, which is known whole there and is bound to no node (§8.4).
 
-A fault in `heavy` is the caller's, as if `heavy(3, 4)` had faulted here: the caller faults with its cause, and this node reports the fault once, and beneath a failure of the runtime or a foreign raise the stack that crossed with it; the peer writes nothing of it (report §8.7, report §11.2). Where the process ends on the peer before it answers, killed or with the peer's program, the compute answers `Left(Other(text))`, `text` the process's reason; where the caller stops waiting, its time run out or its process ended, the process is killed there.
+A fault in `heavy` is the caller's, as if `heavy(3, 4)` had faulted here: the caller faults with its cause, and this node reports the fault once, with the trace that crossed with it beneath its line; the peer writes nothing of it (report §8.7, report §11.2). Where the process ends on the peer before it answers, killed or with the peer's program, the compute answers `Left(Other(text))`, `text` the process's reason; where the caller stops waiting, its time run out or its process ended, the process is killed there.
 
 The compiler must see what the function captures, so the function a compute or a spawn on a peer runs is written where it can see it: a declaration's name, or, in the same definition, a lambda written at the compute or bound by a `let`, a local `fn`, or `restarting` applied to one of these. A function that came as a value, a parameter or a message, is refused (report §3.11).
 
@@ -2681,7 +2700,7 @@ The `=` in `k=` says the keys need equality, since `ets` compares them: a table 
 
 The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. A `foreign fn` declared without `receiving` is trusted neither to receive from the calling process's mailbox nor to deliver into it, and nothing checks that (report §4.7).
 
-In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, fault, Cause, Trace}` for a runtime failure or a foreign raise, `{ern, killed}` and `{ern, program_end}` among them, which Erlang code that monitors it reads; report §8.4 lists them all.
+In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Cause, Trace}` for every fault, its cause and its trace as text, `{ern, killed}` and `{ern, program_end}` among them, which Erlang code that monitors it reads; report §8.4 lists them all.
 
 A value foreign code made and Ernest does not inspect has the foreign type `Foreign.Term`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Foreign.atom(name)` is how an Erlang atom is passed (report §3.8, Appendix E.12).
 

@@ -30,7 +30,8 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% dependencies' interface hashes, go into the chunk beside the interface
 %% (report §11.1); `source` goes to the documentation; `session_offset`
 %% marks an input of the shell, which is compiled and not written, and is
-%% not kept, with the line offset its spawn sites are written with;
+%% not kept, with the lines before its first, after which its code, its
+%% spawn sites and its recorded forms count its lines (session_lined/2);
 %% `form_namespace`, which the shell gives an input, is the namespace its
 %% forms and its '$code'/0 name what the session declares under, the
 %% session's one (Appendix H, §11.2), and is not kept; `standard` marks a
@@ -220,15 +221,18 @@ canonical(Namespace, Declarations, Env, Build) ->
 %% what the module's build adds that is no definition's: its foreign
 %% functions, which have no form, what it exports, the order its bindings
 %% are initialized in (§8.5), the units of its dependencies, its reaches,
-%% and the link of what its forms reference outside it.
+%% and the link of what its forms reference outside it. An input of a
+%% shell's session has the lines of its source as the session counts them.
 -spec unit([atom()], [tuple()], ern_typecheck:env(), ern_canonical:canonical(), map()) ->
           #unit{}.
 unit(Namespace, Declarations, Env, Canonical, Build) ->
     Units = maps:get(units, Build, #{}),
     FormNamespace = maps:get(form_namespace, Build, Namespace),
+    SessionOffset = maps:get(session_offset, Build, false),
     #{definitions := Definitions, reaches := Reaches, functions := Functions,
       foreign_schemes := ForeignSchemes} = Canonical,
-    #unit{namespace = Namespace, name = unit_of(Namespace, Units), definitions = Definitions,
+    #unit{namespace = Namespace, name = unit_of(Namespace, Units),
+          definitions = session_lined(Definitions, SessionOffset),
           foreign_functions = foreign_functions(Namespace, Declarations, ForeignSchemes),
           exported = [QualifiedName || Declaration <- Declarations, exported(Declaration),
                                        QualifiedName <- qualified(Namespace, Declaration)],
@@ -244,29 +248,35 @@ unit(Namespace, Declarations, Env, Canonical, Build) ->
           standard = maps:get(standard, Build, false), code = maps:get(code, Build, false),
           form_namespace = FormNamespace,
           site_namespace = maps:get(site_namespace, Build, Namespace),
-          session_offset = maps:get(session_offset, Build, false)}.
+          session_offset = SessionOffset}.
+
+%% Report §11.2: an input's definitions with the lines of their source
+%% Offset after those the build counted, as its session counts them, so
+%% that its code's lines are those its spawn sites and a fault's trace name
+%% (Appendix E.21); a module's, which no session holds, as the build
+%% counted them.
+session_lined(Definitions, false) ->
+    Definitions;
+session_lined(Definitions, Offset) ->
+    [Definition#definition{sourced = ern_canonical:session_source(Sourced, Offset)}
+     || #definition{sourced = Sourced} = Definition <- Definitions].
 
 %% Report §11.1, §8.7: what the unit's `.erc` records beside its code, by
 %% which a definition is shipped onward and a compiled module loaded beside
 %% another unit of its name is made a unit of its own (§11.2): each
-%% definition with the lines of its source, an input's counted as its
-%% session counts them, the locals' names left out, the name its sites
-%% write it by where that is not its qualified name, and what prints a type
-%% in a cause as its module writes it (§11.5); its foreign declarations,
-%% each by its qualified name as the forms write it, an input's under the
-%% session's one namespace as its unit lists it (Appendix H, §11.2), with
-%% their schemes, what their implementations name and that too; and its
-%% bindings' order (§8.5).
+%% definition with the lines of its source, an input's as its session
+%% counts them (session_lined/2), the locals' names left out, the name its
+%% sites write it by where that is not its qualified name, and what prints
+%% a type in a cause as its module writes it (§11.5); its foreign
+%% declarations, each by its qualified name as the forms write it, an
+%% input's under the session's one namespace as its unit lists it
+%% (Appendix H, §11.2), with their schemes, what their implementations
+%% name and that too; and its bindings' order (§8.5).
 recorded(#unit{namespace = Namespace, definitions = Definitions, foreign_functions = Foreign,
-               binding_order = BindingOrder, session_offset = SessionOffset,
-               form_namespace = FormNamespace} = Unit, Build) ->
-    Offset = case SessionOffset of
-                 false -> 0;
-                 _ -> SessionOffset
-             end,
+               binding_order = BindingOrder, form_namespace = FormNamespace} = Unit, Build) ->
     Printing = printing(Unit),
     #recorded{definitions = [Definition#definition{
-                               sourced = ern_canonical:recorded_source(Sourced, Offset),
+                               sourced = ern_canonical:recorded_source(Sourced),
                                name = sites_name(lists:nthtail(length(Namespace), QualifiedName),
                                                  QualifiedName, Unit, Build),
                                printing = Printing}

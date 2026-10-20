@@ -160,7 +160,9 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
                        true ->
                            Calls = calls(Bodies, ErlangModule, Standard),
                            code_function(code(Placed, ForeignPlaced, Entries, Context3)
-                                         ++ [{Namespace, {calls, Calls}}]);
+                                         ++ [{Unit#unit.form_namespace,
+                                              {sites, site_name([], Unit)}},
+                                             {Namespace, {calls, Calls}}]);
                        false ->
                            []
                    end,
@@ -194,8 +196,7 @@ lacked_functions(#unit{lacked = Lacked}) ->
     [erl_syntax:function(erl_syntax:atom(Function),
                          [erl_syntax:clause([erl_syntax:underscore() || _ <- lists:seq(1, Arity)],
                                             none,
-                                            [call_remote(ern_rt, fault,
-                                                         [erl_syntax:abstract(Text)])])])
+                                            [raised(erl_syntax:abstract(Text))])])
      || {Function, Arity, Text} <- Lacked].
 
 %% The unit's own definitions and foreign functions, each definition's form
@@ -602,10 +603,15 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% under (§8.5); each foreign declaration's implementation and its
 %% function, which the canonical forms name by its qualified name alone;
 %% each lambda and local fn a spawn on a peer starts, by its identity,
-%% with its entry and its reach; and, last, under the module's namespace,
-%% the units its code calls (calls/3). Each qualified name is the forms'
-%% (Appendix H): an input of a shell's session names what it declares
-%% under the session's one namespace, by which a reach finds it. A literal
+%% with its entry and its reach; under the namespace the forms name what
+%% it declares under, the namespace its spawn sites name its declarations
+%% under (site_name/2), by which a fault's trace names its functions
+%% (ern_code:function_text/2), none for an input of a shell's session,
+%% whose sites name them by their own names; and, last, under the module's
+%% namespace, the units its code calls (calls/3). Each qualified name is
+%% the forms' (Appendix H): an input of a shell's session names what it
+%% declares under the session's one namespace, by which a reach finds it.
+%% The last two rows are the unit's, which unit/1 adds. A literal
 %% '$code'/0 answers, so that a load reads it without decoding the
 %% module's chunks, which costs more than the load.
 code(Placed, ForeignPlaced, Entries,
@@ -890,18 +896,20 @@ receive_form(Clauses, {'after', Timeout, AfterBody}, Context) ->
 
 %% A receive's clauses and the bindings they need. Report §6.9: a restart
 %% a supervisor asks for arrives before every other message and is taken
-%% here, first; report §8.4: a foreign message that did not match stands
-%% in the mailbox as its fault, which is taken here before any clause of
-%% the program's could bind it.
+%% here, first; report §8.4, §6.5: a foreign message that did not match,
+%% and a fault met on a message's way, stand in the mailbox as their fault,
+%% which is taken here before any clause of the program's could bind it,
+%% and raised here, so that its trace is this function's stack where it
+%% has none of where it was met (§7.3).
 receive_clauses(Clauses, Context) ->
     {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
     {Bindings, OwnForms} = join_parts(Parts),
-    {[CauseName], Context2} = fresh_variables(1, "Cause", Context1),
-    Cause = erl_syntax:variable(CauseName),
+    {[FaultName], Context2} = fresh_variables(1, "Fault", Context1),
+    Fault = erl_syntax:variable(FaultName),
     ClauseForms = [erl_syntax:clause([erl_syntax:atom('$ern_restart')], none,
                                      [call_remote(ern_rt, restart_now, [])]),
-                   erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('$ern_fault'), Cause])],
-                                     none, [call_remote(ern_rt, fault, [Cause])])
+                   erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('$ern_fault'), Fault])],
+                                     none, [call_remote(erlang, throw, [Fault])])
                    | OwnForms],
     {Bindings, ClauseForms, Context2}.
 
@@ -1420,6 +1428,14 @@ call_remote(HostModule, HostFunction, Args) ->
                                                        erl_syntax:atom(HostFunction)),
                            Args).
 
+%% Report §7.3, §7.4: a fault with the cause CauseForm, raised where it is
+%% met as ern_rt:fault/1 raises it, by the host's throw, so that the
+%% host's stack, the fault's trace (Appendix E.21), holds the function
+%% that meets it where the fault is the last thing the function does.
+raised(CauseForm) ->
+    call_remote(erlang, throw, [erl_syntax:tuple([erl_syntax:atom(ern), erl_syntax:atom(fault),
+                                                  CauseForm])]).
+
 %%
 %% The prelude, report §9
 %%
@@ -1447,7 +1463,7 @@ prelude_call(_, ['Address', callForever], _, ArgForms, Callee, Context) ->
 prelude_call(_, [restarting], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, restarting, ArgForms), Context};
 prelude_call(_, [fault], _, [CauseForm], _, Context) ->
-    {call_remote(ern_rt, fault, [CauseForm]), Context};
+    {raised(CauseForm), Context};
 prelude_call(_, ['Int', Operator], _, [LeftForm, RightForm], _, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%' ->
@@ -1567,24 +1583,24 @@ holds_function(_) -> false.
 %% `Counter$2.service:5`, as its unit is named. In the session, as the
 %% session writes names: a function an input declares by its own name, and
 %% the input's expression as its diagnostics name it, `input 3`; the line
-%% as they count it. The input's name is asked of the shell when the spawn
-%% runs, and is not the unit's code: an input typed again then compiles
-%% to the code it did before, and the host keeps an entry for each lambda
-%% of each version it loads (docs/memory.md). A form without its source
-%% names the declaration alone. Report §8.7: a definition of an exchange's
-%% unit by the name the code frame gave it, its lines the sender's.
-site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
-                                        session_offset = SessionOffset} = Unit,
+%% as they count it, which an input's forms hold (ern_compile). The input's
+%% name is asked of the shell when the spawn runs, and is not the unit's
+%% code: an input typed again then compiles to the code it did before, and
+%% the host keeps an entry for each lambda of each version it loads
+%% (docs/memory.md). A form without its source names the declaration
+%% alone. Report §8.7: a definition of an exchange's unit by the name the
+%% code frame gave it, its lines the sender's. A fault's trace writes a
+%% frame of the unit's code by the same name and line (ern_code:function_text/2).
+site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace} = Unit,
                            erlang_module = ErlangModule, declaration = Declaration}) ->
     case {site_name(Declaration, Unit), Source} of
         {_, none} ->
-            text_site([ern_namespace:text(SiteNamespace ++ Declaration)]);
+            string_binary(ern_namespace:site_text(SiteNamespace ++ Declaration, none));
         {input, {Line, _, _}} ->
             call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
-                                                erl_syntax:integer(Line + SessionOffset)]);
+                                                erl_syntax:integer(Line)]);
         {Name, {Line, _, _}} ->
-            text_site([ern_namespace:text(Name), ":",
-                       integer_to_list(Line + lines_before(SessionOffset))])
+            string_binary(ern_namespace:site_text(Name, Line))
     end.
 
 %% Report §6.9, §11.2: the name a unit's spawn sites write its declaration
@@ -1601,12 +1617,6 @@ site_name(['$input'], #unit{}) ->
     input;
 site_name(Declaration, #unit{}) ->
     Declaration.
-
-lines_before(false) -> 0;
-lines_before(Offset) -> Offset.
-
-text_site(SiteParts) ->
-    string_binary(unicode:characters_to_binary(SiteParts)).
 
 %% Report §8.7, Appendix H: a service's message type's hash, of its
 %% canonical form.
@@ -1654,7 +1664,7 @@ float_operation(Operator, Left, Right, LeftName, RightName) ->
     Cause = erl_syntax:string("float arithmetic error"),
     Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
     Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
-    Handler = erl_syntax:clause([Badarith], none, [call_remote(ern_rt, fault, [Text])]),
+    Handler = erl_syntax:clause([Badarith], none, [raised(Text)]),
     Plain = erl_syntax:infix_expr(erl_syntax:variable(LeftName), erl_syntax:operator(Operator),
                                   erl_syntax:variable(RightName)),
     %% report §3.1: under round to nearest a sum or a difference of operands
@@ -1843,7 +1853,7 @@ check_form(Type, Shown, Form, Prefix, Context) ->
                                                        erl_syntax:float(0.0));
                         _ -> VariableForm
                     end,
-            Fault = call_remote(ern_rt, fault, [Text]),
+            Fault = raised(Text),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
                                                            [Fault])]), Context1};

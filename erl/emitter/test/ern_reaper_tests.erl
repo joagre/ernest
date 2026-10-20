@@ -14,7 +14,7 @@ deadlock_test() ->
     {Result1, _} = ern_emitter_tests:run(
         "type Msg = Ping\n"
         "export fn main() : Unit receiving Msg = receive { Ping -> Unit }\n"),
-    ?assertEqual({fault, <<"deadlock">>}, Result1),
+    ?assertMatch({fault, <<"deadlock">>, _}, Result1),
     {Result2, Output} = ern_emitter_tests:run(
         "type Msg = Ping\n"
         "export fn main() : Unit receiving Msg = receive {\n"
@@ -37,7 +37,7 @@ call_forever_deadlock_test() ->
         "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual({fault, <<"deadlock">>}, Result).
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% report §6.9: a wait on a process is kept while its waiter lives: a
 %% watcher that ends takes its waits with it, and a process that ends

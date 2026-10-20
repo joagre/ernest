@@ -371,9 +371,10 @@ checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
                     ern_rt:send(Behind, Checked);
                 %% report §8.4: the fault takes the message's place, and
                 %% the receiver faults at the wait that reaches it, as at a
-                %% fault of its own, which `restarting` restarts (§6.9)
+                %% fault of its own, which `restarting` restarts (§6.9),
+                %% its trace the receiver's stack there (§7.3)
                 error ->
-                    ern_rt:process_of(Behind) ! {'$ern_fault', Cause}
+                    ern_rt:process_of(Behind) ! {'$ern_fault', {ern, fault, Cause}}
             end,
             checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
     end.

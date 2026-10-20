@@ -115,7 +115,7 @@ All three compile through `ern_compile:compiled/2`.
 
 A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
-A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace names each function through `ern_code:function_text/2` and `ern_rt:trace/1`.
+A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/2`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under among it, and the name the recorded forms give an input's expression (E.21).
 
 ### What the emitter writes
 
@@ -127,7 +127,8 @@ Each construct's function says how it is written:
 - a clause's alternatives, `alternatives/3` (§5.9);
 - a top-level `let`, a getter over `persistent_term` that `'$init'/0` fills (§8.5, §11.1);
 - a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7);
-- a spawn's site, `site_name/2` (§6.9);
+- a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
+- a fault the code meets, `raised/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
 - a requirement's members, `supply_form/2` and `enclosing_members/3` (§4.9);
 - a `Float` operation, `float_operation/5`, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
 - a type's descriptor, `describe/4`, a function type's maker, `built_descriptor/1`, and the printing of a check's cause, `printed/2` and `printing/2` (§8.4, §11.5);
@@ -135,14 +136,14 @@ Each construct's function says how it is written:
 
 `'$code'/0` lists what the unit holds, which the code table reads. `compile/5` alone writes it, so the golden files and `--emit-erl` have none. `ern_emitter:source/1` is `--emit-erl`, each function under a comment that names it.
 
-A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compile/5`'s `units` names another: the shell's unit of a reload's version, `ern@counter$2` (`ern_compile:unit_of/2`, §11.2).
+A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compile/5`'s `units` names another: the shell's unit of a reload's version, `ern@counter$2` (`ern_compile:unit_of/2`, §11.2). An input of the shell's session has its lines counted as the session counts them before the emitter reads its forms (`ern_compile:session_lined/2`), so that its code's lines, its sites' and its trace's agree.
 
 ### The chunks
 
 | Chunk | Owner | Holds |
 |---|---|---|
 | `ErnI` | `ern_interface`: `encode/2`, `read/1`, `written/1`, `hash/1` | a format number, the canonical interface, and what §11.1's recompile rule compares, `references` and `builds_functions` among them |
-| `ErnC` | `ern_canonical`: `module/4`, `closed/1`, `recorded_source/2`, `read/1` | `{FormVersion, #recorded{}}`, the records of `ern_canonical.hrl` (§8.7, Appendix H) |
+| `ErnC` | `ern_canonical`: `module/4`, `closed/1`, `recorded_source/1`, `read/1` | `{FormVersion, #recorded{}}`, the records of `ern_canonical.hrl` (§8.7, Appendix H) |
 | `Docs` | `ern_docs`: `ern_docs:build/4`, `read/1`, `doc_key/1` | EEP 48's documentation, an entry per declaration §11.4 renders, its `BeamLanguage` `ernest` |
 
 Each chunk is read through `ern_chunk`. A name a shell session declares is written under `$Session` in a form and in `'$code'/0` (`form_name/2` in `ern_canonical` and in `ern_emitter`; Appendix H, §11.2).
@@ -218,7 +219,7 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 - It looks for a deadlock (`look/0`, §8.6) after `LOOK_SOON` or `LOOK_LATER` milliseconds without a message. It does not look on a node or while the shell holds the terminal.
 - Sources (§8.6) are counted where they begin: the clock's alarms, `stdin`'s requests, the terminal's subscriptions, the reaper's own monitors, a call's `ern_calls` row, a timed receive (`timed/0`, `untimed/0`) and a foreign call (`in_foreign/1`).
 - A standard library function counts as a foreign call only where its runtime module's `-waits` attribute lists it. A module the host loads on its first call counts as one too (`undefined_function/3`).
-- Faults are reported by `report/5` (E.21), to the run's `faults` function and each subscriber in `ern_faults`. `run_main` sets the host's backtrace depth to 64, of which a trace shows twelve (E.21, E.28).
+- Faults are reported by `report/5` (E.21), to the run's `faults` function and each subscriber in `ern_faults`. `run_main` sets the host's backtrace depth to 64, of which a trace shows twelve (E.21, E.28). A fault the runtime gives a waiting process, a deadlock, carries the process's stack as `found_fault/2` finds it (§7.3).
 
 ### The runner
 

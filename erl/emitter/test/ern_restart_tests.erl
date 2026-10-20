@@ -233,5 +233,5 @@ nested_restarting_test() ->
         "            fault(\"boom\")\n"
         "        })()\n"
         "    })()\n"),
-    ?assertMatch({fault, <<"boom">>}, Result),
+    ?assertMatch({fault, <<"boom">>, _}, Result),
     ?assertEqual(<<"outer\ninner\ninner\nouter\ninner\ninner\n">>, Output).

@@ -818,10 +818,8 @@ value(ErlangModule, _Binds) ->
 %% Report §7.3, §7.4: the cause of a fault the shell catches in a process
 %% of its own, as the runtime gives a process's.
 fault_cause(Class, Error, Stack) ->
-    case ern_rt:fault_exit_reason(Class, Error, Stack) of
-        {ern, fault, Cause} -> Cause;
-        {ern, fault, Cause, _Trace} -> Cause
-    end.
+    {ern, fault, Cause, _Trace} = ern_rt:fault_exit_reason(Class, Error, Stack),
+    Cause.
 
 %% Appendix E.1: the value as Ernest writes it, by the descriptor of its
 %% type; report §11.2: to the depth and the length the session is set to,

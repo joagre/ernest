@@ -682,18 +682,16 @@ let keptFaults = 100
 
 // The spawn site and the cause, as `ern run` writes them, after the cause
 // the peer whose spawn started the process (report §11.2, §8.7), and
-// beneath a failure of the runtime the host's stack.
+// beneath the line the fault's trace, a frame a line, each indented by
+// four spaces (§7.3, Appendix E.21).
 fn reportLine(report : Process.FaultReport) : String = {
     let phrase = if report.restarted then " faulted, restarted: " else " faulted: ";
     let spawner = match report.spawnedBy {
         Some(name) -> ", spawned by the peer " <> name
       | None -> ""
     };
-    let line = report.site <> phrase <> escaped(report.cause) <> spawner;
-    if String.isEmpty(report.trace) then
-        line
-    else
-        line <> "\n" <> escapedLines(String.trimEnd(report.trace))
+    let frames = List.map(String.lines(report.trace), fn(frame) = "\n    " <> escaped(frame));
+    report.site <> phrase <> escaped(report.cause) <> spawner <> String.join(frames, "")
 }
 
 fn faultLine(down : Down) : String =
@@ -707,10 +705,6 @@ fn faultLine(down : Down) : String =
 // of a program's reaches the terminal as itself.
 fn escaped(text : String) : String =
     String.join(List.map(String.toList(text), escapedChar), "")
-
-// The host's stack, a line feed kept between its lines.
-fn escapedLines(text : String) : String =
-    String.join(List.map(String.split(text, "\n"), escaped), "\n")
 
 fn escapedChar(char : Char) : String =
     match Char.toCodePoint(char) {

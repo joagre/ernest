@@ -124,9 +124,10 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Pid**: the host's process; the Ernest value is a `Process` (E.21).
 - **ProcessNumber**: §8.7's process number, the operating system's number for a running program, which `ernest.pid` holds and a signal is sent to; the file's path is a `PidFile`. Not `Pid`, which is the host's process, nor `Process`, which is E.21's.
 - **Reply**: §6.6's reply. Not `Alias`, `Written`, `R`.
-- **Cause**: a fault's cause (§7.3). Not `Msg`, `Text`; the host's stack beside it is a `Trace`.
+- **Cause**: a fault's cause (§7.3). Not `Msg`, `Text`; the trace beside it is a `Trace`.
+- **Trace**: §7.3's trace, the host's stack where a fault was met as text, a frame a line (E.21), `ern_rt:trace/1`; the host's stack it is written from is a `Stack`, and each of its entries a line of the trace, `trace_line/1`. Not `Frame`, which is §8.7's.
 - **Reason**: §9.3's `Reason`, and nothing else. The host's exit reason is an `ExitReason`, a host's error an `Error`. Not `Raw`, `How`.
-- **Site**: §6.9's spawn site. Not `At`, `Where`.
+- **Site**: §6.9's spawn site, a name and its line as `ern_namespace:site_text/2` writes them, as a trace's line of Ernest code is written too (E.21). Not `At`, `Where`.
 - **Ms, Deadline**: milliseconds as given (E.0 shape rule 8) and the moment they end, as the code has them; a timer's message is `deadline` in every module.
 - **Monitor**: §6.9's monitor, in the reaper as elsewhere. Not `await`, `watch`, `Waiters`. The host's reference to one is a `MonitorRef`, not `Watch`, `Mon`, `MRef`, `OwnerMonitor`.
 - **Runner**: §11.2's runner, the process that starts the system processes and the entry point; the launcher is `bin/ern` alone. Not `Launcher`.

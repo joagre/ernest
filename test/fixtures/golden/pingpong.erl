@@ -16,7 +16,7 @@
                      <<"Pingpong.main:17">>),
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_3} -> ern_rt:fault(Cause_3);
+        {'$ern_fault', Fault_3} -> erlang:throw(Fault_3);
         {'PongDone', _} -> 'Unit'
     end.
 
@@ -43,7 +43,7 @@
 '$5'() ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Cause_9} -> ern_rt:fault(Cause_9);
+        {'$ern_fault', Fault_9} -> erlang:throw(Fault_9);
         {'Ping', Round_7, Reply_8} ->
             ern@io:'$8'(<<"pong ",
                           (ern@int:'$24'(Round_7))/binary>>),

@@ -483,7 +483,9 @@ failed_spawn_ends_no_call_test() ->
 %% kills the process where it still runs, which then tells no one, and one
 %% that came before the process could start leaves it never run, the
 %% compute answered Unreachable, which its caller, no longer waiting, drops.
-%% A regression test, written after the code
+%% A regression test, written after the code; Appendix E.21: the trace that
+%% crosses names the definition's frame by its name and its line, a
+%% regression test written after the code, where a division's was empty
 computed_here_test() ->
     Unit = 'ern@peercomputed',
     Hashes = loaded(['Peercomputed'], ?COMPUTED),
@@ -538,7 +540,9 @@ computed_here_test() ->
                                                              node => fun() -> ok end})),
         {computed, Answers, NotLoaded, LateEnd, Told} =
             receive {computed, _, _, _, _} = Got -> Got end,
-        ?assertMatch([{_, computed, 42}, {_, faulted, <<"division by zero">>, <<>>},
+        ?assertMatch([{_, computed, 42},
+                      {_, faulted, <<"division by zero">>,
+                       <<"erlang:'div'/2\nPeercomputed.divided:3\n", _/binary>>},
                       {_, failed, 'NotLoaded'}, {_, failed, 'Unreachable'},
                       {_, ended, 'Killed'}], Answers),
         {not_loaded, compute, <<"M.f:1">>, Lacked} = NotLoaded,
@@ -598,7 +602,9 @@ computed_restarting_test() ->
         ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end,
                                                              faults => Reporter,
                                                              node => fun() -> ok end})),
-        ?assertMatch({computed, {_, computed, 42}, {_, faulted, <<"division by zero">>, <<>>}},
+        ?assertMatch({computed, {_, computed, 42},
+                      {_, faulted, <<"division by zero">>,
+                       <<"erlang:'div'/2\nPeerrestarted.divided:4\n", _/binary>>}},
                      receive {computed, _, _} = Got -> Got end),
         ?assertMatch({reported, {'FaultReport', _, <<"M.f:1">>, <<"first">>, true, _, _}},
                      receive {reported, _} = Reported -> Reported end),
@@ -644,7 +650,7 @@ compute_caller_test() ->
                                     Told ! registered,
                                     Gateway(Told, [[computed, 7], [failed, 'NotLoaded'],
                                                    [ended, 'ProgramEnd'],
-                                                   [faulted, <<"x">>, <<"    m:f/0\n">>]])
+                                                   [faulted, <<"x">>, <<"M.f:4\n">>]])
                                 end),
                receive registered -> ok end,
                Compute = fun(Ms) -> ern_rt:compute(node(), Frame, ern_rt:deadline(Ms)) end,
@@ -678,7 +684,7 @@ compute_caller_test() ->
                            {'Left', {'Other', <<"ProgramEnd">>}}],
                   {'Fault', <<"x">>}, {'Left', 'Timeout'}, true, true, {'Left', 'Unreachable'}},
                  receive {caller, _, _, _, _, _, _} = Got -> Got end),
-    ?assertMatch({reported, {'FaultReport', _, <<"M.f:2">>, <<"x">>, false, <<"    m:f/0\n">>,
+    ?assertMatch({reported, {'FaultReport', _, <<"M.f:2">>, <<"x">>, false, <<"M.f:4\n">>,
                              'None'}},
                  receive {reported, _} = Reported -> Reported end).
 

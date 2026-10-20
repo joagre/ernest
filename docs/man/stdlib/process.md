@@ -76,11 +76,12 @@ type FaultReport =
 ```
 
 A fault of a process the runtime started: the process, where it was spawned,
-the cause, whether it restarts after the fault, the host's stack, one
-function to a line, beneath a failure in the runtime or a foreign function's
-raise, and the name of the peer whose spawn started the process, as the
-configuration lists it (report §8.7), or `None`. The stack is empty beneath
-the language's own causes.
+the cause, whether it restarts after the fault, its trace, and the name of
+the peer whose spawn started the process, as the configuration lists it
+(report §8.7), or `None`. The trace is the innermost twelve frames of the
+host's stack where the fault was met, the innermost first, a frame a line,
+a frame of Ernest code written as a spawn site is, `Main.worker:3`
+(report §7.3, Appendix E.21).
 
 ### Examples
 

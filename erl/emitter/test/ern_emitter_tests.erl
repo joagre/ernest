@@ -218,7 +218,7 @@ standard_shim_callback_deadlock() ->
            "    Io.println(Int.toString(applied(fn(x : Int) : Int receiving Int = receive {\n"
            "        n -> n + x\n"
            "    }, [1])))\n",
-    ?assertMatch({{fault, <<"deadlock">>}, _}, run(['M'], Text, #{standard => true})).
+    ?assertMatch({{fault, <<"deadlock">>, _}, _}, run(['M'], Text, #{standard => true})).
 
 %% report §8.6: the deadlock count takes a standard library operation for a
 %% computation that may deliver where the runtime module that implements it
@@ -513,12 +513,17 @@ beam_functions(Beam) ->
     {ok, {_, [{exports, Exports}]}} = beam_lib:chunks(Beam, [exports]),
     Exports.
 
-%% report §11.2, §11.1: a fault's trace shows each function of a unit,
-%% which the unit names by its position, by the name its build gives it: a
-%% definition's by its own, a member's by its type's and its own, a fun of
-%% one as the host names a fun after the function it is written in, and a
-%% local function lifted to a function of its own by its definition's name
-%% and its position. Written after the code
+%% Appendix E.21, report §11.2, §11.1: a fault's trace writes a frame of a
+%% unit's function, which the unit names by its position, as a spawn site
+%% is written, by the name its sites give the definition and its line: a
+%% foreign function's by its name alone, where the host gives no line, a
+%% member's by its type's and its own, a local function lifted to a
+%% function of its own by its definition's name and its position, a fun
+%% the host compiles a lambda to by its definition's name, and the standard
+%% library's by its own; a frame of the host's by the function as the host
+%% names it, and its line where it gives one. A regression test of the
+%% frame's shape, written after the code (the log's *Every Fault Carries a
+%% Trace*); a received definition's frame is test/ern_nodes_tests'
 trace_names_functions_test() ->
     Text = "foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
            "type Vec = Vec(Int)\n"
@@ -533,15 +538,11 @@ trace_names_functions_test() ->
            "export fn main() : Unit = Io.println(Int.toString(helper(3)))\n",
     {Result, _} = run(['Traced'], Text, #{}),
     {fault, _, Trace} = Result,
-    Lines = [string:trim(Line) || Line <- string:split(binary_to_list(Trace), "\n", all),
-                                  Line =/= ""],
-    Named = [Line || Line <- Lines, lists:prefix("ern@traced:", Line)],
-    ?assertMatch(["ern@traced:boom/1" ++ _, "ern@traced:'Vec.+$1'/1" ++ _,
-                  "ern@traced:'Vec.+'/2" ++ _, "ern@traced:'-helper/1-fun-0-'/2" ++ _,
-                  "ern@traced:helper/1" ++ _ | _],
-                 Named),
-    %% the standard library's unit too, List.map's function by its name
-    ?assert(lists:any(fun(Line) -> lists:prefix("ern@list:map/2", Line) end, Lines)).
+    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
+                  <<"Traced.boom">>, <<"Traced.Vec.+$1:4">>, <<"Traced.Vec.+:5">>,
+                  <<"Traced.helper:8">>, <<"List.map:", _/binary>>, <<"Traced.helper:8">>,
+                  <<"Traced.main:11">> | _],
+                 binary:split(Trace, <<"\n">>, [global, trim])).
 
 %% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
 %% form the lines of its source, the locals' names left out, its name where
@@ -615,10 +616,9 @@ one_form_two_definitions_test() ->
             "    Io.println(Int.toString(second(3)))\n"
             "}\n"],
     {{fault, _, Trace}, Out} = run(['Twice'], lists:flatten(Text), #{}),
-    Named = [string:trim(Line) || Line <- string:split(binary_to_list(Trace), "\n", all),
-                                  lists:prefix("ern@twice:", string:trim(Line))],
-    ?assertMatch(["ern@twice:boom/1" ++ _, "ern@twice:first/1" ++ _, "ern@twice:main/0" ++ _],
-                 Named),
+    Named = [Frame || <<"Twice.", _/binary>> = Frame
+                          <- binary:split(Trace, <<"\n">>, [global, trim])],
+    ?assertEqual([<<"Twice.boom">>, <<"Twice.first:2">>, <<"Twice.main:14">>], Named),
     ?assertEqual(<<"Twice.watched:5\n">>, iolist_to_binary(Out)).
 
 %%
@@ -1052,7 +1052,7 @@ match_guard_faults_test() ->
         "    Io.println(name(2));\n"
         "    Io.println(name(0))\n"
         "}\n"),
-    ?assertEqual({fault, <<"division by zero">>}, Result).
+    ?assertMatch({fault, <<"division by zero">>, _}, Result).
 
 %% report §5.9: a clause with alternatives runs one body for whichever
 %% alternative matched, with that alternative's variables; a guard applies to
@@ -1080,7 +1080,7 @@ or_pattern_test() ->
     ?assertEqual(<<"1\n20\n0\nsized\ndot\n">>, Output),
     {Result, _} = run(Shape ++ Kind ++
              "export fn main() : Unit = Io.println(kind(Circle(0)))\n"),
-    ?assertEqual({fault, <<"division by zero">>}, Result).
+    ?assertMatch({fault, <<"division by zero">>, _}, Result).
 
 %% report Appendix E.1: Io.debug prints a value as Ernest writes it, by the
 %% argument's type at the call, known whole there, and returns it; a type
@@ -1290,21 +1290,21 @@ call_ends_with_callee() ->
         "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
         "}\n"
     end,
-    ?assertMatch({{fault, <<"bad request">>}, _},
+    ?assertMatch({{fault, <<"bad request">>, _}, _},
                  run(Forever("    let s = spawn(faulty);\n"))),
-    ?assertMatch({{fault, <<"callee was killed">>}, _},
+    ?assertMatch({{fault, <<"callee was killed">>, _}, _},
                  run(Forever("    let s = spawn(quiet);\n"
                              "    let _ = spawn(fn() =\n"
                              "        receive { after 50 -> kill(s) });\n"))),
-    ?assertMatch({{fault, <<"callee returned without answering">>}, _},
+    ?assertMatch({{fault, <<"callee returned without answering">>, _}, _},
                  run(Forever("    let s = spawn(waits);\n"
                              "    let _ = spawn(fn() =\n"
                              "        receive { after 50 -> send(s, Stop) });\n"))),
-    ?assertMatch({{fault, <<"callee had ended">>}, _},
+    ?assertMatch({{fault, <<"callee had ended">>, _}, _},
                  run(Forever("    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,\n"
                              "        Died);\n"
                              "    receive { Died(_) -> Unit };\n"))),
-    ?assertMatch({{fault, <<"bad request">>}, _},
+    ?assertMatch({{fault, <<"bad request">>, _}, _},
                  run(Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
                              "    let s = spawn(restarting(limit, faulty));\n"))),
     {ok, Output} = run(Types ++ Faulty ++
@@ -1499,23 +1499,23 @@ float_fault_test() ->
     Zero = "fn zero() : Float = Int.toFloat(List.size([]))\n",
     {Result1, _} = run(Zero ++ "export fn main() : Unit = "
                        "Io.println(Float.toString(1.0 / zero()))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, Result1),
+    ?assertMatch({fault, <<"float arithmetic error">>, _}, Result1),
     {Result2, _} = run(Zero ++ "export fn main() : Unit = "
                        "Io.println(Float.toString((zero() + 1.0e308) * 10.0))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, Result2),
+    ?assertMatch({fault, <<"float arithmetic error">>, _}, Result2),
     {Result3, _} = run(Zero ++ "export fn main() : Unit = "
                        "Io.println(Float.toString(zero() / zero()))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, Result3),
+    ?assertMatch({fault, <<"float arithmetic error">>, _}, Result3),
     %% an Int zero divisor inside a Float operand keeps its own cause
     {Result4, _} = run("fn n() : Int = List.size([])\n"
                        "export fn main() : Unit = "
                        "Io.println(Float.toString(Int.toFloat(1 / n()) + 1.0))\n"),
-    ?assertEqual({fault, <<"division by zero">>}, Result4),
+    ?assertMatch({fault, <<"division by zero">>, _}, Result4),
     %% Float.+ taken as a value faults the same way
     {Result5, _} = run("export fn main() : Unit = "
                        "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0,"
                        " Float.+)))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, Result5).
+    ?assertMatch({fault, <<"float arithmetic error">>, _}, Result5).
 
 %% report §3.1: there is no negative zero; an operation, a negation, a
 %% float segment, parsed text, and a foreign value give 0.0. A sum or a
@@ -1713,14 +1713,14 @@ foreign_faults_test() ->
     Main = "export fn main() : Unit = ",
     {Result1, _} = run("foreign fn bad() : Int = \"erlang:node/0\"\n"
                        ++ Main ++ "Io.println(Int.toString(bad()))\n"),
-    ?assertEqual({fault, <<"foreign return does not match Int">>}, Result1),
+    ?assertMatch({fault, <<"foreign return does not match Int">>, _}, Result1),
     {Result2, _} = run("foreign fn pair() : #(Int, String) = \"ern_emitter_tests:pair/0\"\n"
                        ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
-    ?assertEqual({fault, <<"foreign return does not match #(Int, String)">>}, Result2),
+    ?assertMatch({fault, <<"foreign return does not match #(Int, String)">>, _}, Result2),
     {Result3, _} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
                        ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
                        " | None -> Io.println(\"none\") }\n"),
-    ?assertEqual({fault, <<"foreign return does not match Optional(Int)">>}, Result3),
+    ?assertMatch({fault, <<"foreign return does not match Optional(Int)">>, _}, Result3),
     {ok, Output} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
                        ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
                        " | None -> Io.println(\"none\") }\n"),
@@ -1734,7 +1734,7 @@ foreign_faults_test() ->
                        " receiving m"
                        " = \"lists:foreach/2\"\n"
                        ++ Main ++ "each(fn(n : Int) = fault(\"later\"), [1])\n"),
-    ?assertEqual({fault, <<"later">>}, Result5).
+    ?assertMatch({fault, <<"later">>, _}, Result5).
 
 %% report §6.5, §8.4: an address `adapted` made, given to foreign code and given
 %% back, is the address that went out, its function kept. A regression
@@ -1764,7 +1764,7 @@ callback_fault_passes_through_test() ->
                            "    each(fn(n : Int) = Io.println(Int.toString(10 /"
                            " n)),"
                            " [2, 0])\n"),
-    ?assertEqual({{fault, <<"division by zero">>}, <<"5\n">>}, {Result, Output}).
+    ?assertMatch({{fault, <<"division by zero">>, _}, <<"5\n">>}, {Result, Output}).
 
 %% report §6.9, §8.4: a restart asked for while foreign code calls the
 %% program's function is a restart, the cause of the new start `Asked`. A
@@ -1846,10 +1846,10 @@ foreign_improper_list_test() ->
     {Result1, _} = run("foreign fn improper(x : Int) : List(Int) ="
                        " \"ern_emitter_tests:improper/1\"\n"
                        ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual({fault, <<"foreign return does not match List(Int)">>}, Result1),
+    ?assertMatch({fault, <<"foreign return does not match List(Int)">>, _}, Result1),
     {Result2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
                        ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual({fault, <<"foreign return does not match List(a)">>}, Result2).
+    ?assertMatch({fault, <<"foreign return does not match List(a)">>, _}, Result2).
 
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
@@ -1864,7 +1864,7 @@ foreign_function_value_test() ->
              "    }\n"
              "  | _ -> Unit\n"
              "}\n",
-    ?assertEqual({{fault, <<"foreign return does not match Int">>}, <<"2\n">>}, run(Source)).
+    ?assertMatch({{fault, <<"foreign return does not match Int">>, _}, <<"2\n">>}, run(Source)).
 
 %% report §8.4: the proxy in front of an exposed address is one per address
 %% and mailbox type, so exposing the same address twice gives the same one
@@ -1933,13 +1933,13 @@ foreign_messages_test() ->
                        "    junk(self());\n"
                        "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                        "}\n"),
-    ?assertEqual({fault, <<"message does not match Msg">>}, Result1),
+    ?assertMatch({fault, <<"message does not match Msg">>, _}, Result1),
     {WithStop, _} = run("type Msg = Go(Int) | Stop\n" ++ Junk ++
                         "export fn main() : Unit receiving Msg = {\n"
                         "    junk(self());\n"
                         "    receive { Stop -> Unit }\n"
                         "}\n"),
-    ?assertEqual({fault, <<"message does not match Msg">>}, WithStop),
+    ?assertMatch({fault, <<"message does not match Msg">>, _}, WithStop),
     {ok, Output} = run("type Msg = Go(Int)\n"
                        "foreign fn good(a : Address(Msg)) : Unit ="
                        " \"ern_emitter_tests:good/1\"\n"
@@ -1970,7 +1970,7 @@ foreign_messages_test() ->
                        "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
                        "    Io.println(Int.toString(n))\n"
                        "}\n"),
-    ?assertEqual({fault, <<"reply does not match Int">>}, Result2).
+    ?assertMatch({fault, <<"reply does not match Int">>, _}, Result2).
 
 %% report §8.4: a function that stands inside a foreign function's argument
 %% crosses as one given alone does, each argument foreign code calls it with
@@ -1983,7 +1983,7 @@ nested_function_checked_test() ->
                  "export fn main() : Unit =\n"
                  "    Io.println(Int.toString(call(#(4, fn(n) = n * 2))))\n"
              end,
-    ?assertEqual({fault, <<"foreign argument does not match Int">>},
+    ?assertMatch({fault, <<"foreign argument does not match Int">>, _},
                  outcome(Source("call_nested_bad"))),
     ?assertEqual({ok, <<"8\n">>}, run(Source("call_nested_good"))).
 
@@ -2003,7 +2003,7 @@ foreign_address_message_test() ->
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
-    ?assertEqual({fault, <<"message does not match Msg">>}, outcome(Source("hello_junk"))),
+    ?assertMatch({fault, <<"message does not match Msg">>, _}, outcome(Source("hello_junk"))),
     ?assertEqual({ok, <<"1\n">>}, run(Source("hello_good"))).
 
 %% report §8.4: foreign code answers a Reply an Ernest process hands on to it
@@ -2019,7 +2019,7 @@ reply_handed_on_test() ->
                  "    Io.println(Int.toString(n))\n"
                  "}\n"
              end,
-    ?assertEqual({fault, <<"reply does not match Int">>}, outcome(Source("relay_junk"))),
+    ?assertMatch({fault, <<"reply does not match Int">>, _}, outcome(Source("relay_junk"))),
     ?assertEqual({ok, <<"5\n">>}, run(Source("relay_good"))).
 
 %% report §8.4: a Reply foreign code gives back is held as foreign, so an
@@ -2036,7 +2036,7 @@ reply_given_back_test() ->
                       "    let n = Address.callForever(spawn(serve), fn(r) = Ask(reply = r));\n"
                       "    Io.println(Int.toString(n))\n"
                       "}\n"),
-    ?assertEqual({fault, <<"reply does not match Int">>}, Result).
+    ?assertMatch({fault, <<"reply does not match Int">>, _}, Result).
 
 %% report §8.4: an answer given to a Reply foreign code gave crosses into
 %% foreign code, so an address in it reaches foreign code through the
@@ -2058,7 +2058,7 @@ answer_to_foreign_reply_test() ->
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
-    ?assertEqual({fault, <<"message does not match Msg">>}, outcome(Source("ask_junk"))),
+    ?assertMatch({fault, <<"message does not match Msg">>, _}, outcome(Source("ask_junk"))),
     ?assertEqual({ok, <<"1\n">>}, run(Source("ask_good"))).
 
 %% report §8.4: the standard library is the runtime's own, so the return of
@@ -2075,7 +2075,7 @@ standard_library_unchecked_test() ->
            "    Io.println(\"unchecked\")\n"
            "}\n",
     ?assertEqual({ok, <<"unchecked\n">>}, run(['M'], Text, #{standard => true})),
-    ?assertEqual({fault, <<"foreign return does not match Int">>}, outcome(Text)).
+    ?assertMatch({fault, <<"foreign return does not match Int">>, _}, outcome(Text)).
 
 %% report §6.6, §6.5: a request that makes a call of its own, as printing
 %% does, and an adapted address's function that prints, each applied in
@@ -2237,7 +2237,7 @@ call_as_value_test() ->
                       " Address.callForever;\n"
                       "    Io.println(Int.toString(w(server(), fn(r) = Ask(reply = r))))\n"
                       "}\n"),
-    ?assertEqual({fault, <<"reply does not match Int">>}, Result).
+    ?assertMatch({fault, <<"reply does not match Int">>, _}, Result).
 
 %% report §5.11, §6.3: a pattern's size names a top-level `let`, which the
 %% `match` or the `receive` reads before it begins. A regression test: the
@@ -2348,7 +2348,7 @@ bitstring_faults_test() ->
               {"<<7:size(three())>>", <<"bitstring not byte-aligned">>}],
     lists:foreach(fun({Bits, Cause}) ->
                       {Result, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
-                      ?assertEqual({fault, Cause}, Result)
+                      ?assertMatch({fault, Cause, _}, Result)
                   end, Faults).
 
 %% report §5.11: a bare segment is an unsigned big-endian int of size 8;
@@ -2369,7 +2369,7 @@ bitstring_defaults_test() ->
     ?assertEqual(<<"1 2 \n255\n255 \n">>, Output),
     {Result, _} =
         run("export fn main() : Unit = { let n = 0 - 1; let _ = <<n>>; Unit }\n"),
-    ?assertEqual({fault, <<"segment overflow">>}, Result).
+    ?assertMatch({fault, <<"segment overflow">>, _}, Result).
 
 %% report §8.5: top-level lets run in the order the checker's let_order/1
 %% gives, a let after every let it reaches through the functions it names,
@@ -2448,7 +2448,7 @@ bitstring_edges_test() ->
               "<<(65519.0 * 1.0):size(16)-float>>"],
     lists:foreach(fun(Bits) ->
                       {Result, _} = run(Neg ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
-                      ?assertEqual({Bits, {fault, <<"segment overflow">>}}, {Bits, Result})
+                      ?assertMatch({Bits, {fault, <<"segment overflow">>, _}}, {Bits, Result})
                   end, Faults),
     {ok, Output} = run(
         "fn half(b : Bytes) : String = match b {\n"
@@ -2482,13 +2482,13 @@ division_fault_test() ->
                       "    let z = List.size([]);\n"
                       "    Io.println(Int.toString(1 / z))\n"
                       "}\n"),
-    ?assertEqual({fault, <<"division by zero">>}, Result).
+    ?assertMatch({fault, <<"division by zero">>, _}, Result).
 
 %% report §7.4, §9.6: fault compiles at any type and faults with its cause
 fault_test() ->
     {Result, _} = run("fn later() : Int = fault(\"later\")\n"
                       "export fn main() : Unit = Io.println(Int.toString(later()))\n"),
-    ?assertEqual({fault, <<"later">>}, Result).
+    ?assertMatch({fault, <<"later">>, _}, Result).
 
 %% report §9.6: `todo` is no longer the prelude's, `fault` taking its place
 todo_is_unknown_test() ->
@@ -2859,14 +2859,14 @@ foreign_casts_and_callbacks_test() ->
                                      "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
                    Result
                end,
-    ?assertEqual({fault, <<"foreign return does not match a">>},
+    ?assertMatch({fault, <<"foreign return does not match a">>, _},
                  ResultOf("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n", "cast(1) + 1")),
     ?assertEqual(ok, ResultOf("foreign fn none(xs : List(Int)) : List(a) =\n    \"erlang:tl/1\"\n",
                               "List.size(none([1]))")),
     ?assertEqual(ok, ResultOf("foreign type Handle(a)\n"
                               "foreign fn handle() : Handle(a) =\n    \"erlang:make_ref/0\"\n",
                               "handle()")),
-    ?assertEqual({fault, <<"foreign argument does not match Int">>},
+    ?assertMatch({fault, <<"foreign argument does not match Int">>, _},
                  ResultOf("foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) =\n"
                           "    \"lists:map/2\"\n", "each(fn(n) = n + 1, [\"x\"])")).
 
@@ -2944,9 +2944,12 @@ never_given_address_test() ->
                   "    send(" ++ Forged ++ ", \"x\")\n"
                   "}\n"
               end,
-    Refused = {{fault, <<"foreign return does not match Address(String)">>}, <<"5\n">>},
-    ?assertEqual(Refused, run(Program("me()"))),
-    ?assertEqual(Refused, run(Program("retyped([Process.fromAddress(self())])"))),
+    Refused = fun(Call) ->
+                  ?assertMatch({{fault, <<"foreign return does not match Address(String)">>, _},
+                                <<"5\n">>}, run(Program(Call)))
+              end,
+    Refused("me()"),
+    Refused("retyped([Process.fromAddress(self())])"),
     ?assertEqual({ok, <<"true\n">>},
                  run("foreign fn handle() : Address(Never) =\n"
                      "    \"erlang:self/0\"\n"
@@ -3016,7 +3019,7 @@ foreign_from_crosses_as_an_argument_test() ->
                   Declaration ++ lists:flatten(io_lib:format(Main, [Call]))
               end,
     Fault = fun(Source) ->
-                {{fault, Cause}, _} = run(Source),
+                {{fault, Cause, _}, _} = run(Source),
                 Cause
             end,
     ?assertEqual(<<"message does not match Int">>,

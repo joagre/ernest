@@ -205,7 +205,7 @@ killed_socket_test() ->
                end, <<"main">>, quiet()),
     Peer ! done,
     gen_tcp:close(Listen),
-    ?assertEqual({fault, <<"deadlock">>}, Result).
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% Appendix E.18, report §8.6: a port out of range is answered as an error,
 %% `Invalid`, by `listen` and `connect` alike, and the program is still found
@@ -223,7 +223,7 @@ port_out_of_range_test() ->
     Refused = {'Left', 'Invalid'},
     ?assertEqual(Refused, wait(listened)),
     ?assertEqual(Refused, wait(connected)),
-    ?assertEqual({fault, <<"deadlock">>}, Result).
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% Appendix E.18: a connect to a port where nothing listens, which the far
 %% end refuses, answers `Refused`. A regression test of the principles
@@ -253,7 +253,7 @@ host_with_nul_test() ->
     Refused = {'Left', 'Invalid'},
     ?assertEqual(Refused, wait(listened)),
     ?assertEqual(Refused, wait(connected)),
-    ?assertEqual({fault, <<"deadlock">>}, Result).
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% Appendix E.18: `connect` reaches the address its host names, IPv6's
 %% too. A regression test: the host's name went to the host without its
