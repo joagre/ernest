@@ -8563,6 +8563,8 @@ Decided with the user on 2026-10-20, planned as MVP 4.05. A program whose foreig
 
 The flag keeps the convenience and the rule: `--libs dir` adds each `dir/*/ebin` to the load path, in the command, and the host still derives an application's `lib_dir` and `priv` from its `ebin`, so an Erlang library that reads its own files works as it does under the host. It is planned before ehttpd, MVP 4.1, its first user, and not in MVP 3.28, the formatter's one-day item, which stays what it is.
 
+**Later the same day.** Moved into MVP 3.28 at the user's word, its second item of a day, so that it is built before the tour; MVP 4.05 goes.
+
 ## The Numbers Across Machines, 2026-10-20
 
 MVP 3.27 item 2, measured 2026-10-20 on the three wired machines of *The Machines*: the laptop, eight cores, where the measuring node runs; bee, two cores; xena, four. The host's ping between any two of them is 0.7 ms over TCP and 1.1 over TLS, against 0.1 on one machine and 3.5 over Wi-Fi. Every number is a median over seven runs with its range unless said otherwise, `make bench-machines` run twice with the two runs within five percent on every row, and every table kept under `test/build/bench/`. The one-machine numbers beside them are those of 2026-10-13 (*The Report for Code with a Spawn*), which a one-machine run of the same day confirmed.

@@ -61,11 +61,10 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between the machines the user gives, three on one LAN and a fourth on a separate LAN when it comes, the push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready; the guide does not wait for it, and the release only where the machines come first | | below |
-| MVP 3.28 | a clause's body all or none: in a `match` or a `receive`, every clause's body beside its pattern or every one below it, which §11.6 states and `ern format` writes | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps | | below |
+| MVP 3.28 | a clause's body all or none: in a `match` or a `receive`, every clause's body beside its pattern or every one below it, which §11.6 states and `ern format` writes; and a libs flag, `--libs dir` on `ern run`, `ern test` and `ern shell`, each `dir/*/ebin` on the load path | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05 the same day | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process on one node to its move to new code on a peer, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | `--verbose` on `ern build`, `ern run` and `ern test`, then a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
-| MVP 4.05 | a libs flag: `--libs dir` on `ern run`, `ern test` and `ern shell`, each `dir/*/ebin` on the load path, one flag for the Erlang applications a program's foreign functions call | made 2026-10-20; before ehttpd, its first user | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 | | below |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | below |
 | MVP 4.3 | the shell's second round | | | below |
@@ -150,17 +149,30 @@ and ends the trace at the program's outermost frame, and `ern run`, `ern test` a
 beneath the fault's line. The three questions the build left, a lambda's frame, the runtime's frames
 and a test's own fault, were decided the same day, in the log.
 
-## MVP 3.28 (a clause's body all or none), about a day
+## MVP 3.28 (a clause's body all or none, and a libs flag), about two days
 
-Decided with the user on 2026-10-14 as the tour's first item (the log's *Clause Bodies All or
-None*) and made a milestone of its own on 2026-10-20, since it is the formatter's work and not the
-tour's, and comes before the tour so that the tour is written in the layout it keeps. In a `match`
-or a `receive`, every clause's body stands beside its pattern, or every one goes on the line below
-it, indented; a block's `{` stays after the arrow. They stay beside where every one fits, and one
-that does not, a block or a body too long, sends them all below.
+Two items of a day each, before the tour.
 
-§11.6 says so first, then `ern format` and its tests, then `make format` lays every source and
-example out once.
+- **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
+  (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
+  is the formatter's work and not the tour's, and comes before the tour so that the tour is written
+  in the layout it keeps. In a `match` or a `receive`, every clause's body stands beside its
+  pattern, or every one goes on the line below it, indented; a block's `{` stays after the arrow.
+  They stay beside where every one fits, and one that does not, a block or a body too long, sends
+  them all below.
+
+  §11.6 says so first, then `ern format` and its tests, then `make format` lays every source and
+  example out once.
+- **A libs flag**, decided with the user on 2026-10-20 (the log's *A Libs Flag Instead of the
+  Environment*), planned as MVP 4.05 and moved here the same day at the user's word. Erlang code
+  comes as applications, `lib/<app>/ebin`, and a program whose foreign functions call several names
+  each directory with a `--load-path` of its own today (§11.2). `--libs dir` on `ern run`,
+  `ern test` and `ern shell` puts each `dir/*/ebin` on the load path, as the host's `ERL_LIBS`
+  would, in the command and not in the environment, which `ern` keeps clearing (§11.2).
+
+  §11.2 gains the flag's sentence first, then `ern_cli`, then a test of a foreign function found
+  through it; `ern build` needs nothing, since the checker reads no `.beam`. Its first user is
+  ehttpd, MVP 4.1.
 
 ## MVP 3.3 (the tour)
 
@@ -344,18 +356,6 @@ it.
    runs the plain shell in a container per visitor (MVP 4.2).
 3. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
    program's node, the guide's section 6 run by them, and the release that follows.
-
-## MVP 4.05 (a libs flag), about a day
-
-Decided with the user on 2026-10-20 (the log's *A Libs Flag Instead of the Environment*). Erlang
-code comes as applications, `lib/<app>/ebin`, and a program whose foreign functions call several
-names each directory with a `--load-path` of its own today (§11.2). `--libs dir` on `ern run`,
-`ern test` and `ern shell` puts each `dir/*/ebin` on the load path, as the host's `ERL_LIBS` would,
-in the command and not in the environment, which `ern` keeps clearing (§11.2).
-
-§11.2 gains the
-flag's sentence first, then `ern_cli`, then a test of a foreign function found through it; `ern
-build` needs nothing, since the checker reads no `.beam`. Its first user is ehttpd, MVP 4.1.
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
 
