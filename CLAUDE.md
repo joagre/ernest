@@ -68,6 +68,8 @@ Each fact has one owner. Every other document points at the owner and does not r
 - **State a change to the report or the plan and make it; do not ask.** Give the change and its argument, make it, report it in the conformance section (*Done*). Stop and wait only where the answer decides what gets built and a guess would throw the work away.
 
   That rare case is a design question: discussed one at a time, in prose, the argument before the verdict, with a recommendation, never as a form of choices. Smaller decisions the user must make come together, as one numbered list, each with its recommendation, for the user to accept or amend in one answer.
+
+  A session opened to discuss alone writes nothing until the user asks. Then each write to the plan or the log is named in one line before it is made, a "go" covers the piece just discussed and not the topic, and where more rounds are coming the writes are gathered into one commit at the pause.
 - **Leave no decision pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. One that needs the user is discussed at once and stands in the plan meanwhile as a named decision in a named milestone, never as "open". An undiagnosed defect is planned the same way, with a date and the shape of its fix.
 
 ## Design
