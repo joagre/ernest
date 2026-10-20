@@ -144,9 +144,17 @@ come first.
    that takes bursts, its message queue off its heap, made the callers' burst flat in a scratch
    build.
 
-   Decided here with the user: the setting on the reaper and the clock, kept where no row of `make
-   bench`'s spawn and monitor, which take one message at a time, worsens, measured by the fifth
-   part; the shape of its fix is one process flag in each.
+   Decided with the user on 2026-10-20: the setting on the reaper and the clock, kept where no row
+   of `make bench`'s spawn and monitor, which take one message at a time, worsens. Measured
+   interleaved, the clock's is kept, an alarm's firing flat and a fifth cheaper at 25,000; the
+   reaper's makes every burst flat but costs the spawn 7 percent and the monitor 8, so the reaper
+   stays on the heap by that condition, its end's cost under a burst stated in the log.
+
+   **Whether the reaper's mailbox goes off its heap after all** is decided with the user before the
+   milestone closes: §10's clause, that what the runtime adds grows with nothing but the operation's
+   own input, against a constant 0.5 µs on every spawn and 1 µs on every monitor; the recommendation
+   is the heap, since the growth is the host's collection, a caller's end 2.4 times dearer at two
+   hundred thousand, and a program whose burst shows it would change the answer.
 
    **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
    Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
