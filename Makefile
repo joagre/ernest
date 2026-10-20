@@ -340,7 +340,7 @@ bench-machines: all
 # The push's experiment across the machines of test/machines/machines.txt
 # (plan, MVP 3.27 item 2), each machine checked against this checkout
 # first; run by hand, on the user's machines, with MEASURING, PEERS,
-# INTERVALS and RUNS as test/Makefile says.
+# INTERVALS, RUNS and UTILIZATION as test/Makefile says.
 bench-pick: all
 	@$(MAKE) -C test bench-pick
 

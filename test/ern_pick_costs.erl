@@ -28,9 +28,12 @@
 %% `machine:count,...`, one arrangement of that many bare nodes on each
 %% machine in that order, at 5000 alone; the intervals the stream runs at
 %% again in the last arrangement, `1000,500` by default where no peers are
-%% given; and the runs, `bursts,streams`. It prints the table, keeps
-%% each run's lines under Dir's name with `-raw` after it, and halts. It
-%% measures and asserts nothing, so it is not part of `make test-full`.
+%% given; the runs, `bursts,streams`; and how every node measures its
+%% utilization, `run-queue` or `schedulers` as Appendix C spells them, the
+%% configuration's default where it is empty, the key being left out. It
+%% prints the table, keeps each run's lines under Dir's name with `-raw`
+%% after it, and halts. It measures and asserts nothing, so it is not part
+%% of `make test-full`.
 -module(ern_pick_costs).
 
 -export([main/1]).
@@ -61,13 +64,13 @@
                       intervals :: [pos_integer()]}).
 
 -spec main([string()]) -> no_return().
-main([Dir, File, Measuring, Peers, Intervals, Runs]) ->
+main([Dir, File, Measuring, Peers, Intervals, Runs, Utilization]) ->
     ern_machines:reported(
       fun() ->
           Machines = ern_machines:ready(File),
           try
               Planned = planned(File, Machines, Measuring, Peers, Intervals),
-              measured(Dir, Planned, runs(Runs))
+              measured(Dir, Planned, runs(Runs), measure(Utilization))
           after
               [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
                || Machine <- Machines],
@@ -149,6 +152,16 @@ processors(Machine) ->
     {_, Processors} = ern_machine:load(Machine),
     list_to_integer(Processors).
 
+%% Report §8.7, Appendix C: the `utilization` written in every node's
+%% `ernest.conf`, or none, where the key is left out and the node measures
+%% by the configuration's default, the run queue.
+measure("") ->
+    none;
+measure(Text) when Text =:= "run-queue"; Text =:= "schedulers" ->
+    list_to_binary(Text);
+measure(Text) ->
+    ern_machine:fail("the utilization is run-queue or schedulers, not " ++ Text).
+
 %%
 %% The runs
 %%
@@ -156,7 +169,7 @@ processors(Machine) ->
 %% The program built and copied with the probe to each machine, the work
 %% calibrated on the first arrangement's peers, and each arrangement
 %% measured at each of its intervals, its tables printed.
-measured(Dir, {Measuring, [First | Rest]}, Runs) ->
+measured(Dir, {Measuring, [First | Rest]}, Runs, Utilization) ->
     Involved = lists:uniq([Measuring | [Machine || #arrangement{peers = Peers} <- [First | Rest],
                                                    {_, Machine} <- Peers]]),
     [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
@@ -174,23 +187,33 @@ measured(Dir, {Measuring, [First | Rest]}, Runs) ->
               || Machine <- Involved],
     io:format("the push's experiment, push.md section 5, measured from ~s~n",
               [ern_machine:name(Measuring)]),
-    Nodes = made(Dir, Measuring, First),
+    io:format("each node's utilization: ~s~n",
+              [case Utilization of
+                   none -> "\"run-queue\", the configuration's default";
+                   _ -> ["\"", Utilization, "\""]
+               end]),
+    Nodes = made(Dir, Measuring, First, Utilization),
     Steps = calibrated(Raw, Copied, Nodes, First),
     arranged(Raw, Copied, Steps, Runs, Nodes, First),
     lists:foreach(fun(Arrangement) ->
-                      arranged(Raw, Copied, Steps, Runs, made(Dir, Measuring, Arrangement),
-                               Arrangement)
+                      arranged(Raw, Copied, Steps, Runs,
+                               made(Dir, Measuring, Arrangement, Utilization), Arrangement)
                   end, Rest).
 
-%% The arrangement's nodes made on their machines, each peer listing the
-%% measuring node, a, which dials them and is dialed by none.
-made(Dir, Measuring, #arrangement{label = Label, peers = Peers}) ->
+%% The arrangement's nodes made on their machines, each measuring its
+%% utilization as given, and each peer listing the measuring node, a,
+%% which dials them and is dialed by none.
+made(Dir, Measuring, #arrangement{label = Label, peers = Peers}, Utilization) ->
     Nodes = fun(Machine) ->
                 filename:join([ern_machine:directory(Machine, Dir), "nodes", named_label(Label)])
             end,
     A = ern_machine_node:configured(Measuring, Nodes(Measuring), "a", none),
     Made = [{Name, ern_machine_node:configured(Machine, Nodes(Machine), Name, 0)}
             || {Name, Machine} <- Peers],
+    [ern_machine_node:edited(Node, fun(Configuration) ->
+                                       Configuration#{<<"utilization">> => Utilization}
+                                   end)
+     || Utilization =/= none, Node <- [A | [Node || {_, Node} <- Made]]],
     [ern_machine_node:listed(Node, [{A, none}]) || {_, Node} <- Made],
     {A, Made}.
 

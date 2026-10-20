@@ -235,16 +235,18 @@ ACROSS = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 # on, this one by default; PEERS the peers, machine:count,..., in place of
 # the two arrangements of the default; INTERVALS the utilization-intervals
 # the last arrangement's stream runs at again, 1000,500 by default; RUNS the
-# bursts and the streams, 7,3. Its table is written to build/bench/pick-machines.txt and printed,
-# each run's lines kept in build/bench/pick-machines-raw/. Not part of
-# `make test-full`.
+# bursts and the streams, 7,3; UTILIZATION how every node measures its
+# utilization, run-queue or schedulers (Appendix C), the configuration's
+# default where it is left out. Its table is written to
+# build/bench/pick-machines.txt and printed, each run's lines kept in
+# build/bench/pick-machines-raw/. Not part of `make test-full`.
 bench-pick: $(EBIN)/ern_pick_costs.beam measured named
 	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_pick_costs:main(["build/bench/pick-machines", "machines/machines.txt", $(PICK)])' \
 	  > build/bench/pick-machines.txt; \
 	  status=$$?; cat build/bench/pick-machines.txt; exit $$status
 
-PICK = "$(MEASURING)", "$(PEERS)", "$(INTERVALS)", "$(RUNS)"
+PICK = "$(MEASURING)", "$(PEERS)", "$(INTERVALS)", "$(RUNS)", "$(UTILIZATION)"
 
 # The machines' tools, which test/machines/nodes.sh runs and the bench's
 # node parts call (ern_machines).

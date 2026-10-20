@@ -174,7 +174,10 @@ make bench-pick   the push's experiment of docs/proposals/placement/push.md's se
                   stream again at utilization-interval 1000 and 500; MEASURING=name puts
                   the measuring node on that machine, PEERS=bee:2,xena:4 names the
                   peers, INTERVALS=1000,500 the intervals the last arrangement's
-                  stream runs again at, RUNS=7,3 the bursts and streams; its table in
+                  stream runs again at, RUNS=7,3 the bursts and streams,
+                  UTILIZATION=schedulers how every node measures its utilization,
+                  run-queue or schedulers as Appendix C spells them, the
+                  configuration's default, run-queue, where it is left out; its table in
                   test/build/bench/pick-machines.txt, each run's lines in
                   test/build/bench/pick-machines-raw/; about 32 minutes by default; run
                   by hand, on the user's machines alone, and not part of make test-full

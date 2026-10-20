@@ -231,12 +231,12 @@ Peer.compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, a)
 The value of `f()`, run on a peer this node picks, as `computeAt` runs it
 on the peer named. Of the peers whose utilizations the node holds, each
 told within two of the intervals at which that peer tells, two are drawn
-at random and the less busy taken, the first in the configuration's order
-of two equally busy; a single one is taken as it is. Where no peer is
-listed the compute answers `NotListed`, and where none has told a
-utilization the node may use, `Unreachable`; once the peer is picked, the
-compute is `computeAt`'s, and meets what it meets. `compute` is called where
-it is named, and is no value.
+at random and the less busy taken, the first drawn of two equally busy;
+a single one is taken as it is. Where no peer is listed the compute
+answers `NotListed`, and where none has told a utilization the node may
+use, `Unreachable`; once the peer is picked, the compute is `computeAt`'s,
+and meets what it meets. `compute` is called where it is named, and is no
+value.
 
 ### Errors
 

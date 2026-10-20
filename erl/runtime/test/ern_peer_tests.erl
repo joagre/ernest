@@ -157,11 +157,14 @@ utilizations_test() ->
 %% is not used, and `utilizations` answers it as it is, with its age, while
 %% one as old from a peer that tells seldom enough is used; of two peers
 %% the less busy is taken at every draw, and of two equally busy the first
-%% in the configuration's order; and the draw among more than two stays
-%% within the usable ones, never takes the busiest, which is no less busy
-%% than any it is drawn with, and takes each other one, two being drawn at
-%% random. A regression test, written after the code; that the draw is
-%% uniform is the host's generator's, and is not measured
+%% drawn, so that each is taken across draws; the draw among more than two
+%% stays within the usable ones, never takes the busiest, which is no less
+%% busy than any it is drawn with, and takes each other one, two being
+%% drawn at random; and of five equally busy each is taken, the last in the
+%% configuration's order among them. A regression test, written after the
+%% code; the first drawn's two assertions before its change of 2026-10-20,
+%% which they failed. That the draw is uniform is the host's generator's,
+%% and is not measured
 pick_test() ->
     [A, B, C, D, E] = Nodes = ['a@node.ernest', 'b@node.ernest', 'c@node.ernest',
                                'd@node.ernest', 'e@node.ernest'],
@@ -185,15 +188,18 @@ pick_test() ->
                 %% a less busy peer is taken at every draw
                 told(D, 0.1, 0, Interval),
                 ?assertEqual([D], picks(50)),
-                %% two equally busy: the first in the configuration's order
+                %% two equally busy: the first drawn, each across draws
                 told(C, 0.1, 0, Interval),
-                ?assertEqual([C], picks(50)),
+                ?assertEqual([C, D], picks(50)),
                 %% more than two: within the usable ones, never the busiest,
                 %% a not heard from and b too old
                 told(C, 0.9, 0, Interval),
                 told(E, 0.5, 0, Interval),
                 ?assertEqual([D, E], picks(300)),
-                ?assertNot(lists:member(A, picks(300)))
+                ?assertNot(lists:member(A, picks(300))),
+                %% every one equally busy: each taken, e, listed last, too
+                [told(Node, 0.0, 0, Interval) || Node <- Nodes],
+                ?assertEqual(Nodes, picks(300))
             end).
 
 %% report §8.7, Appendix E.27, §7.4: `Peer.setUtilization` sets the

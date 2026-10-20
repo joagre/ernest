@@ -323,11 +323,10 @@ computed(Node, Spawned, Ms, Site) ->
 %% from within two of its own intervals, which its telling carried, so that
 %% a peer that tells seldom is as usable as one that tells often, two drawn
 %% at random, by the host's generator, and the less busy taken, the first
-%% in the configuration's order of two equally busy, and one taken as it
-%% is; `NotListed` where no peer is listed, and `Unreachable` where none
-%% has a utilization to use, in an initializer among
-%% them, before the node holds any. A read of the peers' rows and a draw,
-%% and no frame (§10).
+%% drawn of two equally busy, and one taken as it is; `NotListed` where no
+%% peer is listed, and `Unreachable` where none has a utilization to use,
+%% in an initializer among them, before the node holds any. A read of the
+%% peers' rows and a draw, and no frame (§10).
 -spec picked() -> {picked, node()} | 'NotListed' | 'Unreachable'.
 picked() ->
     case peers() of
@@ -341,8 +340,10 @@ picked() ->
                                     Now - At =< 2 * Interval]))
     end.
 
-%% Two of the usable peers, in the configuration's order, drawn at random,
-%% and the less busy taken, the earlier of two equally busy.
+%% Report §8.7: two of the usable peers drawn at random, one after the
+%% other, and the second taken where it is less busy than the first, the
+%% first otherwise, so that of two equally busy the first drawn is taken,
+%% either of the two as the draw falls.
 drawn({}) ->
     'Unreachable';
 drawn({{_, Node}}) ->
@@ -354,10 +355,12 @@ drawn(Usable) ->
                  Drawn when Drawn >= First -> Drawn + 1;
                  Drawn -> Drawn
              end,
-    {EarlierUtilization, Earlier} = element(min(First, Second), Usable),
-    case element(max(First, Second), Usable) of
-        {LaterUtilization, Later} when LaterUtilization < EarlierUtilization -> {picked, Later};
-        _ -> {picked, Earlier}
+    {FirstUtilization, FirstNode} = element(First, Usable),
+    case element(Second, Usable) of
+        {SecondUtilization, SecondNode} when SecondUtilization < FirstUtilization ->
+            {picked, SecondNode};
+        _ ->
+            {picked, FirstNode}
     end.
 
 %% Report §8.7: how busy the peer named is, the Float its gateway answers
