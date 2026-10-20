@@ -60,7 +60,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](proposals/balancer/suggestion.md); *Placing Work by Name* |
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
-| MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between four machines the user gives, one on a separate LAN, the push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready; the guide does not wait for it, and the release only where the machines come first | | below |
+| MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between the machines the user gives, three on one LAN and a fourth on a separate LAN when it comes, the push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready; the guide does not wait for it, and the release only where the machines come first | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program grown from one node to a rolling upgrade | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | `--verbose` on `ern build`, `ern run` and `ern test`, then a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -76,23 +76,33 @@ finished milestone is a row of the table below, its reasons in the log entries t
 A milestone made on 2026-10-13, when MVP 3.2 measured the exchange, the picks and the
 host's distribution on one machine and found that the asks of different peers did not overlap there,
 the host's distribution serializing them, so that every number of that day's that crosses a wire is
-one machine's (the log's *The Report for Code with a Spawn*). The user gives four machines to start nodes on, one of them on a separate LAN, and
-the measurements run again between them: a spawn whose code crosses, a compute, a fix's callers,
-`Peer.utilization`, the pick of the push (the log's *Placing Work by Name*) against `Placement.leastBusy`'s pull, the carrier's
-dial and its loss, on one LAN and across the two, each a median over runs with its range, in the log
-beside the first. What differs goes into the log beside the first numbers and, where a sentence of the
+one machine's (the log's *The Report for Code with a Spawn*).
+
+The user gives machines to start nodes on, three on one LAN today and a fourth on a separate LAN
+when it comes, and the measurements run again between them: a spawn whose code crosses, a compute, a fix's callers,
+`Peer.utilization`, the pick of the push (the log's *Placing Work by Name*) against a pull written over
+`Peer.utilizations()`, the `Placement` library having gone (Appendix G.5), the carrier's
+dial and its loss, on one LAN and, once the fourth machine is there, across the two, each a median over runs with its range, in the log
+beside the first.
+
+What differs goes into the log beside the first numbers and, where a sentence of the
 deployment guide quotes a number, into the guide, which is written before this milestone on one
 machine's numbers and says so; and it decides whether the push's two choices hold under a burst
-across a wire, as `docs/proposals/placement/push.md`'s section 5 asks. It runs when the user's machines
-are ready, and the release waits for it only where the machines come first.
+across a wire, as `docs/proposals/placement/push.md`'s section 5 asks.
 
-1. **The machines.** The four nodes' configuration directories and keys, made with `ern config` and
-   listed as peers across the machines, a script that starts and stops them, and the measuring
-   programs of `make bench` run between them, the node on the separate LAN last.
+It runs when the user's machines are ready, and the release waits for it only where the machines
+come first.
+
+1. **The machines.** A node's configuration directory and key on each machine, made with `ern config`
+   and listed as peers across the machines, a script that starts and stops them, and `make bench`'s
+   node parts run between them, which take the machines' nodes where today they start their own on
+   this machine; the node on the separate LAN last, when it comes.
 2. **The numbers.** The tables of 2026-10-13 again across machines, and the push's experiment of
    `docs/proposals/placement/push.md`'s section 5; the log's paragraph beside them; `docs/memory.md`
    where a measured fact changes; the deployment guide's numbers for two nodes and for code across
-   nodes corrected from them.
+   nodes corrected from them. With them, the spawn's end at the reaper measured by itself, the
+   bench's spawn row standing at 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's
+   *The Release Review Before 0.4.0*), and what costs brought back toward the host's.
 
 The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
 test waits for, as the log's *The Programs Tests' Bounds* leaves them; and a nodes test of
