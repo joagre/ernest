@@ -128,15 +128,21 @@ come first.
 
    The two monitors' growth is one commit's read of the deliveries in flight at every end, about 2 µs, whose plain form stays, the
    bag that would remove it growing with what a process has in flight; entering `restarting` costs
-   about 0.6 µs, most of it E.22's ask, which stays, and 70 ns came back in the plain form. A
-   quadratic in the reaper's and the clock's bookkeeping of a burst, older than MVP 3.1, is fixed.
+   about 0.6 µs, most of it E.22's ask, which stays, and 70 ns came back in the plain form.
+
+   A quadratic in the reaper's and the clock's bookkeeping of a burst, older than MVP 3.1, is fixed.
+   Nothing had measured a burst against its size, so a burst part joins `make bench`'s fifth part,
+   decided with the user on 2026-10-20: one process monitoring many that end, many callers of one
+   process ending, many deliveries in flight to one process, and one process's alarms firing, each
+   timed at several sizes, so that a cost growing faster than the burst shows.
 
    **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
    Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
    foreign fault beside the reply, so the host reads from the mailbox's start and not from the
-   reply's reference. Decided here with the user before the milestone closes; the shape of its fix
-   is a receive that reads from the reply's reference, with the restart and the foreign fault read
-   another way.
+   reply's reference. Decided with the user on 2026-10-20: discussed as its own question after the
+   nodes tests' limits below, before the milestone closes, since it reaches the report; the shape
+   of its fix is a receive that reads from the reply's reference, with the restart and the foreign
+   fault read another way.
 
 The nodes tests' about sixty limits, each a number of its own today, are derived here from what each
 test waits for, as the log's *The Programs Tests' Bounds* leaves them; and a nodes test of
