@@ -2370,6 +2370,10 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% does its own (reaper/0).
 clock(ReadTime) ->
     erlang:process_flag(trap_exit, true),
+    %% Report §10: its mailbox kept off its heap, so that no collection of the
+    %% heap copies a burst of the alarms' messages that wait in it (the log's
+    %% *The Rows That Grew*).
+    erlang:process_flag(message_queue_data, off_heap),
     _ = erlang:monitor(time_offset, clock_service),
     clock_loop(#clock{read_time = ReadTime}).
 
