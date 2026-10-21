@@ -369,12 +369,12 @@ A lambda's or a local function's identity is the pair `{Hash, Position}` of its 
 **Definitions.**
 
 ```
-{function, Scheme, Params, Needs, Expr}
+{function, Scheme, Params, Expr}
 {binding, Scheme, Expr}
 {type, QualifiedName, Arity, Derives, Compare, Constructors}
 ```
 
-A function, top-level or local, holds its scheme, its parameters, its requirement as written, and its body. A binding holds its scheme and its initializer. A function's own name and a binding's are not in their forms.
+A function, top-level or local, holds its scheme, its parameters and its body. A binding holds its scheme and its initializer. A function's own name and a binding's are not in their forms.
 
 A type holds its qualified name (**References**), the number of its parameters, `true` where it derives `compare` and `false` otherwise, the reference of the `compare` its module declares for it, written or derived, `none` where it has none, and its constructors in declared order, each `{Name, none}`, `{Name, {positional, Type}}` or `{Name, {named, [{Field, Type}]}}`, its fields in declared order; its parameters are the variables 1 to its arity, in order. An abstract type's hash covers its constructors as any type's does. A type's hash covers its `compare` (§3.10) and no other member. A type and a `compare` its module declares in Ernest reference each other, and so are one group (**What is hashed**); a foreign `compare` is referenced by its name and scheme (**References**).
 
@@ -382,7 +382,7 @@ A derived `compare` (§3.5) is hashed as a written one, the function the checker
 
 Whether a declaration is exported, and whether a type is abstract, is not in its form; the view a `show` has of an abstract type is in the form of the function that shows it (above).
 
-A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` (§4.9). A parameter is its pattern. `Needs` lists the `needs` clause's members as written, each `{needs, Type, Member}`.
+A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` in the order the requirement names them (§4.9). A parameter is its pattern.
 
 **References.**
 
@@ -412,7 +412,7 @@ A type applied to its arguments names its constructor's reference, `{applied, {n
 
 **The walk.** The walk visits a term's parts in the order the term lists them, depth first. Locals are numbered from 1 in each definition in the order the walk binds them, as parameters, in patterns and as local functions. A block binds its local functions' names, in the order they are declared, as the walk enters it, and then walks its statements. A use of a local is the number of the binding in scope. A pattern's alternatives bind the numbers its first alternative gave. A size in a bitstring pattern names the locals in scope where the pattern begins and those its bitstring's earlier segments bind.
 
-Type variables are numbered from 1 in each definition in the order the walk first meets them. A variable a `needs` clause names is the type variable the checker gave the place where the signature writes that name. The walk begins at the definition's scheme, which lists its quantified variables in the order they first stand in its type. A foreign function's scheme, in a reference, is numbered by itself.
+Type variables are numbered from 1 in each definition in the order the walk first meets them. The walk begins at the definition's scheme, which lists its quantified variables in the order they first stand in its type. A foreign function's scheme, in a reference, is numbered by itself.
 
 **Expressions.**
 
@@ -480,4 +480,4 @@ A pattern's `Arguments` are `none`, `{positional, Pattern}` or `{fields, Pattern
 
 A known type's member is the reference of the function that declares it, with its own requirement supplied; a member of the requirement in force is its type variable and its name; `show` at a type known whole is that type with the view the site has of it, the representation inside an abstract type's module and `<abstract>` outside it (Appendix E.1), so that two bodies that print differently hash differently: `Abstract` lists the references of the abstract types of other modules the printer meets, once each in the order it meets them, reading a tuple's elements, a list's, a set's or a map's and a declared type's fields, and not inside one of them, an address, a reply, a function or a foreign type; the type `Foreign.term` gives its value at is that type alone; and a service's message type is that type, from which its hash follows (§8.7).
 
-**What is left out.** Spans, layout, comments and doc blocks; the names of locals and of annotation variables; the annotations, since a function's scheme and a binding's hold their types, and a lambda, a `let` and a `<-` the types the checker gave them; the namespace a name was written with; a node's inferred type, but where this appendix places one; and the order a pattern writes a constructor's fields in.
+**What is left out.** Spans, layout, comments and doc blocks; the names of locals and of annotation variables; the annotations, since a function's scheme and a binding's hold their types, and a lambda, a `let` and a `<-` the types the checker gave them; a `needs` clause, which the scheme's `Requirement` lists; the namespace a name was written with; a node's inferred type, but where this appendix places one; and the order a pattern writes a constructor's fields in.

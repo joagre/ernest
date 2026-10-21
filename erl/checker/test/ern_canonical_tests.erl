@@ -87,13 +87,13 @@ literal_bytes_test() ->
 %% form, of the encoding or of the version changes it
 literal_hashes_test() ->
     Expected = [{"fn f() : Int = 42",
-                 "851c3e77260bf2740cbee3e4d615828391cbbffaf7a28cf3fafeb24333cfec3e"},
+                 "9503126c1bcf021ce6b41512ec9719acb87a3e098913cefc4ac647cc0fc54c71"},
                 {"fn f() : Float = 1.5",
-                 "f091284184b0d0a2c73ba32ee097d2006bf287bf8d6f2f79450e21c189e32f86"},
+                 "51e9d8766eb9d3a1af8135feec69d972f9487b15b2536040954b30118f45fc63"},
                 {"fn f() : String = \"hé\"",
-                 "ecfd9b87a98ecfaf0bd48f5ada8c1c4d65db7ae69f492f94293b6ed11b21719c"},
+                 "51451a99216a20b8a5cf3220ab32fb13df593029a3a56c89b485a2050e17b527"},
                 {"fn f() : Char = 'é'",
-                 "7ab1663440f02df24e298ce4dfe05347a4402317cd0950f347e4b64647be47f9"}],
+                 "1067fb987a12b0481dc161a110dc0fd459fe982776188421be528668d808c86c"}],
     [?assertEqual({Text, list_to_binary(Hex)},
                   {Text, binary:encode_hex(hash(Text, f), lowercase)})
      || {Text, Hex} <- Expected],
@@ -116,13 +116,13 @@ type_hashes_test() ->
                                    lowercase)).
 
 %% report Appendix H: the form of a function, as the appendix writes it:
-%% its scheme, its parameters, each its pattern, its requirement and its
-%% body, a local by its number and an operator the runtime applies holding
-%% its operand's type
+%% its scheme, its parameters, each its pattern, and its body, a local by
+%% its number and an operator the runtime applies holding its operand's
+%% type
 function_form_test() ->
     Int = applied('Int'),
     Expected = {function, {scheme, [], {arrow, [Int], none, Int}, []},
-                [{local, 1}], [],
+                [{local, 1}],
                 {operator, '+', {var, {local, 1}, []}, {literal, int, 1}, {runtime, Int}}},
     ?assertEqual(Expected, form("fn inc(x : Int) : Int = x + 1", inc)),
     ?assertEqual(sha({ernest_form, 2, Expected}), hash("fn inc(x : Int) : Int = x + 1", inc)).
@@ -198,7 +198,7 @@ group_form_test() ->
            "fn odd(n : Int) : Bool = if n == 0 then false else even(n - 1)\n",
     Member = fun(Answer, Other) ->
                  {function, {scheme, [], {arrow, [Int], none, Bool}, []},
-                  [{local, 1}], [],
+                  [{local, 1}],
                   {'if', {operator, '==', {var, {local, 1}, []}, {literal, int, 0}, runtime},
                    {literal, bool, Answer},
                    {call, {var, {in_group, Other}, []},
@@ -264,6 +264,18 @@ annotation_left_out_test() ->
     ?assert(holds({bind, {applied, {named, ['List']}, [applied('Int')]}, {list, []}, {local, 1}},
                   form(Empty("Int"), e))),
     ?assertNotEqual(hash(Empty("Int"), e), hash(Empty("String"), e)).
+
+%% report Appendix H, §4.9: a function's requirement is its scheme's, its
+%% members in the order its `needs` clause names them, the order its
+%% members are taken in, so two clauses that name them in two orders are
+%% two definitions. Written with the change that took the `needs` clause
+%% out of the form (the plan's MVP 3.27): it stood there beside the
+%% scheme's requirement, which held the same
+requirement_in_scheme_test() ->
+    Needs = fun(Members) -> "fn f(x : a, y : a) : Bool needs " ++ Members ++ " = x < y\n" end,
+    {function, {scheme, _, _, [{1, compare}, {1, show}]}, _, _} =
+        form(Needs("a.compare, a.show"), f),
+    ?assertNotEqual(hash(Needs("a.compare, a.show"), f), hash(Needs("a.show, a.compare"), f)).
 
 %% report Appendix H, §6.1: a lambda's form holds the type the checker gave
 %% it, its mailbox type among it, so that a spawned lambda whose mailbox
@@ -482,7 +494,7 @@ binding_identity_test() ->
     #definition{qualified_name = ['T', a], kind = binding, hash = Hash} = definition(Text, a),
     #definition{qualified_name = ['T', b], kind = binding, hash = Hash} = definition(Text, b),
     ?assertEqual({var, {binding, ['T', a], Hash}, []},
-                 element(5, form(Text, useA))),
+                 element(4, form(Text, useA))),
     ?assertNotEqual(hash(Text, useA), hash(Text, useB)).
 
 %% report §8.7, Appendix H: a lambda's or a local function's identity is its
@@ -496,7 +508,7 @@ lambda_identity_test() ->
     #definition{hash = Hash, form = Form} = definition(Text, both),
     Functions = ern_canonical:lambdas(Hash, Form),
     ?assertEqual([{Hash, 1}, {Hash, 2}, {Hash, 3}], [Identity || {Identity, _} <- Functions]),
-    [{_, {function, _, _, _, _}}, {_, {lambda, _, _, Inner}}, {_, {lambda, _, _, _}}] = Functions,
+    [{_, {function, _, _, _}}, {_, {lambda, _, _, Inner}}, {_, {lambda, _, _, _}}] = Functions,
     %% xs is 1, twice 2 as the block begins, twice's x 3 and the lambda's x 4
     ?assertEqual({operator, '+', {var, {local, 4}, []}, {literal, int, 1},
                   {runtime, applied('Int')}},
@@ -560,7 +572,7 @@ type_reference_test() ->
     BoxHash = hash(Text, 'Box'),
     Box = {applied, {hash, BoxHash}, [{variable, 1}]},
     {function, {scheme, [{1, _}], {arrow, [Box], none, {variable, 1}}, []},
-     [{local, 1}], [],
+     [{local, 1}],
      {match, {var, {local, 1}, []},
       [{clause, {construct, {constructor, {hash, BoxHash}, 1}, {positional, {local, 2}}}, none,
         {var, {local, 2}, []}}]}} = form(Text, open).
@@ -600,7 +612,7 @@ local_requirement_test() ->
            "}\n",
     {block, [{function, {scheme, [], {arrow, [{variable, 1}, {variable, 1}], none, _},
                          [{1, compare}]},
-              _, _, _} | _]} = element(5, form(Text, sorted)).
+              _, _} | _]} = element(4, form(Text, sorted)).
 
 %% report Appendix H, §8.7: a service's message type stands in the form of
 %% the definition that makes the service as `{service, Type}`, so that a

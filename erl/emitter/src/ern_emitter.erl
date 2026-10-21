@@ -260,9 +260,9 @@ prepared(Form, Linking) ->
     Absolute = absolute(Form, Linking),
     {Source, Node} = sourced(Absolute),
     case Node of
-        {function, Scheme, Params, Needs, Body} when is_list(Params) ->
+        {function, Scheme, Params, Body} when is_list(Params) ->
             {[Params1, Body1], _} = lists:mapfoldl(fun marked/2, {0, 0}, [Params, Body]),
-            rewrapped(Source, {function, Scheme, Params1, Needs, Body1});
+            rewrapped(Source, {function, Scheme, Params1, Body1});
         _ ->
             element(1, marked(Absolute, {0, 0}))
     end.
@@ -316,13 +316,13 @@ marked(Term, State) ->
 
 %% A local function's parts walked, the function itself having been given
 %% its position.
-marked_parts({function, Scheme, Params, Needs, Body}, State) ->
+marked_parts({function, Scheme, Params, Body}, State) ->
     {[Params1, Body1], State1} = lists:mapfoldl(fun marked/2, State, [Params, Body]),
-    {{function, Scheme, Params1, Needs, Body1}, State1}.
+    {{function, Scheme, Params1, Body1}, State1}.
 
 is_local_fn(Statement) ->
     case sourced(Statement) of
-        {_, {function, _, Params, _, _}} when is_list(Params) -> true;
+        {_, {function, _, Params, _}} when is_list(Params) -> true;
         _ -> false
     end.
 
@@ -380,9 +380,9 @@ definition_functions({_, #definition{kind = type}}, Context) ->
 definition_functions({Position, #definition{kind = function} = Definition},
                      #emit_context{own = #own{forms = Forms}} = Context) ->
     {_, Form} = maps:get(Position, Forms),
-    {Source, {function, _, Params, Needs, Body}} = sourced(Form),
+    {Source, {function, Scheme, Params, Body}} = sourced(Form),
     Context1 = entering(Position, Definition, Form, Context),
-    {Head, Context2} = head_patterns(Params, Needs, Context1),
+    {Head, Context2} = head_patterns(Params, Scheme, Context1),
     {BodyForms, Context3} = body(Body, Context2),
     Clause = at(Source, erl_syntax:clause(Head, none, BodyForms)),
     Function = at(Source, erl_syntax:function(erl_syntax:atom(function_name(Position)), [Clause])),
@@ -406,21 +406,22 @@ with_comment(Form, Text) ->
     erl_syntax:add_precomments([erl_syntax:comment(["% " ++ Text])], Form).
 
 %% A function's parameters as patterns, then a parameter for each member
-%% its requirement names (report §4.9).
-head_patterns(Params, Needs, Context) ->
+%% its scheme's requirement names (report §4.9).
+head_patterns(Params, {scheme, _, _, Requirement}, Context) ->
     {Patterns, Context1} = lists:mapfoldl(fun pattern/2, Context, Params),
-    {Members, Context2} = members_taken(Needs, Context1),
+    {Members, Context2} = members_taken(Requirement, Context1),
     {Patterns ++ Members, Context2}.
 
-%% Report §4.9: the members a requirement names, each a parameter after the
-%% written ones, in the order the requirement writes them.
-members_taken(Needs, Context) ->
-    lists:mapfoldl(fun({needs, {variable, Number}, Member}, Acc) ->
+%% Report §4.9, Appendix H: the members a requirement names, each a
+%% parameter after the written ones, in the order the requirement names
+%% them.
+members_taken(Requirement, Context) ->
+    lists:mapfoldl(fun({Number, Member}, Acc) ->
                        {[Erlang], Acc1} = fresh_variables(1, "Member", Acc),
                        Members = Acc1#emit_context.members,
                        {erl_syntax:variable(Erlang),
                         Acc1#emit_context{members = Members#{{Number, Member} => Erlang}}}
-                   end, Context, Needs).
+                   end, Context, Requirement).
 
 %% Report §4.7, §8.4: a foreign function, its implementation called in
 %% place, an exception it raises turned into a fault, and its return
@@ -589,7 +590,8 @@ exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
 %% requirement's members (report §4.9), and a binding's getter none.
 arity(Form) ->
     case sourced(Form) of
-        {_, {function, _, Params, Needs, _}} -> length(Params) + length(Needs);
+        {_, {function, {scheme, _, _, Requirement}, Params, _}} ->
+            length(Params) + length(Requirement);
         {_, {binding, _, _}} -> 0
     end.
 
@@ -1108,8 +1110,8 @@ local_value(_, Number, #emit_context{variables = Variables, locals = Locals} = C
 
 %% A local fn's arity, its parameters and its requirement's members, which
 %% are supplied where it is named (§4.9).
-local_arity({function, _, Params, Needs, _}) ->
-    length(Params) + length(Needs).
+local_arity({function, {scheme, _, _, Requirement}, Params, _}) ->
+    length(Params) + length(Requirement).
 
 %% Report §4.9: a function value with its members supplied, a lambda of
 %% Arity parameters whose body is Call of the bound variables and the
@@ -2537,7 +2539,7 @@ statement_pattern(_) -> [].
 declared_local(Fn, Numbers, BlockLets,
                #emit_context{variables = Variables, locals = Locals,
                              definition = {Definition, _, _}} = Context) ->
-    {Source, {local_fn, Number, Position, {function, _, _, Needs, Body} = Function}} =
+    {Source, {local_fn, Number, Position, {function, Scheme, _, Body} = Function}} =
         sourced(Fn),
     Free = lists:usort(captures(Function)),
     References = [Free1 || Free1 <- Free, lists:member(Free1, Numbers)],
@@ -2548,13 +2550,12 @@ declared_local(Fn, Numbers, BlockLets,
                                  not lists:member(Free1, Captured), is_map_key(Free1, Locals)]),
     {Number, #local_fn{lifted_name = lifted_name(Definition, Position), captured = Captured,
                        enclosing = lists:usort(Enclosing), references = References,
-                       members = enclosing_members(Body, Needs, Context), function = Function,
+                       members = enclosing_members(Body, Scheme, Context), function = Function,
                        position = Position, source = Source}}.
 
 %% Report §4.9: the parameters of the enclosing requirements' members a
 %% local fn's body uses, which it closes over, its own requirement's aside.
-enclosing_members(Body, Needs, #emit_context{members = Members}) ->
-    Own = [{Number, Member} || {needs, {variable, Number}, Member} <- Needs],
+enclosing_members(Body, {scheme, _, _, Own}, #emit_context{members = Members}) ->
     Used = required(Body, []),
     lists:usort([maps:get(Key, Members) || Key <- Used, not lists:member(Key, Own),
                                            is_map_key(Key, Members)]).
@@ -2598,13 +2599,13 @@ emit_locals(Fns, Context) ->
 
 emit_local(Fn, #emit_context{variables = Variables, locals = Locals, members = Members,
                              definition = {_, _, QualifiedName}} = Context) ->
-    {Source, {local_fn, Number, _, {function, _, Params, Needs, Body}}} = sourced(Fn),
+    {Source, {local_fn, Number, _, {function, Scheme, Params, Body}}} = sourced(Fn),
     #local_fn{lifted_name = LiftedName, captured = Captured, snapshot = Snapshot} =
         maps:get(Number, Locals),
     Captures = captured_variables(Number, Context),
     CapturedVariables = maps:from_list([{CapturedNumber, maps:get(CapturedNumber, Snapshot)}
                                        || CapturedNumber <- Captured]),
-    {Head, Context1} = head_patterns(Params, Needs,
+    {Head, Context1} = head_patterns(Params, Scheme,
                                      Context#emit_context{variables = CapturedVariables}),
     {BodyForms, Context2} = body(Body, Context1),
     Clause = at(Source, erl_syntax:clause([erl_syntax:variable(Variable) || Variable <- Captures]

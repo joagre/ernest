@@ -353,7 +353,7 @@ refused_code(Base) ->
      || Module <- ["ern_nodes_client", "ern_deployment_taker"]],
     %% a function whose form references a definition by a hash no node holds
     Form = {function, {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
-            [], {var, {hash, <<77:256>>}, []}},
+            {var, {hash, <<77:256>>}, []}},
     Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
     Frame = filename:join(Base, "frame"),
     ok = file:write_file(Frame, term_to_binary(

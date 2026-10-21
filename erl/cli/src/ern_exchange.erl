@@ -337,7 +337,7 @@ is_call({Name, HostModule, HostFunction, Printing}) ->
 is_call(_) ->
     false.
 
-kind({function, _, _, _, _}) -> function;
+kind({function, _, _, _}) -> function;
 kind({binding, _, _}) -> binding;
 kind({type, _, _, _, _, _}) -> type.
 
