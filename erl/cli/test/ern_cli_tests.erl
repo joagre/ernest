@@ -1410,40 +1410,41 @@ parent_calls_its_child_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/epx.erc"])),
     ?assertEqual(<<"Window(id = 42)\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §4.2, §11.5: a function the module of a type's name exports under
-%% the name of a member of the exported type is an error at the function's
-%% declaration, naming the type and its module, in directory mode, where the
-%% parent is the build's, and in single-file mode, the parent compiled first
-%% and on the load path; the parent is built. A top-level `let` is no
-%% function, and `Main.Stack.compare` is then the member. A regression
-%% test, written after the code; it does not cover a `foreign fn`
+%% report §4.2, §11.5: a value the module of a type's name exports under
+%% the name of a member of the exported type, a function or a top-level
+%% `let`, is an error at the value's declaration, naming the type and its
+%% module, in directory mode, where the parent is the build's, and in
+%% single-file mode, the parent compiled from another source root and on
+%% the load path; the parent is built. A regression test, written after the
+%% code: the `let` built, and `Main.Stack.compare` was the member, and the
+%% single-file build was refused for its parent's source, moved away, while
+%% the test found the message the directory's build had printed; it does
+%% not cover a `foreign fn`
 member_clash_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", stack_parent()),
     Child = "export fn push(stack : Main.Stack, item : Int) : Main.Stack =\n"
             "    Main.Stack(items = item :: stack.items)\n"
             "\n",
-    write(Dir, "src/main/stack.ern",
-          Child ++ "export fn compare(left : Int, right : Int) : Ordering =\n"
-                   "    Int.compare(left, right)\n"),
+    Function = Child ++ "export fn compare(left : Int, right : Int) : Ordering =\n"
+                        "    Int.compare(left, right)\n",
+    write(Dir, "src/main/stack.ern", Function),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     Message = <<"main/stack.ern:4:8: Main.Stack.compare is a member of the type Stack in"
                 " main.ern\n">>,
-    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Message)),
+    ?assertMatch([_], binary:matches(iolist_to_binary(?capturedOutput), Message)),
     ?assert(filelib:is_regular(Dir ++ "/build/main.erc")),
-    ok = file:rename(Dir ++ "/src/main.ern", Dir ++ "/main.ern"),
-    ?assertEqual(1, build_err(["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/child",
-                               "--load-path", Dir ++ "/build", Dir ++ "/src/main/stack.ern"])),
-    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Message)),
-    ok = file:rename(Dir ++ "/main.ern", Dir ++ "/src/main.ern"),
+    Alone = tmp(),
+    write(Alone, "src/main/stack.ern", Function),
+    ?assertEqual(1, build_err(["--source-root", Alone ++ "/src", "--build-root", Alone ++ "/build",
+                               "--load-path", Dir ++ "/build", Alone ++ "/src/main/stack.ern"])),
+    ?assertMatch([_, _], binary:matches(iolist_to_binary(?capturedOutput), Message)),
     write(Dir, "src/main/stack.ern", Child ++ "export let compare = 5\n"),
-    write(Dir, "src/user.ern",
-          "export fn main() : Unit =\n"
-          "    Io.println(Io.show(Main.Stack.compare(Main.Stack.push(Main.empty(), 1),"
-          " Main.empty())))\n"),
-    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/user.erc"])),
-    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"Greater\n">>)).
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch([_, _, _], binary:matches(Output, Message)),
+    ?assertMatch({_, _}, binary:match(Output, <<"4 | export let compare = 5\n">>)),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/main/stack.erc")).
 
 %% report §4.9, §11.5: a call of a function of the module of a type's name
 %% whose requirement the caller does not declare names the function as a

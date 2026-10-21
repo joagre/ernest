@@ -569,9 +569,10 @@ add_interface(#interface{namespace = Namespace, values = Values, lets = Lets,
                          positions = Positions} = Interface,
               #env{declaring = Declaring} = Env) ->
     %% report §4.2: `M.T.f` is the member of M's type T where T has one, so
-    %% a value of the module M.T of a member's name, a `let` or a function
-    %% the build missed (ern_build), never takes the member's place,
-    %% whichever interface comes first
+    %% a value of the module M.T of a member's name, which the build refuses
+    %% where it reads M (ern_build) and a build of M.T alone that found no
+    %% M does not, never takes the member's place, whichever interface
+    %% comes first
     Parent = lists:droplast(Namespace),
     Shadowed = [QualifiedName || QualifiedName := _ <- Values,
                                  maps:get(QualifiedName, Declaring, none) =:= Parent],

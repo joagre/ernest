@@ -577,16 +577,15 @@ parsed_module(#build_module{file = File} = Module, Source, SourceRoot,
     end.
 
 %% Report §4.2, §11.5: the module of a type's name shares the type's
-%% namespace, and a function it exports under the name of a member of the
-%% type, which its parent exports, is an error at the function's
-%% declaration, since `M.T.f` would name both. A top-level `let` is a
-%% value and no function, and is not checked.
+%% namespace, and a value it exports under the name of a member of the
+%% type, which its parent exports, a function or a top-level `let`, is an
+%% error at the value's declaration, since `M.T.f` would name both.
 member_clash(#build_module{namespace = [_, _ | _] = Namespace, file = File,
                            declarations = Declarations}, Members) ->
     Parent = lists:droplast(Namespace),
     Type = lists:last(Namespace),
     TypeMembers = Members(Parent, Type),
-    case [{Span, Name} || {Span, Name} <- exported_functions(Declarations),
+    case [{Span, Name} || {Span, Name} <- exported_values(Declarations),
                           lists:member(Name, TypeMembers)] of
         [] ->
             ok;
@@ -599,14 +598,21 @@ member_clash(#build_module{namespace = [_, _ | _] = Namespace, file = File,
 member_clash(_, _) ->
     ok.
 
-%% A module's exported functions, `fn` and `foreign fn`, that are no
-%% type's member, each with its declaration's span.
-exported_functions(Declarations) ->
-    [{Span, Name} || #fn_declaration{span = Span, export = true, member_of = undefined,
-                                     name = Name} <- Declarations]
-        ++ [{Span, Name} || #foreign_fn_declaration{span = Span, export = true,
-                                                    member_of = undefined, name = Name}
-                                <- Declarations].
+%% A module's exported values, a `fn`, a `foreign fn` and a top-level
+%% `let`, that are no type's member, each with its declaration's span, in
+%% the order the module declares them.
+exported_values(Declarations) ->
+    lists:append([exported_value(Declaration) || Declaration <- Declarations]).
+
+exported_value(#fn_declaration{span = Span, export = true, member_of = undefined, name = Name}) ->
+    [{Span, Name}];
+exported_value(#foreign_fn_declaration{span = Span, export = true, member_of = undefined,
+                                       name = Name}) ->
+    [{Span, Name}];
+exported_value(#let_declaration{span = Span, export = true, name = Name}) ->
+    [{Span, Name}];
+exported_value(_) ->
+    [].
 
 %% Report §4.2, §11.2: the names of the members the module Parent exports of
 %% its exported type Type, as its interface holds them under Parent.Type:

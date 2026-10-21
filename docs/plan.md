@@ -184,12 +184,12 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   `ern_doc_tests` does (principle 1: the example speaks to the module's own reader); none of the
   library's examples is a private declaration's.
 - **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace),
-  decided with the user on 2026-10-21 (the log's *The Window's Three Asks*, its *Built*
+  decided with the user and done 2026-10-21 (the log's *The Window's Three Asks*, its *Built*
   paragraph): §4.2 refused an exported function of the module of a type's name under a member's
   name, and a `let` is no function, so `main/stack.ern`'s `export let compare` built and
   `Main.Stack.compare` was the member, the `let` unreachable by that name without a word. §4.2
-  and §11.5 say an exported value, a `let` among them (principle 1); a line of
-  `ern_build:exported_functions/1` and its test.
+  and §11.5 say an exported value, a `let` among them (principle 1), and the build's
+  `ern_build:exported_values/1` takes the `let`, reported at its declaration as a function is.
 
 ## MVP 3.29 (the foreign call), a sitting and then a build
 

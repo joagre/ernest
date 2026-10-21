@@ -1641,7 +1641,7 @@ example.ern:3:8: f is exported and its type names Box, which this module keeps p
   | = help: export Box, or declare it `abstract type` so that its constructors stay private (report §4.4)
 ```
 
-### A function of a type's namespace that is a member's name (§4.2, §11.5)
+### A value of a type's namespace that is a member's name (§4.2, §11.5)
 
 ```ernest
 // main.ern
