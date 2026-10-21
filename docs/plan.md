@@ -20,7 +20,7 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
 MVP 3.27, the measurements across machines, is done (2026-10-21). The road to 0.5.0 is MVP 3.28,
-what stands before the tour, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
+what stands before the tour, MVP 3.29 the foreign call, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
 the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -62,6 +62,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05, `--verbose` from MVP 4.0, and the feedback's seven added the same day | | below |
+| MVP 3.29 | the foreign call: what §8.6's count is for and what else could tell the deadlock look, the count under contention, and the feedback's program measured with its own arguments | made 2026-10-21 from MVP 3.28's measurement | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -132,12 +133,12 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   type's member and `Main.Stack.push` the module's, and a function the module exports under a
   member's name is an error at its declaration (§4.2, §11.5). The checker decides a qualified name
   by the module its interface says declares it, and the build depends on that module.
-- **A module under a standard library namespace** (found 2026-10-21 building the item above), a
-  decision for the user in this milestone: `fs/entry.ern` builds as `Fs.Entry` and no module
-  reaches it, since the build takes no dependency under a namespace of the prelude or the standard
-  library, and §4.2's taken namespaces refuse only the namespaces themselves. Recommended: §4.2
-  refuses a module under a taken namespace too, the refusal the build's dependencies already
-  assume (principle 1); about an hour with its test.
+- **A module under a standard library namespace** (found 2026-10-21 building the item above),
+  decided with the user on 2026-10-21 (the log's *The Window's Three Asks*, its *Found beside it*
+  paragraph): `fs/entry.ern` built as `Fs.Entry` and no module reached it, since the build takes
+  no dependency under a namespace of the prelude or the standard library. §4.2 refuses a module
+  under a taken namespace too, the refusal the build's dependencies already assume (principle 1);
+  about an hour with its test.
 - **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), done 2026-10-21 (the log's *Nothing
   Waits for a Program*, its line of that day): E.2 lists it after `foldRight`, and it is Ernest
   alone, a recursion of its own whose step takes the accumulator first and answers
@@ -161,38 +162,60 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   Measured*): `make bench`'s sixth part, `test/ern_foreign_costs.erl`, measures a foreign fn piece
   by piece in `foreign.txt`. Of the 158 ns it adds to a call that answers at once, 132 are §8.6's
   count, two writes to the caller's row of the table every process shares; a `String`'s return is
-  checked alone now, 240 ns to 192. The count stays as it is until the decision below.
-- **The count of a foreign call** (found 2026-10-21 measuring the item above), a decision for the
-  user in this milestone: the count takes the one lock of the processes table, so eight processes
-  making foreign calls at once make them at a thirteenth of the rate one makes them alone, and a
-  timed receive's count is written the same way. Recommended: each process keeps its two counts in
-  a counters array of the host's, made at its first count and named in its row, which the look
-  reads where it reads the row today (CLAUDE.md's *Design*: the host's own function, and no shared
-  write), and the bench gains a row of eight processes at once; about half a day.
+  checked alone now, 240 ns to 192. The count stays as it is until MVP 3.29 decides it.
 - **Doc examples run by `ern test`** (feedback 127; principle 1), done 2026-10-21 (the log's *What
   the Feedback Left*, its *Built* paragraph on doc examples): `ern test` runs a module's doc examples
   after its tests, each a case named by the declaration it documents, `List.take example 2`, one
   that does not compile failing with the diagnostic's message and one whose value shows otherwise
   with `expected v, got w` (§11.2, E.0 shape rule 6). `ern test build/stdlib` runs the library's
   335 in 7 s.
-- **Where `ern test` runs a doc example** (found 2026-10-21 building the item above), a decision
-  for the user in this milestone: §11.2 does not say, and the examples run in the working directory
-  as the tests do, where the library's `Fs` examples leave eighteen files and fail on a second run.
-  Recommended: §11.2 runs each example in a directory of its own, made empty and removed after, as
-  `ern_doc_tests` runs the library's (principle 1: a run of the tests leaves the directory as it
-  found it); about an hour with its test.
-- **A private declaration's doc example** (found 2026-10-21 building the same item), a decision
-  for the user in this milestone: §11.2 compiles every example in a module of its own, where a
-  name the module keeps private is unknown, so the example of a private declaration fails under
-  `ern test`; `ern_doc_tests` checks such an example inside its module. Recommended: §11.2 compiles
-  a private declaration's example inside its module (principle 1: the example speaks to the
-  module's own reader); none of the library's examples is a private declaration's.
-- **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace), a
-  decision for the user in this milestone: §4.2 refuses an exported function of the module of a
-  type's name under a member's name, and a `let` is no function, so `main/stack.ern`'s `export let
-  compare` builds and `Main.Stack.compare` is the member, the `let` unreachable by that name
-  without a word. Recommended: §4.2 and §11.5 say an exported value, a `let` among them
-  (principle 1); a line of `ern_build:exported_functions/1` and its test.
+- **Where `ern test` runs a doc example** (found 2026-10-21 building the item above), decided
+  with the user on 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
+  examples): the examples ran in the working directory as the tests do, where the library's `Fs`
+  examples left eighteen files and failed on a second run. §11.2 runs each example in an empty
+  directory of its own, made for it and removed after, as `ern_doc_tests` runs the library's
+  (principle 1: a run of the tests leaves the directory as it found it); about an hour with its
+  test.
+- **A private declaration's doc example** (found 2026-10-21 building the same item), decided with
+  the user on 2026-10-21 (the same paragraph): §11.2 compiled every example in a module of its
+  own, where a name the module keeps private is unknown, so a private declaration's example failed
+  under `ern test`. §11.2 compiles a private declaration's example inside its module, as
+  `ern_doc_tests` does (principle 1: the example speaks to the module's own reader); none of the
+  library's examples is a private declaration's.
+- **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace),
+  decided with the user on 2026-10-21 (the log's *The Window's Three Asks*, its *Built*
+  paragraph): §4.2 refused an exported function of the module of a type's name under a member's
+  name, and a `let` is no function, so `main/stack.ern`'s `export let compare` built and
+  `Main.Stack.compare` was the member, the `let` unreachable by that name without a word. §4.2
+  and §11.5 say an exported value, a `let` among them (principle 1); a line of
+  `ern_build:exported_functions/1` and its test.
+
+## MVP 3.29 (the foreign call), a sitting and then a build
+
+Made 2026-10-21 from what MVP 3.28's measurement found (the log's *The Foreign Call Measured*),
+since following its number further is an item of its own, planned with the decision it would
+change (CLAUDE.md's *Design*). The decision is §8.6's count of a process inside foreign code, and
+what CLAUDE.md's cost rule asks of a foreign call to a host function that answers at once.
+
+- **The sitting**, with the user, over the log's *The Foreign Call Measured*. What the count is
+  for: the deadlock look takes a process inside foreign code as not waiting, since the foreign
+  side may still deliver to it, and today each process writes its count to the processes table,
+  132 of the 158 ns a foreign fn adds to a call that answers at once. What else could tell the
+  look, each weighed against principle 1 and the cost rule: a count in a counters array of the
+  host's, the process's own write, which the look reads from its row; a mark in the process's
+  dictionary, which the look could read only by reading every process at every look of an idle
+  program; or no count, where a foreign function declared without `receiving` promises to deliver
+  nothing (§4.7), and the look needs to know of no call in progress. Then what a fraction means
+  against a 7 ns call, and the timed receive's count, written the same way. Then the feedback's
+  program, 390 to 550 ns a call over the host's against the bench's 158: the part its arguments
+  play, a pixmap resource and a color, measured with epx's own call shape before anything is
+  changed for it.
+- **The count built as the sitting decides**, and `make bench`'s `foreign.txt` gains a row of
+  eight processes making foreign calls at once, which today runs at a thirteenth of one process's
+  rate, since every count takes the processes table's one lock. Where the sitting keeps a count,
+  each process keeps its two, foreign calls and timed receives, in a counters array of the host's,
+  made at its first count and named in its row, which the look reads where it reads the row today
+  (CLAUDE.md's *Design*: the host's own function, and no shared write); about half a day.
 
 ## MVP 3.3 (the tour)
 
