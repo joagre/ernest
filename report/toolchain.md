@@ -261,6 +261,8 @@ Other errors are placed and told as follows.
 - A recursive call's argument at another type than the definition's own (§3.9) is reported as not fitting the callee at its own type, with a help line naming the fix: a second function for the call at another type.
 - A type of a recursive group named in its fields at other than the declaring type's parameters (§3.9) is reported at that name, with a help line naming the fix: the type named at those parameters, `Nest(a)`, and, where the type it was named at takes one argument, that type holding it, `List(Nest(a))`.
 - A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6).
+- A `fn` where the parser expects a type has a help line that names the form a function type is written in, `(Int) -> Int` (§3.4). A `()` where the parser expects an expression has one that names `Unit` (§3.1).
+- A `,` after a constructor pattern's positional field is reported as a second positional field in a declaration is (§3.5), `a constructor has exactly one positional field`.
 - A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
 - An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 

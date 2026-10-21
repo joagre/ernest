@@ -79,8 +79,8 @@ integration: $(BEAMS) prepare measured named
 	@$(call NODES_RUN,integration,$(INTEGRATION))
 	$(call EUNIT,$(MEASURE))
 
-# Nodes on one machine.
-nodes: $(BEAMS) prepare
+# Nodes on one machine, with the machines' tools ern_machine_tests tests.
+nodes: $(BEAMS) prepare machines
 	@$(call NODES_RUN,nodes,$(NODES))
 
 # The deployment guide run on nodes, through ern_nodes_tests' harness.
@@ -150,7 +150,7 @@ xref: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval \
 	  'halt(case eunit:test(ern_docs_tests, []) of ok -> 0; _ -> 1 end).'
 
-diagnostics: $(EBIN)/ern_guide_tests.beam
+diagnostics: $(EBIN)/ern_guide_tests.beam $(EBIN)/ern_pty.beam
 	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval \
 	  'ern_guide_tests:write_diagnostics(), halt().'
 

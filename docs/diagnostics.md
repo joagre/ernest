@@ -567,6 +567,20 @@ example.ern:1:10: expected a type instead of integer 1
   |          ^
 ```
 
+### A function type written with `fn` (§3.4)
+
+```ernest-rejected
+fn apply(g : fn(Int) -> Int) : Int = g(1)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:14: `fn` is a reserved word, and names nothing
+1 | fn apply(g : fn(Int) -> Int) : Int = g(1)
+  |              ^^
+  | = help: a function type is written without `fn`, as (Int) -> Int
+```
+
 ### A qualified name that ends in no name (§2.3)
 
 ```ernest-rejected
@@ -646,6 +660,20 @@ $ ern build example.ern
 example.ern:1:16: expected an expression instead of `)`
 1 | fn f() : Int = )
   |                ^
+```
+
+### Empty parentheses where an expression stands (§3.1)
+
+```ernest-rejected
+export fn main() : Unit = ()
+```
+
+```console
+$ ern build example.ern
+example.ern:1:28: expected an expression instead of `)`
+1 | export fn main() : Unit = ()
+  |                            ^
+  | = help: Unit's one value is written Unit
 ```
 
 ### An empty block (§5.4)
@@ -1089,6 +1117,23 @@ example.ern:1:21: a constructor has exactly one positional field
 1 | type Vec = Vec(Float, Float)
   |                     ^
   | = help: name the fields, `Vec(x : ..., y : ...)`, or hold a tuple, `Vec(#(..., ...))`
+```
+
+### A constructor pattern with two positional fields (§3.5, §5.10)
+
+```ernest-rejected
+fn first(x : Optional(Int)) : Int =
+    match x {
+        Some(a, b) -> a
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:15: a constructor has exactly one positional field
+2 |     match x {
+3 |         Some(a, b) -> a
+  |               ^
 ```
 
 ### A type parameter written twice (§4.3)

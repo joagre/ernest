@@ -375,7 +375,8 @@ help_option() ->
 
 build_options() ->
     [{source_root, undefined, "source-root", string,
-      "the directory whose layout yields namespaces"},
+      "the directory whose layout yields namespaces; default: the working"
+      " directory, or src-dir"},
      {build_root, undefined, "build-root", string,
       "where the compiled tree goes; default: the source root"},
      {load_path, undefined, "load-path", string,
@@ -858,7 +859,7 @@ shell_options() ->
      load_path_option(),
      libs_dir_option(),
      {source_root, undefined, "source-root", string,
-      "where the shell finds a module's source; default the working directory"},
+      "where the shell finds a module's source; default: the working directory"},
      main_option(), help_option()].
 
 %% Report §11.2: `ern reload` and `ern stop` name the node by its

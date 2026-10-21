@@ -110,11 +110,12 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 
   Measured where the time goes, each start of the host and each job counted, and brought toward one
   start; what cannot be is stated in the log with its reason.
-- **Four messages that name the form** (feedback 114, 115, 116 and 131; principle 1). `fn(Int) ->
-  Int` as a type names `(Int) -> Int`; `()` as a value names `Unit`; `Down(_, _)` in a pattern says
-  a constructor has one positional field, as the declaration's message does; and `ern build --help`
-  says the source root defaults to the working directory. §11.5 and §11.1 first, then the parser
-  and the checker, then the catalog.
+- **Four messages that name the form**, done 2026-10-21 (the log's *What the Feedback Left*, its
+  *Built* paragraph): a `fn` where a type stands has a help line that names `(Int) -> Int`, a `()`
+  where an expression stands one that names `Unit`, and a `,` after a constructor pattern's
+  positional field the declaration's message, `a constructor has exactly one positional field`
+  (§11.5). `ern build --help` and `ern doc --help` say the source root's default, the working
+  directory or `src-dir` (§11.1).
 - **The rules of an Ernest program installed** (feedback 119; principle 4). `docs/style.md`'s
   *Ernest* section and the glossary's Ernest part become `guide/style.md`, installed with the guide,
   and `docs/style.md` keeps the repository's rules and points there; CLAUDE.md's owner table gains

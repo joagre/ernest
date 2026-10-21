@@ -430,6 +430,27 @@ second_positional_field_test() ->
                                             " tuple, `Vec(#(..., ...))`"}},
                  ern_parser:parse_string("type Vec = Vec(Float, Float)")).
 
+%% report §3.5, §5.10, §11.5: a `,` after a constructor pattern's
+%% positional field is refused at the `,` as a declaration's second
+%% positional field is, with no help, since a pattern does not change the
+%% declaration; one positional field, named fields and two constructors
+%% side by side parse. A regression test, written after the code: the
+%% parser said only that it expected `)`
+second_positional_field_in_pattern_test() ->
+    ?assertMatch({error, #diagnostic{span = {2, 11, _},
+                                     message = "a constructor has exactly one positional field",
+                                     help = undefined}},
+                 ern_parser:parse_string("fn f(m : Down) : Int = match m {\n"
+                                         "    Down(_, _) -> 1\n}")),
+    ?assertEqual("a constructor has exactly one positional field",
+                 expression_refusal("match t { A(x, y) -> x }")),
+    ?assertEqual("a constructor has exactly one positional field",
+                 expression_refusal("match t { #(A(1, 2), b) -> b }")),
+    ?assertMatch(#p_constructor{args = {positional, #p_var{name = x}}}, pattern_of("A(x)")),
+    ?assertMatch(#p_constructor{args = {named, [_, _]}}, pattern_of("A(x = a, y = b)")),
+    ?assertMatch(#p_tuple{elements = [#p_constructor{name = 'A'}, #p_constructor{name = 'B'}]},
+                 pattern_of("#(A(x), B(y))")).
+
 %% report §5.11: there is no `unit`; a size counts bits, and octets for
 %% `bytes`, and the error says to write it so. A regression test: `unit`
 %% was a second way to scale a size
@@ -873,6 +894,27 @@ expected_token_errors_test() ->
     ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
     ?assertEqual("expected end of input instead of `)`", expression_refusal("1)")).
 
+%% report §3.1, §11.5: `()` where an expression stands has the help that
+%% names Unit's one value, wherever the operand stands; a call's, a
+%% lambda's and a constructor's empty parentheses are no operand and parse
+%% as before, and `#()`, which is no `()`, has no such help. A regression
+%% test, written after the code: the error had no help
+empty_parentheses_name_unit_test() ->
+    Help = "Unit's one value is written Unit",
+    ?assertMatch({error, #diagnostic{span = {1, 28, _},
+                                     message = "expected an expression instead of `)`",
+                                     help = Help}},
+                 ern_parser:parse_string("export fn main() : Unit = ()")),
+    ?assertEqual(Help, expression_help("f(1, ())")),
+    ?assertEqual(Help, expression_help("{ let u = ( ); u }")),
+    ?assertEqual(undefined, expression_help("#()")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = []}, expression("f()")),
+    ?assertMatch(#e_lambda{params = [], body = #e_constructor{name = 'Unit'}},
+                 expression("fn() = Unit")),
+    ?assertMatch(#e_call{callee = #e_constructor{name = 'None'}, args = []},
+                 expression("None()")),
+    ?assertMatch(#e_literal{value = 1}, expression("(1)")).
+
 %% report §3, §4.2: a type's form, a parameter list's `->` and a qualified
 %% type's last name
 type_form_errors_test() ->
@@ -880,6 +922,24 @@ type_form_errors_test() ->
                  refusal("let f : (A, B) = x")),
     ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
                  refusal("let x : Int.foo = 1")).
+
+%% report §2.4, §3.4, §11.5: a `fn` where a type stands is a reserved word,
+%% with the help that names how a function type is written, the same fixed
+%% example wherever the type stands; the form it names parses. A regression
+%% test, written after the code: the error had no help
+function_type_without_fn_test() ->
+    Help = "a function type is written without `fn`, as (Int) -> Int",
+    ?assertMatch({error, #diagnostic{span = {1, 10, _},
+                                     message = "`fn` is a reserved word, and names nothing",
+                                     help = Help}},
+                 ern_parser:parse_string("fn f(g : fn(Int) -> Int) : Int = g(1)")),
+    ?assertEqual(Help, help("fn f() : fn(String) -> Bool = g")),
+    ?assertEqual(Help, help("type T = A(List(fn() -> Int))")),
+    ?assertEqual(Help, expression_help("fn(g : fn(Int) -> Int) = g(1)")),
+    ?assertMatch(#t_fn{params = [#t_named{name = 'Int'}], result_type = #t_named{name = 'Int'}},
+                 type_of("(Int) -> Int")),
+    ?assertMatch(#e_lambda{params = [#param{annotation = #t_fn{}}]},
+                 expression("fn(g : (Int) -> Int) = g(1)")).
 
 %% report §2.6, §11.5: max-munch reads `a<-1` as a binding arrow, and the
 %% error says how to write the comparison

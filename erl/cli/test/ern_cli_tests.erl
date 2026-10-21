@@ -752,6 +752,23 @@ synopses_are_the_reports_test_() ->
            end}
      || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop"]].
 
+%% report §11.1, §11.2, §11.4: `--help` says the source root's default, the
+%% working directory or the directory given for `ern build` and `ern doc`,
+%% and the working directory for `ern shell`. A regression test, written
+%% after the code: the build's and the doc's said none. It does not cover
+%% the default itself, which §11.1's tests hold
+source_root_default_said_test_() ->
+    Root = "the directory whose layout yields namespaces;"
+        " default: the working directory, or src-dir",
+    [{Job, fun() ->
+                   {Help, 0} = help_of(Job),
+                   Words = lists:flatten(lists:join(" ", string:lexemes(Help, " \n"))),
+                   ?assertNotEqual(nomatch, string:find(Words, "--source-root " ++ Said))
+           end}
+     || {Job, Said} <- [{"build", Root}, {"doc", Root},
+                        {"shell", "where the shell finds a module's source;"
+                                  " default: the working directory"}]].
+
 %% A job's help as it prints it, and its status.
 help_of(Job) ->
     Self = self(),

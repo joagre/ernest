@@ -680,6 +680,11 @@ type([{typename, Position, _} | _] = Tokens) ->
     end;
 type([{ident, Position, Name} | Rest]) ->
     spanned({#t_var{span = Position, name = Name}, Rest});
+type([{fn, Position} = Token | _]) ->
+    %% report §3.4, §11.5: a function type is written without `fn`, and the
+    %% help names the form, a fixed example rather than the types written
+    wanted(typename, Position, instead("expected a type", Token),
+           "a function type is written without `fn`, as (Int) -> Int");
 type([Token | _]) ->
     wanted(typename, position(Token), instead("expected a type", Token)).
 
@@ -996,6 +1001,11 @@ primary([{match, Position} | Rest]) ->
     match_expr(Rest, Position);
 primary([{'receive', Position} | Rest]) ->
     receive_expr(Rest, Position);
+primary([{'(', _}, {')', Position} = Token | _]) ->
+    %% report §3.1, §11.5: `()` is no value, and the help says how Unit's
+    %% one value is written
+    wanted(expression, Position, "expected an expression instead of " ++ describe(Token),
+           "Unit's one value is written Unit");
 primary([{'(', {Line, Column, _, _}} | Rest]) ->
     %% report §11.5: a parenthesized expression spans its parentheses, so a
     %% diagnostic underlines it whole; parentheses make no node
@@ -1249,12 +1259,20 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
         _ ->
             {Pattern, Rest1} = pattern(Rest),
             no_path_pattern(Pattern, Rest1),
+            no_second_positional(Rest1),
             spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {positional, Pattern}},
                      expect(Rest1, ')')})
     end;
 constructor_pattern(Position, Namespace, Name, Tokens) ->
     spanned({#p_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
+
+%% Report §3.5, §11.5: a `,` after a constructor pattern's positional field
+%% is refused as a second positional field in a declaration is.
+no_second_positional([{',', Position} | _]) ->
+    fail(Position, "a constructor has exactly one positional field");
+no_second_positional(_) ->
+    ok.
 
 %% Report §5.6: a path written where a constructor pattern's one
 %% positional field stands, `C(a.b = p)`, is refused as a path.
@@ -1483,7 +1501,11 @@ fail(Position, Message) ->
 %% the field alone.
 -spec wanted(term(), ern_diagnostic:position(), iodata()) -> no_return().
 wanted(What, Position, Message) ->
-    throw({parse_error, (diagnostic(Position, Message, undefined))#diagnostic{expected = What}}).
+    wanted(What, Position, Message, undefined).
+
+-spec wanted(term(), ern_diagnostic:position(), iodata(), string() | undefined) -> no_return().
+wanted(What, Position, Message, Help) ->
+    throw({parse_error, (diagnostic(Position, Message, Help))#diagnostic{expected = What}}).
 
 %% What a failure inside this call wanted, where the caller knows it and
 %% the failing code does not: a field name belongs to its constructor.
