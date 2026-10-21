@@ -161,7 +161,10 @@ make bench        what each of a few operations costs in Ernest beside the same
                   process's monitors of processes that end, callers of one process that
                   end, deliveries in flight to one process, started and delivered, and a
                   process's alarms firing at once, each element's time beside the
-                  smallest burst's, in burst.txt; not part of make test-full
+                  smallest burst's, in burst.txt; then what each piece of a foreign
+                  call adds to the host's call, by the type of its result, a model of
+                  a foreign fn a piece at a time, and each operation alone, in
+                  foreign.txt; not part of make test-full
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk

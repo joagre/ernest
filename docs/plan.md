@@ -157,10 +157,18 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   and otherwise `Failed` naming what came instead, another cause, a return or the reason; and
   `ern test` reports no fault of a process `Test.faults` started (E.24, §11.2). It is Ernest, a
   judge process of the module's own over `spawnMonitored` and a call, with no primitive.
-- **The foreign call measured** (feedback 125; CLAUDE.md's *Design*, a multiple where a fraction
-  is promised). A bare `foreign fn` at two and a half times the host's call, measured piece by piece
-  in `make bench`'s fifth part as the monitor was (the log's *The Rows That Grew*), and brought back to the plain form
-  that costs a fraction; what cannot be is stated in the log.
+- **The foreign call measured** (feedback 125), done 2026-10-21 (the log's *The Foreign Call
+  Measured*): `make bench`'s sixth part, `test/ern_foreign_costs.erl`, measures a foreign fn piece
+  by piece in `foreign.txt`. Of the 158 ns it adds to a call that answers at once, 132 are §8.6's
+  count, two writes to the caller's row of the table every process shares; a `String`'s return is
+  checked alone now, 240 ns to 192. The count stays as it is until the decision below.
+- **The count of a foreign call** (found 2026-10-21 measuring the item above), a decision for the
+  user in this milestone: the count takes the one lock of the processes table, so eight processes
+  making foreign calls at once make them at a thirteenth of the rate one makes them alone, and a
+  timed receive's count is written the same way. Recommended: each process keeps its two counts in
+  a counters array of the host's, made at its first count and named in its row, which the look
+  reads where it reads the row today (CLAUDE.md's *Design*: the host's own function, and no shared
+  write), and the bench gains a row of eight processes at once; about half a day.
 - **Doc examples run by `ern test`** (feedback 127; principle 1), done 2026-10-21 (the log's *What
   the Feedback Left*, its *Built* paragraph on doc examples): `ern test` runs a module's doc examples
   after its tests, each a case named by the declaration it documents, `List.take example 2`, one

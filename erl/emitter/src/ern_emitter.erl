@@ -1857,9 +1857,9 @@ printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = 
 %% written in place, its fault raised at Source (§7.3, Appendix E.21), and
 %% the prelude's Unit's takes the host's `ok`, which the host's functions
 %% answer for nothing, at the return's top alone; a value that holds no
-%% function, address or Reply to arm and no float to make the language's
-%% is checked alone (ern_boundary:check/3); a type variable a parameter
-%% names matches any value, and is not checked.
+%% function, address or Reply to arm and no float to make the language's,
+%% a String's among them, is checked alone (ern_boundary:check/3); a type
+%% variable a parameter names matches any value, and is not checked.
 check_form(Source, Type, Shown, Form, Prefix, Context) ->
     Text = check_text(Prefix, Shown, Context),
     case descriptor(Type, Context) of
@@ -1886,8 +1886,6 @@ check_form(Source, Type, Shown, Form, Prefix, Context) ->
             {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
                                                            [Fault])]), Context1};
-        Word when is_atom(Word) ->
-            {call_remote(ern_boundary, value, [erl_syntax:abstract(Word), Form, Text]), Context};
         Descriptor ->
             {DescriptorForm, Context1} = descriptor_form(Descriptor, Context),
             Check = case is_plain(Descriptor) of

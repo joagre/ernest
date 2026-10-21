@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-21.** [A Make With Nothing to Do](#a-make-with-nothing-to-do-2026-10-21). [The Annotation Out of the Hash](#the-annotation-out-of-the-hash-2026-10-21). [The Nodes Tests' Bounds](#the-nodes-tests-bounds-2026-10-21). [The Later List Sorted](#the-later-list-sorted-2026-10-21). [The Window's Three Asks](#the-windows-three-asks-2026-10-21).
+**2026-10-21.** [A Make With Nothing to Do](#a-make-with-nothing-to-do-2026-10-21). [The Annotation Out of the Hash](#the-annotation-out-of-the-hash-2026-10-21). [The Nodes Tests' Bounds](#the-nodes-tests-bounds-2026-10-21). [The Later List Sorted](#the-later-list-sorted-2026-10-21). [The Window's Three Asks](#the-windows-three-asks-2026-10-21). [The Foreign Call Measured](#the-foreign-call-measured-2026-10-21).
 
 **2026-10-20.** [The Rows That Grew](#the-rows-that-grew-2026-10-20). [A Libs Flag Instead of the Environment](#a-libs-flag-instead-of-the-environment-2026-10-20). [The Numbers Across Machines](#the-numbers-across-machines-2026-10-20). [The Machines](#the-machines-2026-10-20). [Every Fault Carries a Trace](#every-fault-carries-a-trace-2026-10-20). [The Tour, Shorter](#the-tour-shorter-2026-10-20). [What the Feedback Left](#what-the-feedback-left-2026-10-20). [The Ray Tracer's Two Asks](#the-ray-tracers-two-asks-2026-10-20).
 
@@ -8630,6 +8630,37 @@ The build's dependencies decided the same way: a third module naming `Main.Stack
 **Found beside it.** A module under a namespace of the standard library, `fs/entry.ern`, builds as `Fs.Entry`, and no module reaches it: §4.2's taken namespaces refuse the namespaces themselves, and the build takes no dependency under one. It stands in MVP 3.28 as a decision for the user, the refusal of a module under a taken namespace recommended, since that is what the build's dependencies already assume (principle 1).
 
 **A foreign message taken by a variable pattern** (137). Not a defect of the language. §4.7 says a foreign function without `receiving` promises to deliver nothing into the caller's mailbox, and epx's `window_create` breaks that promise later, sending the window's maker `{epx_event, Window, close}` by its host identity, which crosses no boundary §8.4 checks; the soundness argument rests on that promise as it rests on the foreign side's types. §8.4 says so now in one sentence, so that a library's writer reads it before meeting it. The library closes it as CLAUDE.md's *Shims* allows for a host message no Ernest type describes: a process of its own opens the window, takes epx's events and sends the program typed messages through an address that crossed, which is checked. Dropped.
+
+## The Foreign Call Measured, 2026-10-21
+
+MVP 3.28's item from feedback 125, measured 2026-10-21 on the laptop, which another session shared. `make bench`'s sixth part, `test/ern_foreign_costs.erl`, compiles a program's foreign fns in memory as a build does, calls them in a launch, and writes `foreign.txt`: seven runs of a million calls each, medians in nanoseconds a call, the loop's own 7 ns included.
+
+| A call | ns | The host's × |
+|---|---:|---:|
+| the host's call of `erlang:abs/1` | 13.1 | 1.0 |
+| a foreign fn of it, its result `Int` | 170.4 | 13.0 |
+| the host's call of a function that answers at once | 7.5 | 1.0 |
+| a foreign fn of it, its result `Int` | 165.3 | 22.0 |
+| the same answering `Less`, its result `Ordering` | 179.5 | 23.9 |
+| the same answering `ok`, its result `Unit` | 157.9 | 21.0 |
+| the same answering `"text"`, its result `String` | 192.3, 240.1 before | 25.6 |
+| the same answering `Some(n)`, its result `Optional(Int)` | 221.0 | 29.4 |
+
+| The model, a piece added on each row | ns | Added |
+|---|---:|---:|
+| the host's call | 7.3 | |
+| in a function of its own, as the unit's | 7.6 | 0.3 |
+| in a try, a raise made a fault | 9.3 | 1.7 |
+| counted as in foreign code, `in_foreign/1` | 140.9 | 131.6 |
+| its return checked, an `Int` in place | 148.3 | 7.4 |
+
+**The count is the multiple.** Of the 158 ns a foreign fn adds to a call that answers at once, 132 are the count §8.6 asks for: `in_foreign/1` raises and lowers the caller's count in its row of `ern_processes`, the table every process's row is in, two `ets:update_counter` calls at about 60 ns each. The try costs 1.7 ns and the fun around the call nothing measurable. A word's return is checked in place in about 2 ns alone, the model's 7.4 within that row's spread; an `Ordering`'s through `ern_boundary:check/3` in 18, and an `Optional(Int)`'s in 56.
+
+**Changed: a String's return checked alone.** The emitter checked the return of a word with no check in place, `String`, `Char` or `Process`, through `ern_boundary:value/3`, which asks whether anything in the value needs arming. Such a value holds nothing to arm, and `check/3` is the same check without the question. The clause went, and those words take the path of every descriptor that holds nothing to arm: a `String`'s return went from 240 to 192 ns, its check alone from 85 to 38.
+
+**Left: the count.** Two writes to a shared table cannot be a fraction of a call that answers at once; against epx's `pixmap_put_pixel`, 340 ns, they are two fifths. A mark in the process's dictionary costs 24 ns, but there the look (§8.6) would find a process waiting inside foreign code only by reading every process, which the idle check keeps from a program at rest (`idle_check_is_cheap_test`). §8.6's rule stands: a foreign call in progress can still deliver, so it is counted while it runs. The feedback's program paid 390 to 550 ns a call over the host's, more than the 158 here; its arguments, a pixmap and a color, are not this part's, and are left to the decision on the count in MVP 3.28.
+
+**Found beside it: the count under contention.** The processes table has no write concurrency, so every count takes the table's one lock, and processes that count at once wait on each other. Eight processes making 200,000 foreign calls each at once, on eight schedulers, made them at 2,540 ns a call over all, a thirteenth of the rate of one process alone, 188 ns. Measured on the counts alone: 116 ns for one process and 2,323 over all for eight on the table as it is; 234 and 86 with write concurrency; 42 and 28 in the processes' dictionaries. A timed receive's count is written the same way. A counters array of the host's in each process, which its row names and the look reads, would keep the count the process's own write; it stands in MVP 3.28 as a decision for the user, since it changes what the look reads (CLAUDE.md's *Design*: anything cleverer than the plain form is decided with the user).
 
 ## The Rows That Grew, 2026-10-20
 
