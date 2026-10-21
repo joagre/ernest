@@ -124,10 +124,16 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   Feedback Left*, its *Extended* paragraph), two of three done 2026-10-21 (its *Built* paragraph
   from the read-back): no job reports a fault `Test.faults` expects (§11.2, E.24), and a fault the
   emitter raises carries its line in the trace (§7.3, E.21). The third, a function value's result
-  declared `Unit` taking `ok` (§7.4, §8.4), waits on the item's decision: how the emitter tells
-  the boundary that a result is the prelude's `Unit`, whose descriptor a program's own `type Unit
-  = Unit` shares. Recommended: the emitter marks that result in the function's descriptor and
-  checks it in place in the wrapper it builds, as it checks a foreign function's return.
+  declared `Unit` taking `ok` (§7.4, §8.4), was decided 2026-10-21 (the log's *Built* paragraph
+  from the read-back, its last sentence): the prelude's `Unit` has a descriptor word of its own,
+  `unit`, as `Int` has, which tells it from a program's own `type Unit = Unit`, and the wrapper
+  of a function value's result takes `ok` at that word at the top alone. Built with the next item.
+- **A type and the module of its operations share a name** (feedback 136), decided with the user
+  on 2026-10-21 as the log's *The Window's Three Asks* proposed (its *Designed* paragraph): §4.2
+  states the sharing and its one clash, a member of an exported type against an exported function
+  of the module of its name, reported in that module, and §11.5 the error's line. The build drops
+  `ern_build`'s refusal of the coincidence and adds the clash check against the parent's interface;
+  lookup, the loader and the shell already decide a qualified name by the member's existence.
 - **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), done 2026-10-21 (the log's *Nothing
   Waits for a Program*, its line of that day): E.2 lists it after `foldRight`, and it is Ernest
   alone, a recursion of its own whose step takes the accumulator first and answers
@@ -154,13 +160,6 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 - **Doc examples run by `ern test`** (feedback 127; principle 1). `ern test` runs a module's
   `// =>` examples as cases, as Ernest's own test runs its libraries', so that a library's page is
   held true by its own tests. §11.2 and §11.4 first.
-- **A type and the module of its operations share a name** (feedback 136; principles 4 and 1),
-  decided with the user on 2026-10-21 (the log's *The Window's Three Asks*). The prelude's `Map` is
-  a type and a module of one name, which §9 allows the prelude alone; a type declared in a module
-  shares its namespace with the child module of its name, `Epx.Window` in `epx.ern` beside
-  `epx/window.ern`, as the prelude's types do, a member and a function of one name a compile-time
-  error.
-
   Discussed with the user before it is built, since it touches lookup; §4.2 and §9 first, then the
   checker, then a test of a library's type found through both names.
 

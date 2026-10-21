@@ -141,7 +141,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A container provides the container operations of the vocabulary below, or says in its section which it lacks and what stands in its place. Text and octets are containers read through `toList`, and provide the container operations their sections list.
 
-   A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail.
+   A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap` and `tryFold` for a step that can fail.
 
    Text adds `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`.
 

@@ -266,6 +266,7 @@ Other errors are placed and told as follows.
 - A `fn` where the parser expects a type has a help line that names the form a function type is written in, `(Int) -> Int` (§3.4). A `()` where the parser expects an expression has one that names `Unit` (§3.1).
 - A `,` after a constructor pattern's positional field is reported as a second positional field in a declaration is (§3.5), `a constructor has exactly one positional field`.
 - A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
+- A function a module exports under the name of a member of the type whose namespace it shares (§4.2) is reported at the function's declaration, naming the type and the module that declares it: `Main.Stack.compare is a member of the type Stack in main.ern`.
 - An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 
 A printed type elides an effect variable bound to none (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as none, but within a parameter's type, where it is printed: `fn ignore(f : () -> Unit receiving e) : Int = 5` prints as `(() -> Unit receiving e) -> Int`, and `fn pair() = fn(x) = #(x, x)` as `() -> (a) -> #(a, a)`.
