@@ -299,7 +299,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 `ern_cli:ern/2` takes the job from the first word (`jobs/0`), each job's options a getopt spec of its own. `no_job/1` refuses a word that is no job, and `one_spelling/2` an option's second spelling.
 
-`ern_build` holds the build and what every other job takes from it: a module's source and namespace, an interface, and a file written whole (`write_whole/2`, `write_output/2,3`, §11). It alone of the jobs is in the compiler's hash (`compiler_modules/0`, §11.1).
+`ern_build` holds the build and what every other job takes from it: a module's source and namespace, an interface, the load path, and a file written whole (`write_whole/2`, `write_output/2,3`, §11). It alone of the jobs is in the compiler's hash (`compiler_modules/0`, §11.1). `load_path/1` is every job's load path past the roots the job puts first: the options' directories, then the build of each library, which `ern_tree:libraries/0` lists (§11.1, §11.2).
 
 `ern run`, `ern test` and `ern shell` also install `ern_signals`, for a test that calls the job, and lower the host's logger to warnings.
 

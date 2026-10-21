@@ -952,8 +952,49 @@ libs_dir_test() ->
     ?assertEqual(0, ern_err(["run", "--libs-dir", Libs, Dir ++ "/build/main.erc"])),
     ?assertEqual(0, ern_err(["test", "--libs-dir", Tested, Dir ++ "/build/checked.erc"])),
     ?assertEqual(<<"42\nfound: passed\n">>, iolist_to_binary(?capturedOutput)),
-    ?assertEqual([Libs ++ "/helper-1.0/ebin", Libs ++ "/other/ebin"],
+    ?assertEqual([Libs ++ "/helper-1.0/ebin", Libs ++ "/other/ebin" | ern_tree:libraries()],
                  ern_build:load_path([{libs_dir, Libs}])).
+
+%% report §11.1, §11.2, Appendix G: the build of each library of the
+%% toolchain's own ends the load path, so that a program using
+%% `Markdown`, which uses `Ansi`, is built, run and tested with no
+%% `--load-path`, and `--verbose` says where each was read from, as from
+%% any root. Written after the code, so a regression test; the shell's is
+%% ern_shell_tests' libraries_in_the_shell, and a bare node's load path is
+%% not covered, which is the same function's
+libraries_on_load_path_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit =\n"
+          "    Io.println(Int.toString(List.size(Markdown.parse(\"# Title\\n\\nText.\\n\"))))\n"),
+    write(Dir, "src/checked.ern",
+          "let parsed : Test.Case(Never) =\n"
+          "    Test.Case(name = \"parsed\",\n"
+          "              run = fn() = Test.equal(List.size(Markdown.parse(\"# Title\\n\")), 1))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_err(["test", Dir ++ "/build/checked.erc"])),
+    ?assertEqual(<<"2\nparsed: passed\n">>, iolist_to_binary(?capturedOutput)),
+    ?assertEqual(0, build_err(["--verbose", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Said = unicode:characters_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Said, list_to_binary(["read ", Name, " from ",
+                                                              ern_build:shown(File), "\n"])))
+     || {Name, File} <- [{"Markdown", ern_tree:build("libs/markdown/markdown.erc")},
+                         {"Ansi", ern_tree:build("libs/ansi/ansi.erc")}]].
+
+%% report §11.1, §11.2: a program's own module of a library's name, at its
+%% root, is found before the toolchain's library, whose build ends the load
+%% path: `Json.parse` is the program's, which answers an `Int`, and not
+%% the library's, which answers an `Either`. Written after the code, so a
+%% regression test
+own_module_before_library_test() ->
+    Dir = tmp(),
+    write(Dir, "src/json.ern", "export fn parse(text : String) : Int = String.size(text)\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Json.parse(\"seven\")))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"5\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.2: two directories of one application's name under a
 %% `--libs-dir` are refused, naming them, and nothing runs: `foo-1.0`
@@ -1047,16 +1088,17 @@ compiled_erlang(Ebin, Module, Export, Function) ->
     ok.
 
 %% report §11.1: without the root that holds a module's dependency, the
-%% dependency is an unknown name
+%% dependency is an unknown name: a module of no library's name, since the
+%% build of each library of the toolchain's own ends the load path
 load_path_needed_test() ->
     Dir = tmp(),
-    [Library, Main | _] = appendix_d_blocks(),
-    write(Dir, "lib/ets.ern", Library),
-    write(Dir, "src/main.ern", Main),
+    write(Dir, "lib/tally.ern", "export fn one() : Int = 1\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Tally.one()))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build/lib", Dir ++ "/lib"])),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build/src", Dir ++ "/src"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"unknown name Ets.new">>)).
+                                      <<"unknown name Tally.one">>)).
 
 %% The fenced code blocks of Appendix D, in order.
 appendix_d_blocks() ->

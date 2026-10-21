@@ -18,6 +18,6 @@ The commands assume `ern` on your `PATH`, the repository's `bin/` or an installa
 | [`upgrade/`](upgrade/) | a counter's two builds, `v1/` and `v2/`, the second moving the first's running counters to new code, here and on every peer | one module built twice, its unchanged definitions one hash in both; the processes that run a function, listed by `Code.running`, each sent its `Upgrade`; a spawn that carries the code a peer lacks | chapters 4 and 8 |
 | [`snake.ern`](snake.ern) | a snake game at a terminal | a world that is one value, ticks kept to a deadline, keys as messages, randomness passed as a seed | chapters 2, 4 and 5 |
 
-`snake.ern` draws with the library `libs/ansi`, and is built and run with `--load-path ../build/libs/ansi` from a checkout, and with `--load-path PREFIX/lib/ernest/build/libs/ansi` where Ernest is installed, as its first comment shows. The others need the standard library alone. `upgrade/` is one module, `Counter`, in two directories, and each is built as a directory, `ern build upgrade/v1`, as its first comment shows.
+`snake.ern` draws with the library `libs/ansi`, which is on the load path already, as every library of the toolchain's is; the others need the standard library alone. `upgrade/` is one module, `Counter`, in two directories, and each is built as a directory, `ern build upgrade/v1`, as its first comment shows.
 
 An installation holds this directory as `share/doc/ernest/examples/` under its prefix. `ern build` writes the compiled module beside its source, so copy the directory to one of your own first.

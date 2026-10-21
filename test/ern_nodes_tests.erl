@@ -2753,11 +2753,11 @@ bare_node_refused(Base) ->
 
 %% report §11.2, §8.7: `ern run --verbose` of a node names each module the
 %% program reads, and then each other module of its load path, which a
-%% node's start reads, on standard error, each once, and standard output
-%% holds the program's alone, from a directory whose name is beyond
-%% Latin-1. A
-%% regression test: the launcher's first start, which writes what the job
-%% says to nothing, raised at such a line, and the node was given no flags
+%% node's start reads, the toolchain's libraries last, on standard error,
+%% each once, and standard output holds the program's alone, from a
+%% directory whose name is beyond Latin-1. A regression test: the
+%% launcher's first start, which writes what the job says to nothing,
+%% raised at such a line, and the node was given no flags
 verbose_node_start_test_() ->
     nodes_test({waits, 1}, fun verbose_node_start/1).
 
@@ -2774,10 +2774,16 @@ verbose_node_start(Base) ->
     Err = E ++ ".err",
     ?assertEqual({0, "ran\n"},
                  finished([?ERN, " run --verbose --config-dir ", E, " ", Main, " 2> ", Err])),
-    ?assertEqual({ok, unicode:characters_to_binary(
-                        ["read Main from ", Main, "\nread Store from ", Root, "/store.erc\n"
-                         "read Shelf.Box from ", Root, "/shelf/box.erc\n"])},
-                 file:read_file(Err)).
+    {ok, Said} = file:read_file(Err),
+    Program = unicode:characters_to_binary(
+                ["read Main from ", Main, "\nread Store from ", Root, "/store.erc\n"
+                 "read Shelf.Box from ", Root, "/shelf/box.erc\n"]),
+    Size = byte_size(Program),
+    <<Program:Size/binary, Libraries/binary>> = Said,
+    ?assertEqual([unicode:characters_to_binary(ern_build:shown(File))
+                  || Library <- ern_tree:libraries(), File <- ern_build:compiled_under(Library)],
+                 [lists:last(string:split(Line, " from "))
+                  || Line <- string:split(Libraries, "\n", all), Line =/= <<>>]).
 
 %% report §8.7, §8.4, Appendix E.27: a lambda crosses as the definition
 %% that encloses it, and what that definition names beyond the lambda's

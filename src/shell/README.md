@@ -99,7 +99,6 @@ bin/ern shell                               # a session
 bin/ern build --build-root build/modules test/fixtures/programs/modules
 bin/ern shell build/modules/main.erc        # a session beside a running program
 bin/ern test build/shell/shell/editor.erc   # one module's tests
-bin/ern test --load-path build/libs/ansi --load-path build/libs/markdown \
-    build/shell/shell/style.erc             # Shell.Style's and Shell.Region's need the libraries
+bin/ern test build/shell/shell/style.erc    # with the libraries, which the load path holds
 make test-shell                             # every module's tests, and the terminal sessions
 ```

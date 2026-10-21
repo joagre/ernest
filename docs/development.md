@@ -8,7 +8,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 
 What each document is, those under `docs/` and the two READMEs beside the code, is listed in [`README.md`](README.md), the index of this directory.
 
-The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 4.1.
+The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; each one's build ends every job's load path, so a program uses one without naming it (report §11.1, §11.2), and which are first-party is the plan's MVP 4.1.
 
 ## The layout of the repository
 
@@ -73,9 +73,9 @@ test/machines/     machines.txt, the user's machines that make bench-machines, m
                    lists them; stop; and status
 bin/               ern, the launcher, a POSIX sh script
 src/stdlib/        the standard library as Ernest source
-src/libs/          the first-party libraries, each a source root a program adds
-                   with --load-path: ansi, ets, json, markdown, which needs ansi,
-                   proxy and utilization
+src/libs/          the first-party libraries, each a source root whose build ends
+                   every job's load path, so that a program names none: ansi, ets,
+                   json, markdown, which needs ansi, proxy and utilization
 src/shell/         the shell as Ernest source; its README.md guides a reader
                    through the code
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
@@ -261,14 +261,14 @@ bin/ern stop --config-dir node                    # and ends, in order
 bin/ern shell                                     # a shell over the standard library
 bin/ern shell build/modules/main.erc              # a shell beside a running program
 bin/ern test build/shell/shell/editor.erc         # the module's tests
-bin/ern test --load-path build/libs/ansi build/libs   # the tests of every module under it
+bin/ern test build/libs                           # the tests of every module under it
 ```
 
-A program whose source tree `app` uses a library adds the library's build to its load path, both to build and to run:
+A program whose source tree `app` uses a library of the toolchain's own, `Ets` or `Markdown`, names no flag for it: the build of each library under `build/libs` ends every job's load path (report §11.1, §11.2). A library of one's own is added with `--load-path`, both to build and to run:
 
 ```
-bin/ern build --load-path build/libs/ets --build-root build/app app
-bin/ern run --load-path build/libs/ets build/app/main.erc
+bin/ern build --load-path ../mylib/build --build-root build/app app
+bin/ern run --load-path ../mylib/build build/app/main.erc
 ```
 
 The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`design/shell.md`](design/shell.md) says how it is built.

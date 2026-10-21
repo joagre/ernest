@@ -2670,7 +2670,7 @@ The store's `main` offers nothing and subscribes to nothing: it waits for its co
 
 **A service that comes back.** When the store is stopped and started again the address the desk found is dead: it died with its process, and each start of a node is a number of its own in every address (report §8.7).
 
-A client that is to go on calling the counter finds it again, or holds a *proxy* for the service from the library `Proxy` (report Appendix G.7), on the load path as any library is (§9.1); a node reads every module of its load path at its start, so the store and the desk run as nodes with `--load-path` naming the library's build too, which `board.erc` needs.
+A client that is to go on calling the counter finds it again, or holds a *proxy* for the service from the library `Proxy` (report Appendix G.7), on the load path as every library of the toolchain's is (§9.1); a node reads every module of its load path at its start, so the store and the desk hold the library `board.erc` needs with no flag.
 
 `Proxy.start(Counter.service, 5000)` in `board.ern` answers the proxy's address, an `Address(Counter.Msg)` behind which the proxy's process finds the service, forwards each message to the service found, and, when that service ends or its node is lost, finds it again at the next message, on whichever listed peer offers it, one find under way at a time; the process ends with the one that called `start`, so at the shell's prompt, where the caller is the input's process, a proxy is started in a process that lives on, as a socket is given to one (§9.3).
 
@@ -2800,7 +2800,7 @@ found 42
 
 A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign.Term` is given one by `Foreign.term(value)`, which gives the value as an argument of its type crosses, so the type must be known where `Foreign.term` is written; `Foreign.atom(name)` makes an atom (report Appendix E.12).
 
-`libs/ets` is such a library, report Appendix G.1, which Appendix D shows with a shorter documentation, and a program adds it with `--load-path`. A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 2), and report Appendix G lists the libraries there are.
+`libs/ets` is such a library, report Appendix G.1, which Appendix D shows with a shorter documentation, and a program names it with no flag, since the toolchain's libraries are on the load path already (§9.1). A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 2), and report Appendix G lists the libraries there are.
 
 ### 8.6 Bitstrings
 
@@ -2995,7 +2995,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 - `ern build hello.ern` compiles one module to `hello.erc`, beside it.
 - `ern build --build-root build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, a definition of another module its code uses, any interface of the standard library, or the compiler has changed, and a `.erc` whose source is gone is removed.
-- `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library, and may be given more than once.
+- `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library of your own, and may be given more than once; the toolchain's libraries, report Appendix G, are on the load path already, after every directory it adds.
 - `--short-errors` prints the first line of each error only, `file:line:column: message`, for a tool to read.
 - `--emit-erl` writes the Erlang the module compiles to, for reading.
 - `ern doc file.ern` writes the module's documentation to standard output as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` renders a manual page instead, to standard output for one module and, for a directory, as a file beside each module, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
@@ -3007,7 +3007,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
   A termination tells the processes that subscribed with `Os.termination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
-- `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
+- `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5); the toolchain's libraries are on the load path already, after it.
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`, as the host's `ERL_LIBS` would: one flag where a program's foreign functions call several of them (report §11.2).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.

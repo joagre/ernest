@@ -16,7 +16,7 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     erl/runtime/priv/ern_exec    the helper Os.run runs a program through
     build/stdlib/                the standard library, compiled, one .erc for each module
     build/shell/                 the shell, compiled
-    build/libs/<name>/           each library, compiled, a root for --load-path
+    build/libs/<name>/           each library, compiled, a root of every load path
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
@@ -27,7 +27,7 @@ share/doc/ernest/                the tracked files of report/, guide/, tour/ and
 share/emacs/site-lisp/ernest-mode.el
 ```
 
-The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, and the tests are not installed, but for the examples, which go in with the documents. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
+The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, and the tests are not installed, but for the examples, which go in with the documents. A program names no library by its place: `ern_tree:libraries/0` lists `build/libs` under the tree, the installation's as the checkout's, and each library's build ends every job's load path (report §11.1, §11.2). `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
 
 The documents installed are for a reader with no checkout. A file is installed by the path it stands in: every file the repository tracks under `report/`, `guide/`, `tour/` and `examples/`, and `editors/emacs/README.md`, is for a user of Ernest, and goes in where it stands, a path the repository does not hold passed over. The examples are the programs the guide runs, and the Emacs README the note that turns on the mode installed with them. `tools/install.sh` asks `git` for the files the repository tracks, so a file of the checkout's that it does not track, a draft or an editor's, stays out; `docs/`, the proposals among it, and `CLAUDE.md` are the project's, and stay out too.
 

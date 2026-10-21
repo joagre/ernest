@@ -60,22 +60,21 @@ stdlib:
 	@bin/ern build --verbose --build-root build/stdlib src/stdlib
 
 # The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
-# its own, compiled into build/libs/<name>, which a program adds with
-# --load-path, each after the standard library and beside the others, but
-# libs/markdown, which writes its styles with libs/ansi (report Appendix
-# G.3) and is compiled after it, against it. A job waits on no build it
-# does not read, so that a make with nothing to do is as deep as the
-# builds' uses and no deeper (the log's *A Make With Nothing to Do*). A
+# its own, compiled into build/libs/<name>, which ends every job's load path
+# (report §11.1, §11.2), each after the standard library and beside the
+# others, but libs/markdown, which writes its styles with libs/ansi (report
+# Appendix G.3) and is compiled after it, against it. A job waits on no
+# build it does not read, so that a make with nothing to do is as deep as
+# the builds' uses and no deeper (the log's *A Make With Nothing to Do*). A
 # library whose directory is gone has its build removed with it.
 LIBS = $(sort $(notdir $(patsubst %/,%,$(wildcard src/libs/*/))))
 LIB_BUILDS = $(LIBS:%=lib-%)
-LIB_PATH = --load-path build/libs/ansi --load-path build/libs/markdown
 libs: $(LIB_BUILDS)
 	@for d in build/libs/*/; do [ -d "src/libs/$$(basename $$d)" ] || rm -rf "$$d"; done
 
 lib-markdown: lib-ansi
-	@bin/ern build --verbose --source-root src/libs/markdown --load-path build/libs/ansi \
-	  --build-root build/libs/markdown src/libs/markdown
+	@bin/ern build --verbose --source-root src/libs/markdown --build-root build/libs/markdown \
+	  src/libs/markdown
 
 $(filter-out lib-markdown,$(LIB_BUILDS)): lib-%: stdlib
 	@bin/ern build --verbose --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
@@ -86,7 +85,7 @@ $(filter-out lib-markdown,$(LIB_BUILDS)): lib-%: stdlib
 # documentation with and is compiled against, from their builds under
 # build/libs.
 shell: lib-ansi lib-markdown
-	@bin/ern build --verbose $(LIB_PATH) --build-root build/shell src/shell
+	@bin/ern build --verbose --build-root build/shell src/shell
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -102,8 +101,7 @@ pages-stdlib:
 	@bin/ern doc --build-root build/stdlib src/stdlib
 
 $(LIBS:%=pages-%): pages-%:
-	@bin/ern doc --source-root src/libs/$* --load-path build/libs/ansi --build-root build/libs/$* \
-	  src/libs/$*
+	@bin/ern doc --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
 # The manual pages (report §11, §11.4): the prelude's and every standard
 # library module's, beside the modules' .erc in build/stdlib, each
@@ -128,15 +126,14 @@ manual-stdlib: stdlib lib-markdown
 	@bin/ern doc --man --build-root build/stdlib src/stdlib
 
 $(LIBS:%=manual-%): manual-%: lib-% lib-markdown
-	@bin/ern doc --man --source-root src/libs/$* --load-path build/libs/ansi \
-	  --build-root build/libs/$* src/libs/$*
+	@bin/ern doc --man --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
 # ern(1)'s SEE ALSO names the pages in build/stdlib, so the directory is a
 # prerequisite: its time changes whenever a file there is written, added or
 # removed, a page among them, and a make with nothing to do changes none.
 build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 	@mkdir -p build/man
-	@bin/ern run --verbose $(LIB_PATH) build/tools/manual.erc \
+	@bin/ern run --verbose build/tools/manual.erc \
 	  report/toolchain.md $$(cat VERSION) build/stdlib > $@.new
 	@mv $@.new $@
 
@@ -204,7 +201,7 @@ release: all
 # The programs of the build written in Ernest, tools/*.ern, compiled into
 # build/tools against libs/markdown and libs/ansi, which it writes with.
 tools: lib-ansi lib-markdown
-	@bin/ern build --verbose $(LIB_PATH) --build-root build/tools tools
+	@bin/ern build --verbose --build-root build/tools tools
 
 # Terminal.width's table in src/stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is

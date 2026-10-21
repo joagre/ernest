@@ -878,11 +878,9 @@ editor_test_() ->
 
 editor() ->
     %% the shell renders documentation with libs/markdown and styles it with
-    %% libs/ansi, which a run of its modules puts on the load path as any
-    %% program using a library does
-    {Status, Output} = ern_pty:sh(
-        "../bin/ern test --load-path ../build/libs/markdown"
-        " --load-path ../build/libs/ansi ../build/shell"),
+    %% libs/ansi, which the load path holds as it holds every library of the
+    %% toolchain's own (report §11.2)
+    {Status, Output} = ern_pty:sh("../bin/ern test ../build/shell"),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
     %% a module with tests is named before them, and one without is passed
@@ -2950,6 +2948,23 @@ libs_dir_in_the_shell() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --libs-dir " ++ filename:join(Dir, "lib"))
                              ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 42 : Int\n">>)).
+
+%% report §11.2, Appendix G: a shell's load path ends with the build of
+%% each library of the toolchain's own, so that `:load Json`, a library
+%% the shell itself does not use, loads it with no `--load-path`. Written
+%% after the code, so a regression test
+libraries_in_the_shell_test_() ->
+    {timeout, 60, fun libraries_in_the_shell/0}.
+
+libraries_in_the_shell() ->
+    Dir = scratch("ern_libraries_"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Json\nJson.format(Json.Array([Json.Integer(1)]))\n"),
+    {0, Output} = ern_pty:sh("cd " ++ Dir ++ " && " ++ alone(filename:absname("../bin/ern")
+                                                             ++ " shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Json, from ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"build/libs/json/json.erc\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> \"[1]\\n\" : String\n">>)).
 
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives

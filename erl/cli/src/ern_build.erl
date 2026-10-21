@@ -1024,12 +1024,14 @@ gone(#{source_path := Recorded}, Dir, SourceRoot) ->
 gone(_, _, _) ->
     false.
 
-%% Report §11.2: the directories the options add to the load path, in the
-%% order the options are given: a `--load-path`'s, and the `ebin` of each
-%% application under a `--libs-dir`.
+%% Report §11.1, §11.2: the load path past the roots a job puts first: the
+%% directories the options add, in the order the options are given, a
+%% `--load-path`'s and the `ebin` of each application under a
+%% `--libs-dir`, and after them the build of each library of the
+%% toolchain's own (Appendix G), so that a program names none of them.
 -spec load_path([term()]) -> [file:filename()].
 load_path(Options) ->
-    lists:append([added(Option) || Option <- Options]).
+    lists:append([added(Option) || Option <- Options]) ++ ern_tree:libraries().
 
 added({load_path, Dir}) -> [absolute(Dir)];
 added({libs_dir, Dir}) -> application_ebins(Dir);
