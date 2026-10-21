@@ -1,4 +1,4 @@
-# Ernest: Decision Log
+# Decisions
 
 The reasoning behind the language report in [`report/`](../report/): what was taken from Unison and Erlang, what was tried and rejected, what is deferred, and what is undecided. The report says what holds; this document says why. The language was called Actorson until 12 September 2026.
 

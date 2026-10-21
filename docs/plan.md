@@ -1,4 +1,4 @@
-# Ernest Implementation Plan
+# Plan
 
 The roadmap: what will be built, in what order, and what is built already. Why anything is the
 way it is belongs to [`log.md`](log.md), what the language is to
