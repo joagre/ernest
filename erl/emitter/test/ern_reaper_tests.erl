@@ -93,8 +93,24 @@ reaper_words() ->
                                      erlang:process_info(Reaper, message_queue_len)
                                          =:= {message_queue_len, 0}
                                  end),
-    erlang:garbage_collect(Reaper),
-    {total_heap_size, Words} = erlang:process_info(Reaper, total_heap_size),
+    settled(Reaper, collected(Reaper), 8).
+
+%% The reaper's heap once collected, read until two readings in a row
+%% agree, as test/ern_load.erl reads it: the reaper wakes ten times a
+%% second to look for a deadlock (report §8.6), and a look that falls
+%% between the collection and the reading leaves its words in the heap,
+%% one reading in about twenty; the looks are a tenth of a second apart,
+%% and no two of them disturb two readings alike.
+settled(Pid, Reading, Tries) ->
+    case collected(Pid) of
+        Reading -> Reading;
+        Other when Tries > 0 -> settled(Pid, Other, Tries - 1);
+        Other -> min(Reading, Other)
+    end.
+
+collected(Pid) ->
+    erlang:garbage_collect(Pid),
+    {total_heap_size, Words} = erlang:process_info(Pid, total_heap_size),
     Words.
 
 %% report §8.6: a program waiting only on alarms it has set is in no
