@@ -3,7 +3,7 @@
 %% module of its own that uses the documented one.
 -module(ern_examples).
 
--export([cases/2, unload/1]).
+-export([cases/2, in_directory/2, unload/1]).
 
 -include_lib("shared/include/ern_diagnostic.hrl").
 
@@ -28,6 +28,65 @@ cases(Namespace, [ErlangModule | _] = Loaded) ->
     Compiled = [example(Name, Block, Index, Interfaces)
                 || {Index, {Name, Block}} <- lists:enumerate(Examples)],
     {[Case || {Case, _} <- Compiled], [Unit || {_, Unit} <- Compiled, Unit =/= none]}.
+
+%% Report §11.2: an example's case run by Run in an empty directory of its
+%% own, made for it under the host's directory for temporary files, `TMPDIR`
+%% or `/tmp`, and removed after it, whether it passed, failed or faulted.
+%% The host's working directory is the node's and not a process's, so it is
+%% the example's directory while the example runs and the run's again after
+%% it, where the module's next case and a process the example left running
+%% find it. Where the run's directory cannot be read, or the example's
+%% cannot be made, the case fails with the host's reason, and a directory
+%% the example left that cannot be removed is said on standard error, as
+%% the runner says what stops a case.
+-spec in_directory(Case, fun((Case) -> Outcome)) -> Outcome
+              when Case :: {'Case', binary(), fun(() -> term())}.
+in_directory({'Case', Name, _} = Case, Run) ->
+    Base = os:getenv("TMPDIR", "/tmp"),
+    case file:get_cwd() of
+        {ok, Working} ->
+            case made_directory(Base) of
+                {ok, Dir} ->
+                    ok = file:set_cwd(Dir),
+                    try
+                        Run(Case)
+                    after
+                        ok = file:set_cwd(Working),
+                        removed(Name, Dir)
+                    end;
+                {error, Error} ->
+                    Run(failed(Name, ["its directory cannot be made under ", Base, ": ",
+                                      file:format_error(Error)]))
+            end;
+        {error, Error} ->
+            Run(failed(Name, ["the working directory cannot be read: ",
+                              file:format_error(Error)]))
+    end.
+
+failed(Name, Text) ->
+    Failed = {'Failed', unicode:characters_to_binary(Text)},
+    {'Case', Name, fun() -> Failed end}.
+
+%% A directory of a name no other holds, made empty under Base.
+made_directory(Base) ->
+    Dir = filename:join(Base, "ern_example_" ++ os:getpid() ++ "_"
+                              ++ integer_to_list(erlang:unique_integer([positive]))),
+    case file:make_dir(Dir) of
+        ok -> {ok, Dir};
+        {error, eexist} -> made_directory(Base);
+        {error, _} = Error -> Error
+    end.
+
+removed(Name, Dir) ->
+    case file:del_dir_r(Dir) of
+        ok ->
+            ok;
+        {error, Error} ->
+            ern_rt:send(ern_rt:system_process(stderr),
+                        unicode:characters_to_binary(
+                          ["ern test: the directory of ", ern_show:controls(Name, line), ", ",
+                           Dir, ", cannot be removed: ", file:format_error(Error), "\n"]))
+    end.
 
 %% The units the examples' compiling loaded, deleted, out of the code table,
 %% and purged, as the shell takes out a module of its own (ern_shell).
@@ -91,8 +150,7 @@ example(Name, Block, Index, Interfaces) ->
            end,
     case {checked(Namespace, iolist_to_binary(Text), Interfaces), Value} of
         {{error, [#diagnostic{message = Message} | _]}, _} ->
-            Failed = {'Failed', unicode:characters_to_binary(Message)},
-            {{'Case', Name, fun() -> Failed end}, none};
+            {failed(Name, Message), none};
         {{ok, _, _, _}, none} ->
             {{'Case', Name, fun() -> 'Passed' end}, none};
         {{ok, Typed, Interface, Env}, Expected} ->

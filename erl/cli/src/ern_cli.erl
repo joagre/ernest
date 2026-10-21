@@ -1463,9 +1463,13 @@ tests_entry(ErlangModule, Examples, Caller, Running) ->
                             <<"ern test: two tests are named \"",
                               (ern_show:controls(Twice, line))/binary, "\"\n">>),
                 Caller ! {ern_tests, false};
-            {Cases, []} ->
-                Passed = [run_test(Case, Running) || Case <- Cases],
-                Caller ! {ern_tests, not lists:member(false, Passed)}
+            {_, []} ->
+                TestsPassed = [run_test(Case, Running) || Case <- Tests],
+                %% report §11.2: each example in an empty directory of its own
+                ExamplesPassed = [ern_examples:in_directory(
+                                    Case, fun(Ready) -> run_test(Ready, Running) end)
+                                  || Case <- Examples],
+                Caller ! {ern_tests, not lists:member(false, TestsPassed ++ ExamplesPassed)}
         end
     end.
 

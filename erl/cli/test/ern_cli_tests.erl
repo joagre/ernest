@@ -1742,6 +1742,82 @@ doc_examples_of_a_directory_test() ->
     ?assertEqual(<<"A\nones: passed\nA.one example 1: passed\nB\nB.two example 1: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
 
+%% report §11.2: each doc example runs in an empty directory of its own,
+%% made for it under the directory for temporary files and removed after
+%% it, whether it passed, failed or faulted, and the module's tests run in
+%% the working directory: an example that makes a file passes again on a
+%% second run in the same directory, a second example does not find the
+%% first's file, the working directory holds no example's file after the
+%% runs, and the directory for temporary files holds none of theirs. A
+%% regression test, written after the code; it does not cover a process an
+%% example leaves running, which finds the run's directory, nor a run on a
+%% node
+doc_example_directory_test() ->
+    Dir = tmp(),
+    write(Dir, "src/notes.ern",
+          "/// Makes `note.txt` where it runs, which holds nothing before it.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// #(Fs.list(Path(\".\"), 5000), Notes.note())\n"
+          "/// // => #(Right([]), Right(Unit))\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Fs.stat(Path(\"note.txt\"), 5000)\n"
+          "/// // => Left(NotFound)\n"
+          "/// ```\n"
+          "export fn note() : Either(Io.Error, Unit) =\n"
+          "    Fs.makeFile(Path(\"note.txt\"), String.toUtf8(\"note\"), 5000)\n"
+          "\n"
+          "let here = Test.Case(name = \"here\", run = fn() =\n"
+          "    Test.equal(Fs.read(Path(\"marker.txt\"), 5000), Right(String.toUtf8(\"here\"))))\n"),
+    write(Dir, "src/faulty.ern",
+          "/// Makes `left.txt` where it runs.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Faulty.leave()\n"
+          "/// // => Left(Exists)\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// let _ = Faulty.leave();\n"
+          "/// Faulty.divide(1, 0)\n"
+          "/// // => 0\n"
+          "/// ```\n"
+          "export fn leave() : Either(Io.Error, Unit) =\n"
+          "    Fs.makeFile(Path(\"left.txt\"), String.toUtf8(\"left\"), 5000)\n"
+          "\n"
+          "/// `n` over `d`.\n"
+          "export fn divide(n : Int, d : Int) : Int = n / d\n"),
+    write(Dir, "marker.txt", "here"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Temporary = filename:join(Dir, "temporary"),
+    ok = file:make_dir(Temporary),
+    Given = os:getenv("TMPDIR"),
+    true = os:putenv("TMPDIR", Temporary),
+    try
+        in_directory(Dir, fun() ->
+                              ?assertEqual(0, ern_cli:ern(["test", "build/notes.erc"])),
+                              ?assertEqual(0, ern_cli:ern(["test", "build/notes.erc"])),
+                              ?assertEqual(1, ern_cli:ern(["test", "build/faulty.erc"]))
+                          end)
+    after
+        case Given of
+            false -> os:unsetenv("TMPDIR");
+            _ -> os:putenv("TMPDIR", Given)
+        end
+    end,
+    Output = iolist_to_binary(?capturedOutput),
+    Notes = <<"here: passed\nNotes.note example 1: passed\nNotes.note example 2: passed\n">>,
+    ?assertMatch([_, _], binary:matches(Output, Notes)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Faulty.leave example 1: failed: expected"
+                                                " Left(Exists), got Right(Unit)\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Faulty.leave example 2: faulted: division by"
+                                                " zero\n">>)),
+    {ok, Left} = file:list_dir(Dir),
+    ?assertEqual(["build", "marker.txt", "src", "temporary"], lists:sort(Left)),
+    ?assertEqual({ok, []}, file:list_dir(Temporary)).
+
 %% report Appendix E.24, §4.9: `Test.equal` passes where the actual value
 %% equals the expected one and otherwise fails naming both as `Io.show`
 %% writes them, the expected first, at a type the program declares and
