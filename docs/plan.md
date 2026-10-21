@@ -134,11 +134,12 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   member's name is an error at its declaration (§4.2, §11.5). The checker decides a qualified name
   by the module its interface says declares it, and the build depends on that module.
 - **A module under a standard library namespace** (found 2026-10-21 building the item above),
-  decided with the user on 2026-10-21 (the log's *The Window's Three Asks*, its *Found beside it*
-  paragraph): `fs/entry.ern` built as `Fs.Entry` and no module reached it, since the build takes
-  no dependency under a namespace of the prelude or the standard library. §4.2 refuses a module
-  under a taken namespace too, the refusal the build's dependencies already assume (principle 1);
-  about an hour with its test.
+  decided with the user and done 2026-10-21 (the log's *The Window's Three Asks*, its *Found
+  beside it* paragraph): `fs/entry.ern` built as `Fs.Entry` and no module reached it, since the
+  build takes no dependency under a namespace of the prelude or the standard library. §4.2
+  refuses a module under a taken namespace too, the refusal the build's dependencies already
+  assume (principle 1): `fs/entry.ern stands under the standard library namespace Fs`, in a
+  directory's build and a file's alike, and `down/x.ern` builds, since `Down` takes no namespace.
 - **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), done 2026-10-21 (the log's *Nothing
   Waits for a Program*, its line of that day): E.2 lists it after `foldRight`, and it is Ernest
   alone, a recursion of its own whose step takes the accumulator first and answers

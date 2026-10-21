@@ -365,24 +365,24 @@ module_of(File, SourceRoot, Mode) ->
                                             "the module's Erlang name, `ern@` and its path,",
                                             ErlangModule)),
     %% report §4.2: a module namespace is never a namespace of the prelude
-    %% or the standard library, except in the standard library's own source
-    %% root; the message names which of the two takes it, the prelude where
-    %% both do
-    case Namespace of
-        [Single] ->
-            not is_stdlib_root(SourceRoot) andalso
-                case {lists:member(Single, prelude_namespaces()),
-                      lists:member(Single, stdlib_namespaces())} of
-                    {true, _} ->
-                        fail(Shown ++ " takes the prelude namespace " ++ atom_to_list(Single));
-                    {false, true} ->
-                        fail(Shown ++ " takes the standard library namespace "
-                             ++ atom_to_list(Single));
-                    {false, false} ->
-                        ok
-                end;
-        _ -> ok
-    end,
+    %% or the standard library, nor under one, except in the standard
+    %% library's own source root; the message names which of the two takes
+    %% it, the prelude where both do
+    [First | Under] = Namespace,
+    Taken = case Under of
+                [] -> " takes the ";
+                _ -> " stands under the "
+            end,
+    not is_stdlib_root(SourceRoot) andalso
+        case {lists:member(First, prelude_namespaces()),
+              lists:member(First, stdlib_namespaces())} of
+            {true, _} ->
+                fail(Shown ++ Taken ++ "prelude namespace " ++ atom_to_list(First));
+            {false, true} ->
+                fail(Shown ++ Taken ++ "standard library namespace " ++ atom_to_list(First));
+            {false, false} ->
+                ok
+        end,
     #build_module{namespace = Namespace, file = File, relative = Relative}.
 
 %% Report §11.1: every component of the path keeps the shape. A file built

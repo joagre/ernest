@@ -1265,6 +1265,37 @@ taken_namespace_names_owner_test() ->
     write(Dir, "src/sys.ern", "export fn f() : Int = 1\n"),
     ?assertEqual(0, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
+%% report §4.2: a module may not stand under a taken namespace, the
+%% standard library's or the prelude's, and the file that does fails alone;
+%% a prelude type without members takes no namespace, so a module may stand
+%% under it, `down/x.ern`, and a third module reaches it. A regression test,
+%% written after the code: `fs/entry.ern` built as `Fs.Entry`, which no
+%% module reached; it does not cover the shell's load of such a file, which
+%% reads its namespace by the same function
+module_under_taken_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/fs/entry.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/int/parse.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/down/x.ern", "export fn f() : Int = 42\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Down.X.f()))\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"fs/entry.ern stands under the standard library"
+                                                " namespace Fs\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"int/parse.ern stands under the prelude"
+                                                " namespace Int\n">>)),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/fs/entry.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/int/parse.erc")),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"\n42\n">>)),
+    %% a file built alone is refused the same way
+    ?assertEqual(1, build_err(["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/alone",
+                               Dir ++ "/src/fs/entry.ern"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"fs/entry.ern stands under the standard library"
+                                        " namespace Fs\n">>)).
+
 %% report §4.2: a prelude type without members takes no namespace, so a
 %% program's modules may be named after it: `Down.describe` is the module's
 %% function, and `Down(...)` still builds the prelude's type. `never.ern`'s
