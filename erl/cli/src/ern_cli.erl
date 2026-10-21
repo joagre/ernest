@@ -1400,12 +1400,16 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
     %% report §11.2: a test's own fault is its line, its trace beneath it,
-    %% which its row keeps until its end is here
-    Reporter = fun({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
-                   case ets:member(Running, Process) of
-                       true -> ets:insert(Running, {Process, Trace});
-                       false -> Report(FaultReport, Peer)
-                   end
+    %% which its row keeps until its end is here; and a fault of a process
+    %% Test.faults started, whose site is that declaration's (§6.9), is not
+    %% reported, since the test's answer carries it (Appendix E.24)
+    Reporter = fun({'FaultReport', _, <<"Test.faults:", _/binary>>, _, _, _, _}, _) ->
+                       ok;
+                  ({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
+                       case ets:member(Running, Process) of
+                           true -> ets:insert(Running, {Process, Trace});
+                           false -> Report(FaultReport, Peer)
+                       end
                end,
     Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),
     ets:delete(Running),

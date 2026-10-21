@@ -1500,6 +1500,44 @@ test_equal_test() ->
                                                 " got Point(x = 1, y = 2)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"itself: passed\n">>)).
 
+%% report Appendix E.24, §11.2: `Test.faults` passes where the call faults
+%% with the cause given, and otherwise fails naming what came instead,
+%% another cause, a return or the reason; `ern test` reports no fault of a
+%% process `Test.faults` started, and a fault outside it, of a worker a
+%% test spawned, on standard error as before, its trace beneath it. A
+%% regression test, written after the code; the faults a `Test.faults`
+%% run's own spawns meet are the worker's case, their sites the program's
+test_faults_test() ->
+    Dir = tmp(),
+    File = write(Dir, "faults.ern",
+                 "type Ended = Ended(Down)\n"
+                 "let divides = Test.Case(name = \"divides\", run = fn() =\n"
+                 "    Test.faults(fn() = 1 / 0, \"division by zero\"))\n"
+                 "let wrong = Test.Case(name = \"wrong\", run = fn() =\n"
+                 "    Test.faults(fn() = 1.0 / 0.0, \"division by zero\"))\n"
+                 "let returns = Test.Case(name = \"returns\", run = fn() =\n"
+                 "    Test.faults(fn() = 1 + 1, \"division by zero\"))\n"
+                 "let killed = Test.Case(name = \"killed\", run = fn() =\n"
+                 "    Test.faults(fn() = kill(self()), \"division by zero\"))\n"
+                 "let worker = Test.Case(name = \"worker\", run = fn() = {\n"
+                 "    let _ = spawnMonitored(fn() = Io.println(Int.toString(1 / 0)), Ended);\n"
+                 "    receive { Ended(_) -> Test.Passed }\n"
+                 "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {Errors, Status} = standard_error_of(["test", filename:join(Dir, "faults.erc")]),
+    ?assertEqual(1, Status),
+    ?assertEqual(<<"divides: passed\n"
+                   "wrong: failed: expected the fault division by zero,"
+                   " got the fault float arithmetic error\n"
+                   "returns: failed: expected the fault division by zero, got a return\n"
+                   "killed: failed: expected the fault division by zero, got Killed\n"
+                   "worker: passed\n">>,
+                 iolist_to_binary(?capturedOutput)),
+    ?assertEqual(<<"Faults.worker:11 faulted: division by zero\n">>, untraced(Errors)),
+    ?assertMatch([<<"Faults.worker:11 faulted: division by zero">>, <<"    ", _/binary>> | _],
+                 binary:split(unicode:characters_to_binary(Errors), <<"\n">>, [global])),
+    ?assertEqual(nomatch, binary:match(unicode:characters_to_binary(Errors), <<"Test.faults">>)).
+
 %% report §11.2, §11.8: given a directory, `ern test` runs the tests of every
 %% `.erc` under it in the order of their paths, a name that begins with a
 %% dot and a link to a directory passed over; each module's name stands on

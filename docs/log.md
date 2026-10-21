@@ -8815,6 +8815,8 @@ The rest are decided below as they are discussed.
 
 **Found beside the item.** Two targets of `test/Makefile` ran test modules they did not compile, which a `test/ebin` without them showed. `make diagnostics` compiled `ern_guide_tests` alone, and failed where `ern_pty`, which gives it its directory, was not compiled. `make test-nodes` did not compile the machines' tools that `ern_machine_tests` tests, which `make test-integration` compiles after it, so a full run of a fresh clone failed six of its tests as undefined. Each now names what it runs.
 
+**Built 2026-10-21, `Test.faults`.** `faults` receives nothing, so that a test of any mailbox type may call it, and so its caller cannot take a `Down`. A judge process of its own takes the request and the `Down`, in a mailbox type private to `Test`: it starts `run` with `spawnMonitored` and answers the call `faults` makes, with no primitive added. Both spawns are written in `faults`, so a fault of either has the site `Test.faults:n` (§6.9), which `ern test`'s reporter passes over by one clause. `ern run` and the shell still report it, since §11.2 has them report every fault and excepts `ern test` alone; a reason neither a fault nor a return is written as `Io.show` writes it, `got Killed`.
+
 ## The Ray Tracer's Two Asks, 2026-10-20
 
 Decided with the user on 2026-10-20: the two entries `ernest-epx`'s ray tracer left in `docs/language_feedback.md`, 133 and 134, each weighed and left alone. The file is empty again.

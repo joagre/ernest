@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 20 October 2026.
+Revision of 21 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -757,10 +757,13 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 
 A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2), so that a test may receive as an entry point may (§8.1). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
 
+`faults` answers `Passed` where a call faults with a cause: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. `ern test` reports no fault of a process `faults` started, since the test's answer carries it (§11.2).
+
 ```
 type Case(m) = Case(name : String, run : () -> Result receiving m)
 type Result = Passed | Failed(String)
 Test.equal : (a=, a=) -> Result needs a.show // the actual value first, then the expected one
+Test.faults : (() -> a receiving n, String) -> Result // the call first, then the cause it faults with
 ```
 
 ### Appendix E.25. `ordered_set.ern` (namespace `OrderedSet`)

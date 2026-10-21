@@ -14,8 +14,9 @@
 /// that faults or deadlocks is reported as `faulted` with the cause, counts as
 /// not passed, and the run goes on with the next (report Appendix E.24).
 ///
-/// Most tests compare a value with the one expected, which `equal` does. A test
-/// that wants another text answers `Failed` with its own.
+/// Most tests compare a value with the one expected, which `equal` does, and
+/// `faults` tests that a call faults with the cause expected. A test that wants
+/// another text answers `Failed` with its own.
 ///
 /// ## Examples
 ///
@@ -54,6 +55,11 @@ export type Case(m) = Case(name : String, run : () -> Result receiving m)
 /// ```
 export type Result = Passed | Failed(String)
 
+// What the process that judges a call of `faults` takes: the request for its
+// verdict, and the end of the process the call ran in. The judge is a process
+// of its own, since `faults` receives nothing in its caller's process.
+type JudgeMsg = Judge(Reply(Result)) | Ended(Down)
+
 /// `Passed` where `actual` equals `expected`, and otherwise `Failed` naming
 /// both as `Io.show` writes them, the expected first: `expected 3, got 2`. It
 /// needs `a.show`, which a call at a known type supplies without writing it
@@ -72,3 +78,61 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
         Passed
     else
         Failed("expected " <> Io.show(expected) <> ", got " <> Io.show(actual))
+
+/// `Passed` where `run` faults with `cause`, and otherwise `Failed` naming the
+/// cause expected and what came instead: another cause, a return, or the
+/// reason the process ended with as `Io.show` writes it, `expected the fault
+/// division by zero, got Killed`.
+///
+/// `run` runs in a process of its own, monitored, whose end gives the answer
+/// (report §6.9); a process it spawns lives on after it. `ern test` reports no
+/// fault of a process `faults` started, since the test's answer carries it
+/// (report §11.2).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Test.faults(fn() = 1 / 0, "division by zero")
+/// // => Passed
+/// ```
+///
+/// ```ernest
+/// Test.faults(fn() = 1 + 1, "division by zero")
+/// // => Failed("expected the fault division by zero, got a return")
+/// ```
+///
+/// ```ernest
+/// Test.faults(fn() = 1.0 / 0.0, "division by zero")
+/// // => Failed("expected the fault division by zero, got the fault float arithmetic error")
+/// ```
+///
+/// since 0.5.0
+export fn faults(run : () -> a receiving n, cause : String) : Result = {
+    let call = fn() = {
+        let _ = run();
+        Unit
+    };
+    let judge = spawn(fn() = receive {
+        Judge(reply) -> {
+            let _ = spawnMonitored(call, Ended);
+            receive {
+                Ended(down) -> answer(reply, verdict(down.reason, cause))
+            }
+        }
+    });
+    Address.callForever(judge, Judge)
+}
+
+// The verdict on a process that was to fault with `cause` and ended with
+// `reason`.
+fn verdict(reason : Reason, cause : String) : Result = {
+    let expected = "expected the fault " <> cause <> ", got ";
+    match reason {
+        Fault(faulted) ->
+            if faulted == cause then Passed else Failed(expected <> "the fault " <> faulted)
+      | Returned ->
+            Failed(expected <> "a return")
+      | _ ->
+            Failed(expected <> Io.show(reason))
+    }
+}

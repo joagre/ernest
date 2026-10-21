@@ -128,9 +128,11 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 - **`ok` as `Unit`** (feedback 123; principle 1). A foreign function declared `Unit` whose host
   result is the atom `ok` answers `Unit`, one more comparison in the return check §7.4 states; a
   representation decision, so E.0 and the log say so. §7.4 and §8.4 first, then the boundary.
-- **`Test.faults`** (feedback 124; principle 1, E.0's rules). E.24 gains a case that a call
-  faults, `Test.faults(run, cause)`, `Passed` where `run` faults with that cause and `Failed`
-  otherwise, and `ern test` writes no trace for a fault a test expected. E.24 and §11.2 first.
+- **`Test.faults`**, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph
+  on `Test.faults`): `Test.faults(run, cause)` answers `Passed` where `run` faults with that cause,
+  and otherwise `Failed` naming what came instead, another cause, a return or the reason; and
+  `ern test` reports no fault of a process `Test.faults` started (E.24, §11.2). It is Ernest, a
+  judge process of the module's own over `spawnMonitored` and a call, with no primitive.
 - **The foreign call measured** (feedback 125; CLAUDE.md's *Design*, a multiple where a fraction
   is promised). A bare `foreign fn` at two and a half times the host's call, measured piece by piece
   in `make bench`'s fifth part as the monitor was (the log's *The Rows That Grew*), and brought back to the plain form

@@ -1906,6 +1906,8 @@ a worker answers back: passed
 
 `ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause.
 
+`Test.faults(run, cause)` tests that a call faults: `Test.Passed` where `run` faults with `cause`, and otherwise `Test.Failed` naming what came instead, `expected the fault division by zero, got a return`. `run` runs in a process of its own, whose fault `ern test` does not report, since the test's answer carries it (report Appendix E.24).
+
 A test's `run` is `() -> Test.Result receiving m`: it runs in a process whose mailbox type is `m`, as an entry point does (report §8.1), so it may spawn, send, call and receive. `addsTwo` receives nothing and leaves `m` open, and `ern test` runs it with `Never`; `answersBack` receives a `Reported`, so its type is `Test.Case(Reported)`, which nothing writes. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
 
 Given a directory, `ern test build` runs the tests of every module compiled under it, each module's name on a line before what it writes, and passes over a module that has none.
