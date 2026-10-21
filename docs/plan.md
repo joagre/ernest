@@ -1,7 +1,7 @@
 # Ernest Implementation Plan
 
 The roadmap: what will be built, in what order, and what is built already. Why anything is the
-way it is belongs to [`decisions.md`](decisions.md), what the language is to
+way it is belongs to [`log.md`](log.md), what the language is to
 the report in [`report/`](../report/), how the code is arranged to
 [`architecture.md`](architecture.md), and the commands and what the toolchain does not do yet
 to [`development.md`](development.md).

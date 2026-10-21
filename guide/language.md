@@ -3071,7 +3071,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A running program replaces its code by a message that carries the new function (§4.6). A new version of a module arrives by the shell's `:reload`, by `Code.load` (report Appendix E.28), or with a peer's spawn or compute (§8.1).
 - A function value does not travel to another node in a message: the compiler refuses a service or a spawn that would take one; a spawn or a compute names its function by hash and carries to the peer the definitions it lacks (§8.1, §8.4).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
-- Nodes talk over Erlang's distribution, over TLS, with no port mapper, no mesh, and a rule that accepts a peer by its listed key; nodes of different builds connect where they run one minor release of `ern` on one major release of OTP, share what they share by hash, and a spawn or a compute carries to a peer the code it lacks (report §8.7). The reasons are the decisions log's, [`docs/decisions.md`](../docs/decisions.md).
+- Nodes talk over Erlang's distribution, over TLS, with no port mapper, no mesh, and a rule that accepts a peer by its listed key; nodes of different builds connect where they run one minor release of `ern` on one major release of OTP, share what they share by hash, and a spawn or a compute carries to a peer the code it lacks (report §8.7). The reasons are the decisions log's, [`docs/log.md`](../docs/log.md).
 
 ## 11. The design
 
@@ -3138,4 +3138,4 @@ The programs under [`examples/`](../examples/README.md) are complete, each large
 
 For the language rules themselves, the report is the authority: [`report/language.md`](../report/language.md), the language, [`report/toolchain.md`](../report/toolchain.md), the toolchain, and [`report/library.md`](../report/library.md), the standard library. Appendix F glosses every technical term.
 
-Why Ernest looks as it does, and what was tried and rejected, is in [`decisions.md`](../docs/decisions.md), a dated record of the design decisions.
+Why Ernest looks as it does, and what was tried and rejected, is in [`docs/log.md`](../docs/log.md), a dated record of the design decisions.

@@ -7,7 +7,7 @@
 # blank line or where its indentation ends. The log, the proposals and the
 # generated pages are left out.
 cd "$(dirname "$0")/.." || exit 1
-git ls-files -- '*.md' ':!docs/decisions.md' ':!docs/proposals/' ':!docs/man/' |
+git ls-files -- '*.md' ':!docs/log.md' ':!docs/proposals/' ':!docs/man/' |
 while read -r file; do
     awk -v file="$file" '
         function flush() {

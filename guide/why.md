@@ -224,4 +224,4 @@ No program shows this claim. Its evidence is the report under `report/`: the lan
 
 ## Reading on
 
-The guide's §0 shows what the compiler refuses and how it says so, and its §1 runs the first program. The questions a reader brings, the likeness to Gleam among them, are answered in [the questions](faq.md). The reasons behind each rule, dated, are the log's, [`docs/decisions.md`](../docs/decisions.md).
+The guide's §0 shows what the compiler refuses and how it says so, and its §1 runs the first program. The questions a reader brings, the likeness to Gleam among them, are answered in [the questions](faq.md). The reasons behind each rule, dated, are the log's, [`docs/log.md`](../docs/log.md).

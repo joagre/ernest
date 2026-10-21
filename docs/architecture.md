@@ -1,6 +1,6 @@
 # Ernest Toolchain: Architecture Notes
 
-How the toolchain's code is arranged: its stages, its modules and what each does, the runtime, and the kinds of tests. The code wins any conflict with this document. The language is the report's; the layout of the repository and the commands are [`development.md`](development.md)'s; the reasons are the [decisions log](decisions.md)'s; the roadmap is the [plan](implementation_plan.md)'s. The Erlang follows [`style.md`](style.md). How a function does its work is its own comment's; this document says where the function is.
+How the toolchain's code is arranged: its stages, its modules and what each does, the runtime, and the kinds of tests. The code wins any conflict with this document. The language is the report's; the layout of the repository and the commands are [`development.md`](development.md)'s; the reasons are the [decisions log](log.md)'s; the roadmap is the [plan](plan.md)'s. The Erlang follows [`style.md`](style.md). How a function does its work is its own comment's; this document says where the function is.
 
 ## The pipeline
 

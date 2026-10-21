@@ -3,8 +3,8 @@
 The project's own documents: what each file and directory here is, and the two READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/).
 
 - **[`development.md`](development.md)**: where things are, how to build and test them, and what the toolchain does not do yet.
-- **[`implementation_plan.md`](implementation_plan.md)**: where the project stands and what comes next.
-- **[`decisions.md`](decisions.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
+- **[`plan.md`](plan.md)**: where the project stands and what comes next.
+- **[`log.md`](log.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
 - **[`design/`](design/)**: the design notes of built components, each changing when its component does: [`shell.md`](design/shell.md), how the shell is built; [`install.md`](design/install.md), how a checkout and the release archive are installed; [`emacs_mode.md`](design/emacs_mode.md), what the Emacs major mode does and the tests that judge it.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.

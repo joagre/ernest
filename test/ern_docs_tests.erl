@@ -1,7 +1,7 @@
 %% The documents held to what they name: every `§x.y`, appendix by its
 %% letter, and `E.n` written in a live document or in the code names a
 %% heading of the report, and `guide §x.y`, `the guide's §x.y` and the
-%% guide's own bare `§x.y` a heading of the guide, docs/decisions.md
+%% guide's own bare `§x.y` a heading of the guide, docs/log.md
 %% being history and not checked; the contents lists, the paths the
 %% documents name, the release's pages, the third parties' licenses, the
 %% glossary, the fault causes and the log's index are each current.
@@ -205,14 +205,14 @@ page_links(IndexText) ->
 documents() ->
     Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
     Found = [File || File <- Tracked,
-                     not lists:member(File, ["guide/language.md", "docs/decisions.md"]),
+                     not lists:member(File, ["guide/language.md", "docs/log.md"]),
                      not lists:prefix("docs/man/", File)],
     ?assert(length(Found) > 15),
     Found.
 
 %% The documents that describe the repository as it is.
 described() ->
-    documents() -- (?REPORT ++ ["docs/implementation_plan.md", "docs/findings.md"]).
+    documents() -- (?REPORT ++ ["docs/plan.md", "docs/findings.md"]).
 
 %% A backticked path a document writes under one of the repository's own
 %% directories, or under a directory beside the document, as
@@ -324,12 +324,12 @@ template(Cause) ->
              end || Word <- binary:split(Cause, <<" ">>, [global])],
     iolist_to_binary(["^", lists:join(" ", Words), "$"]).
 
-%% docs/decisions.md: its index names every section by its title, the
+%% docs/log.md: its index names every section by its title, the
 %% standing ones and the dated entries. A regression test, written after the
 %% index had missed thirty-eight entries (the log's *A Port Lost While It
 %% Starts*); it does not check an anchor, which the reader's renderer makes.
 log_index_names_every_section_test() ->
-    Log = ern_repository:read("docs/decisions.md"),
+    Log = ern_repository:read("docs/log.md"),
     [_, AfterHeading] = binary:split(Log, <<"\n## Index\n">>),
     [Index, _] = binary:split(AfterHeading, <<"\n## ">>),
     {match, Named} = re:run(Index, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(#",

@@ -274,7 +274,7 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 ## What the toolchain accepts
 
-The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, and all that the table leaves out compiles and runs. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](implementation_plan.md) that lifts it; today the table has no row.
+The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, and all that the table leaves out compiles and runs. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it; today the table has no row.
 
 | Construct | Until | What you see today |
 |---|---|---|

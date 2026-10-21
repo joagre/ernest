@@ -5,7 +5,7 @@
 /// It is ordinary Ernest over `Os`, `Fs`, `String` and `List`: the home
 /// directory from the environment, and the reading, the appending, the
 /// escaping and the trimming, which is where the line between Ernest and
-/// `foreign` runs (docs/decisions.md).
+/// `foreign` runs (docs/log.md).
 
 /// Report §11.2: how many inputs the history keeps, in the session and in
 /// the file.
