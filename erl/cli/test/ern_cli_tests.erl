@@ -2147,6 +2147,159 @@ doc_example_leaves_nothing_test() ->
     ?assertEqual(<<"Holds.hold example 1: passed\nHolds.hold example 2: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
 
+%% report §11.2, §11.1: a doc example's module may name any module the
+%% build root holds, as a module may, one its documented module does not
+%% use among them, and the example's program initializes it: a parent's
+%% example names its child, and the child's names its parent, which its
+%% own code does not use, under `ern test` of each file and of the
+%% directory; a module whose code uses the parent names it in its example,
+%% as it could before. A regression test, written after the code: the
+%% parent's and the child's examples failed with `unknown name`, the
+%% example being checked against the documented module and those it uses
+%% alone; it does not cover a run on a node
+doc_example_names_a_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top.ern",
+          "/// One.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.Child.twice(Top.one())\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "export fn one() : Int = 1\n"),
+    write(Dir, "src/top/child.ern",
+          "let said : Unit = Io.println(\"Child initialized\")\n"
+          "\n"
+          "/// Twice `n`.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.Child.twice(Top.one())\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "export fn twice(n : Int) : Int = n * 2\n"),
+    write(Dir, "src/top/user.ern",
+          "/// Three.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.User.three() - Top.one()\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "export fn three() : Int = Top.one() + 2\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build/top.erc"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build/top/child.erc"])),
+    ?assertEqual(<<"Child initialized\n"
+                   "Top.one example 1: passed\n"
+                   "Child initialized\n"
+                   "Child initialized\n"
+                   "Top.Child.twice example 1: passed\n">>,
+                 iolist_to_binary(?capturedOutput)),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"Top\n"
+                                        "Child initialized\n"
+                                        "Top.one example 1: passed\n"
+                                        "Top.Child\n"
+                                        "Child initialized\n"
+                                        "Child initialized\n"
+                                        "Top.Child.twice example 1: passed\n"
+                                        "Top.User\n"
+                                        "Top.User.three example 1: passed\n">>)).
+
+%% report §11.2, §11.1: a module a doc example names is found on the load
+%% path as a module the documented one uses is: with the child under a
+%% `--load-path` root alone and the parent alone in the directory, the
+%% parent's example passes under `ern test` of the file and of the
+%% directory, and without the root it fails with `unknown name`. A
+%% regression test, written after the code: the example failed with
+%% `unknown name` with the root given; it does not cover `--libs-dir`,
+%% whose roots are the load path's as `--load-path`'s are
+doc_example_names_a_module_on_the_load_path_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top.ern",
+          "/// One.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.Child.twice(Top.one())\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "export fn one() : Int = 1\n"),
+    write(Dir, "lib/top/child.ern", "export fn twice(n : Int) : Int = n * 2\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/libs", Dir ++ "/lib"])),
+    LoadPath = ["--load-path", Dir ++ "/libs"],
+    ?assertEqual(0, ern_cli:ern(["test" | LoadPath] ++ [Dir ++ "/build/top.erc"])),
+    ?assertEqual(0, ern_cli:ern(["test" | LoadPath] ++ [Dir ++ "/build"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/top.erc"])),
+    ?assertEqual(<<"Top.one example 1: passed\n"
+                   "Top\n"
+                   "Top.one example 1: passed\n"
+                   "Top.one example 1: failed: unknown name Top.Child.twice\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.2: a qualified name in a doc example that no module of the
+%% build root or the load path holds fails the example with `unknown name`,
+%% and the next example runs. A regression test, written after the code
+doc_example_names_no_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top.ern",
+          "/// One.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Nowhere.thing()\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.Nowhere.thing()\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.one()\n"
+          "/// // => 1\n"
+          "/// ```\n"
+          "export fn one() : Int = 1\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/top.erc"])),
+    ?assertEqual(<<"Top.one example 1: failed: unknown name Nowhere.thing\n"
+                   "Top.one example 2: failed: unknown name Top.Nowhere.thing\n"
+                   "Top.one example 3: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.2, §4.1: a private declaration's doc example, compiled inside
+%% its module, may name a module as an exported declaration's may, and its
+%% program initializes it; one that names a module that uses the
+%% documented module fails as a cycle, since the example's module is the
+%% documented one. A regression test, written after the code: the first
+%% example failed with `unknown name`; it does not cover a cycle through a
+%% module between the two
+private_doc_example_names_a_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top.ern",
+          "/// Three.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.Child.twice(three())\n"
+          "/// // => 6\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Top.User.four()\n"
+          "/// ```\n"
+          "fn three() : Int = 3\n"
+          "\n"
+          "export fn one() : Int = 1\n"),
+    write(Dir, "src/top/child.ern",
+          "let said : Unit = Io.println(\"Child initialized\")\n"
+          "\n"
+          "export fn twice(n : Int) : Int = n * 2\n"),
+    write(Dir, "src/top/user.ern", "export fn four() : Int = Top.one() + 3\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/top.erc"])),
+    ?assertEqual(<<"Child initialized\n"
+                   "Top.three example 1: passed\n"
+                   "Top.three example 2: failed: module cycle: Top, Top.User\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report Appendix E.24, §4.9: `Test.equal` passes where the actual value
 %% equals the expected one and otherwise fails naming both as `Io.show`
 %% writes them, the expected first, at a type the program declares and

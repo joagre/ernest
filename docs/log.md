@@ -8892,6 +8892,8 @@ Found building it: a build's order of modules that do not use each other followe
 
 The same builds found that an abstract type's constructors' examples are not run, since the documentation chunk leaves the constructors out as the page does; a defect, fixed in the milestone. Fixed the same day: the chunk's entry of an abstract type carries its constructors and their fields with their doc blocks, each marked private, which a page and `:doc` leave out, as §11.4 now says, and `ern test` compiles inside the module.
 
+Found 2026-10-22 running ernest-epx's tests on the day's toolchain: an example's module was checked against the documented module and the modules it uses alone, so an example on `Epx`'s page that named `Epx.Gc.create`, a child the parent does not use, failed with `unknown name`, eight of the library's examples with it. §11.2 says now what §11.1 says of a module: the example's module may name any module the directory, the build root or the load path holds, and its program initializes those it names. A defect, fixed the same day: the modules an example names are found on the load path as a build finds those a source names, and loaded as the run loads a module the documented one uses.
+
 ## The Ray Tracer's Two Asks, 2026-10-20
 
 Decided with the user on 2026-10-20: the two entries `ernest-epx`'s ray tracer left in `docs/language_feedback.md`, 133 and 134, each weighed and left alone. The file is empty again.

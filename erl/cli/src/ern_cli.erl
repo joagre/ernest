@@ -937,8 +937,8 @@ test(Options, [Path], ErrorDevice) ->
             {Namespace, LoadPath, Loaded} = program(Path, Options, Say),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
-                        run_tests(Namespace, Loaded, ern_examples:cases(Namespace, Loaded), none,
-                                  ErrorDevice, Node)
+                        run_tests(Namespace, Loaded, examples(Namespace, LoadPath, Loaded, Say),
+                                  none, ErrorDevice, Node)
                     end)
     end;
 test(_Options, _Rest, _ErrorDevice) ->
@@ -953,9 +953,9 @@ test(_Options, _Rest, _ErrorDevice) ->
 tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
 tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
-    {Namespace, _LoadPath, Loaded} = program(File, Options, Say),
+    {Namespace, LoadPath, Loaded} = program(File, Options, Say),
     %% report §11.2: a module's doc examples are cases as its tests are
-    {Examples, _} = Cases = ern_examples:cases(Namespace, Loaded),
+    {Examples, _} = Cases = examples(Namespace, LoadPath, Loaded, Say),
     case erlang:function_exported(ern_namespace:erlang_module(Namespace), '$tests', 0)
          orelse Examples =/= [] of
         false ->
@@ -969,6 +969,15 @@ tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
                     [Ended]
             end
     end.
+
+%% Report §11.2: the doc examples of the module Namespace, which the run
+%% loaded from LoadPath with those it uses, Loaded, as ern_examples makes
+%% them: a module an example names is found on LoadPath and loaded as the
+%% run loads a module the documented one uses, said by Say as it is read.
+examples(Namespace, LoadPath, Loaded, Say) ->
+    Reading = reading(program, Say),
+    Load = fun(Named, Waiting, Acc) -> load(Named, Waiting, LoadPath, Acc, Reading) end,
+    ern_examples:cases(Namespace, Loaded, LoadPath, Load).
 
 %% Report §11.2, §11.8: a directory without a test says so; status 1 where
 %% a test failed or faulted, and the status of the run that ended the job

@@ -12,8 +12,8 @@
 -export([compile/4, compile_in_memory/5, verbose/2, modules_of/3, compiled_in_order/3,
          report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, segment/1,
-         module_path/1, compile_order/2, compile_order/3, module_cycle/1, source_root/3,
-         build_root/2, is_stdlib_root/1, stdlib_hash/0,
+         module_path/1, compile_order/2, compile_order/3, module_cycle/1,
+         compiled_dependencies/1, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
          relative/2, write_whole/2, write_output/2, write_output/3, read/1, make_dirs/1,
@@ -694,14 +694,16 @@ exported_type(_) ->
     {false, none, undefined}.
 
 %% The same, from the interface of the module's compiled form; none where
-%% no root holds it, it does not read, or it is stale.
+%% no root holds it, it does not read, or it is stale. Where SourceRoot is
+%% none, as for a doc example, the compiled form is taken as it stands, as
+%% a run takes it (report §11.2).
 interface_members(Parent, Type, DependencyRoots, SourceRoot) ->
     case compiled_found(Parent, DependencyRoots) of
         {Dir, Erc} ->
             case read_erc(Erc) of
                 {ok, #{interface := #interface{types = Types, values = Values}} = Chunk} ->
                     TypeName = Parent ++ [Type],
-                    Fresh = gone(Chunk, Dir, SourceRoot) =:= false,
+                    Fresh = SourceRoot =:= none orelse gone(Chunk, Dir, SourceRoot) =:= false,
                     [lists:last(QualifiedName) || Fresh, is_map_key(TypeName, Types),
                                                   QualifiedName <- maps:keys(Values),
                                                   lists:droplast(QualifiedName) =:= TypeName];
@@ -715,25 +717,51 @@ interface_members(Parent, Type, DependencyRoots, SourceRoot) ->
 %% The modules a source refers to: every qualified name that is not a
 %% member of one of this module's types and whose first segment is not a
 %% namespace of the prelude or the standard library, and whose longest
-%% prefix names an existing .ern under the root. Report §4.2: `T.name` is
-%% the module's own member where its type `T` declares one of that name,
-%% and the namespace T's `name` otherwise; and `M.T.name`, where the module
-%% M.T exists, is the module M's where TypeMembers says its exported type T
-%% has a member of that name, and M.T's otherwise.
+%% prefix names a module: a source under the source root, or a compiled
+%% module under the build root or a --load-path root, DependencyRoots.
+%% Report §4.2: `T.name` is the module's own member where its type `T`
+%% declares one of that name, and the namespace T's `name` otherwise; and
+%% `M.T.name`, where the module M.T exists, is the module M's where
+%% TypeMembers says its exported type T has a member of that name, and
+%% M.T's otherwise.
 dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers) ->
     %% in the standard library's root its own namespaces are dependencies
     Skip = case is_stdlib_root(SourceRoot) of
                true -> [];
                false -> taken_namespaces()
            end,
+    IsModule = fun(Relative) ->
+                   filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
+                       orelse is_compiled(Relative, DependencyRoots)
+               end,
+    named_modules(Declarations, Skip, IsModule, TypeMembers).
+
+%% Report §11.2: the function that answers the modules a doc example's
+%% declarations name, as dependencies/4 finds a module's where there is no
+%% source: a module is its compiled form under a root of LoadPath, and a
+%% type's members are read from its interface; the prelude's and the
+%% standard library's namespaces aside, which every check is given, and
+%% which are read once for every example it answers, since reading them
+%% costs some ten times what the rest of an example's finding does
+%% (ern_examples).
+-spec compiled_dependencies([file:filename()]) -> fun(([tuple()]) -> [[atom()]]).
+compiled_dependencies(LoadPath) ->
+    Skip = taken_namespaces(),
+    IsModule = fun(Relative) -> is_compiled(Relative, LoadPath) end,
+    TypeMembers = fun(Parent, Type) -> interface_members(Parent, Type, LoadPath, none) end,
+    fun(Declarations) -> named_modules(Declarations, Skip, IsModule, TypeMembers) end.
+
+%% The modules Declarations name, the namespaces Skip aside, each the
+%% longest prefix of a qualified name whose path IsModule answers is a
+%% module's, or the module M of `M.T.name` where TypeMembers says so.
+named_modules(Declarations, Skip, IsModule, TypeMembers) ->
     Members = local_members(Declarations),
     References = lists:usort([{Path, Name} || {Path, Name} <- references(Declarations),
                                               Path =/= [], not lists:member(hd(Path), Skip),
                                               not lists:member({Path, Name}, Members)]),
     Found = maps:from_list([{Path, Module}
                             || Path <- lists:usort([Path || {Path, _} <- References]),
-                               {true, Module} <- [module_prefix(Path, SourceRoot,
-                                                                DependencyRoots)]]),
+                               {true, Module} <- [module_prefix(Path, IsModule)]]),
     Shared = maps:from_list([{Path, TypeMembers(lists:droplast(Path), lists:last(Path))}
                              || Path := Module <- Found, Module =:= Path, length(Path) >= 2]),
     lists:usort([case lists:member(Name, maps:get(Path, Shared, [])) of
@@ -763,19 +791,19 @@ local_members(Declarations) ->
             || #foreign_fn_declaration{member_of = MemberOf, name = Name} <- Declarations,
                MemberOf =/= undefined].
 
-%% Report §11.1: a prefix of a qualified name is a module when the source
-%% root holds its source, or the build root or a --load-path root,
-%% DependencyRoots, its compiled module.
-module_prefix([], _SourceRoot, _DependencyRoots) ->
+%% Report §11.1: the longest prefix of a qualified name that is a module,
+%% as IsModule answers for the prefix's path, `a/b/c` for A.B.C.
+module_prefix([], _IsModule) ->
     false;
-module_prefix(Path, SourceRoot, DependencyRoots) ->
-    Relative = module_path(Path),
-    HoldsCompiled = fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end,
-    case filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
-        orelse lists:any(HoldsCompiled, DependencyRoots) of
+module_prefix(Path, IsModule) ->
+    case IsModule(module_path(Path)) of
         true -> {true, Path};
-        false -> module_prefix(lists:droplast(Path), SourceRoot, DependencyRoots)
+        false -> module_prefix(lists:droplast(Path), IsModule)
     end.
+
+%% Whether a root of Roots holds the compiled module at the path Relative.
+is_compiled(Relative, Roots) ->
+    lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end, Roots).
 
 %% Report §11.1: the source root is --source-root; without it, the standard
 %% library's root for a path under it, else Default.
