@@ -19,8 +19,9 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 `Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
-MVP 3.27, the measurements across machines, is done (2026-10-21). The road to 0.5.0 is MVP 3.28,
-what stands before the tour, MVP 3.29 the foreign call, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
+MVP 3.27, the measurements across machines, is done (2026-10-21), and so is MVP 3.28, what stood
+before the tour (2026-10-22). The road to 0.5.0 is MVP 3.29, the bookkeeping behind §8.6 and the
+foreign call, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
 the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -61,8 +62,8 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
-| MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05, `--verbose` from MVP 4.0, and the feedback's seven added the same day | | below |
-| MVP 3.29 | the foreign call: what §8.6's count is for and what else could tell the deadlock look, the count under contention, and the feedback's program measured with its own arguments | made 2026-10-21 from MVP 3.28's measurement | | below |
+| MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
+| MVP 3.29 | the bookkeeping behind §8.6 at no cost to a hot path, the foreign call's count and the timed receive's first; the trace of a foreign return; a top-level `let`'s read; one checker of the library's examples; the launch's start; and deadlock detection among *Why Ernest*'s claims | made 2026-10-21 from MVP 3.28's measurement, its aim set 2026-10-22 | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -73,188 +74,50 @@ finished milestone is a row of the table below, its reasons in the log entries t
 
 ---
 
-## MVP 3.28 (what stands before the tour), about a week
+## MVP 3.29 (the bookkeeping behind §8.6, and the foreign call), a sitting and then a build
 
-A sitting over the log's *Later* list first, then four items of a day each, then seven that
-`docs/language_feedback.md` left, decided with the
-user on 2026-10-20 (the log's *What the Feedback Left*), each a day or less, and one from
-`ernest-epx`'s window, decided on 2026-10-21 (the log's *The Window's Three Asks*). Two more, 133
-and 134 from `ernest-epx`'s ray tracer, were weighed and left alone on 2026-10-20 (the log's *The
-Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-10-21.
+Made 2026-10-21 from what MVP 3.28's foreign call measurement found (the log's *The Foreign Call
+Measured*), and given its aim on 2026-10-22: what §8.6's deadlock detection keeps of what can
+deliver costs no hot path anything, since the look runs only when a program seems idle and the
+bookkeeping is what a program pays. Two writes stand on a hot path today, the foreign call's count
+and the timed receive's, each two writes to the processes table under its one lock; what else was
+found measuring the foreign call stands here as items of its own; and the claim goes to *Why
+Ernest*. Deadlock detection stays, since the runtime owns every source of a message, which is why
+Ernest can decide what no other language on the host can; what is weighed is what it costs.
 
-- **The log's *Later* list sorted**, done 2026-10-21 (the log's *The Later List Sorted*): a feature
-  left out is dropped, its verdict in the log, or goes into a milestone, and nothing is kept for
-  later. Of the list's thirty entries, sixteen were history or verdicts a dated entry argues, three
-  stand in MVP 4.1 already, and eleven set aside with a condition are dropped, each with its
-  principle; the section is gone, and what pointed at it points at the entries.
-- **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
-  (the log's *Clause Bodies All or None*), was built before the 0.4.0 tag on 2026-10-17 (the log's
-  *Before the Tag, the Last Builds*): §11.6 states it, `ern format` writes it, and every source
-  and example is in the layout, which `ern format --check` showed again on 2026-10-21, when the
-  item was found done. It was moved here on 2026-10-20 as if it waited.
-- **A libs flag**, done 2026-10-21 (the log's *A Libs Flag Instead of the Environment*):
-  `ern run`, `ern test` and `ern shell` take `--libs-dir dir`, which puts the `ebin` of each
-  application under `dir` on the load path at the option's place, as the host's `ERL_LIBS` would
-  but in the command, and refuses two directories of one application's name (§11.2, §11.7). The
-  spelling and three smaller decisions are the log entry's *Built* paragraph; its first user is
-  ehttpd, MVP 4.1.
-- **`--verbose`**, done 2026-10-21 (the log's *A Build Says What It Decided*, its *Built*
-  paragraph): `ern build`, `ern run` and `ern test` take `--verbose`, which writes on standard error
-  a line for each decision as the job makes it: the roots taken, each module compiled with its
-  source and the file written, each module read from a `.erc` with the file, and each stale `.erc`
-  removed (§11.1, §11.2, §11.7). The Makefiles pass it to every `ern build` and `ern run` they run.
-- **A `make` with nothing to do**, done 2026-10-21 (the log's *A Make With Nothing to Do*): measured
-  as sixteen starts of the host in four stages, bound by the cores and not by the chain; make keeps
-  no stamp, as decided on 2026-09-30, the Makefile's false waits are cut, and the floor, about
-  2.9 s on eight cores, is stated with its reason.
-- **Four messages that name the form**, done 2026-10-21 (the log's *What the Feedback Left*, its
-  *Built* paragraph): a `fn` where a type stands has a help line that names `(Int) -> Int`, a `()`
-  where an expression stands one that names `Unit`, and a `,` after a constructor pattern's
-  positional field the declaration's message, `a constructor has exactly one positional field`
-  (§11.5). `ern build --help` and `ern doc --help` say the source root's default, the working
-  directory or `src-dir` (§11.1).
-- **The rules of an Ernest program installed**, done 2026-10-21 (the log's *What the Feedback
-  Left*, its *Built* paragraph on the style guide): `guide/style.md`, installed with the guide, says
-  what a tool writes, what E.0 asks of a library's names, what the standard library does and the
-  names every program meets; `docs/style.md` keeps the repository's own rules and the refused
-  spellings; CLAUDE.md imports both.
-- **A mailbox type ends in `Msg`** (feedback 139; principle 2), decided and done 2026-10-21 (the
-  log's *What the Feedback Left*, its *Decided* paragraph): the guide's glossary states the
-  library's practice, and the toolchain's glossary refuses `Msg` for an Erlang variable alone.
-- **What the read-back of `Test.faults` and `ok` left**, decided and done 2026-10-21 (the log's
-  *What the Feedback Left*, its *Extended* paragraph and its *Built* paragraph from the
-  read-back): no job reports a fault `Test.faults` expects (§11.2, E.24), a fault the emitter
-  raises carries its line in the trace (§7.3, E.21), and a function value's result declared `Unit`
-  takes `ok` at its top (§7.4, §8.4), the prelude's `Unit` told from a program's own
-  `type Unit = Unit` by a descriptor word of its own, `unit`, as `Int` has one.
-- **A type and the module of its operations share a name** (feedback 136), decided with the user
-  and done 2026-10-21 (the log's *The Window's Three Asks*, its *Designed* and *Built*
-  paragraphs): the module of a type's name shares the type's namespace, `Main.Stack.compare` the
-  type's member and `Main.Stack.push` the module's, and a function the module exports under a
-  member's name is an error at its declaration (§4.2, §11.5). The checker decides a qualified name
-  by the module its interface says declares it, and the build depends on that module.
-- **A module under a standard library namespace** (found 2026-10-21 building the item above),
-  decided with the user and done 2026-10-21 (the log's *The Window's Three Asks*, its *Found
-  beside it* paragraph): `fs/entry.ern` built as `Fs.Entry` and no module reached it, since the
-  build takes no dependency under a namespace of the prelude or the standard library. §4.2
-  refuses a module under a taken namespace too, the refusal the build's dependencies already
-  assume (principle 1): `fs/entry.ern stands under the standard library namespace Fs`, in a
-  directory's build and a file's alike, and `down/x.ern` builds, since `Down` takes no namespace.
-- **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), done 2026-10-21 (the log's *Nothing
-  Waits for a Program*, its line of that day): E.2 lists it after `foldRight`, and it is Ernest
-  alone, a recursion of its own whose step takes the accumulator first and answers
-  `#(accumulator, mapped)`.
-- **The libraries on the default load path** (feedback 120; principles 3 and 5), done 2026-10-21
-  (the log's *What the Feedback Left*, its *Built* paragraph on the libraries on the load path):
-  the build of each library of the toolchain's own ends the load path of `ern build`, `ern doc`,
-  `ern run`, `ern test`, `ern shell` and a bare node, after every `--load-path` and `--libs-dir`
-  (§11.1, §11.2), so that no program, and no line of the Makefile, names one; Appendix G says so.
-- **`ok` as `Unit`**, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph
-  on `ok` as `Unit`): a foreign function's return declared `Unit` that is the host's atom `ok` is
-  `Unit`, one clause beside `'Unit'` in the check the emitter writes in place, and nothing else
-  takes `ok` (§7.4, §8.4). The log records it as a decision of the return's representation; E.0
-  gains no sentence, since §8.4 states the rule and E.0's rules admit and shape operations.
-- **`Test.faults`**, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph
-  on `Test.faults`): `Test.faults(run, cause)` answers `Passed` where `run` faults with that cause,
-  and otherwise `Failed` naming what came instead, another cause, a return or the reason; and
-  `ern test` reports no fault of a process `Test.faults` started (E.24, §11.2). It is Ernest, a
-  judge process of the module's own over `spawnMonitored` and a call, with no primitive.
-- **The foreign call measured** (feedback 125), done 2026-10-21 (the log's *The Foreign Call
-  Measured*): `make bench`'s sixth part, `test/ern_foreign_costs.erl`, measures a foreign fn piece
-  by piece in `foreign.txt`. Of the 158 ns it adds to a call that answers at once, 132 are §8.6's
-  count, two writes to the caller's row of the table every process shares; a `String`'s return is
-  checked alone now, 240 ns to 192. The count stays as it is until MVP 3.29 decides it.
-- **Doc examples run by `ern test`** (feedback 127; principle 1), done 2026-10-21 (the log's *What
-  the Feedback Left*, its *Built* paragraph on doc examples): `ern test` runs a module's doc examples
-  after its tests, each a case named by the declaration it documents, `List.take example 2`, one
-  that does not compile failing with the diagnostic's message and one whose value shows otherwise
-  with `expected v, got w` (§11.2, E.0 shape rule 6). `ern test build/stdlib` runs the library's
-  335 in 7 s.
-- **Where `ern test` runs a doc example** (found 2026-10-21 building the item above), decided
-  with the user and done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on
-  doc examples): the examples ran in the working directory as the tests do, where the library's
-  `Fs` examples left eighteen files and failed on a second run. §11.2 runs each example in an
-  empty directory of its own, made for it and removed after, as `ern_doc_tests` runs the
-  library's (principle 1: a run of the tests leaves the directory as it found it). The directory
-  is made under `TMPDIR` and is the host's working directory while the example runs, since the
-  host has one for the node; `ern test build/stdlib` passes twice in one directory, in 5 s.
-- **A private declaration's doc example** (found 2026-10-21 building the same item), decided with
-  the user and done 2026-10-21 (the same paragraph): §11.2 compiled every example in a module of
-  its own, where a name the module keeps private is unknown, so a private declaration's example
-  failed under `ern test`. §11.2 compiles a private declaration's example inside its module, as
-  `ern_doc_tests` does (principle 1: the example speaks to the module's own reader); none of the
-  library's examples is a private declaration's. The example is compiled after the source its
-  `.erc` was compiled from, in a unit of its own, `ern@main$2`, so that the module's unit is as
-  the tests left it; one whose source is gone or changed fails saying so.
-- **A doc example's launch** (found 2026-10-21 building the two items above), decided with the
-  user and done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
-  examples). The examples ran in the tests' launch, after them, so `Os.workingDirectory`, bound as
-  the launch starts, named the run's directory within an example, while a relative path given to
-  `Fs` named a file under the example's, against E.17 and E.23; an example that wrote under
-  `Os.workingDirectory` left its file in the run's directory. And a private declaration's example,
-  compiled inside its module in a unit of its own, evaluated the module's initializers a second
-  time before it, which §11.2 did not say. §11.2 runs each example as a program of its own, as
-  `ern_doc_tests` runs the library's, which initializes the modules the example uses in its
-  directory, so that `Os.workingDirectory` is that directory, a module is initialized once in it,
-  and nothing an example leaves, a process or an offer, reaches the next (principle 1); the other
-  way was two sentences of §11.2, a rule the reader must learn for each. Each example's launch
-  begins once the tests' launch has ended, and a private declaration's initializes the example's
-  unit in its module's place. A launch was estimated at about 6 ms, 2 s over `ern test
-  build/stdlib`'s 5 s; measured, the library's 335 examples take it from 4.9 s to 8.2 s, about
-  9.8 ms each, of which 7.25 ms is the launch's own start, which MVP 3.29 takes up. Decided the
-  same day, found building it: an example's program that ends before the example returns, an
-  initializer faulting in its directory, ended the module's run as the tests' launch does, with
-  no line for the example and none after it; §11.2 fails the example with `faulted` and the
-  cause and runs the next, since an example is a case and a case's failure stops no other
-  (principle 1); built 2026-10-22.
-- **An abstract type's constructor's doc example** (found 2026-10-21 building the items above), a
-  defect, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
-  examples): `ern test` ran none of the doc examples of an abstract type's constructors and
-  fields, against §11.2, since the documentation chunk held no constructors for an abstract type,
-  whose page hides them, and `ern_examples` reads the chunk; `ern_doc_tests` checks them inside
-  the module. None of the library's abstract types documents a constructor. The chunk's entry of
-  an abstract type carries its constructors and their fields with their doc blocks, each marked
-  private, which `ern doc` and `:doc` leave out and `ern test` compiles inside the module, after
-  the type's own examples, which it compiles outside.
-- **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace),
-  decided with the user and done 2026-10-21 (the log's *The Window's Three Asks*, its *Built*
-  paragraph): §4.2 refused an exported function of the module of a type's name under a member's
-  name, and a `let` is no function, so `main/stack.ern`'s `export let compare` built and
-  `Main.Stack.compare` was the member, the `let` unreachable by that name without a word. §4.2
-  and §11.5 say an exported value, a `let` among them (principle 1), and the build's
-  `ern_build:exported_values/1` takes the `let`, reported at its declaration as a function is.
-
-## MVP 3.29 (the foreign call), a sitting and then a build
-
-Made 2026-10-21 from what MVP 3.28's measurement found (the log's *The Foreign Call Measured*),
-since following its number further is an item of its own, planned with the decision it would
-change (CLAUDE.md's *Design*). The decision is §8.6's count of a process inside foreign code, and
-what CLAUDE.md's cost rule asks of a foreign call to a host function that answers at once. Three
-more questions of the same kind joined it on 2026-10-21, and the launch's cost, found the same
-evening.
-
-- **The sitting**, with the user, over the log's *The Foreign Call Measured*. What the count is
-  for: the deadlock look takes a process inside foreign code as not waiting, since the foreign
-  side may still deliver to it, and today each process writes its count to the processes table,
-  132 of the 158 ns a foreign fn adds to a call that answers at once. What else could tell the
-  look, each weighed against principle 1 and the cost rule: a count in a counters array of the
-  host's, the process's own write, which the look reads from its row; a mark in the process's
-  dictionary, which the look could read only by reading every process at every look of an idle
-  program; or no count, where a foreign function declared without `receiving` promises to deliver
-  nothing (§4.7), and the look needs to know of no call in progress. Then what a fraction means
-  against a 7 ns call, and the timed receive's count, written the same way, with every other
-  write a process makes to the shared processes table, which the bench's row of eight processes
-  at once is the test of. The feedback's program was measured first, on 2026-10-21 with epx's own
-  call shape (the log's *The Foreign Call Measured*, its last paragraph): the runtime's wrapper
-  adds the bench's 155 ns whatever the arguments, one `Int` or four with a pixmap, and the
-  library's own Ernest around the call, two coordinate checks and the color's channels, adds 240
-  ns more on a host call of 72 to 97; so the sitting weighs the library's checks beside the
-  count, since half of the feedback's multiple is Ernest code and not the runtime.
+- **The sitting**, with the user, over the log's *The Foreign Call Measured* and *Deadlock Is
+  Quiescence*. What the count is for: foreign code may block in a receive of its own, a
+  `gen_server:call` behind a library, which the host shows as waiting, and the look must not read
+  that as a deadlock; so a foreign function's `receiving` decides nothing here, since not
+  delivering is not the same as not blocking, and the standard library already pays no count but
+  for the functions its runtime modules list as waiting. The leading option: the call writes
+  nothing, and the look, which reads every live process's status when nothing else can deliver,
+  reads its stack too and takes a frame outside Ernest's units as foreign code in progress; a
+  foreign function that calls back into Ernest code that receives shows the Ernest frame on top
+  and the foreign one beneath, which a walk of the stack finds. To verify in the sitting: that the
+  three cases, an Ernest receive, a foreign block and a callback's receive, read apart reliably;
+  then the timed receive the same way, or in the process's own dictionary. The fallback: each
+  process keeps its counts in a counters array of the host's, made at its first count and named in
+  its row, about 20 ns and no shared write. Then every other write a process makes to the shared
+  table, and what a fraction means against a 7 ns call. The feedback's program is measured (the
+  log's entry, its last paragraphs): the runtime's wrapper adds 155 ns whatever the arguments, and
+  the library's own Ernest around the call adds 240 more, 144 of them four reads of a top-level
+  `let`, the item below.
+- **The bookkeeping built as the sitting decides**, and `make bench`'s `foreign.txt` gains a row
+  of eight processes making foreign calls at once, which today runs at a thirteenth of one
+  process's rate; about half a day.
 - **The trace of a foreign return that fails its check** (left 2026-10-21 in *Every Fault Carries
   a Trace*'s read-back): the boundary's check runs after the foreign function's tail call, so the
   fault's trace holds no frame of the foreign function. Decided in the sitting, since what wraps
   the call decides whether the frame can be kept: the plain form kept and said in the log, or the
-  frame added where the count's change gives a place for it.
+  frame added where the wrapper's change gives a place for it.
+- **A top-level `let`'s read** (found 2026-10-22 measuring the feedback's program; CLAUDE.md's
+  *Design*, a fraction): every use of a top-level `let` reads a persistent term by a tuple key,
+  `{ern@epx, '$38'}`, 36 ns against 2 for a literal and 13 for an atom key, and the library's
+  `coordinate` reads its `limit` twice a call. The emitter knows at compile time when a `let` is a
+  literal. To decide: what a `let` compiles to, a literal written where its value is one, and
+  what a non-literal `let`, a list or a map, costs and should; measured first in a bench row;
+  about a day.
 - **One checker of the library's examples** (principle 2): `ern_doc_tests` runs every library
   example in a launch of its own, about a minute of `make test-full`, and `ern test build/stdlib
   build/libs` now runs the same examples the same way in about 10 s. The Makefile runs `ern test`
@@ -267,12 +130,13 @@ evening.
   modules that hold addresses, each of which waits about 0.25 ms for the host's schedulers. Its
   shape: fewer terms, one for the launch's processes, and the bindings that hold addresses written
   once for the host; measured in a bench row of a bare launch; about a day.
-- **The count built as the sitting decides**, and `make bench`'s `foreign.txt` gains a row of
-  eight processes making foreign calls at once, which today runs at a thirteenth of one process's
-  rate, since every count takes the processes table's one lock. Where the sitting keeps a count,
-  each process keeps its two, foreign calls and timed receives, in a counters array of the host's,
-  made at its first count and named in its row, which the look reads where it reads the row today
-  (CLAUDE.md's *Design*: the host's own function, and no shared write); about half a day.
+- **Deadlock detection among *Why Ernest*'s claims** (decided with the user 2026-10-22): a sixth
+  claim in `guide/why.md`, with no program, and its line in the README's list: a program that
+  waits forever ends with `Fault("deadlock")`, which no other language on the host can decide,
+  since Ernest's runtime owns every source of a message, a typed mailbox, a process it spawned, a
+  system process that counts what it holds, and a node turned off since a peer can reach it (§8.6;
+  the log's *Deadlock Is Quiescence*). Written after the sitting, so that the claim states what it
+  costs a program: nothing on a hot path, and a look when the program seems idle.
 
 ## MVP 3.3 (the tour)
 
