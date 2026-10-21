@@ -131,6 +131,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Ms, Deadline**: milliseconds as given (E.0 shape rule 8) and the moment they end, as the code has them; a timer's message is `deadline` in every module.
 - **Monitor**: §6.9's monitor, in the reaper as elsewhere. Not `await`, `watch`, `Waiters`. The host's reference to one is a `MonitorRef`, not `Watch`, `Mon`, `MRef`, `OwnerMonitor`.
 - **Runner**: §11.2's runner, the process that starts the system processes and the entry point; the launcher is `bin/ern` alone. Not `Launcher`.
+- **Say**: a function that writes a line of the toolchain's own on standard error: a node's, `ern_carrier:say/1` (§8.7), the end's wait, the runtime's `say` (§8.6), and what a job decided, which `ern_build:verbose/2` gives where `--verbose` asks (§11.1, §11.2). Not `Log`, `Print`.
 - **SystemProcess**: a system process (§8.2, §8.4). Not `Service`, `sys`; the report's service is §6.5's and §8.7's.
 - **Run**: one execution of a restarting function's `f` (§6.9), a noun, and nothing else; a launch, a running program and a test are named as such. A test case's `run` (E.24) is the verb, the function the case runs.
 - **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else; the type a member belongs to is its MemberOf.

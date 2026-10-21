@@ -80,7 +80,11 @@ start() ->
 -spec node_flags() -> no_return().
 node_flags() ->
     Out = group_leader(),
-    {ok, Null} = file:open("/dev/null", [write]),
+    %% the job's text is written to it in UTF-8, as its devices write it. A
+    %% regression: one of the host's default, Latin-1, raised at a
+    %% `--verbose` line naming a path beyond it, and the node was given no
+    %% flags (report §11.2)
+    {ok, Null} = file:open("/dev/null", [write, {encoding, utf8}]),
     group_leader(Null, self()),
     persistent_term:put({?MODULE, flags}, true),
     Args = init:get_plain_arguments(),
@@ -380,11 +384,15 @@ build_options() ->
       "write the module's Erlang source instead of .erc"},
      {short_errors, undefined, "short-errors", undefined,
       "the first line of each error only"},
+     verbose_option(),
      help_option()].
 
+%% Report §11.4, §11.7: `ern doc` takes the build's options but
+%% `--emit-erl` and `--verbose`, which are the build's alone.
 doc_options() ->
     [{man, undefined, "man", undefined, "write manual pages in roff instead of CommonMark"}
-     | [Option || {Key, _, _, _, _} = Option <- build_options(), Key =/= emit_erl]].
+     | [Option || {Key, _, _, _, _} = Option <- build_options(),
+                  Key =/= emit_erl, Key =/= verbose]].
 
 build(Options, [Path], ErrorDevice) ->
     ern_build:compile("ern build", Options, Path, ErrorDevice);
@@ -833,13 +841,17 @@ libs_dir_option() ->
 main_option() ->
     {main, undefined, "main", string, "the entry point, a qualified exported function"}.
 
+%% Report §11.1, §11.2: what the job decided, a line each on standard error.
+verbose_option() ->
+    {verbose, undefined, "verbose", undefined, "say on standard error what the job decided"}.
+
 run_options() ->
     [config_dir_option("the run is a node"), load_path_option(), libs_dir_option(), main_option(),
-     help_option()].
+     verbose_option(), help_option()].
 
 test_options() ->
     [config_dir_option("the tests run on a node"), load_path_option(), libs_dir_option(),
-     help_option()].
+     verbose_option(), help_option()].
 
 shell_options() ->
     [config_dir_option("the shell is a node, and its startup is run"),
@@ -863,8 +875,9 @@ config_options() ->
 run(Options, [File | Words], ErrorDevice) ->
     Arguments = program_arguments(Words, 1),
     quiet_signals(),
-    {Namespace, LoadPath, Loaded} = program(File, Options),
-    as_node(Options, LoadPath,
+    Say = ern_build:verbose(Options, ErrorDevice),
+    {Namespace, LoadPath, Loaded} = program(File, Options, Say),
+    as_node(Options, LoadPath, Say,
             fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
 run(Options, [], ErrorDevice) ->
     %% report §11.2: `--config-dir` makes a run a node, and a node with no
@@ -876,7 +889,8 @@ run(Options, [], ErrorDevice) ->
     quiet_signals(),
     LoadPath = ern_build:load_path(Options),
     host_path(LoadPath),
-    as_node(Options, LoadPath, bare, fun(Node) -> run_bare(ErrorDevice, Node) end).
+    as_node(Options, LoadPath, ern_build:verbose(Options, ErrorDevice), bare,
+            fun(Node) -> run_bare(ErrorDevice, Node) end).
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
 %% UTF-8 text, one that is not UTF-8 refused by its position before
@@ -909,15 +923,18 @@ waits() ->
 %% directory.
 test(Options, [Path], ErrorDevice) ->
     quiet_signals(),
+    Say = ern_build:verbose(Options, ErrorDevice),
     case filelib:is_dir(Path) of
         true ->
             Files = ern_build:compiled_under(Path),
             LoadPath = [ern_build:absolute(Path) | ern_build:load_path(Options)],
-            as_node(Options, LoadPath,
-                    fun(Node) -> report_tree(tree_tests(Files, Options, ErrorDevice, Node)) end);
+            as_node(Options, LoadPath, Say,
+                    fun(Node) ->
+                        report_tree(tree_tests(Files, Options, Say, ErrorDevice, Node))
+                    end);
         false ->
-            {Namespace, LoadPath, Loaded} = program(Path, Options),
-            as_node(Options, LoadPath,
+            {Namespace, LoadPath, Loaded} = program(Path, Options, Say),
+            as_node(Options, LoadPath, Say,
                     fun(Node) -> run_tests(Namespace, Loaded, none, ErrorDevice, Node) end)
     end;
 test(_Options, _Rest, _ErrorDevice) ->
@@ -927,19 +944,20 @@ test(_Options, _Rest, _ErrorDevice) ->
 %% each with tests run as `ern test file.erc` runs it, in a runtime of its
 %% own, its name before its tests' lines, and one without passed over,
 %% loaded and not run; the status of each run. A run a signal ended, or
-%% whose output could no longer be written, is the last.
-tree_tests([], _Options, _ErrorDevice, _Node) ->
+%% whose output could no longer be written, is the last. Say says each
+%% module read (--verbose).
+tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
-tree_tests([File | Files], Options, ErrorDevice, Node) ->
-    {Namespace, _LoadPath, Loaded} = program(File, Options),
+tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
+    {Namespace, _LoadPath, Loaded} = program(File, Options, Say),
     case erlang:function_exported(ern_namespace:erlang_module(Namespace), '$tests', 0) of
         false ->
-            tree_tests(Files, Options, ErrorDevice, Node);
+            tree_tests(Files, Options, Say, ErrorDevice, Node);
         true ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             case run_tests(Namespace, Loaded, Name, ErrorDevice, Node) of
                 Status when Status =:= 0; Status =:= 1 ->
-                    [Status | tree_tests(Files, Options, ErrorDevice, Node)];
+                    [Status | tree_tests(Files, Options, Say, ErrorDevice, Node)];
                 Ended ->
                     [Ended]
             end
@@ -996,6 +1014,9 @@ config(_Options, _Rest, _ErrorDevice) ->
 %% initializers (§8.5) before the shell starts.
 shell(Options, Rest, ErrorDevice) ->
     quiet_signals(),
+    %% report §11.7: the shell takes no --verbose, and says nothing of what
+    %% it reads
+    Say = fun(_) -> ok end,
     %% report §11.2: the shell's modules are loaded from build/shell as each
     %% is first called (ern_code:ensure_loaded/1)
     ErlangModule = ern_namespace:erlang_module(['Shell']),
@@ -1017,7 +1038,7 @@ shell(Options, Rest, ErrorDevice) ->
                                          config_startup = config_startup(Options)}),
                 {init_fun([ErlangModule]), GivenLoadPath};
             [File] ->
-                {Namespace, FileLoadPath, Loaded} = program(File, Options),
+                {Namespace, FileLoadPath, Loaded} = program(File, Options, Say),
                 Entry = shell_entry(Options, Namespace),
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
                                          source_root = ern_build:source_root(Options, File, "."),
@@ -1034,7 +1055,7 @@ shell(Options, Rest, ErrorDevice) ->
     %% report §11.2: Os.exit faults the process that calls it
     %% report §11.1: the unit names its functions by their position
     {Main, 0} = ern_code:function(ErlangModule, ['Shell', main]),
-    Outcome = as_node(Options, LoadPath,
+    Outcome = as_node(Options, LoadPath, Say,
                       fun(Node) ->
                           ern_rt:run_main(fun() -> ErlangModule:Main() end, <<"Shell.main">>,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
@@ -1053,9 +1074,10 @@ is_node(Options) ->
 %% carry (ern_rt:run_main/3), and its `ernest.pid` removed at its end,
 %% however it ends, a start refused once the file is written among the
 %% ways; a run without it is no node. Where the launcher asks for the
-%% host's flags (node_flags/0), they are answered and nothing runs.
-as_node(Options, LoadPath, Run) ->
-    as_node(Options, LoadPath, program, Run).
+%% host's flags (node_flags/0), they are answered and nothing runs. Say
+%% says each module the node's start reads (§11.2, --verbose).
+as_node(Options, LoadPath, Say, Run) ->
+    as_node(Options, LoadPath, Say, program, Run).
 
 %% The same, Holds bare for `ern run`'s bare node, which is refused where
 %% it does not listen (§8.7, §11.2) before the host's flags are answered,
@@ -1063,7 +1085,7 @@ as_node(Options, LoadPath, Run) ->
 %% every other node. Report §8.7, §11.2: a shell's with no `.erc` is a bare
 %% node with a prompt, which dials from its prompt and is not refused
 %% without `listen`.
-as_node(Options, LoadPath, Holds, Run) ->
+as_node(Options, LoadPath, Say, Holds, Run) ->
     case proplists:get_value(config_dir, Options) of
         undefined ->
             Run(#{});
@@ -1074,7 +1096,7 @@ as_node(Options, LoadPath, Holds, Run) ->
             listens(Holds, ConfigDir, Read),
             case persistent_term:get({?MODULE, flags}, false) of
                 true -> throw({node_flags, ern_carrier:boot_flags(Read)});
-                false -> run_node(ConfigDir, Read, LoadPath, Run)
+                false -> run_node(ConfigDir, Read, LoadPath, Say, Run)
             end
     end.
 
@@ -1087,7 +1109,7 @@ listens(_Holds, _ConfigDir, _Configuration) ->
     ok.
 
 %% A node's run, from its configuration read.
-run_node(ConfigDir, Read, LoadPath, Run) ->
+run_node(ConfigDir, Read, LoadPath, Say, Run) ->
     ern_carrier:booted()
         orelse ern_build:fail("the host was not started as a node, which ern does where"
                               " the command line holds --config-dir"),
@@ -1096,7 +1118,7 @@ run_node(ConfigDir, Read, LoadPath, Run) ->
         %% report §8.7: a node carries the whole build, so that a function a
         %% peer spawns finds its code; nothing of it is initialized because
         %% a peer asked
-        whole_build(LoadPath),
+        whole_build(LoadPath, Say),
         %% report §8.7: its peers listed from its start, so that a find or a
         %% spawn in an initializer is a peer's, which no connection reaches
         %% yet
@@ -1217,8 +1239,9 @@ not_compiled(File) ->
     end.
 
 %% The module of a `.erc`, its load path, and every module loaded for it:
-%% the file's own dependencies first (report §11.2, §4.2).
-program(File, Options) ->
+%% the file's own dependencies first (report §11.2, §4.2), each said by Say
+%% as it is read (--verbose).
+program(File, Options, Say) ->
     filelib:is_regular(File) orelse ern_build:fail("no such file " ++ File),
     filename:extension(File) =:= ".erc" orelse ern_build:fail(not_compiled(File)),
     Absolute = ern_build:absolute(File),
@@ -1236,7 +1259,7 @@ program(File, Options) ->
     lists:foreach(fun(Component) -> ern_build:shape(File, Component) end, Components),
     LoadPath = [ModuleRoot | ern_build:load_path(Options)],
     host_path(LoadPath),
-    {Namespace, LoadPath, load(Namespace, LoadPath, [])}.
+    {Namespace, LoadPath, load(Namespace, [], LoadPath, [], reading(program, Say))}.
 
 %% Report §11.2: an Erlang module a `foreign fn` names is the host's own or
 %% a `.beam` in a directory of the load path, the host's own found first.
@@ -1589,19 +1612,18 @@ entry_shape(ErlangModule, Function) ->
 entry_site(Namespace, Function) ->
     unicode:characters_to_binary(ern_namespace:text(Namespace ++ [Function])).
 
+%% How a load reads: Reader is the program, which loads the modules a
+%% module uses, or the node, which reads every module of its load path
+%% (§8.7); beside it the standard library's hash, which each module read is
+%% checked against, and Say, which says each module read (§11.2, --verbose).
+reading(Reader, Say) ->
+    {Reader, ern_build:stdlib_hash(), Say}.
+
 %% Load a module and, first, its dependencies, each once; the result lists
-%% modules most recently loaded first, so dependencies come last.
-load(Namespace, LoadPath, Loaded) ->
-    load(Namespace, LoadPath, Loaded, program).
-
-%% Reader is the program, which loads the modules a module uses, or the
-%% node, which reads every module of its load path (§8.7).
-load(Namespace, LoadPath, Loaded, Reader) ->
-    load(Namespace, [], LoadPath, Loaded, {Reader, ern_build:stdlib_hash()}).
-
-%% Waiting are the modules whose loads wait on Namespace's, the one that
-%% uses it first, and none for one loaded for itself.
-load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
+%% modules most recently loaded first, so dependencies come last. Waiting
+%% are the modules whose loads wait on Namespace's, the one that uses it
+%% first, and none for one loaded for itself.
+load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     case lists:member(ErlangModule, Loaded) of
         true ->
@@ -1611,6 +1633,7 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash} = Reading) ->
             File = compiled_file(Namespace, Waiting, LoadPath, Reader),
             Beam = ern_build:read(File),
             #{deps := DependencyHashes} = Chunk = held_chunk(Namespace, File, Beam),
+            say_read(Say, Namespace, File),
             Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
                                       load(Dependency, [Namespace | Waiting], LoadPath, Acc,
                                            Reading)
@@ -1648,16 +1671,25 @@ no_cycle(Namespace, Waiting) ->
             ok
     end.
 
+%% Report §11.2: --verbose's line of a module read, `read Main from
+%% build/main.erc`, the standard library's aside, whose modules the host
+%% holds for every run.
+say_read(Say, Namespace, File) ->
+    filename:dirname(File) =:= ern_prelude:stdlib_directory()
+        orelse Say(["read ", ern_namespace:text(Namespace), " from ", ern_build:shown(File)]).
+
 %% Report §8.7: every compiled module on the load path loaded, as the
-%% modules a program uses are, with the same checks, and none initialized.
-whole_build(LoadPath) ->
+%% modules a program uses are, with the same checks, and none initialized,
+%% each said by Say as it is read (§11.2, --verbose).
+whole_build(LoadPath, Say) ->
     Namespaces = [placed(Root, File, Beam, Namespace)
                   || Root <- LoadPath, File <- ern_build:compiled_under(Root),
                      Beam <- [ern_build:read(File)],
                      {ok, #{interface := #interface{namespace = Namespace}}}
                          <- [ern_interface:read(Beam)]],
     Loaded = [ErlangModule || {ErlangModule, _} <- code:all_loaded()],
-    lists:foldl(fun(Namespace, Acc) -> load(Namespace, LoadPath, Acc, node) end, Loaded,
+    Reading = reading(node, Say),
+    lists:foldl(fun(Namespace, Acc) -> load(Namespace, [], LoadPath, Acc, Reading) end, Loaded,
                 Namespaces),
     ok.
 

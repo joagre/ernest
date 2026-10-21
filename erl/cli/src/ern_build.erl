@@ -9,9 +9,9 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/5, modules_of/3, compiled_in_order/3, report_errors/4,
-         shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2, module_of/3, shape/2,
-         segment/1,
+-export([compile/4, compile_in_memory/5, verbose/2, modules_of/3, compiled_in_order/3,
+         report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
+         module_of/3, shape/2, segment/1,
          module_path/1, compile_order/2, compile_order/3, module_cycle/1, source_root/3,
          build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
@@ -49,8 +49,12 @@ compile_in_memory(Job, Options, Path, ErrorDevice, Given) ->
 compile(Job, Options, Path, ErrorDevice, Emit) ->
     filelib:is_file(Path) orelse fail(Path ++ ": no such file or directory"),
     IsDirectory = filelib:is_dir(Path),
+    %% report §11.1: --verbose says each decision as it is made
+    Say = verbose(Options, ErrorDevice),
     SourceRoot = source_root(Options, Path, case IsDirectory of true -> Path; false -> "." end),
+    Say(["source root ", shown(SourceRoot)]),
     BuildRoot = build_root(Options, SourceRoot),
+    Say(["build root ", shown(BuildRoot)]),
     Files = case IsDirectory of
                 true -> sources(Path);
                 false -> [Path]
@@ -83,15 +87,15 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
         Outside = fun(Namespace) ->
                       case lists:member(Namespace, BuildNamespaces) of
                           true -> [];
-                          false -> recorded_uses(Namespace, DependencyRoots, SourceRoot)
+                          false -> recorded_uses(Namespace, DependencyRoots, SourceRoot, Say)
                       end
                   end,
         {Failed, Compiled} = built(order(Parsed, Outside), Unparsed,
-                                   {SourceRoot, DependencyRoots, Emit, StdlibHash}),
+                                   {SourceRoot, DependencyRoots, Emit, StdlibHash}, Say),
         case [{Failure, Diagnostics} || {_, Failure, Diagnostics} <- Failed] of
             [] ->
                 IsDirectory andalso Emit =:= erc
-                    andalso sweep(absolute(Path), SourceRoot, BuildRoot),
+                    andalso sweep(absolute(Path), SourceRoot, BuildRoot, Say),
                 {0, Compiled};
             Reported ->
                 [report_failure(Job, Options, Failure, Diagnostics, ErrorDevice)
@@ -100,6 +104,16 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
         end
     after
         put_back(SetAside)
+    end.
+
+%% Report §11.1, §11.2: what --verbose writes with, a line on the job's
+%% ErrorDevice for each decision as the job makes it, where Options hold
+%% the flag, and nothing where they do not.
+-spec verbose([term()], io:device()) -> fun((iodata()) -> ok).
+verbose(Options, ErrorDevice) ->
+    case lists:member(verbose, Options) of
+        true -> fun(Line) -> io:format(ErrorDevice, "~ts~n", [Line]) end;
+        false -> fun(_) -> ok end
     end.
 
 %% The modules the files are, and a failure for each file whose path is
@@ -130,7 +144,7 @@ report_failure(_Job, Options, File, Diagnostics, ErrorDevice) ->
 
 %% Report §11.1: the parsed modules Order compiled in memory in that order,
 %% each after the modules it depends on, against the `.erc`s under
-%% BuildRoot for any other: the modules that failed, as built/3 answers
+%% BuildRoot for any other: the modules that failed, as built/4 answers
 %% them, and the compiled modules by namespace. A module's code is the
 %% same whatever order its build checks the modules in, which a test of the
 %% standard library's own build holds.
@@ -143,7 +157,8 @@ compiled_in_order(Order, SourceRoot, BuildRoot) ->
                  end,
     SetAside = set_aside_installed_stdlib(SourceRoot),
     try
-        built(Order, [], {SourceRoot, [BuildRoot], {memory, #{}}, StdlibHash})
+        %% a build in memory writes nothing, and so says nothing
+        built(Order, [], {SourceRoot, [BuildRoot], {memory, #{}}, StdlibHash}, fun(_) -> ok end)
     after
         put_back(SetAside)
     end.
@@ -159,8 +174,9 @@ compiled_in_order(Order, SourceRoot, BuildRoot) ->
 %% `{refused, Refusal}` where something it needs was refused, or with
 %% `{skipped, Namespace, Dependency}` where a module it uses failed, or a
 %% module its forms reference; Unparsed begins them. Beside them, the
-%% modules compiled in memory, by namespace.
-built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}) ->
+%% modules compiled in memory, by namespace. Say says each module written
+%% (report §11.1, --verbose).
+built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}, Say) ->
     Namespaces = [Namespace || #build_module{namespace = Namespace} <- Order],
     %% report §11.1: what every module of the build is compiled against
     %% beside its dependencies, the standard library and the build of
@@ -168,7 +184,7 @@ built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}) ->
     Against = #{stdlib => StdlibHash, compiler => compiler_build()},
     BuildModule = fun(Module, Interfaces) ->
                       build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, Against,
-                            Namespaces)
+                            Namespaces, Say)
                   end,
     {_, Failed, Compiled, Waiting} =
         lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule) end,
@@ -218,7 +234,7 @@ emitted_ready({Interfaces, Failed, Compiled, Waiting}) ->
                     end
                 end, {Interfaces, Failed, Compiled, Waits}, Ready).
 
-%% A module's failure as built/3 answers it: its errors; and, report
+%% A module's failure as built/4 answers it: its errors; and, report
 %% §11.1, a dependency that is stale or not built, or a compiled file that
 %% holds another module, which fails this module alone.
 failure(Namespace, {errors, File, Diagnostics}) ->
@@ -741,17 +757,17 @@ stdlib_namespaces() ->
 %% and the emit, given the interfaces once those are checked, which answers
 %% the compiled module where it is kept in memory and none where it is
 %% written. Against is what the build is compiled against beside the
-%% module's dependencies, built/3's.
+%% module's dependencies, built/4's, and Say says the file written.
 %% report §11.4: a module `ern doc` read from its .erc is not compiled
 %% again, and its interface is the one its .erc holds
 build(#build_module{namespace = Namespace}, Interfaces, _SourceRoot, _DependencyRoots,
-      {memory, Given}, _Against, _Namespaces) when is_map_key(Namespace, Given) ->
+      {memory, Given}, _Against, _Namespaces, _Say) when is_map_key(Namespace, Given) ->
     Beam = maps:get(Namespace, Given),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     {Interfaces#{Namespace => Interface}, {Namespace, [], fun(_) -> Beam end}};
 build(#build_module{namespace = Namespace, file = File, relative = Relative,
-                    declarations = Declarations, dependencies = Dependencies},
-      Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, Against, Namespaces) ->
+                    declarations = Declarations, dependencies = Dependencies} = Module,
+      Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, Against, Namespaces, Say) ->
     DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                  DependencyRoots, SourceRoot),
     DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
@@ -776,10 +792,10 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
                                      canonical => Canonical},
                     Referenced = referenced(Canonical, Namespace, Namespaces),
                     Emitting = fun(Checked) ->
-                                   Fresh = [maps:get(Module, Checked) || Module <- Referenced],
+                                   Fresh = [maps:get(Used, Checked) || Used <- Referenced],
                                    Env1 = ern_typecheck:with_interfaces(Fresh, Env),
-                                   emitted(Emit, Namespace, {Typed, Interface, Env1}, Build,
-                                           OutputBase, Relative)
+                                   emitted(Emit, Module, {Typed, Interface, Env1}, Build,
+                                           OutputBase, Say)
                                end,
                     Written = ern_interface:written(ern_canonical:interface(Interface, Canonical)),
                     {Interfaces#{Namespace => Written}, {Namespace, Referenced, Emitting}};
@@ -812,24 +828,35 @@ longest_module(QualifiedName, Namespaces) ->
 %% module where it is kept, none where it is written. Erlang source holds
 %% no interface, but a service's and a spawn's hashes as the compiled
 %% module does (§8.7), so its dependents are compiled against its hashes
-%% too, which its check gave them (build/7).
-emitted(erl, Namespace, {Typed, _Interface, Env}, Build, OutputBase, Relative) ->
+%% too, which its check gave them (build/8). Report §11.1: Say says each
+%% file written, with the module and its source.
+emitted(erl, #build_module{namespace = Namespace, relative = Relative} = Module,
+        {Typed, _Interface, Env}, Build, OutputBase, Say) ->
     Erl = OutputBase ++ ".erl",
     ok = make_dirs(Erl),
     Source = ern_compile:erl_source(Namespace, Typed, Env, maps:with([standard, canonical], Build)),
     ok = write_output(Erl, unicode:characters_to_binary(["%% Generated by ern build from ",
                                                          Relative, "\n", Source])),
+    Say(compiled_line(Module, Erl)),
     none;
-emitted(erc, Namespace, {Typed, Interface, Env}, Build, OutputBase, _) ->
+emitted(erc, #build_module{namespace = Namespace} = Module, {Typed, Interface, Env}, Build,
+        OutputBase, Say) ->
     Erc = OutputBase ++ ".erc",
     ok = make_dirs(Erc),
     held_by_another(Erc, Namespace),
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     ok = write_output(Erc, Beam),
+    Say(compiled_line(Module, Erc)),
     none;
-emitted({memory, _}, Namespace, {Typed, Interface, Env}, Build, _, _) ->
+emitted({memory, _}, #build_module{namespace = Namespace}, {Typed, Interface, Env}, Build,
+        _OutputBase, _Say) ->
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     Beam.
+
+%% Report §11.1: --verbose's line of a module compiled, `compiled Net.Http
+%% from src/net/http.ern to build/net/http.erc`.
+compiled_line(#build_module{namespace = Namespace, file = File}, Written) ->
+    ["compiled ", ern_namespace:text(Namespace), " from ", shown(File), " to ", shown(Written)].
 
 %% Report §11.1: a .erc that holds another namespace is not written over, as
 %% a single-file build from another source root would: the file is another
@@ -964,15 +991,19 @@ compiled_found(Namespace, DependencyRoots) ->
 %% compiled form records them, the form found as dependency_interface/5
 %% finds it; none for a module whose form no root holds, does not read or
 %% is stale, which is no module, and which the build refuses where a
-%% module of its own uses it.
-recorded_uses(Namespace, DependencyRoots, SourceRoot) ->
+%% module of its own uses it. A build's order reads each such module here,
+%% first and once, so Say says it here (report §11.1, --verbose).
+recorded_uses(Namespace, DependencyRoots, SourceRoot, Say) ->
     case compiled_found(Namespace, DependencyRoots) of
         {Dir, Erc} ->
             case read_erc(Erc) of
                 {ok, #{deps := DependencyHashes} = Chunk} ->
                     case gone(Chunk, Dir, SourceRoot) of
-                        false -> [Dependency || {Dependency, _} <- DependencyHashes];
-                        _ -> []
+                        false ->
+                            Say(["read ", ern_namespace:text(Namespace), " from ", shown(Erc)]),
+                            [Dependency || {Dependency, _} <- DependencyHashes];
+                        _ ->
+                            []
                     end;
                 _ ->
                     []
@@ -1141,11 +1172,13 @@ read_erc(Erc) ->
     end.
 
 %% Report §11.1: remove every stale .erc under the mirror of the compiled
-%% subtree, and each directory of the subtree the removals leave empty.
-sweep(Dir, SourceRoot, BuildRoot) ->
+%% subtree, each said by Say (--verbose), and each directory of the
+%% subtree the removals leave empty.
+sweep(Dir, SourceRoot, BuildRoot, Say) ->
     Mirror = absolute(filename:join(BuildRoot, relative(Dir, SourceRoot))),
     lists:foreach(fun(Erc) ->
                       ok = delete(Erc),
+                      Say(["removed ", shown(Erc)]),
                       remove_emptied(filename:dirname(Erc), Mirror, BuildRoot)
                   end, [Erc || Erc <- outputs(Mirror, ".erc"),
                                is_stale(Erc, BuildRoot, SourceRoot)]).

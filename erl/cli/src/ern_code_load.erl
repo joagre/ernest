@@ -1,6 +1,6 @@
 %% Appendix E.28, report §11.2: Code.load, a compiled module and the modules
 %% it uses loaded by a program after its node started, as `ern run` loads a
-%% program's (ern_cli:program/2) and the shell's `:load` a compiled module
+%% program's (ern_cli:program/3) and the shell's `:load` a compiled module
 %% (ern_shell), with their refusals, and its top-level bindings evaluated in
 %% the calling process.
 %%

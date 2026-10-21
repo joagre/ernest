@@ -97,19 +97,11 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   but in the command, and refuses two directories of one application's name (§11.2, §11.7). The
   spelling and three smaller decisions are the log entry's *Built* paragraph; its first user is
   ehttpd, MVP 4.1.
-- **`--verbose`**, decided with the user on 2026-10-13 (the log's *A Build Says What It Decided*) and
-  placed first in MVP 4.0, moved here on 2026-10-20 at the user's word:
-  `ern build`, `ern run` and `ern test` take `--verbose` and write on standard error one line for
-  each decision they make without saying: the source root and build root taken, each module
-  compiled, as its namespace, its file and the `.erc` written, each module read from the load path
-  with the directory that supplied it, and each stale `.erc` the cleanup removed; the default stays
-  silent, and standard output stays `--emit-erl`'s and the program's.
-
-  §11.1 and §11.2 state the lines, `ern --help` lists the flag, and a test reads the lines of a
-  build, a run and a test. About a day; it touches `ern_build`, the runner and §11 alone.
-
-  The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
-  what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
+- **`--verbose`**, done 2026-10-21 (the log's *A Build Says What It Decided*, its *Built*
+  paragraph): `ern build`, `ern run` and `ern test` take `--verbose`, which writes on standard error
+  a line for each decision as the job makes it: the roots taken, each module compiled with its
+  source and the file written, each module read from a `.erc` with the file, and each stale `.erc`
+  removed (§11.1, §11.2, §11.7). The Makefiles pass it to every `ern build` and `ern run` they run.
 - **A `make` with nothing to do**, found 2026-10-20 while the bench's rows were measured (the log's
   *The Rows That Grew*, *Found beside the item*) and made an item at the user's word: it takes
   3.0 s and 14 s of processor time, fourteen times the host's start of 0.22 s, where CLAUDE.md's

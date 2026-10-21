@@ -57,7 +57,7 @@ $(EXEC): erl/runtime/c_src/ern_exec.c
 # its modules (report §11.1, plan MVP 2.5). ern build recompiles what a
 # changed compiler changes (report §11.1).
 stdlib:
-	@bin/ern build --build-root build/stdlib src/stdlib
+	@bin/ern build --verbose --build-root build/stdlib src/stdlib
 
 # The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
 # its own, compiled into build/libs/<name>, which a program adds with
@@ -72,11 +72,11 @@ libs: $(LIB_BUILDS)
 	@for d in build/libs/*/; do [ -d "src/libs/$$(basename $$d)" ] || rm -rf "$$d"; done
 
 lib-ansi: stdlib
-	@bin/ern build --source-root src/libs/ansi --build-root build/libs/ansi src/libs/ansi
+	@bin/ern build --verbose --source-root src/libs/ansi --build-root build/libs/ansi src/libs/ansi
 
 $(filter-out lib-ansi,$(LIB_BUILDS)): lib-%: lib-ansi
-	@bin/ern build --source-root src/libs/$* --load-path build/libs/ansi --build-root build/libs/$* \
-	  src/libs/$*
+	@bin/ern build --verbose --source-root src/libs/$* --load-path build/libs/ansi \
+	  --build-root build/libs/$* src/libs/$*
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): src/shell/
 # compiled by ern build into build/shell, where `ern shell` loads it by
@@ -84,7 +84,7 @@ $(filter-out lib-ansi,$(LIB_BUILDS)): lib-%: lib-ansi
 # documentation with and is compiled against, from their builds under
 # build/libs.
 shell: libs
-	@bin/ern build $(LIB_PATH) --build-root build/shell src/shell
+	@bin/ern build --verbose $(LIB_PATH) --build-root build/shell src/shell
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -134,7 +134,7 @@ $(LIBS:%=manual-%): manual-%: lib-% lib-markdown
 # removed, a page among them, and a make with nothing to do changes none.
 build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 	@mkdir -p build/man
-	@bin/ern run $(LIB_PATH) build/tools/manual.erc \
+	@bin/ern run --verbose $(LIB_PATH) build/tools/manual.erc \
 	  report/toolchain.md $$(cat VERSION) build/stdlib > $@.new
 	@mv $@.new $@
 
@@ -202,7 +202,7 @@ release: all
 # The programs of the build written in Ernest, tools/*.ern, compiled into
 # build/tools against libs/markdown and libs/ansi, which it writes with.
 tools: libs
-	@bin/ern build $(LIB_PATH) --build-root build/tools tools
+	@bin/ern build --verbose $(LIB_PATH) --build-root build/tools tools
 
 # Terminal.width's table in src/stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is

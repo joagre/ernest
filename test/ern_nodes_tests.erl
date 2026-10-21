@@ -2751,6 +2751,34 @@ bare_node_refused(Base) ->
     has(Taken, "bare node faulted: the node's carrier did not start: "),
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
+%% report §11.2, §8.7: `ern run --verbose` of a node names each module the
+%% program reads, and then each other module of its load path, which a
+%% node's start reads, on standard error, each once, and standard output
+%% holds the program's alone, from a directory whose name is beyond
+%% Latin-1. A
+%% regression test: the launcher's first start, which writes what the job
+%% says to nothing, raised at such a line, and the node was given no flags
+verbose_node_start_test_() ->
+    nodes_test({waits, 1}, fun verbose_node_start/1).
+
+verbose_node_start(Base) ->
+    E = made(Base, "e", none),
+    Root = filename:join(Base, "r\x{2022}ot"),
+    ok = filelib:ensure_path(filename:join(Root, "shelf")),
+    [ok = file:write_file(filename:join(Root, File), Source)
+     || {File, Source} <- [{"main.ern", "export fn main() : Unit = Io.println(Store.label)\n"},
+                           {"store.ern", "export let label : String = \"ran\"\n"},
+                           {"shelf/box.ern", "export fn size() : Int = 3\n"}]],
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    Main = filename:join(Root, "main.erc"),
+    Err = E ++ ".err",
+    ?assertEqual({0, "ran\n"},
+                 finished([?ERN, " run --verbose --config-dir ", E, " ", Main, " 2> ", Err])),
+    ?assertEqual({ok, unicode:characters_to_binary(
+                        ["read Main from ", Main, "\nread Store from ", Root, "/store.erc\n"
+                         "read Shelf.Box from ", Root, "/shelf/box.erc\n"])},
+                 file:read_file(Err)).
+
 %% report §8.7, §8.4, Appendix E.27: a lambda crosses as the definition
 %% that encloses it, and what that definition names beyond the lambda's
 %% reach and the bare node lacks is linked there to a fault that names it:

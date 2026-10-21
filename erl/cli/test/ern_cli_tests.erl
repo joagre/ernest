@@ -2118,6 +2118,96 @@ emit_erl_unicode_test() ->
     {ok, Source} = file:read_file(filename:join(Dir, "dots.erl")),
     ?assertMatch({_, _}, binary:match(Source, <<"\x{2022}"/utf8>>)).
 
+%% report §11.1: `ern build --verbose` says on standard error, a line each
+%% as it decides it, the source root and the build root it took, each
+%% module outside the source root it read, once though two modules use it,
+%% each module it compiled, and each stale .erc it removed, every path from
+%% the working directory (§11.5); a module found current is not named, so
+%% a build with nothing to compile says the roots and the module it read.
+%% Standard output holds nothing. Written after the code, so a regression
+%% test. Not covered: a module read from the build root in single-file
+%% mode, which the same line names
+verbose_build_test() ->
+    Dir = verbose_tree(tmp()),
+    in_directory(Dir, fun() ->
+        Build = ["build", "--verbose", "--build-root", "build", "--load-path", "lib", "src"],
+        Roots = ["source root src", "build root build", "read Store from lib/store.erc"],
+        ?assertEqual({lines(Roots ++ ["compiled Checked from src/checked.ern to"
+                                      " build/checked.erc",
+                                      "compiled Net.Http from src/net/http.ern to"
+                                      " build/net/http.erc",
+                                      "compiled Main from src/main.ern to build/main.erc"]), 0},
+                     standard_error_of(Build)),
+        ?assertEqual({lines(Roots), 0}, standard_error_of(Build)),
+        ok = file:delete("src/net/http.ern"),
+        write(".", "src/main.ern",
+              "export fn main() : Unit = Io.println(Int.toString(Store.size()))\n"),
+        ?assertEqual({lines(Roots ++ ["compiled Main from src/main.ern to build/main.erc",
+                                      "removed build/net/http.erc"]), 0},
+                     standard_error_of(Build))
+    end),
+    ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.1: under --emit-erl, --verbose names the `.erl` written.
+%% Written after the code, so a regression test
+verbose_emit_erl_test() ->
+    Dir = pair(tmp()),
+    in_directory(Dir, fun() ->
+        ?assertEqual({lines(["source root src", "build root build",
+                             "compiled Net.Http from src/net/http.ern to build/net/http.erl",
+                             "compiled Main from src/main.ern to build/main.erl"]), 0},
+                     standard_error_of(["build", "--verbose", "--emit-erl", "--build-root",
+                                        "build", "src"]))
+    end).
+
+%% report §11.1, §11.2: without --verbose a build, a run and a test say
+%% nothing on standard error, and standard output is the program's.
+%% Written after the code, so a regression test
+verbose_not_asked_test() ->
+    Dir = verbose_tree(tmp()),
+    in_directory(Dir, fun() ->
+        ?assertEqual({"", 0}, standard_error_of(["build", "--build-root", "build",
+                                                 "--load-path", "lib", "src"])),
+        ?assertEqual({"", 0}, standard_error_of(["run", "--load-path", "lib",
+                                                 "build/main.erc"])),
+        ?assertEqual({"", 0}, standard_error_of(["test", "--load-path", "lib",
+                                                 "build/checked.erc"]))
+    end),
+    ?assertEqual(<<"/33\ncounted: passed\n">>, iolist_to_binary(?capturedOutput)).
+
+%% A library under lib/, built there, and under src/ a program whose two
+%% modules use it and a module of tests that uses it.
+verbose_tree(Dir) ->
+    write(Dir, "lib/store.ern", "export fn size() : Int = 3\n"),
+    write(Dir, "src/net/http.ern",
+          "export fn path() : String = \"/\" <> Int.toString(Store.size())\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = Io.println(Net.Http.path() <> Int.toString(Store.size()))\n"),
+    write(Dir, "src/checked.ern",
+          "let counted : Test.Case(Never) =\n"
+          "    Test.Case(name = \"counted\", run = fn() = Test.equal(Store.size(), 3))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/lib"])),
+    Dir.
+
+%% Run Run with Dir the working directory, which is put back after.
+in_directory(Dir, Run) ->
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd(Dir),
+    try Run() after file:set_cwd(Cwd) end.
+
+%% A job run with its standard error captured apart from its standard
+%% output, which EUnit captures: what it wrote there, and its status.
+standard_error_of(Args) ->
+    Self = self(),
+    Device = spawn(fun() -> capture(Self, []) end),
+    Status = ern_cli:ern(Args, Device),
+    Device ! {done, self()},
+    receive {captured, Text} -> {Text, Status} end.
+
+%% Lines as a stream holds them, each ended.
+lines(Lines) ->
+    lists:append([Line ++ "\n" || Line <- Lines]).
+
 %% report §11.1, §11.5: an error is file:line:column: text, status 1
 compile_error_test() ->
     Dir = tmp(),
@@ -3048,6 +3138,43 @@ load_path_test() ->
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/lib", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"GET /\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.2: `ern run --verbose` and `ern test --verbose` say on
+%% standard error each module they read, as they read it, with its file
+%% from the working directory (§11.5), the file given among them, and the
+%% standard library's aside, which the program uses and which a test of
+%% one of its modules reads; `ern test` over a directory names each module
+%% as each file's run reads it, a module two files use once for each.
+%% Standard output stays the program's. Written after the code, so a
+%% regression test. A node's start, which reads every module of its load
+%% path through the same load, is ern_nodes_tests' verbose_node_start
+verbose_run_test() ->
+    Dir = verbose_tree(tmp()),
+    in_directory(Dir, fun() ->
+        ?assertEqual(0, ern_cli:ern(["build", "--build-root", "build", "--load-path", "lib",
+                                     "src"])),
+        ?assertEqual({lines(["read Main from build/main.erc",
+                             "read Net.Http from build/net/http.erc",
+                             "read Store from lib/store.erc"]), 0},
+                     standard_error_of(["run", "--verbose", "--load-path", "lib",
+                                        "build/main.erc"])),
+        ?assertEqual({lines(["read Checked from build/checked.erc",
+                             "read Store from lib/store.erc"]), 0},
+                     standard_error_of(["test", "--verbose", "--load-path", "lib",
+                                        "build/checked.erc"])),
+        ?assertEqual({lines(["read Checked from build/checked.erc",
+                             "read Store from lib/store.erc",
+                             "read Main from build/main.erc",
+                             "read Net.Http from build/net/http.erc",
+                             "read Store from lib/store.erc",
+                             "read Net.Http from build/net/http.erc",
+                             "read Store from lib/store.erc"]), 0},
+                     standard_error_of(["test", "--verbose", "--load-path", "lib", "build"]))
+    end),
+    Bool = filename:join(ern_prelude:stdlib_directory(), "bool.erc"),
+    ?assertEqual({"", 0}, standard_error_of(["test", "--verbose", Bool])),
+    ?assertEqual(<<"/33\ncounted: passed\nChecked\ncounted: passed\nno tests\n">>,
+                 iolist_to_binary(?capturedOutput)).
 
 %% report §11.2: --main picks another exported entry point of the module
 %% given, and one of another module is refused with both; one that takes

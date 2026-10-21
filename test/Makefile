@@ -109,10 +109,10 @@ measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_servi
 	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl \
 	  fixtures/bench/ern_pick_probe.erl
 	@for p in $(LOADS); do \
-	  ../bin/ern build --source-root fixtures/load --build-root build/load fixtures/load/$$p.ern \
-	  || exit 1; done
-	@../bin/ern build --build-root build/bench fixtures/bench
-	@../bin/ern build --source-root fixtures/service --build-root build/service \
+	  ../bin/ern build --verbose --source-root fixtures/load --build-root build/load \
+	    fixtures/load/$$p.ern || exit 1; done
+	@../bin/ern build --verbose --build-root build/bench fixtures/bench
+	@../bin/ern build --verbose --source-root fixtures/service --build-root build/service \
 	  fixtures/service/service.ern
 
 docs: $(BEAMS)
@@ -186,7 +186,8 @@ service: measured
 
 # The benchmark: fixtures/bench/bench.ern built and run as a user runs a
 # program, and its times printed beside the same operations in Erlang by ern_bench,
-# the faults its raises measure reported into build/bench/faults.txt;
+# the modules it read and the faults its raises measure reported into
+# build/bench/faults.txt;
 # then every function of the library measured against the host's by
 # ern_measure (plan MVP 2.99d item 1), its whole table in
 # build/bench/library.txt; then the costs between two nodes, ern_node_costs,
@@ -200,8 +201,8 @@ service: measured
 bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam \
 	  $(EBIN)/ern_code_costs.beam $(EBIN)/ern_spawn_costs.beam \
 	  $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam measured named
-	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt 2> build/bench/faults.txt \
-	  || { tail -20 build/bench/faults.txt >&2; exit 1; }
+	@../bin/ern run --verbose build/bench/bench.erc > build/bench/ernest.txt \
+	  2> build/bench/faults.txt || { tail -20 build/bench/faults.txt >&2; exit 1; }
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
 	@erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  -eval 'ern_measure:main(["build/bench/library.txt"])'
