@@ -217,7 +217,7 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	  -eval 'ern_burst_costs:main(["build/bench"])'
 
 # The bench's two node parts across the machines of machines/machines.txt
-# (plan, MVP 3.27 item 1): ern_node_costs's store on the first machine
+# (the log's *The Machines*): ern_node_costs's store on the first machine
 # after this one and its desk here, and ern_code_costs's nodes over the
 # machines after this one in turn, its measuring node here, each machine
 # checked first (ern_machines). Each table is written to
@@ -236,7 +236,7 @@ ACROSS = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) \
 	  status=$$?; cat build/bench/$(2)-machines.txt; exit $$status
 
 # The push's experiment across the machines of machines/machines.txt
-# (plan, MVP 3.27 item 2, ern_pick_costs): a burst and a stream of
+# (the log's *The Numbers Across Machines*, ern_pick_costs): a burst and a stream of
 # computes from a measuring node, falling over bare nodes under the push's
 # pick and under the least busy, with the packets and the processors'
 # time beside them. MEASURING names the machine the measuring node runs

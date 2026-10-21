@@ -326,13 +326,13 @@ bench: all
 	@$(MAKE) -C test bench
 
 # The bench's two node parts across the machines of
-# test/machines/machines.txt (plan, MVP 3.27 item 1), each machine checked
+# test/machines/machines.txt (the log's *The Machines*), each machine checked
 # against this checkout first; run by hand, on the user's machines.
 bench-machines: all
 	@$(MAKE) -C test bench-machines
 
 # The push's experiment across the machines of test/machines/machines.txt
-# (plan, MVP 3.27 item 2), each machine checked against this checkout
+# (the log's *The Numbers Across Machines*), each machine checked against this checkout
 # first; run by hand, on the user's machines, with MEASURING, PEERS,
 # INTERVALS, RUNS and UTILIZATION as test/Makefile says.
 bench-pick: all

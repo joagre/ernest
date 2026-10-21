@@ -19,8 +19,8 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 `Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
-The road to 0.5.0 is MVP 3.27 when the user's machines are ready, MVP 3.28 the formatter's
-clause rule, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, a libs flag, ehttpd, the website, the shell's second round and the back end
+MVP 3.27, the measurements across machines, is done (2026-10-21). The road to 0.5.0 is MVP 3.28
+the formatter's clause rule, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, a libs flag, ehttpd, the website, the shell's second round and the back end
 follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -60,7 +60,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | [`suggestion.md`](proposals/balancer/suggestion.md); *Placing Work by Name* |
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
-| MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between the machines the user gives, three on one LAN, the push against the pull across them, and the spawn's end at the reaper, 5.6 times the host's at 0.4.0 against 4.6 at MVP 3.1 (the log's *The Release Review Before 0.4.0*) | made 2026-10-13; when the user's machines are ready; the guide does not wait for it, and the release only where the machines come first | | below |
+| MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05, `--verbose` from MVP 4.0, and the feedback's seven added the same day | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
@@ -71,129 +71,6 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | below |
 
 ---
-
-## MVP 3.27 (measured across machines), about a week
-
-A milestone made on 2026-10-13, when MVP 3.2 measured the exchange, the picks and the
-host's distribution on one machine and found that the asks of different peers did not overlap there,
-the host's distribution serializing them, so that every number of that day's that crosses a wire is
-one machine's (the log's *The Report for Code with a Spawn*).
-
-The user gives machines to start nodes on, three on one LAN, and the measurements run again
-between them: a spawn whose code crosses, a compute, a fix's callers, `Peer.utilization`, the pick
-of the push (the log's *Placing Work by Name*) against a pull written over `Peer.utilizations()`,
-the `Placement` library having gone (Appendix G.5), the carrier's dial and its loss, each a median
-over runs with its range, in the log beside the first.
-
-No fourth machine on a separate LAN is tested, decided with the user on 2026-10-21 (the log's *The
-Machines*): the laptop on Wi-Fi beside the wired peers stands for the far peer.
-
-What differs goes into the log beside the first numbers and, where a sentence of the
-deployment guide quotes a number, into the guide, which is written before this milestone on one
-machine's numbers and says so; and it decides whether the push's two choices hold under a burst
-across a wire, as `docs/proposals/placement/push.md`'s section 5 asks.
-
-It runs when the user's machines are ready, and the release waits for it only where the machines
-come first.
-
-1. **The machines.** Built 2026-10-20 (the log's *The Machines*): `test/machines/machines.txt` lists
-   the machines, `test/machines/nodes.sh` checks, pulls, starts and stops a bare node on each, and
-   `make bench-machines` runs the bench's two node parts across them, the measuring node here. The
-   first run found the laptop on Wi-Fi, 3.6 ms a round trip against 0.33 ms between the two wired
-   machines, so every number measured from it is the Wi-Fi's.
-
-   **Decided with the user:** a cable for
-   the laptop, so that the three are wired and the tooling stands; the fallback is the measuring node
-   on a wired machine, a small change the log names.
-2. **The numbers.** Measured 2026-10-20 wired (the log's *The Numbers Across Machines*): the
-   tables of 2026-10-13 again across machines, every round trip the wire's millisecond and a crossing
-   spawn's cost the peer's compiler; the push's experiment of `docs/proposals/placement/push.md`'s
-   section 5, `make bench-pick`, under which two choices holds under the stream at every interval
-   and the least busy herds; the far peer's preview with the laptop on Wi-Fi; the deployment guide's
-   numbers corrected.
-
-   The spawn measured piece by piece: the ratio's growth since MVP 3.1 is two reads the root and the
-   let-go need, the reaper's read of a callee's notes is brought to the plain form, and the rest is
-   stated in the log.
-
-   **Decided with the user:** the tie of §8.7 and Appendix E.27, two equally busy peers taken as the
-   first in the configuration's order, which sent every burst onto an idle table by that order, goes
-   to the first drawn, which is random; decided 2026-10-20, stated in §8.7 and the guide's §8.1, built
-   with `ern_peer_tests`, and the experiment run again under both measures, which `make bench-pick`'s
-   `UTILIZATION=` sets: a burst onto an idle table falls at random under the default measure and by
-   the idle readings under the averaged one, which the log states and leaves.
-3. **The rows that grew.** Measured 2026-10-20 (the log's *The Rows That Grew*): the bench's
-   three other rows that grew since MVP 3.1, a monitor of an ended process, `spawnMonitored` and
-   entering `restarting`, each measured piece by piece in `make bench`'s fifth part, in
-   `spawn_monitored.txt`, `monitor.txt`, `restarting.txt` and `burst.txt`.
-
-   The two monitors' growth is one commit's read of the deliveries in flight at every end, about
-   2 µs, whose plain form stays, the bag that would remove it growing with what a process has in
-   flight; entering `restarting` costs about 0.6 µs, most of it E.22's ask, which stays, and 70 ns
-   came back in the plain form.
-
-   A quadratic in the reaper's and the clock's bookkeeping of a burst, older than MVP 3.1, is fixed.
-   Nothing had measured a burst against its size, so the fifth part's `burst.txt`, decided with the
-   user on 2026-10-20, times four bursts at 1,000, 5,000 and 25,000: one process monitoring many
-   that end, many callers of one process ending, many deliveries in flight to one process, and one
-   process's alarms firing, each as nanoseconds an element with its ratio to the smallest size.
-
-   **The reaper's and the clock's mailboxes on their heaps**, found 2026-10-20 by the burst part
-   (the log's *The Rows That Grew*, *Beyond the bench's sizes*): a caller's end costs 6.3 µs at a
-   thousand callers and 27 at two hundred thousand, the reaper's collections of a heap that holds a
-   burst of `'DOWN'`s, and an alarm's firing rises the same way; the host's own setting for a process
-   that takes bursts, its message queue off its heap, made the callers' burst flat in a scratch
-   build.
-
-   Decided with the user on 2026-10-20: the setting on the reaper and the clock, kept where no row
-   of `make bench`'s spawn and monitor, which take one message at a time, worsens. Measured
-   interleaved, the clock's is kept, an alarm's firing flat and a fifth cheaper at 25,000; the
-   reaper's makes every burst flat but costs the spawn 7 percent and the monitor 8, so the reaper
-   stays on the heap by that condition, its end's cost under a burst stated in the log.
-
-   **The reaper's mailbox stays on its heap**, decided with the user on 2026-10-20: §10's clause,
-   that what the runtime adds grows with nothing but the operation's own input, weighed against a
-   constant 0.5 µs on every spawn and 1 µs on every monitor; the growth is the host's collection, a
-   caller's end 2.4 times dearer at two hundred thousand, and a program whose burst shows it would
-   change the answer, which the burst part measures.
-
-   **A call's wait reads the caller's whole mailbox**, found 2026-10-20 (the log's *The Rows That
-   Grew*, *Found beside the item*): `callForever`'s receive matches the request to restart and a
-   foreign fault beside the reply, so the host reads from the mailbox's start and not from the
-   reply's reference.
-
-   Decided with the user on 2026-10-21 (the log's *The Rows That Grew*, *The call's wait,
-   decided*): left as it is, its cost stated in §10, since every marked wait that still
-   takes a restart asked for needs an identity on every ask and a loop in every compiled `receive`;
-   the change is dropped.
-
-The nodes tests' limits, built 2026-10-21 (the log's *The Nodes Tests' Bounds*): every limit is a
-count of the test's steps in the harness's time for one wait, and every deadline in a program a test
-runs is that time, the one chosen number, 30 s, which bounds a failure alone and stays, decided with
-the user on 2026-10-21. The nodes test of a peer's connection lost and opened again under a function
-that waits joins them, and found no defect.
-
-Three bounds of the same kind remain and go here: the deployment tests' five limits of their own,
-90 to 180 s, counted as the nodes tests' are; the commands the nodes tests run by `os:cmd` with no
-bound, bounded as the deployment tests' `job/2` bounds its; and the loads' sleep of 100 ms in
-`test/ern_load.erl`, a number of its own, derived from what it waits for.
-
-The two Makefile lines that remove an old checkout's `.beam`
-copies of compiled modules, `rm -f build/*/ern@*.beam` in the `stdlib` and `shell` rules, go here,
-every checkout having been built since 0.4.0.
-
-**After the tag: the annotation out of the hash.** Found by the release review before 0.4.0 (the
-log's *The Release Review Before 0.4.0*, KP30), decided with the user 2026-10-18: Appendix H hashes
-a type annotation as written beside the scheme that already holds the type, so `fn f(x : Int) : Int`
-and `fn f(x) : Int` are one typed tree and two hashes, shipped twice. The form hashes the scheme and
-the body, the annotation going to Appendix H's *What is left out*, and the form's version changes
-with it, which is why it waits for the tag: the first change of the form since 0.4.0's floor.
-
-**Every fault carries a trace**, built 2026-10-20 (the log's *Every Fault Carries a Trace*): §7.3
-gives every fault the host's stack where it was met, E.21 writes a frame as a spawn site is written
-and ends the trace at the program's outermost frame, and `ern run`, `ern test` and the shell print it
-beneath the fault's line. The three questions the build left, a lambda's frame, the runtime's frames
-and a test's own fault, were decided the same day, in the log.
 
 ## MVP 3.28 (what stands before the tour), about a week
 
@@ -242,7 +119,7 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 
   The Makefiles pass `--verbose` to every job they run once it exists, so that a build always says
   what it decided (decided with the user on 2026-10-13, the log's *Slow Tools Are Defects*).
-- **A `make` with nothing to do**, found 2026-10-20 while MVP 3.27's item 3 measured (the log's
+- **A `make` with nothing to do**, found 2026-10-20 while the bench's rows were measured (the log's
   *The Rows That Grew*, *Found beside the item*) and made an item at the user's word: it takes
   3.0 s and 14 s of processor time, fourteen times the host's start of 0.22 s, where CLAUDE.md's
   rule gives a job with nothing to do about one start; the last investigation (the log's *The Tools
@@ -272,7 +149,7 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   otherwise, and `ern test` writes no trace for a fault a test expected. E.24 and §11.2 first.
 - **The foreign call measured** (feedback 125; CLAUDE.md's *Design*, a multiple where a fraction
   is promised). A bare `foreign fn` at two and a half times the host's call, measured piece by piece
-  in `make bench`'s fifth part as MVP 3.27 measures the monitor, and brought back to the plain form
+  in `make bench`'s fifth part as the monitor was (the log's *The Rows That Grew*), and brought back to the plain form
   that costs a fraction; what cannot be is stated in the log.
 - **Doc examples run by `ern test`** (feedback 127; principle 1). `ern test` runs a module's
   `// =>` examples as cases, as Ernest's own test runs its libraries', so that a library's page is
@@ -392,8 +269,8 @@ log's *The First Release Is for Others*:
 
 - **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
   gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
-  one design note under `docs/` beside the shell's, once MVP 3.27's measurements have settled their
-  figures; the proposals then stay as the record of how the design was weighed.
+  one design note under `docs/` beside the shell's, the measurements across machines having settled
+  their figures (the log's *The Numbers Across Machines*); the proposals then stay as the record of how the design was weighed.
 
   Its sources, in order: §8.7 and §11.2 and the code as built, with `architecture.md`'s map, for
   what the component is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is
@@ -435,7 +312,8 @@ log's *The First Release Is for Others*:
   takes to the log what it still argues that the log lacks.
 
   The review runs that pass over every proposal built by 0.5.0, `nodes_and_code/`, `operations/`,
-  `kill_darlings/`, `placement/` and, once MVP 3.27 has measured against it, `balancer/`, and finds
+  `kill_darlings/`, `placement/` and `balancer/`, measured against across machines (the log's *The
+  Numbers Across Machines*), and finds
   the operations programs and the code-update experiments, which the tests run, a home under
   `examples/` or `test/fixtures/`, or lets them go with their tests.
 
