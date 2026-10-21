@@ -201,7 +201,12 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   begins once the tests' launch has ended, and a private declaration's initializes the example's
   unit in its module's place. A launch was estimated at about 6 ms, 2 s over `ern test
   build/stdlib`'s 5 s; measured, the library's 335 examples take it from 4.9 s to 8.2 s, about
-  9.8 ms each.
+  9.8 ms each, of which 7.25 ms is the launch's own start, which MVP 3.29 takes up. Decided the
+  same day, found building it: an example's program that ends before the example returns, an
+  initializer faulting in its directory, ended the module's run as the tests' launch does, with
+  no line for the example and none after it; §11.2 fails the example with `faulted` and the
+  cause and runs the next, since an example is a case and a case's failure stops no other
+  (principle 1); to be built, an hour.
 - **An abstract type's constructor's doc example** (found 2026-10-21 building the items above), a
   defect, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
   examples): `ern test` ran none of the doc examples of an abstract type's constructors and
@@ -224,7 +229,9 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 Made 2026-10-21 from what MVP 3.28's measurement found (the log's *The Foreign Call Measured*),
 since following its number further is an item of its own, planned with the decision it would
 change (CLAUDE.md's *Design*). The decision is §8.6's count of a process inside foreign code, and
-what CLAUDE.md's cost rule asks of a foreign call to a host function that answers at once.
+what CLAUDE.md's cost rule asks of a foreign call to a host function that answers at once. Three
+more questions of the same kind joined it on 2026-10-21, and the launch's cost, found the same
+evening.
 
 - **The sitting**, with the user, over the log's *The Foreign Call Measured*. What the count is
   for: the deadlock look takes a process inside foreign code as not waiting, since the foreign
@@ -235,10 +242,31 @@ what CLAUDE.md's cost rule asks of a foreign call to a host function that answer
   dictionary, which the look could read only by reading every process at every look of an idle
   program; or no count, where a foreign function declared without `receiving` promises to deliver
   nothing (§4.7), and the look needs to know of no call in progress. Then what a fraction means
-  against a 7 ns call, and the timed receive's count, written the same way. Then the feedback's
-  program, 390 to 550 ns a call over the host's against the bench's 158: the part its arguments
-  play, a pixmap resource and a color, measured with epx's own call shape before anything is
-  changed for it.
+  against a 7 ns call, and the timed receive's count, written the same way, with every other
+  write a process makes to the shared processes table, which the bench's row of eight processes
+  at once is the test of. The feedback's program was measured first, on 2026-10-21 with epx's own
+  call shape (the log's *The Foreign Call Measured*, its last paragraph): the runtime's wrapper
+  adds the bench's 155 ns whatever the arguments, one `Int` or four with a pixmap, and the
+  library's own Ernest around the call, two coordinate checks and the color's channels, adds 240
+  ns more on a host call of 72 to 97; so the sitting weighs the library's checks beside the
+  count, since half of the feedback's multiple is Ernest code and not the runtime.
+- **The trace of a foreign return that fails its check** (left 2026-10-21 in *Every Fault Carries
+  a Trace*'s read-back): the boundary's check runs after the foreign function's tail call, so the
+  fault's trace holds no frame of the foreign function. Decided in the sitting, since what wraps
+  the call decides whether the frame can be kept: the plain form kept and said in the log, or the
+  frame added where the count's change gives a place for it.
+- **One checker of the library's examples** (principle 2): `ern_doc_tests` runs every library
+  example in a launch of its own, about a minute of `make test-full`, and `ern test build/stdlib
+  build/libs` now runs the same examples the same way in about 10 s. The Makefile runs `ern test`
+  over the two builds, and the Erlang test keeps only what `ern test` cannot check, if anything;
+  about half a day with the Makefile's targets.
+- **The launch's start** (found 2026-10-21 building the doc examples' launch; CLAUDE.md's *The
+  tools are fast*): a launch takes about 7.25 ms before its initializers run, almost all of it
+  about 23 `persistent_term` updates, the system processes' pids, the reaper's, the runner's, the
+  launch's and the reporter's terms, the end's two erases and the bindings of the six library
+  modules that hold addresses, each of which waits about 0.25 ms for the host's schedulers. Its
+  shape: fewer terms, one for the launch's processes, and the bindings that hold addresses written
+  once for the host; measured in a bench row of a bare launch; about a day.
 - **The count built as the sitting decides**, and `make bench`'s `foreign.txt` gains a row of
   eight processes making foreign calls at once, which today runs at a thirteenth of one process's
   rate, since every count takes the processes table's one lock. Where the sitting keeps a count,
