@@ -178,22 +178,27 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   library's (principle 1: a run of the tests leaves the directory as it found it). The directory
   is made under `TMPDIR` and is the host's working directory while the example runs, since the
   host has one for the node; `ern test build/stdlib` passes twice in one directory, in 5 s.
-- **`Os.workingDirectory` in a doc example** (found 2026-10-21 building the item above), a
-  decision for the user in this milestone: `Os.workingDirectory`, bound as the run starts, names
-  the run's directory within an example, while a relative path given to `Fs` names a file under
-  the example's, against E.17 and E.23, and an example that writes under `Os.workingDirectory`
-  leaves its file in the run's directory. Recommended: each example a launch of its own, as
-  `ern_doc_tests` runs the library's, so that `Os.workingDirectory` is its directory and nothing an
-  example leaves, a process or an offer, reaches the next (principle 1). A launch costs about 6 ms,
-  which the library's 313 examples that run would add as about 2 s to `ern test build/stdlib`'s
-  5 s. The other way is a sentence of §11.2 that keeps `Os.workingDirectory` the run's, a rule
-  the reader must learn.
 - **A private declaration's doc example** (found 2026-10-21 building the same item), decided with
-  the user on 2026-10-21 (the same paragraph): §11.2 compiled every example in a module of its
-  own, where a name the module keeps private is unknown, so a private declaration's example failed
-  under `ern test`. §11.2 compiles a private declaration's example inside its module, as
+  the user and done 2026-10-21 (the same paragraph): §11.2 compiled every example in a module of
+  its own, where a name the module keeps private is unknown, so a private declaration's example
+  failed under `ern test`. §11.2 compiles a private declaration's example inside its module, as
   `ern_doc_tests` does (principle 1: the example speaks to the module's own reader); none of the
-  library's examples is a private declaration's.
+  library's examples is a private declaration's. The example is compiled after the source its
+  `.erc` was compiled from, in a unit of its own, `ern@main$2`, so that the module's unit is as
+  the tests left it; one whose source is gone or changed fails saying so.
+- **A doc example's launch** (found 2026-10-21 building the two items above), a decision
+  for the user in this milestone. The examples run in the tests' launch, after them, so
+  `Os.workingDirectory`, bound as the launch starts, names the run's directory within an example,
+  while a relative path given to `Fs` names a file under the example's, against E.17 and E.23; an
+  example that writes under `Os.workingDirectory` leaves its file in the run's directory. And a
+  private declaration's example, compiled inside its module in a unit of its own, evaluates the
+  module's initializers a second time before it, which §11.2 does not say. Recommended: each
+  example a launch of its own, as `ern_doc_tests` runs the library's, which initializes the
+  modules the example uses in its directory, so that `Os.workingDirectory` is that directory, a
+  module is initialized once in it, and nothing an example leaves, a process or an offer, reaches
+  the next (principle 1). A launch costs about 6 ms, which the library's 313 examples that run
+  would add as about 2 s to `ern test build/stdlib`'s 5 s. The other way is two sentences of
+  §11.2, a rule the reader must learn for each.
 - **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace),
   decided with the user and done 2026-10-21 (the log's *The Window's Three Asks*, its *Built*
   paragraph): §4.2 refused an exported function of the module of a type's name under a member's

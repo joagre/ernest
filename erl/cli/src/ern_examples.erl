@@ -1,11 +1,19 @@
 %% Report §11.2, Appendix E.0 shape rule 6: the doc examples of a compiled
 %% module as the cases `ern test` runs after its tests, each compiled in a
-%% module of its own that uses the documented one.
+%% module of its own that uses the documented one, a private declaration's
+%% inside the documented one, and each run in a directory of its own.
 -module(ern_examples).
 
 -export([cases/2, in_directory/2, unload/1]).
 
 -include_lib("shared/include/ern_diagnostic.hrl").
+-include_lib("checker/include/ern_types.hrl").
+
+%% Report §11.2: the module an example is compiled in: its namespace, the
+%% text before the example's, the interfaces it is checked against, the
+%% build it is compiled with, and whether its unit is the namespace's own or
+%% one of a fresh name (example_module/5).
+-record(example_module, {namespace, before = <<>>, interfaces, build, unit = own}).
 
 %% The cases of the doc examples of the module Namespace, which the run has
 %% loaded with the modules it uses, Loaded, its own first: each as a test is,
@@ -14,19 +22,26 @@
 %% once they have run. Report §11.2: an example is named by the declaration
 %% it documents and its number among that declaration's, `List.take example
 %% 2`, the module's own as `List example 1`; the fenced `ernest` blocks of a
-%% type's constructors and fields are the type's, after its own.
+%% type's constructors and fields are the type's, after its own. The source
+%% a private declaration's example is compiled inside is read once, where
+%% the module has one.
 -spec cases([atom()], [module()]) -> {[{'Case', binary(), fun(() -> term())}], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded) ->
-    {ok, Beam} = file:read_file(code:which(ErlangModule)),
+    Erc = code:which(ErlangModule),
+    {ok, Beam} = file:read_file(Erc),
     Interfaces = [Interface || Unit <- lists:reverse(Loaded),
                                {ok, Compiled} <- [file:read_file(code:which(Unit))],
                                {ok, #{interface := Interface}} <- [ern_interface:read(Compiled)]],
-    Examples = [{iolist_to_binary([Owner, " example ", integer_to_list(Number)]), Block}
-                || {Owner, Docs} <- documented(Namespace, Beam),
+    Examples = [{iolist_to_binary([Owner, " example ", integer_to_list(Number)]), Where, Block}
+                || {Owner, Where, Docs} <- documented(Namespace, Beam),
                    {Number, Block} <- lists:enumerate(lists:append([fences(Doc)
                                                                       || Doc <- Docs]))],
-    Compiled = [example(Name, Block, Index, Interfaces)
-                || {Index, {Name, Block}} <- lists:enumerate(Examples)],
+    Module = case lists:keymember(inside, 2, Examples) of
+                 true -> module_source(Namespace, Erc, Beam);
+                 false -> none
+             end,
+    Compiled = [example(Name, Block, example_module(Where, Index, Namespace, Interfaces, Module))
+                || {Index, {Name, Where, Block}} <- lists:enumerate(Examples)],
     {[Case || {Case, _} <- Compiled], [Unit || {_, Unit} <- Compiled, Unit =/= none]}.
 
 %% Report §11.2: an example's case run by Run in an empty directory of its
@@ -42,7 +57,11 @@ cases(Namespace, [ErlangModule | _] = Loaded) ->
 -spec in_directory(Case, fun((Case) -> Outcome)) -> Outcome
               when Case :: {'Case', binary(), fun(() -> term())}.
 in_directory({'Case', Name, _} = Case, Run) ->
-    Base = os:getenv("TMPDIR", "/tmp"),
+    %% an empty `TMPDIR` is none, as mktemp(1) takes it
+    Base = case os:getenv("TMPDIR", "") of
+               "" -> "/tmp";
+               Given -> Given
+           end,
     case file:get_cwd() of
         {ok, Working} ->
             case made_directory(Base) of
@@ -52,7 +71,7 @@ in_directory({'Case', Name, _} = Case, Run) ->
                         Run(Case)
                     after
                         ok = file:set_cwd(Working),
-                        removed(Name, Dir)
+                        remove(Name, Dir)
                     end;
                 {error, Error} ->
                     Run(failed(Name, ["its directory cannot be made under ", Base, ": ",
@@ -77,7 +96,7 @@ made_directory(Base) ->
         {error, _} = Error -> Error
     end.
 
-removed(Name, Dir) ->
+remove(Name, Dir) ->
     case file:del_dir_r(Dir) of
         ok ->
             ok;
@@ -88,29 +107,79 @@ removed(Name, Dir) ->
                            Dir, ", cannot be removed: ", file:format_error(Error), "\n"]))
     end.
 
-%% The units the examples' compiling loaded, deleted, out of the code table,
-%% and purged, as the shell takes out a module of its own (ern_shell).
+%% The units the examples' compiling loaded, the values their bindings
+%% stored gone (report §8.5), deleted, out of the code table, and purged, as
+%% the shell takes out a module of its own (ern_shell).
 -spec unload([module()]) -> ok.
 unload(Units) ->
     lists:foreach(fun(Unit) ->
+                      lists:foreach(fun persistent_term:erase/1, ern_code:binding_keys(Unit)),
                       code:delete(Unit),
                       ern_code:unloaded(Unit),
                       code:purge(Unit)
                   end, Units).
 
 %% Each declaration the module's documentation holds, as the program names
-%% it, with its doc blocks, the module's own first, in the order the module
-%% writes them (report §11.1, §11.4).
+%% it, with where its examples are compiled, outside the module or inside it
+%% for a declaration the module keeps private (report §11.2), and its doc
+%% blocks, the module's own first, in the order the module writes them
+%% (report §11.1, §11.4).
 documented(Namespace, Beam) ->
     Module = ern_namespace:text(Namespace),
     case ern_docs:read(Beam) of
         {ok, {docs_v1, _, _, _, ModuleDoc, _, Entries}} ->
-            [{Module, texts([ModuleDoc])}
-             | [{[Module, ".", atom_to_binary(Name)], texts([Doc]) ++ item_docs(Meta)}
+            [{Module, outside, texts([ModuleDoc])}
+             | [{[Module, ".", atom_to_binary(Name)], where(Meta), texts([Doc]) ++ item_docs(Meta)}
                 || {{_Kind, Name, _Arity}, _, _, Doc, Meta} <- Entries]];
         {error, _} ->
             []
     end.
+
+where(#{private := true}) -> inside;
+where(_) -> outside.
+
+%% Report §11.2: the source of the module, Namespace, that its `.erc`, Erc,
+%% was compiled from, as Beam records it, and whether it is the standard
+%% library's own; or why no source holds the module as it was compiled:
+%% gone, or changed since, which the `.erc`'s hash of it tells.
+module_source(Namespace, Erc, Beam) ->
+    {ok, #{source_path := SourcePath, source_hash := Hash}} = ern_interface:read(Beam),
+    %% the build root lies as many directories up as the namespace is deep
+    BuildRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, Erc, Namespace),
+    File = filename:join(BuildRoot, unicode:characters_to_list(SourcePath)),
+    Compiled = [ern_build:shown(Erc), " was compiled from ", ern_build:shown(File)],
+    case file:read_file(File) of
+        {ok, Source} ->
+            case crypto:hash(sha256, Source) of
+                Hash ->
+                    SourceRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, File,
+                                             Namespace),
+                    {source, Source, ern_build:is_stdlib_root(SourceRoot)};
+                _ ->
+                    {error, [Compiled, ", which has changed since"]}
+            end;
+        {error, _} ->
+            {error, [Compiled, ", which no longer exists"]}
+    end.
+
+%% Report §11.2: the module an example is compiled in. An exported
+%% declaration's, and the module's own, is a module of its own,
+%% `$Example3`, which uses the documented one; a private declaration's is
+%% the module, its source with the example after it, under its namespace
+%% and in a unit of its own, `ern@main$2`, so that the module's unit, which
+%% the tests ran, is as it was. Or why the example has no module to be
+%% compiled in, its source not as it was compiled.
+example_module(outside, Index, _Namespace, Interfaces, _Module) ->
+    #example_module{namespace = [list_to_atom("$Example" ++ integer_to_list(Index))],
+                    interfaces = Interfaces, build = #{source_hash => <<>>, deps => []}};
+example_module(inside, _Index, Namespace, Interfaces, {source, Source, Standard}) ->
+    Others = [Interface || #interface{namespace = Other} = Interface <- Interfaces,
+                           Other =/= Namespace],
+    #example_module{namespace = Namespace, before = <<Source/binary, "\n">>, interfaces = Others,
+                    build = #{source_hash => <<>>, deps => [], standard => Standard},
+                    unit = fresh};
+example_module(inside, _Index, _Namespace, _Interfaces, {error, _} = Error) ->
+    Error.
 
 texts(Docs) ->
     [Text || #{<<"en">> := Text} <- Docs].
@@ -131,21 +200,23 @@ fences(Doc) ->
         nomatch -> []
     end.
 
-%% One example as a case, and the unit its compiling loaded, or none. Report
-%% §11.2, Appendix E.0 shape rule 6: an example that does not compile fails
-%% with the diagnostic's message, the first of its errors; one that ends in
-%% `// => v` runs, and fails where `Io.show` of its value is not `v`; one
-%% without the line passes where it compiles. An example's function is
-%% checked as a lambda's body where it runs nothing, so that it may receive,
-%% and one that runs has the mailbox type Never, as an entry point's left
-%% open has (report §8.1).
-example(Name, Block, Index, Interfaces) ->
-    Namespace = [list_to_atom("$Example" ++ integer_to_list(Index))],
+%% One example as a case, and the unit its compiling loaded, or none,
+%% compiled in its module. Report §11.2, Appendix E.0 shape rule 6: an
+%% example that does not compile fails with the diagnostic's message, the
+%% first of its errors; one that ends in `// => v` runs, and fails where
+%% `Io.show` of its value is not `v`; one without the line passes where it
+%% compiles. An example's function is checked as a lambda's body where it
+%% runs nothing, so that it may receive, and one that runs has the mailbox
+%% type Never, as an entry point's left open has (report §8.1).
+example(Name, _Block, {error, Text}) ->
+    {failed(Name, Text), none};
+example(Name, Block, #example_module{namespace = Namespace, before = Before,
+                                     interfaces = Interfaces, build = Build, unit = Unit}) ->
     {Body, Value} = split_result(Block),
     {Declared, Expression} = declared(Body),
     Text = case Value of
-               none -> [Declared, "fn docExample() = fn() = {\n", Expression, "\n}\n"];
-               _ -> [Declared, "fn docExample() = {\n", Expression, "\n}\n\n"
+               none -> [Before, Declared, "fn docExample() = fn() = {\n", Expression, "\n}\n"];
+               _ -> [Before, Declared, "fn docExample() = {\n", Expression, "\n}\n\n"
                      "export fn docShown() : String receiving Never = Io.show(docExample())\n"]
            end,
     case {checked(Namespace, iolist_to_binary(Text), Interfaces), Value} of
@@ -154,16 +225,36 @@ example(Name, Block, Index, Interfaces) ->
         {{ok, _, _, _}, none} ->
             {{'Case', Name, fun() -> 'Passed' end}, none};
         {{ok, Typed, Interface, Env}, Expected} ->
-            {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
-            {module, Unit} = code:load_binary(Unit, "doc example", Beam),
-            {ok, Recorded} = ern_canonical:read(Beam),
-            ok = ern_code:loaded(Unit, Beam, Recorded),
-            %% report §11.1: the unit names its functions by their position
-            {Shown, 0} = ern_code:function(Unit, Namespace ++ [docShown]),
-            {{'Case', Name, fun() -> compared(Unit, Shown, Expected) end}, Unit}
+            case unit_built(Namespace, Unit, Build) of
+                {ok, Built} -> loaded(Name, Namespace, Typed, Interface, Env, Built, Expected);
+                {error, Refusal} -> {failed(Name, Refusal), none}
+            end
     end.
 
-%% Report §8.5: the example's own bindings, where it declares any, then its
+%% The build an example is compiled with: inside its module, the module's
+%% unit named as a version is, the first name with `$` and a number the
+%% host holds no code of (ern_code:fresh_unit/1), or the refusal of a name
+%% past the host's limit.
+unit_built(_Namespace, own, Build) ->
+    {ok, Build};
+unit_built(Namespace, fresh, Build) ->
+    case ern_code:fresh_unit(Namespace) of
+        {ok, Unit} -> {ok, Build#{units => #{Namespace => Unit}}};
+        {error, _} = Error -> Error
+    end.
+
+%% The example compiled and loaded, and its case, which runs it.
+loaded(Name, Namespace, Typed, Interface, Env, Build, Expected) ->
+    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
+    {module, Unit} = code:load_binary(Unit, "doc example", Beam),
+    {ok, Recorded} = ern_canonical:read(Beam),
+    ok = ern_code:loaded(Unit, Beam, Recorded),
+    %% report §11.1: the unit names its functions by their position
+    {Shown, 0} = ern_code:function(Unit, Namespace ++ [docShown]),
+    {{'Case', Name, fun() -> compared(Unit, Shown, Expected) end}, Unit}.
+
+%% Report §8.5: the example's own bindings, where it declares any, and
+%% inside its module the module's, evaluated again in its unit, then its
 %% value as `Io.show` writes it, against the one its last line promises.
 compared(Unit, Shown, Expected) ->
     case erlang:function_exported(Unit, '$init', 0) of

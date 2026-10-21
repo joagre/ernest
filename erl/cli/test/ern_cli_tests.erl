@@ -1818,6 +1818,71 @@ doc_example_directory_test() ->
     ?assertEqual(["build", "marker.txt", "src", "temporary"], lists:sort(Left)),
     ?assertEqual({ok, []}, file:list_dir(Temporary)).
 
+%% report §11.2: a private declaration's doc example is compiled inside its
+%% module, where it names the module's private function and type plain,
+%% and an exported declaration's in a module of its own, where a private
+%% name is unknown; inside, the module's source is the one its `.erc` was
+%% compiled from, and an example whose source has changed since, or is gone,
+%% fails saying so; the units it was compiled in go with the run. A
+%% regression test, written after the code: a private declaration's example
+%% failed with `unknown name`; it does not cover a module whose
+%% initializers act, which run again for such an example in its unit, nor a
+%% private member's or a field's example
+private_doc_example_test() ->
+    Dir = tmp(),
+    Source = "/// A number held.\n"
+             "///\n"
+             "/// ```ernest\n"
+             "/// Box(twice(3))\n"
+             "/// // => Box(6)\n"
+             "/// ```\n"
+             "type Box = Box(Int)\n"
+             "\n"
+             "/// Twice `n`.\n"
+             "///\n"
+             "/// ```ernest\n"
+             "/// twice(2)\n"
+             "/// // => 4\n"
+             "/// ```\n"
+             "fn twice(n : Int) : Int = n * 2\n"
+             "\n"
+             "/// Four times `n`.\n"
+             "///\n"
+             "/// ```ernest\n"
+             "/// Doubles.quadruple(1)\n"
+             "/// // => 4\n"
+             "/// ```\n"
+             "///\n"
+             "/// ```ernest\n"
+             "/// twice(1)\n"
+             "/// // => 2\n"
+             "/// ```\n"
+             "export fn quadruple(n : Int) : Int = twice(twice(n))\n"
+             "\n"
+             "let quadrupled = Test.Case(name = \"quadrupled\", run = fn() =\n"
+             "    Test.equal(quadruple(2), 8))\n",
+    write(Dir, "src/doubles.ern", Source),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/doubles.erc"])),
+    ?assertEqual(<<"quadrupled: passed\n"
+                   "Doubles.Box example 1: passed\n"
+                   "Doubles.twice example 1: passed\n"
+                   "Doubles.quadruple example 1: passed\n"
+                   "Doubles.quadruple example 2: failed: unknown name twice\n">>,
+                 iolist_to_binary(?capturedOutput)),
+    %% the units the private examples were compiled in go with the run
+    ?assertNot(erlang:module_loaded('ern@doubles$2')),
+    write(Dir, "src/doubles.ern", Source ++ "\n// changed\n"),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/doubles.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"/src/doubles.ern, which has changed since\n">>)),
+    ok = file:delete(Dir ++ "/src/doubles.ern"),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/doubles.erc"])),
+    Gone = iolist_to_binary(["Doubles.twice example 1: failed: ", Dir,
+                             "/build/doubles.erc was compiled from ", Dir,
+                             "/src/doubles.ern, which no longer exists\n"]),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Gone)).
+
 %% report Appendix E.24, §4.9: `Test.equal` passes where the actual value
 %% equals the expected one and otherwise fails naming both as `Io.show`
 %% writes them, the expected first, at a type the program declares and
