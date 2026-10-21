@@ -522,7 +522,7 @@ beam_functions(Beam) ->
 %% Appendix E.21, report §11.2, §11.1: a fault's trace writes a frame of a
 %% unit's function, which the unit names by its position, as a spawn site
 %% is written, by the name its sites give the definition and its line: a
-%% foreign function's by its name alone, where the host gives no line, a
+%% foreign function's by its name and its declaration's line, a
 %% member's by its type's and its own, a local function lifted to a
 %% function of its own and a lambda by the top-level declaration they are
 %% written in and the frame's line, as a spawn site there is named, and
@@ -547,10 +547,37 @@ trace_names_functions_test() ->
     {Result, _} = run(['Traced'], Text, #{}),
     {fault, _, Trace} = Result,
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
-                  <<"Traced.boom">>, <<"Traced.Vec.+:4">>, <<"Traced.Vec.+:5">>,
+                  <<"Traced.boom:1">>, <<"Traced.Vec.+:4">>, <<"Traced.Vec.+:5">>,
                   <<"Traced.helper:8">>, <<"List.map:", _/binary>>, <<"Traced.helper:8">>,
                   <<"Traced.main:11">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).
+
+%% report §7.3, Appendix E.21: a fault the emitter raises in place carries
+%% its line, so that the trace's first frame is the Ernest site with it: a
+%% Float operation's in a lambda of a top-level `let`, its frame named by
+%% the binding, and a foreign function's return declared `Unit` or a word
+%% that is no value of it, its frame the foreign function's at its
+%% declaration's line. A regression test, written after the code: each
+%% frame had no line, and the lambda's was the host's name; it does not
+%% cover a fault the runtime raises, whose frames are the runtime's
+raise_has_line_test() ->
+    Frames = fun(Trace) -> binary:split(Trace, <<"\n">>, [global, trim]) end,
+    {{fault, <<"float arithmetic error">>, FloatTrace}, _} =
+        run(['Floats'], "let divide = fn(x : Float) =\n"
+                        "    x / 0.0\n"
+                        "export fn main() : Unit = Io.println(Float.toString(divide(1.0)))\n",
+            #{}),
+    ?assertEqual([<<"Floats.divide:2">>, <<"Floats.main:3">>], Frames(FloatTrace)),
+    Called = "export fn main() : Unit = {\n"
+             "    let _ = wrong();\n"
+             "    Io.println(\"after\")\n"
+             "}\n",
+    {{fault, <<"foreign return does not match Unit">>, UnitTrace}, _} =
+        run(['Units'], "foreign fn wrong() : Unit = \"erlang:make_ref/0\"\n" ++ Called, #{}),
+    ?assertEqual([<<"Units.wrong:1">>, <<"Units.main:3">>], Frames(UnitTrace)),
+    {{fault, <<"foreign return does not match Int">>, WordTrace}, _} =
+        run(['Words'], "foreign fn wrong() : Int = \"erlang:make_ref/0\"\n" ++ Called, #{}),
+    ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], Frames(WordTrace)).
 
 %% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
 %% form the lines of its source, the locals' names left out, its name where
@@ -621,7 +648,7 @@ trace_twelve_frames_test() ->
     {{fault, _, Trace}, _} = run(['Deep'], Text, #{}),
     Frames = binary:split(Trace, <<"\n">>, [global, trim]),
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
-                  <<"Deep.parsed">> | _], Frames),
+                  <<"Deep.parsed:1">> | _], Frames),
     %% each call returns to another function than the last, so that the
     %% host keeps every frame, which it does not of a function's own
     %% recursion; `nested`'s last call is a tail call, which leaves no frame
@@ -652,7 +679,7 @@ one_form_two_definitions_test() ->
     {{fault, _, Trace}, Out} = run(['Twice'], lists:flatten(Text), #{}),
     Named = [Frame || <<"Twice.", _/binary>> = Frame
                           <- binary:split(Trace, <<"\n">>, [global, trim])],
-    ?assertEqual([<<"Twice.boom">>, <<"Twice.first:2">>, <<"Twice.main:14">>], Named),
+    ?assertEqual([<<"Twice.boom:1">>, <<"Twice.first:2">>, <<"Twice.main:14">>], Named),
     ?assertEqual(<<"Twice.watched:5\n">>, iolist_to_binary(Out)).
 
 %%

@@ -121,11 +121,13 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   log's *What the Feedback Left*, its *Decided* paragraph): the guide's glossary states the
   library's practice, and the toolchain's glossary refuses `Msg` for an Erlang variable alone.
 - **What the read-back of `Test.faults` and `ok` left**, decided 2026-10-21 (the log's *What the
-  Feedback Left*, its *Extended* paragraph): a fault `Test.faults` expects is reported by no job,
-  `ern run` and the shell as `ern test`; a function value's result declared `Unit` takes `ok` at
-  its top; and a fault the emitter raises in a float operation or an inline return check carries
-  its line in the trace, a defect found there. §11.2 and §8.4 first, then the reporter, the
-  boundary and the emitter.
+  Feedback Left*, its *Extended* paragraph), two of three done 2026-10-21 (its *Built* paragraph
+  from the read-back): no job reports a fault `Test.faults` expects (§11.2, E.24), and a fault the
+  emitter raises carries its line in the trace (§7.3, E.21). The third, a function value's result
+  declared `Unit` taking `ok` (§7.4, §8.4), waits on the item's decision: how the emitter tells
+  the boundary that a result is the prelude's `Unit`, whose descriptor a program's own `type Unit
+  = Unit` shares. Recommended: the emitter marks that result in the function's descriptor and
+  checks it in place in the wrapper it builds, as it checks a foreign function's return.
 - **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), decided 2026-10-21 (the log's *Nothing
   Waits for a Program*, its line of that day): E.2 gains it, Ernest alone, with its examples; the
   entry leaves the feedback file with the item.

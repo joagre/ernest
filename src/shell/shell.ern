@@ -659,19 +659,26 @@ fn screenDied(down : Down) : a =
     fault("the shell's screen ended: " <> faultLine(down))
 
 // Report §11.2: a process that faults is reported with its spawn site and
-// cause, and kept for `:faults`, unless it is one of the shell's own. The
-// line goes to the screen wrapped as the caller says: `Said` where the
-// session says it, `Noted` where a prompt is pending.
+// cause, as `ern run` reports it, and kept for `:faults`, unless it is one
+// of the shell's own or one `Test.faults` started. The line goes to the
+// screen wrapped as the caller says: `Said` where the session says it,
+// `Noted` where a prompt is pending.
 fn reported(state : State,
             screen : Address(ScreenMsg),
             report : Process.FaultReport,
             wrap : (String) -> ScreenMsg) : State =
-    if Set.contains(state.own, report.process) then
+    if Set.contains(state.own, report.process) || isExpected(report) then
         state
     else {
         send(screen, wrap(Shell.Style.fault(reportLine(report), state.color)));
         State(..state, faults = List.take(report :: state.faults, keptFaults))
     }
+
+// Report Appendix E.24: whether a fault is of a process `Test.faults`
+// started, whose site is that function's (§6.9), which no job reports,
+// since the call's answer carries it.
+fn isExpected(report : Process.FaultReport) : Bool =
+    String.startsWith(report.site, "Test.faults:")
 
 // A line the session says, ended.
 fn saidLine(line : String) : ScreenMsg =

@@ -685,6 +685,22 @@ fault_line_escaped() ->
     ?assertMatch({_, _}, binary:match(Output, <<"fault: c\\u{1B}d">>)),
     ?assertEqual(nomatch, binary:match(Output, <<27>>)).
 
+%% report §11.2, Appendix E.24: the shell reports as `ern run` does, so a
+%% fault `Test.faults` expects is no line and not among `:faults`; the
+%% input shows its result. A regression test, written after the code: the
+%% shell wrote the fault's line, its site `Test.faults`, before the result
+expected_fault_not_reported_test_() ->
+    {timeout, 60, fun expected_fault_not_reported/0}.
+
+expected_fault_not_reported() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Test.faults(fn() = 1 / 0, \"division by zero\")\n:faults\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Passed : Test.Result\n"
+                                                "> no process has faulted\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"faulted:">>)).
+
 %% report §11.2, Appendix E.17: the history's directory is its owner's
 %% alone, made so before the history is written, and one an earlier
 %% version left open to others is closed before the history is read, even

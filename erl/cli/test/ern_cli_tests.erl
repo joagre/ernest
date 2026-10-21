@@ -1538,6 +1538,20 @@ test_faults_test() ->
                  binary:split(unicode:characters_to_binary(Errors), <<"\n">>, [global])),
     ?assertEqual(nomatch, binary:match(unicode:characters_to_binary(Errors), <<"Test.faults">>)).
 
+%% report §11.2, Appendix E.24: no job reports a fault `Test.faults`
+%% expects: under `ern run` a `main` whose call of it passes prints
+%% `Passed` and writes nothing on standard error, as `ern test` writes
+%% nothing. A regression test, written after the code; the shell's is
+%% test/ern_shell_tests.erl's
+run_reports_no_expected_fault_test() ->
+    Dir = tmp(),
+    File = write(Dir, "expects.ern",
+                 "export fn main() : Unit =\n"
+                 "    Io.println(Io.show(Test.faults(fn() = 1 / 0, \"division by zero\")))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual({"", 0}, standard_error_of(["run", filename:join(Dir, "expects.erc")])),
+    ?assertEqual(<<"Passed\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.2, §11.8: given a directory, `ern test` runs the tests of every
 %% `.erc` under it in the order of their paths, a name that begins with a
 %% dot and a link to a directory passed over; each module's name stands on

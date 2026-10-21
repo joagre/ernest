@@ -442,21 +442,24 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
     {Variables, Context2} = named_variables(Prefixes, Context1),
     {Args, Members} = lists:split(length(ParamTypes),
                                   [erl_syntax:variable(Variable) || Variable <- Variables]),
-    {Body, Context3} = foreign_body({HostModule, HostFunction}, {ParamTypes, ResultType},
+    {Body, Context3} = foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType},
                                     Args, Members, Context2),
     Clause = at(Source, erl_syntax:clause(Args ++ Members, none, [Body])),
     Function = at(Source, erl_syntax:function(erl_syntax:atom(function_name(Position)), [Clause])),
     {with_comment(Function, ern_namespace:text(QualifiedName)), Context3}.
 
 %% Report §8.4: a foreign function's body, its arguments exposed to the
-%% host, the call, and its return checked.
-foreign_body({HostModule, HostFunction}, {ParamTypes, ResultType}, Args, Members, Context) ->
+%% host, the call, and its return checked. Report §7.3, Appendix E.21: the
+%% call and each fault the body raises are at the declaration's Source, so
+%% that a trace's frame of the function has its line.
+foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args, Members,
+             Context) ->
     {Exposed, Context1} = lists:mapfoldl(fun exposed/2, Context, lists:zip(ParamTypes, Args)),
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                                   Exposed ++ Members),
-    {Try, Context2} = foreign_call(Call, HostModule, HostFunction, length(Exposed ++ Members),
-                                   Context1),
-    foreign_return(Try, ParamTypes, ResultType, Context2).
+    {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction,
+                                   length(Exposed ++ Members), Context1),
+    foreign_return(Source, Try, ParamTypes, ResultType, Context2).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: a foreign call in progress can still deliver, so
@@ -467,7 +470,7 @@ foreign_body({HostModule, HostFunction}, {ParamTypes, ResultType}, Args, Members
 %% which runs as Ernest and is counted as Ernest is, so that a deadlock in
 %% it is found, and is not, since the count would cost a multiple of the
 %% call (Appendix E.0 rule 1).
-foreign_call(Call, HostModule, HostFunction, Arity,
+foreign_call(Source, Call, HostModule, HostFunction, Arity,
              #emit_context{unit = #unit{standard = Standard}} = Context) ->
     Counted = case not Standard orelse is_listed_waiting(HostModule, HostFunction, Arity) of
                   true -> call_remote(ern_rt, in_foreign,
@@ -483,7 +486,7 @@ foreign_call(Call, HostModule, HostFunction, Arity,
                                                             erl_syntax:variable(Error),
                                                             erl_syntax:variable(Trace))],
                                 none, [Raised]),
-    {erl_syntax:try_expr([Counted], [Handler]), Context1}.
+    {erl_syntax:try_expr([at(Source, Counted)], [Handler]), Context1}.
 
 %% Report §8.6: whether the runtime module lists the function among those
 %% that wait (`-waits`); a module the host cannot load lists none.
@@ -503,26 +506,27 @@ is_listed_waiting(HostModule, HostFunction, Arity) ->
 %% that no parameter names stands for no value the function could have
 %% been given, so it matches none, and the return faults where it holds
 %% one.
-foreign_return(Try, _ParamTypes, _ResultType,
+foreign_return(_, Try, _ParamTypes, _ResultType,
                #emit_context{unit = #unit{standard = true}} = Context) ->
     {Try, Context};
 %% Report §7.4, §8.4: a return declared the prelude's `Unit` is its one
 %% value or the host's `ok`, which the host's functions answer for nothing
 %% and which is `Unit`; the check is written in place, as a word's is. No
 %% other value takes `ok`, a `Unit` inside a return among them.
-foreign_return(Try, _ParamTypes, {applied, {named, ['Unit']}, []} = ResultType, Context) ->
+foreign_return(Source, Try, _ParamTypes, {applied, {named, ['Unit']}, []} = ResultType,
+               Context) ->
     Unit = erl_syntax:atom('Unit'),
-    Fault = raised(check_text("foreign return does not match ", ResultType, Context)),
+    Fault = at(Source, raised(check_text("foreign return does not match ", ResultType, Context))),
     {erl_syntax:case_expr(Try, [erl_syntax:clause([Unit], none, [Unit]),
                                 erl_syntax:clause([erl_syntax:atom(ok)], none, [Unit]),
                                 erl_syntax:clause([erl_syntax:underscore()], none, [Fault])]),
      Context};
-foreign_return(Try, ParamTypes, ResultType, Context) ->
+foreign_return(Source, Try, ParamTypes, ResultType, Context) ->
     ParamVariables = type_variables(ParamTypes),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
                            not lists:member(Variable, ParamVariables)],
-    check_form(as_never(Unnamed, ResultType), ResultType, Try, "foreign return does not match ",
-               Context).
+    check_form(Source, as_never(Unnamed, ResultType), ResultType, Try,
+               "foreign return does not match ", Context).
 
 %% A binding's key, under which its value is kept (report §8.5).
 key(#emit_context{erlang_module = ErlangModule}, Name) ->
@@ -829,8 +833,8 @@ expr_form({negate, Expr, Supply}, _, Context) ->
     %% member a requirement names
     {Form, Context1} = expr(Expr, Context),
     member_applied(Supply, [Form], Context1);
-expr_form({operator, Operator, Left, Right, Operation}, _, Context) ->
-    operator(Operator, Left, Right, Operation, Context);
+expr_form({operator, Operator, Left, Right, Operation}, Source, Context) ->
+    operator(Source, Operator, Left, Right, Operation, Context);
 expr_form({member, Supply}, _, Context) ->
     %% report §4.9: a member as a value
     {Form, Context1} = supply_form(Supply, Context),
@@ -866,24 +870,25 @@ expr_form({'receive', Written, After}, _, Context) ->
 %% member of a type a module declares, is that member applied; a prelude
 %% type's, and the runtime's own operation at its operand's type, is the
 %% host's operation.
-operator(Operator, Left, Right, {known, {named, [TypeName, _]}, []}, Context) ->
-    plain_operator(Operator, Left, Right, {tcon, [TypeName], []}, Context);
-operator(Operator, Left, Right, {runtime, Type}, Context) ->
-    plain_operator(Operator, Left, Right, checked_type(Type, Context), Context);
-operator(Operator, Left, Right, runtime, Context) ->
-    plain_operator(Operator, Left, Right, none, Context);
-operator(Operator, Left, Right, Supply, Context) ->
+operator(Source, Operator, Left, Right, {known, {named, [TypeName, _]}, []}, Context) ->
+    plain_operator(Source, Operator, Left, Right, {tcon, [TypeName], []}, Context);
+operator(Source, Operator, Left, Right, {runtime, Type}, Context) ->
+    plain_operator(Source, Operator, Left, Right, checked_type(Type, Context), Context);
+operator(Source, Operator, Left, Right, runtime, Context) ->
+    plain_operator(Source, Operator, Left, Right, none, Context);
+operator(_, Operator, Left, Right, Supply, Context) ->
     {Operands, Context1} = exprs([Left, Right], Context),
     {Applied, Context2} = member_applied(Supply, Operands, Context1),
     {ordered(Operator, Applied), Context2}.
 
-plain_operator(Operator, Left, Right, Type, Context) ->
+plain_operator(Source, Operator, Left, Right, Type, Context) ->
     {[LeftForm, RightForm], Context1} = exprs([Left, Right], Context),
     case Type of
         {tcon, ['Float'], []}
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/' ->
             {[LeftName, RightName], Context2} = fresh_variables(2, "Operand", Context1),
-            {float_operation(Operator, LeftForm, RightForm, LeftName, RightName), Context2};
+            {float_operation(Source, Operator, {LeftForm, RightForm}, {LeftName, RightName}),
+             Context2};
         _ ->
             {binop(Operator, Type, LeftForm, RightForm, Context), Context1}
     end.
@@ -1683,12 +1688,14 @@ binop(Operator, _, Left, Right, _) when Operator =:= '<'; Operator =:= '>'; Oper
 
 %% Report §3.1, §7.4: a Float operation inline, its operands bound first so
 %% that only its own badarith becomes the float fault; an Int division by
-%% zero inside an operand stays that fault.
-float_operation(Operator, Left, Right, LeftName, RightName) ->
+%% zero inside an operand stays that fault. Report §7.3, Appendix E.21: the
+%% fault is raised at the operation's Source, so that the trace's frame
+%% has its line.
+float_operation(Source, Operator, {Left, Right}, {LeftName, RightName}) ->
     Cause = erl_syntax:string("float arithmetic error"),
     Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
     Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
-    Handler = erl_syntax:clause([Badarith], none, [raised(Text)]),
+    Handler = erl_syntax:clause([Badarith], none, [at(Source, raised(Text))]),
     Plain = erl_syntax:infix_expr(erl_syntax:variable(LeftName), erl_syntax:operator(Operator),
                                   erl_syntax:variable(RightName)),
     %% report §3.1: under round to nearest a sum or a difference of operands
@@ -1858,11 +1865,12 @@ printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = 
 %%
 
 %% Form's value checked against Type and the fault's text naming Shown
-%% (report §7.4, §8.4). A word's check is written in place; a value that
-%% holds no function, address or Reply to arm and no float to make the
-%% language's is checked alone (ern_boundary:check/3); a type variable a
-%% parameter names matches any value, and is not checked.
-check_form(Type, Shown, Form, Prefix, Context) ->
+%% (report §7.4, §8.4). A word's check is written in place, its fault
+%% raised at Source (§7.3, Appendix E.21); a value that holds no function,
+%% address or Reply to arm and no float to make the language's is checked
+%% alone (ern_boundary:check/3); a type variable a parameter names matches
+%% any value, and is not checked.
+check_form(Source, Type, Shown, Form, Prefix, Context) ->
     Text = check_text(Prefix, Shown, Context),
     case descriptor(Type, Context) of
         Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
@@ -1877,7 +1885,7 @@ check_form(Type, Shown, Form, Prefix, Context) ->
                                                        erl_syntax:float(0.0));
                         _ -> VariableForm
                     end,
-            Fault = raised(Text),
+            Fault = at(Source, raised(Text)),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
                                                            [Fault])]), Context1};

@@ -1149,7 +1149,12 @@ no_main_file(run) ->
 %% none, by which a peer a reload has removed since is named as a node's
 %% line names one not listed, where the report's `peer` is `None`. Where
 %% standard error is neither a terminal nor a service manager's journal,
-%% each line begins with the time, in UTC as RFC 3339 writes it.
+%% each line begins with the time, in UTC as RFC 3339 writes it. Report
+%% §11.2, Appendix E.24: a fault of a process Test.faults started, whose
+%% site is that function's (§6.9), is not reported, since the call's answer
+%% carries it; `ern run` and `ern test` alike.
+report_fault({'FaultReport', _, <<"Test.faults:", _/binary>>, _, _, _, _}, _, _) ->
+    ok;
 report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace, _}, Peer, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
@@ -1400,12 +1405,8 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
     %% report §11.2: a test's own fault is its line, its trace beneath it,
-    %% which its row keeps until its end is here; and a fault of a process
-    %% Test.faults started, whose site is that declaration's (§6.9), is not
-    %% reported, since the test's answer carries it (Appendix E.24)
-    Reporter = fun({'FaultReport', _, <<"Test.faults:", _/binary>>, _, _, _, _}, _) ->
-                       ok;
-                  ({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
+    %% which its row keeps until its end is here
+    Reporter = fun({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
                        case ets:member(Running, Process) of
                            true -> ets:insert(Running, {Process, Trace});
                            false -> Report(FaultReport, Peer)

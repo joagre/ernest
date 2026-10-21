@@ -85,9 +85,9 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
 /// division by zero, got Killed`.
 ///
 /// `run` runs in a process of its own, monitored, whose end gives the answer
-/// (report §6.9); a process it spawns lives on after it. `ern test` reports no
-/// fault of a process `faults` started, since the test's answer carries it
-/// (report §11.2).
+/// (report §6.9); a process it spawns lives on after it. No job reports a fault
+/// of a process `faults` started, since the test's answer carries it (report
+/// §11.2).
 ///
 /// ### Examples
 ///
