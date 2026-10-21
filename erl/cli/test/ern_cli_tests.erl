@@ -1628,6 +1628,88 @@ test_runner_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
+%% report §11.2, Appendix E.0 shape rule 6: `ern test` runs the module's
+%% doc examples after its tests, each a case named by the declaration it
+%% documents and its number among that declaration's, the module's own by
+%% the module's name: one whose `// => v` holds passes, one whose value
+%% shows otherwise fails with `expected v, got w`, and one that does not
+%% compile fails with the diagnostic's message; the status is 1. A module
+%% whose examples all hold passes, status 0. A regression test, written
+%% after the code; it does not cover an example of a constructor or a
+%% field, which counts as its type's, nor a run on a node
+doc_examples_run_test() ->
+    Dir = tmp(),
+    Documented = fun(Shown) ->
+                     "/// Adds one.\n"
+                     "///\n"
+                     "/// ```ernest\n"
+                     "/// Adds.f(1)\n"
+                     "/// // => 2\n"
+                     "/// ```\n"
+                     "\n"
+                     "/// One more than `n`.\n"
+                     "///\n"
+                     "/// ```ernest\n"
+                     "/// Adds.f(3)\n"
+                     "/// // => " ++ Shown ++ "\n"
+                     "/// ```\n"
+                     "///\n"
+                     "/// ```ernest\n"
+                     "/// Adds.twice(3)\n"
+                     "/// ```\n"
+                     "export fn f(n : Int) : Int = n + 1\n"
+                 end,
+    write(Dir, "src/adds.ern",
+          Documented("3") ++
+          "\n"
+          "let one = Test.Case(name = \"one\", run = fn() = Test.equal(f(0), 1))\n"
+          "\n"
+          "let two = Test.Case(name = \"two\", run = fn() = Test.equal(f(1), 2))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/adds.erc"])),
+    ?assertEqual(<<"one: passed\n"
+                   "two: passed\n"
+                   "Adds example 1: passed\n"
+                   "Adds.f example 1: failed: expected 3, got 4\n"
+                   "Adds.f example 2: failed: unknown name Adds.twice\n">>,
+                 iolist_to_binary(?capturedOutput)),
+    write(Dir, "held/adds.ern",
+          [lists:flatten(string:replace(Documented("4"), "Adds.twice(3)", "Adds.f(3) + 1"))]),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/held_build", Dir ++ "/held"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/held_build/adds.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"Adds.f example 2: passed\n">>)).
+
+%% report §11.2: over a directory, each module's examples run after its
+%% tests under the module's name, a module with examples and no test among
+%% them, and a module with neither is passed over. A regression test,
+%% written after the code
+doc_examples_of_a_directory_test() ->
+    Dir = tmp(),
+    write(Dir, "src/a.ern",
+          "/// One.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// A.one()\n"
+          "/// // => 1\n"
+          "/// ```\n"
+          "export fn one() : Int = 1\n"
+          "\n"
+          "let ones = Test.Case(name = \"ones\", run = fn() = Test.equal(one(), 1))\n"),
+    write(Dir, "src/b.ern",
+          "/// Two.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// B.two()\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "export fn two() : Int = 2\n"),
+    write(Dir, "src/c.ern", "export fn three() : Int = 3\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build"])),
+    ?assertEqual(<<"A\nones: passed\nA.one example 1: passed\nB\nB.two example 1: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report Appendix E.24, §4.9: `Test.equal` passes where the actual value
 %% equals the expected one and otherwise fails naming both as `Io.show`
 %% writes them, the expected first, at a type the program declares and
@@ -3391,7 +3473,9 @@ verbose_run_test() ->
     end),
     Bool = filename:join(ern_prelude:stdlib_directory(), "bool.erc"),
     ?assertEqual({"", 0}, standard_error_of(["test", "--verbose", Bool])),
-    ?assertEqual(<<"/33\ncounted: passed\nChecked\ncounted: passed\nno tests\n">>,
+    %% the library's module has no tests, and its doc examples run
+    ?assertMatch(<<"/33\ncounted: passed\nChecked\ncounted: passed\nBool example 1: passed\n",
+                   _/binary>>,
                  iolist_to_binary(?capturedOutput)).
 
 %% report §11.2: --main picks another exported entry point of the module

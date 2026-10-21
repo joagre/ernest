@@ -31,6 +31,7 @@ The modules of `cli`:
 | `ern_shell` | the shell's front end (§11.2, *The shell*) |
 | `ern_code_load` | `Code.load` (E.28, *The code table*) |
 | `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |
+| `ern_examples` | a module's doc examples as the cases of `ern test` (§11.2) |
 | `ern_release` | the version text, `-dev` marking a build that is no release |
 | `ern_out` | a job's standard output and standard error (§11) |
 | `ern_signals` | the handler of termination and hangup (§8.6, §11.2) |
@@ -307,7 +308,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 - **`ern run`** (§11.2): `program/2` loads the `.erc` and its dependencies (`loaded_unit/3`, `no_cycle/2`) and calls `run_main`. `reporting_options/2` gives the run `report_fault/3` as its `faults`.
 - With `--config-dir` and no `.erc`, `ern run` starts a bare node (`as_node/4`, `run_bare/2`, §8.7).
 - **`ern shell`** loads a file and names its entry point (`shell_entry/2`); `ern_cli:shell/3` starts the shell (*The shell*).
-- **`ern test`** is `run_tests/5`, each test in a monitored process of its own, which `ern_rt:deadlock_victim/1` names to the reaper (§11.2).
+- **`ern test`** is `run_tests/6`, each test in a monitored process of its own, which `ern_rt:deadlock_victim/1` names to the reaper (§11.2), then each of the module's doc examples, which `ern_examples:cases/2` compiles in a module of its own before the run and `unload/1` takes out after it.
 - **`ern format`** is `ern_format:format/1`, printed by `ern_pretty` in 100 columns; `ern_format:markdown/1` lays out a CommonMark text's Ernest blocks (§11.6).
 - **`ern doc`** renders a page with `ern_page:page/1` from the two chunks (§11.4). `doc_dir/3` writes a directory's pages that are `outdated/2`; `--man` renders through `libs/markdown`'s `roff` in a started runtime (`in_runtime/2`). `ern(1)` is `tools/manual.ern`'s, which `make manual` runs over §11.
 - **`ern config`** writes Appendix C's file and an Ed25519 key pair (`ern_node:create/1`, §11.3).

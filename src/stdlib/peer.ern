@@ -134,7 +134,7 @@ export fn name(service : Service(m)) : String =
 ///
 /// ```ernest
 /// {
-///     let service : Peer.Service(Int) = Peer.service("squares");
+///     let service : Peer.Service(Int) = Peer.service("cubes");
 ///     let first = spawn(fn() : Unit receiving Int = receive {
 ///         _ -> Unit
 ///     });

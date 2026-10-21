@@ -936,7 +936,10 @@ test(Options, [Path], ErrorDevice) ->
         false ->
             {Namespace, LoadPath, Loaded} = program(Path, Options, Say),
             as_node(Options, LoadPath, Say,
-                    fun(Node) -> run_tests(Namespace, Loaded, none, ErrorDevice, Node) end)
+                    fun(Node) ->
+                        run_tests(Namespace, Loaded, ern_examples:cases(Namespace, Loaded), none,
+                                  ErrorDevice, Node)
+                    end)
     end;
 test(_Options, _Rest, _ErrorDevice) ->
     usage_fail("one .erc file or one directory is required").
@@ -951,12 +954,15 @@ tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
 tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
     {Namespace, _LoadPath, Loaded} = program(File, Options, Say),
-    case erlang:function_exported(ern_namespace:erlang_module(Namespace), '$tests', 0) of
+    %% report §11.2: a module's doc examples are cases as its tests are
+    {Examples, _} = Cases = ern_examples:cases(Namespace, Loaded),
+    case erlang:function_exported(ern_namespace:erlang_module(Namespace), '$tests', 0)
+         orelse Examples =/= [] of
         false ->
             tree_tests(Files, Options, Say, ErrorDevice, Node);
         true ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
-            case run_tests(Namespace, Loaded, Name, ErrorDevice, Node) of
+            case run_tests(Namespace, Loaded, Cases, Name, ErrorDevice, Node) of
                 Status when Status =:= 0; Status =:= 1 ->
                     [Status | tree_tests(Files, Options, Say, ErrorDevice, Node)];
                 Ended ->
@@ -1389,13 +1395,15 @@ say_limits() ->
 
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
-%% as it ends; status 1 unless every one passed.
-run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
+%% as it ends, then its doc examples, Examples, as ern_examples made them;
+%% status 1 unless every one passed. The units the examples' compiling
+%% loaded go once the run has ended.
+run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
     %% terms at each change of one
     Running = ets:new(running_test, [public]),
-    Entry = tests_entry(ern_namespace:erlang_module(Namespace), self(), Running),
+    Entry = tests_entry(ern_namespace:erlang_module(Namespace), Examples, self(), Running),
     Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
@@ -1414,6 +1422,7 @@ run_tests(Namespace, Loaded, Heading, ErrorDevice, Node) ->
                end,
     Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),
     ets:delete(Running),
+    ern_examples:unload(Units),
     case Outcome of
         ok ->
             receive
@@ -1434,18 +1443,18 @@ headed(Heading, Init) ->
         Init()
     end.
 
-%% The entry point of a module's tests, which runs them one at a time and
-%% tells Caller whether every one passed.
-tests_entry(ErlangModule, Caller, Running) ->
+%% The entry point of a module's tests, which runs them one at a time, then
+%% the module's doc examples, and tells Caller whether every one passed.
+tests_entry(ErlangModule, Examples, Caller, Running) ->
     fun() ->
         Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
                     true -> ErlangModule:'$tests'();
                     false -> []
                 end,
         Names = [Name || {'Case', Name, _} <- Tests],
-        %% report §11.2: a module without tests says so, and one two of
-        %% whose tests have one name is refused before any runs
-        case {Tests, Names -- lists:usort(Names)} of
+        %% report §11.2: a module without tests or examples says so, and
+        %% one two of whose tests have one name is refused before any runs
+        case {Tests ++ Examples, Names -- lists:usort(Names)} of
             {[], _} ->
                 ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
                 Caller ! {ern_tests, true};
@@ -1454,8 +1463,8 @@ tests_entry(ErlangModule, Caller, Running) ->
                             <<"ern test: two tests are named \"",
                               (ern_show:controls(Twice, line))/binary, "\"\n">>),
                 Caller ! {ern_tests, false};
-            {_, []} ->
-                Passed = [run_test(Test, Running) || Test <- Tests],
+            {Cases, []} ->
+                Passed = [run_test(Case, Running) || Case <- Cases],
                 Caller ! {ern_tests, not lists:member(false, Passed)}
         end
     end.

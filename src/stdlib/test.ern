@@ -7,7 +7,10 @@
 ///
 /// **What it prints.** `ern test` prints a line for each test as the test ends:
 /// `adds: passed`, `divides: failed: expected 4, got 3`, or `crashes: faulted:
-/// division by zero`. It exits with status 1 unless every test passed.
+/// division by zero`. After the tests it runs the module's doc examples, a line
+/// each named by the declaration the example documents: `Math.add example 1:
+/// passed`, or `Math.add example 2: failed: expected 4, got 3`. It exits with
+/// status 1 unless every test passed.
 ///
 /// **One test at a time.** The tests run in the order the module declares them,
 /// each in a process of its own, so a test may spawn, send and receive. A test

@@ -514,7 +514,9 @@ cookie_of(Answer) ->
 %% library's read and lay out what G.2 says, the Utilization library's
 %% measure as G.4 says, the JSON library's read and write what G.6 says,
 %% and the proxy's wait for its service as G.7 says, and no module of the
-%% placement library, which G.5 says is removed; no test's process faults. A
+%% placement library, which G.5 says is removed; every library's doc
+%% examples after its tests (report §11.2, Appendix E.0 shape rule 6); no
+%% test's process faults. A
 %% regression test too: the modules were run by one command joined with
 %% `&&`, which the host runs by `exec`, so only the first module's tests
 %% ran, and it has none
@@ -526,9 +528,10 @@ libs() ->
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
     ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<" faulted: ">>) =/= nomatch]),
-    %% a module with tests is named before them, and one without is passed
-    %% over (report §11.2)
-    ?assertEqual([<<"Json">>, <<"Markdown">>, <<"Proxy">>, <<"Utilization">>],
+    %% a module with tests or examples is named before them, and one with
+    %% neither is passed over (report §11.2)
+    ?assertEqual([<<"Ansi">>, <<"Ets">>, <<"Json">>, <<"Markdown">>, <<"Proxy">>,
+                  <<"Utilization">>],
                  Lines -- Passed),
     ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).

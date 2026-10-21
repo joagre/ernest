@@ -161,9 +161,30 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   is promised). A bare `foreign fn` at two and a half times the host's call, measured piece by piece
   in `make bench`'s fifth part as the monitor was (the log's *The Rows That Grew*), and brought back to the plain form
   that costs a fraction; what cannot be is stated in the log.
-- **Doc examples run by `ern test`** (feedback 127; principle 1). `ern test` runs a module's
-  `// =>` examples as cases, as Ernest's own test runs its libraries', so that a library's page is
-  held true by its own tests. §11.2 and §11.4 first.
+- **Doc examples run by `ern test`** (feedback 127; principle 1), done 2026-10-21 (the log's *What
+  the Feedback Left*, its *Built* paragraph on doc examples): `ern test` runs a module's doc examples
+  after its tests, each a case named by the declaration it documents, `List.take example 2`, one
+  that does not compile failing with the diagnostic's message and one whose value shows otherwise
+  with `expected v, got w` (§11.2, E.0 shape rule 6). `ern test build/stdlib` runs the library's
+  335 in 7 s.
+- **Where `ern test` runs a doc example** (found 2026-10-21 building the item above), a decision
+  for the user in this milestone: §11.2 does not say, and the examples run in the working directory
+  as the tests do, where the library's `Fs` examples leave eighteen files and fail on a second run.
+  Recommended: §11.2 runs each example in a directory of its own, made empty and removed after, as
+  `ern_doc_tests` runs the library's (principle 1: a run of the tests leaves the directory as it
+  found it); about an hour with its test.
+- **A private declaration's doc example** (found 2026-10-21 building the same item), a decision
+  for the user in this milestone: §11.2 compiles every example in a module of its own, where a
+  name the module keeps private is unknown, so the example of a private declaration fails under
+  `ern test`; `ern_doc_tests` checks such an example inside its module. Recommended: §11.2 compiles
+  a private declaration's example inside its module (principle 1: the example speaks to the
+  module's own reader); none of the library's examples is a private declaration's.
+- **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace), a
+  decision for the user in this milestone: §4.2 refuses an exported function of the module of a
+  type's name under a member's name, and a `let` is no function, so `main/stack.ern`'s `export let
+  compare` builds and `Main.Stack.compare` is the member, the `let` unreachable by that name
+  without a word. Recommended: §4.2 and §11.5 say an exported value, a `let` among them
+  (principle 1); a line of `ern_build:exported_functions/1` and its test.
 
 ## MVP 3.3 (the tour)
 
