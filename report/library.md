@@ -13,7 +13,7 @@ This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A
 
 ## Appendix D. A Foreign Library
 
-A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. A host answer that is not always of one Ernest type, `ets:info/2`'s count or `undefined`, is bound at `Foreign.Term` and read with E.12's conversions. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.12 says; the `ets` calls below do not use that convention.
+A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds a library's compiled root to the load path with `--load-path`, the toolchain's own standing there already (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. A host answer that is not always of one Ernest type, `ets:info/2`'s count or `undefined`, is bound at `Foreign.Term` and read with E.12's conversions. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.12 says; the `ets` calls below do not use that convention.
 
 ```ernest
 // ets.ern  (namespace Ets)
@@ -899,7 +899,7 @@ Code.running : (a) -> List(Address(m)) // a form (§3.11): f a top-level fn of a
 
 ## Appendix G. Libraries
 
-Informative. The libraries this project writes, each a directory under `src/libs/` and a source root of its own, which a program adds to its load path when it is compiled and when it is run (§11.1, §11.2). An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name: under `/usr/local`, where Ernest is installed by default, `ern build --load-path /usr/local/lib/ernest/build/libs/json main.ern` compiles a program with `libs/json`, and `ern run --load-path /usr/local/lib/ernest/build/libs/json main.erc` runs it. None is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere follows Appendix D and is not listed here.
+Informative. The libraries this project writes, each a directory under `src/libs/` and a source root of its own, whose build stands on the load path of every job (§11.1, §11.2), so that a program names none of them: `ern build main.ern` compiles a program with `libs/json`, and `ern run main.erc` runs it. An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name. None is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere follows Appendix D and is not listed here.
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 

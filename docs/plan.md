@@ -140,9 +140,7 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   (the log's *What the Feedback Left*, its *Built* paragraph on the libraries on the load path):
   the build of each library of the toolchain's own ends the load path of `ern build`, `ern doc`,
   `ern run`, `ern test`, `ern shell` and a bare node, after every `--load-path` and `--libs-dir`
-  (§11.1, §11.2), so that no program, and no line of the Makefile, names one. Appendix G's first
-  paragraph still says a program adds a library with `--load-path`, and waits on the report's
-  correction.
+  (§11.1, §11.2), so that no program, and no line of the Makefile, names one; Appendix G says so.
 - **`ok` as `Unit`**, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph
   on `ok` as `Unit`): a foreign function's return declared `Unit` that is the host's atom `ok` is
   `Unit`, one clause beside `'Unit'` in the check the emitter writes in place, and nothing else
