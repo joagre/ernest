@@ -2913,6 +2913,28 @@ load_path_cycle() ->
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"unknown name A.four">>, <<"unknown name B.eight">>, <<"> 2 : Int">>]].
 
+%% report §11.2, §8.4: `ern shell --libs-dir dir` adds the `ebin` of each
+%% application under `dir`, so that a `foreign fn` declared at the prompt
+%% finds its module there; a shell with no file, whose load path the
+%% options alone give, as a file's is given by ern_cli_tests' libs_dir
+libs_dir_in_the_shell_test_() ->
+    {timeout, 60, fun libs_dir_in_the_shell/0}.
+
+libs_dir_in_the_shell() ->
+    Dir = scratch("ern_libs_dir_"),
+    Erlang = filename:join(Dir, "ern_shell_libs_helper.erl"),
+    ok = file:write_file(Erlang, "-module(ern_shell_libs_helper).\n-export([twice/1]).\n"
+                                 "twice(N) -> 2 * N.\n"),
+    Ebin = filename:join([Dir, "lib", "helper-1.0", "ebin"]),
+    ok = filelib:ensure_path(Ebin),
+    {ok, _} = compile:file(Erlang, [{outdir, Ebin}]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "foreign fn twice(n : Int) : Int ="
+                                    " \"ern_shell_libs_helper:twice/1\"\ntwice(21)\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --libs-dir " ++ filename:join(Dir, "lib"))
+                             ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 42 : Int\n">>)).
+
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)

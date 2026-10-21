@@ -19,9 +19,9 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 `Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
-MVP 3.27, the measurements across machines, is done (2026-10-21). The road to 0.5.0 is MVP 3.28
-the formatter's clause rule, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, a libs flag, ehttpd, the website, the shell's second round and the back end
-follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
+MVP 3.27, the measurements across machines, is done (2026-10-21). The road to 0.5.0 is MVP 3.28,
+what stands before the tour, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
+the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
 ---
@@ -61,7 +61,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.26 | kill darlings: the reply's obligation and `!` gone, `receiving M` in place of `with M` on a function that receives alone, the value restriction relaxed for data, the held replies gone, and the guide's *A library that waits* | 2026-10-16 | | [`proposal.md`](proposals/kill_darlings/proposal.md); *Kill Darlings*, *§0 Read Again* |
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
-| MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05, `--verbose` from MVP 4.0, and the feedback's seven added the same day | | below |
+| MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test` | made 2026-10-20 from MVP 3.3's first item; before the tour, which is written in the layout it keeps; the libs flag moved in from MVP 4.05, `--verbose` from MVP 4.0, and the feedback's seven added the same day | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -87,24 +87,15 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   stand in MVP 4.1 already, and eleven set aside with a condition are dropped, each with its
   principle; the section is gone, and what pointed at it points at the entries.
 - **A clause's body all or none**, decided with the user on 2026-10-14 as the tour's first item
-  (the log's *Clause Bodies All or None*) and made a milestone of its own on 2026-10-20, since it
-  is the formatter's work and not the tour's, and comes before the tour so that the tour is written
-  in the layout it keeps. In a `match` or a `receive`, every clause's body stands beside its
-  pattern, or every one goes on the line below it, indented; a block's `{` stays after the arrow.
-  They stay beside where every one fits, and one that does not, a block or a body too long, sends
-  them all below.
-
-  §11.6 says so first, then `ern format` and its tests, then `make format` lays every source and
-  example out once.
-- **A libs flag**, decided with the user on 2026-10-20 (the log's *A Libs Flag Instead of the
-  Environment*), planned as MVP 4.05 and moved here the same day at the user's word. Erlang code
-  comes as applications, `lib/<app>/ebin`, and a program whose foreign functions call several names
-  each directory with a `--load-path` of its own today (§11.2). `--libs dir` on `ern run`,
-  `ern test` and `ern shell` puts each `dir/*/ebin` on the load path, as the host's `ERL_LIBS`
-  would, in the command and not in the environment, which `ern` keeps clearing (§11.2).
-
-  §11.2 gains the flag's sentence first, then `ern_cli`, then a test of a foreign function found
-  through it; `ern build` needs nothing, since the checker reads no `.beam`. Its first user is
+  (the log's *Clause Bodies All or None*), was built before the 0.4.0 tag on 2026-10-17 (the log's
+  *Before the Tag, the Last Builds*): §11.6 states it, `ern format` writes it, and every source
+  and example is in the layout, which `ern format --check` showed again on 2026-10-21, when the
+  item was found done. It was moved here on 2026-10-20 as if it waited.
+- **A libs flag**, done 2026-10-21 (the log's *A Libs Flag Instead of the Environment*):
+  `ern run`, `ern test` and `ern shell` take `--libs-dir dir`, which puts the `ebin` of each
+  application under `dir` on the load path at the option's place, as the host's `ERL_LIBS` would
+  but in the command, and refuses two directories of one application's name (§11.2, §11.7). The
+  spelling and three smaller decisions are the log entry's *Built* paragraph; its first user is
   ehttpd, MVP 4.1.
 - **`--verbose`**, decided with the user on 2026-10-13 (the log's *A Build Says What It Decided*) and
   placed first in MVP 4.0, moved here on 2026-10-20 at the user's word:

@@ -227,7 +227,8 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
 %% Report §11.7: an option that names a directory to read names one that is
 %% there; `ern config`'s `--config-dir` names the one it creates.
 named_directories(Job, Options) ->
-    lists:foreach(fun({Key, Directory}) when Key =:= load_path; Key =:= source_root;
+    lists:foreach(fun({Key, Directory}) when Key =:= load_path; Key =:= libs_dir;
+                                            Key =:= source_root;
                                             Key =:= config_dir andalso Job =/= "config" ->
                           filelib:is_dir(Directory)
                               orelse ern_build:fail(Directory ++ ": no such directory, which --"
@@ -237,6 +238,7 @@ named_directories(Job, Options) ->
                   end, Options).
 
 option_long(load_path) -> "load-path";
+option_long(libs_dir) -> "libs-dir";
 option_long(source_root) -> "source-root";
 option_long(config_dir) -> "config-dir".
 
@@ -352,6 +354,7 @@ option_synopsis({Key, _, Long, _, _}) ->
 metavariable(source_root) -> "src-root";
 metavariable(build_root) -> "build-root";
 metavariable(load_path) -> "dir";
+metavariable(libs_dir) -> "dir";
 metavariable(config_dir) -> "dir";
 metavariable(main) -> "Qualified.name".
 
@@ -821,18 +824,27 @@ config_dir_option(What) ->
 load_path_option() ->
     {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"}.
 
+%% Report §11.2: a directory of the host's applications, each one's `ebin`
+%% a directory of the load path.
+libs_dir_option() ->
+    {libs_dir, undefined, "libs-dir", string,
+     "a directory of the host's applications; each one's ebin joins the load path"}.
+
 main_option() ->
     {main, undefined, "main", string, "the entry point, a qualified exported function"}.
 
 run_options() ->
-    [config_dir_option("the run is a node"), load_path_option(), main_option(), help_option()].
+    [config_dir_option("the run is a node"), load_path_option(), libs_dir_option(), main_option(),
+     help_option()].
 
 test_options() ->
-    [config_dir_option("the tests run on a node"), load_path_option(), help_option()].
+    [config_dir_option("the tests run on a node"), load_path_option(), libs_dir_option(),
+     help_option()].
 
 shell_options() ->
     [config_dir_option("the shell is a node, and its startup is run"),
      load_path_option(),
+     libs_dir_option(),
      {source_root, undefined, "source-root", string,
       "where the shell finds a module's source; default the working directory"},
      main_option(), help_option()].
@@ -998,11 +1010,12 @@ shell(Options, Rest, ErrorDevice) ->
             [] ->
                 %% report §11.2: --main names a function of the file
                 not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(shell)),
-                host_path(ern_build:load_path(Options)),
-                ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
+                GivenLoadPath = ern_build:load_path(Options),
+                host_path(GivenLoadPath),
+                ern_shell:loaded(#loaded{load_path = GivenLoadPath,
                                          source_root = ern_build:source_root(Options, ".", "."),
                                          config_startup = config_startup(Options)}),
-                {init_fun([ErlangModule]), ern_build:load_path(Options)};
+                {init_fun([ErlangModule]), GivenLoadPath};
             [File] ->
                 {Namespace, FileLoadPath, Loaded} = program(File, Options),
                 Entry = shell_entry(Options, Namespace),

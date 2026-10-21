@@ -1406,6 +1406,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **address** — `Address(m)`, a reference to a process that receives values of type `m`. §3.7, §6.5.
 - **admission rule** — one of the four rules that decide whether a function enters the standard library. Appendix E.0.
 - **`after`** — the last clause of a `receive`, taken when no message arrives within its time. §6.3.
+- **application** — a directory of the host's code named `name` or `name-version`, holding `ebin`, which `--libs-dir` puts on the load path. §11.2.
 - **arity** — the number of arguments a function takes; part of its type. §3.4.
 - **`as`** — `p as x`, a pattern that binds `x` to the whole value `p` matches. §5.10.
 - **bare node** — a node started with no `.erc`, which holds no definition of a program's and runs what its peers spawn and compute on it. §8.7, §11.2.
@@ -1473,7 +1474,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
 - **live region** — the shell's rows below what it has written, where the line being typed stands. §11.2.
-- **load path** — the roots a program's modules are found under by their namespaces, the standard library's among them. §11.1, §11.2.
+- **load path** — the roots a program's modules are found under by their namespaces, the standard library's among them, and the directories a `foreign fn`'s `.beam` is found in, an application's `ebin` among them. §11.1, §11.2.
 - **loss** — the end of a connection, which gives each monitor on the peer's processes its `Down` with `Unreachable`, ends each call and each wait on the peer that began before the node ran it, faults a `callForever` on one of its processes, and drops what waited to be sent. §8.7.
 - **mailbox** — the queue of values a process receives. §6.
 - **mailbox type** — the `M` in `(A) -> B receiving M`; the type of the process's mailbox. §6.1.

@@ -903,6 +903,132 @@ foreign_beam_on_load_path_test() ->
     ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/beams", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §11.2, §8.4: `--libs-dir dir` adds the `ebin` directory of each
+%% application under `dir`, one named `name-version` and one `name`, so
+%% that a `foreign fn` finds its module there, under `ern run` and under
+%% `ern test`; a directory with no `ebin` and a file beside them add
+%% nothing. Each job is given a directory of its own, since the jobs here
+%% share one host's code path. The shell's is ern_shell_tests'
+%% libs_dir_in_the_shell. Written after the code, so a regression test.
+%% Not covered: a node's `--libs-dir`, a bare node's among them, which
+%% takes the load path a program's run takes
+libs_dir_test() ->
+    Dir = tmp(),
+    Libs = Dir ++ "/lib",
+    compiled_erlang(Libs ++ "/helper-1.0/ebin", "ern_cli_libs_helper", "twice/1",
+                    "twice(N) -> 2 * N."),
+    compiled_erlang(Libs ++ "/other/ebin", "ern_cli_libs_other", "three/0", "three() -> 3."),
+    ok = filelib:ensure_path(Libs ++ "/notes"),
+    write(Libs, "README", "no application\n"),
+    write(Dir, "src/main.ern",
+          "foreign fn twice(n : Int) : Int = \"ern_cli_libs_helper:twice/1\"\n"
+          "foreign fn three() : Int = \"ern_cli_libs_other:three/0\"\n"
+          "export fn main() : Unit = Io.println(Int.toString(twice(three() * 7)))\n"),
+    Tested = Dir ++ "/tested",
+    compiled_erlang(Tested ++ "/checks-0.2.1/ebin", "ern_cli_libs_checks", "four/0",
+                    "four() -> 4."),
+    write(Dir, "src/checked.ern",
+          "foreign fn four() : Int = \"ern_cli_libs_checks:four/0\"\n\n"
+          "let found : Test.Case(Never) =\n"
+          "    Test.Case(name = \"found\", run = fn() = Test.equal(four(), 4))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err(["run", "--libs-dir", Libs, Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_err(["test", "--libs-dir", Tested, Dir ++ "/build/checked.erc"])),
+    ?assertEqual(<<"42\nfound: passed\n">>, iolist_to_binary(?capturedOutput)),
+    ?assertEqual([Libs ++ "/helper-1.0/ebin", Libs ++ "/other/ebin"],
+                 ern_build:load_path([{libs_dir, Libs}])).
+
+%% report §11.2: two directories of one application's name under a
+%% `--libs-dir` are refused, naming them, and nothing runs: `foo-1.0`
+%% beside `foo-1.1`, and `foo` beside `foo-1.0`, a directory without a
+%% version being of the name it has; `foo-bar` beside `foo` is two
+%% applications, since `bar` is no version. Where the report is silent,
+%% three of one name are named all, their count in figures, and an
+%% application's name that is not UTF-8 is refused as a module's is.
+%% Written after the code, so a regression test
+libs_dir_one_of_each_name_test() ->
+    Dir = tmp(),
+    Main = write(Dir, "main.ern", "export fn main() : Unit = Io.println(\"ran\")\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, Main])),
+    Run = fun(Applications) ->
+                  Libs = tmp(),
+                  [ok = filelib:ensure_path(filename:join([Libs, Application, "ebin"]))
+                   || Application <- Applications],
+                  {ern_err(["run", "--libs-dir", Libs, Dir ++ "/main.erc"]), Libs}
+          end,
+    {1, Versions} = Run(["foo-1.1", "foo-1.0"]),
+    {1, Bare} = Run(["foo-1.0", "foo"]),
+    {1, Three} = Run(["foo-2", "foo", "foo-1.0.3"]),
+    {1, Undecoded} = Run([<<"f", 16#FF, "o">>]),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, list_to_binary(
+                                                Versions ++ " holds more than one directory of the"
+                                                " application foo, foo-1.0 and foo-1.1, which"
+                                                " --libs-dir names\n"))),
+    ?assertMatch({_, _}, binary:match(Output, list_to_binary(
+                                                Bare ++ " holds more than one directory of the"
+                                                " application foo, foo and foo-1.0, which"
+                                                " --libs-dir names\n"))),
+    ?assertMatch({_, _}, binary:match(Output, list_to_binary(
+                                                Three ++ " holds more than one directory of the"
+                                                " application foo, foo, foo-1.0.3 and foo-2,"
+                                                " which --libs-dir names\n"))),
+    ?assertMatch({_, _}, binary:match(Output, list_to_binary(
+                                                "a name that is not UTF-8: " ++ Undecoded
+                                                ++ "/f\\xFFo\n"))),
+    ?assertEqual(nomatch, binary:match(Output, <<"ran\n">>)),
+    ?assertMatch({0, _}, Run(["foo", "foo-bar"])),
+    ?assertEqual(1, length(binary:matches(iolist_to_binary(?capturedOutput), <<"ran\n">>))).
+
+%% report §11.2: the directories `--load-path` and `--libs-dir` add stand in
+%% the load path in the order the options are given, so that of two
+%% modules of the host's of one name, the first option's is called.
+%% Written after the code, so a regression test
+libs_dir_in_order_test() ->
+    Dir = tmp(),
+    [begin
+         compiled_erlang(Dir ++ "/" ++ Module ++ "/beams", Module, "which/0", "which() -> 1."),
+         compiled_erlang(Dir ++ "/" ++ Module ++ "/lib/" ++ Module ++ "/ebin", Module, "which/0",
+                         "which() -> 2."),
+         write(Dir, "src/" ++ Module ++ ".ern",
+               ["foreign fn which() : Int = \"", Module, ":which/0\"\n"
+                "export fn main() : Unit = Io.println(Int.toString(which()))\n"])
+     end || Module <- ["ern_cli_first", "ern_cli_second"]],
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/ern_cli_first/beams",
+                                 "--libs-dir", Dir ++ "/ern_cli_first/lib",
+                                 Dir ++ "/build/ern_cli_first.erc"])),
+    ?assertEqual(0, ern_cli:ern(["run", "--libs-dir", Dir ++ "/ern_cli_second/lib",
+                                 "--load-path", Dir ++ "/ern_cli_second/beams",
+                                 Dir ++ "/build/ern_cli_second.erc"])),
+    ?assertEqual(<<"1\n2\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.7: `--libs-dir` names a directory that is there, is given
+%% once, and is an option of `ern run`, `ern test` and `ern shell` alone.
+%% Written after the code, so a regression test
+libs_dir_refused_test() ->
+    Dir = tmp(),
+    Missing = filename:join(Dir, "nowhere"),
+    Refused = [{["run", "--libs-dir", Missing, "x.erc"],
+                list_to_binary("ern run: " ++ Missing ++ ": no such directory, which --libs-dir"
+                               " names")},
+               {["test", "--libs-dir", Dir, "--libs-dir", Dir, "x.erc"],
+                <<"ern test: --libs-dir is given more than once">>},
+               {["build", "--libs-dir", Dir, "src"], <<"ern build: invalid option: --libs-dir">>},
+               {["doc", "--libs-dir", Dir, "src"], <<"ern doc: invalid option: --libs-dir">>}],
+    lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
+    Output = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Output, Text)) || {_, Text} <- Refused].
+
+%% A module of the host's, its one function exported and given as its
+%% text, compiled into the directory Ebin.
+compiled_erlang(Ebin, Module, Export, Function) ->
+    Source = write(tmp(), Module ++ ".erl",
+                   ["-module(", Module, ").\n-export([", Export, "]).\n", Function, "\n"]),
+    ok = filelib:ensure_path(Ebin),
+    {ok, _} = compile:file(Source, [{outdir, Ebin}]),
+    ok.
+
 %% report §11.1: without the root that holds a module's dependency, the
 %% dependency is an unknown name
 load_path_needed_test() ->

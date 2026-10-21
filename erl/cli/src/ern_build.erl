@@ -993,9 +993,73 @@ gone(#{source_path := Recorded}, Dir, SourceRoot) ->
 gone(_, _, _) ->
     false.
 
+%% Report §11.2: the directories the options add to the load path, in the
+%% order the options are given: a `--load-path`'s, and the `ebin` of each
+%% application under a `--libs-dir`.
 -spec load_path([term()]) -> [file:filename()].
 load_path(Options) ->
-    [absolute(Dir) || {load_path, Dir} <- Options].
+    lists:append([added(Option) || Option <- Options]).
+
+added({load_path, Dir}) -> [absolute(Dir)];
+added({libs_dir, Dir}) -> application_ebins(Dir);
+added(_) -> [].
+
+%% Report §11.2: each directory under Dir that holds `ebin` is an
+%% application's, its `ebin` taken in the order of the directories' names;
+%% two of one application's name are refused, where the host would take
+%% the highest version (code_server's choose/3) and say nothing.
+application_ebins(Dir) ->
+    Names = case file:list_dir_all(Dir) of
+                {ok, Found} -> lists:sort(Found);
+                {error, Error} -> refused(Dir, Error)
+            end,
+    Applications = [Name || Name <- Names, filelib:is_dir(filename:join([Dir, Name, "ebin"]))],
+    %% report §11: a name the host could not decode is refused, as a
+    %% module's is (files_under/2)
+    case [Name || Name <- Applications, is_binary(Name)] of
+        [] -> ok;
+        [Undecoded | _] ->
+            fail("a name that is not UTF-8: " ++ bytes_text(filename:join(Dir, Undecoded)))
+    end,
+    one_of_each_name(Dir, Applications),
+    [absolute(filename:join([Dir, Application, "ebin"])) || Application <- Applications].
+
+%% Report §11.2: two directories of one application's name are refused,
+%% naming every directory of that name, in the order of their names.
+one_of_each_name(Dir, Applications) ->
+    Add = fun(Application, Acc) ->
+                  maps:update_with(application_name(Application),
+                                   fun(Directories) -> [Application | Directories] end,
+                                   [Application], Acc)
+          end,
+    ByName = lists:foldl(Add, #{}, Applications),
+    case lists:sort([{Name, lists:sort(Directories)}
+                     || Name := Directories <- ByName, length(Directories) > 1]) of
+        [] ->
+            ok;
+        [{Name, Directories} | _] ->
+            fail([Dir, " holds more than one directory of the application ", Name, ", ",
+                  lists:join(", ", lists:droplast(Directories)), " and ", lists:last(Directories),
+                  ", which --libs-dir names"])
+    end.
+
+%% Report §11.2: an application's name, from its directory's, `name` or
+%% `name-version`, the version digits separated by dots, as the host
+%% splits it (code_server's split_base/1 and is_vsn/1): a last part after
+%% `-` that is no version is the name's.
+application_name(Directory) ->
+    case string:split(Directory, "-", trailing) of
+        [Name, Version] when Name =/= [] ->
+            case lists:all(fun is_number_text/1, string:split(Version, ".", all)) of
+                true -> Name;
+                false -> Directory
+            end;
+        _ ->
+            Directory
+    end.
+
+is_number_text(Text) ->
+    Text =/= [] andalso lists:all(fun(Char) -> Char >= $0 andalso Char =< $9 end, Text).
 
 %% Report §11.1: whether a .erc is current, and its interface where it is:
 %% current when the source and its path from the build root, and the build
