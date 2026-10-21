@@ -87,17 +87,17 @@ literal_bytes_test() ->
 %% form, of the encoding or of the version changes it
 literal_hashes_test() ->
     Expected = [{"fn f() : Int = 42",
-                 "06e0d532756daad7696dbb85d1c8ddd6196c6b2550eee12b7973ff5b262fa83a"},
+                 "851c3e77260bf2740cbee3e4d615828391cbbffaf7a28cf3fafeb24333cfec3e"},
                 {"fn f() : Float = 1.5",
-                 "e20e0999cfb8f5a3f9c66dfbdf68edd5f6575ede60bf4ef1e3bc62ac0199492f"},
+                 "f091284184b0d0a2c73ba32ee097d2006bf287bf8d6f2f79450e21c189e32f86"},
                 {"fn f() : String = \"hé\"",
-                 "1a77341274ca2323e41d3a14a4945760e4244c679ac12b6f32586774027a2a9a"},
+                 "ecfd9b87a98ecfaf0bd48f5ada8c1c4d65db7ae69f492f94293b6ed11b21719c"},
                 {"fn f() : Char = 'é'",
-                 "2de727da1e107b1dee9366569e8450a18a851f81da914f8532b61d7635f9cce4"}],
+                 "7ab1663440f02df24e298ce4dfe05347a4402317cd0950f347e4b64647be47f9"}],
     [?assertEqual({Text, list_to_binary(Hex)},
                   {Text, binary:encode_hex(hash(Text, f), lowercase)})
      || {Text, Hex} <- Expected],
-    ?assertEqual(1, ern_canonical:form_version()).
+    ?assertEqual(2, ern_canonical:form_version()).
 
 %% report Appendix H, §8.7: a type's definition, and a service's message type,
 %% hash to the values written here, computed once from the appendix's
@@ -107,25 +107,25 @@ literal_hashes_test() ->
 %% (findings H5, H10): no type's hash was written out
 type_hashes_test() ->
     Shape = "type Shape = Circle(Float) | Rect(w : Float, h : Float)",
-    ?assertEqual(<<"683bc999e1be42c8308afa0b722ccdaeca7d23f85a521d888d01f8a9c6c4c6d3">>,
+    ?assertEqual(<<"b43e479076a61ba66a01d525c92941d11468e15c841f8715154e92cd5a4c5f63">>,
                  binary:encode_hex(hash(Shape, 'Shape'), lowercase)),
     {#{services := Services}, _} =
         canonical("let k : Peer.Service(Optional(Int)) = Peer.service(\"k\")\n"),
-    ?assertEqual(<<"702bfc8dea0b30e66c3d10f36b7fa83cfa5ca2717e73bb6323b028370d875d1f">>,
+    ?assertEqual(<<"d6cc9e070ab24bb25999e42d060789cd2c5ee06c87be63ea13b8f727b7f5ce70">>,
                  binary:encode_hex(maps:get({tcon, ['Optional'], [{tcon, ['Int'], []}]}, Services),
                                    lowercase)).
 
 %% report Appendix H: the form of a function, as the appendix writes it:
-%% its scheme, its parameters, its annotations, its requirement and its
+%% its scheme, its parameters, each its pattern, its requirement and its
 %% body, a local by its number and an operator the runtime applies holding
 %% its operand's type
 function_form_test() ->
     Int = applied('Int'),
     Expected = {function, {scheme, [], {arrow, [Int], none, Int}, []},
-                [{param, {local, 1}, Int}], Int, none, [],
+                [{local, 1}], [],
                 {operator, '+', {var, {local, 1}, []}, {literal, int, 1}, {runtime, Int}}},
     ?assertEqual(Expected, form("fn inc(x : Int) : Int = x + 1", inc)),
-    ?assertEqual(sha({ernest_form, 1, Expected}), hash("fn inc(x : Int) : Int = x + 1", inc)).
+    ?assertEqual(sha({ernest_form, 2, Expected}), hash("fn inc(x : Int) : Int = x + 1", inc)).
 
 %% report Appendix H: a type's form, its qualified name, its arity, whether
 %% it derives compare, the compare its module declares, none here, and its
@@ -139,7 +139,7 @@ type_form_test() ->
                     {'Rect', {named, [{w, Float}, {h, Float}]}}],
     Expected = {type, ['T', 'Shape'], 0, false, none, Constructors},
     ?assertEqual(Expected, form(Text, 'Shape')),
-    ?assertEqual(sha({ernest_form, 1, Expected}), hash(Text, 'Shape')),
+    ?assertEqual(sha({ernest_form, 2, Expected}), hash(Text, 'Shape')),
     Derived = Text ++ " derives compare",
     ?assertEqual({type, ['T', 'Shape'], 0, true, {in_group, 2}, Constructors},
                  form(Derived, 'Shape')),
@@ -198,7 +198,7 @@ group_form_test() ->
            "fn odd(n : Int) : Bool = if n == 0 then false else even(n - 1)\n",
     Member = fun(Answer, Other) ->
                  {function, {scheme, [], {arrow, [Int], none, Bool}, []},
-                  [{param, {local, 1}, Int}], Bool, none, [],
+                  [{local, 1}], [],
                   {'if', {operator, '==', {var, {local, 1}, []}, {literal, int, 0}, runtime},
                    {literal, bool, Answer},
                    {call, {var, {in_group, Other}, []},
@@ -206,14 +206,14 @@ group_form_test() ->
              end,
     Even = Member(true, 2),
     Odd = Member(false, 1),
-    GroupHash = sha({ernest_form, 1, {group, [Even, Odd]}}),
+    GroupHash = sha({ernest_form, 2, {group, [Even, Odd]}}),
     #definition{hash = EvenHash, form = EvenForm, group = EvenGroup} = definition(Text, even),
     #definition{hash = OddHash, form = OddForm, group = OddGroup} = definition(Text, odd),
     ?assertEqual({Even, Odd}, {EvenForm, OddForm}),
     ?assertEqual({GroupHash, 1}, EvenGroup),
     ?assertEqual({GroupHash, 2}, OddGroup),
-    ?assertEqual(sha({ernest_member, 1, GroupHash, 1}), EvenHash),
-    ?assertEqual(sha({ernest_member, 1, GroupHash, 2}), OddHash),
+    ?assertEqual(sha({ernest_member, 2, GroupHash, 1}), EvenHash),
+    ?assertEqual(sha({ernest_member, 2, GroupHash, 2}), OddHash),
     %% a function that names itself alone is no group: itself is position 1
     #definition{form = Count, group = none} =
         definition("fn count(n : Int) : Int = if n == 0 then 0 else count(n - 1)", count),
@@ -233,11 +233,62 @@ same_definition_same_hash_test() ->
     ?assertEqual(hash(Text, pick), hash(Again, pick)),
     ?assertEqual(form(Text, pick), form(Again, pick)).
 
+%% report Appendix H, §3.9: an annotation is no part of a form, since a
+%% function's scheme and a binding's hold their types and a lambda, a `let`
+%% and a `<-` the types the checker gave them: two sources that differ only
+%% in an annotation that gives nothing the typed tree lacks are one
+%% definition, a function's, a binding's, a local function's, a lambda's,
+%% a `let`'s and a `<-`'s; and an annotation that gives a value another
+%% type than it has without it gives another definition. Written with the
+%% change (the plan's MVP 3.27, the release review's KP30): the form held
+%% each annotation as written, so `fn f(x : Int) : Int` and `fn f(x) : Int`
+%% were two hashes
+annotation_left_out_test() ->
+    Same = fun(Name, Annotated, Bare) ->
+               ?assertEqual({Annotated, hash(Annotated, Name)}, {Annotated, hash(Bare, Name)})
+           end,
+    Same(f, "fn f(x : Int) : Int = x + 1", "fn f(x) : Int = x + 1"),
+    Same(f, "fn f(x : Int) : Int = x + 1", "fn f(x) = x + 1"),
+    Same(n, "let n : Int = 5", "let n = 5"),
+    Same(g, "fn g(n : Int) : Int = { fn twice(x : Int) : Int = x * 2; twice(n) }",
+         "fn g(n : Int) : Int = { fn twice(x : Int) = x * 2; twice(n) }"),
+    Same(g, "fn g(xs : List(Int)) : List(Int) = List.map(xs, fn(x : Int) : Int = x + 1)",
+         "fn g(xs : List(Int)) : List(Int) = List.map(xs, fn(x) = x + 1)"),
+    Same(g, "fn g(x : Int) : Int = { let y : Int = x + 1; y * 2 }",
+         "fn g(x : Int) : Int = { let y = x + 1; y * 2 }"),
+    Same(g, "fn g(o : Optional(Int)) : Optional(Int) = { let v : Int <- o; Some(v + 1) }",
+         "fn g(o : Optional(Int)) : Optional(Int) = { let v <- o; Some(v + 1) }"),
+    Empty = fun(Element) ->
+                "fn e() : Int = { let xs : List(" ++ Element ++ ") = []; List.size(xs) }"
+            end,
+    ?assert(holds({bind, {applied, {named, ['List']}, [applied('Int')]}, {list, []}, {local, 1}},
+                  form(Empty("Int"), e))),
+    ?assertNotEqual(hash(Empty("Int"), e), hash(Empty("String"), e)).
+
+%% report Appendix H, §6.1: a lambda's form holds the type the checker gave
+%% it, its mailbox type among it, so that a spawned lambda whose mailbox
+%% type its annotation alone fixes, its body receiving nothing, keeps that
+%% type: two that differ in it alone are two definitions, as the addresses
+%% they answer are of two types. Written with the change (the plan's MVP
+%% 3.27, KP30)
+lambda_mailbox_type_test() ->
+    Spawned = fun(Mailbox) ->
+                  "fn s() : Unit = {\n"
+                  "    let _ = spawn(fn() : Unit receiving " ++ Mailbox ++ " = Unit);\n"
+                  "    Unit\n"
+                  "}\n"
+              end,
+    Unit = applied('Unit'),
+    ?assert(holds({lambda, [], {arrow, [], applied('Int'), Unit},
+                   {construct, {constructor, {named, ['Unit']}, 1}, none}},
+                  form(Spawned("Int"), s))),
+    ?assertNotEqual(hash(Spawned("Int"), s), hash(Spawned("String"), s)).
+
 %% report §8.7, Appendix H, §3.9: two bodies that differ only in local
 %% names, annotation variables' names, layout or comments are one
 %% definition; a local function's and a lambda's own annotation variable is
-%% numbered by the type variable it resolves to, so renaming it changes
-%% nothing, whether a sibling names its own alike or not. The local
+%% no part of the form, whose types are the checker's, so renaming it
+%% changes nothing, whether a sibling names its own alike or not. The local
 %% functions' and the lambdas' renamings are a regression test, written
 %% after the fix: annotation variables were numbered by name across the
 %% definition
@@ -431,7 +482,7 @@ binding_identity_test() ->
     #definition{qualified_name = ['T', a], kind = binding, hash = Hash} = definition(Text, a),
     #definition{qualified_name = ['T', b], kind = binding, hash = Hash} = definition(Text, b),
     ?assertEqual({var, {binding, ['T', a], Hash}, []},
-                 element(7, form(Text, useA))),
+                 element(5, form(Text, useA))),
     ?assertNotEqual(hash(Text, useA), hash(Text, useB)).
 
 %% report §8.7, Appendix H: a lambda's or a local function's identity is its
@@ -445,8 +496,7 @@ lambda_identity_test() ->
     #definition{hash = Hash, form = Form} = definition(Text, both),
     Functions = ern_canonical:lambdas(Hash, Form),
     ?assertEqual([{Hash, 1}, {Hash, 2}, {Hash, 3}], [Identity || {Identity, _} <- Functions]),
-    [{_, {function, _, _, _, _, _, _}}, {_, {lambda, _, _, _, Inner}}, {_, {lambda, _, _, _, _}}] =
-        Functions,
+    [{_, {function, _, _, _, _}}, {_, {lambda, _, _, Inner}}, {_, {lambda, _, _, _}}] = Functions,
     %% xs is 1, twice 2 as the block begins, twice's x 3 and the lambda's x 4
     ?assertEqual({operator, '+', {var, {local, 4}, []}, {literal, int, 1},
                   {runtime, applied('Int')}},
@@ -503,15 +553,14 @@ foreign_test() ->
     ?assertEqual(foreign, maps:get(['T', 'Handle'], Interface#interface.identities)),
     ?assertEqual(hash(Text, later), maps:get(['T', later], Interface#interface.identities)).
 
-%% report Appendix H: a type of the module is referenced by its hash, and a
-%% type variable an annotation writes by its number, that of the type
-%% variable of the scheme it resolves to
+%% report Appendix H: a type of the module is referenced by its hash, and
+%% the type variable its signature writes by its number in the scheme
 type_reference_test() ->
     Text = "type Box(a) = Box(a)\nfn open(b : Box(a)) : a = match b { Box(x) -> x }\n",
     BoxHash = hash(Text, 'Box'),
     Box = {applied, {hash, BoxHash}, [{variable, 1}]},
     {function, {scheme, [{1, _}], {arrow, [Box], none, {variable, 1}}, []},
-     [{param, {local, 1}, Box}], {variable, 1}, none, [],
+     [{local, 1}], [],
      {match, {var, {local, 1}, []},
       [{clause, {construct, {constructor, {hash, BoxHash}, 1}, {positional, {local, 2}}}, none,
         {var, {local, 2}, []}}]}} = form(Text, open).
@@ -551,12 +600,12 @@ local_requirement_test() ->
            "}\n",
     {block, [{function, {scheme, [], {arrow, [{variable, 1}, {variable, 1}], none, _},
                          [{1, compare}]},
-              _, _, _, _, _} | _]} = element(7, form(Text, sorted)).
+              _, _, _} | _]} = element(5, form(Text, sorted)).
 
 %% report Appendix H, §8.7: a service's message type stands in the form of
 %% the definition that makes the service as `{service, Type}`, so that a
 %% change to the type changes that definition's hash; the type's hash,
-%% which the service carries, is that of `{ernest_type, 1, Type}`, a declared type of the
+%% which the service carries, is that of `{ernest_type, 2, Type}`, a declared type of the
 %% program by its hash and a built-in one by its name. A regression test,
 %% written after the code (MVP 3.1's item 4)
 service_type_hash_test() ->
@@ -570,9 +619,9 @@ service_type_hash_test() ->
     MsgHash = hash(First, 'Msg'),
     Msg = {applied, {hash, MsgHash}, []},
     ?assert(holds({var, {named, ['Peer', service]}, [{service, Msg}]}, form(First, one))),
-    ?assertEqual(sha({ernest_type, 1, Msg}), maps:get({tcon, ['T', 'Msg'], []}, Services)),
+    ?assertEqual(sha({ernest_type, 2, Msg}), maps:get({tcon, ['T', 'Msg'], []}, Services)),
     Optional = {applied, {named, ['Optional']}, [Msg]},
-    ?assertEqual(sha({ernest_type, 1, Optional}),
+    ?assertEqual(sha({ernest_type, 2, Optional}),
                  maps:get({tcon, ['Optional'], [{tcon, ['T', 'Msg'], []}]}, Services)),
     Second = Text("Add(Int) | Sub(Int)"),
     ?assertNotEqual(hash(First, one), hash(Second, one)),
@@ -633,7 +682,7 @@ compressed_chunk_test() ->
     {ok, Bytes} = file:read_file(filename:join(ern_prelude:stdlib_directory(), "list.erc")),
     {ok, {_, [{_, Chunk}]}} = beam_lib:chunks(Bytes, [binary_to_list(ern_canonical:chunk_name())]),
     ?assertMatch(<<131, 80, _/binary>>, Chunk),
-    {1, #recorded{definitions = Written} = Recorded} = binary_to_term(Chunk),
+    {2, #recorded{definitions = Written} = Recorded} = binary_to_term(Chunk),
     ?assertEqual({ok, Recorded}, ern_canonical:read(Bytes)),
     ?assert(length(Written) > 10).
 

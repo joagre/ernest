@@ -430,7 +430,7 @@ bound_hash(Beam) ->
 %% of it is in the code table
 unlinked_reach_test() ->
     Form = {function, {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
-            none, none, [], {var, {hash, <<77:256>>}, []}},
+            [], {var, {hash, <<77:256>>}, []}},
     Hash = crypto:hash(sha256, ern_canonical:bytes(ern_canonical:hashed([Form]))),
     Work = {function, Hash},
     Self = self(),

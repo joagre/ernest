@@ -43,7 +43,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
--define(FORM_VERSION, 1).
+-define(FORM_VERSION, 2).
 -define(CHUNK, <<"ErnC">>).
 
 %% The operators the runtime applies itself at their operand's type, which
@@ -81,8 +81,9 @@
 %% pattern; bound, the locals that pattern has bound; segments, the locals
 %% a bitstring pattern's earlier segments bound; locals, the numbers taken;
 %% variables, each type variable, {tvar, Id} or {name, Name}, to its
-%% number; names, each variable the annotation being walked writes, by its
-%% name, to the type variable the checker gave its place (matched/3);
+%% number; names, each variable an annotation in scope writes, by its name,
+%% to the type variable the checker gave its place (matched/3), by which a
+%% `needs` clause names it;
 %% references, the other modules' definitions referenced by hash;
 %% functions, the span of each lambda and local function met, reversed, in
 %% the order the walk meets them, which is their positions' (lambdas/2);
@@ -247,9 +248,8 @@ opened(#fn_declaration{} = Declaration, Walk) ->
 opened(#let_declaration{scheme = #scheme{type = Type} = Scheme, annotation = Annotation,
                         body = Body} = Declaration, Walk) ->
     {SchemeForm, Walk1} = scheme(Scheme, matched(Annotation, Type, Walk)),
-    {AnnotationForm, Walk2} = annotation(Annotation, Walk1),
-    {BodyForm, Walk3} = expr(Body, Walk2),
-    {at(Declaration, {binding, SchemeForm, AnnotationForm, BodyForm}, none), Walk3};
+    {BodyForm, Walk2} = expr(Body, Walk1),
+    {at(Declaration, {binding, SchemeForm, BodyForm}, none), Walk2};
 opened(#abstract_declaration{declaration = Declaration}, Walk) ->
     opened(Declaration, Walk);
 opened(#type_declaration{name = Name, derives = Derives},
@@ -440,14 +440,14 @@ open_references(_) ->
 lambdas(Hash, Form) ->
     [{{Hash, Position}, Function} || {Position, Function} <- lists:enumerate(functions(Form))].
 
-functions({function, Scheme, Params, Result, Effect, Needs, Body}) ->
-    within([Scheme, Params, Result, Effect, Needs, Body]);
+functions({function, Scheme, Params, Needs, Body}) ->
+    within([Scheme, Params, Needs, Body]);
 functions(Form) ->
     within(Form).
 
-within({function, _, Params, _, _, _, _} = Function) when is_list(Params) ->
+within({function, _, Params, _, _} = Function) when is_list(Params) ->
     [Function | within(tuple_to_list(Function))];
-within({lambda, Params, _, _, _} = Lambda) when is_list(Params) ->
+within({lambda, Params, _, _} = Lambda) when is_list(Params) ->
     [Lambda | within(tuple_to_list(Lambda))];
 within(Term) when is_tuple(Term) ->
     within(tuple_to_list(Term));
@@ -661,8 +661,10 @@ decoded(Bytes, Count) ->
 %% Functions and schemes
 %%
 
-%% Report Appendix H: a function, top-level or local, its scheme first; its
-%% signature's variables numbered by the type variables of its scheme.
+%% Report Appendix H: a function, top-level or local, its scheme first,
+%% which holds the types its signature writes, and no annotation; its
+%% signature's variables taken to the type variables of its scheme, by
+%% which its `needs` clause names them.
 function(#fn_declaration{scheme = #scheme{type = Type} = Scheme, params = Params,
                          result_type = Result, effect = Effect, requirement = Needs,
                          body = Body},
@@ -670,12 +672,10 @@ function(#fn_declaration{scheme = #scheme{type = Type} = Scheme, params = Params
     Signature = signature(Params, Result, Effect),
     {SchemeForm, Walk1} = scheme(Scheme, matched(Signature, Type, Walk)),
     {ParamForms, Walk2} = lists:mapfoldl(fun param/2, Walk1, Params),
-    {ResultForm, Walk3} = annotation(Result, Walk2),
-    {EffectForm, Walk4} = annotation(Effect, Walk3),
-    {NeedsForms, Walk5} = lists:mapfoldl(fun needs/2, Walk4, Needs),
-    {BodyForm, Walk6} = expr(Body, Walk5),
-    {{function, SchemeForm, ParamForms, ResultForm, EffectForm, NeedsForms, BodyForm},
-     Walk6#walk{scope = Scope, names = Names}}.
+    {NeedsForms, Walk3} = lists:mapfoldl(fun needs/2, Walk2, Needs),
+    {BodyForm, Walk4} = expr(Body, Walk3),
+    {{function, SchemeForm, ParamForms, NeedsForms, BodyForm},
+     Walk4#walk{scope = Scope, names = Names}}.
 
 %% The annotations of a function's or a lambda's parameters, result and
 %% effect, as the function type they write.
@@ -683,10 +683,9 @@ signature(Params, Result, Effect) ->
     #t_fn{params = [Annotation || #param{annotation = Annotation} <- Params],
           result_type = Result, effect = Effect}.
 
-param(#param{pattern = Pattern, annotation = Annotation}, Walk) ->
-    {PatternForm, Walk1} = pattern(Pattern, Walk),
-    {AnnotationForm, Walk2} = annotation(Annotation, Walk1),
-    {{param, PatternForm, AnnotationForm}, Walk2}.
+%% Report Appendix H: a parameter is its pattern.
+param(#param{pattern = Pattern}, Walk) ->
+    pattern(Pattern, Walk).
 
 %% A member of the `needs` clause as written (§4.9), its type variable the
 %% signature's of its name.
@@ -768,38 +767,9 @@ written({tfn, Params, Effect, Result}, Walk) ->
 written(none, Walk) ->
     {none, Walk}.
 
-%% Report Appendix H: an annotation as written, its names resolved, a type
-%% variable it writes numbered by the type variable the checker resolved it
-%% to (matched/3), so that two local functions or lambdas that each name
-%% their own variable are numbered as their schemes are, whatever the
-%% names (§3.9).
-annotation(undefined, Walk) ->
-    {none, Walk};
-annotation(Annotation, Walk) ->
-    annotated(Annotation, Walk).
-
-annotated(#t_var{name = Name}, Walk) ->
-    {Number, Walk1} = annotation_variable(Name, Walk),
-    {{variable, Number}, Walk1};
-annotated(#t_named{namespace = Namespace, name = Name, args = Args}, #walk{env = Env} = Walk) ->
-    {Reference, Walk1} =
-        type_reference(ern_typecheck:type_qualified_name(Namespace, Name, Env), Walk),
-    {ArgForms, Walk2} = lists:mapfoldl(fun annotated/2, Walk1, Args),
-    {{applied, Reference, ArgForms}, Walk2};
-annotated(#t_tuple{elements = Elements}, Walk) ->
-    {ElementForms, Walk1} = lists:mapfoldl(fun annotated/2, Walk, Elements),
-    {{tuple, ElementForms}, Walk1};
-annotated(#t_fn{params = Params, result_type = Result, effect = Effect}, Walk) ->
-    {ParamForms, Walk1} = lists:mapfoldl(fun annotated/2, Walk, Params),
-    {EffectForm, Walk2} = case Effect of
-                              undefined -> {none, Walk1};
-                              _ -> annotated(Effect, Walk1)
-                          end,
-    {ResultForm, Walk3} = annotated(Result, Walk2),
-    {{arrow, ParamForms, EffectForm, ResultForm}, Walk3}.
-
-%% Report §3.9: an annotation variable's number, that of the type variable
-%% the checker gave its place, and by its name where it gave none.
+%% Report §3.9, §4.9: the number of a variable a `needs` clause names, that
+%% of the type variable the checker gave the place an annotation writes it
+%% at, and by its name where it gave none.
 annotation_variable(Name, #walk{names = Names} = Walk) ->
     variable(maps:get(Name, Names, {name, Name}), Walk).
 
@@ -1021,15 +991,15 @@ expr_form(#e_member{supply = Supply}, Walk) ->
 expr_form(#e_lambda{span = Span, params = Params, result_type = Result, effect = Effect,
                body = Body, type = Type},
      #walk{scope = Scope, names = Names, functions = Functions} = Walk) ->
-    %% report §8.7: its position, in the order the walk meets it
+    %% report §8.7: its position, in the order the walk meets it; report
+    %% Appendix H: the type the checker gave it in place of its annotations,
+    %% whose variables a `needs` clause in its body may name
     Walk1 = matched(signature(Params, Result, Effect), Type,
                     Walk#walk{functions = [Span | Functions]}),
     {ParamForms, Walk2} = lists:mapfoldl(fun param/2, Walk1, Params),
-    {ResultForm, Walk3} = annotation(Result, Walk2),
-    {EffectForm, Walk4} = annotation(Effect, Walk3),
-    {BodyForm, Walk5} = expr(Body, Walk4),
-    {{lambda, ParamForms, ResultForm, EffectForm, BodyForm},
-     Walk5#walk{scope = Scope, names = Names}};
+    {TypeForm, Walk3} = type(Type, Walk2),
+    {BodyForm, Walk4} = expr(Body, Walk3),
+    {{lambda, ParamForms, TypeForm, BodyForm}, Walk4#walk{scope = Scope, names = Names}};
 expr_form(#e_if{condition = Condition, then_branch = Then, else_branch = Else}, Walk) ->
     {[ConditionForm, ThenForm, ElseForm], Walk1} =
         lists:mapfoldl(fun expr/2, Walk, [Condition, Then, Else]),
@@ -1076,24 +1046,22 @@ statement(#fn_declaration{span = Span, name = Name} = Declaration,
     %% report §8.7: its position, in the order the walk meets it
     {Form, Walk1} = function(Declaration, Walk#walk{functions = [Span | Functions]}),
     {at(Declaration, Form, Name), Walk1};
-statement(#binding{pattern = Pattern, annotation = Annotation, operator = '=',
-                   expr = Expr} = Binding,
-          #walk{names = Names} = Walk) ->
-    {AnnotationForm, Walk1} =
-        annotation(Annotation, matched(Annotation, ern_typecheck:node_type(Expr), Walk)),
-    {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
+statement(#binding{pattern = Pattern, operator = '=', expr = Expr} = Binding, Walk) ->
+    %% report Appendix H: the type the checker gave the value, in place of
+    %% its annotation
+    {TypeForm, Walk1} = type(ern_typecheck:node_type(Expr), Walk),
+    {ExprForm, Walk2} = expr(Expr, Walk1),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
-    {at(Binding, {bind, AnnotationForm, ExprForm, PatternForm}, none), Walk3};
-statement(#binding{pattern = Pattern, annotation = Annotation, operator = '<-',
-                   expr = Expr} = Binding,
-          #walk{env = Env, names = Names} = Walk) ->
-    %% report §5.5: the sum a `<-` unwraps, the annotation the type of what
-    %% it unwraps to, its last argument
+    {at(Binding, {bind, TypeForm, ExprForm, PatternForm}, none), Walk3};
+statement(#binding{pattern = Pattern, operator = '<-', expr = Expr} = Binding,
+          #walk{env = Env} = Walk) ->
+    %% report §5.5, Appendix H: the sum a `<-` unwraps, and the type of what
+    %% it unwraps to, its last argument, in place of its annotation
     {tcon, [Sum], Args} = ern_typecheck:resolve_type(ern_typecheck:node_type(Expr), Env),
-    {AnnotationForm, Walk1} = annotation(Annotation, matched(Annotation, lists:last(Args), Walk)),
-    {ExprForm, Walk2} = expr(Expr, Walk1#walk{names = Names}),
+    {TypeForm, Walk1} = type(lists:last(Args), Walk),
+    {ExprForm, Walk2} = expr(Expr, Walk1),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
-    {at(Binding, {unwrap, {named, [Sum]}, AnnotationForm, ExprForm, PatternForm}, none), Walk3};
+    {at(Binding, {unwrap, {named, [Sum]}, TypeForm, ExprForm, PatternForm}, none), Walk3};
 statement(Expr, Walk) ->
     expr(Expr, Walk).
 

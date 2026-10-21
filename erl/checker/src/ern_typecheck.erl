@@ -21,7 +21,7 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, with_interfaces/2, lookup_type/2, type_qualified_name/3, identity/2,
+         prelude_env/0, with_interfaces/2, lookup_type/2, identity/2,
          position/2, reach/2, global_scheme/2, is_provided/2, described_type/2, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, is_foreign/2,
          declaration_scheme/2, declared_fields/3, session_member/3, lookup_constructor/4,
@@ -725,14 +725,6 @@ unknown_type(Span, QualifiedName, #env{private_types = PrivateTypes}) ->
 
 -spec lookup_type([atom()], env()) -> #type_info{} | undefined.
 lookup_type(QualifiedName, #env{types = Types}) -> maps:get(QualifiedName, Types, undefined).
-
-%% Report §4.2, Appendix H: the qualified name of the type an annotation
-%% writes as Namespace and Name, which the check has resolved once already
-%% and so resolves.
--spec type_qualified_name([atom()], atom(), env()) -> [atom()].
-type_qualified_name(Namespace, Name, Env) ->
-    {QualifiedName, _} = lookup_type_name({1, 1, {1, 1}}, Namespace, Name, Env),
-    QualifiedName.
 
 %% Report §11.1, Appendix H: the hash of another module's definition, which
 %% its interface holds, `foreign` for its foreign declaration, or undefined

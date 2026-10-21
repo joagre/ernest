@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 20 October 2026.
+Revision of 21 October 2026.
 
 This file holds the report's §11 and Appendices C and H. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -358,23 +358,23 @@ A definition's canonical form (§8.7, §11.1) is a term of the host's, and its h
 
 Two definitions whose forms are one term are one definition: within their module a reference to either is to the first declared, whose spawn sites (§6.9) its processes carry and whose name a fault's trace shows. A form crosses in a code frame (§8.7), the definition's name and the lines of its source beside it, and the node it arrives at hashes it so and compiles it from the form; the form's version is part of the floor, so two nodes that connect hash alike.
 
-**The version.** The form's version is 1. It moves with the release in which anything that runs before hashing changed: this appendix, the checker, and the elaboration the form records, the supplies of §4.9 among it; it is part of the floor (§8.7), so it moves with a minor release at the earliest.
+**The version.** The form's version is 2. It moves with the release in which anything that runs before hashing changed: this appendix, the checker, and the elaboration the form records, the supplies of §4.9 among it; it is part of the floor (§8.7), so it moves with a minor release at the earliest.
 
-**What is hashed.** A definition is a function, a top-level binding or a type of a module; a `foreign fn` and a `foreign type` are no definitions and have no hash. A module's definitions fall into the strongly connected components of the graph whose edges are their references to one another by hash (**References**). A definition in a component of its own is hashed as `{ernest_form, 1, Form}`. A component of two or more definitions, a mutually recursive group, is hashed as `{ernest_form, 1, {group, Forms}}`, its members' forms in source order; the hash of the member at position `p`, counted from 1, is the SHA-256 of `{ernest_member, 1, GroupHash, p}`, written as above.
+**What is hashed.** A definition is a function, a top-level binding or a type of a module; a `foreign fn` and a `foreign type` are no definitions and have no hash. A module's definitions fall into the strongly connected components of the graph whose edges are their references to one another by hash (**References**). A definition in a component of its own is hashed as `{ernest_form, 2, Form}`. A component of two or more definitions, a mutually recursive group, is hashed as `{ernest_form, 2, {group, Forms}}`, its members' forms in source order; the hash of the member at position `p`, counted from 1, is the SHA-256 of `{ernest_member, 2, GroupHash, p}`, written as above.
 
 A lambda's or a local function's identity is the pair `{Hash, Position}` of its enclosing definition's hash and its position among the definition's lambdas and local functions, counted from 1 in the order the walk meets them.
 
-**A type's hash.** A type written whole, the message type a service carries (§8.7), is hashed as `{ernest_type, 1, Type}`, written as above, `Type` as **Types** writes it: a declared type of a program by its hash, and a built-in type or one of the standard library by its name. So `Counter.Msg`'s hash is built from its declaration's, and `Optional(Counter.Msg)`'s from that and `Optional`'s name.
+**A type's hash.** A type written whole, the message type a service carries (§8.7), is hashed as `{ernest_type, 2, Type}`, written as above, `Type` as **Types** writes it: a declared type of a program by its hash, and a built-in type or one of the standard library by its name. So `Counter.Msg`'s hash is built from its declaration's, and `Optional(Counter.Msg)`'s from that and `Optional`'s name.
 
 **Definitions.**
 
 ```
-{function, Scheme, Params, Annotation, Annotation, Needs, Expr}
-{binding, Scheme, Annotation, Expr}
+{function, Scheme, Params, Needs, Expr}
+{binding, Scheme, Expr}
 {type, QualifiedName, Arity, Derives, Compare, Constructors}
 ```
 
-A function, top-level or local, holds its scheme, its parameters, the annotations of its result type and of its mailbox type, its requirement as written, and its body. A binding holds its scheme, its annotation and its initializer. A function's own name and a binding's are not in their forms.
+A function, top-level or local, holds its scheme, its parameters, its requirement as written, and its body. A binding holds its scheme and its initializer. A function's own name and a binding's are not in their forms.
 
 A type holds its qualified name (**References**), the number of its parameters, `true` where it derives `compare` and `false` otherwise, the reference of the `compare` its module declares for it, written or derived, `none` where it has none, and its constructors in declared order, each `{Name, none}`, `{Name, {positional, Type}}` or `{Name, {named, [{Field, Type}]}}`, its fields in declared order; its parameters are the variables 1 to its arity, in order. An abstract type's hash covers its constructors as any type's does. A type's hash covers its `compare` (§3.10) and no other member. A type and a `compare` its module declares in Ernest reference each other, and so are one group (**What is hashed**); a foreign `compare` is referenced by its name and scheme (**References**).
 
@@ -382,7 +382,7 @@ A derived `compare` (§3.5) is hashed as a written one, the function the checker
 
 Whether a declaration is exported, and whether a type is abstract, is not in its form; the view a `show` has of an abstract type is in the form of the function that shows it (above).
 
-A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` (§4.9). A parameter is `{param, Pattern, Annotation}`. An `Annotation` is `none` where nothing is written, and otherwise the type written, its names resolved. `Needs` lists the `needs` clause's members as written, each `{needs, Type, Member}`.
+A `Scheme` is `{scheme, Quantified, Type, Requirement}`: `Quantified` lists each quantified variable as `{Number, Restrictions}`, its restrictions a sorted list of `equality` and `process_only` (§3.9); `Requirement` lists `{Number, Member}` (§4.9). A parameter is its pattern. `Needs` lists the `needs` clause's members as written, each `{needs, Type, Member}`.
 
 **References.**
 
@@ -412,7 +412,7 @@ A type applied to its arguments names its constructor's reference, `{applied, {n
 
 **The walk.** The walk visits a term's parts in the order the term lists them, depth first. Locals are numbered from 1 in each definition in the order the walk binds them, as parameters, in patterns and as local functions. A block binds its local functions' names, in the order they are declared, as the walk enters it, and then walks its statements. A use of a local is the number of the binding in scope. A pattern's alternatives bind the numbers its first alternative gave. A size in a bitstring pattern names the locals in scope where the pattern begins and those its bitstring's earlier segments bind.
 
-Type variables are numbered from 1 in each definition in the order the walk first meets them, one the checker made by itself and one an annotation writes by its name. The walk begins at the definition's scheme, which lists its quantified variables in the order they first stand in its type. A foreign function's scheme, in a reference, is numbered by itself.
+Type variables are numbered from 1 in each definition in the order the walk first meets them. A variable a `needs` clause names is the type variable the checker gave the place where the signature writes that name. The walk begins at the definition's scheme, which lists its quantified variables in the order they first stand in its type. A foreign function's scheme, in a reference, is numbered by itself.
 
 **Expressions.**
 
@@ -433,7 +433,7 @@ Type variables are numbered from 1 in each definition in the order the walk firs
 {negate, Expr, Operation}
 {operator, Operator, Expr, Expr, Operation}
 {member, Supply}
-{lambda, Params, Annotation, Annotation, Expr}
+{lambda, Params, Type, Expr}
 {if, Expr, Expr, Expr}
 {match, Expr, Clauses}
 {receive, Clauses, After}
@@ -441,13 +441,15 @@ Type variables are numbered from 1 in each definition in the order the walk firs
 
 A literal's `Kind` is `int`, `float`, `char`, `string` or `bool`, and its `Value` the host's integer, the host's float, the character's code point, the string's UTF-8 as a binary, or `true` or `false`.
 
+A lambda holds its parameters, the type the checker gave it, an arrow, and its body.
+
 A use of `Address.call` or `Address.callForever` holds the type of the answer, against which the reply is checked (§6.6). Every other name is `{var, Reference, Supplies}`, its supplies those of its declaration's requirement and of `Io.show`, `Foreign.term` and `Peer.service`.
 
-A `Constructor` is `{constructor, Reference, Position}`, its type's reference and its position among the type's constructors, counted from 1. A construction's `Arguments` are `none`, `{positional, Expr}` or `{named, Base, [{field, Field, Expr}]}`, the fields in the order written and `Base` `none` or the expression after `..`. A fill (§5.6) lists the fields written, in their order, then those the namespace fills, in declared order, each the `{var, ...}` of the namespace's binding. An update through a path (§5.6) is the block the checker makes of it: a `{bind, none, Expr, {local, N}}` of the base, then one of each field's expression in the order written, then the construction, its base the base's local, a field given plainly its local, and a field reached through a path the inner update whose base is that field selected from the base's local.
+A `Constructor` is `{constructor, Reference, Position}`, its type's reference and its position among the type's constructors, counted from 1. A construction's `Arguments` are `none`, `{positional, Expr}` or `{named, Base, [{field, Field, Expr}]}`, the fields in the order written and `Base` `none` or the expression after `..`. A fill (§5.6) lists the fields written, in their order, then those the namespace fills, in declared order, each the `{var, ...}` of the namespace's binding. An update through a path (§5.6) is the block the checker makes of it: a `{bind, Type, Expr, {local, N}}` of the base, then one of each field's expression in the order written, then the construction, its base the base's local, a field given plainly its local, and a field reached through a path the inner update whose base is that field selected from the base's local.
 
 A `Segment` is `{segment, Kind, Size, Unit, Endian, Sign, Value}`, §5.11's specifiers with their defaults: `Size` is `none`, `{const, Count}` for a size written as an integer literal, or `{expr, Expr}` for any other size written; `Unit` is 8 for `bytes` and 1 otherwise. A pipe whose callee is not a name, a constructor or a lambda is `{piped_call, ...}` (§5.1); every other call is `{call, ...}`. A selection holds the reference of the type its field is selected from. An `Operation` is the supply of the member an operator or a negation resolves to; `{runtime, Type}` for an arithmetic operator, `<>`, an ordering and a negation that the runtime applies itself, at its operand's type, which it holds; and `runtime` for `==`, `!=`, `&&`, `||` and `::`.
 
-A statement is an expression, a function, `{bind, Annotation, Expr, Pattern}` for `let p = e`, or `{unwrap, Reference, Annotation, Expr, Pattern}` for `let p <- e`, its reference `Either`'s or `Optional`'s. A clause is `{clause, Pattern, Guard, Expr}`, its guard `none` or an expression, and `After` is `none` or `{after, Expr, Expr}`.
+A statement is an expression, a function, `{bind, Type, Expr, Pattern}` for `let p = e`, or `{unwrap, Reference, Type, Expr, Pattern}` for `let p <- e`, its reference `Either`'s or `Optional`'s. A `let`'s `Type` is the type the checker gave `e`, and a `<-`'s the type of what it unwraps to. A clause is `{clause, Pattern, Guard, Expr}`, its guard `none` or an expression, and `After` is `none` or `{after, Expr, Expr}`.
 
 **Patterns.**
 
@@ -478,4 +480,4 @@ A pattern's `Arguments` are `none`, `{positional, Pattern}` or `{fields, Pattern
 
 A known type's member is the reference of the function that declares it, with its own requirement supplied; a member of the requirement in force is its type variable and its name; `show` at a type known whole is that type with the view the site has of it, the representation inside an abstract type's module and `<abstract>` outside it (Appendix E.1), so that two bodies that print differently hash differently: `Abstract` lists the references of the abstract types of other modules the printer meets, once each in the order it meets them, reading a tuple's elements, a list's, a set's or a map's and a declared type's fields, and not inside one of them, an address, a reply, a function or a foreign type; the type `Foreign.term` gives its value at is that type alone; and a service's message type is that type, from which its hash follows (§8.7).
 
-**What is left out.** Spans, layout, comments and doc blocks; the names of locals and of annotation variables; the namespace a name was written with; a node's inferred type, but where this appendix places one; and the order a pattern writes a constructor's fields in.
+**What is left out.** Spans, layout, comments and doc blocks; the names of locals and of annotation variables; the annotations, since a function's scheme and a binding's hold their types, and a lambda, a `let` and a `<-` the types the checker gave them; the namespace a name was written with; a node's inferred type, but where this appendix places one; and the order a pattern writes a constructor's fields in.

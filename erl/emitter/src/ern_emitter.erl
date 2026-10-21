@@ -260,9 +260,9 @@ prepared(Form, Linking) ->
     Absolute = absolute(Form, Linking),
     {Source, Node} = sourced(Absolute),
     case Node of
-        {function, Scheme, Params, Result, Effect, Needs, Body} when is_list(Params) ->
+        {function, Scheme, Params, Needs, Body} when is_list(Params) ->
             {[Params1, Body1], _} = lists:mapfoldl(fun marked/2, {0, 0}, [Params, Body]),
-            rewrapped(Source, {function, Scheme, Params1, Result, Effect, Needs, Body1});
+            rewrapped(Source, {function, Scheme, Params1, Needs, Body1});
         _ ->
             element(1, marked(Absolute, {0, 0}))
     end.
@@ -302,10 +302,10 @@ marked({block, Statements}, {Locals, Positions}) when is_list(Statements) ->
     {{block, Marked}, State};
 marked({local, Number} = Local, {Locals, Positions}) when is_integer(Number) ->
     {Local, {max(Locals, Number), Positions}};
-marked({lambda, Params, Result, Effect, Body}, {Locals, Positions}) when is_list(Params) ->
+marked({lambda, Params, Type, Body}, {Locals, Positions}) when is_list(Params) ->
     {[Params1, Body1], State} = lists:mapfoldl(fun marked/2, {Locals, Positions + 1},
                                                [Params, Body]),
-    {{lambda, Positions + 1, Params1, Result, Effect, Body1}, State};
+    {{lambda, Positions + 1, Params1, Type, Body1}, State};
 marked(Term, State) when is_tuple(Term) ->
     {Parts, State1} = marked(tuple_to_list(Term), State),
     {list_to_tuple(Parts), State1};
@@ -316,13 +316,13 @@ marked(Term, State) ->
 
 %% A local function's parts walked, the function itself having been given
 %% its position.
-marked_parts({function, Scheme, Params, Result, Effect, Needs, Body}, State) ->
+marked_parts({function, Scheme, Params, Needs, Body}, State) ->
     {[Params1, Body1], State1} = lists:mapfoldl(fun marked/2, State, [Params, Body]),
-    {{function, Scheme, Params1, Result, Effect, Needs, Body1}, State1}.
+    {{function, Scheme, Params1, Needs, Body1}, State1}.
 
 is_local_fn(Statement) ->
     case sourced(Statement) of
-        {_, {function, _, Params, _, _, _, _}} when is_list(Params) -> true;
+        {_, {function, _, Params, _, _}} when is_list(Params) -> true;
         _ -> false
     end.
 
@@ -380,7 +380,7 @@ definition_functions({_, #definition{kind = type}}, Context) ->
 definition_functions({Position, #definition{kind = function} = Definition},
                      #emit_context{own = #own{forms = Forms}} = Context) ->
     {_, Form} = maps:get(Position, Forms),
-    {Source, {function, _, Params, _, _, Needs, Body}} = sourced(Form),
+    {Source, {function, _, Params, Needs, Body}} = sourced(Form),
     Context1 = entering(Position, Definition, Form, Context),
     {Head, Context2} = head_patterns(Params, Needs, Context1),
     {BodyForms, Context3} = body(Body, Context2),
@@ -408,9 +408,7 @@ with_comment(Form, Text) ->
 %% A function's parameters as patterns, then a parameter for each member
 %% its requirement names (report §4.9).
 head_patterns(Params, Needs, Context) ->
-    {Patterns, Context1} = lists:mapfoldl(fun({param, Pattern, _}, Acc) ->
-                                              pattern(Pattern, Acc)
-                                          end, Context, Params),
+    {Patterns, Context1} = lists:mapfoldl(fun pattern/2, Context, Params),
     {Members, Context2} = members_taken(Needs, Context1),
     {Patterns ++ Members, Context2}.
 
@@ -528,7 +526,7 @@ init_function(#unit{binding_order = Order}, #emit_context{own = Own} = Context) 
         lists:mapfoldl(fun(QualifiedName, Acc) ->
                            Position = maps:get(QualifiedName, Own#own.names),
                            {Definition, Form} = maps:get(Position, Own#own.forms),
-                           {Source, {binding, _, _, Body}} = sourced(Form),
+                           {Source, {binding, _, Body}} = sourced(Form),
                            Acc1 = entering(Position, Definition, Form, Acc),
                            Named = call_remote(ern_rt, initializing, [site(Source, Acc1)]),
                            {BodyForm, Acc2} = expr(Body, Acc1),
@@ -545,8 +543,8 @@ init_function(#unit{binding_order = Order}, #emit_context{own = Own} = Context) 
 tests_function(Placed, #emit_context{own = #own{forms = Forms}}) ->
     Names = [function_name(Position)
              || {Position, #definition{kind = binding}} <- Placed,
-                {_, {binding, {scheme, _, Type, _}, _, _}} <- [sourced(element(2, maps:get(Position,
-                                                                                         Forms)))],
+                {_, {binding, {scheme, _, Type, _}, _}} <- [sourced(element(2, maps:get(Position,
+                                                                                      Forms)))],
                 is_test_case(Type)],
     case Names of
         [] -> [];
@@ -591,8 +589,8 @@ exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
 %% requirement's members (report §4.9), and a binding's getter none.
 arity(Form) ->
     case sourced(Form) of
-        {_, {function, _, Params, _, _, Needs, _}} -> length(Params) + length(Needs);
-        {_, {binding, _, _, _}} -> 0
+        {_, {function, _, Params, Needs, _}} -> length(Params) + length(Needs);
+        {_, {binding, _, _}} -> 0
     end.
 
 foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, Requirement}}) ->
@@ -824,10 +822,8 @@ expr_form({member, Supply}, _, Context) ->
     %% report §4.9: a member as a value
     {Form, Context1} = supply_form(Supply, Context),
     {Form, function_value(Form, Context1)};
-expr_form({lambda, _Position, Params, _, _, Body}, _, Context) ->
-    {Patterns, Context1} = lists:mapfoldl(fun({param, Pattern, _}, Acc) ->
-                                              pattern(Pattern, Acc)
-                                          end, Context, Params),
+expr_form({lambda, _Position, Params, _, Body}, _, Context) ->
+    {Patterns, Context1} = lists:mapfoldl(fun pattern/2, Context, Params),
     {BodyForms, Context2} = body(Body, Context1),
     Clause = erl_syntax:clause(Patterns, none, BodyForms),
     {erl_syntax:fun_expr([Clause]),
@@ -1112,7 +1108,7 @@ local_value(_, Number, #emit_context{variables = Variables, locals = Locals} = C
 
 %% A local fn's arity, its parameters and its requirement's members, which
 %% are supplied where it is named (§4.9).
-local_arity({function, _, Params, _, _, Needs, _}) ->
+local_arity({function, _, Params, Needs, _}) ->
     length(Params) + length(Needs).
 
 %% Report §4.9: a function value with its members supplied, a lambda of
@@ -1157,7 +1153,7 @@ placed(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign}} = 
         {ok, Position} when is_map_key(Position, Forms) ->
             {_, Form} = maps:get(Position, Forms),
             Kind = case sourced(Form) of
-                       {_, {binding, _, _, _}} -> value;
+                       {_, {binding, _, _}} -> value;
                        _ -> function
                    end,
             {own, Position, Kind, arity(Form)};
@@ -2262,7 +2258,7 @@ spawned_node({call, Callee, [Limit, Function]}, _, Context) ->
         _ ->
             fail(none, "a spawn on a peer starts a function the checker refuses")
     end;
-spawned_node({lambda, _, _, _, _, _}, Lambda, #emit_context{variables = Variables} = Context) ->
+spawned_node({lambda, _, _, _, _}, Lambda, #emit_context{variables = Variables} = Context) ->
     spawned_lambda(Lambda, Variables, Context);
 spawned_node({var, {local, Number}, _}, _,
              #emit_context{variables = Variables, locals = Locals,
@@ -2315,7 +2311,7 @@ foreign_identity(QualifiedName) ->
 %% A lambda a spawn on a peer starts, its captures the variables in force
 %% at it, Scope.
 spawned_lambda(Lambda, Scope, Context) ->
-    {Source, {lambda, Position, _, _, _, Body} = Node} = sourced(Lambda),
+    {Source, {lambda, Position, _, _, Body} = Node} = sourced(Lambda),
     Captures = captures(Node),
     Context1 = entry(Position, length(Captures),
                      fun(Function, Acc) -> lambda_entry(Function, Body, Source, Captures, Acc) end,
@@ -2406,7 +2402,7 @@ entry_comment(Entry, #emit_context{definition = {_, _, QualifiedName}}) ->
 let_lambda(Pattern, Expr, #emit_context{variables = Before},
            #emit_context{variables = Variables, let_lambdas = LetLambdas} = Context) ->
     case {sourced(Pattern), sourced(Expr)} of
-        {{_, {local, Number}}, {_, {lambda, _, _, _, _, _}}} ->
+        {{_, {local, Number}}, {_, {lambda, _, _, _, _}}} ->
             #{Number := Variable} = Variables,
             Context#emit_context{let_lambdas = LetLambdas#{Variable => {Expr, Before}}};
         _ ->
@@ -2541,7 +2537,7 @@ statement_pattern(_) -> [].
 declared_local(Fn, Numbers, BlockLets,
                #emit_context{variables = Variables, locals = Locals,
                              definition = {Definition, _, _}} = Context) ->
-    {Source, {local_fn, Number, Position, {function, _, _, _, _, Needs, Body} = Function}} =
+    {Source, {local_fn, Number, Position, {function, _, _, Needs, Body} = Function}} =
         sourced(Fn),
     Free = lists:usort(captures(Function)),
     References = [Free1 || Free1 <- Free, lists:member(Free1, Numbers)],
@@ -2602,7 +2598,7 @@ emit_locals(Fns, Context) ->
 
 emit_local(Fn, #emit_context{variables = Variables, locals = Locals, members = Members,
                              definition = {_, _, QualifiedName}} = Context) ->
-    {Source, {local_fn, Number, _, {function, _, Params, _, _, Needs, Body}}} = sourced(Fn),
+    {Source, {local_fn, Number, _, {function, _, Params, Needs, Body}}} = sourced(Fn),
     #local_fn{lifted_name = LiftedName, captured = Captured, snapshot = Snapshot} =
         maps:get(Number, Locals),
     Captures = captured_variables(Number, Context),

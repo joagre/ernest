@@ -337,8 +337,8 @@ is_call({Name, HostModule, HostFunction, Printing}) ->
 is_call(_) ->
     false.
 
-kind({function, _, _, _, _, _, _}) -> function;
-kind({binding, _, _, _}) -> binding;
+kind({function, _, _, _, _}) -> function;
+kind({binding, _, _}) -> binding;
 kind({type, _, _, _, _, _}) -> type.
 
 %% Report §8.7: the reach read: `NotLoaded` for every spawn that waits
