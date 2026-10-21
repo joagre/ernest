@@ -506,6 +506,17 @@ is_listed_waiting(HostModule, HostFunction, Arity) ->
 foreign_return(Try, _ParamTypes, _ResultType,
                #emit_context{unit = #unit{standard = true}} = Context) ->
     {Try, Context};
+%% Report §7.4, §8.4: a return declared the prelude's `Unit` is its one
+%% value or the host's `ok`, which the host's functions answer for nothing
+%% and which is `Unit`; the check is written in place, as a word's is. No
+%% other value takes `ok`, a `Unit` inside a return among them.
+foreign_return(Try, _ParamTypes, {applied, {named, ['Unit']}, []} = ResultType, Context) ->
+    Unit = erl_syntax:atom('Unit'),
+    Fault = raised(check_text("foreign return does not match ", ResultType, Context)),
+    {erl_syntax:case_expr(Try, [erl_syntax:clause([Unit], none, [Unit]),
+                                erl_syntax:clause([erl_syntax:atom(ok)], none, [Unit]),
+                                erl_syntax:clause([erl_syntax:underscore()], none, [Fault])]),
+     Context};
 foreign_return(Try, ParamTypes, ResultType, Context) ->
     ParamVariables = type_variables(ParamTypes),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),

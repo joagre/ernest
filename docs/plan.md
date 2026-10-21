@@ -125,9 +125,11 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   `ern shell`, as the standard library's does, so that no program asks where they are. §11.1 and
   §11.2 first, then `ern_tree` and the runner, then a program built against `libs/markdown` with no
   `--load-path`.
-- **`ok` as `Unit`** (feedback 123; principle 1). A foreign function declared `Unit` whose host
-  result is the atom `ok` answers `Unit`, one more comparison in the return check §7.4 states; a
-  representation decision, so E.0 and the log say so. §7.4 and §8.4 first, then the boundary.
+- **`ok` as `Unit`**, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph
+  on `ok` as `Unit`): a foreign function's return declared `Unit` that is the host's atom `ok` is
+  `Unit`, one clause beside `'Unit'` in the check the emitter writes in place, and nothing else
+  takes `ok` (§7.4, §8.4). The log records it as a decision of the return's representation; E.0
+  gains no sentence, since §8.4 states the rule and E.0's rules admit and shape operations.
 - **`Test.faults`**, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph
   on `Test.faults`): `Test.faults(run, cause)` answers `Passed` where `run` faults with that cause,
   and otherwise `Failed` naming what came instead, another cause, a return or the reason; and

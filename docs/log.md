@@ -8817,6 +8817,8 @@ The rest are decided below as they are discussed.
 
 **Built 2026-10-21, `Test.faults`.** `faults` receives nothing, so that a test of any mailbox type may call it, and so its caller cannot take a `Down`. A judge process of its own takes the request and the `Down`, in a mailbox type private to `Test`: it starts `run` with `spawnMonitored` and answers the call `faults` makes, with no primitive added. Both spawns are written in `faults`, so a fault of either has the site `Test.faults:n` (§6.9), which `ern test`'s reporter passes over by one clause. `ern run` and the shell still report it, since §11.2 has them report every fault and excepts `ern test` alone; a reason neither a fault nor a return is written as `Io.show` writes it, `got Killed`.
 
+**Built 2026-10-21, `ok` as `Unit`.** The emitter writes the check of a return declared the prelude's `Unit` in place, as a word's: `'Unit'` and `ok` are `'Unit'`, and any other term faults, so the comparison is one clause and the call no longer walks a descriptor in the boundary. It decides the return's representation alone: a `Unit` inside a return, a message, a reply, an argument and the result of a function value foreign code gave stay `'Unit'` alone, as §8.4's *Nothing else* has it. E.0 gains no sentence, since §8.4 states the rule; the standard library's foreign functions stay unchecked and answer `'Unit'` themselves.
+
 ## The Ray Tracer's Two Asks, 2026-10-20
 
 Decided with the user on 2026-10-20: the two entries `ernest-epx`'s ray tracer left in `docs/language_feedback.md`, 133 and 134, each weighed and left alone. The file is empty again.
