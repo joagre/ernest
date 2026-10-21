@@ -203,13 +203,14 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   build/stdlib`'s 5 s; measured, the library's 335 examples take it from 4.9 s to 8.2 s, about
   9.8 ms each.
 - **An abstract type's constructor's doc example** (found 2026-10-21 building the items above), a
-  defect to fix in this milestone: `ern test` runs none of the doc examples of an abstract type's
-  constructors and fields, against §11.2, since the documentation chunk holds no constructors for
-  an abstract type, whose page hides them, and `ern_examples` reads the chunk; `ern_doc_tests`
-  checks them inside the module. None of the library's abstract types documents a constructor.
-  The fix's shape: the chunk's entry of an abstract type carries its constructors' doc blocks
-  marked private, which `ern doc` and `:doc` leave out and `ern test` compiles inside the
-  module; about an hour with its test.
+  defect, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
+  examples): `ern test` ran none of the doc examples of an abstract type's constructors and
+  fields, against §11.2, since the documentation chunk held no constructors for an abstract type,
+  whose page hides them, and `ern_examples` reads the chunk; `ern_doc_tests` checks them inside
+  the module. None of the library's abstract types documents a constructor. The chunk's entry of
+  an abstract type carries its constructors and their fields with their doc blocks, each marked
+  private, which `ern doc` and `:doc` leave out and `ern test` compiles inside the module, after
+  the type's own examples, which it compiles outside.
 - **An exported `let` of a member's name** (found 2026-10-21 building the shared namespace),
   decided with the user and done 2026-10-21 (the log's *The Window's Three Asks*, its *Built*
   paragraph): §4.2 refused an exported function of the module of a type's name under a member's

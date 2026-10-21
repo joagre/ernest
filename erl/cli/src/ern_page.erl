@@ -139,10 +139,13 @@ section(Heading, Signature, Doc, Meta) ->
      end,
      items(Meta)].
 
-%% The documented constructors and fields as a list.
+%% The documented constructors and fields as a list; an abstract type's,
+%% which its module keeps (report §4.4, §11.4), are left out.
 items(#{items := Items}) -> list([item(Item) || Item <- Items]);
 items(_) -> [].
 
+item(#{private := true}) ->
+    [];
 item(#{kind := constructor, name := Name, doc := Doc, fields := Fields}) ->
     FieldItems = [["  - `", atom_to_list(Field), " : ", Type, "`: ", FieldDoc, "\n"]
                   || #{name := Field, type := Type, doc := FieldDoc} <- Fields, FieldDoc =/= none],

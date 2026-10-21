@@ -44,9 +44,10 @@ cases(Namespace, [ErlangModule | _] = Loaded) ->
                                {ok, Compiled} <- [file:read_file(code:which(Unit))],
                                {ok, #{interface := Interface}} <- [ern_interface:read(Compiled)]],
     Examples = [{iolist_to_binary([Owner, " example ", integer_to_list(Number)]), Where, Block}
-                || {Owner, Where, Docs} <- documented(Namespace, Beam),
-                   {Number, Block} <- lists:enumerate(lists:append([fences(Doc)
-                                                                      || Doc <- Docs]))],
+                || {Owner, Docs} <- documented(Namespace, Beam),
+                   {Number, {Where, Block}} <- lists:enumerate([{Where, Block}
+                                                                || {Where, Doc} <- Docs,
+                                                                   Block <- fences(Doc)])],
     Module = case lists:keymember(inside, 2, Examples) of
                  true -> module_source(Namespace, Erc, Beam);
                  false -> none
@@ -132,16 +133,18 @@ unload(Units) ->
                   end, Units).
 
 %% Each declaration the module's documentation holds, as the program names
-%% it, with where its examples are compiled, outside the module or inside it
-%% for a declaration the module keeps private (report §11.2), and its doc
-%% blocks, the module's own first, in the order the module writes them
-%% (report §11.1, §11.4).
+%% it, with its doc blocks, the module's own first, in the order the module
+%% writes them (report §11.1, §11.4), each with where its examples are
+%% compiled: outside the module, or inside it for what the module keeps
+%% private, a declaration or an abstract type's constructors (report
+%% §11.2, §4.4).
 documented(Namespace, Beam) ->
     Module = ern_namespace:text(Namespace),
     case ern_docs:read(Beam) of
         {ok, {docs_v1, _, _, _, ModuleDoc, _, Entries}} ->
-            [{Module, outside, texts([ModuleDoc])}
-             | [{[Module, ".", atom_to_binary(Name)], where(Meta), texts([Doc]) ++ item_docs(Meta)}
+            [{Module, [{outside, Doc} || Doc <- texts([ModuleDoc])]}
+             | [{[Module, ".", atom_to_binary(Name)],
+                 [{where(Meta), Text} || Text <- texts([Doc])] ++ item_docs(Meta)}
                 || {{_Kind, Name, _Arity}, _, _, Doc, Meta} <- Entries]];
         {error, _} ->
             []
@@ -201,13 +204,22 @@ example_module(inside, _Index, _Namespace, _Interfaces, {error, _} = Error, _Loa
 texts(Docs) ->
     [Text || #{<<"en">> := Text} <- Docs].
 
-%% A type's constructors' and their fields' doc blocks, in declared order.
-item_docs(#{items := Items}) ->
-    lists:append([[Doc || is_binary(Doc)]
-                  ++ [FieldDoc || #{doc := FieldDoc} <- Fields, is_binary(FieldDoc)]
-                  || #{doc := Doc, fields := Fields} <- Items]);
+%% A type's constructors' and their fields' doc blocks, in declared order,
+%% each with where its examples are compiled: inside the module where the
+%% type is private or the constructor is, as an abstract type's is.
+item_docs(#{items := Items} = Meta) ->
+    lists:append([[{Where, Doc} || is_binary(Doc)]
+                  ++ [{Where, FieldDoc} || #{doc := FieldDoc} <- Fields, is_binary(FieldDoc)]
+                  || #{doc := Doc, fields := Fields} = Item <- Items,
+                     Where <- [item_where(Meta, Item)]]);
 item_docs(_) ->
     [].
+
+item_where(Meta, Item) ->
+    case {where(Meta), where(Item)} of
+        {outside, outside} -> outside;
+        _ -> inside
+    end.
 
 %% Report §2.2: a doc block's fenced `ernest` blocks.
 fences(Doc) ->

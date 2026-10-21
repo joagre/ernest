@@ -33,8 +33,9 @@ read(Beam) ->
 %% (§11.4) and by the host's own tools. One entry per declaration §11.4
 %% renders, in source order: its signature as the page shows it, its doc
 %% block verbatim, and, for a type, its constructors and their fields in
-%% the metadata, and for a function its parameters' names, so a reader of
-%% the chunk needs no markdown. SourceName is the source file's name.
+%% the metadata, an abstract type's marked private, and for a function its
+%% parameters' names, so a reader of the chunk needs no markdown.
+%% SourceName is the source file's name.
 -spec build([atom()], [tuple()], ern_typecheck:env(), binary()) -> tuple().
 build(Namespace, Declarations, Env, SourceName) ->
     ModuleDoc = case [Text || #module_doc{text = Text} <- Declarations] of
@@ -92,11 +93,17 @@ doc_signature(Declaration, Prefix, Env) ->
 
 %% The parameter list as the module writes it, for the shell's completion,
 %% and a type's documented parts, for a reader that renders them itself;
-%% `private` marks a declaration the module does not export (report §11.4).
+%% `private` marks a declaration the module does not export (report §11.4),
+%% and the constructors of an abstract type, which its module keeps
+%% (§4.4), whose doc blocks `ern test` runs the examples of (§11.2) and a
+%% page leaves out.
 doc_meta(#fn_declaration{params = Params}) -> #{params => param_names(Params)};
 doc_meta(#foreign_fn_declaration{params = Params}) -> #{params => param_names(Params)};
 doc_meta(#type_declaration{constructors = Constructors}) ->
     #{items => [constructor_item(Constructor) || Constructor <- Constructors]};
+doc_meta(#abstract_declaration{declaration = #type_declaration{constructors = Constructors}}) ->
+    #{items => [(constructor_item(Constructor))#{private => true}
+                || Constructor <- Constructors]};
 doc_meta(_) -> #{}.
 
 %% A parameter's name as written; one that is not a plain variable shows

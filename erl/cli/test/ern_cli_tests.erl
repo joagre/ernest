@@ -1882,6 +1882,56 @@ private_doc_example_test() ->
                              "/src/doubles.ern, which no longer exists\n"]),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Gone)).
 
+%% report §11.2, §4.4, §11.4: an abstract type's constructors' and fields'
+%% doc examples run, compiled inside the module, where the constructor is
+%% visible, after the type's own, which is compiled outside it; the page
+%% `ern doc` writes names no constructor of the type, as before. A
+%% regression test, written after the code: the documentation chunk held
+%% no constructor of an abstract type, so `ern test` ran none of their
+%% examples; it does not cover the shell's `:doc`, which renders the
+%% type's entry as the page does
+abstract_constructor_examples_test() ->
+    Dir = tmp(),
+    write(Dir, "src/stacks.ern",
+          "/// A stack of numbers.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Stacks.size(Stacks.empty)\n"
+          "/// // => 0\n"
+          "/// ```\n"
+          "export abstract type Stack =\n"
+          "    /// A stack holding its items, the top first.\n"
+          "    ///\n"
+          "    /// ```ernest\n"
+          "    /// size(Stack(items = [1, 2]))\n"
+          "    /// // => 2\n"
+          "    /// ```\n"
+          "    Stack(\n"
+          "        /// The items, the top first.\n"
+          "        ///\n"
+          "        /// ```ernest\n"
+          "        /// Stack(items = [3]).items\n"
+          "        /// // => [4]\n"
+          "        /// ```\n"
+          "        items : List(Int))\n"
+          "\n"
+          "/// The stack with nothing on it.\n"
+          "export let empty : Stack = Stack(items = [])\n"
+          "\n"
+          "/// How many items the stack holds.\n"
+          "export fn size(stack : Stack) : Int = List.size(stack.items)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/stacks.erc"])),
+    Lines = <<"Stacks.Stack example 1: passed\n"
+              "Stacks.Stack example 2: passed\n"
+              "Stacks.Stack example 3: failed: expected [4], got [3]\n">>,
+    ?assertEqual(Lines, iolist_to_binary(?capturedOutput)),
+    ?assertEqual(0, ern_cli:ern(["doc", Dir ++ "/build/stacks.erc"])),
+    <<Lines:(byte_size(Lines))/binary, Page/binary>> = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Page, <<"abstract type Stack\n">>)),
+    ?assertEqual(nomatch, binary:match(Page, <<"holding its items">>)),
+    ?assertEqual(nomatch, binary:match(Page, <<"the top first">>)).
+
 %% report §11.2, Appendix E.23: each doc example runs as a program of its
 %% own in its empty directory, which `Os.workingDirectory` names and a
 %% relative path is read under, so that an example that writes under
