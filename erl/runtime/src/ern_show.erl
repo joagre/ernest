@@ -52,6 +52,7 @@ by_type(bool, Value, _, _) -> atom_to_list(Value);
 by_type(char, Value, _, _) -> [$', char_body(Value), $'];
 by_type(string, Value, _, _) -> string(Value);
 by_type(bytes, Value, _, Limits) -> bytes(Value, Limits);
+by_type(unit, Value, _, _) -> atom_to_list(Value);
 by_type({address, _, _}, Value, _, _) -> address(Value);
 by_type(process, Value, _, _) -> ["<process ", number(Value), ">"];
 by_type({reply, _, _}, _, _, _) -> "<reply>";

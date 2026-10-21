@@ -23,12 +23,12 @@
 %% each argument it is called with is checked (§8.4).
 -module(ern_boundary).
 
--export([raised/6, called_raised/3, expose/2, check/3, value/3, argument/4, expose/3]).
+-export([raised/6, called_raised/3, expose/2, check/3, value/3, result/3, argument/4, expose/3]).
 
 -export_type([descriptor/0]).
 
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
-                    | foreign
+                    | unit | foreign
                     | {ref, pos_integer()}
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
@@ -89,6 +89,14 @@ value(Descriptor, Value, Cause) ->
         {ok, Checked} -> Checked;
         error -> ern_rt:fault(Cause)
     end.
+
+%% Report §7.4, §8.4: a function value's result as the program holds it,
+%% or the fault Cause: a result declared the prelude's Unit that is the
+%% host's `ok` is `Unit`, at its top alone, as a foreign function's return
+%% is.
+-spec result(descriptor(), term(), binary()) -> term().
+result(unit, ok, _) -> 'Unit';
+result(Descriptor, Value, Cause) -> value(Descriptor, Value, Cause).
 
 %% Report §8.4: an argument foreign code calls a function of the program's
 %% with, where the function stood inside what crossed, the recursive types
@@ -226,6 +234,8 @@ matches(char, Value, _) ->
         andalso (Value < 16#D800 orelse Value > 16#DFFF);
 matches(string, Value, _) -> is_binary(Value) andalso unicode:characters_to_binary(Value) =:= Value;
 matches(bytes, Value, _) -> is_binary(Value);
+%% report §8.4: the host's `ok` is `Unit` at a return's top alone (result/3)
+matches(unit, Value, _) -> Value =:= 'Unit';
 %% an answer checked because its Reply crossed may be Ernest's own, which
 %% holds an address in any of its forms; a process of the program's whose
 %% address foreign code was never given is no address it may give, but as

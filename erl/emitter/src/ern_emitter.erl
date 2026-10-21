@@ -509,18 +509,6 @@ is_listed_waiting(HostModule, HostFunction, Arity) ->
 foreign_return(_, Try, _ParamTypes, _ResultType,
                #emit_context{unit = #unit{standard = true}} = Context) ->
     {Try, Context};
-%% Report §7.4, §8.4: a return declared the prelude's `Unit` is its one
-%% value or the host's `ok`, which the host's functions answer for nothing
-%% and which is `Unit`; the check is written in place, as a word's is. No
-%% other value takes `ok`, a `Unit` inside a return among them.
-foreign_return(Source, Try, _ParamTypes, {applied, {named, ['Unit']}, []} = ResultType,
-               Context) ->
-    Unit = erl_syntax:atom('Unit'),
-    Fault = at(Source, raised(check_text("foreign return does not match ", ResultType, Context))),
-    {erl_syntax:case_expr(Try, [erl_syntax:clause([Unit], none, [Unit]),
-                                erl_syntax:clause([erl_syntax:atom(ok)], none, [Unit]),
-                                erl_syntax:clause([erl_syntax:underscore()], none, [Fault])]),
-     Context};
 foreign_return(Source, Try, ParamTypes, ResultType, Context) ->
     ParamVariables = type_variables(ParamTypes),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
@@ -1864,17 +1852,26 @@ printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = 
 %% ern_boundary interprets
 %%
 
-%% Form's value checked against Type and the fault's text naming Shown
-%% (report §7.4, §8.4). A word's check is written in place, its fault
-%% raised at Source (§7.3, Appendix E.21); a value that holds no function,
-%% address or Reply to arm and no float to make the language's is checked
-%% alone (ern_boundary:check/3); a type variable a parameter names matches
-%% any value, and is not checked.
+%% Form's value, a foreign function's return, checked against Type and the
+%% fault's text naming Shown (report §7.4, §8.4). A word's check is
+%% written in place, its fault raised at Source (§7.3, Appendix E.21), and
+%% the prelude's Unit's takes the host's `ok`, which the host's functions
+%% answer for nothing, at the return's top alone; a value that holds no
+%% function, address or Reply to arm and no float to make the language's
+%% is checked alone (ern_boundary:check/3); a type variable a parameter
+%% names matches any value, and is not checked.
 check_form(Source, Type, Shown, Form, Prefix, Context) ->
     Text = check_text(Prefix, Shown, Context),
     case descriptor(Type, Context) of
         Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
             {Form, Context};
+        unit ->
+            Unit = erl_syntax:atom('Unit'),
+            Fault = at(Source, raised(Text)),
+            {erl_syntax:case_expr(Form, [erl_syntax:clause([Unit], none, [Unit]),
+                                         erl_syntax:clause([erl_syntax:atom(ok)], none, [Unit]),
+                                         erl_syntax:clause([erl_syntax:underscore()], none,
+                                                           [Fault])]), Context};
         Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
             {[Variable], Context1} = fresh_variables(1, "Checked", Context),
             VariableForm = erl_syntax:variable(Variable),
@@ -1957,16 +1954,17 @@ descriptor_form(Descriptor, Context) ->
 
 %% A descriptor as the form that builds it. A function's descriptor also
 %% carries the maker of its checked wrapper, a fun of its arity that checks
-%% each result (report §7.4), which only generated code can spell for every
-%% arity; ern_boundary applies it to a function value foreign code gives,
-%% and to the result's descriptor closed over the recursive types around it.
+%% each result as a foreign function's return is checked (report §7.4),
+%% which only generated code can spell for every arity; ern_boundary
+%% applies it to a function value foreign code gives, and to the result's
+%% descriptor closed over the recursive types around it.
 built_descriptor({function, Arity, ResultDescriptor, Text, ParamDescriptors, ParamTexts}) ->
     Function = erl_syntax:variable('Function'),
     Result = erl_syntax:variable('Result'),
     Bound = erl_syntax:variable('Bound'),
     Args = [erl_syntax:variable(list_to_atom("Argument" ++ integer_to_list(Index)))
             || Index <- lists:seq(1, Arity)],
-    Check = call_remote(ern_boundary, value,
+    Check = call_remote(ern_boundary, result,
                         [Result, erl_syntax:application(Function, Args),
                          erl_syntax:abstract(Text)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
@@ -2057,6 +2055,11 @@ described({applied, {named, ['Bool']}, []}, _, _, _) -> bool;
 described({applied, {named, ['Char']}, []}, _, _, _) -> char;
 described({applied, {named, ['String']}, []}, _, _, _) -> string;
 described({applied, {named, ['Bytes']}, []}, _, _, _) -> bytes;
+%% report §7.4, §8.4: the prelude's Unit, a word of its own, which the
+%% prelude's name references, so that a return declared it takes the
+%% host's `ok` at its top, where a program's own type named Unit, which
+%% its hash references, does not
+described({applied, {named, ['Unit']}, []}, _, _, _) -> unit;
 described({applied, {named, ['Address']}, [MessageType]}, Seen, Scope, Context) ->
     %% the address's messages, for the checker that exposes it (report §8.4)
     {address, described(MessageType, Seen, Scope, Context),

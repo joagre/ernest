@@ -21,7 +21,7 @@
 %% wrapped, and a named constructor carries its fields' names, both for
 %% printing.
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
-                    | foreign
+                    | unit | foreign
                     | {hole, integer()} | {ref, pos_integer()}
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
@@ -79,6 +79,10 @@ descriptor({tcon, ['Bool'], []}, _, _) -> bool;
 descriptor({tcon, ['Char'], []}, _, _) -> char;
 descriptor({tcon, ['String'], []}, _, _) -> string;
 descriptor({tcon, ['Bytes'], []}, _, _) -> bytes;
+%% report §7.4, §8.4: the prelude's Unit, a word of its own, so that a
+%% function value's result declared it takes the host's `ok` at its top
+%% (ern_boundary), where a program's own type named Unit does not
+descriptor({tcon, ['Unit'], []}, _, _) -> unit;
 descriptor({tcon, ['Address'], [MessageType]}, Seen, Scope) ->
     %% the address's messages, for the checker that exposes it (report §8.4)
     {address, descriptor(MessageType, Seen, Scope),

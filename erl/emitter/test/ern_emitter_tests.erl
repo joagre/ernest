@@ -1942,10 +1942,30 @@ foreign_ok_is_unit_test() ->
         "}\n"),
     ?assertEqual(<<"1\n2\nUnit\ntrue\n">>, Output).
 
+%% report §7.4, §8.4: a function value foreign code gave, whose result is
+%% declared `Unit`, answers the host's `ok` as `Unit` at a call, the type's
+%% one value. A regression test, written after the code; it does not cover
+%% a function value inside another value foreign code gave, whose wrapper
+%% is the same
+function_value_ok_is_unit_test() ->
+    {ok, Output} =
+        run("foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
+            "    : ((Int) -> Unit, List(Int)) -> Unit = \"erlang:make_fun/3\"\n"
+            "export fn main() : Unit = {\n"
+            "    let each = made(Foreign.atom(\"lists\"), Foreign.atom(\"foreach\"), 2);\n"
+            "    let done = each(fn(n) = Io.println(Int.toString(n)), [1]);\n"
+            "    Io.println(Io.show(done));\n"
+            "    Io.println(Io.show(done == Unit))\n"
+            "}\n"),
+    ?assertEqual(<<"1\nUnit\ntrue\n">>, Output).
+
 %% report §7.4, §8.4: nothing else takes `ok`: a return declared `Unit`
 %% that is another atom faults, and so do an `ok` inside a list and inside
-%% a tuple a return holds, and the `ok` a function value foreign code gave
-%% answers at a call. A regression test, written after the code
+%% a tuple a return holds, an `ok` inside a list a function value foreign
+%% code gave answers at a call, and an `ok` a foreign function or a
+%% function value answers where its result is declared a program's own
+%% type named `Unit`, which is not the prelude's. A regression test,
+%% written after the code
 foreign_ok_elsewhere_faults_test() ->
     Main = "export fn main() : Unit = ",
     {Result1, _} = run("foreign fn collect() : Unit = \"erlang:garbage_collect/0\"\n"
@@ -1960,16 +1980,24 @@ foreign_ok_elsewhere_faults_test() ->
                        ++ Main ++ "Io.println(Io.show(tuple([Foreign.atom(\"ok\"),"
                        " Foreign.term(1)])))\n"),
     ?assertMatch({fault, <<"foreign return does not match #(Unit, Int)">>, _}, Result3),
-    {Result4, Output4} =
+    {Result4, _} =
         run("foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
-            "    : ((Int) -> Unit, List(Int)) -> Unit = \"erlang:make_fun/3\"\n"
+            "    : (Int, Foreign.Term) -> List(Unit) = \"erlang:make_fun/3\"\n"
             ++ Main ++ "{\n"
-            "    let each = made(Foreign.atom(\"lists\"), Foreign.atom(\"foreach\"), 2);\n"
-            "    let done = each(fn(n) = Io.println(Int.toString(n)), [1]);\n"
-            "    Io.println(Io.show(done))\n"
+            "    let copies = made(Foreign.atom(\"lists\"), Foreign.atom(\"duplicate\"), 2);\n"
+            "    Io.println(Io.show(copies(1, Foreign.atom(\"ok\"))))\n"
             "}\n"),
-    ?assertMatch({{fault, <<"foreign return does not match Unit">>, _}, <<"1\n">>},
-                 {Result4, Output4}).
+    ?assertMatch({fault, <<"foreign return does not match List(Unit)">>, _}, Result4),
+    Own = "type Unit = Unit\n"
+          "foreign fn pause(ms : Int) : Unit = \"timer:sleep/1\"\n"
+          "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
+          "    : (Int) -> Unit = \"erlang:make_fun/3\"\n"
+          "export fn main() : Prelude.Unit = ",
+    {Result5, _} = run(Own ++ "Io.println(Io.show(pause(0)))\n"),
+    ?assertMatch({fault, <<"foreign return does not match M.Unit">>, _}, Result5),
+    {Result6, _} = run(Own ++ "Io.println(Io.show(made(Foreign.atom(\"timer\"),"
+                       " Foreign.atom(\"sleep\"), 1)(0)))\n"),
+    ?assertMatch({fault, <<"foreign return does not match M.Unit">>, _}, Result6).
 
 %% report §8.4: the proxy in front of an exposed address is one per address
 %% and mailbox type, so exposing the same address twice gives the same one

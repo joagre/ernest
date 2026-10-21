@@ -120,14 +120,12 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 - **A mailbox type ends in `Msg`** (feedback 139; principle 2), decided and done 2026-10-21 (the
   log's *What the Feedback Left*, its *Decided* paragraph): the guide's glossary states the
   library's practice, and the toolchain's glossary refuses `Msg` for an Erlang variable alone.
-- **What the read-back of `Test.faults` and `ok` left**, decided 2026-10-21 (the log's *What the
-  Feedback Left*, its *Extended* paragraph), two of three done 2026-10-21 (its *Built* paragraph
-  from the read-back): no job reports a fault `Test.faults` expects (§11.2, E.24), and a fault the
-  emitter raises carries its line in the trace (§7.3, E.21). The third, a function value's result
-  declared `Unit` taking `ok` (§7.4, §8.4), was decided 2026-10-21 (the log's *Built* paragraph
-  from the read-back, its last sentence): the prelude's `Unit` has a descriptor word of its own,
-  `unit`, as `Int` has, which tells it from a program's own `type Unit = Unit`, and the wrapper
-  of a function value's result takes `ok` at that word at the top alone. Built with the next item.
+- **What the read-back of `Test.faults` and `ok` left**, decided and done 2026-10-21 (the log's
+  *What the Feedback Left*, its *Extended* paragraph and its *Built* paragraph from the
+  read-back): no job reports a fault `Test.faults` expects (§11.2, E.24), a fault the emitter
+  raises carries its line in the trace (§7.3, E.21), and a function value's result declared `Unit`
+  takes `ok` at its top (§7.4, §8.4), the prelude's `Unit` told from a program's own
+  `type Unit = Unit` by a descriptor word of its own, `unit`, as `Int` has one.
 - **A type and the module of its operations share a name** (feedback 136), decided with the user
   on 2026-10-21 as the log's *The Window's Three Asks* proposed (its *Designed* paragraph): §4.2
   states the sharing and its one clash, a member of an exported type against an exported function
