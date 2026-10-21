@@ -150,7 +150,7 @@
 
 %% Services.counted
 '$17'(Text_46) ->
-    case ern@list:'$13'(ern@string:'$42'(Text_46),
+    case ern@list:'$14'(ern@string:'$42'(Text_46),
                         fun ern@char:'$1'/1)
         of
         true -> ern@string:'$24'(Text_46);

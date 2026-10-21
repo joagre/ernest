@@ -208,6 +208,33 @@ export fn foldRight(list : List(a), acc : b, step : (b, a) -> b receiving e) : b
       | head :: rest -> step(foldRight(rest, acc, step), head)
     }
 
+/// The accumulator after the last element, and the list of what `step` maps
+/// each element to, in order. `step(acc, x)` answers `#(next, y)`: the
+/// accumulator for the element after `x`, and what `x` maps to. It is called on
+/// each element in order, as in `foldLeft`, first with the given `acc`. The
+/// empty list answers `#(acc, [])`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.mapFold([1, 2, 3], 0, fn(sum, n) = #(sum + n, sum))
+/// // => #(6, [0, 1, 3])
+/// ```
+///
+/// since 0.5.0
+export fn mapFold(list : List(a),
+                  acc : b,
+                  step : (b, a) -> #(b, c) receiving e) : #(b, List(c)) receiving e =
+    match list {
+        [] ->
+            #(acc, [])
+      | head :: rest -> {
+            let #(next, value) = step(acc, head);
+            let #(final, values) = mapFold(rest, next, step);
+            #(final, value :: values)
+        }
+    }
+
 /// Calls `f` for each element, in order, for its effect, and answers `Unit`.
 ///
 /// ### Examples

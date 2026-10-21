@@ -93,6 +93,22 @@ list_test() ->
     ?assertEqual([2, 3, 4], List(range)(2, 4)),
     ?assertEqual([], List(range)(3, 2)).
 
+%% report Appendix E.2: mapFold answers the accumulator after the last
+%% element and what step maps each element to, in order, and for the empty
+%% list the accumulator and no element; step is called in the caller's
+%% process on each element in order, so that one that receives takes the
+%% caller's messages as they came, the effect carried. A regression test,
+%% written after the code
+map_fold_test() ->
+    List = ern_named:functions('ern@list'),
+    Running = fun(Sum, X) -> {Sum + X, Sum} end,
+    ?assertEqual({0, []}, List(mapFold)([], 0, Running)),
+    ?assertEqual({6, [0, 1, 3]}, List(mapFold)([1, 2, 3], 0, Running)),
+    self() ! {taken, 10},
+    self() ! {taken, 20},
+    Received = fun(Acc, X) -> receive {taken, Count} -> {Acc + Count, X * Count} end end,
+    ?assertEqual({30, [10, 40]}, List(mapFold)([1, 2], 0, Received)).
+
 %% report Appendix E.2, §4.9: minimumBy and maximumBy answer the element
 %% whose key is least or greatest by the key type's compare, which the
 %% compiler supplies after the arguments the program writes, None for the

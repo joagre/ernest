@@ -90,6 +90,20 @@ foreign_effect_test() ->
                " each(xs, fn(x) = Io.println(Int.toString(x)))\n",
     ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['M'], Callback)).
 
+%% report Appendix E.2, §3.9: `List.mapFold` carries its step's effect: a
+%% step that receives makes the call receive, and one that receives
+%% nothing leaves its caller without a mailbox. A regression test, written
+%% after the code
+map_fold_effect_test() ->
+    ?assertEqual("(List(Int)) -> #(Int, List(Int))",
+                 type_of("export fn sums(list : List(Int)) =\n"
+                         "    List.mapFold(list, 0, fn(sum, n) = #(sum + n, sum))\n", sums)),
+    ?assertEqual("(List(Int)) -> #(Int, List(Int)) receiving Int",
+                 type_of("export fn taken(list : List(Int)) =\n"
+                         "    List.mapFold(list, 0,\n"
+                         "                 fn(sum, n) = receive { m -> #(sum + m, n * m) })\n",
+                         taken)).
+
 %% report §3.9: a type argument is a value position only where its
 %% parameter occurs in a value position of the type's fields, so a variable
 %% that occurs in H(e) and after `receiving` ranges over the mailbox types

@@ -128,9 +128,10 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   the boundary that a result is the prelude's `Unit`, whose descriptor a program's own `type Unit
   = Unit` shares. Recommended: the emitter marks that result in the function's descriptor and
   checks it in place in the wrapper it builds, as it checks a foreign function's return.
-- **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), decided 2026-10-21 (the log's *Nothing
-  Waits for a Program*, its line of that day): E.2 gains it, Ernest alone, with its examples; the
-  entry leaves the feedback file with the item.
+- **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), done 2026-10-21 (the log's *Nothing
+  Waits for a Program*, its line of that day): E.2 lists it after `foldRight`, and it is Ernest
+  alone, a recursion of its own whose step takes the accumulator first and answers
+  `#(accumulator, mapped)`.
 - **The libraries on the default load path** (feedback 120; principles 3 and 5). The toolchain's
   own libraries' build root joins the default load path of `ern build`, `ern run`, `ern test` and
   `ern shell`, as the standard library's does, so that no program asks where they are. §11.1 and

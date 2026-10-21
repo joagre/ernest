@@ -258,6 +258,7 @@ List.filter : (List(a), (a) -> Bool receiving e) -> List(a) receiving e
 List.filterMap : (List(a), (a) -> Optional(b) receiving e) -> List(b) receiving e
 List.foldLeft : (List(a), b, (b, a) -> b receiving e) -> b receiving e
 List.foldRight : (List(a), b, (b, a) -> b receiving e) -> b receiving e // from the right
+List.mapFold : (List(a), b, (b, a) -> #(b, c) receiving e) -> #(b, List(c)) receiving e // each element in order, the accumulator threaded through and answered first
 List.forEach : (List(a), (a) -> Unit receiving e) -> Unit receiving e
 List.any : (List(a), (a) -> Bool receiving e) -> Bool receiving e
 List.all : (List(a), (a) -> Bool receiving e) -> Bool receiving e
