@@ -67,8 +67,8 @@
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
-         exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
-         binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
+         exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
+         binding/1, binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
          spawn_order/1, gateway/0, init_stdlib/0, stdlib_modules/0, init_modules/1, initialized/1,
          offer/2,
@@ -2996,6 +2996,16 @@ deadlock_victim(none) ->
 deadlock_victim(Pid) ->
     ets:insert(?LAUNCH, {deadlock_victim, Pid}),
     ok.
+
+%% Report §11.2: the entry process of the launch in progress, by which
+%% `ern test` knows its fault in a doc example's launch, where the
+%% example's line carries it; none outside a launch.
+-spec entry_process() -> pid() | none.
+entry_process() ->
+    case ets_lookup(?LAUNCH, entry_process) of
+        [{_, Pid}] -> Pid;
+        [] -> none
+    end.
 
 %% Report §8.6: the host's termination or hangup ends the run in progress
 %% as the end of its entry process does; none when no run is in progress.

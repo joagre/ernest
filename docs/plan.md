@@ -206,7 +206,7 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   initializer faulting in its directory, ended the module's run as the tests' launch does, with
   no line for the example and none after it; §11.2 fails the example with `faulted` and the
   cause and runs the next, since an example is a case and a case's failure stops no other
-  (principle 1); to be built, an hour.
+  (principle 1); built 2026-10-22.
 - **An abstract type's constructor's doc example** (found 2026-10-21 building the items above), a
   defect, done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
   examples): `ern test` ran none of the doc examples of an abstract type's constructors and

@@ -1992,8 +1992,8 @@ doc_example_working_directory_test() ->
 %% in a unit of its own, evaluates the module's bindings once, in that unit,
 %% and an example that does not run initializes nothing. A regression test,
 %% written after the code: a private declaration's example evaluated the
-%% module's initializers again in the tests' launch; it does not cover an
-%% initializer that faults in an example's directory
+%% module's initializers again in the tests' launch; an initializer that
+%% faults in an example's directory is doc_example_program_ends_test's
 doc_example_initializers_test() ->
     Dir = tmp(),
     write(Dir, "src/inits.ern",
@@ -2031,6 +2031,92 @@ doc_example_initializers_test() ->
                    "Inits.quadruple example 1: passed\n"
                    "Inits.quadruple example 2: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
+
+%% report §11.2, §8.5: a doc example whose program ends before the example
+%% returns fails with `faulted` and the cause, as a test's line is, the
+%% fault's trace beneath it, and the next example runs: an initializer that
+%% faults in the example's empty directory, where the tests' launch found
+%% its file, and one that kills the entry process there; the fault is not
+%% reported on standard error too. An example that itself faults keeps its
+%% line, and the next runs after it. The status is 1 for each module. A
+%% regression test, written after the code: the initializer's fault was
+%% reported on standard error as `ern run` reports it and ended the
+%% module's run, with no line for the example and none after it, and the
+%% kill printed `killed`; it does not cover a signal or a stream that can
+%% no longer be written during an example's launch, which end the module's
+%% run, nor a run on a node
+doc_example_program_ends_test() ->
+    Dir = tmp(),
+    write(Dir, "src/configs.ern",
+          "let config : Bytes = match Fs.read(Path(\"config.txt\"), 5000) {\n"
+          "    Right(bytes) -> bytes\n"
+          "  | Left(error) -> fault(\"config.txt cannot be read: \" <> Io.show(error))\n"
+          "}\n"
+          "\n"
+          "/// The size of `config.txt` where the module is initialized.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Configs.size()\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Configs.size() + 1\n"
+          "/// ```\n"
+          "export fn size() : Int = Bytes.size(config)\n"
+          "\n"
+          "let sized = Test.Case(name = \"sized\", run = fn() = Test.equal(size(), 2))\n"),
+    write(Dir, "src/kills.ern",
+          "let initializing : Address(Never) = self()\n"
+          "\n"
+          "let checked : Unit = match Fs.stat(Path(\"config.txt\"), 5000) {\n"
+          "    Right(_) -> Unit\n"
+          "  | Left(_) -> kill(initializing)\n"
+          "}\n"
+          "\n"
+          "/// Nothing, where `config.txt` is.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Kills.nothing()\n"
+          "/// // => Unit\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Kills.nothing()\n"
+          "/// ```\n"
+          "export fn nothing() : Unit = checked\n"),
+    write(Dir, "src/divides.ern",
+          "/// `n` over `d`.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Divides.divide(1, 0)\n"
+          "/// // => 0\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Divides.divide(4, 2)\n"
+          "/// // => 2\n"
+          "/// ```\n"
+          "export fn divide(n : Int, d : Int) : Int = n / d\n"),
+    write(Dir, "config.txt", "ab"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Errors = in_directory(Dir, fun() ->
+                                   [standard_error_of(["test", "build/" ++ Module ++ ".erc"])
+                                    || Module <- ["configs", "kills", "divides"]]
+                               end),
+    ?assertEqual([{"", 1}, {"", 1}, {"", 1}], Errors),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertEqual(<<"sized: passed\n"
+                   "Configs.size example 1: faulted: config.txt cannot be read: NotFound\n"
+                   "Configs.size example 2: passed\n"
+                   "Kills.nothing example 1: faulted: Killed\n"
+                   "Kills.nothing example 2: passed\n"
+                   "Divides.divide example 1: faulted: division by zero\n"
+                   "Divides.divide example 2: passed\n">>,
+                 untraced(Output)),
+    ?assertMatch({_, _}, binary:match(Output, <<"NotFound\n    Configs.config:3\n"
+                                                "Configs.size example 2">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"zero\n    ">>)).
 
 %% report §11.2: nothing a doc example leaves reaches the next, since each
 %% runs as a program of its own: a process the first left holding an offer

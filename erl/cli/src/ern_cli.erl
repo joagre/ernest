@@ -1398,10 +1398,12 @@ say_limits() ->
 %% as it ends, then, once their launch has ended, its doc examples,
 %% Examples, as ern_examples made them, each a program of its own, in a
 %% launch of its own in an empty directory of its own; status 1 unless
-%% every one passed. A launch that ends otherwise than by its entry
+%% every one passed. A tests' launch that ends otherwise than by its entry
 %% process's return, by an initializer's fault among them, ends the
-%% module's run with the status that end gives (report_outcome/2). The
-%% units the examples' compiling loaded go once the last has run.
+%% module's run with the status that end gives (report_outcome/2); an
+%% example's fails that example alone, but for a signal's or a stream's
+%% (example_launch/3). The units the examples' compiling loaded go once the
+%% last has run.
 run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
     Caller = self(),
     Entry = fun(Running) ->
@@ -1409,35 +1411,26 @@ run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
                             Running)
             end,
     Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
-    Status = case cases_launch(Entry, Site, headed(Heading, init_fun(Loaded)), ErrorDevice,
-                               Node) of
+    Status = case cases_launch(tests, Entry, Site, headed(Heading, init_fun(Loaded)),
+                               ErrorDevice, Node) of
                  {told, refused} -> 1;
                  {told, Passed} -> run_examples(Examples, Passed, ErrorDevice, Node);
-                 {ended, Ended} -> Ended
+                 Ended -> report_outcome(ErrorDevice, Ended)
              end,
     ern_examples:unload(Units),
     Status.
 
 %% Report §11.2: each doc example run as a program of its own (§8.5), in
-%% an empty directory of its own (ern_examples:in_directory/2), where its
-%% launch initializes the modules it uses, the documented one among them,
-%% and its entry process runs it as a test is run, in a process of its own,
-%% and prints its line; nothing it leaves, a process or an offer, outlives
-%% its launch. Passed says whether every case before passed; the status of
-%% the module's run.
+%% an empty directory of its own (ern_examples:in_directory/2), by a launch
+%% of its own (example_launch/3). Passed says whether every case before
+%% passed; the status of the module's run.
 run_examples([], Passed, _ErrorDevice, _Node) ->
     case Passed of
         true -> 0;
         false -> 1
     end;
 run_examples([Example | Examples], Passed, ErrorDevice, Node) ->
-    Caller = self(),
-    Launched = fun({{'Case', Name, _} = Case, Initialized}) ->
-                       Entry = fun(Running) ->
-                                   fun() -> Caller ! {ern_tests, run_test(Case, Running)} end
-                               end,
-                       cases_launch(Entry, Name, init_fun(Initialized), ErrorDevice, Node)
-               end,
+    Launched = fun(Ready) -> example_launch(Ready, ErrorDevice, Node) end,
     case ern_examples:in_directory(Example, Launched) of
         {told, ExamplePassed} ->
             run_examples(Examples, Passed andalso ExamplePassed, ErrorDevice, Node);
@@ -1445,33 +1438,85 @@ run_examples([Example | Examples], Passed, ErrorDevice, Node) ->
             Ended
     end.
 
+%% Report §11.2: an example's launch, which initializes the modules the
+%% example uses, the documented one among them, and whose entry process
+%% runs it as a test is run, in a process of its own, and prints its line;
+%% nothing it leaves, a process or an offer, outlives its launch. An
+%% example whose program ends before the example returns, an initializer's
+%% fault among them, fails with `faulted` and the cause, its line written
+%% as a test's is, its trace beneath it, and the fault is not reported
+%% apart from it (cases_launch/6). The line is the job's own, written once
+%% the launch has ended, since the launch's standard output has ended with
+%% it, flushed. A signal, or a stream that can no longer be written, ends
+%% the module's run, as it ends the tests' launch. Whether the example
+%% passed, or the status of that end.
+example_launch({{'Case', Name, _} = Case, Initialized}, ErrorDevice, Node) ->
+    Caller = self(),
+    Entry = fun(Running) ->
+                fun() -> Caller ! {ern_tests, run_test(Case, Running)} end
+            end,
+    case cases_launch(example, Entry, Name, init_fun(Initialized), ErrorDevice, Node) of
+        {told, _} = Told ->
+            Told;
+        Ended ->
+            case ended_reason(Ended) of
+                {Reason, Trace} ->
+                    io:put_chars(case_line(Name, <<"faulted: ", (cause(Reason))/binary>>, Trace)),
+                    {told, false};
+                none ->
+                    {ended, report_outcome(ErrorDevice, Ended)}
+            end
+    end.
+
+%% Report §11.2: the Reason (§9.3) of an example's program's end before
+%% the example returned, as a test's Down carries it, and its fault's
+%% trace; none for a signal or a stream that can no longer be written. The
+%% program cannot end by Os.exit, which faults its caller here.
+ended_reason(killed) -> {'Killed', <<>>};
+ended_reason({fault, Cause}) -> {{'Fault', Cause}, <<>>};
+ended_reason({fault, Cause, Trace}) -> {{'Fault', Cause}, Trace};
+ended_reason({initializer_fault, _Site, Cause}) -> {{'Fault', Cause}, <<>>};
+ended_reason({initializer_fault, _Site, Cause, Trace}) -> {{'Fault', Cause}, Trace};
+ended_reason({signal, _}) -> none;
+ended_reason({gone, _}) -> none.
+
 %% Report §11.2: a launch whose entry process, Entry(Running), runs cases
 %% by run_test/2 and tells the runner what they came to, Init run before it
-%% (§8.5); what it told, or the status the launch ended with otherwise.
-cases_launch(Entry, Site, Init, ErrorDevice, Node) ->
+%% (§8.5), the cases being the module's tests or a doc example; what it
+%% told, or the outcome it ended with otherwise. A case's own fault is its
+%% line, and so, in an example's launch, is the entry process's, an
+%% initializer's among them, which the outcome carries (example_launch/3);
+%% every other fault is reported as `ern run` reports it.
+cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
     %% terms at each change of one
     Running = ets:new(running_test, [public]),
-    %% report §11.2: a test's own fault is its line, and every other is
-    %% reported as `ern run` reports it
     %% report §11.2: Os.exit faults the test that calls it
     RunOptions = reporting_options(maps:merge(#{init => Init, exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
     %% report §11.2: a test's own fault is its line, its trace beneath it,
-    %% which its row keeps until its end is here
+    %% which its row keeps until its end is here; an example's entry
+    %% process's is the example's line, which the outcome carries
     Reporter = fun({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
-                       case ets:member(Running, Process) of
-                           true -> ets:insert(Running, {Process, Trace});
-                           false -> Report(FaultReport, Peer)
+                       case {ets:member(Running, Process), Cases} of
+                           {true, _} ->
+                               ets:insert(Running, {Process, Trace});
+                           {false, example} ->
+                               case ern_rt:entry_process() of
+                                   Process -> ok;
+                                   _ -> Report(FaultReport, Peer)
+                               end;
+                           {false, tests} ->
+                               Report(FaultReport, Peer)
                        end
                end,
     Outcome = ern_rt:run_main(Entry(Running), Site, RunOptions#{faults => Reporter}),
     ets:delete(Running),
     case Outcome of
         ok -> receive {ern_tests, Told} -> {told, Told} end;
-        Other -> {ended, report_outcome(ErrorDevice, Other)}
+        Ended -> Ended
     end.
 
 %% Report §11.2: under a directory the module's name stands on a line
@@ -1539,12 +1584,14 @@ run_test({'Case', Name, Run}, Running) ->
                 [{_, Faulted}] -> Faulted;
                 [{_}] -> <<>>
             end,
-    %% report §11.2: a test's name is written as a cause is, its controls
-    %% escaped, and beneath the line of a test that faulted its trace
-    ern_rt:send(ern_rt:system_process(stdout),
-                iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n",
-                                  indented_trace(Trace)])),
+    ern_rt:send(ern_rt:system_process(stdout), case_line(Name, Outcome, Trace)),
     Outcome =:= <<"passed">>.
+
+%% Report §11.2: a case's line, its name written as a cause is, its
+%% controls escaped, then what it came to, and beneath the line of a case
+%% that faulted its trace.
+case_line(Name, Outcome, Trace) ->
+    iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n", indented_trace(Trace)]).
 
 %% A test that returned still sends its Down; it is taken so that it is not
 %% left in the runner's mailbox.
