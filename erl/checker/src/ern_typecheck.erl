@@ -572,9 +572,9 @@ add_interface(#interface{namespace = Namespace, values = Values, lets = Lets,
     %% a value of the module M.T of a member's name, a `let` or a function
     %% the build missed (ern_build), never takes the member's place,
     %% whichever interface comes first
-    Shadowed = [QualifiedName || QualifiedName <- maps:keys(Values),
-                                 maps:get(QualifiedName, Declaring, none)
-                                     =:= lists:droplast(Namespace)],
+    Parent = lists:droplast(Namespace),
+    Shadowed = [QualifiedName || QualifiedName := _ <- Values,
+                                 maps:get(QualifiedName, Declaring, none) =:= Parent],
     added_interface(Interface#interface{values = maps:without(Shadowed, Values),
                                         lets = Lets -- Shadowed,
                                         identities = maps:without(Shadowed, Identities),
