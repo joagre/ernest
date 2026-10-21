@@ -4,14 +4,14 @@ The repository's own rules for its Erlang and its C, and where they differ from 
 
 ## Every language
 
-A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md) says the standard library chooses one, spelled as each language spells a name, `parse_module` in Erlang. The rules of the *Ernest* section below on a function's length and a module's job hold for them too. The repository adds these:
+A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md) says the standard library chooses one, spelled as each language spells a name, `parse_module` in Erlang, and the guide's rules of form, a function on one screen and a module with one job among them, hold for them too. The repository adds these:
 
 - A step of indentation is four spaces, and no file holds a tab, but a Makefile *(tested)*.
 - A line of code is at most 100 characters; prose in markdown may be longer *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.
 - The spelling test reads every tracked file of text but a proposal under `docs/proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*. A quotation keeps its author's spelling, and `-behaviour`, `LICENSE` and `prefers-color-scheme` are names of the host's or of another system's.
-- No abbreviation a reader must guess. A well-known acronym is fine, `TCP`, `URL`, `UTF-8`, `JSON`, and so is one the host or the report writes: `Pid`, `Ref`, `Fd`, and `Acc` for what a fold carries.
-- A record, a type or a constructor names what it holds, a type as a noun: `#emit_context{}`, not `#cx{}`; `Key(Terminal.Event)`, not `K`. A function that gives a value made so is a past participle, `armed`, `held`. Longer names make longer code, and that is accepted.
+- `Acc`, for what a fold carries, is an abbreviation the report writes, beside the host's the guide allows.
+- A record names what it holds, as the guide says of a type: `#emit_context{}`, not `#cx{}`. A function that gives a value made so is a past participle, `armed`, `held`. Longer names make longer code, and that is accepted.
 - A value changing through a function is numbered, `Env1`, `Env2`, `env1` in Ernest, and a numbered name is nothing else; past two steps the function is split.
 - A comment says why and cites the report section the code implements, `%% Report §8.4: ...`, `// Report §11.2: ...`; the names say what it does.
 
@@ -35,16 +35,10 @@ The runtime's helper, `erl/runtime/c_src/ern_exec.c`, is C99 and compiles with `
 
 ## Ernest
 
-For every Ernest source and every Ernest block of the report and the guide. The layout is `ern format`'s (report §11.6), which `make test` holds every source to and `make format` restores, and the names are [`guide/style.md`](../guide/style.md)'s, which the standard library, the shell and the examples follow, its block rule among them *(tested)*; the repository adds these, which bind its own Ernest and no program's:
+For every Ernest source and every Ernest block of the report and the guide. The layout is `ern format`'s (report §11.6), which `make test` holds every source to and `make format` restores, and the form and the names are [`guide/style.md`](../guide/style.md)'s, which the standard library, the shell and the examples follow, its block rule among them *(tested)*; the repository adds these, which bind its own Ernest and no program's:
 
-- **Top-down**: types, then the module's service bindings, then `main` or the exported functions, each followed directly by its helpers; a helper several share goes with its first user or in a utilities section at the bottom.
-- **A function reads on one screen**; a longer one is split into steps whose names say what they do. How deep code nests is the writer's judgment, bounded by the line: a construct that no longer reads within 100 characters becomes a function.
-- **A module has one job**, which its first comment or doc block states.
-- **A blank line groups**, where the writer chooses. A declaration's comment or doc block stands directly above it.
-- **Name a part of a long expression** where the formatter's split reads worse than a name.
-- **A section's banner** is a line `//`, lines `// text`, and a line `//`, with a blank line before and after. A module with a doc block has no banner for the file; its `///` block is its header (report §2.2).
-- **One letter only where the whole scope is one line that shows what it is**: `fn(x) = x + 1`; `fn(module) = size(module)` where the line does not say what a letter would stand for, and `xs` and `f` only where nothing more can be said.
-- **One concept, one name, in every module**; a name the report states changes only through the report, and a new word that departs from the report's goes to the user first.
+- **A comment cites the report section the code implements**, `// Report §8.4: ...`, as the Erlang's does.
+- **A name the report states changes only through the report**, and a new word that departs from the report's goes to the user first.
 
 ## Glossary
 
@@ -156,20 +150,4 @@ The names that recur across the toolchain's modules, one for each concept, in ev
 
 **Ernest**
 
-The names are [`guide/style.md`](../guide/style.md)'s. These spellings were refused for them; one met in the repository's Ernest is corrected to the guide's name:
-
-- **subject**: not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
-- **callback**: not `p`, `g`.
-- **acc**: not `done`.
-- **reply**: not `r`.
-- **index**: not `at`, `i`, `from`, `start`.
-- **end**: not `to`, `stop`.
-- **count**: not `n`, `length`.
-- **ms**: not `wait`, `t`.
-- **old, new**: not `from`, `to`.
-- **cause**: not `why`, `c`, `text`.
-- **error**: not `e`, `why`.
-- **user**: not `owner`, which is a resource's process, nor `uid`.
-- **char**: not `c`, `ch`.
-- **request**: not `Recv`, `Measure`, `FarEnd`.
-- **event**: not `Resize`.
+The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its glossary refuses; one met in the repository's Ernest is corrected to the guide's name.

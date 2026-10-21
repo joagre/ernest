@@ -12,25 +12,33 @@ Appendix E.0's shape rules 1 to 5, 7, 9 and 10 bind a library outside the standa
 
 ## What the standard library does
 
-A value's name is camelCase and a type's PascalCase, `parseHeader`, `OrderedSet`, and a yes-or-no reads as the question, `isEmpty`. An exported function's parameters are named for their role, since the shell and `ern doc` show the signature: `List.filter(list, keep)`, `Fs.read(path, ms)`. A type variable is `a`, `b` for a value, `k` and `v` for a map's, `e` for an effect and `m` for a mailbox. A block holds more than one statement; one expression is written bare. The spelling is American English in names and messages alike, `color`, `initialize`; a name of the host's keeps its own.
+A value's name is camelCase and a type's PascalCase, `parseHeader`, `OrderedSet`, and a yes-or-no reads as the question, `isEmpty`. A name says what its value is or what its function does, in the words of the domain: a function that does something is a verb, `parse`, and one that gives a value is that value, a noun or an adjective, `size`, `sorted`; a type or a constructor names what it holds, a type as a noun, `Key(Terminal.Event)`, not `K`.
+
+No abbreviation a reader must guess: a well-known acronym is fine, `TCP`, `URL`, `UTF-8`, `JSON`, and so is one the host writes, `Pid`, `Ref`, `Fd`. One letter only where the whole scope is one line that shows what it is, `fn(x) = x + 1`, and `xs` and `f` only where nothing more can be said. One concept, one name, in every module.
+
+An exported function's parameters are named for their role, since the shell and `ern doc` show the signature: `List.filter(list, keep)`, `Fs.read(path, ms)`. A type variable is `a`, `b` for a value, `k` and `v` for a map's, `e` for an effect and `m` for a mailbox. The spelling is American English in names and messages alike, `color`, `initialize`; a name of the host's keeps its own.
+
+A module reads top-down: its types, then its service bindings, then `main` or the exported functions, each followed directly by its helpers; a helper several share goes with its first user or in a section at the bottom. A module has one job, which its doc block or first comment states. A function reads on one screen; a longer one is split into steps whose names say what they do, and a construct that no longer reads within the line becomes a function.
+
+A block holds more than one statement; one expression is written bare. A blank line groups, where the writer chooses, and a comment or doc block stands directly above its declaration. A part of a long expression is named where the formatter's split reads worse than a name. A section's banner is a line `//`, lines `// text`, and a line `//`, with a blank line before and after; a module with a doc block has no banner for the file, since the block is its header (report §2.2). A comment says why; the names say what.
 
 ## Glossary
 
 The names that recur in a program, one for each concept, in every module. The report is the authority: a concept it names takes its name, and a citation such as E.5 names a section of its Appendix E. A name not here is the writer's.
 
-- A function's **subject** is named for what it is, `list`, `text`, `map`, `set`, `bytes`, `path`, `table`, `process`.
-- A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `span` and `partition` ask it, `step` for a fold's or a try's (E.0 rule 2), `wrap` for what delivers a message (E.0 shape rule 8); `f` only where nothing more can be said.
-- **acc**: what a fold or a recursion carries.
-- **reply**: a `Reply`.
-- **index**: a position in a sequence (E.2, E.5); a place in a file is an `offset` (E.17).
-- **end**: the index a slice stops before, which it leaves out, `String.slice(text, index, end)` (E.5, E.20).
-- **count**: how many.
-- **ms**: milliseconds (E.23); a moment is a `time`.
-- **old, new**: what `replace` takes, in every module.
-- **cause**: a fault's cause (report §7.3).
-- **error**: an error a function answers, an `Io.Error` among them.
-- **user**: the host's number for a user, the one a file belongs to, an `Fs.Entry`'s `user`, and the one the program runs as, `Os.user` (E.17, E.23).
-- **char**: a `Char`.
-- A **request** constructor is the function it serves, `Read` for `read`, and where that is a prelude name, what it asks for, `ListEntries` for `list`; an **event** is in the past tense, `Resized`.
+- A function's **subject** is named for what it is, `list`, `text`, `map`, `set`, `bytes`, `path`, `table`, `process`. Not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
+- A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `span` and `partition` ask it, `step` for a fold's or a try's (E.0 rule 2), `wrap` for what delivers a message (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
+- **acc**: what a fold or a recursion carries. Not `done`.
+- **reply**: a `Reply`. Not `r`.
+- **index**: a position in a sequence (E.2, E.5); a place in a file is an `offset` (E.17). Not `at`, `i`, `from`, `start`.
+- **end**: the index a slice stops before, which it leaves out, `String.slice(text, index, end)` (E.5, E.20). Not `to`, `stop`.
+- **count**: how many. Not `n`, `length`.
+- **ms**: milliseconds (E.23); a moment is a `time`. Not `wait`, `t`.
+- **old, new**: what `replace` takes, in every module. Not `from`, `to`.
+- **cause**: a fault's cause (report §7.3). Not `why`, `c`, `text`.
+- **error**: an error a function answers, an `Io.Error` among them. Not `e`, `why`.
+- **user**: the host's number for a user, the one a file belongs to, an `Fs.Entry`'s `user`, and the one the program runs as, `Os.user` (E.17, E.23). Not `owner`, which is a resource's process, nor `uid`.
+- **char**: a `Char`. Not `c`, `ch`.
+- A **request** constructor is the function it serves, `Read` for `read`, and where that is a prelude name, what it asks for, `ListEntries` for `list`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd` for a request, nor `Resize` for an event.
 - A **mailbox type** is named for its process, with `Msg`: `CounterMsg`, `Os.ProgramMsg`.
 - A prelude name, `Down`, `answer`, `kill`, means the prelude's thing in every module: the library binds it to nothing else.
