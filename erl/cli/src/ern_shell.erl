@@ -1441,17 +1441,18 @@ appeared(Session, Segments) ->
     end.
 
 %% The compiled module, or the prelude, whose documentation entry a
-%% documented name is, and the entry's name: a module's function, `map` of
-%% `List.map`; a member of a module's type, `Point.compare` of
-%% `Shape.Point.compare`; or the prelude's name.
+%% documented name is, and the entry's name: a member of a module's type,
+%% `Point.compare` of `Shape.Point.compare`; a module's function, `map` of
+%% `List.map`; or the prelude's name. Report §4.2: the member comes first,
+%% as a qualified name is the member where the type has one.
 declaring(Session, Segments) when length(Segments) >= 2 ->
     Namespace = lists:droplast(Segments),
     TypeNamespace = lists:droplast(Namespace),
     Member = lists:nthtail(length(Segments) - 2, Segments),
-    Beams = [{Beam, entry_name([lists:last(Segments)])}
-             || Beam <- [beam_of(Session, Namespace)], Beam =/= none]
-        ++ [{Beam, entry_name(Member)}
-            || TypeNamespace =/= [], Beam <- [beam_of(Session, TypeNamespace)], Beam =/= none],
+    Beams = [{Beam, entry_name(Member)}
+             || TypeNamespace =/= [], Beam <- [beam_of(Session, TypeNamespace)], Beam =/= none]
+        ++ [{Beam, entry_name([lists:last(Segments)])}
+            || Beam <- [beam_of(Session, Namespace)], Beam =/= none],
     case [Found || {Beam, Name} = Found <- Beams, ern_page:declaration(Beam, Name, entry) =/= none]
     of
         [Found | _] -> Found;
@@ -1833,24 +1834,25 @@ declaring_beam(QualifiedName, Segments, Beams) ->
 entry_name(Segments) ->
     unicode:characters_to_binary(ern_namespace:text(Segments)).
 
-%% A module on the load path, `List.map`, or one of its type's members,
-%% `Net.Http.Request.method`. Report §11.2: a value's declaration shows the
-%% type the shell prints, `Fs.Entry` and not the page's `Entry`, and a
-%% type's its own.
+%% One of a module's type's members on the load path,
+%% `Net.Http.Request.method`, or a module's value, `List.map`. Report
+%% §11.2: a value's declaration shows the type the shell prints, `Fs.Entry`
+%% and not the page's `Entry`, and a type's its own. Report §4.2: the
+%% member comes first, as a qualified name is the member where the type
+%% has one.
 module_doc(Session, Segments) when length(Segments) >= 2 ->
     Namespace = lists:droplast(Segments),
     Name = lists:last(Segments),
-    case entry(beam_of(Session, Namespace), entry_name([Name]),
-               module_signature(Session, Segments, Namespace, Name)) of
-        {ok, Page} ->
-            {ok, Page};
-        none when length(Segments) >= 3 ->
-            [MemberOf, Member] = lists:nthtail(length(Segments) - 2, Segments),
-            entry(beam_of(Session, lists:sublist(Segments, length(Segments) - 2)),
-                  entry_name([MemberOf, Member]),
-                  module_signature(Session, Segments, Namespace, Member));
-        none ->
-            none
+    Signature = module_signature(Session, Segments, Namespace, Name),
+    Member = case length(Segments) >= 3 of
+                 true -> entry(beam_of(Session, lists:droplast(Namespace)),
+                               entry_name(lists:nthtail(length(Segments) - 2, Segments)),
+                               Signature);
+                 false -> none
+             end,
+    case Member of
+        {ok, Page} -> {ok, Page};
+        none -> entry(beam_of(Session, Namespace), entry_name([Name]), Signature)
     end;
 module_doc(_, _) ->
     none.

@@ -1,6 +1,6 @@
 # The diagnostics
 
-Errors the lexer, the parser and the checker give, each with one small program that gives it and what `ern build` prints for it, laid out as report §11.5 says; an error only the shell gives is shown in a session. `test/ern_guide_tests.erl` holds each output to the compiler's, and `make diagnostics` writes the outputs anew from the compiler, after a change to a message that is meant.
+Errors the lexer, the parser, the checker and the build give, each with one small program that gives it, or two files where the error needs a second, and what `ern build` prints for it, laid out as report §11.5 says; an error only the shell gives is shown in a session. `test/ern_guide_tests.erl` holds each output to the compiler's, and `make diagnostics` writes the outputs anew from the compiler, after a change to a message that is meant.
 
 ## The lexer (report §2)
 
@@ -1639,6 +1639,29 @@ example.ern:3:8: f is exported and its type names Box, which this module keeps p
 3 | export fn f() : Box = Box(1)
   |        ^^^^^^^^^^^^^^^^^^^^^
   | = help: export Box, or declare it `abstract type` so that its constructors stay private (report §4.4)
+```
+
+### A function of a type's namespace that is a member's name (§4.2, §11.5)
+
+```ernest
+// main.ern
+export type Stack = Stack(items : List(Int))
+
+export fn Stack.compare(left : Stack, right : Stack) : Ordering =
+    Int.compare(List.size(left.items), List.size(right.items))
+```
+
+```ernest-rejected
+// main/stack.ern
+export fn compare(left : Int, right : Int) : Ordering = Int.compare(left, right)
+```
+
+```console
+$ ern build main/stack.ern
+main/stack.ern:2:8: Main.Stack.compare is a member of the type Stack in main.ern
+1 | // main/stack.ern
+2 | export fn compare(left : Int, right : Int) : Ordering = Int.compare(left, right)
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ## Fields and construction (report §3.5, §5.6)

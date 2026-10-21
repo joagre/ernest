@@ -73,7 +73,11 @@
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
-              reaches = #{}, positions = #{}, foreign = #{}}).
+              reaches = #{}, positions = #{}, foreign = #{}, declaring = #{}}).
+%% declaring: the namespace of the module that declares each value of the
+%% modules given, by qualified name, which their interfaces hold, so that
+%% `M.T.f` is told M's member of its type T from the module M.T's f
+%% (qualified_referent/3, report §4.2, §11.2)
 %% foreign: the module's own foreign declarations, by qualified name,
 %% which have no hash and are no definition (report Appendix H, §3.11)
 %% private_types: the private types of the modules given that their
@@ -560,10 +564,28 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
 with_interfaces(Interfaces, Env) ->
     lists:foldl(fun add_interface/2, Env, Interfaces).
 
-add_interface(#interface{namespace = Namespace, types = InterfaceTypes, values = Values,
-                         lets = Lets, private_types = PrivateTypes, identities = Identities,
-                         reaches = Reaches, positions = Positions},
-              #env{types = Types, globals = Globals} = Env) ->
+add_interface(#interface{namespace = Namespace, values = Values, lets = Lets,
+                         identities = Identities, reaches = Reaches,
+                         positions = Positions} = Interface,
+              #env{declaring = Declaring} = Env) ->
+    %% report §4.2: `M.T.f` is the member of M's type T where T has one, so
+    %% a value of the module M.T of a member's name, a `let` or a function
+    %% the build missed (ern_build), never takes the member's place,
+    %% whichever interface comes first
+    Shadowed = [QualifiedName || QualifiedName <- maps:keys(Values),
+                                 maps:get(QualifiedName, Declaring, none)
+                                     =:= lists:droplast(Namespace)],
+    added_interface(Interface#interface{values = maps:without(Shadowed, Values),
+                                        lets = Lets -- Shadowed,
+                                        identities = maps:without(Shadowed, Identities),
+                                        reaches = maps:without(Shadowed, Reaches),
+                                        positions = maps:without(Shadowed, Positions)},
+                    Env).
+
+added_interface(#interface{namespace = Namespace, types = InterfaceTypes, values = Values,
+                           lets = Lets, private_types = PrivateTypes, identities = Identities,
+                           reaches = Reaches, positions = Positions},
+                #env{types = Types, globals = Globals} = Env) ->
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
                              end, Env#env.constructors, InterfaceTypes),
@@ -574,8 +596,10 @@ add_interface(#interface{namespace = Namespace, types = InterfaceTypes, values =
             reaches = maps:merge(Env#env.reaches, Reaches),
             positions = maps:merge(Env#env.positions,
                                    maps:map(fun(_, Number) -> {Namespace, Number} end, Positions)),
-            lets = maps:merge(Env#env.lets,
-                              maps:from_list([{QualifiedName, true} || QualifiedName <- Lets]))}.
+            lets = maps:merge(maps:without(maps:keys(Values), Env#env.lets),
+                              maps:from_list([{QualifiedName, true} || QualifiedName <- Lets])),
+            declaring = maps:merge(Env#env.declaring,
+                                   maps:from_keys(maps:keys(Values), Namespace))}.
 
 add_type(#env{types = Types, constructors = Known} = Env,
          #type_info{qualified_name = QualifiedName, constructors = Constructors} = TypeInfo) ->
@@ -768,16 +792,6 @@ described_type(QualifiedName, #env{types = Types, private_types = PrivateTypes})
     case Types of
         #{QualifiedName := TypeInfo} -> TypeInfo;
         _ -> maps:get(QualifiedName, PrivateTypes, undefined)
-    end.
-
-%% Report §4.2, §11.2: whether Namespace is a module and the type that owns the
-%% member Name: a type of that module, or, at the prompt, a type the session
-%% declares whose member a later input declared.
--spec is_member_namespace([atom()], atom(), env()) -> boolean().
-is_member_namespace(Namespace, Name, Env) ->
-    case lookup_type(Namespace, Env) of
-        #type_info{qualified_name = QualifiedName} when length(QualifiedName) > 1 -> true;
-        _ -> session_name(values, {lists:last(Namespace), Name}, Env) =:= {ok, Namespace ++ [Name]}
     end.
 
 %%
@@ -5767,10 +5781,10 @@ lookup_value(Span, Namespace, Name,
                 _ -> lookup_global(Span, Namespace, Name, Env)
             end;
         false ->
-            %% report §4.2: `M.T.name` in module M is M's own member where M
-            %% declares T, and the module M.T's `name` otherwise; only one of
-            %% the two can exist, a module namespace may not coincide with a
-            %% type-member namespace
+            %% report §4.2: `M.T.name` in module M is M's own member where
+            %% its type T has one of that name, and the module M.T's `name`
+            %% otherwise, which the module's interface says it declares
+            %% (qualified_referent/3)
             Own = case is_own_type_namespace(Namespace, OwnNamespace) of
                       true -> own_member(lists:last(Namespace), Name, Env);
                       false -> error
@@ -5950,13 +5964,19 @@ lookup_global(Span, Namespace, Name, #env{globals = Globals} = Env) ->
             unknown(Span, "name", QualifiedName)
     end.
 
-%% Report §4.2: the declaration a qualified name names, Namespace the
-%% module's namespace or that and the type that owns the member.
+%% Report §4.2, §11.2: the declaration a qualified name of another module
+%% names, by the module its interface says declares it: `M.T.f` is the
+%% member of the type T where the module M declares it, a type of M's or,
+%% at the prompt, a type the session declares whose member a later input
+%% declared, and the module M.T's f where M.T declares it. A member and a
+%% value of M.T of one name never both stand among the globals, the member
+%% keeping its place (add_interface/2).
 qualified_referent(Namespace, Name, #env{namespace = OwnNamespace} = Env) ->
-    {Declaring, MemberOf} = case is_member_namespace(Namespace, Name, Env) of
-                                true -> {lists:droplast(Namespace), lists:last(Namespace)};
-                                false -> {Namespace, undefined}
-                            end,
+    Declaring = maps:get(Namespace ++ [Name], Env#env.declaring),
+    MemberOf = case Declaring =:= Namespace of
+                   true -> undefined;
+                   false -> lists:last(Namespace)
+               end,
     case Declaring =:= OwnNamespace of
         true -> #own_declaration{member_of = MemberOf, name = Name};
         false -> #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name}

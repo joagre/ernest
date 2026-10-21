@@ -528,6 +528,55 @@ load_and_reload_dependents() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled again\n"
                                                 "Main, compiled again\n> 30\n">>)).
 
+%% report §4.2, §11.2: a type and the module of its name share a namespace
+%% at the prompt as in a build: a load of the module brings the type's, and
+%% `Main.Stack.compare` is the type's member and `Main.Stack.push` the
+%% module's, called, typed and documented by the one prefix; and `Tab` after
+%% `Main.Stack.` lists both. A regression test, written after the code: the
+%% checker took every such name for a member
+shared_namespace_test_() ->
+    {timeout, 90, fun shared_namespace/0}.
+
+shared_namespace() ->
+    SourceRoot = scratch("ern_root_"),
+    ok = filelib:ensure_path(filename:join(SourceRoot, "main")),
+    ok = file:write_file(filename:join(SourceRoot, "main.ern"),
+                         "export type Stack = Stack(items : List(Int))\n"
+                         "\n"
+                         "export fn Stack.compare(left : Stack, right : Stack) : Ordering =\n"
+                         "    Int.compare(List.size(left.items), List.size(right.items))\n"
+                         "\n"
+                         "export fn empty() : Stack = Stack(items = [])\n"),
+    ok = file:write_file(filename:join([SourceRoot, "main", "stack.ern"]),
+                         "/// Pushes an item.\n"
+                         "export fn push(stack : Main.Stack, item : Int) : Main.Stack =\n"
+                         "    Main.Stack(items = item :: stack.items)\n"),
+    InputFile = filename:join(SourceRoot, "session.in"),
+    ok = file:write_file(InputFile, [":load Main.Stack\n",
+                                     "let one = Main.Stack.push(Main.empty(), 1)\n",
+                                     "Main.Stack.compare(one, Main.empty())\n",
+                                     ":type Main.Stack.compare\n",
+                                     ":doc Main.Stack.push\n"]),
+    Ern = filename:absname("../bin/ern"),
+    {0, Output} = ern_pty:sh(alone(Ern ++ " shell --source-root " ++ SourceRoot ++ " < "
+                                   ++ InputFile)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> one : Main.Stack\n"
+                                                "> Greater : Ordering\n"
+                                                "> Main.Stack.compare : (Main.Stack, Main.Stack)"
+                                                " -> Ordering\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Pushes an item.">>)),
+    Bytes = pty(alone(Ern ++ " shell --source-root " ++ SourceRoot),
+                [{expect, "> "},
+                 {send, hex(":load Main.Stack\r")},
+                 {expect, "Main.Stack, compiled"},
+                 {send, hex("Main.Stack.") ++ "09" ++ "09"},
+                 {expect, "Main.Stack.push :"},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 30x100"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.compare : (Main.Stack, Main.Stack)">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)).
+
 %% report §11.2: a `let` with a pattern whose line ends unfinished takes
 %% the next line, as any input does. A regression test: `let #(a, b) =` ran
 %% alone, with the parser's error, and its next line as an input of its own

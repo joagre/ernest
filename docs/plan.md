@@ -127,11 +127,17 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   takes `ok` at its top (§7.4, §8.4), the prelude's `Unit` told from a program's own
   `type Unit = Unit` by a descriptor word of its own, `unit`, as `Int` has one.
 - **A type and the module of its operations share a name** (feedback 136), decided with the user
-  on 2026-10-21 as the log's *The Window's Three Asks* proposed (its *Designed* paragraph): §4.2
-  states the sharing and its one clash, a member of an exported type against an exported function
-  of the module of its name, reported in that module, and §11.5 the error's line. The build drops
-  `ern_build`'s refusal of the coincidence and adds the clash check against the parent's interface;
-  lookup, the loader and the shell already decide a qualified name by the member's existence.
+  and done 2026-10-21 (the log's *The Window's Three Asks*, its *Designed* and *Built*
+  paragraphs): the module of a type's name shares the type's namespace, `Main.Stack.compare` the
+  type's member and `Main.Stack.push` the module's, and a function the module exports under a
+  member's name is an error at its declaration (§4.2, §11.5). The checker decides a qualified name
+  by the module its interface says declares it, and the build depends on that module.
+- **A module under a standard library namespace** (found 2026-10-21 building the item above), a
+  decision for the user in this milestone: `fs/entry.ern` builds as `Fs.Entry` and no module
+  reaches it, since the build takes no dependency under a namespace of the prelude or the standard
+  library, and §4.2's taken namespaces refuse only the namespaces themselves. Recommended: §4.2
+  refuses a module under a taken namespace too, the refusal the build's dependencies already
+  assume (principle 1); about an hour with its test.
 - **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), done 2026-10-21 (the log's *Nothing
   Waits for a Program*, its line of that day): E.2 lists it after `foldRight`, and it is Ernest
   alone, a recursion of its own whose step takes the accumulator first and answers
@@ -158,8 +164,6 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
 - **Doc examples run by `ern test`** (feedback 127; principle 1). `ern test` runs a module's
   `// =>` examples as cases, as Ernest's own test runs its libraries', so that a library's page is
   held true by its own tests. §11.2 and §11.4 first.
-  Discussed with the user before it is built, since it touches lookup; §4.2 and §9 first, then the
-  checker, then a test of a library's type found through both names.
 
 ## MVP 3.3 (the tour)
 

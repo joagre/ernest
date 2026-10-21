@@ -12,8 +12,9 @@
 %% and its output compared with the console's lines that are not commands;
 %% `$ printf 'a\nb\n' | ern run x.erc` gives the program those lines on
 %% standard input. A block marked `ernest-rejected` fails to compile, and
-%% for a reason of its own: not a parse error and not an unknown name. When
-%% a console follows it, its `$ ern build` line names the file and the
+%% for a reason of its own: not a parse error and not an unknown name; one
+%% after a source tree under its heading is built beside the tree's files.
+%% When a console follows it, its `$ ern build` line names the file and the
 %% error is compared whole; where a line of the block holds a comment
 %% `// rejected`, the error is on that line. A console whose command is
 %% `$ ern shell` is a session: its `> ` lines are the inputs, and the rest
@@ -209,8 +210,9 @@ check({modules, #{files := Files, launch := Launch}}) ->
     end,
     ok = file:del_dir_r(Dir),
     Checked;
-check({rejected, #{files := [{Name, Code}], shown := Shown} = Unit}) ->
+check({rejected, #{files := [{Name, Code} | Beside], shown := Shown} = Unit}) ->
     Dir = tmp(),
+    [ok = write(filename:join(Dir, BesideName), BesideCode) || {BesideName, BesideCode} <- Beside],
     File = filename:join(Dir, Name),
     ok = write(File, Code),
     %% built in this node, the file named as a build started in Dir names it
@@ -305,12 +307,16 @@ fence(_) -> false.
 %% Seen: each named file as it stands so far, for a block that continues it.
 group([], _Seen) ->
     [];
-group([#block{line = Number, info = <<"ernest-rejected">>, code = Code} | Rest], Seen) ->
+group([#block{line = Number, info = <<"ernest-rejected">>, heading = Heading, code = Code} | Rest],
+      Seen) ->
     {File, Shown} = case compiled(Rest) of
                         {Name, Text} -> {Name, Text};
                         none -> {file_of(Code), none}
                     end,
-    Unit = #{line => Number, files => [{File, join(Code)}], shown => Shown},
+    %% the files the source tree before it under its heading names, which
+    %% it is built beside
+    Beside = maps:get({tree, Heading}, Seen, []),
+    Unit = #{line => Number, files => [{File, join(Code)} | Beside], shown => Shown},
     [{rejected, Unit} | group(Rest, Seen)];
 group([#block{line = Number, info = <<"console">>, code = [<<"$ ern shell">> | Lines]} | Rest],
       Seen) ->
@@ -341,7 +347,7 @@ group([#block{line = Number, info = Info, heading = Heading, code = Code} = Bloc
             Tree = [Block | Same],
             Files = parts([{named(BlockCode), BlockCode} || #block{code = BlockCode} <- Tree],
                           Seen),
-            Seen1 = maps:merge(Seen, maps:from_list(Files)),
+            Seen1 = (maps:merge(Seen, maps:from_list(Files)))#{{tree, Heading} => Files},
             Unit = #{line => Number, files => Files, launch => launch(Others)},
             [{modules, Unit} | group(Others, Seen1)]
     end;
@@ -414,7 +420,7 @@ launch(_) ->
 %% The next fenced block, when it is a console whose command is `$ ern build`:
 %% the file it compiles, and the lines it shows.
 compiled([#block{info = <<"console">>, code = [Command | Lines]} | _]) ->
-    case re:run(Command, "^\\$ ern build ([a-z0-9]+\\.ern)$",
+    case re:run(Command, "^\\$ ern build ([a-z0-9_/]+\\.ern)$",
                 [{capture, all_but_first, list}]) of
         {match, [File]} -> {File, join(Lines)};
         nomatch -> none
@@ -456,34 +462,45 @@ error_line(Output) ->
 write_diagnostics() ->
     {ok, Text} = file:read_file(?DIAGNOSTICS),
     Lines = binary:split(Text, <<"\n">>, [global]),
-    ok = file:write_file(?DIAGNOSTICS, lists:join(<<"\n">>, rewrite(Lines))).
+    ok = file:write_file(?DIAGNOSTICS, lists:join(<<"\n">>, rewrite(Lines, []))).
 
-rewrite([<<"```ernest-rejected">> = Open | Rest]) ->
+%% Beside: the files the `ernest` blocks under the heading so far name,
+%% which a program refused under it is built beside, as check/1 builds it.
+rewrite([<<"#", _/binary>> = Heading | Rest], _Beside) ->
+    [Heading | rewrite(Rest, [])];
+rewrite([<<"```ernest-rejected">> = Open | Rest], Beside) ->
     {Code, [Close | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
-    Console = [<<"```console">>, <<"$ ern build example.ern">>
-               | lines(string:trim(printed(join(Code)), trailing))] ++ [<<"```">>],
-    [Open | Code] ++ [Close | consoled(After, Console)];
-rewrite([Line | Rest]) ->
-    [Line | rewrite(Rest)];
-rewrite([]) ->
+    File = file_of(Code),
+    Console = [<<"```console">>, iolist_to_binary(["$ ern build ", File])
+               | lines(string:trim(printed(File, join(Code), Beside), trailing))] ++ [<<"```">>],
+    [Open | Code] ++ [Close | consoled(After, Console, Beside)];
+rewrite([<<"```", Info/binary>> = Open | Rest], Beside) ->
+    {Code, [Close | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+    Named = [{Name, join(Code)} || Info =:= <<"ernest">>, Name <- [named(Code)], Name =/= none],
+    [Open | Code] ++ [Close | rewrite(After, Beside ++ Named)];
+rewrite([Line | Rest], Beside) ->
+    [Line | rewrite(Rest, Beside)];
+rewrite([], _Beside) ->
     [].
 
 %% The program's console, in place of the one after it or where none is.
-consoled([<<>>, <<"```console">> | Rest], Console) ->
+consoled([<<>>, <<"```console">> | Rest], Console, Beside) ->
     {_, [_ | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
-    [<<>> | Console] ++ rewrite(After);
-consoled(After, Console) ->
-    [<<>> | Console] ++ rewrite(After).
+    [<<>> | Console] ++ rewrite(After, Beside);
+consoled(After, Console, Beside) ->
+    [<<>> | Console] ++ rewrite(After, Beside).
 
-%% What `ern build example.ern` prints for a program, in a directory of its
-%% own: built in this node, as the catalog's test builds it (check/1), so
-%% that the catalog costs its compiling and not a host's start for each
-%% program. The build's output and its errors go to one file, in the order
-%% they are written, as a console shows them; the group leader is put back
-%% however the build ends, so that a failure of ern's own is seen.
-printed(Code) ->
+%% What `ern build Name` prints for a program, in a directory of its own
+%% with the files Beside: built in this node, as the catalog's test builds
+%% it (check/1), so that the catalog costs its compiling and not a host's
+%% start for each program. The build's output and its errors go to one
+%% file, in the order they are written, as a console shows them; the group
+%% leader is put back however the build ends, so that a failure of ern's
+%% own is seen.
+printed(Name, Code, Beside) ->
     Dir = tmp(),
-    File = filename:join(Dir, "example.ern"),
+    [ok = write(filename:join(Dir, BesideName), BesideCode) || {BesideName, BesideCode} <- Beside],
+    File = filename:join(Dir, Name),
     ok = write(File, Code),
     Printed = filename:join(Dir, "printed"),
     {ok, Device} = file:open(Printed, [write, {encoding, utf8}]),

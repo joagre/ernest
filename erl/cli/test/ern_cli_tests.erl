@@ -1304,30 +1304,137 @@ prelude_value_runs_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"1\ntwo\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §4.2, §11.5: a module namespace may not coincide with a type
-%% namespace of its parent module, found from either file and in either
-%% mode, the files named from the working directory; and from a subtree
-%% whose parent's source the build does not compile, which is read. The
-%% subtree is a regression test, written when a build came to read the
-%% parent's types from its own parse of it
-namespace_clash_test() ->
-    Dir = tmp(),
-    write(Dir, "src/main.ern", "type Stack = Stack(Int)\n" ++ hello()),
-    write(Dir, "src/main/stack.ern", "export fn push(n : Int) : Int = n\n"),
-    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertMatch({match, _},
-                 re:run(iolist_to_binary(?capturedOutput),
-                        "src/main/stack.ern and type Stack in \\S*src/main.ern share the"
-                        " namespace Main.Stack")),
-    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
-    Single = ["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/build"],
-    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main.ern"])),
-    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main/stack.ern"])),
-    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main"])).
+%% The parent of the tests below: `main.ern` exports `Stack`, whose member
+%% `Stack.compare` its namespace shares with the module `main/stack.ern`.
+stack_parent() ->
+    "export type Stack = Stack(items : List(Int))\n"
+    "\n"
+    "export fn Stack.compare(left : Stack, right : Stack) : Ordering =\n"
+    "    Int.compare(List.size(left.items), List.size(right.items))\n"
+    "\n"
+    "export fn empty() : Stack = Stack(items = [])\n".
 
-%% report §4.2: where no type of the parent's clashes with it, a module
-%% under the parent's namespace is reached from the parent by its whole
-%% qualified name, its functions, its types, and its constructors alike
+%% report §4.2, §11.5: the module of a type's name shares the type's
+%% namespace, and a third module reaches the member and the module's
+%% functions by one prefix, `Main.Stack.compare` the member and
+%% `Main.Stack.push` the module's. A regression test, written after the
+%% code: the checker took `Main.Stack.push` for a member, which worked by
+%% accident; it does not cover a member of a private type
+shared_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", stack_parent()),
+    write(Dir, "src/main/stack.ern",
+          "export fn push(stack : Main.Stack, item : Int) : Main.Stack =\n"
+          "    Main.Stack(items = item :: stack.items)\n"
+          "\n"
+          "export fn size(stack : Main.Stack) : Int = List.size(stack.items)\n"),
+    write(Dir, "src/user.ern",
+          "export fn main() : Unit = {\n"
+          "    let one = Main.Stack.push(Main.empty(), 1);\n"
+          "    let two = Main.Stack.push(one, 2);\n"
+          "    Io.println(Io.show(Main.Stack.compare(one, two)));\n"
+          "    Io.println(Io.show(two));\n"
+          "    Io.println(Int.toString(Main.Stack.size(two)))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/user.erc"])),
+    ?assertEqual(<<"Less\nStack(items = [2, 1])\n2\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §4.2, §11.1: a module that names a member of a type through the
+%% type's namespace depends on the module that declares the type, though
+%% the module of the type's name exists and uses nothing of it. A
+%% regression test, written after the code: the build took the module of
+%% the name for the dependency, and the member was unknown
+member_reached_through_its_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", stack_parent()),
+    write(Dir, "src/main/stack.ern", "export fn one() : Int = 1\n"),
+    write(Dir, "src/user.ern",
+          "export fn main() : Unit = {\n"
+          "    let compare = Main.Stack.compare;\n"
+          "    let _ = compare;\n"
+          "    Io.println(Int.toString(Main.Stack.one()))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/user.erc"])),
+    ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2: a module calls the module of its own type's name by the
+%% qualified name the two share, `Epx.Window.open` in `epx.ern` beside its
+%% private type `Window`, which has no member `open`. A regression test,
+%% written after the code: the checker took the function for the type's
+%% member, and the compiler crashed
+parent_calls_its_child_test() ->
+    Dir = tmp(),
+    write(Dir, "src/epx.ern",
+          "type Window = Window(id : Int)\n"
+          "\n"
+          "export fn main() : Unit = {\n"
+          "    let window = Window(id = Epx.Window.open());\n"
+          "    Io.println(Io.show(window))\n"
+          "}\n"),
+    write(Dir, "src/epx/window.ern", "export fn open() : Int = 42\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/epx.erc"])),
+    ?assertEqual(<<"Window(id = 42)\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2, §11.5: a function the module of a type's name exports under
+%% the name of a member of the exported type is an error at the function's
+%% declaration, naming the type and its module, in directory mode, where the
+%% parent is the build's, and in single-file mode, the parent compiled first
+%% and on the load path; the parent is built. A top-level `let` is no
+%% function, and `Main.Stack.compare` is then the member. A regression
+%% test, written after the code; it does not cover a `foreign fn`
+member_clash_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", stack_parent()),
+    Child = "export fn push(stack : Main.Stack, item : Int) : Main.Stack =\n"
+            "    Main.Stack(items = item :: stack.items)\n"
+            "\n",
+    write(Dir, "src/main/stack.ern",
+          Child ++ "export fn compare(left : Int, right : Int) : Ordering =\n"
+                   "    Int.compare(left, right)\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Message = <<"main/stack.ern:4:8: Main.Stack.compare is a member of the type Stack in"
+                " main.ern\n">>,
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Message)),
+    ?assert(filelib:is_regular(Dir ++ "/build/main.erc")),
+    ok = file:rename(Dir ++ "/src/main.ern", Dir ++ "/main.ern"),
+    ?assertEqual(1, build_err(["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/child",
+                               "--load-path", Dir ++ "/build", Dir ++ "/src/main/stack.ern"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Message)),
+    ok = file:rename(Dir ++ "/main.ern", Dir ++ "/src/main.ern"),
+    write(Dir, "src/main/stack.ern", Child ++ "export let compare = 5\n"),
+    write(Dir, "src/user.ern",
+          "export fn main() : Unit =\n"
+          "    Io.println(Io.show(Main.Stack.compare(Main.Stack.push(Main.empty(), 1),"
+          " Main.empty())))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/user.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"Greater\n">>)).
+
+%% report §4.9, §11.5: a call of a function of the module of a type's name
+%% whose requirement the caller does not declare names the function as a
+%% module's is named, `least`, and not as the type's member. A regression
+%% test, written after the code: the checker took it for a member, and
+%% would have named it `Stack.least`
+shared_namespace_requirement_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", stack_parent()),
+    write(Dir, "src/main/stack.ern",
+          "export fn least(left : a, right : a) : a needs a.compare =\n"
+          "    if left < right then left else right\n"),
+    write(Dir, "src/user.ern",
+          "fn f(left : b, right : b) : b = Main.Stack.least(left, right)\n" ++ hello()),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"user.ern:1:33: least needs b.compare, which f does not"
+                                        " declare\n">>)).
+
+%% report §4.2: a module under the parent's namespace is reached from the
+%% parent by its whole qualified name, its functions, its types, and its
+%% constructors alike
 nested_module_test() ->
     Dir = tmp(),
     write(Dir, "src/main/stack.ern",

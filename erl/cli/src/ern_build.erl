@@ -22,6 +22,7 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
 
@@ -452,12 +453,12 @@ compile_order(Modules, SourceRoot, DependencyRoots) ->
 
 %% Every module parsed, and each that does not parse with its errors, as a
 %% build reports them (report §11.5). Every source is parsed before any
-%% namespace is checked, so that the check reads the types a module of the
-%% build declares from its parse, and parses a parent's source no more for
-%% each of its children (report §4.2).
+%% module is checked against its parent, so that the check reads the
+%% members a module of the build exports from its parse, and parses a
+%% parent's source no more for each of its children (report §4.2).
 parse_all(Modules, SourceRoot, DependencyRoots) ->
     Sources = [{Module, source_parsed(Module)} || Module <- Modules],
-    Declared = maps:from_list([{File, local_types(Declarations)}
+    Declared = maps:from_list([{File, Declarations}
                                || {#build_module{file = File}, {ok, Declarations}} <- Sources]),
     lists:foldl(fun({Module, Source}, {Parsed, Failed}) ->
                     Namespace = Module#build_module.namespace,
@@ -555,96 +556,162 @@ source_parsed(#build_module{file = File}) ->
         throw:{cli_error, _} = Refused -> Refused
     end.
 
-%% A module with its declarations and its dependencies, its namespace
-%% checked against its parent's types and its own children, of which
-%% Declared holds those the build has parsed, by file.
+%% A module with its declarations and its dependencies, its exported
+%% functions checked against the members of its parent's type of its name,
+%% the parent's declarations read from Declared, which holds the build's
+%% parsed modules by file, where the build parses it.
 parsed_module(#build_module{file = File} = Module, Source, SourceRoot,
               {DependencyRoots, Declared}) ->
     case Source of
         {ok, Declarations} ->
-            namespace_clash(Module#build_module{declarations = Declarations}, SourceRoot,
-                            Declared),
+            Members = fun(Parent, Type) ->
+                          type_members(Parent, Type, SourceRoot, DependencyRoots, Declared)
+                      end,
+            member_clash(Module#build_module{declarations = Declarations}, Members),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
-            Dependencies = dependencies(Declarations, SourceRoot, DependencyRoots)
+            Dependencies = dependencies(Declarations, SourceRoot, DependencyRoots, Members)
                 -- [Module#build_module.namespace],
             Module#build_module{declarations = Declarations, dependencies = Dependencies};
         {error, Diagnostic} -> throw({errors, File, [Diagnostic]});
         {cli_error, _} = Refused -> throw(Refused)
     end.
 
-%% Report §4.2: a module namespace may not coincide with a type namespace
-%% of its parent module. Checked from both files, so either finds it.
-namespace_clash(#build_module{namespace = Namespace, relative = Relative,
-                              declarations = Declarations}, SourceRoot, Declared) ->
-    case Namespace of
-        [_, _ | _] ->
-            Parent = lists:droplast(Namespace),
-            ParentRelative = module_path(Parent) ++ ".ern",
-            ParentFile = absolute(filename:join(SourceRoot, ParentRelative)),
-            lists:member(lists:last(Namespace), declared_types(ParentFile, Declared))
-                andalso clash(SourceRoot, Relative, lists:last(Namespace), ParentRelative,
-                              Namespace);
-        _ ->
-            ok
-    end,
-    lists:foreach(fun(Type) ->
-                      ChildRelative = module_path(Namespace ++ [Type]) ++ ".ern",
-                      filelib:is_regular(filename:join(SourceRoot, ChildRelative))
-                          andalso clash(SourceRoot, ChildRelative, Type, Relative,
-                                        Namespace ++ [Type])
-                  end, local_types(Declarations)).
+%% Report §4.2, §11.5: the module of a type's name shares the type's
+%% namespace, and a function it exports under the name of a member of the
+%% type, which its parent exports, is an error at the function's
+%% declaration, since `M.T.f` would name both. A top-level `let` is a
+%% value and no function, and is not checked.
+member_clash(#build_module{namespace = [_, _ | _] = Namespace, file = File,
+                           declarations = Declarations}, Members) ->
+    Parent = lists:droplast(Namespace),
+    Type = lists:last(Namespace),
+    TypeMembers = Members(Parent, Type),
+    case [{Span, Name} || {Span, Name} <- exported_functions(Declarations),
+                          lists:member(Name, TypeMembers)] of
+        [] ->
+            ok;
+        [{Span, Name} | _] ->
+            Message = ern_namespace:text(Namespace ++ [Name]) ++ " is a member of the type "
+                ++ atom_to_list(Type) ++ " in " ++ module_path(Parent) ++ ".ern",
+            throw({errors, File, [#diagnostic{span = ern_diagnostic:span(Span),
+                                              message = Message}]})
+    end;
+member_clash(_, _) ->
+    ok.
 
-%% Report §11.5: the two files named from the working directory.
--spec clash(file:filename(), string(), atom(), string(), [atom()]) -> no_return().
-clash(SourceRoot, ChildRelative, Type, ParentRelative, Namespace) ->
-    fail(shown(filename:join(SourceRoot, ChildRelative)) ++ " and type " ++ atom_to_list(Type)
-         ++ " in " ++ shown(filename:join(SourceRoot, ParentRelative))
-         ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (report §4.2)").
+%% A module's exported functions, `fn` and `foreign fn`, that are no
+%% type's member, each with its declaration's span.
+exported_functions(Declarations) ->
+    [{Span, Name} || #fn_declaration{span = Span, export = true, member_of = undefined,
+                                     name = Name} <- Declarations]
+        ++ [{Span, Name} || #foreign_fn_declaration{span = Span, export = true,
+                                                    member_of = undefined, name = Name}
+                                <- Declarations].
 
-%% The types a source declares: as the build parsed it, where it is a
-%% module of the build, else parsed here.
-declared_types(File, Declared) ->
+%% Report §4.2, §11.2: the names of the members the module Parent exports of
+%% its exported type Type, as its interface holds them under Parent.Type:
+%% from the build's parse where Parent is a module of the build, from its
+%% source under the source root where it is there, and else from its
+%% compiled form under DependencyRoots, found as a dependency is; none
+%% where no root holds the module.
+type_members(Parent, Type, SourceRoot, DependencyRoots, Declared) ->
+    File = absolute(filename:join(SourceRoot, module_path(Parent) ++ ".ern")),
     case Declared of
-        #{File := Types} -> Types;
-        _ -> source_types(File)
+        #{File := Declarations} -> exported_members(Declarations, Type);
+        _ ->
+            case source_declarations(File) of
+                {ok, Declarations} -> exported_members(Declarations, Type);
+                none -> interface_members(Parent, Type, DependencyRoots, SourceRoot)
+            end
     end.
 
-%% The types a parsed source declares; none when it is absent or does not parse.
-source_types(File) ->
+%% The declarations a source holds; none when it is absent or does not parse.
+source_declarations(File) ->
     case file:read_file(File) of
         {ok, Bytes} ->
             case ern_parser:parse_string(Bytes) of
-                {ok, Declarations} -> local_types(Declarations);
-                {error, _} -> []
+                {ok, Declarations} -> {ok, Declarations};
+                {error, _} -> none
             end;
         {error, _} ->
-            []
+            none
     end.
 
-local_types(Declarations) ->
-    [Name || #type_declaration{name = Name} <- Declarations]
-        ++ [Name
-            || #abstract_declaration{declaration = #type_declaration{name = Name}} <- Declarations]
-        ++ [Name || #foreign_type_declaration{name = Name} <- Declarations].
+%% Report §3.5, §4.2: the members of the exported type Type a module's
+%% declarations export: each declared `export`, and a derived `compare`.
+exported_members(Declarations, Type) ->
+    case [Derives || Declaration <- Declarations,
+                     {true, Name, Derives} <- [exported_type(Declaration)], Name =:= Type] of
+        [] ->
+            [];
+        [Derives | _] ->
+            [compare || Derives =/= undefined]
+                ++ [Name || #fn_declaration{export = true, member_of = MemberOf, name = Name}
+                                <- Declarations, MemberOf =:= Type]
+                ++ [Name || #foreign_fn_declaration{export = true, member_of = MemberOf,
+                                                    name = Name} <- Declarations,
+                            MemberOf =:= Type]
+    end.
+
+%% A type declaration's export, its name and its `derives`.
+exported_type(#type_declaration{export = Export, name = Name, derives = Derives}) ->
+    {Export, Name, Derives};
+exported_type(#abstract_declaration{export = Export,
+                                    declaration = #type_declaration{name = Name,
+                                                                    derives = Derives}}) ->
+    {Export, Name, Derives};
+exported_type(#foreign_type_declaration{export = Export, name = Name}) ->
+    {Export, Name, undefined};
+exported_type(_) ->
+    {false, none, undefined}.
+
+%% The same, from the interface of the module's compiled form; none where
+%% no root holds it, it does not read, or it is stale.
+interface_members(Parent, Type, DependencyRoots, SourceRoot) ->
+    case compiled_found(Parent, DependencyRoots) of
+        {Dir, Erc} ->
+            case read_erc(Erc) of
+                {ok, #{interface := #interface{types = Types, values = Values}} = Chunk} ->
+                    TypeName = Parent ++ [Type],
+                    Fresh = gone(Chunk, Dir, SourceRoot) =:= false,
+                    [lists:last(QualifiedName) || Fresh, is_map_key(TypeName, Types),
+                                                  QualifiedName <- maps:keys(Values),
+                                                  lists:droplast(QualifiedName) =:= TypeName];
+                {error, _} ->
+                    []
+            end;
+        none ->
+            []
+    end.
 
 %% The modules a source refers to: every qualified name that is not a
 %% member of one of this module's types and whose first segment is not a
 %% namespace of the prelude or the standard library, and whose longest
 %% prefix names an existing .ern under the root. Report §4.2: `T.name` is
 %% the module's own member where its type `T` declares one of that name,
-%% and the namespace T's `name` otherwise.
-dependencies(Declarations, SourceRoot, DependencyRoots) ->
+%% and the namespace T's `name` otherwise; and `M.T.name`, where the module
+%% M.T exists, is the module M's where TypeMembers says its exported type T
+%% has a member of that name, and M.T's otherwise.
+dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers) ->
     %% in the standard library's root its own namespaces are dependencies
     Skip = case is_stdlib_root(SourceRoot) of
                true -> [];
                false -> taken_namespaces()
            end,
     Members = local_members(Declarations),
-    Paths = lists:usort([Path || {Path, Name} <- references(Declarations), Path =/= [],
-                                 not lists:member(hd(Path), Skip),
-                                 not lists:member({Path, Name}, Members)]),
-    lists:usort(lists:filtermap(fun(Path) -> module_prefix(Path, SourceRoot, DependencyRoots) end,
-                                Paths)).
+    References = lists:usort([{Path, Name} || {Path, Name} <- references(Declarations),
+                                              Path =/= [], not lists:member(hd(Path), Skip),
+                                              not lists:member({Path, Name}, Members)]),
+    Found = maps:from_list([{Path, Module}
+                            || Path <- lists:usort([Path || {Path, _} <- References]),
+                               {true, Module} <- [module_prefix(Path, SourceRoot,
+                                                                DependencyRoots)]]),
+    Shared = maps:from_list([{Path, TypeMembers(lists:droplast(Path), lists:last(Path))}
+                             || Path := Module <- Found, Module =:= Path, length(Path) >= 2]),
+    lists:usort([case lists:member(Name, maps:get(Path, Shared, [])) of
+                     true -> lists:droplast(Path);
+                     false -> Module
+                 end || {Path, Name} <- References, #{Path := Module} <- [Found]]).
 
 %% Each qualified reference of a source, its namespace and its last name; only a
 %% value's lowercase name or operator can be a type's member.
