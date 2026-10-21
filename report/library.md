@@ -183,25 +183,25 @@ Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hol
 4. A partial operation returns `Optional`; one with a cause returns `Either`. A function faults only as §7.4 says.
 5. A function's type names a mailbox only where the function's own process's mailbox is involved: it receives from it, gives out its address, or asks for a message to be delivered into it (§6.1). `Process.faults` asks for a delivery and carries `receiving m`; `Supervisor.group` spawns, `Clock.monotonic` reads the time, `Io.println` prints and `Ets.put` writes a table of the host's, and each carries none. A function that calls a function it takes is effect-polymorphic in it (§3.9). A wrapping function that shape rule 8 delivers through receives nothing, as `adapted`'s does (§6.5).
 6. A module is documented as a section 3 manual page, in CommonMark (§2.2), written for the programmer about to use the module. A doc block says what holds and gives no reason for the design. It states a fact before it cites the report for it, so that the page is read without the report. Under `See also`, a declaration or a module is named in backticks and not linked.
-   - he module.** Its doc block opens with one sentence that says what the module is, which the manual page's NAME line and the shell show alone (§11.4, §11.2).
+   - **The module.** Its doc block opens with one sentence that says what the module is, which the manual page's NAME line and the shell show alone (§11.4, §11.2).
 
      Paragraphs follow, each on one matter, in this order and where each applies: when a program uses the module, and what it uses where another serves better; what a program does before it can use it, as a library's place on the load path; and what a caller must know before the first call, one behavior a paragraph.
 
      Then come the section `Examples`, with the module's central examples, each under a line that says what it shows, and `See also` when there is something to see. It ends with the line `since v`, the toolchain version in which the module appeared.
-   -  declaration.** Every exported declaration has a doc block. Its first sentence says what the declaration does or answers, and in it what the type does not say, such as which occurrence `replace` replaces, the order `toList` produces, or the range `nextInt` draws from; the shell shows that sentence alone (§11.2).
+   - **A declaration.** Every exported declaration has a doc block. Its first sentence says what the declaration does or answers, and in it what the type does not say, such as which occurrence `replace` replaces, the order `toList` produces, or the range `nextInt` draws from; the shell shows that sentence alone (§11.2).
 
      Sentences follow, one rule each, for what else a caller needs: what an edge of its arguments gives, an empty list, an absent key or a count past the end; what it leaves as it was; and a cost its name does not suggest.
 
      Then come an `Errors` section when it faults, and none otherwise (shape rule 4), which says what the caller did and the cause the fault carries; an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see.
 
      A declaration has the module's `since` unless its doc block ends with one of its own. The name and the type are the heading and the code block `ern doc` renders (§11.4).
-   - xamples.** Every exported function but an operator is called by at least one example on the module's page, in the module's examples or its own, and an example that would repeat another is left out.
+   - **Examples.** Every exported function but an operator is called by at least one example on the module's page, in the module's examples or its own, and an example that would repeat another is left out.
 
      An example shows the ordinary call, and an edge the text states where a line shows it. An example is an expression, which declarations may stand before, as in a module, where the call needs one, a `fn` that `Code.running` names (Appendix E.28); the page shows the block as written.
 
      An example ends in `// => v`, where `v` is what `Io.show` writes for its value; what the example itself prints comes before it and is not part of `v`.
 
-     An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only type-checked.
+     An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only type-checked. `ern test` runs a module's examples as cases (§11.2).
 7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module.
 8. A function that waits takes the milliseconds as its last argument, after any callback, which bound that one request, and answers `Left(Timeout)` when they pass, unless the wait's failure ends the program or the runtime holds the answer, in which case it takes none: a file, a socket, a peer, and a program the runtime started are waited on with a time, and standard input, standard output, standard error and the terminal, whose failure ends the program (§8.2), without one.
 
@@ -757,7 +757,7 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 
 A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2), so that a test may receive as an entry point may (§8.1). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
 
-`faults` answers `Passed` where a call faults with a cause: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. `ern test` reports no fault of a process `faults` started, since the test's answer carries it (§11.2).
+`faults` answers `Passed` where a call faults with a cause: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. No job reports a fault of a process `faults` started, since the test's answer carries it (§11.2).
 
 ```
 type Case(m) = Case(name : String, run : () -> Result receiving m)

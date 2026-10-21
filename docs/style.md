@@ -1,33 +1,19 @@
 # Style
 
-The rules build on widely accepted guides and state only the repository's own rules and where they differ: for Erlang, Ericsson's *Programming Rules and Conventions* (Eriksson, Williams and Armstrong) and Inaka's *Erlang Coding Standards & Guidelines*; for Ernest, the *Elm Style Guide*, then the conventions of Gleam and OCaml. Where they and this file differ, this file holds. A guide serves the reader and is not a law: a rule a test checks holds always, and where another would make the code read worse, judgment goes first. `test/ern_style_tests.erl` checks what is marked *(tested)*.
+The repository's own rules for its Erlang and its C, and where they differ from widely accepted guides: for Erlang, Ericsson's *Programming Rules and Conventions* (Eriksson, Williams and Armstrong) and Inaka's *Erlang Coding Standards & Guidelines*. What a program written in Ernest looks like is [`guide/style.md`](../guide/style.md)'s, installed with the guide; the repository's Ernest follows it too. Where the guides and this file differ, this file holds. A guide serves the reader and is not a law: a rule a test checks holds always, and where another would make the code read worse, judgment goes first. `test/ern_style_tests.erl` checks what is marked *(tested)*.
 
 ## Every language
 
-- A step of indentation is four spaces.
-- No file holds a tab, but a Makefile *(tested)*.
+A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md) says the standard library chooses one, spelled as each language spells a name, `parse_module` in Erlang. The rules of the *Ernest* section below on a function's length and a module's job hold for them too. The repository adds these:
+
+- A step of indentation is four spaces, and no file holds a tab, but a Makefile *(tested)*.
 - A line of code is at most 100 characters; prose in markdown may be longer *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.
-- The spelling is American English, in prose, names and messages alike: `color`, `behavior`, `initialize`, `utilization`, `catalog`, `license`, `gray`, `center`. A name of the host's or of another system's keeps its own, `-behaviour`, `LICENSE`, `prefers-color-scheme`, and a quotation its author's. The test reads every tracked file of text but a proposal under `docs/proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*.
-
-### Names
-
-Code is read more often than written, mostly by someone else, so a name is written for that reader. These rules cover a variable, a parameter, a function, an Erlang record and its fields, and an Ernest type, constructor and field. Longer names make longer code, and that is accepted.
-
-- **A name says what its value is or what its function does**, in the words of the domain: `Tokens`, `Descriptor`, `Namespace`, `parse_module`; not what the value is made of, `List`, `Map`, where that is not what it is.
-- **One concept, one name, in every module**: a type's descriptor is `Descriptor` in the emitter, the boundary and the runtime alike, and two concepts never share a name. A concept the report names takes the report's name; where the code names one otherwise, or the report's name seems wrong for the code, the question goes to the user before anything is renamed. A value changing through a function is numbered, `Env1`, `Env2`, and a numbered name is nothing else; past two steps the function is split.
-- **No abbreviation a reader must guess.** A well-known acronym is fine, `TCP`, `URL`, `UTF-8`, `JSON`, and so is an abbreviation the host or the report writes: `Pid`, `Ref`, `Fd`, and `Acc` for what a fold carries.
-- **One letter only where the whole scope is one line that shows what it is**, as a comprehension's element or a one-line fun's parameter: `[size(Module) || Module <- Modules]`, not `[size(M) || M <- Ms]`, wherever the line does not show it.
-- **A function that does something is a verb**, `compile`; one that gives a value is that value, a noun or, for the value made so, a past participle, `descriptor`, `armed`, `held`; a yes-or-no reads as the question, `is_link`, `isEmpty`.
-- **A record, a type or a constructor names what it holds**, a type as a noun: `#emit_context{}`, not `#cx{}`; `Key(Terminal.Event)`, not `K`.
-- **A name the report states** changes only through the report.
-
-### Structure
-
-- **A function reads on one screen**; a longer one is split into steps whose names say what they do.
-- **How deep code nests is the writer's judgment**, bounded by the line: a construct that no longer reads within 100 characters becomes a function.
-- **A module has one job**, which its first comment states.
-- **A comment says why and cites the report section the code implements**, `%% Report §8.4: ...`, `// Report §11.2: ...`; the names say what it does.
+- The spelling test reads every tracked file of text but a proposal under `docs/proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*. A quotation keeps its author's spelling, and `-behaviour`, `LICENSE` and `prefers-color-scheme` are names of the host's or of another system's.
+- No abbreviation a reader must guess. A well-known acronym is fine, `TCP`, `URL`, `UTF-8`, `JSON`, and so is one the host or the report writes: `Pid`, `Ref`, `Fd`, and `Acc` for what a fold carries.
+- A record, a type or a constructor names what it holds, a type as a noun: `#emit_context{}`, not `#cx{}`; `Key(Terminal.Event)`, not `K`. A function that gives a value made so is a past participle, `armed`, `held`. Longer names make longer code, and that is accepted.
+- A value changing through a function is numbered, `Env1`, `Env2`, `env1` in Ernest, and a numbered name is nothing else; past two steps the function is split.
+- A comment says why and cites the report section the code implements, `%% Report §8.4: ...`, `// Report §11.2: ...`; the names say what it does.
 
 ## Erlang
 
@@ -49,39 +35,20 @@ The runtime's helper, `erl/runtime/c_src/ern_exec.c`, is C99 and compiles with `
 
 ## Ernest
 
-For every Ernest source and every Ernest block of the report and the guide. The layout `ern format` writes, and what else it keeps and changes, is report §11.6's: `make test` holds every source to it, `make format` restores it, and the Emacs mode indents as it does ([`design/emacs_mode.md`](design/emacs_mode.md)). The writer decides the rest:
+For every Ernest source and every Ernest block of the report and the guide. The layout is `ern format`'s (report §11.6), which `make test` holds every source to and `make format` restores, and the names are [`guide/style.md`](../guide/style.md)'s, which the standard library, the shell and the examples follow, its block rule among them *(tested)*; the repository adds these, which bind its own Ernest and no program's:
 
 - **Top-down**: types, then the module's service bindings, then `main` or the exported functions, each followed directly by its helpers; a helper several share goes with its first user or in a utilities section at the bottom.
-- **A block holds more than one statement**; one expression is written bare *(tested)*.
+- **A function reads on one screen**; a longer one is split into steps whose names say what they do. How deep code nests is the writer's judgment, bounded by the line: a construct that no longer reads within 100 characters becomes a function.
+- **A module has one job**, which its first comment or doc block states.
 - **A blank line groups**, where the writer chooses. A declaration's comment or doc block stands directly above it.
 - **Name a part of a long expression** where the formatter's split reads worse than a name.
 - **A section's banner** is a line `//`, lines `// text`, and a line `//`, with a blank line before and after. A module with a doc block has no banner for the file; its `///` block is its header (report §2.2).
-- **An exported function's parameters are named for their role**, since the shell and `ern doc` show the signature: `List.filter(list, keep)`; `xs` and `f` only where nothing more can be said.
-- **A message type's constructors**: a request in the imperative, `Subscribe`; an event in the past tense, `Resized`.
-- **A module of two words or more is a file of those words joined by `_`** (report §4.2): `kv_parser.ern` for `KvParser`, not `kvparser.ern`, which is the one word `Kvparser`.
-
-Code in that layout:
-
-    fn start(keys : Optional(Keys)) : Unit = {
-        let reader = spawn(fn() = match keys {
-            Some(k) -> readLoop(k)
-          | None -> plainLoop()
-        });
-        loop(reader)
-    }
-
-    fn respond(request : Request,
-               session : SessionId,
-               cookies : List(Cookie),
-               body : String,
-               status : Int) : Bytes =
-        Response(status = status, headers = [], body = body)
-            |> withCookie("sid", sessionIdText(session))
-            |> render
+- **One letter only where the whole scope is one line that shows what it is**: `fn(x) = x + 1`; `fn(module) = size(module)` where the line does not say what a letter would stand for, and `xs` and `f` only where nothing more can be said.
+- **One concept, one name, in every module**; a name the report states changes only through the report, and a new word that departs from the report's goes to the user first.
 
 ## Glossary
 
-The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. It grows as the code does, as CLAUDE.md says. A name not here is the writer's, under the rules above.
+The names that recur across the toolchain's modules, one for each concept, in every module; the names of a program's are [`guide/style.md`](../guide/style.md)'s. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. It grows as the code does, as CLAUDE.md says. A name not here is the writer's, under the rules above.
 
 **The compiler**
 
@@ -185,24 +152,24 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Calls**: the units a unit's code calls, which its `'$code'/0` lists last and its code-table row holds; with the unit itself and transitively, `ern_code:called/1`, the units a reach's bindings and foreign declarations are read in (§8.7). Not `Deps`, which are §8.5's declared dependencies.
 - **Machine, Clone**: a computer the machines tools start nodes on (the log's *The Machines*), a line of `test/machines/machines.txt`, `ern_machine`: this one, `local`, whose commands run in the plain shell, or another, reached over ssh through one ssh connection held for the run, which holds a clone of the repository that only `git pull` and `make` write; a node made and run on one is an `ern_machine_node`. Not `Remote`, `Box`, `Server`.
 - **WaitMs**: the harness's time for one wait, `ern_nodes_tests:wait_ms/0`, which bounds one step of a nodes test's, a test's limit its steps counted in it, `{waits, Count}`, and which the programs the tests run give each of their waits, `Harness.waitMs()` under `test/fixtures/peers/` and `waitMs()` in a program a test writes.
-- **Message**: a message. Not `Msg`.
+- **Message**: a message, the Erlang variable; a mailbox type in Ernest ends in `Msg` as the guide says. Not `Msg` for the variable.
 
 **Ernest**
 
-- A function's **subject** is named for its type, `list`, `text`, `map`, `set`, `bytes`, `path`, `table`, `process`. Not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
-- A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `span` and `partition` ask it, `step` for a fold's or a try's (E.0 rule 2), `wrap` for what delivers a message (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
-- **acc**: what a fold or a recursion carries. Not `done`.
-- **reply**: a `Reply`. Not `r`.
-- **index**: a position in a sequence (E.2, E.5); a place in a file is an `offset` (E.17). Not `at`, `i`, `from`, `start`.
-- **end**: the index a slice stops before, which it leaves out, `String.slice(text, index, end)` (E.5, E.20). Not `to`, `stop`.
-- **count**: how many. Not `n`, `length`.
-- **ms**: milliseconds (E.23); a moment is a `time`. Not `wait`, `t`.
-- **old, new**: what `replace` takes, in every module. Not `from`, `to`.
-- **cause**: as above. Not `why`, `c`, `text`.
-- **error**: an error a function answers, an `Io.Error` among them. Not `e`, `why`.
-- **user**: the host's number for a user, the one a file belongs to, an `Fs.Entry`'s `user`, and the one the program runs as, `Os.user` (E.17, E.23). Not `owner`, which is a resource's process, nor `uid`.
-- **char**: a `Char`. Not `c`, `ch`.
-- **cursor**: the place in the line being typed, in the shell's editor, region and completion. Not `at`.
-- **serial**: the number the shell gives an input, which its outcome carries, `Serial` in the Erlang. Not `run`, `n`.
-- A **request** constructor is the function it serves, `Read` for `read`, and where that is a prelude name, what it asks for, `ListEntries` for `list`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
-- A prelude name, `Down`, `answer`, `kill`, is not bound to another concept.
+The names are [`guide/style.md`](../guide/style.md)'s. These spellings were refused for them; one met in the repository's Ernest is corrected to the guide's name:
+
+- **subject**: not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
+- **callback**: not `p`, `g`.
+- **acc**: not `done`.
+- **reply**: not `r`.
+- **index**: not `at`, `i`, `from`, `start`.
+- **end**: not `to`, `stop`.
+- **count**: not `n`, `length`.
+- **ms**: not `wait`, `t`.
+- **old, new**: not `from`, `to`.
+- **cause**: not `why`, `c`, `text`.
+- **error**: not `e`, `why`.
+- **user**: not `owner`, which is a resource's process, nor `uid`.
+- **char**: not `c`, `ch`.
+- **request**: not `Recv`, `Measure`, `FarEnd`.
+- **event**: not `Resize`.

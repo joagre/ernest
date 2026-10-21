@@ -84,6 +84,13 @@ The shell reaches the host as any program does: through the system modules `Term
 - **`Process.fromAddress(a)`** is the process behind an address. It has equality where an address has none. So the session keeps its own processes, whose faults are not reported (§11.2 *Faults*), in a `Set(Process)`, and knows an input's fault by comparing processes.
 - **`Address.call` with a `Reply`** is request-reply (§6.6). `drain` calls the screen with `Flush` and waits up to five seconds for its answer.
 
+## The shell's own names
+
+Two names recur across the shell's modules beyond those [`guide/style.md`](../../guide/style.md) gives every program, one concept each in every module:
+
+- **cursor**: the place in the line being typed, in the editor, the region and the completion. Not `at`.
+- **serial**: the number the shell gives an input, which its outcome carries. Not `run`, `n`.
+
 ## Building and trying it
 
 ```

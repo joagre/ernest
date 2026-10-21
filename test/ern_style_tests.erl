@@ -1,4 +1,4 @@
-%% The style guides, docs/style.md, where a machine can check them.
+%% The style guides, docs/style.md and guide/style.md, where a machine can check them.
 -module(ern_style_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -8,8 +8,8 @@
 -define(ROOT, "..").
 
 %% The documents whose ```ernest fences the Ernest style guide governs.
--define(DOCUMENTS, ["guide/language.md", "report/language.md", "report/toolchain.md",
-                    "report/library.md"]).
+-define(DOCUMENTS, ["guide/language.md", "guide/style.md", "report/language.md",
+                    "report/toolchain.md", "report/library.md"]).
 
 %% The British spellings the American rule refuses, each with the
 %% inflections the repository has written or a writer would.
@@ -183,7 +183,7 @@ export_faults(File) ->
         ++ [{no_spec, FunctionArity} || FunctionArity <- Exports,
                                         not lists:member(FunctionArity, Specs)].
 
-%% docs/style.md: a block holds more than one statement, in every module,
+%% guide/style.md: a block holds more than one statement, in every module,
 %% every example in a module's doc blocks, and every Ernest block of the
 %% guide and the report. A brace after an expression or after `receive`
 %% holds clauses and is not a block. Written with the rule.

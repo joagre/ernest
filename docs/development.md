@@ -25,8 +25,9 @@ report/            the report (normative), in three files: language.md, §0 to �
                    Appendices A, B and F; toolchain.md, §11 and Appendices C and H;
                    library.md, Appendices D, E and G
 guide/             the guides: language.md, the language guide; deployment.md,
-                   Running Ernest, the operator's; why.md, the argument for the
-                   design, its list held equal to the README's; and faq.md
+                   Running Ernest, the operator's; style.md, the rules a program
+                   is written by; why.md, the argument for the design, its list
+                   held equal to the README's; and faq.md
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them

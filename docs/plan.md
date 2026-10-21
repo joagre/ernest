@@ -102,24 +102,33 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   a line for each decision as the job makes it: the roots taken, each module compiled with its
   source and the file written, each module read from a `.erc` with the file, and each stale `.erc`
   removed (§11.1, §11.2, §11.7). The Makefiles pass it to every `ern build` and `ern run` they run.
-- **A `make` with nothing to do**, found 2026-10-20 while the bench's rows were measured (the log's
-  *The Rows That Grew*, *Found beside the item*) and made an item at the user's word: it takes
-  3.0 s and 14 s of processor time, fourteen times the host's start of 0.22 s, where CLAUDE.md's
-  rule gives a job with nothing to do about one start; the last investigation (the log's *The Tools
-  Measured Again*) left it at 13.0 s before the Makefiles ran their jobs side by side.
-
-  Measured where the time goes, each start of the host and each job counted, and brought toward one
-  start; what cannot be is stated in the log with its reason.
+- **A `make` with nothing to do**, done 2026-10-21 (the log's *A Make With Nothing to Do*): measured
+  as sixteen starts of the host in four stages, bound by the cores and not by the chain; make keeps
+  no stamp, as decided on 2026-09-30, the Makefile's false waits are cut, and the floor, about
+  2.9 s on eight cores, is stated with its reason.
 - **Four messages that name the form**, done 2026-10-21 (the log's *What the Feedback Left*, its
   *Built* paragraph): a `fn` where a type stands has a help line that names `(Int) -> Int`, a `()`
   where an expression stands one that names `Unit`, and a `,` after a constructor pattern's
   positional field the declaration's message, `a constructor has exactly one positional field`
   (§11.5). `ern build --help` and `ern doc --help` say the source root's default, the working
   directory or `src-dir` (§11.1).
-- **The rules of an Ernest program installed** (feedback 119; principle 4). `docs/style.md`'s
-  *Ernest* section and the glossary's Ernest part become `guide/style.md`, installed with the guide,
-  and `docs/style.md` keeps the repository's rules and points there; CLAUDE.md's owner table gains
-  the row, and the style test reads both.
+- **The rules of an Ernest program installed**, done 2026-10-21 (the log's *What the Feedback
+  Left*, its *Built* paragraph on the style guide): `guide/style.md`, installed with the guide, says
+  what a tool writes, what E.0 asks of a library's names, what the standard library does and the
+  names every program meets; `docs/style.md` keeps the repository's own rules and the refused
+  spellings; CLAUDE.md imports both.
+- **A mailbox type ends in `Msg`** (feedback 139; principle 2), decided and done 2026-10-21 (the
+  log's *What the Feedback Left*, its *Decided* paragraph): the guide's glossary states the
+  library's practice, and the toolchain's glossary refuses `Msg` for an Erlang variable alone.
+- **What the read-back of `Test.faults` and `ok` left**, decided 2026-10-21 (the log's *What the
+  Feedback Left*, its *Extended* paragraph): a fault `Test.faults` expects is reported by no job,
+  `ern run` and the shell as `ern test`; a function value's result declared `Unit` takes `ok` at
+  its top; and a fault the emitter raises in a float operation or an inline return check carries
+  its line in the trace, a defect found there. §11.2 and §8.4 first, then the reporter, the
+  boundary and the emitter.
+- **`List.mapFold`** (feedback 138; E.0 rules 1 and 2), decided 2026-10-21 (the log's *Nothing
+  Waits for a Program*, its line of that day): E.2 gains it, Ernest alone, with its examples; the
+  entry leaves the feedback file with the item.
 - **The libraries on the default load path** (feedback 120; principles 3 and 5). The toolchain's
   own libraries' build root joins the default load path of `ern build`, `ern run`, `ern test` and
   `ern shell`, as the standard library's does, so that no program asks where they are. §11.1 and

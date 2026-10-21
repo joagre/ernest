@@ -21,7 +21,8 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/plan.md`](docs/plan.md) | the roadmap and where we are. Illustrative, as the programs under `examples/` are |
 | the code and its tests | what is built |
 | [`docs/architecture.md`](docs/architecture.md) | how the code is arranged |
-| [`docs/style.md`](docs/style.md) | the code's form and naming |
+| [`guide/style.md`](guide/style.md) | what a program written in Ernest looks like: what the tools decide, what the standard library does with names, and the names every program shares |
+| [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's and its C's, and the toolchain's glossary |
 | [`README.md`](README.md) | what Ernest is and where to begin |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
@@ -138,7 +139,7 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 - **A report edit updates the revision date** in line 3 of each file it changes.
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behavior goes to §11.**
-- **The spelling is American English**, in every document, name and message; `docs/style.md`'s *Every language* states the rule and its two exceptions.
+- **The spelling is American English**, in every document, name and message; `guide/style.md` states the rule and `docs/style.md`'s *Every language* the test's scope.
 - **No document or message names who proposed an idea**, or that person's role; it states the argument. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) and the report's dedication with its epigraph name people and argue nothing.
 
 ## Done
@@ -163,8 +164,10 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 
 ## Style
 
-[`docs/style.md`](docs/style.md) holds the style guides for Erlang, C and Ernest, imported here.
+[`guide/style.md`](guide/style.md) holds the rules an Ernest program is written by, and [`docs/style.md`](docs/style.md) the repository's own for its Erlang and C; both are imported here.
 
-**The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into `docs/style.md`'s glossary in the commit that writes it, in the report's word where the report names the concept. Appendix F is living the same way: a report edit that introduces a term adds its line in that edit. Use a name the glossary holds as it stands. Where the code and the glossary differ, correct the wrong one in the same commit; a new word that departs from the report's goes to the user first.
+**The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into the glossary in the commit that writes it, `guide/style.md`'s for an Ernest name and `docs/style.md`'s for the toolchain's, in the report's word where the report names the concept. Appendix F is living the same way: a report edit that introduces a term adds its line in that edit. Use a name the glossary holds as it stands. Where the code and the glossary differ, correct the wrong one in the same commit; a new word that departs from the report's goes to the user first.
+
+@guide/style.md
 
 @docs/style.md

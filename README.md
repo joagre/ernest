@@ -84,6 +84,7 @@ Two nodes on one machine take three more commands: `ern config` makes a node's d
 ## Reading more
 
 - **[The guide](guide/language.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here. Beside it, [Why Ernest](guide/why.md) is the argument for the design, and [the questions](guide/faq.md) answer what a reader of another BEAM language asks first.
+- **[Style](guide/style.md)** is the rules a program is written by: its layout, its names, and the names every program shares.
 - **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, its peers, and a running program given new code.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them by topic, with what each shows.
 - **[The manual pages](docs/man/)**, as Markdown: the prelude's, every standard library module's and every library's, which `man Ernest.List` shows where Ernest is installed.
