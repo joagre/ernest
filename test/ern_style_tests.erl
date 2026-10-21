@@ -37,7 +37,7 @@
 
 %% The host's names that keep the host's spelling.
 -define(HOST_NAMES, "(?<![A-Za-z])-behaviour|behaviour_info|erl_parse:normalise"
-                    "|digraph_utils:reachable_neighbours").
+                    "|digraph_utils:reachable_neighbours|digraph:in_neighbours").
 
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the

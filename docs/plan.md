@@ -187,19 +187,21 @@ Ray Tracer's Two Asks*), and two of the window's, 135 and 137, dropped on 2026-1
   `.erc` was compiled from, in a unit of its own, `ern@main$2`, so that the module's unit is as
   the tests left it; one whose source is gone or changed fails saying so.
 - **A doc example's launch** (found 2026-10-21 building the two items above), decided with the
-  user on 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc examples),
-  each example a program of its own, as below. The examples ran in the tests' launch, after them, so
-  `Os.workingDirectory`, bound as the launch starts, names the run's directory within an example,
-  while a relative path given to `Fs` names a file under the example's, against E.17 and E.23; an
-  example that writes under `Os.workingDirectory` leaves its file in the run's directory. And a
-  private declaration's example, compiled inside its module in a unit of its own, evaluates the
-  module's initializers a second time before it, which §11.2 did not say. §11.2 runs each
-  example as a program of its own, as `ern_doc_tests` runs the library's, which initializes the
-  modules the example uses in its directory, so that `Os.workingDirectory` is that directory, a
-  module is initialized once in it, and nothing an example leaves, a process or an offer, reaches
-  the next (principle 1). A launch costs about 6 ms, which the library's 313 examples that run
-  would add as about 2 s to `ern test build/stdlib`'s 5 s; the other way was two sentences of
-  §11.2, a rule the reader must learn for each.
+  user and done 2026-10-21 (the log's *What the Feedback Left*, its *Built* paragraph on doc
+  examples). The examples ran in the tests' launch, after them, so `Os.workingDirectory`, bound as
+  the launch starts, named the run's directory within an example, while a relative path given to
+  `Fs` named a file under the example's, against E.17 and E.23; an example that wrote under
+  `Os.workingDirectory` left its file in the run's directory. And a private declaration's example,
+  compiled inside its module in a unit of its own, evaluated the module's initializers a second
+  time before it, which §11.2 did not say. §11.2 runs each example as a program of its own, as
+  `ern_doc_tests` runs the library's, which initializes the modules the example uses in its
+  directory, so that `Os.workingDirectory` is that directory, a module is initialized once in it,
+  and nothing an example leaves, a process or an offer, reaches the next (principle 1); the other
+  way was two sentences of §11.2, a rule the reader must learn for each. Each example's launch
+  begins once the tests' launch has ended, and a private declaration's initializes the example's
+  unit in its module's place. A launch was estimated at about 6 ms, 2 s over `ern test
+  build/stdlib`'s 5 s; measured, the library's 335 examples take it from 4.9 s to 8.2 s, about
+  9.8 ms each.
 - **An abstract type's constructor's doc example** (found 2026-10-21 building the items above), a
   defect to fix in this milestone: `ern test` runs none of the doc examples of an abstract type's
   constructors and fields, against §11.2, since the documentation chunk holds no constructors for

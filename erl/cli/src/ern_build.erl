@@ -474,8 +474,9 @@ parse_all(Modules, SourceRoot, DependencyRoots) ->
                     end
                 end, {[], []}, Sources).
 
-%% The parsed modules in an order where each follows those it uses; a
-%% cycle is an error naming the modules in it (§11.1).
+%% The parsed modules in an order where each follows those it uses, and
+%% otherwise keeps its place among them, the order of their paths; a cycle
+%% is an error naming the modules in it (§11.1).
 order(Parsed) ->
     order(Parsed, fun(_) -> [] end).
 
@@ -499,7 +500,8 @@ order(Parsed, Outside) ->
                 outside_uses(Graph, [Dependency
                                      || #build_module{dependencies = Dependencies} <- Parsed,
                                         Dependency <- Dependencies], Outside, Seen),
-                topsort(Graph)
+                acyclic(Graph),
+                ordered(Graph, [Namespace || #build_module{namespace = Namespace} <- Parsed])
             after
                 digraph:delete(Graph)
             end,
@@ -526,14 +528,34 @@ outside_uses(Graph, [Namespace | Rest], Outside, Seen) ->
     uses(Graph, Namespace, Dependencies),
     outside_uses(Graph, Dependencies ++ Rest, Outside, Seen#{Namespace => true}).
 
-topsort(Graph) ->
-    case digraph_utils:topsort(Graph) of
+%% Report §11.1, §4.1: a cycle among the graph's modules refused, naming
+%% the modules in it.
+acyclic(Graph) ->
+    case digraph_utils:is_acyclic(Graph) of
         false ->
             [Cycle | _] = digraph_utils:cyclic_strong_components(Graph),
             fail(module_cycle(Cycle));
-        Sorted ->
-            Sorted
+        true ->
+            ok
     end.
+
+%% Each module of the acyclic Graph after the modules it uses, taken in
+%% the order of Namespaces, and those a module uses in the order of their
+%% namespaces, so that the order is the build's alone: the host's tables
+%% behind the graph give their vertices in an order that follows its atom
+%% table, which every job before the build has added to.
+ordered(Graph, Namespaces) ->
+    {Order, _} = lists:foldl(fun(Namespace, Acc) -> visited(Graph, Namespace, Acc) end,
+                             {[], #{}}, Namespaces),
+    lists:reverse(Order).
+
+visited(_Graph, Namespace, {_, Seen} = Acc) when is_map_key(Namespace, Seen) ->
+    Acc;
+visited(Graph, Namespace, {Order, Seen}) ->
+    {Order1, Seen1} = lists:foldl(fun(Used, Acc) -> visited(Graph, Used, Acc) end,
+                                  {Order, Seen#{Namespace => true}},
+                                  lists:sort(digraph:in_neighbours(Graph, Namespace))),
+    {[Namespace | Order1], Seen1}.
 
 %% Report §11.1: a cycle among modules as the build, the runner and the
 %% shell report it, its modules in order.

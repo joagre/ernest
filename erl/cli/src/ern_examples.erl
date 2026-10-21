@@ -1,31 +1,42 @@
 %% Report §11.2, Appendix E.0 shape rule 6: the doc examples of a compiled
 %% module as the cases `ern test` runs after its tests, each compiled in a
 %% module of its own that uses the documented one, a private declaration's
-%% inside the documented one, and each run in a directory of its own.
+%% inside the documented one, and each run as a program of its own in a
+%% directory of its own.
 -module(ern_examples).
 
 -export([cases/2, in_directory/2, unload/1]).
+
+-export_type([example/0]).
 
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("checker/include/ern_types.hrl").
 
 %% Report §11.2: the module an example is compiled in: its namespace, the
 %% text before the example's, the interfaces it is checked against, the
-%% build it is compiled with, and whether its unit is the namespace's own or
-%% one of a fresh name (example_module/5).
--record(example_module, {namespace, before = <<>>, interfaces, build, unit = own}).
+%% build it is compiled with, whether its unit is the namespace's own or
+%% one of a fresh name (example_module/6), and the units the example's
+%% program initializes beside its own, as the run loaded them, the top
+%% first (§8.5).
+-record(example_module, {namespace, before = <<>>, interfaces, build, unit = own, uses}).
 
-%% The cases of the doc examples of the module Namespace, which the run has
-%% loaded with the modules it uses, Loaded, its own first: each as a test is,
-%% `{'Case', Name, Run}`, its run answering `'Passed'` or `{'Failed', Text}`;
-%% beside them the units their compiling loaded, which unload/1 takes out
-%% once they have run. Report §11.2: an example is named by the declaration
-%% it documents and its number among that declaration's, `List.take example
-%% 2`, the module's own as `List example 1`; the fenced `ernest` blocks of a
-%% type's constructors and fields are the type's, after its own. The source
-%% a private declaration's example is compiled inside is read once, where
-%% the module has one.
--spec cases([atom()], [module()]) -> {[{'Case', binary(), fun(() -> term())}], [module()]}.
+%% Report §11.2: an example's case, and the units its program initializes.
+-type example() :: {{'Case', binary(), fun(() -> term())}, [module()]}.
+
+%% The doc examples of the module Namespace, which the run has loaded with
+%% the modules it uses, Loaded, its own first: each a case as a test is,
+%% `{'Case', Name, Run}`, its run answering `'Passed'` or `{'Failed', Text}`,
+%% with the units its program initializes (report §8.5), the top first: its
+%% own and those it uses, the documented module's among them or, inside it,
+%% the example's unit in its place, so that each is initialized once; none
+%% for an example that does not run. Beside them the units their compiling
+%% loaded, which unload/1 takes out once they have run. Report §11.2: an
+%% example is named by the declaration it documents and its number among
+%% that declaration's, `List.take example 2`, the module's own as `List
+%% example 1`; the fenced `ernest` blocks of a type's constructors and
+%% fields are the type's, after its own. The source a private declaration's
+%% example is compiled inside is read once, where the module has one.
+-spec cases([atom()], [module()]) -> {[example()], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded) ->
     Erc = code:which(ErlangModule),
     {ok, Beam} = file:read_file(Erc),
@@ -40,23 +51,24 @@ cases(Namespace, [ErlangModule | _] = Loaded) ->
                  true -> module_source(Namespace, Erc, Beam);
                  false -> none
              end,
-    Compiled = [example(Name, Block, example_module(Where, Index, Namespace, Interfaces, Module))
+    Compiled = [example(Name, Block, example_module(Where, Index, Namespace, Interfaces, Module,
+                                                    Loaded))
                 || {Index, {Name, Where, Block}} <- lists:enumerate(Examples)],
-    {[Case || {Case, _} <- Compiled], [Unit || {_, Unit} <- Compiled, Unit =/= none]}.
+    {[Example || {Example, _} <- Compiled], [Unit || {_, Unit} <- Compiled, Unit =/= none]}.
 
-%% Report §11.2: an example's case run by Run in an empty directory of its
-%% own, made for it under the host's directory for temporary files, `TMPDIR`
-%% or `/tmp`, and removed after it, whether it passed, failed or faulted.
-%% The host's working directory is the node's and not a process's, so it is
-%% the example's directory while the example runs and the run's again after
-%% it, where the module's next case and a process the example left running
-%% find it. Where the run's directory cannot be read, or the example's
-%% cannot be made, the case fails with the host's reason, and a directory
-%% the example left that cannot be removed is said on standard error, as
-%% the runner says what stops a case.
--spec in_directory(Case, fun((Case) -> Outcome)) -> Outcome
-              when Case :: {'Case', binary(), fun(() -> term())}.
-in_directory({'Case', Name, _} = Case, Run) ->
+%% Report §11.2: an example run by Run, its program, in an empty directory
+%% of its own, made for it under the host's directory for temporary files,
+%% `TMPDIR` or `/tmp`, and removed after it, whether it passed, failed or
+%% faulted. The host's working directory is the node's and not a
+%% process's, so it is the example's directory while its program runs,
+%% where the program's start initializes the modules it uses and
+%% `Os.workingDirectory` names it (Appendix E.23), and the run's again
+%% after it. Where the run's directory cannot be read, or the example's
+%% cannot be made, the case fails with the host's reason, and its program
+%% initializes nothing; a directory the example left that cannot be removed
+%% is said on standard error, as the runner says what stops a case.
+-spec in_directory(example(), fun((example()) -> Outcome)) -> Outcome.
+in_directory({{'Case', Name, _}, _} = Example, Run) ->
     %% an empty `TMPDIR` is none, as mktemp(1) takes it
     Base = case os:getenv("TMPDIR", "") of
                "" -> "/tmp";
@@ -68,18 +80,18 @@ in_directory({'Case', Name, _} = Case, Run) ->
                 {ok, Dir} ->
                     ok = file:set_cwd(Dir),
                     try
-                        Run(Case)
+                        Run(Example)
                     after
                         ok = file:set_cwd(Working),
                         remove(Name, Dir)
                     end;
                 {error, Error} ->
-                    Run(failed(Name, ["its directory cannot be made under ", Base, ": ",
-                                      file:format_error(Error)]))
+                    Run({failed(Name, ["its directory cannot be made under ", Base, ": ",
+                                       file:format_error(Error)]), []})
             end;
         {error, Error} ->
-            Run(failed(Name, ["the working directory cannot be read: ",
-                              file:format_error(Error)]))
+            Run({failed(Name, ["the working directory cannot be read: ",
+                               file:format_error(Error)]), []})
     end.
 
 failed(Name, Text) ->
@@ -164,21 +176,26 @@ module_source(Namespace, Erc, Beam) ->
 
 %% Report §11.2: the module an example is compiled in. An exported
 %% declaration's, and the module's own, is a module of its own,
-%% `$Example3`, which uses the documented one; a private declaration's is
-%% the module, its source with the example after it, under its namespace
-%% and in a unit of its own, `ern@main$2`, so that the module's unit, which
-%% the tests ran, is as it was. Or why the example has no module to be
-%% compiled in, its source not as it was compiled.
-example_module(outside, Index, _Namespace, Interfaces, _Module) ->
+%% `$Example3`, which uses the documented one, and whose program
+%% initializes every module the run loaded; a private declaration's is the
+%% module, its source with the example after it, under its namespace and
+%% in a unit of its own, `ern@main$2`, so that the module's unit, which the
+%% tests ran, is as it was, and whose program initializes that unit in the
+%% module's place, so that the module's bindings are evaluated once in it
+%% (§8.5). Or why the example has no module to be compiled in, its source
+%% not as it was compiled.
+example_module(outside, Index, _Namespace, Interfaces, _Module, Loaded) ->
     #example_module{namespace = [list_to_atom("$Example" ++ integer_to_list(Index))],
-                    interfaces = Interfaces, build = #{source_hash => <<>>, deps => []}};
-example_module(inside, _Index, Namespace, Interfaces, {source, Source, Standard}) ->
+                    interfaces = Interfaces, build = #{source_hash => <<>>, deps => []},
+                    uses = Loaded};
+example_module(inside, _Index, Namespace, Interfaces, {source, Source, Standard},
+               [_Documented | Used]) ->
     Others = [Interface || #interface{namespace = Other} = Interface <- Interfaces,
                            Other =/= Namespace],
     #example_module{namespace = Namespace, before = <<Source/binary, "\n">>, interfaces = Others,
                     build = #{source_hash => <<>>, deps => [], standard => Standard},
-                    unit = fresh};
-example_module(inside, _Index, _Namespace, _Interfaces, {error, _} = Error) ->
+                    unit = fresh, uses = Used};
+example_module(inside, _Index, _Namespace, _Interfaces, {error, _} = Error, _Loaded) ->
     Error.
 
 texts(Docs) ->
@@ -200,18 +217,20 @@ fences(Doc) ->
         nomatch -> []
     end.
 
-%% One example as a case, and the unit its compiling loaded, or none,
-%% compiled in its module. Report §11.2, Appendix E.0 shape rule 6: an
-%% example that does not compile fails with the diagnostic's message, the
-%% first of its errors; one that ends in `// => v` runs, and fails where
-%% `Io.show` of its value is not `v`; one without the line passes where it
-%% compiles. An example's function is checked as a lambda's body where it
-%% runs nothing, so that it may receive, and one that runs has the mailbox
-%% type Never, as an entry point's left open has (report §8.1).
+%% One example, its case and the units its program initializes, and the
+%% unit its compiling loaded, or none, compiled in its module. Report
+%% §11.2, Appendix E.0 shape rule 6: an example that does not compile fails
+%% with the diagnostic's message, the first of its errors; one that ends in
+%% `// => v` runs, and fails where `Io.show` of its value is not `v`; one
+%% without the line passes where it compiles. An example's function is
+%% checked as a lambda's body where it runs nothing, so that it may
+%% receive, and one that runs has the mailbox type Never, as an entry
+%% point's left open has (report §8.1).
 example(Name, _Block, {error, Text}) ->
-    {failed(Name, Text), none};
+    {{failed(Name, Text), []}, none};
 example(Name, Block, #example_module{namespace = Namespace, before = Before,
-                                     interfaces = Interfaces, build = Build, unit = Unit}) ->
+                                     interfaces = Interfaces, build = Build, unit = Unit,
+                                     uses = Uses}) ->
     {Body, Value} = split_result(Block),
     {Declared, Expression} = declared(Body),
     Text = case Value of
@@ -221,13 +240,17 @@ example(Name, Block, #example_module{namespace = Namespace, before = Before,
            end,
     case {checked(Namespace, iolist_to_binary(Text), Interfaces), Value} of
         {{error, [#diagnostic{message = Message} | _]}, _} ->
-            {failed(Name, Message), none};
+            {{failed(Name, Message), []}, none};
         {{ok, _, _, _}, none} ->
-            {{'Case', Name, fun() -> 'Passed' end}, none};
+            {{{'Case', Name, fun() -> 'Passed' end}, []}, none};
         {{ok, Typed, Interface, Env}, Expected} ->
             case unit_built(Namespace, Unit, Build) of
-                {ok, Built} -> loaded(Name, Namespace, Typed, Interface, Env, Built, Expected);
-                {error, Refusal} -> {failed(Name, Refusal), none}
+                {ok, Built} ->
+                    {Case, Loaded} = loaded(Name, Namespace, Typed, Interface, Env, Built,
+                                            Expected),
+                    {{Case, [Loaded | Uses]}, Loaded};
+                {error, Refusal} ->
+                    {{failed(Name, Refusal), []}, none}
             end
     end.
 
@@ -253,14 +276,10 @@ loaded(Name, Namespace, Typed, Interface, Env, Build, Expected) ->
     {Shown, 0} = ern_code:function(Unit, Namespace ++ [docShown]),
     {{'Case', Name, fun() -> compared(Unit, Shown, Expected) end}, Unit}.
 
-%% Report §8.5: the example's own bindings, where it declares any, and
-%% inside its module the module's, evaluated again in its unit, then its
-%% value as `Io.show` writes it, against the one its last line promises.
+%% The example's value as `Io.show` writes it, against the one its last
+%% line promises; its program's start has initialized its unit (report
+%% §8.5).
 compared(Unit, Shown, Expected) ->
-    case erlang:function_exported(Unit, '$init', 0) of
-        true -> Unit:'$init'();
-        false -> ok
-    end,
     case Unit:Shown() of
         Expected -> 'Passed';
         Got -> {'Failed', <<"expected ", Expected/binary, ", got ", Got/binary>>}

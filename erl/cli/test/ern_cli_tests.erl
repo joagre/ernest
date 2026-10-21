@@ -1749,8 +1749,7 @@ doc_examples_of_a_directory_test() ->
 %% second run in the same directory, a second example does not find the
 %% first's file, the working directory holds no example's file after the
 %% runs, and the directory for temporary files holds none of theirs. A
-%% regression test, written after the code; it does not cover a process an
-%% example leaves running, which finds the run's directory, nor a run on a
+%% regression test, written after the code; it does not cover a run on a
 %% node
 doc_example_directory_test() ->
     Dir = tmp(),
@@ -1825,9 +1824,9 @@ doc_example_directory_test() ->
 %% compiled from, and an example whose source has changed since, or is gone,
 %% fails saying so; the units it was compiled in go with the run. A
 %% regression test, written after the code: a private declaration's example
-%% failed with `unknown name`; it does not cover a module whose
-%% initializers act, which run again for such an example in its unit, nor a
-%% private member's or a field's example
+%% failed with `unknown name`; it does not cover a private member's or a
+%% field's example, and a module whose initializers act is
+%% doc_example_initializers_test's
 private_doc_example_test() ->
     Dir = tmp(),
     Source = "/// A number held.\n"
@@ -1882,6 +1881,135 @@ private_doc_example_test() ->
                              "/build/doubles.erc was compiled from ", Dir,
                              "/src/doubles.ern, which no longer exists\n"]),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Gone)).
+
+%% report §11.2, Appendix E.23: each doc example runs as a program of its
+%% own in its empty directory, which `Os.workingDirectory` names and a
+%% relative path is read under, so that an example that writes under
+%% `Os.workingDirectory` leaves nothing in the run's directory and passes
+%% on a second run; where its directory cannot be made, the example fails
+%% saying so. A regression test, written after the code: the examples ran
+%% in the tests' launch, where `Os.workingDirectory` named the run's
+%% directory and the file was left there; it does not cover a directory
+%% that cannot be removed, nor a run on a node
+doc_example_working_directory_test() ->
+    Dir = tmp(),
+    write(Dir, "src/places.ern",
+          "/// Makes `x.txt` under the working directory, which is empty before it.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// #(Fs.list(Os.workingDirectory, 5000), Places.make())\n"
+          "/// // => #(Right([]), Right(Unit))\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// let _ = Places.make();\n"
+          "/// Fs.read(Path(\"x.txt\"), 5000) == Right(String.toUtf8(\"x\"))\n"
+          "/// // => true\n"
+          "/// ```\n"
+          "export fn make() : Either(Io.Error, Unit) =\n"
+          "    Fs.makeFile(Os.workingDirectory <> Path(\"x.txt\"), String.toUtf8(\"x\"), 5000)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Temporary = filename:join(Dir, "temporary"),
+    ok = file:make_dir(Temporary),
+    Given = os:getenv("TMPDIR"),
+    try
+        true = os:putenv("TMPDIR", Temporary),
+        in_directory(Dir, fun() ->
+                              ?assertEqual(0, ern_cli:ern(["test", "build/places.erc"])),
+                              ?assertEqual(0, ern_cli:ern(["test", "build/places.erc"]))
+                          end),
+        Passed = <<"Places.make example 1: passed\nPlaces.make example 2: passed\n">>,
+        ?assertEqual(<<Passed/binary, Passed/binary>>, iolist_to_binary(?capturedOutput)),
+        {ok, Left} = file:list_dir(Dir),
+        ?assertEqual(["build", "src", "temporary"], lists:sort(Left)),
+        ?assertEqual({ok, []}, file:list_dir(Temporary)),
+        None = filename:join(Dir, "none"),
+        true = os:putenv("TMPDIR", None),
+        ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/places.erc"]))
+    after
+        case Given of
+            false -> os:unsetenv("TMPDIR");
+            _ -> os:putenv("TMPDIR", Given)
+        end
+    end,
+    Unmade = iolist_to_binary(["Places.make example 1: failed: its directory cannot be made under ",
+                               Dir, "/none: no such file or directory\n"]),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Unmade)).
+
+%% report §11.2, §8.5: the module's initializers run once for its tests and
+%% once for each doc example that runs, in the example's program, after the
+%% tests' lines; a private declaration's example, compiled inside the module
+%% in a unit of its own, evaluates the module's bindings once, in that unit,
+%% and an example that does not run initializes nothing. A regression test,
+%% written after the code: a private declaration's example evaluated the
+%% module's initializers again in the tests' launch; it does not cover an
+%% initializer that faults in an example's directory
+doc_example_initializers_test() ->
+    Dir = tmp(),
+    write(Dir, "src/inits.ern",
+          "let greeted : Unit = Io.println(\"initialized\")\n"
+          "\n"
+          "/// Twice `n`.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// twice(2)\n"
+          "/// // => 4\n"
+          "/// ```\n"
+          "fn twice(n : Int) : Int = n * 2\n"
+          "\n"
+          "/// Four times `n`.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Inits.quadruple(1)\n"
+          "/// // => 4\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Inits.quadruple(2)\n"
+          "/// ```\n"
+          "export fn quadruple(n : Int) : Int = twice(twice(n))\n"
+          "\n"
+          "let quadrupled = Test.Case(name = \"quadrupled\", run = fn() =\n"
+          "    Test.equal(quadruple(2), 8))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build/inits.erc"])),
+    ?assertEqual(<<"initialized\n"
+                   "quadrupled: passed\n"
+                   "initialized\n"
+                   "Inits.twice example 1: passed\n"
+                   "initialized\n"
+                   "Inits.quadruple example 1: passed\n"
+                   "Inits.quadruple example 2: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.2: nothing a doc example leaves reaches the next, since each
+%% runs as a program of its own: a process the first left holding an offer
+%% has ended with its program, so the second's offer of the same service
+%% is taken. A regression test, written after the code: the second example
+%% was answered `Left(holder)`, the first's process; it does not cover a
+%% run on a node, whose connections the examples' launches share
+doc_example_leaves_nothing_test() ->
+    Dir = tmp(),
+    write(Dir, "src/holds.ern",
+          "/// Offers `squares` at a process that waits.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Holds.hold()\n"
+          "/// // => Right(Unit)\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Holds.hold()\n"
+          "/// // => Right(Unit)\n"
+          "/// ```\n"
+          "export fn hold() : Either(Process, Unit) =\n"
+          "    Peer.offer(Peer.service(\"squares\"), spawn(fn() : Unit receiving Int = receive {\n"
+          "        _ -> Unit\n"
+          "    }))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build/holds.erc"])),
+    ?assertEqual(<<"Holds.hold example 1: passed\nHolds.hold example 2: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
 
 %% report Appendix E.24, §4.9: `Test.equal` passes where the actual value
 %% equals the expected one and otherwise fails naming both as `Io.show`
@@ -2620,6 +2748,30 @@ verbose_build_test() ->
                      standard_error_of(Build))
     end),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.1: a build compiles each module after the modules it uses
+%% and otherwise in the order of their paths, whatever atoms the host made
+%% before it, so that `--verbose` names them so: four modules of names new
+%% to the host, the first using the last, in each of eight builds. A
+%% regression test, written after the code: the order followed the host's
+%% atom table, through the tables of the build's graph, and
+%% verbose_build_test failed once the tests before it had made more atoms;
+%% it does not cover the order of the shell's load
+build_order_test() ->
+    lists:foreach(fun(_) -> build_order() end, lists:seq(1, 8)).
+
+build_order() ->
+    Dir = tmp(),
+    Unique = integer_to_list(erlang:unique_integer([positive])),
+    [A, B, C, D] = [Letter ++ Unique || Letter <- ["a", "b", "c", "d"]],
+    write(Dir, "src/" ++ A ++ ".ern",
+          "export fn f() : Int = " ++ string:titlecase(D) ++ ".f()\n"),
+    [write(Dir, "src/" ++ Name ++ ".ern", "export fn f() : Int = 1\n") || Name <- [B, C, D]],
+    {Said, 0} = standard_error_of(["build", "--verbose", "--build-root", Dir ++ "/build",
+                                   Dir ++ "/src"]),
+    Compiled = [Namespace || Line <- string:split(Said, "\n", all),
+                             ["compiled", Namespace | _] <- [string:split(Line, " ", all)]],
+    ?assertEqual([string:titlecase(Name) || Name <- [D, A, B, C]], Compiled).
 
 %% report §11.1: under --emit-erl, --verbose names the `.erl` written.
 %% Written after the code, so a regression test

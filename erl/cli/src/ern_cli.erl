@@ -1395,21 +1395,68 @@ say_limits() ->
 
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
-%% as it ends, then its doc examples, Examples, as ern_examples made them;
-%% status 1 unless every one passed. The units the examples' compiling
-%% loaded go once the run has ended.
+%% as it ends, then, once their launch has ended, its doc examples,
+%% Examples, as ern_examples made them, each a program of its own, in a
+%% launch of its own in an empty directory of its own; status 1 unless
+%% every one passed. A launch that ends otherwise than by its entry
+%% process's return, by an initializer's fault among them, ends the
+%% module's run with the status that end gives (report_outcome/2). The
+%% units the examples' compiling loaded go once the last has run.
 run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
+    Caller = self(),
+    Entry = fun(Running) ->
+                tests_entry(ern_namespace:erlang_module(Namespace), Examples =/= [], Caller,
+                            Running)
+            end,
+    Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
+    Status = case cases_launch(Entry, Site, headed(Heading, init_fun(Loaded)), ErrorDevice,
+                               Node) of
+                 {told, refused} -> 1;
+                 {told, Passed} -> run_examples(Examples, Passed, ErrorDevice, Node);
+                 {ended, Ended} -> Ended
+             end,
+    ern_examples:unload(Units),
+    Status.
+
+%% Report §11.2: each doc example run as a program of its own (§8.5), in
+%% an empty directory of its own (ern_examples:in_directory/2), where its
+%% launch initializes the modules it uses, the documented one among them,
+%% and its entry process runs it as a test is run, in a process of its own,
+%% and prints its line; nothing it leaves, a process or an offer, outlives
+%% its launch. Passed says whether every case before passed; the status of
+%% the module's run.
+run_examples([], Passed, _ErrorDevice, _Node) ->
+    case Passed of
+        true -> 0;
+        false -> 1
+    end;
+run_examples([Example | Examples], Passed, ErrorDevice, Node) ->
+    Caller = self(),
+    Launched = fun({{'Case', Name, _} = Case, Initialized}) ->
+                       Entry = fun(Running) ->
+                                   fun() -> Caller ! {ern_tests, run_test(Case, Running)} end
+                               end,
+                       cases_launch(Entry, Name, init_fun(Initialized), ErrorDevice, Node)
+               end,
+    case ern_examples:in_directory(Example, Launched) of
+        {told, ExamplePassed} ->
+            run_examples(Examples, Passed andalso ExamplePassed, ErrorDevice, Node);
+        {ended, Ended} ->
+            Ended
+    end.
+
+%% Report §11.2: a launch whose entry process, Entry(Running), runs cases
+%% by run_test/2 and tells the runner what they came to, Init run before it
+%% (§8.5); what it told, or the status the launch ended with otherwise.
+cases_launch(Entry, Site, Init, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
     %% terms at each change of one
     Running = ets:new(running_test, [public]),
-    Entry = tests_entry(ern_namespace:erlang_module(Namespace), Examples, self(), Running),
-    Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
     %% report §11.2: Os.exit faults the test that calls it
-    RunOptions = reporting_options(maps:merge(#{init => headed(Heading, init_fun(Loaded)),
-                                                exit => fault}, Node),
+    RunOptions = reporting_options(maps:merge(#{init => Init, exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
     %% report §11.2: a test's own fault is its line, its trace beneath it,
@@ -1420,17 +1467,11 @@ run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
                            false -> Report(FaultReport, Peer)
                        end
                end,
-    Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),
+    Outcome = ern_rt:run_main(Entry(Running), Site, RunOptions#{faults => Reporter}),
     ets:delete(Running),
-    ern_examples:unload(Units),
     case Outcome of
-        ok ->
-            receive
-                {ern_tests, true} -> 0;
-                {ern_tests, false} -> 1
-            end;
-        Other ->
-            report_outcome(ErrorDevice, Other)
+        ok -> receive {ern_tests, Told} -> {told, Told} end;
+        Other -> {ended, report_outcome(ErrorDevice, Other)}
     end.
 
 %% Report §11.2: under a directory the module's name stands on a line
@@ -1443,9 +1484,10 @@ headed(Heading, Init) ->
         Init()
     end.
 
-%% The entry point of a module's tests, which runs them one at a time, then
-%% the module's doc examples, and tells Caller whether every one passed.
-tests_entry(ErlangModule, Examples, Caller, Running) ->
+%% The entry point of a module's tests, which runs them one at a time and
+%% tells Caller whether every one passed, or that they were refused, before
+%% the module's doc examples run, which it is told the module has.
+tests_entry(ErlangModule, HasExamples, Caller, Running) ->
     fun() ->
         Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
                     true -> ErlangModule:'$tests'();
@@ -1454,22 +1496,18 @@ tests_entry(ErlangModule, Examples, Caller, Running) ->
         Names = [Name || {'Case', Name, _} <- Tests],
         %% report §11.2: a module without tests or examples says so, and
         %% one two of whose tests have one name is refused before any runs
-        case {Tests ++ Examples, Names -- lists:usort(Names)} of
-            {[], _} ->
+        case {Tests =:= [] andalso not HasExamples, Names -- lists:usort(Names)} of
+            {true, _} ->
                 ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
                 Caller ! {ern_tests, true};
-            {_, [Twice | _]} ->
+            {false, [Twice | _]} ->
                 ern_rt:send(ern_rt:system_process(stderr),
                             <<"ern test: two tests are named \"",
                               (ern_show:controls(Twice, line))/binary, "\"\n">>),
-                Caller ! {ern_tests, false};
-            {_, []} ->
-                TestsPassed = [run_test(Case, Running) || Case <- Tests],
-                %% report §11.2: each example in an empty directory of its own
-                ExamplesPassed = [ern_examples:in_directory(
-                                    Case, fun(Ready) -> run_test(Ready, Running) end)
-                                  || Case <- Examples],
-                Caller ! {ern_tests, not lists:member(false, TestsPassed ++ ExamplesPassed)}
+                Caller ! {ern_tests, refused};
+            {false, []} ->
+                Passed = [run_test(Case, Running) || Case <- Tests],
+                Caller ! {ern_tests, not lists:member(false, Passed)}
         end
     end.
 
