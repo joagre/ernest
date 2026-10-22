@@ -23,7 +23,7 @@ main([File]) ->
                       Count = list_to_integer(Iterations),
                       Ernest = list_to_integer(Ms) * 1.0e6 / Count,
                       Erlang = fastest(Count, Operation),
-                      io:format("~-40s ~9.1f ~9.1f ~7.1f~n",
+                      io:format("~-40s ~9.1f ~9.1f ~6.1fx~n",
                                 [Name, Ernest, Erlang, Ernest / Erlang]);
                      ([Key, Iterations | Micros]) ->
                       raised(Key, list_to_integer(Iterations),
@@ -42,7 +42,7 @@ raised(Key, Count, [Median, Low, High]) ->
                          || _ <- lists:seq(1, 7)]),
     erlang:system_flag(backtrace_depth, Previous),
     PerIteration = fun(Micros) -> Micros * 1000 / Count end,
-    io:format("~-40s ~9.1f ~9.1f ~7.1f  ~.1f to ~.1f, ~.1f to ~.1f~n",
+    io:format("~-40s ~9.1f ~9.1f ~6.1fx  ~.1f to ~.1f, ~.1f to ~.1f~n",
               [Name, PerIteration(Median), lists:nth(4, Erlang),
                PerIteration(Median) / lists:nth(4, Erlang), PerIteration(Low),
                PerIteration(High), hd(Erlang), lists:last(Erlang)]).

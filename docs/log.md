@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-22.** [The Sitting on §8.6's Bookkeeping](#the-sitting-on-86s-bookkeeping-2026-10-22).
+**2026-10-22.** [`make bench` Read Against the Cost Rules](#make-bench-read-against-the-cost-rules-2026-10-22). [The Sitting on §8.6's Bookkeeping](#the-sitting-on-86s-bookkeeping-2026-10-22).
 
 **2026-10-21.** [A Make With Nothing to Do](#a-make-with-nothing-to-do-2026-10-21). [The Annotation Out of the Hash](#the-annotation-out-of-the-hash-2026-10-21). [The Nodes Tests' Bounds](#the-nodes-tests-bounds-2026-10-21). [The Later List Sorted](#the-later-list-sorted-2026-10-21). [The Window's Three Asks](#the-windows-three-asks-2026-10-21). [The Foreign Call Measured](#the-foreign-call-measured-2026-10-21).
 
@@ -8660,6 +8660,95 @@ Decided: the call's row for the look becomes a mark in the caller's dictionary, 
 **Set aside: priority messages.** OTP 28's priority messages let a process take a message ahead of its queue through an alias made for it. The look's problem is the other direction, knowing something of a process that is not receiving at all, so they do not touch the bookkeeping. Where they apply is the call's wait reading the caller's whole mailbox so that a restart is taken during the call, whose cost grows with the messages waiting (*Nothing Waits for a Program*); that touches §6.9's ordering promises and would need its own reading of the report, and the user set it aside, unplanned.
 
 **What it does to the code.** Gone: the row's two count columns and the select over them, `in_foreign` and the fun the emitter allocates for it, the emitter's decision of which calls to wrap by the waiting lists, the error handler's count of a code load, the calls table, and the doc test's example runner once `ern test` is the one checker. Come: one classifier at the look over a waiting process's stack, and one read of its dictionary. Three mechanisms become one in one function, which is the simplification that matters more than the count; the ground `let` is the one special case kept on a number.
+
+## `make bench` Read Against the Cost Rules, 2026-10-22
+
+MVP 3.29's first item, built 2026-10-22 on the laptop, which nothing else used. `make bench` was run four times, the load average 1.0 to 2.3 before each, the tail of the run before it. The tables below are the third run's; the eight pairs' medians are given for all four.
+
+**What the bench lacked.** No row read a top-level `let`, launched a program, timed a receive with an `after` or sent to a system process. The call was one row with one caller, and the foreign call's count one row with one process. No run remembered the last: the rows that grew since MVP 3.1 were found by a reader with the log open, and three of the sitting's numbers came from scratch programs. A process's row at its start and end was measured already, in `spawn.txt`'s model and its operations alone (*The Rows That Grew*), and is not measured twice.
+
+**What it gains.** `test/ern_call_costs.erl` writes `call.txt`: the call a piece at a time with one caller and one callee, with eight pairs and with eight callers of one callee, and each of the call's writes alone by one process and by eight. `test/ern_rule_costs.erl` writes `rules.txt`: a `let`'s read, a receive with an `after`, `Io.print` and a bare launch, each beside the host's. `ern_foreign_costs` gains the foreign call and its count by eight processes at once. `ern_bench`'s table goes to `bench.txt` and the node parts' to `nodes.txt` and `code.txt`, so that every part has a file.
+
+A program's row runs its code compiled from source in a launch, its processes the runtime's, each with its row, and every row is the median of seven interleaved runs.
+
+**The time.** `make bench` takes 11.1 to 11.3 minutes where it took about 8: the call's part 2.1 minutes, the rules' 0.7 and the foreign part's new table about half a minute. Every part spends its time in its loops. The Ernest program's part takes 153 s, 108 of them its own loops and 41 the host's same loops; the code part takes 85 s, starting the nodes it measures. No part costs more than its work.
+
+**The call.** In nanoseconds a call over all callers:
+
+| | the host's call | `Address.call` | × | `callForever` | × |
+|---|---:|---:|---:|---:|---:|
+| one caller and one callee | 1,521 | 2,450 | 1.6 | 1,880 | 1.2 |
+| eight pairs | 836 | 2,171 | 2.6 | 2,475 | 3.0 |
+| eight callers of one callee | 1,696 | 2,318 | 1.4 | 2,132 | 1.3 |
+
+| The model, a piece added on each row | one pair | eight pairs | eight of one |
+|---|---:|---:|---:|
+| the host's call | 1,521 | 836 | 1,696 |
+| + the callee read through the address, the request sent its way | +2 | +122 | +62 |
+| + the callee's row, so that its restart ends the call | +270 | +1,771 | +254 |
+| + the caller's row, the look's request in flight | +366 | −606 | +143 |
+| + the caller counted as in a timed receive | +161 | +114 | +128 |
+| + the answer's form among the forms the wait takes | −39 | −59 | −9 |
+| + the wait against a deadline, sliced, in tries: `call/4` whole | +119 | −8 | +60 |
+| `Address.call` of an Ernest counter | +50 | +2 | −14 |
+
+| A write alone, ns over all processes | one | eight at once |
+|---|---:|---:|
+| the callee's row written and deleted | 245 | 2,741 |
+| the caller's row written and taken | 242 | 2,232 |
+| the count raised and lowered | 146 | 2,226 |
+| a mark put and erased in the dictionary | 47 | 29 |
+
+**The lock.** Every row a call writes in a table all processes share is a lock, and the first one met shows it. Each of the three writes alone costs nine to fifteen times as much over all with eight processes at once as with one, every process waiting on the table's one lock; a mark in the dictionary gets cheaper with eight.
+
+In the eight pairs the callee's row, added first, takes the call from 958 to 2,729 ns over all, and the caller's row and the count add nothing past it, the calls being in line already. Taking out the caller's row and the count, as the sitting decided, leaves the eight pairs where they are. The lock is the callee's row, the one shared write a call keeps (§6.9), which the plan's item for it answers as planned: its table made with the host's write concurrency.
+
+**The constant.** With one pair the same three writes are the constant: 270, 366 and 161 ns of the 929 a call adds to the host's 1,521, the callee's row 270 of it. The address and the request's way add nothing measurable, nor does the answer's form. The deadline, its slices and the tries add 119, and the compiled caller and callee 50 beyond the model. An Ernest callee's answer is not checked, only foreign code's (§8.4), so the answer's check costs this path nothing.
+
+**The eight pairs' two modes.** Eight pairs with a shared write run at about 2,000 or about 3,500 ns over all, as the schedulers place them, and a run's median falls in either: `Address.call`'s medians over the four runs were 2,998, 3,502, 2,171 and 2,430, its range within the third 1,792 to 4,003. No run since reached the sitting's 5,008: its scratch program, run again idle, gave 2,350 to 3,700 in four runs. The host's eight pairs stay at 766 to 836, and the lock stands in both modes.
+
+**The foreign call with eight.** In nanoseconds a call over all processes:
+
+| | one | eight at once |
+|---|---:|---:|
+| the host's call of a function that answers at once | 10.7 | 3.7 |
+| a foreign fn of it | 178 | 2,477 |
+| the count alone, `in_foreign/1` around nothing | 150 | 2,550 |
+| a mark put and erased in the dictionary | 39 | 23 |
+
+The scratch figure of *The Foreign Call Measured*, 2,540 against 188, stands, and the count is the whole of it.
+
+**A `let`'s read.** A function reading a `let` of a literal costs 38 ns against 8.8 for the host's function answering the literal, and one reading a computed list of a hundred 45 against 8.5. Alone, a persistent term by a tuple key costs 29 ns, by an atom key 13, `ern_rt:binding/1` 32, and a literal 5.6 with the loop. The first row is the ground `let`'s item's before.
+
+**A receive with an `after`.** Where the message is waiting the host sets no timer, and its receive costs 131 ns with an `after` and without. Ernest's costs 138 without and 333 with: the deadline, the fun and its slices 69, and the count 129. Where the receive waits for an echo's answer the host sets its timer and cancels it, 141 ns, 774 against 915. There Ernest's `after` adds 373, 813 against 1,186. The count alone costs what the host's whole timer costs, no fraction of it; the dictionary mark the sitting chose, 29 to 47 ns, is a fifth to a third of it.
+
+**A message to a system process.** `Io.print("")` costs 1,949 ns, against 1,159 for the host's call of a process that takes the bytes and answers, and 218 for its bare send. A print is a call by design, answered once the stream has taken the bytes (§8.2), so the host's call is its operation: it costs 1.7 times that, where `callForever` alone costs 1.2 times the host's call.
+
+**A bare launch.** In microseconds:
+
+| | µs |
+|---|---:|
+| the host's start of a program, `erl` run by a shell | 218,470 |
+| the host's spawn of a function that returns, its `'DOWN'` taken | 1.7 |
+| a launch, `ern_rt:run_main/3`, nothing in main | 3,318 |
+| its start, to the library's initializers | 853 |
+| the library's initializers | 2,062 |
+| from them to main's return | 3.5 |
+| the end, from main's return | 408 |
+| a persistent term put under a new key and erased | 37 |
+| one put again with the value it holds | 0.3 |
+
+The pieces are timed where `run_inits/1` begins and returns in the entry process, traced, and where main returns. A launch is 1.5 percent of the host's own start. It is not the 7.25 ms before the initializers that the doc examples' launch showed under `ern test` (*What the Feedback Left*): in the bench's host the start is 0.85 ms, the library's initializers 2.1, and a persistent term's update about 20 µs, not 0.25 ms. The plan's item for the launch's start rests on the larger figure, so which host it measures in goes to the user with the item.
+
+**The memory.** `ern_last_run` keeps a run's tables in `test/build/bench/last/` as the next run begins, where that run wrote every one, so that a run that failed midway leaves the last whole run in place. A directory was the plain choice; a dated copy would grow with every run.
+
+At the end it names every row whose number moved by more than a fifth against the last run's, prints them and writes `moved.txt`. The fifth is the module's `NOISE`, the bound *The Rows That Grew* found between runs of one part.
+
+A row is matched by its table's title, its own words with their numbers masked, and its place among the rows that read alike. A range's ends, a ratio and a difference follow from the medians and are not compared; a time is compared in nanoseconds whatever its unit; a load average is no row. `ern_last_run_tests` holds two small tables against each other, a regression test written after the code.
+
+**Two runs in a row.** With nothing changed, the fourth run named nine rows against the third: a fault by a raise at depth 64 beneath forty frames, up a quarter; the gateway's step between two nodes, itself the difference of two rows; five of the code part's steps of tens to hundreds of microseconds; and a persistent term put again with its value, 0.3 µs against 0.2. The third run named sixteen against the second, eight of them the eight pairs changing mode.
+
+The library's table is left out of the comparison. Its numbers are each the fastest of three timings of a millisecond, not medians of interleaved runs, and the second run moved about two hundred of its 1,100 by more than a fifth, whole modules together, `Set` up by a third and `List` down by a quarter. Its own line, three times the host's, stays its check, and its numbers made medians of interleaved runs would be an item of its own.
 
 ## The Foreign Call Measured, 2026-10-21
 

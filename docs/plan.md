@@ -94,18 +94,14 @@ the order they are built; the report's sections change as each build starts.
   set aside: they reach a process that is receiving and the look's problem is one that is not;
   where they would apply is the call's wait reading the caller's mailbox for a restart, which
   stands as the log's *Nothing Waits for a Program* records it, unplanned.
-- **`make bench` read against the cost rules** (CLAUDE.md's *Design*), first, since the sitting's
-  builds are decided on its numbers. Today the bench measures what happened to be measured, keeps
-  no memory of its last run, so that the rows that grew since MVP 3.1 were found by a reader with
-  the log open, and three of this milestone's numbers are scratch scripts no command reruns. The
-  item: every promise of the cost rules has a row, a constant's read, a bare launch, a timed
-  receive, a message to a system process and a process's row at its start and end among them; the
-  call measured piece by piece as the foreign call was, its monitor, its rows, its timed count,
-  its check and its wait, each with one caller and with eight pairs, since eight pairs run today
-  at 5,008 ns a call over all against the host's 818 and one pair's 2,475; the foreign call and
-  the count with eight processes at once; and a run keeps the last run beside it and names every
-  row that moved by more than the noise, about a fifth on this machine (the log's *The Rows That
-  Grew*). About a day.
+- **`make bench` read against the cost rules**, built 2026-10-22 (the log's *`make bench` Read
+  Against the Cost Rules*): every table a call writes is a lock, eight pairs at 2,200 to 3,500 ns
+  a call over all against the host's 800, and the callee's row, the one that stays, is the lock
+  still once the caller's row and the count go; with one pair the three writes are 800 of the
+  930 ns a call adds; the timed receive's count costs the host's whole timer; a `let` of a
+  literal reads in 38 ns against 9; a bare launch takes 3.3 ms, 2.1 of it the library's
+  initializers, not the 7.25 ms before them that the launch's item below rests on; and each run
+  names the rows that moved by more than a fifth since the last, the library's table aside.
 - **The bookkeeping built on the rule**, §8.6 first. The look reads each waiting process's stack
   and takes a frame of a module that is no unit's, `ern@` and `ern$`, and none of the runtime's
   own, `ern_`, or of a runtime function its module lists as waiting, as foreign code in progress;

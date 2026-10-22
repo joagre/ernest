@@ -31,7 +31,7 @@
 %% measures and asserts nothing, so it is not part of `make test-full`.
 -module(ern_spawn_costs).
 
--export([main/1, measured/2, timed/2, launched/1, launched/2, table/3]).
+-export([main/1, measured/2, timed/2, launched/1, launched/2, at_once/2, table/3]).
 
 %% Each spawn and monitor loop's iterations, an operation loop's, the runs
 %% of each row, and the processes that wait at once for the spawn alone.
@@ -221,6 +221,27 @@ launched(Measure, Options) ->
                              <<"Spawn.main">>, Options#{stdout => fun(_) -> ok end}),
         receive {measured, Measured} -> Measured end
     end.
+
+%% Each of Loops run Count times in a process the runtime spawns in the
+%% launch in progress, so that each has its row, as a program's process
+%% has (report §6.9): the processes started, then told at once to begin,
+%% and timed from then until each has run its loop; the nanoseconds and the
+%% iterations over all processes.
+-spec at_once(pos_integer(), [fun((pos_integer()) -> ok)]) -> {integer(), pos_integer()}.
+at_once(Count, Loops) ->
+    Self = self(),
+    Pids = [ern_rt:spawn(fun() ->
+                             Self ! {ready, self()},
+                             receive begin_loop -> ok end,
+                             ok = Loop(Count),
+                             Self ! {looped, self()}
+                         end, ?SITE)
+            || Loop <- Loops],
+    [receive {ready, Pid} -> ok end || Pid <- Pids],
+    Started = erlang:monotonic_time(nanosecond),
+    [Pid ! begin_loop || Pid <- Pids],
+    [receive {looped, Pid} -> ok end || Pid <- Pids],
+    {erlang:monotonic_time(nanosecond) - Started, Count * length(Loops)}.
 
 %% Report §6.9: Ernest's spawn of a process that returns, the code the
 %% compiler writes for `spawn(fn() = Unit)`.

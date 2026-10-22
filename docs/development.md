@@ -109,8 +109,9 @@ make test-erl     the unit tests of every application under erl/, side by side;
                   APP=checker for one
 make test-programs  the five parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
-                  signals, the streams, Os and the libraries' tests, and that the
-                  measuring machine reaches every function of the library
+                  signals, the streams, Os and the libraries' tests, that the
+                  measuring machine reaches every function of the library, and the
+                  bench's comparison of a run with the last
 make test-nodes   nodes on one machine
 make test-deployment  the deployment guide's commands and its deployment end to end
                   run on nodes, and the lines it quotes held to a node's
@@ -139,32 +140,42 @@ make service      a program run by the host's service manager, a user's systemd 
                   part of make test-full
 make bench        what each of a few operations costs in Ernest beside the same
                   operation in Erlang, in nanoseconds, a raise at each backtrace depth
-                  among them; then every function of the library beside the host's, at
-                  10, 100 and 10,000, its time and what it allocates, with what costs
-                  more than three times the host's and whether the machine was idle, the
-                  whole table in test/build/bench/library.txt; then, between two nodes on
-                  this machine, the host's ping over TLS and over TCP, a call to the other
-                  node's process, and a round trip to it straight and through an adapted
-                  address made there; then, on nodes it starts, what a spawn and a compute
-                  cost whose code crosses, each step of the exchange, a fix's callers,
-                  what an arrival, a Code.load and a day's spawns add to the host's
-                  counts, a utilization, a compute on a peer picked and on one named,
-                  the pick alone, what connected nodes exchange idle with their tellings,
-                  and the sizes of an .erc and a code frame; then what each piece of
-                  Ernest's spawn, spawnMonitored and monitor adds to the host's, on every
-                  scheduler and on one, the spawn alone with no end between, a model of
-                  the reaper a piece at a time, and each table operation of the reaper's
-                  and of a Down's delivery alone, in test/build/bench/spawn.txt,
-                  spawn_monitored.txt and monitor.txt; then what each piece of entering
-                  restarting adds to the host's try, with a hundred messages waiting too,
-                  in restarting.txt; then four bursts at 1,000, 5,000 and 25,000, a
-                  process's monitors of processes that end, callers of one process that
-                  end, deliveries in flight to one process, started and delivered, and a
-                  process's alarms firing at once, each element's time beside the
-                  smallest burst's, in burst.txt; then what each piece of a foreign
-                  call adds to the host's call, by the type of its result, a model of
-                  a foreign fn a piece at a time, and each operation alone, in
-                  foreign.txt; not part of make test-full
+                  among them, in test/build/bench/bench.txt; then every function of the
+                  library beside the host's, at 10, 100 and 10,000, its time and what it
+                  allocates, with what costs more than three times the host's and whether
+                  the machine was idle, the whole table in library.txt; then, between two
+                  nodes on this machine, the host's ping over TLS and over TCP, a call to
+                  the other node's process, and a round trip to it straight and through an
+                  adapted address made there, in nodes.txt; then, on nodes it starts, what
+                  a spawn and a compute cost whose code crosses, each step of the
+                  exchange, a fix's callers, what an arrival, a Code.load and a day's
+                  spawns add to the host's counts, a utilization, a compute on a peer
+                  picked and on one named, the pick alone, what connected nodes exchange
+                  idle with their tellings, and the sizes of an .erc and a code frame, in
+                  code.txt; then what each piece of Ernest's spawn, spawnMonitored and
+                  monitor adds to the host's, on every scheduler and on one, the spawn
+                  alone with no end between, a model of the reaper a piece at a time, and
+                  each table operation of the reaper's and of a Down's delivery alone, in
+                  spawn.txt, spawn_monitored.txt and monitor.txt; then what each piece of
+                  entering restarting adds to the host's try, with a hundred messages
+                  waiting too, in restarting.txt; then four bursts at 1,000, 5,000 and
+                  25,000, a process's monitors of processes that end, callers of one
+                  process that end, deliveries in flight to one process, started and
+                  delivered, and a process's alarms firing at once, each element's time
+                  beside the smallest burst's, in burst.txt; then what each piece of a
+                  foreign call adds to the host's call, by the type of its result, a
+                  model of a foreign fn a piece at a time, each operation alone, and the
+                  call and its count by eight processes at once beside one, in
+                  foreign.txt; then what each piece of Address.call adds to the host's
+                  call of the same shape, with one caller and one callee, eight pairs,
+                  and eight callers of one callee, and each of the call's writes alone by
+                  one process and by eight, in call.txt; then a top-level let's read, a
+                  receive with an after, a message to a system process and a bare launch
+                  with its pieces, each beside the host's, in rules.txt; and last, every
+                  row of every table but the library's that moved by more than a fifth
+                  against the last run, whose tables test/build/bench/last/ keeps,
+                  printed and written to moved.txt; about eleven minutes; not part of
+                  make test-full
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk
