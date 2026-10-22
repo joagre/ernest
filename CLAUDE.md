@@ -44,6 +44,8 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/language_feedback.md`](docs/language_feedback.md) | what writing Ernest has felt against the principles, each line until a plan item decides it |
 | `findings.md` in `docs/`, while a review's findings are open | the findings, each line until a plan item decides it; it goes when every line is done, dropped or planned |
 
+**A new owner.** A kind of fact that lands in the log entry after entry with no document stating its present shape has no owner, and gets one: a component's design note under `docs/design/`, as the shell's and the runtime's are, proposed when its third entry is written and not when a reader asks. Such a note is written at the shape's altitude, what a reader must know to change the component without breaking a promise, the kind of fact that lives where and the rule a mechanism rests on, never what one function does, so that it changes with the design and not with a line of code; a list in it that could drift from the code is held equal by a test.
+
 **Proposals.** [`docs/proposals/`](docs/proposals/) holds what is designed, a directory for each: the proposal, its reasons, what other systems do, and its experiments or programs. Each directory's `README.md` says what its files are and which is current.
 
 Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not.
