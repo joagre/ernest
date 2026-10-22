@@ -19,9 +19,10 @@ Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn
 `Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
 release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
 tools' five speed changes and the programs tests' defects.
-MVP 3.27, the measurements across machines, is done (2026-10-21), and so is MVP 3.28, what stood
-before the tour (2026-10-22). The road to 0.5.0 is MVP 3.29, the bookkeeping behind §8.6 and the
-foreign call, MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
+MVP 3.27, the measurements across machines, is done (2026-10-21), and so are MVP 3.28, what stood
+before the tour, and MVP 3.29, the bookkeeping behind §8.6 and the foreign call (2026-10-22). The
+road to 0.5.0 is MVP 3.295, what the language measurement found and the new machine, MVP 3.3 the
+tour and MVP 3.9 the review; the attached shell, ehttpd,
 the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -63,7 +64,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
-| MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count a stack read, the timed receive's and the call's marks, the restart's row measured; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; the launch's start; `make bench` with a memory of its last run; the language measured against the host's own Erlang, construct by construct and in three programs written twice; and deadlock detection among *Why Ernest*'s claims | made 2026-10-21 from MVP 3.28's measurement; the sitting held 2026-10-22 | | below |
+| MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count gone for a read of the waiting process, the timed receive's and the call's marks in the process's own dictionary, every slow wait of the runtime's own marked and held by a test, the callees' row kept on a write-concurrent table and measured against two other kinds, a kill one function and a frame from another node; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; a launch a row of its own table, halved; the runtime's fixed waits and the tests' sleeps, polls and limits gone for waits on what each means; `make bench` with a memory of its last run and of the release's, by ratio; the language measured against the host's own Erlang, construct by construct and in three programs written twice; the runtime's design note; and a deadlock found among *Why Ernest*'s claims | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*; *`make bench` Read Against the Cost Rules*; *The Language Against the Host*; *The Foreign Call Measured*; *Deadlock Is Quiescence* |
 | MVP 3.295 | what the language measurement found, a `Float` chain's checks and the first day of the new machine | made 2026-10-22 from MVP 3.29's last measurement | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
@@ -75,223 +76,10 @@ finished milestone is a row of the table below, its reasons in the log entries t
 
 ---
 
-## MVP 3.29 (the bookkeeping behind §8.6, and the foreign call), the sitting held and then the builds
-
-Made 2026-10-21 from what MVP 3.28's foreign call measurement found (the log's *The Foreign Call
-Measured*), and decided in a sitting with the user on 2026-10-22 (the log's *The Sitting on
-§8.6's Bookkeeping*). The rule the sitting set: deadlock detection stays, since the runtime owns
-every source of a message, which is what lets Ernest decide what no other language on the host
-can; and what the look needs of a process, the process marks in its own state and the look reads
-when the program seems idle, so that no operation writes a shared row for it and a hot path pays
-nothing. Against a call that answers at once there is no fraction but nothing. The items follow in
-the order they are built; the report's sections change as each build starts. The milestone closes
-at the measurement of the language against the host: what that or any build turns up beyond its
-items becomes a milestone of its own, since the tour and 0.5.0 wait behind this one.
-
-- **The sitting**, held 2026-10-22, six questions each with its verdict in the log entry: the
-  foreign call's count becomes a read of the waiting process's stack at the look; the timed
-  receive's count a mark in the process's dictionary; the call's row for the look the same mark,
-  the restart's row kept and measured; a fraction of a call that answers at once is nothing; a
-  top-level `let` that is a ground term compiles to the term; and the cause of a foreign return
-  that fails its check names the function, the trace unchanged. Priority messages (OTP 28) were
-  set aside: they reach a process that is receiving and the look's problem is one that is not;
-  where they would apply is the call's wait reading the caller's mailbox for a restart, which
-  stands as the log's *Nothing Waits for a Program* records it, unplanned.
-- **`make bench` read against the cost rules**, built 2026-10-22 (the log's *`make bench` Read
-  Against the Cost Rules*): every table a call writes is a lock, eight pairs at 2,200 to 3,500 ns
-  a call over all against the host's 800, and the callee's row, the one that stays, is the lock
-  still once the caller's row and the count go; with one pair the three writes are 800 of the
-  930 ns a call adds; the timed receive's count costs the host's whole timer; a `let` of a
-  literal reads in 38 ns against 9; a bare launch takes 3.3 ms, 2.1 of it the library's
-  initializers, not the 7.25 ms before them that the launch's item below rests on; and each run
-  names the rows that moved by more than a fifth since the last, the library's table aside.
-- **The bookkeeping built on the rule**, built 2026-10-22 (the log's *The Sitting on §8.6's
-  Bookkeeping*, its *Verified* and *Built* paragraphs): the look reads each waiting process's top
-  frame and two keys in its dictionary, a module being Ernest's where it is a unit or the
-  toolchain's own Erlang that is no test's, and the foreign call writes nothing, so that a foreign
-  fn costs 26.1 ns against the host's 13.4 where it cost 158.6, eight at once 12.7 a call where
-  they cost 2,428, and a receive with an `after` 242 where it cost 339. The calls table stays, the
-  reaper's index from a killed caller to its callee, for the next item.
-- **The call's records, designed together**, built 2026-10-22 (the log's *The Sitting on §8.6's
-  Bookkeeping*, its paragraphs on the call's records and on a kill from another node, and the
-  *Built* paragraphs after them): the calls table went for a `CALL` key in the caller's
-  dictionary, which the look, `Process.status` and every kill read; every end the runtime gives
-  a process from outside goes through `killed/2`, a process of its own that suspends the victim,
-  since two processes suspending each other hang; a kill of a process of another node is §8.7's
-  fifteenth frame, read against §8.7 whole and found to keep it; and the callee's row took the
-  host's write concurrency. `Address.call` went from 2,332 to 2,258 ns against the host's 1,503
-  and 1,540, and eight pairs from 2,201 to 1,676 against 866 and 871. Two decisions closed it,
-  2026-10-22: a kill costs its killer 0.7 to 1.0 µs against the host's `exit/2` at 0.25, since a
-  process of the runtime's own carries it out, the killer suspending the victim itself having hung
-  one pair in two thousand that suspended each other; §10 states the cost as it states a spawn's
-  (the log's *Built* paragraphs). And the single pair's 718 ns, 0.47 of the host's call and not
-  the third the sitting expected, is a fraction by the plan's gate, so the §6.9 question stays
-  closed; the callee's row is the larger part, and its table's kind is the item below.
-- **The callee's table under eight writers**, measured 2026-10-22 (the log's *The Sitting on
-  §8.6's Bookkeeping*, its *Measured* paragraphs): a bag keyed by the callee beat the ordered set
-  under eight pairs by a fifth, 1,343 ns a call over all against 1,678 with the host's at 836, but
-  walks the callee's rows at each write, so that a hundred callers of one callee paid 5.8 times the
-  host's call and a thousand 54 times, where the ordered set holds at 1.1 and 1.0. The ordered set
-  with the host's write concurrency stays, the runtime unchanged but its comment, and its eight
-  pairs at 2.0 times the host's against the refused plain set's 1.6 decide nothing more.
-- **Three fixed sleeps in the integration tests**, built 2026-10-22 (the log's *The Sitting on
-  §8.6's Bookkeeping*, its *Built* paragraphs on the three sleeps): `stream_lost_at_end` and
-  `closed_pipe` start the program once its reader has closed the pipe and said so through a FIFO,
-  in place of sleeps of a second and of 0.3 s; `paced_output`'s reader takes a twentieth of the
-  program's lines a byte at a time and says so, the node's memory read at its word and the
-  program's end held to status 141, in place of sleeps of three seconds and four. The three took
-  14.8 s against 21.1. Decided with the user 2026-10-22: the three more waits in the file that
-  look at a file at a fixed pause up to a chosen count are the item below.
-- **The comparison's two references, by ratio**, built 2026-10-22 (the log's *The Sitting on
-  §8.6's Bookkeeping*, its *Built* paragraphs on the two references): each run of `make bench`
-  names the rows that moved by more than a fifth against the last run and against the release's,
-  each under its reference. `make bench-release` keeps the last run as the release's in
-  `test/build/bench/release/`, a step of `docs/release_review.md`, and a first run on a new
-  machine is kept so too. A table with a ratio is compared by its ratios, printed to a hundredth
-  now, and any other by its numbers. The library's table stays out: in two pairs of runs on the
-  idle machine its ratios to the host's moved by more than a fifth in half its functions, 79 and
-  78 of 156. The release's run is the run of 2026-10-22 until the review before 0.5.0 replaces it.
-  Decided with the user 2026-10-22: `bench.txt` stays compared by its ratios, one rule and no
-  special case, though its Ernest and Erlang columns are measured minutes apart by two harnesses
-  and its ratios named 9 of its 40 rows between two idle runs where its times named 6; the
-  release's reference is where a drift is caught, and *The language against the host* below
-  measures its pairs together, which removes the noise at its cause.
-- **Three polls in the integration tests**, built 2026-10-22 (the log's *The Sitting on §8.6's
-  Bookkeeping*, its *Built* paragraphs on the three polls): the standard input's test reads its
-  program's line from the FIFO its output goes to, and `job_signal_end` the build's `--verbose`
-  line from a pipe, each as it is written. `run_for/4` asks its condition again at each change of
-  the files under its program's directory, which `test/ern_changes.py` says through Linux's
-  inotify, since `file_sync` stores files without a word; the condition is the checks' own now, a
-  stored file with its time. Each wait, a hung program's run and a signaled program's end is
-  bounded by one step of the harness's, `ern_nodes_tests:wait_ms/0`, and each test's limit is its
-  steps: `stream_lost_at_end`'s `timeout -s KILL 20` is 30 s, and its limit 360 s against 120.
-  The six tests' times did not move, each poll having found its condition at its first or second
-  look. Found beside it: the file's other bounds are chosen numbers, every other test's limit
-  among them, the item below.
-- **The integration tests' limits counted in steps**, built 2026-10-22 (the log's *The Sitting
-  on §8.6's Bookkeeping*, its *Built* paragraphs on the limits): every test of
-  `test/ern_integration_tests.erl` has its steps for its limit, `waits(Count)`, a build, a run or
-  a wait on a program each one step of the harness's, one to eleven of them, where forty-five
-  limits were 60 s and one 120. The waits for a server's line, the three ends Python waits for
-  and the TCP client's connection and answer are a step each. The two signal programs' timers, a
-  program's run of a command and another's read of a file are given a step in their text. The
-  web server's answer ends at its close, where a read's silence of 5 s ended it. Two times stay,
-  neither a bound on a wait: a file set two hours back and a restart window of 5 s. The tests'
-  times did not move, and `make test-full` took 584.4 s before and 578.0 after.
-- **Every slow wait of the runtime's own is marked, held by a test**, built 2026-10-22 (the log's
-  *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on every slow wait):
-  `receives_test/0` in `test/ern_style_tests.erl`, which `make test` runs, reads every `receive`
-  of the toolchain's own Erlang and fails one its module's `-receives` attributes name under no
-  kind, or a foreign wait or a deadline whose key its forms do not show (`docs/style.md`). Of the
-  93 that can wait, 12 are foreign waits, 10 Ernest's, 11 answered at once and 60 in a process of
-  the runtime's own. Its reading found a third wait unmarked, a peer's monitored spawn waiting for
-  its spawner's word (`ern_peer:held/4`), harmless on a node and marked now.
-- **Three fixed waits in the runtime's own processes**, built 2026-10-22 (the log's *The Sitting
-  on §8.6's Bookkeeping*, its *Built* paragraphs on the three waits): the ports of a program's
-  streams and of a job's are busy while they hold a byte not yet written, so the end's drain is a
-  write of nothing, which the host holds until all is written or the port has ended; no poll is
-  left. A program that writes many lines pays for it, at the host's own `io:put_chars`: a million
-  `Io.println` through a pipe take 11.6 µs a line against 6.8 before and the host's 12.6, and to
-  `/dev/null` 8.7 against 6.3 and 9.7. `stty` is waited for to its end, as the runtime's helper
-  is, with no bound.
-- **A top-level `let` that is a ground term**, built 2026-10-22 (the log's *The Sitting on §8.6's
-  Bookkeeping*, its *Built* paragraphs on the ground `let`): a binding whose initializer is a
-  ground term (§11.1), a literal, a negated number literal, or a constructor, tuple or list of
-  them, is read as its value, in its own module, in a dependent through the interface's `terms`,
-  and in a definition that arrives through the code table's; any other is read as before.
-  `'$init'/0` still writes the value, first, for the runtime's readers. A function reading a
-  literal `let` went from 37.9 to 7.1 ns against the host's 8.5, and one reading a computed `let`
-  stayed at 39.2 against 8.4.
-- **The cause of a foreign return that fails its check names the function**, built 2026-10-22
-  (the log's *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on the foreign cause):
-  `the return of foreign function erlang:abs/1 does not match String`, and an argument foreign
-  code gives an Ernest function `an argument of Main.handler from foreign code does not match
-  Int`, a lambda or a local fn named by the top-level declaration it is written in. A function
-  value foreign code gave is named as the host names it, and its raise is now a foreign
-  function's. The reply's cause and every trace stay. A lambda inside a top-level binding's value
-  keeps the host's name, decided 2026-10-22 and left: the name is true and a frame beneath names
-  the binding (principle 1 weighed and not broken); compiling each initializer to a function of
-  its own would name it and replace the lookup by value and the code's first-line table, a change
-  to §11.1's names of a unit's functions, recorded in the log for the review before 0.5.0 (MVP
-  3.9) as a simplification to weigh there.
-- **One checker of the library's examples**, built 2026-10-22 (the log's *What the Feedback
-  Left*, its *Built* paragraphs on one checker): `make test-library` runs `ern test` over
-  `build/stdlib` and `build/libs`, in the light run and the full, and `ern_doc_tests` keeps the
-  documents' rules and runs `ern test` over the template and the prelude's page, which neither
-  build holds. The Erlang test checked nothing more but a page holding an example, now a rule of the
-  documents, and `show` written plain inside `Io`, where `ern test` wrote `Io.show`, which §4.2
-  refuses there, fixed. `ern_doc_tests` took 11.2 s and not a minute, so nothing went faster: the
-  light run went from 48.9 s to 54.0, its last job the CLI's tests in one host, which the
-  target's load slows, and `make test-full` from 587.7 s to 599.1. Decided with the user the
-  same day and done: the CLI's tests run in three hosts, as the emitter's and the runtime's do,
-  and the light run takes 47.3 s and `make test-full` 593.4.
-- **The launch's start**, built 2026-10-22 (the log's *The Sitting on §8.6's Bookkeeping*, its
-  *Measured* and *Built* paragraphs on the launch's start): measured in `ern test`'s host as the
-  bench measures it, an example's launch took 9.0 ms, 4.7 of it before the library's
-  initializers. Each of the twelve persistent-term updates of its start waited about 0.3 ms on
-  the host's collection of the three terms the launch before had erased at its end. The bench's
-  trace pattern, set before each launch, waited that collection out, so its row said 3.3 ms. One
-  term for the launch would still have left 5.5 ms, its erase starting the same collection. The
-  launch is now a row of its own table, `#launch{}`, its runner, its tag, its reaper and its
-  options, gone with the table at its end, so that no launch replaces or erases a term of more
-  than a word. An example's launch takes 4.2 ms, its start 0.94; `ern test build/stdlib` takes
-  6.6 s against 8.4, and the bench's bare launch 2.4 ms. The system processes stay persistent
-  terms of a word each, and the library's bindings of their addresses stay, their values the
-  launch's and not the host's. The bench runs its launches back to back, and the reaper's
-  operations in a launch. What remains of an example's 4.2 ms is mostly the library's
-  initializers, 2.4, of which `Os`'s helper program, run at each launch to read the host's user,
-  mask and environment, is 1.4.
-- **A line said outside a launch**, built 2026-10-22 (the log's *The Sitting on §8.6's
-  Bookkeeping*, its *Built* paragraphs on the line said outside a launch): a node's line goes to
-  the launch's standard error process from the launch's start until its end has written the
-  program's output, and to the job's own error device before the first launch, between two and
-  after the last. `ern test`'s line that an example's directory cannot be removed, said once the
-  example's launch has ended, goes to the job's error device.
-- **The language against the host, the last measurement**, built 2026-10-22 (the log's *The
-  Language Against the Host*): `make bench` gains `language.txt`, each construct the emitter
-  writes code for beside the plain Erlang a programmer writes for it, and `programs.txt`, three
-  programs written twice, each pair measured together and the twins under `test/fixtures/bench/`.
-  The ray tracer runs at 1.95 times its Erlang twin, the parser at 1.28 and the counter at 1.31.
-  Of the twenty rows beside the loop, two constructs show a multiple, the two items below;
-  `String.slice` at 8.06 times `binary:part/3` slices graphemes and not bytes, `List.map` at 1.57
-  is the host's `lists:map/2` written in Ernest, within E.0 rule 1, and every other row is a
-  fraction. The release's run holds neither new table until the review before 0.5.0 keeps one.
-  Its log entry is the one the claim below cites.
-- **The runtime's design note**, `docs/design/runtime.md`, written 2026-10-22 (decided with the
-  user the same day; its two tests written the same day, the log's *The Sitting on §8.6's
-  Bookkeeping*, its *Built* paragraph on the note's tests):
-  the runtime's implementation choices had three homes and no page stating them as they stand,
-  the code's comments citing the report, the log arguing each by its date, and the glossary
-  naming them. The note is the component's design note, as the shell's and the installation's
-  are, in the code comment's register, current state and no why: the process model, the reaper,
-  the system processes, the entry process and a launch's row; what the runtime keeps and where, a
-  process's own in its dictionary, the shared rows each with its outside reader, the host's
-  one-word terms, and the kill's one read of a suspended victim; the look, what can deliver and
-  what it reads, and the rule that no operation writes a shared row for it; a call's records,
-  what a restart ends and what a kill drops; the boundary's checks; and nodes, the fifteen frames
-  in one list and the exchange pointing at its record. Each line cites the report section it
-  implements and names the log entry that argues it. Its altitude is the shape's: a line states
-  what a reader must know to change the runtime without breaking a promise, the kind of fact that
-  lives where and the rule a mechanism rests on, never what one function does, which is the
-  code's, so that the note changes when the design does and not with a line of code. `architecture.md` keeps the module map and
-  points at it; two tests hold the table list against `tables/0` and the frame list, with
-  §8.7's, against the code that reads the frames; `docs/README.md` lists it. Written as this milestone's closing documents
-  commit, after the last build, so that it states the runtime that ships; about a day.
-- **Deadlock detection among *Why Ernest*'s claims**, written 2026-10-22, the sixth claim in
-  `guide/why.md`, *A deadlock is found*, with no program, and its line in the README's list; the
-  tour stays on the five, decided with the user the same day, since a deadlock found is a net
-  under the programmer and not a move the program makes: a program that waits forever ends with
-  `Fault("deadlock")`, which no other language on the host can decide, since Ernest's runtime
-  owns every source of a message, a typed mailbox, a process it spawned, a system process that
-  counts what it holds, and a node turned off since a peer can reach it (§8.6; the log's *Deadlock
-  Is Quiescence*); and what it costs a program, a mark in its own state and a look when it is
-  idle, which the builds above make true before the claim is written, and which the claim cites
-  the runtime's design note for.
-
 ## MVP 3.295 (what the language measurement found, and the new machine)
 
-Made 2026-10-22 from what MVP 3.29's last measurement turned up beyond its items, as its head
-says, and from what the user's new machine asks for on its first day.
+Made 2026-10-22 from what MVP 3.29's last measurement turned up beyond its items, at which that
+milestone closed, and from what the user's new machine asks for on its first day.
 
 - **A `Float` expression's checks** (found 2026-10-22 measuring the language against the host,
   the log's *The Language Against the Host*): a dot product's five operations take 30.5 ns against

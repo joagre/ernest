@@ -30,6 +30,8 @@ Shared rows, in the runtime's tables, each with the reader outside its owner tha
 - the launch's row (`ern_launch`), the runner, the tag, the reaper, the reporter, the arguments and how the run ends, read by every process of the launch, and beside it a row for each of a few facts of the run, its entry process, how the terminal is read, the process a deadlock faults, the end's wait for its subscribers and the utilization the program set, all gone with the table at the end (§8.6, §8.7, §11.2);
 - a node's offers (`ern_offers`), each process's own offers (`ern_offered`), the initialized modules (`ern_initialized`), and the notes of calls from other nodes (`ern_notes`), keyed by the caller's node so that a loss drops a peer's together (§8.7).
 
+Beyond the runtime's tables, the gateway keeps two for a node's life, the spawns it waits on and its peers' utilizations (`ern_spawns`, `ern_utilizations`), and the code table two for the host's, the units and their sums (`ern_code`, `ern_code_sums`) (§8.7, §11.1).
+
 The host's persistent terms, one word each and replaced rarely, since replacing or erasing a larger term makes every process scan its heap: the system processes' pids, the holder of a source, and the toolchain's own modules; a top-level binding's value, which a ground binding needs no read of (§8.5, §11.1).
 
 ## The look
