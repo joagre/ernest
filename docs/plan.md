@@ -64,6 +64,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
 | MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count a stack read, the timed receive's and the call's marks, the restart's row measured; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; the launch's start; `make bench` with a memory of its last run; the language measured against the host's own Erlang, construct by construct and in three programs written twice; and deadlock detection among *Why Ernest*'s claims | made 2026-10-21 from MVP 3.28's measurement; the sitting held 2026-10-22 | | below |
+| MVP 3.295 | what the language measurement found, a `Float` chain's checks and the first day of the new machine | made 2026-10-22 from MVP 3.29's last measurement | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -254,21 +255,6 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   is the host's `lists:map/2` written in Ernest, within E.0 rule 1, and every other row is a
   fraction. The release's run holds neither new table until the review before 0.5.0 keeps one.
   Its log entry is the one the claim below cites.
-- **A `Float` expression's checks** (found 2026-10-22 measuring the language against the host;
-  beyond this milestone's items, so a milestone of its own by its head, placed by the user): a
-  dot product's five operations take 30.5 ns against the host's 13.2, 2.3 times, and the tries
-  are half of what the ray tracer adds to its twin, 88 of 180 ms in a scratch program that took
-  it apart. Each operation is a try of its
-  own, so each result of a chain is boxed on the heap where the host keeps the chain in its
-  float registers and boxes the last; its shape is a check made once for an expression's chain
-  (the log's *The Language Against the Host*).
-- **`Map.get` read with a default** (found 2026-10-22 measuring the language against the host;
-  beyond this milestone's items, so a milestone of its own by its head, placed by the user): the
-  read takes 13.2 ns against `maps:get/3`'s 5.1, 2.6 times, and its row 2.04. Its shape is the
-  `Optional` that E.3's `get` answers, built by the adapter `ern_map:get/2` behind a foreign fn
-  and taken apart by the program, where the host's read with a default answers the value; the
-  host's `maps:find/2` and a `case`, which answer as `Map.get` does, cost 1.2 times it (the log's
-  *The Language Against the Host*).
 - **The runtime's design note**, under `docs/design/` as the shell's is (decided with the user
   2026-10-22):
   the runtime's implementation choices had three homes and no page stating them as they stand,
@@ -296,6 +282,35 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   Is Quiescence*); and what it costs a program, a mark in its own state and a look when it is
   idle, which the builds above make true before the claim is written, and which the claim cites
   the runtime's design note for.
+
+## MVP 3.295 (what the language measurement found, and the new machine)
+
+Made 2026-10-22 from what MVP 3.29's last measurement turned up beyond its items, as its head
+says, and from what the user's new machine asks for on its first day.
+
+- **A `Float` expression's checks** (found 2026-10-22 measuring the language against the host,
+  the log's *The Language Against the Host*): a dot product's five operations take 30.5 ns against
+  the host's 13.2, 2.3 times, and the tries are half of what the ray tracer adds to its twin, 88 of
+  180 ms. The emitter writes each operation in a `try` of its own, so each result of a chain is
+  boxed on the heap where the host keeps the chain in its float registers and boxes the last. A
+  design question, §3.1 and §7.3 first: the host itself refuses an operation whose result is not
+  finite, so the `try` is for the fault's cause and site alone; one `try` around an expression's
+  chain, the site the expression's, keeps the cause and gives the host its registers, and what a
+  reader loses is the operation within the expression. Weighed on principle 1 against the number,
+  decided with the user before anything is built; measured in `language.txt`'s dot row and
+  `programs.txt`'s ray tracer before and after.
+- **`Map.get` read with a default**, closed 2026-10-22: the read takes 13.2 ns against
+  `maps:get/3`'s 5.1, 2.6 times, and the cost is the `Optional` E.3's `get` answers, built by the
+  adapter and taken apart by the program; the host's own `maps:find/2` and a `case`, which answer
+  as `Map.get` does, cost 1.2 times it. The number confirms the plain form, the type being the
+  operation's, and is written once.
+- **The first day of the new machine** (a 12-core AMD with 64 GB, expected about 2026-11-12):
+  its line in `test/machines/machines.txt` beside bee and xena; one `make bench` before any code
+  changes, kept as the release's reference with `make bench-release`, since every number in the
+  log is the old laptop's and the first run there is a reference and not a move; and the bench's
+  rows of eight processes at once gain a row at the host's scheduler count, so that scaling shows
+  as a line and not a point, which `test/ern_foreign_costs.erl` and `test/ern_call_costs.erl` take
+  from `erlang:system_info(schedulers)`.
 
 ## MVP 3.3 (the tour)
 
