@@ -239,7 +239,10 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   what it reads, and the rule that no operation writes a shared row for it; a call's records,
   what a restart ends and what a kill drops; the boundary's checks; and nodes, the fifteen frames
   in one list and the exchange pointing at its record. Each line cites the report section it
-  implements and names the log entry that argues it. `architecture.md` keeps the module map and
+  implements and names the log entry that argues it. Its altitude is the shape's: a line states
+  what a reader must know to change the runtime without breaking a promise, the kind of fact that
+  lives where and the rule a mechanism rests on, never what one function does, which is the
+  code's, so that the note changes when the design does and not with a line of code. `architecture.md` keeps the module map and
   points at it; two tests hold the table list against `tables/0` and the frame list against the
   gateway's reader; `docs/README.md` lists it. Written as this milestone's closing documents
   commit, after the last build, so that it states the runtime that ships; about a day.
