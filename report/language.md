@@ -1459,6 +1459,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **gateway** — the one process of a node that takes the runtime's frames from its peers and hands each to a worker for the sender's node, but for a call's two notes, a utilization, a telling and a node's end, which it handles itself, a compute's frame, which it records and hands on, and the exchange's four, which it hands to the exchange. §8.7.
 - **generalization** — quantifying free type variables in a `fn` definition, a top-level `let`, or a block `let` that binds a lambda. §3.9, §4.6.
 - **grapheme** — an extended grapheme cluster, what a reader sees as one letter, which `String`'s sizes and indices count. Appendix E.5.
+- **ground term** — a literal, a negated number literal, a constructor of no fields, or a constructor applied to ground terms or a tuple or a list of them; a top-level binding whose initializer is one is compiled to its value. §11.1.
 - **group** — the processes a `Supervisor` restarts together, its children. Appendix E.22.
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
 - **guard expression** — the form of a `receive` guard. §6.3.

@@ -236,7 +236,7 @@ What the hashes leave out, the runtime's functions, the standard library and eve
 
 On one node, across the shell's reload, two versions of a type are two types by hash: a binding made before the reload keeps the type it was checked under, and the checker refuses a message of one version to an address of the other (§11.2), so I2 holds on one node as the hashes hold it between nodes, and the host's one representation of the two versions' constructors is never reached by a message of the wrong one.
 
-A binding of a reloaded module whose evaluation a fault cut short keeps its previous version's value only where the previous version has the binding of one hash, and a binding's hash writes its type out, so the value is of the binding's type, and I1 holds of it.
+A binding of a reloaded module whose evaluation a fault cut short keeps its previous version's value only where the previous version has the binding of one hash, and a binding's hash writes its type out, so the value is of the binding's type, and I1 holds of it. A binding compiled to its value (§11.1), a ground term, has that value whatever faulted before it, and the value is its own text's, of its type by §3's typing of a literal and a constructor, so I1 holds of it too.
 
 No other operation gives a program a remote address: every one it holds came from a find, from a spawn, inside a message whose type was agreed by one of the two, or among the values a function spawned on a peer captured, which the spawn's check admits as it admits a message's.
 
