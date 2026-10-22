@@ -854,8 +854,11 @@ stream_gone() ->
 %% ended it: a program whose one write is lost, whose entry point then
 %% returns or calls Os.exit, on standard output and on standard error. A
 %% regression test, written after the code: of twenty-four such runs eleven
-%% ended with status 0, ten with 141, and three did not end. It does not
-%% cover a device that fails, which only some hosts have one of.
+%% ended with status 0, ten with 141, and three did not end. The reader
+%% closes its end of the pipe and then says so through a FIFO, which the
+%% program's side waits on before the program starts. It does not cover a
+%% device that fails, which only some hosts have one of, nor a reader that
+%% goes while the program writes, which drained_output_test_ holds.
 stream_lost_at_end_test_() ->
     {timeout, 120, fun stream_lost_at_end/0}.
 
@@ -870,11 +873,14 @@ stream_lost_at_end() ->
                               "export fn main() : Unit = " ++ Body ++ "\n"),
          0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/" ++ Name ++ ".ern")
      end || {Name, Body, _} <- Programs],
-    %% the reader has gone before the program writes
+    %% the reader has gone before the program writes: it closes the pipe's
+    %% one read end, then writes to the FIFO the program's side reads first
+    Gone = fifo(Dir ++ "/gone"),
     Statuses = [begin
-                    {0, <<>>} = sh("sh -c '{ sleep 1; timeout -s KILL 20 ../bin/ern run " ++ Dir
-                                   ++ "/" ++ Name ++ ".erc " ++ Redirect ++ "; echo $? > " ++ Dir
-                                   ++ "/status; } | true'"),
+                    {0, <<>>} = sh("sh -c '{ read gone < " ++ Gone ++ "; timeout -s KILL 20 "
+                                   "../bin/ern run " ++ Dir ++ "/" ++ Name ++ ".erc " ++ Redirect
+                                   ++ "; echo $? > " ++ Dir ++ "/status; } | { exec <&-; echo > "
+                                   ++ Gone ++ "; }'"),
                     {ok, Status} = file:read_file(Dir ++ "/status"),
                     ok = file:delete(Dir ++ "/status"),
                     {Name, Status}
@@ -948,28 +954,41 @@ job_output_drained() ->
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two
 %% million lines to a pipe read late held about 650 MB, where the node
-%% itself takes under 100. The reader closes the pipe after its first byte,
-%% which ends the program once its memory has been sampled, rather than
-%% taking the two million lines.
+%% itself takes under 100. The reader takes a twentieth of the program's
+%% lines a byte at a time, then stops and says so, holding the pipe open;
+%% the node's memory is read at that word, and the reader then goes, which
+%% ends the program with status 141. A byte at a time, the reader takes
+%% about a twenty-fourth of what a program not held to its pace writes, so
+%% such a program has written all its lines by the reader's word: made so,
+%% its print a send to a stream that queued, the node held 683 MB there,
+%% and held to its pace 84. It does not cover a reader that takes nothing,
+%% nor standard error.
 paced_output_test_() ->
     {timeout, 60, fun paced_output/0}.
 
 paced_output() ->
     Dir = "build/paced",
+    ok = del(Dir),
     ok = filelib:ensure_path(Dir),
+    Lines = 2000000,
     ok = file:write_file(Dir ++ "/flood.ern",
-                         "fn loop(n : Int) : Unit =\n"
-                         "    if n == 0 then Unit\n"
-                         "    else { Io.println(\"a line of output a slow reader takes late\");\n"
-                         "        loop(n - 1) }\n"
-                         "export fn main() : Unit = loop(2000000)\n"),
+                         ["fn loop(n : Int) : Unit =\n"
+                          "    if n == 0 then Unit\n"
+                          "    else { Io.println(\"a line of output a slow reader takes late\");\n"
+                          "        loop(n - 1) }\n"
+                          "export fn main() : Unit = loop(", integer_to_list(Lines), ")\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
-    Reader = "{ sleep 4; head -c 1 > /dev/null; }",
-    {0, Output} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
-                     "sleep 3; ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
-                     "wait'"),
+    Line = byte_size(<<"a line of output a slow reader takes late\n">>),
+    {Taken, Go} = {fifo(Dir ++ "/taken"), fifo(Dir ++ "/go")},
+    Reader = "{ dd bs=1 count=" ++ integer_to_list(Lines div 20 * Line) ++ " of=/dev/null "
+             "status=none; echo > " ++ Taken ++ "; read go < " ++ Go ++ "; }",
+    {0, Output} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/flood.erc; echo $? > " ++ Dir
+                     ++ "/status; } | " ++ Reader ++ " & read taken < " ++ Taken ++ "; "
+                     "ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
+                     "echo > " ++ Go ++ "; wait'"),
     [Rss | _] = string:lexemes(binary_to_list(Output), " \n"),
-    ?assert(list_to_integer(Rss) < 250000).
+    ?assert(list_to_integer(Rss) < 250000),
+    ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")).
 
 %% report §11.2: a module a `foreign fn` names is the host's own or one on
 %% the load path, and the working directory is neither. A regression test:
@@ -1003,7 +1022,10 @@ foreign_module() ->
 %% regression test: every job but a program's run halted the host, which
 %% wrote erl_crash.dump into the working directory; the release review
 %% found the shell in line mode ending with status 0 and the host's report
-%% of the failed write
+%% of the failed write. The reader closes its end of the pipe and then says
+%% so through a FIFO, which the job's side waits on before the job starts.
+%% It does not cover a reader that goes while the job writes, nor one
+%% stream gone and the other read
 closed_pipe_test_() ->
     {timeout, 60, fun closed_pipe/0}.
 
@@ -1012,9 +1034,11 @@ closed_pipe() ->
     ok = del(Dir),
     ok = filelib:ensure_path(Dir),
     Ern = filename:absname("../bin/ern"),
+    Gone = fifo(Dir ++ "/gone"),
+    Closed = "{ exec <&-; echo > " ++ Gone ++ "; }",
     StatusOf = fun(Job) ->
-                   {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; " ++ Ern ++ " " ++ Job
-                               ++ " 2>&1; echo $? > status ) | true'"),
+                   {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( read gone < " ++ Gone ++ "; " ++ Ern
+                               ++ " " ++ Job ++ " 2>&1; echo $? > status ) | " ++ Closed ++ "'"),
                    {ok, Text} = file:read_file(Dir ++ "/status"),
                    string:trim(Text)
                end,
@@ -1022,8 +1046,8 @@ closed_pipe() ->
      || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
                 "doc " ++ filename:absname("../src/stdlib/list.ern"), "shell < /dev/null"]],
     ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")),
-    {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; echo 1 | " ++ Ern ++ " shell"
-                " 2> err; echo $? > status ) | true'"),
+    {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( read gone < " ++ Gone ++ "; echo 1 | " ++ Ern
+                ++ " shell 2> err; echo $? > status ) | " ++ Closed ++ "'"),
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
     ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
 
@@ -1715,6 +1739,13 @@ sh(Command) ->
 sh(Command, Options) ->
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
     collect(Shell, []).
+
+%% A FIFO at Path, made anew: two sides of a test's command line meet at
+%% it, the one that reads it waiting until the other has written its line.
+fifo(Path) ->
+    _ = file:delete(Path),
+    {0, <<>>} = sh("mkfifo " ++ Path),
+    Path.
 
 %% The output of a command that must succeed. Where it does not, its whole
 %% output is printed before the test fails, since EUnit shows a value that

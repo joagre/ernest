@@ -133,11 +133,16 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   host's call and a thousand 54 times, where the ordered set holds at 1.1 and 1.0. The ordered set
   with the host's write concurrency stays, the runtime unchanged but its comment, and its eight
   pairs at 2.0 times the host's against the refused plain set's 1.6 decide nothing more.
-- **Three fixed sleeps in the integration tests** (found 2026-10-22 fixing the runtime's fixed
-  waits; CLAUDE.md's *No fixed sleep*, in a test as in the code): `test/ern_integration_tests.erl`
-  waits by the shell's `sleep` in `stream_lost_at_end`, `paced_output` and `closed_pipe`. A defect
-  each, fixed where found: each wait becomes a wait on what the test means, a line read, a pipe's
-  reader gone, a process's end; about an hour.
+- **Three fixed sleeps in the integration tests**, built 2026-10-22 (the log's *The Sitting on
+  §8.6's Bookkeeping*, its *Built* paragraphs on the three sleeps): `stream_lost_at_end` and
+  `closed_pipe` start the program once its reader has closed the pipe and said so through a FIFO,
+  in place of sleeps of a second and of 0.3 s; `paced_output`'s reader takes a twentieth of the
+  program's lines a byte at a time and says so, the node's memory read at its word and the
+  program's end held to status 141, in place of sleeps of three seconds and four. The three took
+  14.8 s against 21.1. A decision for the user, in this milestone: three more waits in the file
+  look at a file at a fixed pause up to a chosen count, `run_for/4`'s for a program's line, the
+  standard input's test's for a line written and `job_signal_end`'s for a build's first module;
+  whether each becomes a wait on an event, as an item of its own.
 - **The comparison's two references, by ratio**, built 2026-10-22 (the log's *The Sitting on
   §8.6's Bookkeeping*, its *Built* paragraphs on the two references): each run of `make bench`
   names the rows that moved by more than a fifth against the last run and against the release's,
