@@ -842,7 +842,7 @@ A count or a duration below 0 is none, and a window below 1 is 1 (§6.9, Appendi
 
   A foreign function's return is checked against its declared type when the function returns, and a reply foreign code gives (§8.4) when `Address.call` or `Address.callForever` returns it, each in the calling process and to the value's whole depth; a function value in it is checked when it is called, its result against its declared result type. A return declared `Unit`, a function value's result among them, that is the host's atom `ok` is `Unit` (§8.4).
 
-  A mismatch faults the calling process: `Fault("foreign return does not match T")`, `Fault("reply does not match T")`, and an argument foreign code gives an Ernest function `Fault("foreign argument does not match T")` (§8.4).
+  A mismatch faults the calling process: `Fault("the return of foreign function m:f/n does not match T")`, `Fault("reply does not match T")`, and an argument foreign code gives an Ernest function `f` `Fault("an argument of f from foreign code does not match T")` (§8.4).
 
   A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`.
 
@@ -910,7 +910,7 @@ The system processes are foreign processes: their message types are declared in 
 
 A message sent to a foreign address, an answer given to a `Reply` foreign code gave, and a foreign function's argument cross into foreign code: a message foreign code sends to an address in one is checked on delivery. That check lasts until the process the address names ends, and there is one for each distinct address that has crossed. An address made by `adapted` is distinct by its function and by the values its function captured. An answer foreign code gives to a call is checked when `Address.call` or `Address.callForever` returns it. An answer Ernest code gives to a `Reply` foreign code gave crosses into foreign code, and no other answer is checked.
 
-**Functions.** A function that crosses into foreign code, a foreign function's argument or one inside it, in a message or in an answer, has each argument foreign code calls it with checked against its parameter's type, and a mismatch faults the calling process with `Fault("foreign argument does not match T")`. `Foreign.term` gives its value as a foreign function's argument of the value's type crosses, an address in it behind its check and a function with its own (Appendix E.12).
+**Functions.** A function that crosses into foreign code, a foreign function's argument or one inside it, in a message or in an answer, has each argument foreign code calls it with checked against its parameter's type, and a mismatch faults the calling process with `Fault("an argument of f from foreign code does not match T")`, `f` the function. `Foreign.term` gives its value as a foreign function's argument of the value's type crosses, an address in it behind its check and a function with its own (Appendix E.12).
 
 **Type variables.** A type variable of a foreign function's result that no parameter's type names matches no value: `foreign fn cast(x : Foreign.Term) : a` faults whenever it returns, and a function that does not return, `Os.exit`, may be declared so. The check meets such a variable only at a value of it: an empty container holds none, and a value of a foreign type is not looked into, so a foreign function whose result is `List(a)` and empty, or `Table(k, v)` of a foreign type, returns.
 
