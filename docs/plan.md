@@ -114,10 +114,23 @@ the order they are built; the report's sections change as each build starts.
   decision by the waiting lists, the error handler's count of a code load, and the calls table go.
   Fallback where a fact fails: the foreign call marks the dictionary as the timed receive does, 24
   ns, one mechanism for both. About two days with the tests.
-- **The restart's callees row**, decided on the bench's numbers: a call writes it so that a
-  restart of the callee ends the call (§6.9), the one shared write a call keeps. Where the eight
-  pairs show the lock, the table is made with the host's write concurrency; where the single
-  call's constant shows, that is a §6.9 question of its own, designed before anything is built.
+- **The restart's callees row**, decided on the bench's numbers of 2026-10-22 (the log's *`make
+  bench` Read Against the Cost Rules*): a call writes it so that a restart of the callee ends the
+  call (§6.9), the one shared write a call keeps once the caller's row and the count are marks.
+  Both of the plan's cases showed: the row is the lock, eight pairs going from 958 to 2,729 ns a
+  call over all as it is added, and it is 270 of the 929 ns a single call adds to the host's
+  1,521. Decided, the user to amend: the table is made with the host's write concurrency, since
+  what a single call keeps after the marks, the row, the deadline's slicing and the compiled code,
+  is a fraction of the host's call, and the trial on the processes table had the host's option
+  cost one process about 120 ns more and eight a twentieth; measured in `call.txt` before and
+  after, and only a constant that is no fraction after it opens a §6.9 question of a local record
+  of a callee's callers.
+- **The library's table compared by its ratios** (found 2026-10-22 building the comparison): the
+  library's part measures each operation as the fastest of three timings against the host's at
+  the same moment, and two runs with nothing changed moved a fifth of its 1,100 numbers by more
+  than a fifth, whole modules together, so it stands outside the comparison. Its ratio column,
+  Ernest's time over the host's measured together, cancels the machine's state: the comparison
+  takes the library's table by its ratios, with the same bound; about an hour.
 - **A top-level `let` that is a ground term**, §11.1 first: a binding whose initializer is a
   literal, or a constructor, tuple or list of literals, is compiled to the term at each read,
   which the host keeps in its literal area, 2 ns against the persistent term's 36 by a tuple key;
@@ -134,12 +147,14 @@ the order they are built; the report's sections change as each build starts.
   over the two builds, and the Erlang test keeps only what `ern test` cannot check, if anything;
   about half a day with the Makefile's targets.
 - **The launch's start** (found 2026-10-21 building the doc examples' launch; CLAUDE.md's *The
-  tools are fast*): a launch takes about 7.25 ms before its initializers run, almost all of it
-  about 23 `persistent_term` updates, the system processes' pids, the reaper's, the runner's, the
-  launch's and the reporter's terms, the end's two erases and the bindings of the six library
-  modules that hold addresses, each of which waits about 0.25 ms for the host's schedulers. Its
-  shape: fewer terms, one for the launch's processes, and the bindings that hold addresses written
-  once for the host; measured in the bench's row of a bare launch; about a day.
+  tools are fast*): inside `ern test`'s host a launch took about 7.25 ms before its initializers
+  ran, read as some 23 `persistent_term` updates at about 0.25 ms each; the bench's row of a bare
+  launch, measured 2026-10-22 in a host of its own, has the whole launch at 3.3 ms, 0.85 before
+  the library's initializers, 2.1 the initializers and 0.4 the end, and an update at about 20 µs,
+  so the premise does not hold there and the two hosts differ. First: the launch measured inside
+  `ern test`'s host as the bench measures it, and the difference explained; then the shape,
+  fewer terms and the bindings that hold addresses written once for the host, if the number still
+  asks for it; about a day.
 - **Deadlock detection among *Why Ernest*'s claims**, last: a sixth claim in `guide/why.md`, with
   no program, and its line in the README's list: a program that waits forever ends with
   `Fault("deadlock")`, which no other language on the host can decide, since Ernest's runtime
