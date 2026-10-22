@@ -5,7 +5,7 @@
 %% directory of its own.
 -module(ern_examples).
 
--export([cases/4, in_directory/2, unload/1, module_text/3]).
+-export([cases/4, in_directory/3, unload/1, module_text/3]).
 
 -export_type([example/0, load/0]).
 
@@ -88,9 +88,10 @@ interfaces(Units) ->
 %% after it. Where the run's directory cannot be read, or the example's
 %% cannot be made, the case fails with the host's reason, and its program
 %% initializes nothing; a directory the example left that cannot be removed
-%% is said on standard error, as the runner says what stops a case.
--spec in_directory(example(), fun((example()) -> Outcome)) -> Outcome.
-in_directory({{'Case', Name, _}, _} = Example, Run) ->
+%% is said on ErrorDevice, the job's standard error, as the job says its
+%% own lines, since the example's launch has ended then.
+-spec in_directory(example(), fun((example()) -> Outcome), io:device()) -> Outcome.
+in_directory({{'Case', Name, _}, _} = Example, Run, ErrorDevice) ->
     %% an empty `TMPDIR` is none, as mktemp(1) takes it
     Base = case os:getenv("TMPDIR", "") of
                "" -> "/tmp";
@@ -105,7 +106,7 @@ in_directory({{'Case', Name, _}, _} = Example, Run) ->
                         Run(Example)
                     after
                         ok = file:set_cwd(Working),
-                        remove(Name, Dir)
+                        remove(Name, Dir, ErrorDevice)
                     end;
                 {error, Error} ->
                     Run({failed(Name, ["its directory cannot be made under ", Base, ": ",
@@ -130,15 +131,15 @@ made_directory(Base) ->
         {error, _} = Error -> Error
     end.
 
-remove(Name, Dir) ->
+remove(Name, Dir, ErrorDevice) ->
     case file:del_dir_r(Dir) of
         ok ->
             ok;
         {error, Error} ->
-            ern_rt:send(ern_rt:system_process(stderr),
-                        unicode:characters_to_binary(
-                          ["ern test: the directory of ", ern_show:controls(Name, line), ", ",
-                           Dir, ", cannot be removed: ", file:format_error(Error), "\n"]))
+            io:put_chars(ErrorDevice,
+                         unicode:characters_to_binary(
+                           ["ern test: the directory of ", ern_show:controls(Name, line), ", ",
+                            Dir, ", cannot be removed: ", file:format_error(Error), "\n"]))
     end.
 
 %% The units the examples' compiling loaded, the values their bindings

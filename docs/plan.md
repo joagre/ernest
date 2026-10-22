@@ -206,13 +206,12 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   operations in a launch. What remains of an example's 4.2 ms is mostly the library's
   initializers, 2.4, of which `Os`'s helper program, run at each launch to read the host's user,
   mask and environment, is 1.4.
-- **A line said outside a launch** (found 2026-10-22 building the launch's start; the log's *The
-  Sitting on §8.6's Bookkeeping*, its paragraph *Found beside it*): a line on standard error said
-  while no launch is in progress goes to the ended launch's process and is lost, the gateway's
-  between two launches of `ern test --config-dir` over a directory and `ern test`'s that an
-  example's directory cannot be removed, against §8.7 and §11.2. A defect, fixed with the three
-  fixed waits: where no launch is in progress the line goes to the job's own standard error;
-  about two hours.
+- **A line said outside a launch**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its *Built* paragraphs on the line said outside a launch): a node's line goes to
+  the launch's standard error process from the launch's start until its end has written the
+  program's output, and to the job's own error device before the first launch, between two and
+  after the last. `ern test`'s line that an example's directory cannot be removed, said once the
+  example's launch has ended, goes to the job's error device.
 - **The language against the host, the last measurement** (decided with the user 2026-10-22):
   the bench measures the runtime around a program and not the code the emitter writes for it. Two
   kinds of rows, after the builds above, since they change the numbers: one row per construct the

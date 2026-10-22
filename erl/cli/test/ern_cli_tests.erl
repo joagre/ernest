@@ -2003,6 +2003,76 @@ doc_example_working_directory_test() ->
                                Dir, "/none: no such file or directory\n"]),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Unmade)).
 
+%% report §11.2: a doc example whose directory cannot be removed after its
+%% launch has ended is said on the job's standard error, here an example
+%% that leaves a file in its directory and the directory read-only, so
+%% that the file cannot be deleted. A regression test, written after the
+%% code: the line was sent to the ended launch's standard error process,
+%% and lost. It assumes a user the directory's mode binds, which root is
+%% not.
+doc_example_kept_directory_test() ->
+    Dir = tmp(),
+    write(Dir, "src/kept.ern",
+          "/// Leaves a file in a directory it makes read-only.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Kept.keep()\n"
+          "/// // => Right(Unit)\n"
+          "/// ```\n"
+          "export fn keep() : Either(Io.Error, Unit) = {\n"
+          "    let _ <- Fs.makeFile(Path(\"kept.txt\"), String.toUtf8(\"kept\"), 5000);\n"
+          "    Fs.setMode(Os.workingDirectory, 0o555, 5000)\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Temporary = filename:join(Dir, "temporary"),
+    ok = file:make_dir(Temporary),
+    Given = os:getenv("TMPDIR"),
+    try
+        true = os:putenv("TMPDIR", Temporary),
+        {Said, Status} = standard_error_of(["test", Dir ++ "/build/kept.erc"]),
+        ?assertEqual(0, Status),
+        ?assertEqual(<<"Kept.keep example 1: passed\n">>, iolist_to_binary(?capturedOutput)),
+        {ok, [Kept]} = file:list_dir(Temporary),
+        Line = iolist_to_binary(["ern test: the directory of Kept.keep example 1, ",
+                                 filename:join(Temporary, Kept), ", cannot be removed: "]),
+        ?assertMatch({0, _}, binary:match(unicode:characters_to_binary(Said), Line))
+    after
+        case Given of
+            false -> os:unsetenv("TMPDIR");
+            _ -> os:putenv("TMPDIR", Given)
+        end,
+        [ok = file:change_mode(filename:join(Temporary, Left), 8#700)
+         || {ok, Names} <- [file:list_dir(Temporary)], Left <- Names],
+        ok = file:del_dir_r(Temporary)
+    end.
+
+%% report §8.7, §11.2: a line a node says while no launch is in progress,
+%% between two launches of `ern test` over a directory, before the first
+%% and after the last, is written on the job's own standard error, the
+%% device the job was given, and one said in a launch goes through the
+%% launch's standard error as before. A regression test, written after the
+%% code: the line was sent to the ended launch's standard error process,
+%% and lost. It says the line from the test after the job's launch has
+%% ended; a node's own line between two launches, whose time a test cannot
+%% hold, is not covered.
+said_outside_a_launch_test() ->
+    Dir = tmp(),
+    write(Dir, "src/a.ern",
+          "let ones = Test.Case(name = \"ones\", run = fn() = Test.equal(1, 1))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Self = self(),
+    Device = spawn(fun() -> capture(Self, []) end),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build"], Device)),
+    ok = ern_carrier:say("the peer store connected"),
+    Device ! {done, self()},
+    Said = receive {captured, Text} -> unicode:characters_to_binary(Text) end,
+    ?assertEqual(<<"the peer store connected\n">>, Said),
+    ?assertEqual(<<"A\nones: passed\n">>, iolist_to_binary(?capturedOutput)),
+    Inside = ern_rt:run_main(fun() -> ern_carrier:say("said in a launch") end, <<"main">>,
+                             #{stderr => fun(Bytes) -> Self ! {stderr, Bytes} end}),
+    ?assertEqual(ok, Inside),
+    ?assertEqual(<<"said in a launch\n">>, receive {stderr, Bytes} -> Bytes end).
+
 %% report §11.2, §8.5: the module's initializers run once for its tests and
 %% once for each doc example that runs, in the example's program, after the
 %% tests' lines; a private declaration's example, compiled inside the module

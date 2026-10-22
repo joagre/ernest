@@ -438,12 +438,13 @@ certificate_key(Certificate) ->
 %% error's process as a fault's line goes, and written as `ern run` writes
 %% one, its time first where standard error is neither a terminal nor a
 %% journal (§11.2), from the node's start, a reload during its initializers
-%% among it.
+%% among it; where no launch is in progress, before a node's first, between
+%% two launches of `ern test` over a directory and after its last, on the
+%% job's own standard error (ern_rt:say/2).
 -spec say(iodata()) -> ok.
 say(Text) ->
-    ern_rt:send(ern_rt:system_process(stderr),
-                iolist_to_binary([ern_cli:stamp(ern_cli:is_stamped()), Text, "\n"])),
-    ok.
+    ern_rt:say(iolist_to_binary([ern_cli:stamp(ern_cli:is_stamped()), Text, "\n"]),
+               fun ern_cli:error_line/1).
 
 %% A peer as a line names it: by its name in `ernest.conf`, or by its key's
 %% digest where it is not listed.

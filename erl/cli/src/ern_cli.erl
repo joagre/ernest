@@ -6,7 +6,8 @@
 %% the host with.
 -module(ern_cli).
 
--export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, load_path/0, say_limits/0]).
+-export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, error_line/1, load_path/0,
+         say_limits/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -203,6 +204,9 @@ usage(Device) ->
 %% with status 0; a usage error prints the message and the job's usage on
 %% ErrorDevice, any other error one line, both with status 1.
 job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
+    %% report §8.7, §11.2: the job's own standard error, where a line of the
+    %% toolchain's own goes while no launch's takes it (error_line/1)
+    persistent_term:put({?MODULE, error_device}, ErrorDevice),
     Name = "ern " ++ Job,
     {Own, Program} = case Job of
                          "run" -> program_words(Spec, Args, []);
@@ -1245,6 +1249,14 @@ is_journal() ->
         _ -> false
     end.
 
+%% Report §8.7, §11.2: a line of the toolchain's own written on the job's
+%% own standard error, the device the job writes its own lines on, where no
+%% launch's standard error process takes it (ern_rt:say/2): before a node's
+%% first launch, between two and after its last.
+-spec error_line(binary()) -> ok.
+error_line(Line) ->
+    io:put_chars(persistent_term:get({?MODULE, error_device}, standard_error), Line).
+
 %% Report §11: a compiled module's bytes, or the refusal of a file that is
 %% none, named as the user named it and not by what it holds. A module the
 %% host compiled from another language holds no interface, and is none.
@@ -1434,7 +1446,7 @@ run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
     Status.
 
 %% Report §11.2: each doc example run as a program of its own (§8.5), in
-%% an empty directory of its own (ern_examples:in_directory/2), by a launch
+%% an empty directory of its own (ern_examples:in_directory/3), by a launch
 %% of its own (example_launch/3). Passed says whether every case before
 %% passed; the status of the module's run.
 run_examples([], Passed, _ErrorDevice, _Node) ->
@@ -1444,7 +1456,7 @@ run_examples([], Passed, _ErrorDevice, _Node) ->
     end;
 run_examples([Example | Examples], Passed, ErrorDevice, Node) ->
     Launched = fun(Ready) -> example_launch(Ready, ErrorDevice, Node) end,
-    case ern_examples:in_directory(Example, Launched) of
+    case ern_examples:in_directory(Example, Launched, ErrorDevice) of
         {told, ExamplePassed} ->
             run_examples(Examples, Passed andalso ExamplePassed, ErrorDevice, Node);
         {ended, Ended} ->

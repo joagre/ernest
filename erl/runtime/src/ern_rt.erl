@@ -67,7 +67,7 @@
          entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
+         input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
          binding/1, binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1,
@@ -88,7 +88,7 @@
 -receives({own_process, [kept_loop/2, reaper_loop/2, wait_for_end/1, ended_program/0,
                          counted_link/2, abandoned/1, write_loop/1, stream_loop/2, dropping/0,
                          stdin_loop/2, read_input/1, clock_loop/1, waited/5, told_how/3,
-                         entry_end/2, end_program/3, sink_flushed/1, stop/1]}).
+                         entry_end/2, end_program/4, sink_flushed/1, stop/1]}).
 
 -define(UNIT, 'Unit').
 %% Report §8.6: the look's keys, which a process keeps in its own
@@ -230,15 +230,18 @@
 
 %% Report §8.5, §8.6, §11.2: the launch in progress, a row of its own
 %% table, made as it begins and gone with the table at its end
-%% (launched/1, end_program/3): its runner; the reference that tags it,
+%% (launched/1, end_program/4): its runner; the reference that tags it,
 %% which the runner's messages carry; its reaper, none until it is started;
-%% and what the options give the run. A row and not a persistent term,
-%% since each update of one waits for every scheduler of the host, and the
-%% end's erase of one of more than a word sets every process scanning its
-%% heap, which the next launch's updates wait for (the log's *The Sitting
-%% on §8.6's Bookkeeping*, its *Measured* paragraphs on the launch's start).
--record(launch, {runner, tag, reaper = none, reporter = none, arguments = [], exit = program,
-                 node = false}).
+%% its standard error process while it takes the toolchain's own lines,
+%% none before it starts and once the end has written the program's output
+%% (say/2, §8.7); and what the options give the run. A row and not a
+%% persistent term, since each update of one waits for every scheduler of
+%% the host, and the end's erase of one of more than a word sets every
+%% process scanning its heap, which the next launch's updates wait for (the
+%% log's *The Sitting on §8.6's Bookkeeping*, its *Measured* paragraphs on
+%% the launch's start).
+-record(launch, {runner, tag, reaper = none, stderr = none, reporter = none, arguments = [],
+                 exit = program, node = false}).
 
 %% A subscriber the end has told and waits for (report §8.6): its spawn
 %% order and its spawn site, which the end's lines name it by (§11.2), its
@@ -357,7 +360,7 @@ kept({adapted, _, _, _, Launch} = Address) ->
 %% Report §6.5, §6.9, §8.6: a process of the runtime's own that runs Work,
 %% held by the reaper as its deliveries are: linked to it, which lives as
 %% long as the run, so that the process ends with the program as the
-%% reaper is stopped (end_program/3), and which traps its exit, so that its
+%% reaper is stopped (end_program/4), and which traps its exit, so that its
 %% end, however it comes, ends nothing else (reaper/0). It runs nothing
 %% where the reaper has gone. Its error handler is this module, as every
 %% process's the runtime starts is (run/1).
@@ -1015,7 +1018,7 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% runtime's own processes, each delivery it starts, each process kept for
 %% an adapted address (kept/1) and each of the end's tellers (tell_all/3),
 %% linked to it, so that each ends with the run as the reaper is stopped
-%% (end_program/3); it traps their exits, so that one that ends otherwise
+%% (end_program/4); it traps their exits, so that one that ends otherwise
 %% than it returns, killed from foreign code among the ways, ends nothing
 %% but itself (held_ended/3).
 reaper() ->
@@ -2768,8 +2771,8 @@ run_main(EntryPoint, Site, Options) ->
     Launch = launched(Options),
     Reaper = erlang:spawn(fun reaper/0),
     true = ets:update_element(?LAUNCH, launch, {#launch.reaper, Reaper}),
-    Encodings = bytes_out(),
     System = started_system(Options),
+    Encodings = bytes_out(),
     Ended = try
                 Told = told(entry_outcome(EntryPoint, Site, Options, Launch), Launch,
                             maps:get(say, Options, fun said/1)),
@@ -2781,11 +2784,7 @@ run_main(EntryPoint, Site, Options) ->
             catch
                 Class:Error:Stack -> {raised, Class, Error, Stack}
             end,
-    try end_program(Launch, Reaper, System) of
-        Gone -> outcome_flushed(Ended, Gone)
-    after
-        restore_encodings(Encodings)
-    end.
+    outcome_flushed(Ended, end_program(Launch, Reaper, System, Encodings)).
 
 %% Report §8.6: before the program ends, each subscriber of Os.termination
 %% is told (Appendix E.23), and the end waits until each has answered,
@@ -3014,6 +3013,21 @@ said(Text) ->
     system_process(stderr) ! iolist_to_binary([Text, "\n"]),
     ok.
 
+%% Report §8.2, §8.7, §11.2: a line of the toolchain's own on standard
+%% error, Line, its line feed ending it. While a launch's standard error
+%% process runs, from its start until its launch's end has written the
+%% program's output (end_program/4), the line is sent to it, as a fault's
+%% line is, so that it keeps its place among what the program wrote there.
+%% Before the first launch, between two and after the last, where the ended
+%% launch's process would drop it, Outside writes it on the job's own.
+-spec say(binary(), fun((binary()) -> term())) -> ok.
+say(Line, Outside) ->
+    case launch_field(#launch.stderr, none) of
+        none -> Outside(Line);
+        Stderr -> Stderr ! Line
+    end,
+    ok.
+
 %% Report §8.6: a stream that could not be written as the program's output
 %% was flushed is what ended the program, in place of what ended it.
 outcome_flushed({raised, Class, Error, Stack}, _Gone) -> erlang:raise(Class, Error, Stack);
@@ -3080,6 +3094,8 @@ started_system(Options) ->
               {os, erlang:spawn(fun ern_os:loop/0)},
               {clock, erlang:spawn(fun() -> clock(ReadTime) end)}],
     lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),
+    true = ets:update_element(?LAUNCH, launch,
+                              {#launch.stderr, proplists:get_value(stderr, System)}),
     System.
 
 %% The entry process's outcome. Report §8.5: the initializers, the
@@ -3181,7 +3197,9 @@ input(Key, Options) ->
 
 %% Report §8.2: standard output and standard error are written as the
 %% bytes a program sends, UTF-8 text among them, so the host's streams take
-%% bytes as they are for the run; what they took before is put back after.
+%% bytes as they are while the program's streams run, from their start
+%% until what was sent them is written; what they took before is put back
+%% then (end_program/4).
 bytes_out() ->
     lists:foldr(fun(Device, Taken) ->
                     case encoding(Device) of
@@ -3523,7 +3541,7 @@ restarted(Cause) ->
 %% is flushed, the system processes and the reaper are stopped, and the
 %% terminal goes back as the program found it (§8.2). The answer is the
 %% streams that could not be flushed, standard output's first.
-end_program(Launch, Reaper, System) ->
+end_program(Launch, Reaper, System, Encodings) ->
     Ref = make_ref(),
     MonitorRef = erlang:monitor(process, Reaper),
     Reaper ! {end_program, erlang:self(), Ref},
@@ -3537,6 +3555,13 @@ end_program(Launch, Reaper, System) ->
     erlang:demonitor(MonitorRef, [flush]),
     Gone = [Name || Name <- [stdout, stderr],
                     sink_flushed(proplists:get_value(Name, System)) =:= gone],
+    %% report §8.2, §8.7, §11.2: the program's output written, the host's
+    %% streams take text again, and a line of the toolchain's own said from
+    %% here on goes to the job's own standard error (say/2); one sent the
+    %% moment before is written by standard error's process, unless it is
+    %% still in that process's mailbox as the process is stopped
+    restore_encodings(Encodings),
+    true = ets:update_element(?LAUNCH, launch, {#launch.stderr, none}),
     %% each ended before the table goes, which the reaper reads
     lists:foreach(fun stop/1, [Pid || {_, Pid} <- System] ++ [Reaper]),
     case ets:lookup(?LAUNCH, reading) of
@@ -3720,7 +3745,7 @@ program_utilization() ->
     end.
 
 %% Report §8.7: what a peer's frame asks of the run in progress, answered
-%% by its reaper, which ends before the run's tables go (end_program/3), so
+%% by its reaper, which ends before the run's tables go (end_program/4), so
 %% that no answer reads a table that is gone: what this node offers under a
 %% name at a type's hash (offered/2), or a process started on this node for
 %% the peer of node Peer, as spawn/2 starts one but heading a chain of its
