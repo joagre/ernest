@@ -112,7 +112,7 @@ dead_subscriber() ->
                        Child = ern_rt:spawn(fun() -> subscribe(Tty) end, <<"c">>),
                        ern_rt:monitor(Child, fun(Down) -> {down, Down} end),
                        receive {down, _} -> ok end,
-                       receive never -> ok end
+                       ern_waits:forever()
                    end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Never})).
 
 wait(Tag) ->
@@ -164,7 +164,7 @@ keys_at_end_of_input_test() ->
     ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
                                      subscribe(ern_rt:system_process(terminal)),
-                                     receive never -> ok end
+                                     ern_waits:forever()
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> eof end})).
 

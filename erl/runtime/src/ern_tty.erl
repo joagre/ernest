@@ -30,9 +30,9 @@
 
 -export([loop/2, size/0, restore/0, is_terminal/1, more/2, decode/1, flush/1]).
 
-%% Report §8.6: Terminal.size asks the host's group leader, so the emitter
-%% counts it as foreign code while it runs.
--waits([size/0]).
+%% Report §8.6: Terminal.size asks the host's `user` process, and waits in
+%% the host's io functions, which the look reads on top of the process's
+%% stack as the host's work, so it needs no key of the look's.
 
 %% What waits for more to arrive: the characters of an escape that may
 %% still grow into a sequence, or a paste under way, its text so far

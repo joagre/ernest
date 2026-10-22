@@ -3870,18 +3870,16 @@ value_key(Namespace, QualifiedName) ->
 %% is a `let`, so a later input reaches it as it reaches any other module's
 %% value, and calls it by applying what the getter answers (§4.6).
 %%
-%% Report §8.6: the host's compiler waits for a process of its own, and the
-%% input's process is an Ernest process waiting with it. It is marked as a
-%% foreign call in progress, which is what it is, so that `Deadlock` is not
-%% declared over a binding being made.
-holder(ErlangModule, Names, Code) ->
-    ern_rt:in_foreign(fun() -> holder_beam(ErlangModule, Names, Code) end).
-
 %% Report §8.7: each name's getter, named by its position as a unit's
 %% functions are (§11.1), and what the module holds, each binding by its
 %% identity with the key its value is kept under, which the code table
 %% reads as it loads, as it reads a compiled unit's (ern_emitter).
-holder_beam(ErlangModule, Names, Code) ->
+%%
+%% Report §8.6: the host's compiler waits for a process of its own, and the
+%% input's process waits with it in the compiler's function, which the
+%% deadlock detector reads on top of the process's stack as the host's
+%% work, so that `Deadlock` is not declared over a binding being made.
+holder(ErlangModule, Names, Code) ->
     Getters = [ern_emitter:function_name(Number) || {Number, _} <- lists:enumerate(Names)],
     Get = fun(Getter) ->
               erl_syntax:application(

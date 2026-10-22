@@ -13,10 +13,12 @@
 -export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
          umask/0, working_directory/0]).
 
-%% Report §8.6: Os's host facts and its working directory read a port and
-%% the host's file server, so the emitter counts them as foreign code while
-%% they run.
--waits([host/0, working_directory/0]).
+%% Report §8.6: Os's host facts are read from a port, a wait inside foreign
+%% code for the look (host/0); its working directory is the host's file
+%% server's, whose functions the look reads on top of the process's stack
+%% as the host's work, so it needs no key of the look's. The user a node
+%% runs as is read from a port too, on a node only, which looks for no
+%% deadlock (user/0).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -436,6 +438,10 @@ host() ->
     Helper = try open([])
              catch error:_ -> host_failed()
              end,
+    ern_rt:entered_foreign(),
+    try host_read(Helper) after ern_rt:left_foreign() end.
+
+host_read(Helper) ->
     receive
         {Helper, {data, <<"u", User:32>>}} ->
             receive

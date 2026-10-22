@@ -6,7 +6,8 @@
 %% process by tracing it, and stop tracing when they return.
 -module(ern_waits).
 
--export([until/2, waiting/1, running/1, called/3, returned/3, looked/1, delivered/1]).
+-export([until/2, waiting/1, running/1, called/3, returned/3, looked/1, delivered/1,
+         forever/0]).
 
 %% Until Test, asked of Pid's state, holds, or Pid has ended: Test is asked
 %% at first and again each time the host schedules Pid out, which is when
@@ -94,9 +95,9 @@ returned(Pid, {Module, Function, Arguments}, Action) ->
     end.
 
 %% Report §8.6: until the runtime's reaper has looked for a deadlock Count
-%% times. A process of the run that waits here and must not seem
-%% deadlocked counts the wait as timed, as the compiler's timed receive
-%% does.
+%% times. A process of the run that waits here waits in a module of the
+%% host's, a test's, which the look reads as foreign code in progress, so
+%% it never seems deadlocked.
 -spec looked(pos_integer()) -> ok.
 looked(Count) ->
     called(persistent_term:get({ern_rt, reaper}), {ern_rt, look, 0}, Count).
@@ -111,6 +112,14 @@ delivered(Recipient) ->
                       MonitorRef = erlang:monitor(process, Pid),
                       receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
                   end, Deliveries).
+
+%% Report §8.6, §6.6: waits for ever as an Ernest process waits with
+%% nothing in flight, in a callForever nothing answers, its own, which the
+%% look reads as a wait of Ernest's. A test's own receive is a wait in a
+%% module of the host's, foreign code's to the look, and never a deadlock.
+-spec forever() -> no_return().
+forever() ->
+    ern_rt:call_forever(ern_rt:self(), fun(Reply) -> {forever, Reply} end).
 
 %% The trace messages of Pid still in the mailbox, taken out.
 flushed(Pid) ->

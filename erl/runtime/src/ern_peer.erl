@@ -29,10 +29,11 @@
 
 -export_type([identity/0]).
 
-%% Report §8.6: the shims that wait on a peer's answer, which the emitter
-%% counts as foreign code while they run; the others, a table or a
-%% persistent term read or a table written, wait on no process.
--waits([find/2, spawn/3, spawn_monitored/4, compute/2, compute_at/3, utilization/2]).
+%% Report §8.6: the shims that wait on a peer's answer, a find's, a
+%% spawn's, a compute's and a utilization's, are inside foreign code for
+%% the look while they wait, since a peer's answer is none it sees coming
+%% (ern_rt:entered_foreign/0); the others, a table or a persistent term
+%% read or a table written, wait on no process.
 
 %% A spawn waiting for its answer, {{Node, Ref}, Waiting, Order}, by the
 %% peer's node and the spawn's reference: the waiting process, and the
@@ -175,6 +176,10 @@ asked(Node, Name, Hash, Deadline) ->
     gateway_answer(Alias, MonitorRef, Deadline).
 
 gateway_answer(Alias, MonitorRef, Deadline) ->
+    ern_rt:entered_foreign(),
+    try gateway_answered(Alias, MonitorRef, Deadline) after ern_rt:left_foreign() end.
+
+gateway_answered(Alias, MonitorRef, Deadline) ->
     receive
         {Alias, Answer} ->
             erlang:demonitor(MonitorRef, [flush]),
@@ -189,7 +194,7 @@ gateway_answer(Alias, MonitorRef, Deadline) ->
                 erlang:demonitor(MonitorRef, [flush]),
                 receive {Alias, Answer} -> Answer after 0 -> timeout end;
             _ ->
-                gateway_answer(Alias, MonitorRef, Deadline)
+                gateway_answered(Alias, MonitorRef, Deadline)
         end
     end.
 
@@ -236,7 +241,10 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
             MonitorRef = erlang:monitor(process, Gateway),
             erlang:send(Gateway, {ern_frame, erlang:self(),
                                   {spawn, Ref, Spawned, Site, Wrap =/= none, Ms}}),
-            Answer = spawn_answer({Node, Ref}, MonitorRef, Deadline),
+            ern_rt:entered_foreign(),
+            Answer = try spawn_answer({Node, Ref}, MonitorRef, Deadline)
+                     after ern_rt:left_foreign()
+                     end,
             erlang:demonitor(MonitorRef, [flush]),
             started(Answer, Ref, Wrap)
     end.

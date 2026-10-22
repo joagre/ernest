@@ -482,16 +482,16 @@ page(Options, Beam, ErrorDevice) ->
 %% and its trace whole on standard error (§11.2), and is then a failure of
 %% ern itself; a signal ends the job as it ends a run (§11.8). Compute is
 %% the job's own code, which calls libs/markdown as foreign code calls a
-%% program's, and it is counted as a foreign call is (§8.4, §8.6): the
-%% prelude's page reads the standard library's interfaces, a wait on the
-%% host's code server and file server, which the deadlock detector would
-%% otherwise take, under load, for every process waiting.
+%% program's (§8.4); where it waits, the prelude's page reading the
+%% standard library's interfaces, it waits on the host's code server and
+%% file server, whose functions the deadlock detector reads on top of the
+%% process's stack as the host's work (§8.6).
 in_runtime(Compute, ErrorDevice) ->
     Caller = self(),
     Ref = make_ref(),
     Options = reporting_options(#{init => fun() -> ern_rt:init_modules(['ern@markdown']) end},
                                 ErrorDevice),
-    case ern_rt:run_main(fun() -> Caller ! {Ref, ern_rt:in_foreign(Compute)} end, <<"ern doc">>,
+    case ern_rt:run_main(fun() -> Caller ! {Ref, Compute()} end, <<"ern doc">>,
                          Options) of
         ok -> receive {Ref, Result} -> Result end;
         {signal, Signal} -> throw({ended, ern_signals:ended(Signal)});

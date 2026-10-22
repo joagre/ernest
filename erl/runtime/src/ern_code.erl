@@ -53,9 +53,9 @@
 -export_type([host_table/0, reach/0]).
 
 %% Report §8.6: Code.hashes reads its file through the host's file server,
-%% so the emitter counts it as foreign code while it runs; Code.running
-%% reads the host's stacks and waits on no process.
--waits([hashes/1]).
+%% whose functions the look reads on top of the process's stack as the
+%% host's work, so it needs no key of the look's; Code.running reads the
+%% host's stacks and waits on no process.
 
 -define(TABLE, ern_code).
 %% Report §11.2: the sums of the host's counts, one row a count.
@@ -990,9 +990,16 @@ ensure() ->
 made() ->
     Caller = erlang:self(),
     {Holder, MonitorRef} = erlang:spawn_monitor(fun() -> hold(Caller) end),
-    receive
-        {Holder, made} -> erlang:demonitor(MonitorRef, [flush]), ok;
-        {'DOWN', MonitorRef, process, Holder, _} -> ok
+    %% report §8.6: the holder is no process the look reads, so the wait
+    %% is inside foreign code for it
+    ern_rt:entered_foreign(),
+    try
+        receive
+            {Holder, made} -> erlang:demonitor(MonitorRef, [flush]), ok;
+            {'DOWN', MonitorRef, process, Holder, _} -> ok
+        end
+    after
+        ern_rt:left_foreign()
     end.
 
 %% The holder waits for nothing: the tables are its owner's, and live as

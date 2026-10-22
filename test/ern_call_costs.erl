@@ -10,12 +10,13 @@
 %% rows, the callee's in the callees table so that its restart ends the
 %% call (§6.9) and the caller's in the calls table for the look's request
 %% in flight (§8.6), and deletes them as the call ends (pending/2,
-%% uncalled/1), each a piece of its own; counts the caller as in a timed receive while it waits
-%% (timed/0, untimed/0, §8.6); takes the answer among the forms a wait
+%% uncalled/1), each a piece of its own; marks the caller as in a timed
+%% receive while it waits, a key in its dictionary (timed/0, untimed/0,
+%% §8.6); takes the answer among the forms a wait
 %% takes, a restart and a fault's among them, the answer of foreign code
 %% checked (waited_answer/3, §8.4), where an Ernest callee's answer is not;
 %% and waits against a deadline in slices of the host's longest wait, in a
-%% try that counts out and one that settles (?SLICE, remaining/1).
+%% try that takes the mark away and one that settles (?SLICE, remaining/1).
 %%
 %% Measured, in call.txt: for each of the three, the host's call, the
 %% model of `Address.call` a piece added on each row until it is call/4's
@@ -23,7 +24,7 @@
 %% counter, the code the compiler writes, its callee too; first the three
 %% beside the host's call, then each model; and each of the call's writes
 %% on the runtime's tables alone, by one process and by eight at once,
-%% beside a mark in the process's dictionary. Every row runs in a launch of
+%% beside the timed key in the process's dictionary. Every row runs in a launch of
 %% its own, its callers and callees processes the runtime spawns, each with
 %% its row as a program's has, started at once and timed until every
 %% caller has made its calls (ern_spawn_costs:at_once/2), in nanoseconds a
@@ -106,7 +107,7 @@ rows(Unit, Callers, Callees) ->
               fun addressed/2},
              {"+ the callee's row, so that its restart ends the call", Host, fun restartable/2},
              {"+ the caller's row, the look's request in flight", Host, fun rowed/2},
-             {"+ the caller counted as in a timed receive", Host, fun counted/2},
+             {"+ the caller marked as in a timed receive", Host, fun marked/2},
              {"+ the answer given by answer/2, among the forms a wait takes", Ernest,
               fun answered/2},
              {"+ the wait against a deadline, sliced, in tries, as call/4's", Ernest,
@@ -161,9 +162,8 @@ operations() ->
                   ets:insert(?CALLS, {self(), Callee, Callee}),
                   ets:take(?CALLS, self())
               end},
-             {"the count raised and lowered", fun() -> ern_rt:timed(), ern_rt:untimed() end},
-             {"a mark put and erased in the dictionary",
-              fun() -> put('$ern_timed', 1), erase('$ern_timed') end}],
+             {"the timed key put and taken, timed/0 and untimed/0",
+              fun() -> ern_rt:timed(), ern_rt:untimed() end}],
         {Many, Processes} <- [{1, ", one process"}, {?AT_ONCE, ", eight at once"}]].
 
 looped(Operation) ->
@@ -267,8 +267,8 @@ rowed(Address, Request) ->
     flushed(Reply),
     Answer.
 
-%% + the caller counted as in a timed receive while it waits.
-counted(Address, Request) ->
+%% + the caller marked as in a timed receive while it waits.
+marked(Address, Request) ->
     guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
@@ -313,8 +313,8 @@ answered(Address, Request) ->
     valued(Answer).
 
 %% + the wait as waited_answer/3 makes it: against a deadline taken as
-%% the call begins, in slices of at most the host's longest wait, the count
-%% let down in a try's after and the call settled in another's, the
+%% the call begins, in slices of at most the host's longest wait, the mark
+%% taken away in a try's after and the call settled in another's, the
 %% restart asked for taken: call/4 whole.
 waited(Address, Request) ->
     Deadline = ern_rt:deadline(?MS),

@@ -229,8 +229,8 @@ fault_reports_test() ->
 flush() ->
     receive Message -> [Message | flush()] after 0 -> [] end.
 
-%% report §6.6, §6.9: a call ends with the row, the monitor and the alias
-%% it made, and the timed wait it counted, however it ends: its message's
+%% report §6.6, §6.9, §8.6: a call ends with the row, the monitor and the
+%% alias it made, and the timed wait it marked, however it ends: its message's
 %% function faulting, or its callee answering with a fault, as a system
 %% process does. A regression test: in a process restarted in place they
 %% were left behind
@@ -253,11 +253,9 @@ call_leaves_nothing_test() ->
                                     put(runs, 2),
                                     ern_rt:call(Faulting, fun(Reply) -> {ask, Reply} end, 1000);
                                 2 ->
-                                    [{_, _, Timers, _, _, _, _}] =
-                                        ets:lookup(ern_processes, self()),
                                     {monitors, Monitors} = process_info(self(), monitors),
                                     Self ! {left, {ets:lookup(ern_calls, self()),
-                                                   Monitors, Timers}},
+                                                   Monitors, get('$ern_timed')}},
                                     ern_rt:send(EntryProcess, done)
                             end
                         end,
@@ -265,7 +263,7 @@ call_leaves_nothing_test() ->
                                 <<"M.worker:2">>),
                receive done -> ok end
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
-    ?assertEqual({[], [], 0}, wait(left)).
+    ?assertEqual({[], [], undefined}, wait(left)).
 
 %% report §8.6: a system process that has died can deliver nothing, so it
 %% does not keep a deadlock from being found. A regression test: the
@@ -274,7 +272,7 @@ dead_system_process_test() ->
     ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
                                      exit(ern_rt:system_process(clock), kill),
-                                     receive never -> ok end
+                                     ern_waits:forever()
                                  end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
 %% report §8.6: an idle program that waits on something pending is answered
@@ -295,9 +293,9 @@ idle_check_is_cheap_test() ->
                            {reductions, Read} = erlang:process_info(erlang:self(), reductions),
                            ern_rt:source_begin(),
                            Reaper = persistent_term:get({ern_rt, reaper}),
-                           ern_rt:in_foreign(fun() -> ern_waits:looked(1) end),
+                           ern_waits:looked(1),
                            {reductions, Before} = erlang:process_info(Reaper, reductions),
-                           ern_rt:in_foreign(fun() -> ern_waits:looked(2) end),
+                           ern_waits:looked(2),
                            {reductions, After} = erlang:process_info(Reaper, reductions),
                            ern_rt:source_end(),
                            ?assert((After - Before) div 2 < Read - Unread)
@@ -478,50 +476,99 @@ deadlock_after_a_wait() ->
                                ern_rt:run_main(Entry, <<"main">>, Quiet)),
                   erlang:monotonic_time(millisecond) - Start
               end,
-    AtOnce = Elapsed(fun() -> receive never -> ok end end),
+    AtOnce = Elapsed(fun() -> ern_waits:forever() end),
     ?assert(AtOnce < 600),
     Waited = Elapsed(fun() ->
-                         ern_rt:timed(),
                          receive never -> ok after 300 -> ok end,
-                         ern_rt:untimed(),
-                         receive never -> ok end
+                         ern_waits:forever()
                      end),
     ?assert(Waited >= 300),
     ?assert(Waited < 2500).
 
-%% report §8.6: every live process blocked in an untimed receive, with no
-%% timed receive, clock alarm, or foreign call pending, is a deadlock, the
-%% entry process's fault `deadlock` (§7.4); each
-%% of those is a source that can still deliver, so the detector, looking
-%% while one is pending, finds no deadlock. Report §7.3, Appendix E.21: the
-%% deadlock's trace is the entry process's stack where it waits, empty
-%% here, where no frame of it is a program's; a program's frame there is
-%% ern_reaper_tests'
+%% report §8.6: every live process blocked in an untimed receive or in a
+%% callForever, with no timed receive, clock alarm, or foreign code
+%% pending, is a deadlock, the entry process's fault `deadlock` (§7.4);
+%% each of those can still deliver, so the detector, looking while one is
+%% pending, finds no deadlock: here the program waits as Ernest waits, for
+%% the answer of a process outside it, which the detector does not read,
+%% marked as a timed wait or as inside foreign code, or beside an alarm.
+%% Report §7.3, Appendix E.21: the deadlock's trace is the entry process's
+%% stack where it waits, empty here, where no frame of it is a program's; a
+%% program's frame there is ern_reaper_tests'
 deadlock_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
     ?assertMatch({fault, <<"deadlock">>, <<>>},
-                 ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
+                 ern_rt:run_main(fun() -> ern_waits:forever() end, <<"main">>, Quiet)),
     ?assertMatch({fault, <<"deadlock">>, _},
                  ern_rt:run_main(fun() ->
-                                     _ = ern_rt:spawn(fun() -> receive x -> ok end end,
-                                                      <<"s">>),
-                                     receive y -> ok end
+                                     _ = ern_rt:spawn(fun() -> ern_waits:forever() end, <<"s">>),
+                                     ern_waits:forever()
                                  end, <<"main">>, Quiet)),
-    %% each pending while the detector looks, the program waiting for the
-    %% look in a receive the detector does not count
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          ern_rt:timed(),
-                                         ern_waits:looked(1),
+                                         late = asked(late(1)),
                                          ern_rt:untimed()
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          Clock = ern_rt:system_process(clock),
                                          alarm(Clock, 10000000000000, ern_rt:self()),
-                                         ern_waits:looked(1)
+                                         late = asked(late(1)),
+                                         ok
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
-                                         ern_rt:in_foreign(fun() -> ern_waits:looked(1) end)
+                                         ern_rt:entered_foreign(),
+                                         late = asked(late(1)),
+                                         ern_rt:left_foreign()
                                      end, <<"main">>, Quiet)).
+
+%% report §8.6: a wait in a module of the host's is inside foreign code, so
+%% that a program whose one process waits there, here in this test's own
+%% module, is no deadlock, and the reaper looks while it waits
+host_wait_is_no_deadlock_test() ->
+    ?assertEqual(ok, ern_rt:run_main(fun() -> ern_waits:looked(2) end, <<"main">>,
+                                     #{stdout => fun(_) -> ok end})).
+
+%% report §8.6, §8.7: a compute's wait for a peer's answer is inside foreign
+%% code for the look, since a peer's answer is none it sees coming: here
+%% the peer's gateway is a process of this host's, outside the program,
+%% which answers once the reaper has looked twice, and the program, its one
+%% process waiting, ends with the value. The other waits of the runtime's
+%% own that mark themselves so, a find's, a spawn's and a utilization's on
+%% a peer, Os.host's, Code.load's, a restart's fresh run, the code table's
+%% making and Os.exit's, are not covered here
+compute_wait_is_no_deadlock_test() ->
+    Gateway = erlang:spawn(fun() ->
+                               receive {ern_frame, _, {compute, Alias}} ->
+                                   ern_waits:looked(2),
+                                   Alias ! {Alias, computed, 7}
+                               end
+                           end),
+    true = register(ern_gateway, Gateway),
+    Self = self(),
+    Compute = fun() ->
+                  Self ! {computed, ern_rt:compute(node(), fun(Alias) -> {compute, Alias} end,
+                                                   ern_rt:deadline(600000))}
+              end,
+    try
+        ?assertEqual(ok, ern_rt:run_main(Compute, <<"main">>, #{stdout => fun(_) -> ok end})),
+        ?assertEqual({'Right', 7}, wait(computed))
+    after
+        %% the gateway's name goes with it once it has answered
+        exit(Gateway, kill)
+    end.
+
+%% A process outside the program, which the deadlock detector does not
+%% read, that answers the call it is asked once the reaper has looked Count
+%% times, and the call, a callForever, which waits as Ernest waits.
+late(Count) ->
+    erlang:spawn(fun() ->
+                     receive
+                         {ask, Reply} -> ern_waits:looked(Count), Reply ! {Reply, answered, late}
+                     end
+                 end).
+
+asked(Late) ->
+    ern_rt:call_forever(Late, fun(Reply) -> {ask, Reply} end).
 
 %% report §8.6: a process waiting for the host to load a module is not
 %% waiting in a receive, so it is no deadlock. A regression test: the
@@ -607,12 +654,13 @@ clock_long_time_test() ->
                        end, <<"main">>, Quiet)),
     ?assertEqual(true, wait(alive)).
 
-%% report §8.6: a process is in the table before it runs, so a timed
-%% receive it enters first is counted. A regression test for a lost count
-%% that made such a wait a deadlock, first seen at the shell's first input.
-%% Two thousand processes each look for their row first; before the fix
-%% some did not find it. A race can be won by luck, so a pass confirms the
-%% order rather than proving it
+%% report §8.6, §6.9: a process is in the table before it runs, so that
+%% what it does first finds its row, its site and its root among it. A
+%% regression test for a lost count of a timed receive, kept in the row
+%% then, that made such a wait a deadlock, first seen at the shell's first
+%% input. Two thousand processes each look for their row first; before the
+%% fix some did not find it. A race can be won by luck, so a pass confirms
+%% the order rather than proving it
 spawned_row_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -625,16 +673,15 @@ spawned_row_test() ->
     ?assertEqual([], [Row || Row <- Rows, Row =:= []]).
 
 %% report §11.2: while a shell holds the terminal no deadlock is detected;
-%% here a message the runtime cannot see coming arrives after the detector
-%% has looked three times. A regression test: in line mode nothing else
-%% kept the detector away
+%% here an answer the runtime cannot see coming arrives after the detector
+%% has looked three times, to a program that waits as Ernest waits. A
+%% regression test: in line mode nothing else kept the detector away
 shell_holds_no_deadlock_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            ern_rt:hold_terminal(ern_rt:self()),
-                           Self = ern_rt:self(),
-                           erlang:spawn(fun() -> ern_waits:looked(3), Self ! late end),
-                           receive late -> ok end
+                           late = asked(late(3)),
+                           ok
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
 %% report §6.9: Down carries the process, the reason and the spawn site,
@@ -1186,7 +1233,7 @@ own_processes_killed_test() ->
                     Self ! {killed, {[erlang:is_process_alive(Pid) || Pid <- [Reaper, Clock]],
                                      Later}},
                     ern_rt:untimed(),
-                    receive never -> ok end
+                    ern_waits:forever()
                 end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({[true, true], {'Down', _, 'Returned', <<"Main.main:9">>}}, wait(killed)),
     ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
@@ -1309,7 +1356,7 @@ deliveries_to_an_ended_caller() ->
                     _ = ern_rt:spawn(fun() -> ok end, <<"Main.main:16">>),
                     Self ! {rows, ets:tab2list(ern_deliveries)},
                     ern_rt:untimed(),
-                    receive never -> ok end
+                    ern_waits:forever()
                 end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({fault, <<"deadlock">>, _}, Outcome),
     ?assertEqual([], wait(rows)),
@@ -1494,7 +1541,7 @@ alarm_after_its_process_ended() ->
                                end, <<"Main.main:4">>),
                     MonitorRef = erlang:monitor(process, Setter),
                     receive {'DOWN', MonitorRef, process, Setter, _} -> ok end,
-                    receive never -> ok end
+                    ern_waits:forever()
                 end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({fault, <<"deadlock">>, _}, Outcome),
     ?assertEqual(none, receive ran -> ran after 0 -> none end).

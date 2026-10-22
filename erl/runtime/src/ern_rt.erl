@@ -31,16 +31,16 @@
 %% process blocked in an untimed receive or in a wait for a call's answer,
 %% no timed receive or clock alarm pending, no process inside foreign code,
 %% and no source held that can still deliver, a subscription to the
-%% program's end among them.
+%% program's end among them. What it needs of a process the process keeps
+%% in its own dictionary, under the look's keys, and no operation writes a
+%% shared row for it (look/0).
 %%
 %% Fourteen tables hold a launch's state, each described where it is
-%% defined. `ern_processes` has a row {Pid, Site, Timers, Foreign,
-%% SpawnOrder, Root, Peer} per process the runtime started or adopted,
-%% where Timers counts the timed receives the process is in, Foreign its
-%% foreign calls, SpawnOrder its place in the order of spawns, Root the
-%% process at the head of its spawn chain (started_by/1), and Peer the node
-%% of the peer whose spawn started it, which its fault's line names
-%% (§11.2), or none. `ern_calls` and
+%% defined. `ern_processes` has a row {Pid, Site, SpawnOrder, Root, Peer}
+%% per process the runtime started or adopted, where SpawnOrder is its
+%% place in the order of spawns, Root the process at the head of its spawn
+%% chain (started_by/1), and Peer the node of the peer whose spawn started
+%% it, which its fault's line names (§11.2), or none. `ern_calls` and
 %% `ern_callees` hold the pending calls, `ern_faults` the subscriptions to
 %% faults, `ern_terminating` the subscriptions to the program's end,
 %% `ern_held` the sources and the processes the system modules opened,
@@ -63,7 +63,7 @@
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
          source_end/0, opened/3, forget_opened/1,
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, monotonic_micros/0,
-         in_foreign/1,
+         entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
@@ -77,18 +77,18 @@
 
 -export_type([address/0]).
 
-%% Report §8.6: the function here behind a standard library primitive
-%% that may wait on a process, which the emitter counts as foreign code
-%% while it runs: Os.exit waits for the program's end. Every other one
-%% waits on no process, a table, the process dictionary, a persistent term
-%% or the host's clock read, a send that waits for nothing, or the host's
-%% answer of how another process stands, and is not counted, since the
-%% count would cost a multiple of the call (CLAUDE.md's cost rule).
--waits([exit_program/1]).
-
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
 -define(UNIT, 'Unit').
+%% Report §8.6: the look's keys, which a process keeps in its own
+%% dictionary for the deadlock look, so that no operation writes a shared
+%% row for it (look/0). FOREIGN while the process is inside foreign code
+%% where its stack cannot show it, called back from foreign code or waiting
+%% on what the runtime cannot see deliver, a peer, a port or the program's
+%% end (entered_foreign/0); TIMED while it waits in a receive with a
+%% deadline (timed/0).
+-define(FOREIGN, '$ern_foreign').
+-define(TIMED, '$ern_timed').
 -define(PROCESSES, ern_processes).
 %% report §6.6, §6.9: each pending call, {Caller, Callee, Reply}, so that a
 %% callee that restarts ends the calls waiting on it; a process makes one
@@ -712,7 +712,9 @@ compute(Node, Frame, Deadline) ->
     Alias = erlang:alias([reply]),
     ets:insert(?CALLS, {erlang:self(), Gateway, Alias}),
     erlang:send(Gateway, {ern_frame, erlang:self(), Frame(Alias)}),
-    Answer = computed_answer(Alias, MonitorRef, Deadline),
+    %% report §8.6: a peer's answer is none the look sees coming
+    entered_foreign(),
+    Answer = try computed_answer(Alias, MonitorRef, Deadline) after left_foreign() end,
     erlang:demonitor(MonitorRef, [flush]),
     case Answer of
         {'Right', _} = Value -> Value;
@@ -918,8 +920,8 @@ reaper_loop(Reaper, Wait) ->
         %% their caller's root, between two spawns (rooted/2)
         {rooted, From, Ref, Mark, Root} ->
             _ = ets:select_replace(?PROCESSES,
-                                   [{{'$1', '$2', '$3', '$4', '$5', Mark, '$7'}, [],
-                                     [{{'$1', '$2', '$3', '$4', '$5', {const, Root}, '$7'}}]}]),
+                                   [{{'$1', '$2', '$3', Mark, '$5'}, [],
+                                     [{{'$1', '$2', '$3', {const, Root}, '$5'}}]}]),
             From ! {Ref, rooted},
             reaper_loop(Reaper);
         {monitor, Pid, Caller, Wrap, Ref} ->
@@ -966,8 +968,9 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
     Reaper#reaper{watched = Watched#{Pid => true}}.
 
 %% A process spawned on request, which starts once its row is in the
-%% table, since a timed receive it enters first counts itself there
-%% (§8.6). A monitor made with the spawn, spawnMonitored's, stands as
+%% table, since what it does first may write its row, its site
+%% (initializing/1) and its root (rooting/0) among it. A monitor made with
+%% the spawn, spawnMonitored's, stands as
 %% monitor's does. Its root is its spawner's, where Chain says so and the
 %% spawner is a process of the runtime's or acts for one, and else itself
 %% (parent/0); a peer's spawn,
@@ -985,7 +988,7 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
                        {peer, Node} -> {Pid, Node};
                        {compute, Node, _, _} -> {Pid, Node}
                    end,
-    ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order(), Root, Peer}),
+    ets:insert(?PROCESSES, {Pid, Site, next_spawn_order(), Root, Peer}),
     case is_noted(Chain, Pid) of
         true ->
             Pid ! Ref,
@@ -1002,7 +1005,7 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
 %% process that opened it.
 adopted(Pid, Site, Owner, From, Ref) ->
     _ = erlang:monitor(process, Pid),
-    ets:insert(?PROCESSES, {Pid, Site, 0, 0, next_spawn_order(), root(Owner, Pid), none}),
+    ets:insert(?PROCESSES, {Pid, Site, next_spawn_order(), root(Owner, Pid), none}),
     From ! {Ref, adopted}.
 
 %% The root of Pid, started by Parent: Parent's where the runtime started
@@ -1013,7 +1016,7 @@ root(Mark, _Pid) when is_reference(Mark) ->
     Mark;
 root(Parent, Pid) ->
     case ets:lookup(?PROCESSES, Parent) of
-        [{_, _, _, _, _, Root, _}] -> Root;
+        [{_, _, _, Root, _}] -> Root;
         [] -> Pid
     end.
 
@@ -1088,7 +1091,7 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
 %% did not start, or of one that had ended, is not known.
 delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = MonitorRefs}) ->
     case ets:take(?PROCESSES, Pid) of
-        [{_, Site, _, _, _, _, Peer}] ->
+        [{_, Site, _, _, Peer}] ->
             uncalled(Pid),
             Ended = ended_with_program(Pid, ExitReason),
             died(Pid, Site, Peer, Ended),
@@ -1165,7 +1168,7 @@ next_spawn_order() ->
 %% none after, since a spawn it is asked for then was asked by a process
 %% that is itself ending. It answers nothing more until it is stopped.
 ended_program(From, Ref) ->
-    Ended = [Pid || {Pid, _, _, _, _, _, _} <- live_rows()],
+    Ended = [Pid || {Pid, _, _, _, _} <- live_rows()],
     lists:foreach(fun(Pid) -> exit(Pid, {ern, program_end}) end, Ended),
     %% report §8.7: a node stops in order, every Down already on its way
     %% crossing before its connections close, so its end waits for the
@@ -1371,7 +1374,7 @@ abandoned(Recipient) ->
 %% The live processes the runtime started or adopted, with their spawn
 %% sites.
 live() ->
-    try [{Pid, Site} || {Pid, Site, _, _, _, _, _} <- live_rows()]
+    try [{Pid, Site} || {Pid, Site, _, _, _} <- live_rows()]
     catch _:_ -> []
     end.
 
@@ -1381,11 +1384,11 @@ live() ->
 %% shell's refused load kills. Root itself is not among them.
 -spec started_by(pid() | reference()) -> [{pid(), binary()}].
 started_by(Root) ->
-    Rows = try ets:match_object(?PROCESSES, {'_', '_', '_', '_', '_', Root, '_'})
+    Rows = try ets:match_object(?PROCESSES, {'_', '_', '_', Root, '_'})
            catch error:badarg -> []
            end,
     [{Pid, Site} || {_, Pid, Site} <- lists:sort([{Order, Pid, Site}
-                                                  || {Pid, Site, _, _, Order, _, _} <- Rows]),
+                                                  || {Pid, Site, Order, _, _} <- Rows]),
                     Pid =/= Root, erlang:is_process_alive(Pid)].
 
 %% Report §11.2, §6.9, Appendix E.28: the processes each of Roots started,
@@ -1434,8 +1437,8 @@ rooting() ->
     case erlang:get(?ACTING) of
         undefined ->
             case ets_lookup(?PROCESSES, erlang:self()) of
-                [{_, _, _, _, _, Root, _}] ->
-                    true = ets:update_element(?PROCESSES, erlang:self(), {6, Mark}),
+                [{_, _, _, Root, _}] ->
+                    true = ets:update_element(?PROCESSES, erlang:self(), {4, Mark}),
                     {Mark, Root};
                 _ ->
                     {Mark, none}
@@ -1445,7 +1448,7 @@ rooting() ->
                 {[Inner | _], _} ->
                     _ = erlang:put(?ACTING, Acting#acting{marks = [Mark | Marks]}),
                     {Mark, Inner};
-                {[], [{_, _, _, _, _, Root, _}]} ->
+                {[], [{_, _, _, Root, _}]} ->
                     _ = erlang:put(?ACTING, Acting#acting{marks = [Mark]}),
                     {Mark, Root};
                 {[], _} ->
@@ -1465,7 +1468,7 @@ rooted(_Mark, none) ->
 rooted(Mark, Root) ->
     case erlang:get(?ACTING) of
         undefined ->
-            true = ets:update_element(?PROCESSES, erlang:self(), {6, Root});
+            true = ets:update_element(?PROCESSES, erlang:self(), {4, Root});
         #acting{marks = [Mark | Marks]} = Acting ->
             _ = erlang:put(?ACTING, Acting#acting{marks = Marks})
     end,
@@ -1489,7 +1492,7 @@ processes() ->
 status(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len])} of
-        {[{_, Site, _, _, _, _, _}], [{status, HostStatus}, {message_queue_len, Queued}]} ->
+        {[{_, Site, _, _, _}], [{status, HostStatus}, {message_queue_len, Queued}]} ->
             Activity = case HostStatus of
                            waiting ->
                                case ets_lookup(?CALLS, Pid) of
@@ -1567,9 +1570,8 @@ report(Pid, Site, Peer, Fault, Restarted) ->
                       counted_link(Address, fun() -> deliver(Address, Report) end)
                   end, Subscribers).
 
-%% The live processes' rows, each its pid, its spawn site, the counts of its
-%% timed waits and of its foreign calls in progress, its spawn order, its
-%% root, and the peer whose spawn started it, or none.
+%% The live processes' rows, each its pid, its spawn site, its spawn order,
+%% its root, and the peer whose spawn started it, or none.
 live_rows() ->
     ets:tab2list(?PROCESSES).
 
@@ -1640,21 +1642,27 @@ died(Pid, Site, Peer, ExitReason) ->
 %% process, or none.
 peer(Pid) ->
     case ets:lookup(?PROCESSES, Pid) of
-        [{_, _, _, _, _, _, Peer}] -> Peer;
+        [{_, _, _, _, Peer}] -> Peer;
         [] -> none
     end.
 
-%% Report §8.6. Two snapshots of every live process's status and reduction
+%% Report §8.6. Two reads of every live process's status and reduction
 %% count, equal, with every status waiting, prove that nothing ran between
-%% them; what is counted is read between them, so that it is what held
-%% while nothing ran, and not what held before a process ran on. A timed
-%% receive, a foreign call in progress, a source held by a system process,
-%% and a call waiting on one are what can still deliver.
+%% them; what can still deliver is read between them, so that it is what
+%% held while nothing ran, and not what held before a process ran on. A
+%% source held by a system process, a subscription to the program's end, a
+%% call waiting on a system process, and a process that waits where Ernest
+%% does not are what can still deliver.
 %%
 %% The check runs when the reaper has been idle a while, and what can still
 %% deliver is read first, the cheapest first: an idle program that waits on
-%% something, a socket or an alarm, is answered from a few rows, and only a
-%% program in which nothing can deliver has its processes read, twice.
+%% something, a socket or an alarm, is answered from a few rows; then each
+%% process's status and reductions, which the host reads without asking the
+%% process; and only where every process waits is each process asked where
+%% it waits and what it keeps under the look's keys (still/1). The host
+%% counts that question as a reduction of the process once it has answered
+%% it, so it is the second read, and its reductions are compared with the
+%% first's.
 %%
 %% A system process is not in the table, so its mailbox and status are read
 %% as well: between taking a message out and counting the source it holds,
@@ -1675,21 +1683,19 @@ peer(Pid) ->
 %% shell holds the terminal, or the program is a node, so that no deadlock
 %% can begin before that ends; `running`, where nothing can and a process
 %% is not waiting, or none is left; `deadlock`, where nothing can and every
-%% process waits.
+%% process waits as Ernest waits.
 look() ->
     case terminal_holder() =:= undefined andalso not persistent_term:get({?MODULE, node}, false)
          andalso nothing_delivers() of
         false ->
             delivering;
         true ->
-            Pids = [Pid || {Pid, _, _, _, _, _, _} <- live_rows()],
-            First = snapshot(Pids),
-            Waits = Pids =/= []
+            First = snapshot([Pid || {Pid, _, _, _, _} <- live_rows()]),
+            Waits = First =/= []
                 andalso lists:all(fun({_, Status, _}) -> Status =:= waiting end, First)
-                andalso nothing_delivers()
-                andalso snapshot(Pids) =:= First,
+                andalso nothing_delivers(),
             case Waits of
-                true -> deadlock;
+                true -> still(First);
                 false -> running
             end
     end.
@@ -1698,15 +1704,61 @@ nothing_delivers() ->
     sources() =:= 0
         andalso ets:info(?TERMINATING, size) =:= 0
         andalso not calling_the_system()
-        andalso quiet_system()
-        andalso not counted().
+        andalso quiet_system().
 
-%% Whether a process is in a timed receive or a foreign call, found at the
-%% first such row.
-counted() ->
-    ets:select(?PROCESSES, [{{'_', '_', '$1', '$2', '_', '_', '_'},
-                             [{'orelse', {'>', '$1', 0}, {'>', '$2', 0}}], [true]}], 1)
-        =/= '$end_of_table'.
+%% Report §8.6, §6.3, §8.4: each process asked, the second read, whether it
+%% still waits as the first read found it and waits as Ernest waits: in a
+%% function of Ernest's own code (is_ernest/1), and with nothing under the
+%% look's keys, no deadline and no foreign code that can still deliver. A
+%% function of the host's on top is a receive inside foreign code. The
+%% first that cannot be a deadlock's answers for the look.
+still([]) ->
+    deadlock;
+still([{Pid, _, Reductions} | First]) ->
+    case erlang:process_info(Pid, [status, reductions, current_function,
+                                   {dictionary, ?FOREIGN}, {dictionary, ?TIMED}]) of
+        [{status, waiting}, {reductions, Reductions}, {current_function, {Module, _, _}},
+         {_, undefined}, {_, undefined}] ->
+            case is_ernest(Module) of
+                true -> still(First);
+                false -> delivering
+            end;
+        [{status, waiting}, {reductions, Reductions} | _] ->
+            delivering;
+        _ ->
+            running
+    end.
+
+%% Report §8.6: whether a module is Ernest's own code: a unit, which exports
+%% '$code'/0 as every unit the toolchain makes does, and by which the code
+%% table takes one (ern_code:loaded/3), or a module of the toolchain's own
+%% Erlang (own_modules/0). Every other module is the host's, foreign code's
+%% and a standard library function's host work among them.
+is_ernest(Module) ->
+    erlang:function_exported(Module, '$code', 0) orelse is_map_key(Module, own_modules()).
+
+%% The modules of the toolchain's own Erlang, found once in a host's life:
+%% each beam of its applications' ebin directories (ern_tree) but a test's,
+%% one whose source its application's test directory holds, which
+%% tools/install.sh leaves out of a release, so that a test's own module
+%% is the host's, as a program's foreign module is.
+own_modules() ->
+    case persistent_term:get({?MODULE, own_modules}, none) of
+        none ->
+            Ebin = filename:join([ern_tree:tree(), "erl", "*", "ebin"]),
+            Beams = filelib:wildcard(filename:join(Ebin, "*.beam")),
+            Own = maps:from_keys([list_to_atom(filename:basename(Beam, ".beam"))
+                                  || Beam <- Beams, not is_test(Beam)], true),
+            persistent_term:put({?MODULE, own_modules}, Own),
+            Own;
+        Own ->
+            Own
+    end.
+
+is_test(Beam) ->
+    Application = filename:dirname(filename:dirname(Beam)),
+    filelib:is_regular(filename:join([Application, "test",
+                                      filename:basename(Beam, ".beam") ++ ".erl"])).
 
 %% A call waiting on a system process, a listener, a socket or a running
 %% program is a pending I/O from before its request is sent, as the call's
@@ -1846,15 +1898,19 @@ forget_opened(Pid) ->
 opened() ->
     try [Pid || [Pid] <- ets:match(?HELD, {{opened, '$1'}})] catch _:_ -> [] end.
 
-%% A timed receive counts itself in before and out first in every body,
-%% so tail position holds; the compiler emits the calls (report §8.6).
+%% Report §8.6, §6.3: a receive with a deadline, the compiler's and a
+%% call's, puts TIMED in the process's dictionary before it waits and
+%% takes it away first in every body, so tail position holds; the compiler
+%% emits the calls. Two never nest, since nothing runs while one waits.
 -spec timed() -> ok.
 timed() ->
-    count(3, 1).
+    _ = erlang:put(?TIMED, true),
+    ok.
 
 -spec untimed() -> ok.
 untimed() ->
-    count(3, -1).
+    _ = erlang:erase(?TIMED),
+    ok.
 
 %% Report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, and a
 %% time below 0 is 0. The host waits at most ?SLICE at once, so a wait is
@@ -1887,20 +1943,41 @@ monotonic() ->
 monotonic_micros() ->
     erlang:monotonic_time(microsecond).
 
-%% Report §8.4, §8.6: a process inside foreign code is not waiting.
--spec in_foreign(fun(() -> term())) -> term().
-in_foreign(Function) ->
-    count(4, 1),
-    try Function() after count(4, -1) end.
+%% Report §8.6, §8.4: a process inside foreign code is not waiting, and
+%% where its stack cannot show it, it says so under FOREIGN: while a
+%% function given to foreign code runs, called by foreign code through the
+%% wrapper the compiler writes around it (ern_emitter's called/2), which a
+%% tail call of foreign code leaves alone on the stack; and while the
+%% runtime waits for the process on what the look cannot see deliver, a
+%% peer, a port, the code table's holder, a restart's answers or the
+%% program's end. One may come inside another, a callback that calls
+%% foreign code that calls back, so the key counts them, and the last to
+%% leave takes it away.
+-spec entered_foreign() -> ok.
+entered_foreign() ->
+    _ = erlang:put(?FOREIGN, case erlang:get(?FOREIGN) of
+                                 undefined -> 1;
+                                 Count -> Count + 1
+                             end),
+    ok.
+
+-spec left_foreign() -> ok.
+left_foreign() ->
+    _ = case erlang:get(?FOREIGN) of
+            1 -> erlang:erase(?FOREIGN);
+            Count -> erlang:put(?FOREIGN, Count - 1)
+        end,
+    ok.
 
 %% Report §8.6: the host loads a module at the first call into it, and the
 %% caller waits on the code server meanwhile, which is the host's work and
-%% not a receive of the caller's. Every process the runtime starts has this
+%% not a receive of the caller's: the host's function on top of its stack
+%% says so to the look (still/1). Every process the runtime starts has this
 %% module as its error handler (run/1), and so does the one each of ern's
-%% jobs runs in (ern_cli:start/0), which counts the load as a foreign call
-%% is counted and leaves the call itself to the host's handler. Report
-%% §11.2: a unit of the toolchain's own is loaded from its `.erc` at that
-%% first call, as the host loads a module of its own (load/1).
+%% jobs runs in (ern_cli:start/0), which leaves the call itself to the
+%% host's handler. Report §11.2: a unit of the toolchain's own is loaded
+%% from its `.erc` at that first call, as the host loads a module of its
+%% own (load/1).
 -spec undefined_function(module(), atom(), [term()]) -> term().
 undefined_function(ErlangModule, Function, Args) ->
     load(ErlangModule),
@@ -1917,17 +1994,8 @@ undefined_lambda(ErlangModule, Function, Args) ->
 %% as the load is. The code table's own module the host loads, since its
 %% first call would come back here.
 load(ErlangModule) ->
-    in_foreign(fun() ->
-                   {module, ern_code} = code:ensure_loaded(ern_code),
-                   ern_code:ensure_loaded(ErlangModule)
-               end).
-
-count(Field, Increment) ->
-    try ets:update_counter(?PROCESSES, erlang:self(), {Field, Increment}) of
-        _ -> ok
-    catch
-        error:badarg -> ok
-    end.
+    {module, ern_code} = code:ensure_loaded(ern_code),
+    ern_code:ensure_loaded(ErlangModule).
 
 %%
 %% Report §7: a process body; an exception is a fault
@@ -2684,7 +2752,7 @@ untold(Subscriptions, Waiting) ->
     lists:sort([{Order, Subscriber, Address, Site}
                 || {Subscriber, Address, false} <- Subscriptions,
                    not is_map_key(Subscriber, Waiting),
-                   [{_, Site, _, _, Order, _, _}] <- [ets_lookup(?PROCESSES, Subscriber)]]).
+                   [{_, Site, Order, _, _}] <- [ets_lookup(?PROCESSES, Subscriber)]]).
 
 %% Each of them told, by a teller of its own, and its run marked told, so
 %% that no later read tells it again. A row gone since the read, by its
@@ -2940,8 +3008,9 @@ arguments() ->
 
 %% Report §8.6, Appendix E.23: Os.exit ends the program with its status,
 %% the runner ending every process as it does at the entry process's end;
-%% the caller waits for its own end there. In the shell and under `ern test`
-%% it faults the caller instead (§11.2).
+%% the caller waits for its own end there, inside foreign code for the
+%% look, since the runner brings it (entered_foreign/0). In the shell and
+%% under `ern test` it faults the caller instead (§11.2).
 -spec exit_program(integer()) -> no_return().
 exit_program(Status) ->
     case Status >= 0 andalso Status =< 255 of
@@ -2954,6 +3023,7 @@ exit_program(Status) ->
         program ->
             {Runner, Launch} = persistent_term:get({?MODULE, runner}),
             Runner ! {exit, Launch, Status},
+            entered_foreign(),
             receive after infinity -> ok end
     end.
 
@@ -3047,7 +3117,7 @@ site() ->
     case erlang:get(?ACTING) of
         undefined ->
             case ets_lookup(?PROCESSES, erlang:self()) of
-                [{_, Site, _, _, _, _, _}] -> Site;
+                [{_, Site, _, _, _}] -> Site;
                 _ -> <<>>
             end;
         #acting{site = Site} ->
@@ -3183,7 +3253,7 @@ on_this_node(Pid) ->
 -spec spawn_order(pid()) -> non_neg_integer().
 spawn_order(Pid) ->
     case ets_lookup(?PROCESSES, Pid) of
-        [{_, _, _, _, SpawnOrder, _, _}] -> SpawnOrder;
+        [{_, _, SpawnOrder, _, _}] -> SpawnOrder;
         _ -> 0
     end.
 
@@ -3242,12 +3312,19 @@ fresh_run() ->
                  MonitorRef
              end || Pid <- [persistent_term:get({?MODULE, reaper}), system_process(clock),
                             system_process(terminal)] ++ gateway()],
-    lists:foreach(fun(MonitorRef) ->
-                      receive
-                          {MonitorRef, fresh} -> erlang:demonitor(MonitorRef, [flush]);
-                          {'DOWN', MonitorRef, process, _, _} -> ok
-                      end
-                  end, Asked),
+    %% report §8.6: an answer on its way from a system process is no
+    %% message the look sees in flight
+    entered_foreign(),
+    try
+        lists:foreach(fun(MonitorRef) ->
+                          receive
+                              {MonitorRef, fresh} -> erlang:demonitor(MonitorRef, [flush]);
+                              {'DOWN', MonitorRef, process, _, _} -> ok
+                          end
+                      end, Asked)
+    after
+        left_foreign()
+    end,
     emptied().
 
 emptied() ->
@@ -3309,7 +3386,7 @@ end_program(Launch, Reaper, System) ->
         {Ref, ended} ->
             ok;
         {'DOWN', MonitorRef, process, _, _} ->
-            lists:foreach(fun({Pid, _, _, _, _, _, _}) -> exit(Pid, {ern, program_end}) end,
+            lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end,
                           live_rows())
     end,
     erlang:demonitor(MonitorRef, [flush]),

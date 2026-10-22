@@ -8,9 +8,8 @@
 -export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1, other/2]).
 
 %% Report §8.6: Io.debug writes through standard error's process and waits
-%% until it is written, so the emitter counts it as foreign code while it
-%% runs; Io.show waits on no process.
--waits([debug/2]).
+%% until it is written, a call to a system process, which the look counts
+%% as one (ern_rt:calling_the_system/0); Io.show waits on no process.
 
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).

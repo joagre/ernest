@@ -232,16 +232,10 @@ give_test() ->
                                     Started ! {'Give', Keeper},
                                     EntryProcess ! {programs, Started, Kept}
                                 end),
-               {Program, Unkept} =
-                   ern_rt:in_foreign(fun() -> receive {programs, Started, Kept} ->
-                                                         {Started, Kept}
-                                             end
-                                     end),
+               {Program, Unkept} = receive {programs, Started, Kept} -> {Started, Kept} end,
                UnkeptRef = erlang:monitor(process, Unkept),
-               ern_rt:in_foreign(fun() ->
-                                     receive {'DOWN', UnkeptRef, process, _, _} -> ok end
-                                 end),
-               ok = ern_rt:in_foreign(fun() -> ern_waits:waiting(Program) end),
+               receive {'DOWN', UnkeptRef, process, _, _} -> ok end,
+               ok = ern_waits:waiting(Program),
                Self ! {alive, erlang:is_process_alive(Program)},
                MonitorRef = erlang:monitor(process, Program),
                Keeper ! stop,
@@ -250,7 +244,7 @@ give_test() ->
                            after 5000 -> alive
                            end
                        end,
-               Self ! {ended, ern_rt:in_foreign(Ended)}
+               Self ! {ended, Ended()}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(alive)),
     ?assertEqual({ern, killed}, wait(ended)).
@@ -314,7 +308,7 @@ answer(Reply) ->
     after 5000 -> ern_rt:untimed(), timeout
     end.
 
-%% A wait the deadlock detector counts, as the compiler's timed receive is,
+%% A wait the deadlock detector reads as timed, as the compiler's timed receive is,
 %% for an absence, of a time derived from what it waits for.
 sleep(Ms) ->
     ern_rt:timed(),

@@ -48,11 +48,8 @@ accept_timeout_test() ->
                {'Right', Port} = port(Listener),
                Self ! {port, Port},
                Self ! {first, accept(Listener, 300)},
-               %% a foreign call, which the deadlock detector counts
-               {ok, Connection} = ern_rt:in_foreign(fun() ->
-                                                  gen_tcp:connect("127.0.0.1", Port,
-                                                                  [binary, {active, false}])
-                                              end),
+               %% a wait in the host's code, the deadlock detector's foreign code
+               {ok, Connection} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
                Self ! {second, side(accept(Listener, 2000))},
                gen_tcp:close(Connection)
            end, <<"main">>, quiet()),
@@ -113,9 +110,7 @@ socket_lives_until_closed_test() ->
                Reader = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
                                                fun(Down) -> {down, Down} end, <<"reader">>),
                %% the reader waits once it has sent its read
-               ok = ern_rt:in_foreign(fun() ->
-                                          ern_waits:waiting(ern_rt:process_of(Reader))
-                                      end),
+               ok = ern_waits:waiting(ern_rt:process_of(Reader)),
                erlang:resume_process(Pid),
                receive {down, Down} -> Self ! {down, Down} end,
                _ = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
@@ -149,11 +144,11 @@ close_listener_test() ->
                                     Self ! {accepted, receive {Reply, answered, Value} -> Value
                                                       after 5000 -> timeout end}
                                 end),
-               %% foreign calls, which the deadlock detector counts
-               ern_rt:in_foreign(fun() -> receive sent -> ok end end),
+               %% waits in a test's code, the host's to the deadlock detector
+               receive sent -> ok end,
                MonitorRef = erlang:monitor(process, Pid),
                ern_rt:send(Listener, 'CloseListener'),
-               ern_rt:in_foreign(fun() -> receive {'DOWN', MonitorRef, _, _, _} -> ok end end),
+               receive {'DOWN', MonitorRef, _, _, _} -> ok end,
                Self ! {alive, erlang:is_process_alive(Pid)}
            end, <<"main">>, quiet()),
     ?assertEqual({'Left', 'Closed'}, wait(accepted)),
@@ -174,9 +169,7 @@ accept_meets_the_close_test() ->
                Acceptor = ern_rt:spawn_monitored(fun() -> accept(Listener, 1000) end,
                                                  fun(Down) -> {down, Down} end, <<"acceptor">>),
                %% the acceptor waits once it has sent its accept
-               ok = ern_rt:in_foreign(fun() ->
-                                          ern_waits:waiting(ern_rt:process_of(Acceptor))
-                                      end),
+               ok = ern_waits:waiting(ern_rt:process_of(Acceptor)),
                erlang:resume_process(Pid),
                receive {down, Down} -> Self ! {down, Down} end
            end, <<"main">>, quiet()),
@@ -196,12 +189,10 @@ killed_socket_test() ->
                                          <<"reader">>),
                    ern_rt:monitor(Reader, fun(Down) -> {down, Down} end),
                    %% the read waits on the socket as it is killed
-                   ok = ern_rt:in_foreign(fun() ->
-                                              ern_waits:waiting(ern_rt:process_of(Reader))
-                                          end),
+                   ok = ern_waits:waiting(ern_rt:process_of(Reader)),
                    ern_rt:kill(Socket),
                    receive {down, _} -> ok end,
-                   receive never -> ok end
+                   ern_waits:forever()
                end, <<"main">>, quiet()),
     Peer ! done,
     gen_tcp:close(Listen),
@@ -218,7 +209,7 @@ port_out_of_range_test() ->
                fun() ->
                    Self ! {listened, listen(70000)},
                    Self ! {connected, connect(70000, 1000)},
-                   receive never -> ok end
+                   ern_waits:forever()
                end, <<"main">>, quiet()),
     Refused = {'Left', 'Invalid'},
     ?assertEqual(Refused, wait(listened)),
@@ -248,7 +239,7 @@ host_with_nul_test() ->
                fun() ->
                    Self ! {listened, listen(<<"127.0.0.1", 0, "evil">>, 0)},
                    Self ! {connected, connect(<<"127.0.0.1", 0, "evil">>, 1, 1000)},
-                   receive never -> ok end
+                   ern_waits:forever()
                end, <<"main">>, quiet()),
     Refused = {'Left', 'Invalid'},
     ?assertEqual(Refused, wait(listened)),
@@ -321,9 +312,9 @@ listen_on_the_named_interface_test() ->
            fun() ->
                {'Right', Listener} = listen(<<"127.0.0.1">>, 0),
                {'Right', Port} = port(Listener),
-               %% foreign calls, which the deadlock detector counts
-               Self ! {loopback, ern_rt:in_foreign(fun() -> reach("127.0.0.1", Port) end)},
-               Self ! {other, ern_rt:in_foreign(fun() -> reach("127.0.0.2", Port) end)}
+               %% waits in a test's code, the host's to the deadlock detector
+               Self ! {loopback, reach("127.0.0.1", Port)},
+               Self ! {other, reach("127.0.0.2", Port)}
            end, <<"main">>, quiet()),
     ?assertEqual(ok, wait(loopback)),
     ?assertMatch({error, _}, wait(other)).
@@ -431,7 +422,7 @@ listener_ends_with_its_owner_test() ->
                                         EntryProcess ! {opened, listen(0)},
                                         receive stop -> ok end
                                     end),
-               {'Right', Listener} = ern_rt:in_foreign(fun() -> receive {opened, L} -> L end end),
+               {'Right', Listener} = receive {opened, L} -> L end,
                MonitorRef = erlang:monitor(process, ern_rt:process_of(Listener)),
                Owner ! stop,
                Ended = fun() ->
@@ -439,7 +430,7 @@ listener_ends_with_its_owner_test() ->
                            after 5000 -> alive
                            end
                        end,
-               Self ! {ended, ern_rt:in_foreign(Ended)}
+               Self ! {ended, Ended()}
            end, <<"main">>, quiet()),
     ?assertEqual({ern, killed}, wait(ended)).
 
@@ -480,10 +471,8 @@ lingering_socket_closes() ->
                _ = ern_rt:spawn_monitored(fun() -> flooded(Killed, Chunk) end,
                                           fun(Down) -> {down, Down} end, <<"flood">>),
                %% a write is held once the writer waits on the busy host socket
-               ern_rt:in_foreign(fun() ->
-                                     held(Closed, byte_size(Chunk)),
-                                     held(Killed, byte_size(Chunk))
-                                 end),
+               held(Closed, byte_size(Chunk)),
+               held(Killed, byte_size(Chunk)),
                Self ! {host_sockets, HostSockets},
                ern_rt:send(Closed, 'Close'),
                ern_rt:kill(Killed),
@@ -609,7 +598,7 @@ side({Side, _}) -> Side.
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
-%% A wait the deadlock detector counts, as the compiler's timed receive is,
+%% A wait the deadlock detector reads as timed, as the compiler's timed receive is,
 %% for an absence, of a time derived from what it waits for.
 sleep(Ms) ->
     ern_rt:timed(),
@@ -645,10 +634,7 @@ program_ended_under_accepts() ->
                                              <<"acceptor">>)
                             end || _ <- lists:seq(1, 100)],
                %% each acceptor waits in its accept before main returns
-               ern_rt:in_foreign(fun() ->
-                                     [ok = ern_waits:waiting(ern_rt:process_of(Acceptor))
-                                      || Acceptor <- Acceptors]
-                                 end)
+               [ok = ern_waits:waiting(ern_rt:process_of(Acceptor)) || Acceptor <- Acceptors]
            end, <<"main">>, #{faults => Reporter}).
 
 %% report §8.6, §6.9: a restarting process that faults once the entry
@@ -687,10 +673,7 @@ program_ended_under_restarting_accepts() ->
                                              <<"acceptor">>)
                             end || _ <- lists:seq(1, 100)],
                %% each acceptor waits in its accept before main returns
-               ern_rt:in_foreign(fun() ->
-                                     [ok = ern_waits:waiting(ern_rt:process_of(Acceptor))
-                                      || Acceptor <- Acceptors]
-                                 end)
+               [ok = ern_waits:waiting(ern_rt:process_of(Acceptor)) || Acceptor <- Acceptors]
            end, <<"main">>, #{faults => Reporter}).
 
 %% The runs the acceptors' functions began, counted from Count.

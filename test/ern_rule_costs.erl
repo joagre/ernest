@@ -5,8 +5,9 @@
 %% tuple key, whether its initializer is a literal or computed (report
 %% §8.5, §11.1). A receive with an `after` takes its time as a deadline,
 %% waits in slices of the host's longest wait in a fun entered again, and
-%% counts the process as in a timed receive while it waits, so that the
-%% look finds no deadlock (§6.3, §8.6; ern_emitter's waiting/4). A message
+%% marks the process as in a timed receive while it waits, a key in its
+%% dictionary, so that the look finds no deadlock (§6.3, §8.6;
+%% ern_emitter's waiting/4). A message
 %% to a system process, `Io.print`, is a call the process answers once the
 %% stream has taken the bytes (§8.2). A launch, ern_rt:run_main/3, makes
 %% the run's tables, its terms, the reaper and the system processes, runs
@@ -204,7 +205,7 @@ receive_tables(Unit) ->
               launched(fun clauses/1)},
              {"+ the time a deadline, the wait a fun, entered again by slices",
               launched(fun sliced/1)},
-             {"+ the process counted as in a timed receive", launched(fun counted/1)},
+             {"+ the process marked as in a timed receive", launched(fun marked/1)},
              {"Ernest's receive with an after", ernest(Unit, waiting, none)}],
     {Echoing, 0} = ern_code:function(Unit, ?NAMESPACE ++ [echoing]),
     Echo = fun() -> ern_rt:spawn(fun() -> Unit:Echoing() end, ?SITE) end,
@@ -267,7 +268,7 @@ sliced(N) ->
         end
     end().
 
-counted(N) ->
+marked(N) ->
     ern_rt:send(self(), {'Ping', N}),
     Deadline = ern_rt:deadline(?MS),
     ern_rt:timed(),

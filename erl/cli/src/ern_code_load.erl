@@ -39,9 +39,9 @@
 -export([load/1]).
 
 %% Report §8.6: Code.load reads files, loads code through the host's code
-%% server and evaluates bindings, so the emitter counts it as foreign code
-%% while it runs.
--waits([load/1]).
+%% server and evaluates bindings, and its caller is inside foreign code for
+%% the look while it runs (load/1), whatever the bindings it evaluates wait
+%% on.
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
@@ -59,6 +59,7 @@
 %% Appendix E.28: `Right(Unit)`, or `Left` with the load's Io.Error.
 -spec load({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', term()}.
 load({'Path', Path}) ->
+    ern_rt:entered_foreign(),
     try
         Found = reach(Path),
         Placed = placed(Found),
@@ -66,6 +67,8 @@ load({'Path', Path}) ->
         evaluated(Placed)
     catch
         throw:{refused, Error} -> {'Left', Error}
+    after
+        ern_rt:left_foreign()
     end.
 
 -spec refuse(term()) -> no_return().

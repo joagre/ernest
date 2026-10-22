@@ -3,7 +3,7 @@
 %% runs them (ern_emitter_tests:run/3).
 -module(ern_reaper_tests).
 
--export([reaper_words/0]).
+-export([reaper_words/0, answered_later/0, called_back/1, called_back_in_tail/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -24,6 +24,70 @@ deadlock_test() ->
         "  | after 100 -> Io.println(\"timeout\")\n"
         "}\n"),
     ?assertEqual({ok, <<"timeout\n">>}, {Result2, Output}).
+
+%% report §8.6, §8.4: a process inside foreign code is not waiting, since
+%% the foreign side may still deliver to it; here the program's one process
+%% waits in a receive of the host's, this module's, which answers once the
+%% reaper has looked twice, and the program ends with the answer. A
+%% process outside the program stands for what foreign code holds that
+%% will deliver, a timer among it, which would need a time chosen. Not
+%% covered: a foreign function that waits on a process of the program's
+foreign_wait_is_no_deadlock_test() ->
+    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(
+        "foreign fn answered() : Int = \"ern_reaper_tests:answered_later/0\"\n"
+        "export fn main() : Unit = Io.println(Int.toString(answered()))\n")).
+
+%% report §8.6, §8.4: a function given to foreign code runs inside it, so a
+%% receive in it is no deadlock while foreign code holds what will deliver,
+%% whether foreign code called it in tail position, which leaves no frame of
+%% foreign code on the stack, or not
+callback_inside_foreign_is_no_deadlock_test() ->
+    Program = fun(Function) ->
+                  "foreign fn called(f : () -> Int receiving Int) : Int receiving Int =\n"
+                  "    \"ern_reaper_tests:" ++ Function ++ "/1\"\n"
+                  "export fn main() : Unit receiving Int =\n"
+                  "    Io.println(Int.toString(called(fn() : Int receiving Int = receive {\n"
+                  "        n -> n\n"
+                  "    })))\n"
+              end,
+    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(Program("called_back"))),
+    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(Program("called_back_in_tail"))).
+
+%% report §8.6, Appendix E.0 rule 1: a function the standard library is
+%% given runs as Ernest code, so a receive in `Map.map`'s function with
+%% nothing in flight is a deadlock, the host's `maps` frames beneath it
+map_callback_deadlock_test() ->
+    {Result, _} = ern_emitter_tests:run(
+        "export fn main() : Unit receiving Int = {\n"
+        "    let _ = Map.map(Map.fromList([#(1, 1)]), fn(k : Int, v : Int) : Int receiving Int =\n"
+        "        receive { n -> n + k + v });\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
+
+%% The foreign side of the tests above: 42 sent to the caller by a process
+%% of its own once the reaper has looked twice, and waited for in a receive
+%% of this module's, or in the function given, called in tail position or
+%% not.
+-spec answered_later() -> integer().
+answered_later() ->
+    later(),
+    receive N when is_integer(N) -> N end.
+
+-spec called_back(fun(() -> integer())) -> integer().
+called_back(Function) ->
+    later(),
+    Function() + 0.
+
+-spec called_back_in_tail(fun(() -> integer())) -> integer().
+called_back_in_tail(Function) ->
+    later(),
+    Function().
+
+later() ->
+    Caller = self(),
+    _ = spawn(fun() -> ern_waits:looked(2), Caller ! 42 end),
+    ok.
 
 %% report §8.6: a process blocked in Address.callForever waits without a
 %% limit, as an untimed receive does, so a call to a server that waits in

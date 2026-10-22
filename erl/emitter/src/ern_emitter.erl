@@ -36,7 +36,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, function_name/1, is_listed_waiting/3, site_name/2]).
+-export([unit/1, source/1, function_name/1, site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -462,21 +462,11 @@ foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args,
     foreign_return(Source, Try, ParamTypes, ResultType, Context2).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
-%% a fault. Report §8.6: a foreign call in progress can still deliver, so
-%% it is counted while it runs. A standard library function's
-%% implementation that may wait on a process is listed so by its runtime
-%% module (`-waits`), read function by function, and is counted; every
-%% other one waits on no process, or waits only in a function it is given,
-%% which runs as Ernest and is counted as Ernest is, so that a deadlock in
-%% it is found, and is not, since the count would cost a multiple of the
-%% call (Appendix E.0 rule 1).
-foreign_call(Source, Call, HostModule, HostFunction, Arity,
-             #emit_context{unit = #unit{standard = Standard}} = Context) ->
-    Counted = case not Standard orelse is_listed_waiting(HostModule, HostFunction, Arity) of
-                  true -> call_remote(ern_rt, in_foreign,
-                                      [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])]);
-                  false -> Call
-              end,
+%% a fault. Report §8.6: the call writes nothing for the deadlock look,
+%% which reads a process waiting inside foreign code from the host's
+%% function on top of its stack, and one inside a function foreign code
+%% called back from the key the function's wrapper keeps (called/2).
+foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
     {[Class, Error, Trace], Context1} = named_variables(["Class", "Error", "Trace"], Context),
     Raised = call_remote(ern_boundary, raised,
                          [erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
@@ -486,20 +476,7 @@ foreign_call(Source, Call, HostModule, HostFunction, Arity,
                                                             erl_syntax:variable(Error),
                                                             erl_syntax:variable(Trace))],
                                 none, [Raised]),
-    {erl_syntax:try_expr([at(Source, Counted)], [Handler]), Context1}.
-
-%% Report §8.6: whether the runtime module lists the function among those
-%% that wait (`-waits`); a module the host cannot load lists none.
--spec is_listed_waiting(atom(), atom(), arity()) -> boolean().
-is_listed_waiting(HostModule, HostFunction, Arity) ->
-    case code:ensure_loaded(HostModule) of
-        {module, HostModule} ->
-            Attributes = HostModule:module_info(attributes),
-            lists:member({HostFunction, Arity},
-                         lists:append(proplists:get_all_values(waits, Attributes)));
-        _ ->
-            false
-    end.
+    {erl_syntax:try_expr([at(Source, Call)], [Handler]), Context1}.
 
 %% Report §8.4: the foreign call's return checked. The standard library's
 %% is the runtime's own, and not checked; a type variable of the result
@@ -1974,7 +1951,7 @@ built_descriptor({function, Arity, ResultDescriptor, Text, ParamDescriptors, Par
                                                     erl_syntax:abstract(ParamText), Bound])
                || {Descriptor, Argument, ParamText}
                       <- lists:zip3(ParamDescriptors, Args, ParamTexts)],
-    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [called(Function, Checked)])]),
+    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, called(Function, Checked))]),
     Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
                       built_descriptor(ResultDescriptor),
@@ -1988,12 +1965,17 @@ built_descriptor(Other) ->
 
 %% Report §7.4: the program's Function where foreign code calls it, an
 %% exception it raises the fault it would be anywhere (called_raised/3).
+%% Report §8.6, §8.4: the process is inside foreign code while Function
+%% runs, which its stack cannot show where foreign code called it in tail
+%% position, so it keeps the look's key meanwhile (ern_rt:entered_foreign/0).
 called(Function, Arguments) ->
     [Class, Error, Trace] = Raised = [erl_syntax:variable(Name)
                                       || Name <- ['Class', 'Error', 'Trace']],
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Error, Trace)], none,
                                 [call_remote(ern_boundary, called_raised, Raised)]),
-    erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [Handler]).
+    [call_remote(ern_rt, entered_foreign, []),
+     erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [], [Handler],
+                         [call_remote(ern_rt, left_foreign, [])])].
 
 check_text(Prefix, Type, Context) ->
     string_binary(cause(Prefix, Type, Context)).

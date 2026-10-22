@@ -200,12 +200,12 @@ validator_refusal_compiled_again_test() ->
                  compile:noenv_forms(Forms, [return_errors])),
     ?assertEqual({ok, <<"-79\n">>}, run(Text)).
 
-%% report §8.6, Appendix E.0 rule 1: a standard library function whose
-%% effect is only a function's it is given is not counted as foreign code
-%% while it runs, so that a deadlock in the function it was given is found.
-%% Written with the rule that has the library stand on the host (MVP
-%% 2.99d's item 12): such a primitive was counted, and a callback waiting
-%% for what no one sends hid the deadlock, the program never ending
+%% report §8.6, Appendix E.0 rule 1: a function the standard library is
+%% given runs as Ernest code, not as foreign code, so that a deadlock in it
+%% is found, the host's frames of the library's primitive beneath it. Written
+%% with the rule that has the library stand on the host (MVP 2.99d's item
+%% 12): such a primitive was counted, and a callback waiting for what no
+%% one sends hid the deadlock, the program never ending
 standard_shim_callback_deadlock_test_() ->
     {timeout, 30, fun standard_shim_callback_deadlock/0}.
 
@@ -219,47 +219,6 @@ standard_shim_callback_deadlock() ->
            "        n -> n + x\n"
            "    }, [1])))\n",
     ?assertMatch({{fault, <<"deadlock">>, _}, _}, run(['M'], Text, #{standard => true})).
-
-%% report §8.6: the deadlock count takes a standard library operation for a
-%% computation that may deliver where the runtime module that implements it
-%% lists it in `-waits`, which the emitter reads at each foreign call. Of
-%% the host's functions every `foreign fn` of the standard library calls,
-%% as its compiled form records them, those listed are this list and no
-%% other, so that a new primitive, or a renamed one, is decided here: an
-%% unlisted primitive that waits is a false `Fault("deadlock")`, which
-%% nothing else catches. A regression test, written after the code; whether
-%% a listed primitive waits indeed, and an unlisted one does not, is the
-%% list's decision, which no test checks
-waiting_primitives_test() ->
-    Sources = filelib:wildcard("../../../src/stdlib/*.ern"),
-    Called = lists:usort(lists:append([foreign_calls(Source) || Source <- Sources])),
-    ?assertEqual([{ern_code, hashes, 1},
-                  {ern_code_load, load, 1},
-                  {ern_io, debug, 2},
-                  {ern_os, host, 0},
-                  {ern_os, working_directory, 0},
-                  {ern_peer, compute, 2},
-                  {ern_peer, compute_at, 3},
-                  {ern_peer, find, 2},
-                  {ern_peer, spawn, 3},
-                  {ern_peer, spawn_monitored, 4},
-                  {ern_peer, utilization, 2},
-                  {ern_rt, exit_program, 1},
-                  {ern_tty, size, 0}],
-                 [Call || {Module, Function, Arity} = Call <- Called,
-                          ern_emitter:is_listed_waiting(Module, Function, Arity)]).
-
-%% The host's module, function and arity each foreign declaration of a
-%% standard library module calls, as the build in build/stdlib records it:
-%% its parameters, then a member for each its requirement names, as the
-%% emitter passes them (report §4.9, §9.4).
-foreign_calls(Source) ->
-    Compiled = filename:join("../../../build/stdlib", filename:basename(Source, ".ern") ++ ".erc"),
-    {ok, Beam} = file:read_file(Compiled),
-    {ok, #recorded{foreign = Foreign}} = ern_canonical:read(Beam),
-    [{HostModule, HostFunction, length(ParamTypes) + length(Requirement)}
-     || {_, {scheme, _, {arrow, ParamTypes, _, _}, Requirement}, HostModule, HostFunction, _}
-            <- Foreign].
 
 %% report §8.1, §8.4, Appendix B
 hello_golden_test() ->
@@ -546,10 +505,9 @@ trace_names_functions_test() ->
            "export fn main() : Unit = Io.println(Int.toString(helper(3)))\n",
     {Result, _} = run(['Traced'], Text, #{}),
     {fault, _, Trace} = Result,
-    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
-                  <<"Traced.boom:1">>, <<"Traced.Vec.+:4">>, <<"Traced.Vec.+:5">>,
-                  <<"Traced.helper:8">>, <<"List.map:", _/binary>>, <<"Traced.helper:8">>,
-                  <<"Traced.main:11">>],
+    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Traced.boom:1">>, <<"Traced.Vec.+:4">>,
+                  <<"Traced.Vec.+:5">>, <<"Traced.helper:8">>, <<"List.map:", _/binary>>,
+                  <<"Traced.helper:8">>, <<"Traced.main:11">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).
 
 %% report §7.3, Appendix E.21: a fault the emitter raises in place carries
@@ -568,15 +526,19 @@ raise_has_line_test() ->
                         "export fn main() : Unit = Io.println(Float.toString(divide(1.0)))\n",
             #{}),
     ?assertEqual([<<"Floats.divide:2">>, <<"Floats.main:3">>], Frames(FloatTrace)),
+    %% a host function whose result the host's compiler does not know, so
+    %% that the caller's frame stays: where it knows the result never
+    %% matches, as a reference never does, it takes the call for one that
+    %% never returns, and the caller keeps no frame for it
     Called = "export fn main() : Unit = {\n"
-             "    let _ = wrong();\n"
+             "    let _ = wrong(1);\n"
              "    Io.println(\"after\")\n"
              "}\n",
     {{fault, <<"foreign return does not match Unit">>, UnitTrace}, _} =
-        run(['Units'], "foreign fn wrong() : Unit = \"erlang:make_ref/0\"\n" ++ Called, #{}),
+        run(['Units'], "foreign fn wrong(key : Int) : Unit = \"erlang:get/1\"\n" ++ Called, #{}),
     ?assertEqual([<<"Units.wrong:1">>, <<"Units.main:3">>], Frames(UnitTrace)),
     {{fault, <<"foreign return does not match Int">>, WordTrace}, _} =
-        run(['Words'], "foreign fn wrong() : Int = \"erlang:make_ref/0\"\n" ++ Called, #{}),
+        run(['Words'], "foreign fn wrong(key : Int) : Int = \"erlang:get/1\"\n" ++ Called, #{}),
     ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], Frames(WordTrace)).
 
 %% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
@@ -634,11 +596,10 @@ local_names(_) ->
 %% Appendix E.21, E.28, report §10: a fault's trace is the innermost twelve
 %% frames of the host's stack, which the runtime keeps 64 of from its
 %% start (E.28), the host eight unless told, the innermost first: under a
-%% recursion twenty deep, the host's raise and the runtime's foreign call
-%% above the program's frames, then the foreign function's and the
-%% recursion's. A regression test of a defect MVP 3.2's item 6 found, a
-%% trace of eight lines under a deeper stack, written in Ernest since the
-%% trace ends with the program's frames
+%% recursion twenty deep, the host's raise above the program's frames,
+%% then the foreign function's and the recursion's. A regression test of a
+%% defect MVP 3.2's item 6 found, a trace of eight lines under a deeper
+%% stack, written in Ernest since the trace ends with the program's frames
 trace_twelve_frames_test() ->
     Text = "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
            "fn nested(count : Int, text : String) : Int =\n"
@@ -647,15 +608,14 @@ trace_twelve_frames_test() ->
            "export fn main() : Unit = Io.println(Int.toString(nested(20, \"x\")))\n",
     {{fault, _, Trace}, _} = run(['Deep'], Text, #{}),
     Frames = binary:split(Trace, <<"\n">>, [global, trim]),
-    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"ern_rt:in_foreign/1:", _/binary>>,
-                  <<"Deep.parsed:1">> | _], Frames),
+    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Deep.parsed:1">> | _], Frames),
     %% each call returns to another function than the last, so that the
     %% host keeps every frame, which it does not of a function's own
     %% recursion; `nested`'s last call is a tail call, which leaves no frame
     Again = <<"Deep.again:4">>,
     Nested = <<"Deep.nested:3">>,
-    ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again],
-                 lists:nthtail(3, Frames)).
+    ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again, Nested],
+                 lists:nthtail(2, Frames)).
 
 %% report Appendix H, §6.9, §11.2: two definitions whose forms are one
 %% term are one definition: a reference to either within their module is

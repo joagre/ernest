@@ -144,10 +144,10 @@ rows(Entries, Sizes, Mode, Dir) ->
     ern_rt:init_modules([Module || Module <- library_modules()]),
     %% report §8.6: the machine's own reading of the interfaces and writing
     %% of the scenarios' files goes through the host's file server, a wait
-    %% the deadlock detector counts only inside a foreign call; under the
-    %% suite's load one outlasted the detector's look, and the run was a
-    %% deadlock
-    {Types, Scenarios} = ern_rt:in_foreign(fun() -> {types(), scenarios(Dir)} end),
+    %% the deadlock detector reads as the host's by the function on top of
+    %% the process's stack; under the suite's load one it did not read so
+    %% outlasted the detector's look, and the run was a deadlock
+    {Types, Scenarios} = {types(), scenarios(Dir)},
     {Counter, Stop} = counter(),
     try [row(Entry, Sizes, Mode, Types, Scenarios, Counter) || Entry <- Entries]
     after Stop()
@@ -232,9 +232,9 @@ run(Call, Count, Start) ->
             run(Call, Count + 1, Start)
     end.
 
-%% What the host's side of a scenario gives, measured as foreign code.
+%% What the host's side of a scenario gives, measured, where it has one.
 foreign(none, _) -> none;
-foreign(Host, Measure) -> ern_rt:in_foreign(fun() -> Measure(Host) end).
+foreign(Host, Measure) -> Measure(Host).
 
 %% The bytes a call allocates, counted in the process that makes it, since
 %% a port's or a socket's answers come to the process that opened it. The
@@ -263,9 +263,6 @@ counter() ->
     {Count, fun() -> exit(Tracer, kill) end}.
 
 counted(Call, Tracer, Heap) ->
-    ern_rt:in_foreign(fun() -> counted_now(Call, Tracer, Heap) end).
-
-counted_now(Call, Tracer, Heap) ->
     MinHeap = erlang:process_flag(min_heap_size, Heap),
     MinBinHeap = erlang:process_flag(min_bin_vheap_size, Heap),
     _ = erlang:trace(erlang:self(), true, [garbage_collection, {tracer, Tracer}]),
@@ -282,7 +279,7 @@ counted_now(Call, Tracer, Heap) ->
          _} ->
             (words(Holds) - words(Left)) * erlang:system_info(wordsize);
         {_, true} ->
-            counted_now(Call, Tracer, Heap * 8);
+            counted(Call, Tracer, Heap * 8);
         {_, false} ->
             {more_than, Heap * erlang:system_info(wordsize)}
     end.
