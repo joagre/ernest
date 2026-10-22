@@ -125,12 +125,16 @@ the order they are built; the report's sections change as each build starts.
   cost one process about 120 ns more and eight a twentieth; measured in `call.txt` before and
   after, and only a constant that is no fraction after it opens a §6.9 question of a local record
   of a callee's callers.
-- **The library's table compared by its ratios** (found 2026-10-22 building the comparison): the
-  library's part measures each operation as the fastest of three timings against the host's at
-  the same moment, and two runs with nothing changed moved a fifth of its 1,100 numbers by more
-  than a fifth, whole modules together, so it stands outside the comparison. Its ratio column,
-  Ernest's time over the host's measured together, cancels the machine's state: the comparison
-  takes the library's table by its ratios, with the same bound; about an hour.
+- **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
+  decided with the user the same day): a comparison with the last run alone catches a step and
+  not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
+  reference, the last release's run, which the release review keeps as `test/build/bench/release/`
+  when it runs the bench (`docs/release_review.md` gains the step), and names every row that moved
+  by more than the bound against either. A ratio column, Ernest's time over the host's measured
+  together, cancels the machine's state, so the comparison takes a table by its ratios where it
+  has them and by its times where it does not; that brings the library's table in too, which
+  stood outside since its fastest-of-three measure moved a fifth of its 1,100 numbers between two
+  runs with nothing changed, whole modules together. About half a day.
 - **A top-level `let` that is a ground term**, §11.1 first: a binding whose initializer is a
   literal, or a constructor, tuple or list of literals, is compiled to the term at each read,
   which the host keeps in its literal area, 2 ns against the persistent term's 36 by a tuple key;
