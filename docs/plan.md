@@ -82,16 +82,19 @@ Made 2026-10-22 from what MVP 3.29's last measurement turned up beyond its items
 milestone closed, and from what the user's new machine asks for on its first day.
 
 - **A `Float` expression's checks** (found 2026-10-22 measuring the language against the host,
-  the log's *The Language Against the Host*): a dot product's five operations take 30.5 ns against
-  the host's 13.2, 2.3 times, and the tries are half of what the ray tracer adds to its twin, 88 of
-  180 ms. The emitter writes each operation in a `try` of its own, so each result of a chain is
-  boxed on the heap where the host keeps the chain in its float registers and boxes the last. A
-  design question, §3.1 and §7.3 first: the host itself refuses an operation whose result is not
-  finite, so the `try` is for the fault's cause and site alone; one `try` around an expression's
-  chain, the site the expression's, keeps the cause and gives the host its registers, and what a
-  reader loses is the operation within the expression. Weighed on principle 1 against the number,
-  decided with the user before anything is built; measured in `language.txt`'s dot row and
-  `programs.txt`'s ray tracer before and after.
+  the log's *The Language Against the Host*), decided with the user 2026-10-22 (the log's *The
+  Sitting on §8.6's Bookkeeping*, its paragraph *The Float chain*): a dot product's five operations
+  took 30.5 ns against the host's 13.2, the emitter writing each in a `try` of its own so that each
+  result of a chain is boxed where the host keeps the chain in its registers. The host refuses
+  every non-finite result itself, so the `try` only told a float's `badarith` from an integer
+  division's and carried the operation's source. Decided: no `try`; the emitter writes the chain
+  as the host's own, the `+ 0.0` of a product or a quotient kept for §3.1's zero, and the runtime,
+  where it already turns an uncaught `badarith` into a fault, reads the raising frame's operands,
+  floats for `float arithmetic error` and integers for `division by zero`, the line the host's from
+  the same stack; every site that turns a host error into a fault goes through that one reading.
+  Verified before the build: the host's frame carries the operands and the operation's line in
+  compiled code. The report is unchanged, §3.1 and §7.3 holding as they stand. Measured in
+  `language.txt`'s dot row and `programs.txt`'s ray tracer before and after; about half a day.
 - **`Map.get` read with a default**, closed 2026-10-22: the read takes 13.2 ns against
   `maps:get/3`'s 5.1, 2.6 times, and the cost is the `Optional` E.3's `get` answers, built by the
   adapter and taken apart by the program; the host's own `maps:find/2` and a `case`, which answer
