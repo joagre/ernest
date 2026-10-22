@@ -110,6 +110,17 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 `Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it.
 
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn from those the node knows, carrying its code there as the spawn does, and answers the value, or `Left` with the reason where no peer can be reached within `ms`:
+
+```ernest-fragment
+match Peer.compute(fn() = render(scene, row), 5000) {
+    Right(pixels) -> putRow(row, pixels)
+  | Left(failure) -> Io.println("no peer: " <> Io.show(failure))
+}
+```
+
+Nothing was installed on the peer, and nothing names it: the node that ran `render` was whichever had room when the row was asked for.
+
 ### A distribution built for a WAN
 
 A node is Ernest started from a configuration directory, with a program or with none. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
