@@ -121,6 +121,24 @@ load_test() ->
     ?assert(erlang:module_loaded('ern@plug@bad')),
     ?assertNot(erlang:module_loaded('ern@plug@bad$2')).
 
+%% Appendix E.28, report §3.1, §7.4, §8.5: a binding that meets the float
+%% fault in a load's evaluation answers it as §8.5 reports it, with the
+%% binding's line, as the runtime reads it anywhere. A regression test,
+%% written after the code (the log's *The Float chain*)
+load_float_fault_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/floats.ern",
+          "fn big() : Float = Float.max(1.0e300, 0.0)\n\n"
+          "let broken : Float = big() * big()\n"),
+    built(Lib, "plug/floats.ern"),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/floats.erc\"))))\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Other(\"Plug.Floats.broken:3 faulted: float arithmetic error\"))">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
 %% Appendix E.28, report §6.9, §11.2: a load whose binding faults while a
 %% monitor's wrap of the module it brought still runs, in the runtime's own
 %% process for the Down's delivery, is undone all the same: the process the

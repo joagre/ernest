@@ -2163,17 +2163,46 @@ run(Function) ->
 %% trace, the host's stack where it was met (Appendix E.21): a fault a
 %% process meets in its own code has the stack the raise kept, a throw of
 %% the prelude's `fault` and the runtime's among them, whose stack is the
-%% throw's; one raised with its trace, a foreign function's raise and a
-%% fault met on a message's way (§6.5), keeps it, and one a compute
-%% carried keeps the peer's (§8.7). A failure of the runtime is the host's
-%% class and reason.
+%% throw's, and the host's badarith, whose cause the stack tells
+%% (arithmetic_cause/1); one raised with its trace, a foreign function's
+%% raise and a fault met on a message's way (§6.5), keeps it, and one a
+%% compute carried keeps the peer's (§8.7). A failure of the runtime is the
+%% host's class and reason. Every place a host error becomes a fault reads
+%% it here.
 -spec fault_exit_reason(error | exit | throw, term(), list()) -> tuple().
-fault_exit_reason(error, badarith, Stack) -> {ern, fault, <<"division by zero">>, trace(Stack)};
+fault_exit_reason(error, badarith, Stack) -> {ern, fault, arithmetic_cause(Stack), trace(Stack)};
 fault_exit_reason(throw, {ern, fault, Cause}, Stack) -> {ern, fault, Cause, trace(Stack)};
 fault_exit_reason(throw, {ern, fault, _, _} = Fault, _) -> Fault;
 fault_exit_reason(throw, {ern, carried, _, _} = Carried, _) -> Carried;
-fault_exit_reason(Class, Error, Stack) ->
-    {ern, fault, format("~p:~p", [Class, Error]), trace(Stack)}.
+fault_exit_reason(Class, Error, Stack) -> {ern, fault, host_cause(Class, Error), trace(Stack)}.
+
+%% Report §3.1, §7.4: the cause of the host's badarith, read from its stack
+%% where it was met. An Int `/` or `%` by zero is the host's `div` or `rem`,
+%% whose frame holds its integer operands. A Float operation whose result
+%% is not finite is the host's operation on floats: its frame holds them
+%% where the host's compiler did not know they were floats, and where it
+%% knew, the host computed in its float registers and raised in the
+%% program's own frame, with no frame of its own. Any other badarith is no
+%% operation of the program's, a failure of the runtime, the host's class
+%% and reason.
+arithmetic_cause([{erlang, Operator, [Left, Right], _} | _])
+  when is_integer(Left), is_integer(Right), (Operator =:= 'div' orelse Operator =:= 'rem') ->
+    <<"division by zero">>;
+arithmetic_cause([{erlang, Operator, [Left, Right], _} | _])
+  when is_float(Left), is_float(Right),
+       (Operator =:= '+' orelse Operator =:= '-' orelse Operator =:= '*' orelse Operator =:= '/') ->
+    <<"float arithmetic error">>;
+arithmetic_cause([Frame | _]) ->
+    case is_program_frame(Frame) of
+        true -> <<"float arithmetic error">>;
+        false -> host_cause(error, badarith)
+    end;
+arithmetic_cause([]) ->
+    host_cause(error, badarith).
+
+%% A failure of the runtime's as a cause, the host's class and reason.
+host_cause(Class, Error) ->
+    format("~p:~p", [Class, Error]).
 
 %% Report §7.4, §9.6: a fault with the cause given, every fault the
 %% runtime raises and the prelude's `fault` taken as a value, whose trace

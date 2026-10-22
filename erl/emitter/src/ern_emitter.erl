@@ -973,9 +973,7 @@ plain_operator(Source, Operator, Left, Right, Type, Context) ->
     case Type of
         {tcon, ['Float'], []}
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/' ->
-            {[LeftName, RightName], Context2} = fresh_variables(2, "Operand", Context1),
-            {float_operation(Source, Operator, {LeftForm, RightForm}, {LeftName, RightName}),
-             Context2};
+            {float_operation(Source, Operator, LeftForm, RightForm), Context1};
         _ ->
             {binop(Operator, Type, LeftForm, RightForm, Context), Context1}
     end.
@@ -1755,7 +1753,7 @@ service_hash({service, Type}) ->
 %% Report §4.8, §3.10, §5.1: by the operand type. Int's arithmetic, and
 %% the ordering of the four ordered prelude types, Int, Float, String and
 %% Char, are Erlang's operators; Float's arithmetic is
-%% float_operation/5; a user type's operator is its member, applied by
+%% float_operation/4; a user type's operator is its member, applied by
 %% member_applied/3 and ordered/2, and never reaches here.
 binop(Operator, {tcon, ['Int'], []}, Left, Right, _)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*' ->
@@ -1780,31 +1778,23 @@ binop('<=', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operato
 binop(Operator, _, Left, Right, _) when Operator =:= '<'; Operator =:= '>'; Operator =:= '>=' ->
     erl_syntax:infix_expr(Left, erl_syntax:operator(Operator), Right).
 
-%% Report §3.1, §7.4: a Float operation inline, its operands bound first so
-%% that only its own badarith becomes the float fault; an Int division by
-%% zero inside an operand stays that fault. Report §7.3, Appendix E.21: the
-%% fault is raised at the operation's Source, so that the trace's frame
-%% has its line.
-float_operation(Source, Operator, {Left, Right}, {LeftName, RightName}) ->
-    Cause = erl_syntax:string("float arithmetic error"),
-    Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
-    Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
-    Handler = erl_syntax:clause([Badarith], none, [at(Source, raised(Text))]),
-    Plain = erl_syntax:infix_expr(erl_syntax:variable(LeftName), erl_syntax:operator(Operator),
-                                  erl_syntax:variable(RightName)),
+%% Report §3.1, §7.4: a Float operation is the host's own, which refuses a
+%% result that is not finite with its badarith, so that a chain stays in
+%% the host's float registers; the runtime reads the float fault from the
+%% host's stack where it is met (ern_rt:fault_exit_reason/3). Report §7.3,
+%% Appendix E.21: the operation's own form stands at its Source, so that
+%% the frame that meets the fault has its line.
+float_operation(Source, Operator, Left, Right) ->
+    Plain = at(Source, erl_syntax:infix_expr(Left, erl_syntax:operator(Operator), Right)),
     %% report §3.1: under round to nearest a sum or a difference of operands
     %% that are not negative zero is never one, and no operand is; a product
     %% or a quotient may be, and + 0.0 turns it into 0.0 and keeps any other
-    Operation = case Operator of
-                    _ when Operator =:= '*'; Operator =:= '/' ->
-                        erl_syntax:infix_expr(Plain, erl_syntax:operator('+'),
-                                              erl_syntax:float(0.0));
-                    _ ->
-                        Plain
-                end,
-    erl_syntax:block_expr([erl_syntax:match_expr(erl_syntax:variable(LeftName), Left),
-                           erl_syntax:match_expr(erl_syntax:variable(RightName), Right),
-                           erl_syntax:try_expr([Operation], [Handler])]).
+    case Operator of
+        _ when Operator =:= '*'; Operator =:= '/' ->
+            erl_syntax:infix_expr(Plain, erl_syntax:operator('+'), erl_syntax:float(0.0));
+        _ ->
+            Plain
+    end.
 
 negate({tcon, ['Float'], []}, Form) ->
     %% report §3.1: 0.0 - x, so that negating 0.0 gives 0.0

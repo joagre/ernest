@@ -488,6 +488,28 @@ faulting_binding_named() ->
     ?assertMatch({_, _}, binary:match(Raised, <<"Raise.bad:3 faulted: foreign function"
                                                 " erlang:error/1 raised error:7\n    ">>)).
 
+%% report §3.1, §7.4, §11.2: the float fault at the prompt is the input's
+%% own, and a file whose top-level binding meets it does not start the
+%% shell, the binding named with its line, as the runtime reads the fault
+%% anywhere. A regression test, written after the code (the log's *The
+%% Float chain*)
+float_fault_at_prompt_test_() ->
+    {timeout, 60, fun float_fault_at_prompt/0}.
+
+float_fault_at_prompt() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "1.0e300 * 1.0e300\n"),
+    {0, Output} = ern_pty:sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"fault: float arithmetic error">>)),
+    ok = file:write_file(filename:join(Dir, "init.ern"),
+                         "fn big() : Float = Float.max(1.0e300, 0.0)\n\n"
+                         "let bad : Float = big() * big()\n"),
+    Ern = filename:absname("../bin/ern"),
+    {0, _} = ern_pty:sh("cd " ++ Dir ++ " && " ++ Ern ++ " build init.ern"),
+    {1, Loaded} = ern_pty:sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell init.erc < /dev/null"),
+    ?assertMatch({_, _}, binary:match(Loaded, <<"Init.bad:3 faulted: float arithmetic error">>)).
+
 %% report §11.2, §11.1: `:load` compiles from its source a module the
 %% loaded one uses that the session has not loaded, and compiles it against
 %% the session's modules; `:reload` compiles again, with a changed module,

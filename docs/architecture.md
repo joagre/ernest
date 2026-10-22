@@ -131,7 +131,7 @@ Each construct's function says how it is written:
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
 - a fault the code meets, `raised/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
 - a requirement's members, `supply_form/2` and `enclosing_members/3` (§4.9);
-- a `Float` operation, `float_operation/5`, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
+- a `Float` operation, `float_operation/4`, the host's own operation with no `try`, whose fault the runtime reads, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
 - a type's descriptor, `describe/4`, a function type's maker, `built_descriptor/1`, and the printing of a check's cause, `printed/2` and `printing/2` (§8.4, §11.5);
 - whether the unit builds a function value, `function_value/2` (§11.2).
 
@@ -205,7 +205,7 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 
 ### Processes, calls and restarts
 
-- A spawn goes through the reaper, which writes the process's `ern_processes` row; `run/1` wraps every process body, so that an exception is a fault (§7.4).
+- A spawn goes through the reaper, which writes the process's `ern_processes` row; `run/1` wraps every process body, so that an exception is a fault (§7.4). `fault_exit_reason/3` makes the fault, and every place a host error becomes one goes through it: the host's `badarith` is `division by zero` where its frame holds the integer operands of `div` or `rem`, and `float arithmetic error` where it holds floats or where the host raised in the program's own frame from its float registers (`arithmetic_cause/1`, §3.1).
 - `send/2` applies an adapted address's functions (`adapted_way/2`), and a message to an address made on another node goes to that node's gateway (§6.5, §8.7).
 - A call (§6.6) is `call/3,4` and `call_forever/2,3`; a compute (§8.7) is `compute/3`, its process on the peer running `computing/2`.
 - `restarting/2` runs a restarting function, and `fresh_run/0` begins a new run (§6.9). `ask_restart/1`, `start_cause/0` and `spawn_order/1` are `Supervisor`'s shims (E.22).

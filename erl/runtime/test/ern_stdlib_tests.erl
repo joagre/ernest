@@ -578,8 +578,11 @@ float_test() ->
     ?assertEqual(3.5, Float('+')(Float('*')(1.5, 2.0), 0.5)),
     ?assertEqual(-1.0, Float('-')(1.0, 2.0)),
     ?assertEqual(0.5, Float('/')(1.0, 2.0)),
-    ?assertThrow({ern, fault, <<"float arithmetic error">>}, Float('/')(1.0, 0.0)),
-    ?assertThrow({ern, fault, <<"float arithmetic error">>}, Float('*')(1.0e308, 10.0)),
+    %% report §3.1, §7.4: the host's own operation, whose badarith the runtime
+    %% reads as the float fault
+    ?assertEqual(<<"float arithmetic error">>, fault_cause(fun() -> Float('/')(1.0, 0.0) end)),
+    ?assertEqual(<<"float arithmetic error">>,
+                 fault_cause(fun() -> Float('*')(1.0e308, 10.0) end)),
     %% report Appendix E.9, E.0 rule 2: div is `/` answered as an Optional,
     %% None where `/` faults, a zero divisor or a quotient past the range,
     %% and no negative zero (§3.1). A regression test of the principles
@@ -625,6 +628,15 @@ float_test() ->
     ?assertEqual({'Some', 0.0}, Float(asin)(0.0)),
     ?assertEqual('None', Float(acos)(-2.0)),
     ?assertEqual(0.0, Float(atan2)(0.0, 1.0)).
+
+%% The cause of the fault Call meets, as the runtime reads what it raised
+%% where a process ends with it (ern_rt:fault_exit_reason/3).
+fault_cause(Call) ->
+    try Call() of
+        Value -> {returned, Value}
+    catch
+        Class:Error:Stack -> element(3, ern_rt:fault_exit_reason(Class, Error, Stack))
+    end.
 
 %% report §3.1, §3.10: there is no negative zero, so a negative result too
 %% small for the range is the one zero, which `==` and `Float.compare` both

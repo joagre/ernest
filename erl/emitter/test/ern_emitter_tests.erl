@@ -518,14 +518,15 @@ trace_names_functions_test() ->
                   <<"Traced.helper:8">>, <<"Traced.main:11">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).
 
-%% report §7.3, Appendix E.21: a fault the emitter raises in place carries
-%% its line, so that the trace's first frame is the Ernest site with it: a
-%% Float operation's in a lambda of a top-level `let`, its frame named by
-%% the binding, and a foreign function's return declared `Unit` or a word
-%% that is no value of it, its frame the foreign function's at its
-%% declaration's line. A regression test, written after the code: each
-%% frame had no line, and the lambda's was the host's name; it does not
-%% cover a fault the runtime raises, whose frames are the runtime's
+%% report §7.3, Appendix E.21: a fault met in place carries its line, so
+%% that the trace's first frame is the Ernest site with it: a Float
+%% quotient's in a lambda of a top-level `let`, the host's own operation in
+%% its float registers, its frame named by the binding, and a foreign
+%% function's return declared `Unit` or a word that is no value of it, the
+%% emitter's raise, its frame the foreign function's at its declaration's
+%% line. A regression test, written after the code: each frame had no
+%% line, and the lambda's was the host's name; it does not cover a fault
+%% the runtime raises, whose frames are the runtime's
 raise_has_line_test() ->
     Frames = fun(Trace) -> binary:split(Trace, <<"\n">>, [global, trim]) end,
     {{fault, <<"float arithmetic error">>, FloatTrace}, _} =
@@ -1606,6 +1607,107 @@ float_fault_test() ->
                        "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0,"
                        " Float.+)))\n"),
     ?assertMatch({fault, <<"float arithmetic error">>, _}, Result5).
+
+%% report §3.1, §7.3, §7.4: a Float operation is the host's own, and the
+%% runtime reads its fault from the host's stack: the cause, and the trace
+%% naming the operation's line, the line its expression begins on (§11.5).
+%% Where the host's compiler does not know the operands are floats, its
+%% operation's frame stands first, holding them; where it knows, it
+%% computes in its float registers and raises in the program's own frame,
+%% as in a chain of three operations on three lines whose middle one
+%% faults. An Int zero divisor keeps its own cause, the host's `div` first.
+%% A regression test, written after the code (the log's *The Float
+%% chain*): each operation was a `try` of its own; it holds the host's
+%% compiler as OTP 29 has it, and a change of what that compiler knows of
+%% the operands changes the first frame
+float_chain_fault_test() ->
+    Frames = fun(Trace) -> binary:split(Trace, <<"\n">>, [global, trim]) end,
+    Big = "fn big() : Float = Float.max(1.0e300, 0.0)\n",
+    {{fault, <<"float arithmetic error">>, Product}, _} =
+        run(Big ++ "export fn main() : Unit =\n"
+                   "    Io.println(Float.toString(big() * big()))\n"),
+    ?assertEqual([<<"erlang:'*'/2">>, <<"M.main:3">>], Frames(Product)),
+    {{fault, <<"float arithmetic error">>, Chain}, _} =
+        run(Big ++ "fn chain(x : Float, y : Float) : Float = {\n"
+                   "    let sum = x + y;\n"
+                   "    let product = sum * x;\n"
+                   "    product - y\n"
+                   "}\n"
+                   "export fn main() : Unit =\n"
+                   "    Io.println(Float.toString(chain(big(), 1.0)))\n"),
+    ?assertEqual([<<"M.chain:4">>, <<"M.main:8">>], Frames(Chain)),
+    {{fault, <<"float arithmetic error">>, Undefined}, _} =
+        run("export fn main() : Unit =\n"
+            "    Io.println(Float.toString(0.0 / 0.0))\n"),
+    ?assertEqual([<<"M.main:2">>], Frames(Undefined)),
+    {{fault, <<"division by zero">>, Division}, _} =
+        run("fn zero() : Int = List.size([])\n"
+            "export fn main() : Unit =\n"
+            "    Io.println(Int.toString(1 / zero()))\n"),
+    ?assertEqual([<<"erlang:'div'/2">>, <<"M.main:3">>], Frames(Division)).
+
+%% report §3.1, §7.4, §11.1: a chain of Float operations is written as the
+%% host's own, with no `try`, a product and a quotient adding 0.0 so that
+%% neither is a negative zero, as `--emit-erl` writes it. A regression test,
+%% written after the code (the log's *The Float chain*): each operation was
+%% a `try` of its own, its operands bound first
+float_chain_emitted_test() ->
+    {ok, Typed, _, Env} =
+        ern_typecheck:check_string(['M'], "export fn f(a : Float, b : Float, c : Float) : Float =\n"
+                                          "    a * b + b * c - c / a\n"),
+    Emitted = emitted(['M'], Typed, Env),
+    ?assertMatch({_, _}, binary:match(Emitted, <<"'$1'(A_1, B_2, C_3) ->\n"
+                                                 "    A_1 * B_2 + 0.0 + (B_2 * C_3 + 0.0) -"
+                                                 " (C_3 / A_1 + 0.0).\n">>)),
+    ?assertEqual(nomatch, binary:match(Emitted, <<"try">>)).
+
+%% report §3.1, §7.3, §7.4, §6.9, Appendix E.24: the float fault the
+%% runtime reads is the same wherever the process is: a restarting run's,
+%% reported as it restarts and at its last fault with the operation's
+%% line, a run `Test.faults` judges, and the program's function foreign
+%% code calls, which the foreign function passes on as itself (§8.4). A
+%% regression test, written after the code (the log's *The Float chain*)
+float_fault_everywhere_test() ->
+    Self = self(),
+    Faults = fun({'FaultReport', _, Site, Cause, Restarted, Trace, _}, _) ->
+                     Self ! {fault, Site, Cause, Restarted, Trace}
+             end,
+    Big = "fn big() : Float = Float.max(1.0e300, 0.0)\n",
+    {Restarting, Output} =
+        run(['M'], "type Msg = Ended(Down)\n" ++ Big ++
+                   "export fn main() : Unit receiving Msg = {\n"
+                   "    let limit = RestartLimit(restarts = 1, within = 60000);\n"
+                   "    let _ = spawnMonitored(restarting(limit, fn() =\n"
+                   "        Io.println(Float.toString(big() * big()))), Ended);\n"
+                   "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
+                   "}\n",
+            #{faults => Faults}),
+    ?assertEqual({ok, <<"Fault(\"float arithmetic error\")\n">>}, {Restarting, Output}),
+    Reported = [receive {fault, Site, Cause, Restarted, Trace} -> {Site, Cause, Restarted, Trace}
+                after 0 -> none
+                end || _ <- [first, last]],
+    Trace = <<"erlang:'*'/2\nM.main:6\n">>,
+    ?assertEqual([{<<"M.main:5">>, <<"float arithmetic error">>, true, Trace},
+                  {<<"M.main:5">>, <<"float arithmetic error">>, false, Trace}], Reported),
+    {ok, Judged} =
+        run(Big ++ "fn zero() : Int = List.size([])\n"
+                   "export fn main() : Unit = {\n"
+                   "    Io.println(Io.show(Test.faults(fn() = big() * big(),"
+                   " \"float arithmetic error\")));\n"
+                   "    Io.println(Io.show(Test.faults(fn() = 1 / zero(),"
+                   " \"float arithmetic error\")))\n"
+                   "}\n"),
+    ?assertEqual(<<"Passed\nFailed(\"expected the fault float arithmetic error, got the fault"
+                   " division by zero\")\n">>, Judged),
+    {{fault, <<"float arithmetic error">>, Called}, Printed} =
+        run("foreign fn each(f : (a) -> Unit receiving m, xs : List(a)) : Unit receiving m ="
+            " \"lists:foreach/2\"\n"
+            "export fn main() : Unit =\n"
+            "    each(fn(x : Float) = Io.println(Float.toString(x * x)),\n"
+            "        [2.0, 1.0e300])\n"),
+    ?assertEqual(<<"4.0\n">>, Printed),
+    ?assertMatch([<<"erlang:'*'/2">>, <<"M.main:3">> | _],
+                 binary:split(Called, <<"\n">>, [global, trim])).
 
 %% report §3.1: there is no negative zero; an operation, a negation, a
 %% float segment, parsed text, and a foreign value give 0.0. A sum or a
