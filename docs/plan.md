@@ -227,13 +227,30 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   finding for an item of its own, never this one's tail. Both are parts of `make bench`,
   `language.txt` and `programs.txt`, the Erlang twins fixtures under the test tree, so that the
   comparison watches them; about two days, and the entry the claim below cites.
+- **The runtime's design note**, under `docs/design/` as the shell's is (decided with the user
+  2026-10-22):
+  the runtime's implementation choices had three homes and no page stating them as they stand,
+  the code's comments citing the report, the log arguing each by its date, and the glossary
+  naming them. The note is the component's design note, as the shell's and the installation's
+  are, in the code comment's register, current state and no why: the process model, the reaper,
+  the system processes, the entry process and a launch's row; what the runtime keeps and where, a
+  process's own in its dictionary, the shared rows each with its outside reader, the host's
+  one-word terms, and the kill's one read of a suspended victim; the look, what can deliver and
+  what it reads, and the rule that no operation writes a shared row for it; a call's records,
+  what a restart ends and what a kill drops; the boundary's checks; and nodes, the fifteen frames
+  in one list and the exchange pointing at its record. Each line cites the report section it
+  implements and names the log entry that argues it. `architecture.md` keeps the module map and
+  points at it; two tests hold the table list against `tables/0` and the frame list against the
+  gateway's reader; `docs/README.md` lists it. Written as this milestone's closing documents
+  commit, after the last build, so that it states the runtime that ships; about a day.
 - **Deadlock detection among *Why Ernest*'s claims**, last: a sixth claim in `guide/why.md`, with
   no program, and its line in the README's list: a program that waits forever ends with
   `Fault("deadlock")`, which no other language on the host can decide, since Ernest's runtime
   owns every source of a message, a typed mailbox, a process it spawned, a system process that
   counts what it holds, and a node turned off since a peer can reach it (§8.6; the log's *Deadlock
   Is Quiescence*); and what it costs a program, a mark in its own state and a look when it is
-  idle, which the builds above make true before the claim is written.
+  idle, which the builds above make true before the claim is written, and which the claim cites
+  the runtime's design note for.
 
 ## MVP 3.3 (the tour)
 
