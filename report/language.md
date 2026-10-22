@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 21 October 2026.
+Revision of 22 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -967,7 +967,7 @@ For a program that is no node, a signal from outside, the host's termination or 
 
 A node that ends is no loss to its peers (§8.7). A process this program spawned on a peer runs on there.
 
-When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18) holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message; a program that `Os.start` started counts as such a computation until it has exited or been killed, and a subscription to the program's end as such a subscription (Appendix E.23). The runtime counts a standard library operation as such a computation where the module that implements it says the operation waits. A node (§8.3) detects no deadlock: it can be reached from outside, by a message, a spawn or a connection. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
+When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18) holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message; a program that `Os.start` started counts as such a computation until it has exited or been killed, and a subscription to the program's end as such a subscription (Appendix E.23). The runtime counts a standard library operation as such a computation where the module that implements it says the operation waits. A process inside foreign code (§8.4) is not waiting, since the foreign side may still deliver to it; the runtime reads that from the process itself, and no call declares it. A node (§8.3) detects no deadlock: it can be reached from outside, by a message, a spawn or a connection. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
 
 ### 8.7 Nodes
 
