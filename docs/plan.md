@@ -257,8 +257,9 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   is the host's `lists:map/2` written in Ernest, within E.0 rule 1, and every other row is a
   fraction. The release's run holds neither new table until the review before 0.5.0 keeps one.
   Its log entry is the one the claim below cites.
-- **The runtime's design note**, under `docs/design/` as the shell's is (decided with the user
-  2026-10-22):
+- **The runtime's design note**, `docs/design/runtime.md`, written 2026-10-22 (decided with the
+  user the same day; its two tests are the item's last piece, held against `tables/0` and the
+  gateway's reader):
   the runtime's implementation choices had three homes and no page stating them as they stand,
   the code's comments citing the report, the log arguing each by its date, and the glossary
   naming them. The note is the component's design note, as the shell's and the installation's
@@ -276,8 +277,10 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   points at it; two tests hold the table list against `tables/0` and the frame list against the
   gateway's reader; `docs/README.md` lists it. Written as this milestone's closing documents
   commit, after the last build, so that it states the runtime that ships; about a day.
-- **Deadlock detection among *Why Ernest*'s claims**, last: a sixth claim in `guide/why.md`, with
-  no program, and its line in the README's list: a program that waits forever ends with
+- **Deadlock detection among *Why Ernest*'s claims**, written 2026-10-22, the sixth claim in
+  `guide/why.md`, *A deadlock is found*, with no program, and its line in the README's list; the
+  tour stays on the five, decided with the user the same day, since a deadlock found is a net
+  under the programmer and not a move the program makes: a program that waits forever ends with
   `Fault("deadlock")`, which no other language on the host can decide, since Ernest's runtime
   owns every source of a message, a typed mailbox, a process it spawned, a system process that
   counts what it holds, and a node turned off since a peer can reach it (§8.6; the log's *Deadlock

@@ -151,7 +151,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 
 ## The runtime
 
-`ern_rt` is what compiled code calls for processes, and the runner. Its header comment gives a value's representation (§8.4), the shapes of an address and a reply (§6.5, §6.6), and the answers a call takes.
+`ern_rt` is what compiled code calls for processes, and the runner. Its header comment gives a value's representation (§8.4), the shapes of an address and a reply (§6.5, §6.6), and the answers a call takes. The shape the runtime keeps its promises by, what it keeps and where, the look, a launch, a call, a kill, the boundary and the frames, is [`design/runtime.md`](design/runtime.md)'s; this section is the map of its modules and functions.
 
 ### The tables
 

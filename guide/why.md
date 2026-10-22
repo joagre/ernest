@@ -1,6 +1,6 @@
 # Why Ernest
 
-The argument for the design, in five claims, and a program for each but the last. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
+The argument for the design, in six claims, and a program for each but the last two. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
 
@@ -221,6 +221,14 @@ $ ern run unique.erc
 ### Little else
 
 No program shows this claim. Its evidence is the report under `report/`: the language, the toolchain and the library, a file each, which state everything the programs above rely on.
+
+### A deadlock is found
+
+No program shows this claim; its evidence is a line of the report and a page of the design. A program in which every process waits for a message none can send ends with `Fault("deadlock")` and a trace, under `ern run`, under `ern test`, where it is the test's fault and the run goes on, and in the shell (report §8.6, §11.2). On Erlang that program waits forever, and a programmer learns of it from a timeout, a dashboard or a user, which is why every call there carries a default of five seconds.
+
+Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; a timer, a socket, a file and a running program are system processes that count what they hold; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach. A deadlock is quiescence, not a cycle, and the look may be late but is never wrong.
+
+What it costs a program is what the design note of the runtime states ([`docs/design/runtime.md`](../docs/design/runtime.md)): a mark a process leaves in its own state as it enters foreign code through a callback, a timed receive or a call, which costs it nanoseconds and no other process anything; and one reading of every process when the program seems idle, which a program at work never pays. A foreign call that answers at once costs what the host's call costs and a `try`. The log's *The Sitting on §8.6's Bookkeeping* measured each piece.
 
 ## Reading on
 
