@@ -1592,15 +1592,20 @@ spawn_on_peer(Base) ->
 %% that crossed with it beneath, a cause of §7.4's as a raise's (§7.3, a
 %% regression test of 2026-10-20), and the store reports nothing, its
 %% subscriber told nothing; a process killed before it answers Other with
-%% its Reason; a process whose caller ends while it waits, and one whose
-%% time runs out, killed on the store, whose watcher, monitoring each, says
-%% so; and a process that ends with the store's program Other with
-%% ProgramEnd. A regression test, written after the code; it does not cover
+%% its Reason; a process whose caller ends while it waits, one whose
+%% function kills its caller from the store, a kill the desk carries out as
+%% its own, which reads the caller's call and sends its second note (§6.9),
+%% and one whose time runs out, killed on the store, whose watcher,
+%% monitoring each, says so; and a process that ends with the store's
+%% program Other with ProgramEnd. A regression test, written after the
+%% code, the kill from the store's after the kill frame's (MVP 3.29); it
+%% reads no row of either node's, which ern_rt_tests and ern_peer_tests
+%% read; it does not cover
 %% a second note that comes before the compute's process could start, which
 %% the store's gateway reads first, nor a loss while the caller waits, which
 %% reconnect_test_'s is
 compute_test_() ->
-    nodes_test({waits, 10}, fun compute_on_peer/1).
+    nodes_test({waits, 11}, fun compute_on_peer/1).
 
 compute_on_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -1609,6 +1614,7 @@ compute_on_peer(Base) ->
     prints(Store, "offered"),
     WaitDesk = start(Desk, DeskProgram, ["compute"]),
     prints(Store, "the abandoned compute's process ended: Killed"),
+    prints(Store, "the killing compute's process ended: Killed"),
     prints(Store, "the timed-out compute's process ended: Killed"),
     prints(Desk, "now stop the store"),
     stop(Store, WaitStore),
@@ -1624,7 +1630,8 @@ compute_on_peer(Base) ->
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
                  " error:badarg\")",
                  "reported here: " ++ Faulted ++ Raised ++ " true",
-                 "killed: Left(Other(\"Killed\"))", "timed out: Left(Timeout)",
+                 "killed: Left(Other(\"Killed\"))", "its caller killed from the store: Killed",
+                 "timed out: Left(Timeout)",
                  "with the store's end: Left(Other(\"ProgramEnd\"))"]],
     Divided = Faulted ++ " faulted: division by zero\n",
     ?assertEqual(1, length(string:split(Err, Divided, all)) - 1),

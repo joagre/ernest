@@ -6,13 +6,14 @@
 %% reply's alias, the request sent, a receive with an `after`, the monitor
 %% dropped. ern_rt's call/4 reads the callee through the address and sends
 %% the request by its way (line_guard/1, process_of/1, adapted_way/2), so
-%% that a checker or an adapted function is honored; writes the call's two
-%% rows, the callee's in the callees table so that its restart ends the
-%% call (§6.9) and the caller's in the calls table for the look's request
-%% in flight (§8.6), and deletes them as the call ends (pending/2,
-%% uncalled/1), each a piece of its own; marks the caller as in a timed
-%% receive while it waits, a key in its dictionary (timed/0, untimed/0,
-%% §8.6); takes the answer among the forms a wait
+%% that a checker or an adapted function is honored; keeps the call's two
+%% records, the callee's row in the callees table so that its restart ends
+%% the call (§6.9), and the caller's CALL key in its dictionary, which the
+%% look reads for a request in flight (§8.6) and a kill before it kills
+%% (§6.9), and drops them as the call ends (pending/2, uncalled/0), each a
+%% piece of its own; marks the caller as in a timed receive while it waits,
+%% a key in its dictionary (timed/0, untimed/0, §8.6); takes the answer
+%% among the forms a wait
 %% takes, a restart and a fault's among them, the answer of foreign code
 %% checked (waited_answer/3, §8.4), where an Ernest callee's answer is not;
 %% and waits against a deadline in slices of the host's longest wait, in a
@@ -23,8 +24,8 @@
 %% code, then `Address.call` and `Address.callForever` of an Ernest
 %% counter, the code the compiler writes, its callee too; first the three
 %% beside the host's call, then each model; and each of the call's writes
-%% on the runtime's tables alone, by one process and by eight at once,
-%% beside the timed key in the process's dictionary. Every row runs in a launch of
+%% alone, the callee's row on the runtime's table and the two keys in the
+%% process's dictionary, by one process and by eight at once. Every row runs in a launch of
 %% its own, its callers and callees processes the runtime spawns, each with
 %% its row as a program's has, started at once and timed until every
 %% caller has made its calls (ern_spawn_costs:at_once/2), in nanoseconds a
@@ -45,9 +46,10 @@
 -define(MS, 10000).
 %% A spawn site, as the compiler supplies one (report §6.9).
 -define(SITE, <<"Call.costs:1">>).
-%% The runtime's tables of calls (ern_rt's ?CALLS and ?CALLEES).
--define(CALLS, ern_calls).
+%% The runtime's table of calls by callee, and the caller's key (ern_rt's
+%% ?CALLEES and ?CALL).
 -define(CALLEES, ern_callees).
+-define(CALL, '$ern_call').
 %% The module the counter is compiled into.
 -define(NAMESPACE, ['CallCosts']).
 
@@ -106,7 +108,7 @@ rows(Unit, Callers, Callees) ->
              {"+ the callee read through the address, the request sent by its way", Host,
               fun addressed/2},
              {"+ the callee's row, so that its restart ends the call", Host, fun restartable/2},
-             {"+ the caller's row, the look's request in flight", Host, fun rowed/2},
+             {"+ the caller's CALL key, which the look and a kill read", Host, fun keyed/2},
              {"+ the caller marked as in a timed receive", Host, fun marked/2},
              {"+ the answer given by answer/2, among the forms a wait takes", Ernest,
               fun answered/2},
@@ -138,12 +140,11 @@ called(Call, Request, Callee, Left) ->
     _ = Call(Callee, Request),
     called(Call, Request, Callee, Left - 1).
 
-%% Each write of the call's on the runtime's tables, alone in a loop, by
-%% one process and by ?AT_ONCE at once, each a process the runtime spawns,
-%% with its row, each writing its own key: the callee's row written and
-%% deleted, the caller's row written and taken, the count raised and
-%% lowered, and a mark put and erased in the process's dictionary beside
-%% them.
+%% Each write of the call's, alone in a loop, by one process and by
+%% ?AT_ONCE at once, each a process the runtime spawns, with its row, each
+%% writing its own key: the callee's row written and deleted on the
+%% runtime's table, and the call's key and the timed key put and erased in
+%% the process's dictionary.
 operations() ->
     Callee = self(),
     [{Name ++ Processes,
@@ -157,10 +158,10 @@ operations() ->
                   ets:insert(?CALLEES, {{Callee, self()}, Callee}),
                   ets:delete(?CALLEES, {Callee, self()})
               end},
-             {"the caller's row written and taken",
+             {"the call's key put and erased",
               fun() ->
-                  ets:insert(?CALLS, {self(), Callee, Callee}),
-                  ets:take(?CALLS, self())
+                  _ = put(?CALL, {Callee, Callee}),
+                  erase(?CALL)
               end},
              {"the timed key put and taken, timed/0 and untimed/0",
               fun() -> ern_rt:timed(), ern_rt:untimed() end}],
@@ -248,10 +249,10 @@ restartable(Address, Request) ->
     flushed(Reply),
     Answer.
 
-%% + the caller's row in the calls table beside it, which the look reads
-%% for a request in flight to a system process (§8.6) and by which the
-%% callee's row is found and deleted: pending/2 and uncalled/1 whole.
-rowed(Address, Request) ->
+%% + the caller's CALL key in its dictionary beside it, which the look
+%% reads for a request in flight to a system process (§8.6) and a kill
+%% before it kills (§6.9): pending/2 and uncalled/0 whole.
+keyed(Address, Request) ->
     guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
@@ -365,15 +366,18 @@ guarded() ->
 
 %% ern_rt's pending/2 for a callee of this node.
 pending(Callee, Reply) ->
-    ets:insert(?CALLS, {self(), Callee, Reply}),
-    ets:insert(?CALLEES, {{Callee, self()}, Reply}),
-    node(Callee) =:= node() orelse error(other_node).
+    _ = put(?CALL, {Callee, Reply}),
+    node(Callee) =:= node() orelse error(other_node),
+    ets:insert(?CALLEES, {{Callee, self()}, Reply}).
 
-%% ern_rt's uncalled/1 for a callee of this node.
+%% ern_rt's uncalled/0 for a callee of this node.
 uncalled() ->
-    case ets:take(?CALLS, self()) of
-        [{_, Callee, _}] -> ets:delete(?CALLEES, {Callee, self()});
-        [] -> true
+    case get(?CALL) of
+        undefined ->
+            true;
+        {Callee, _} ->
+            ets:delete(?CALLEES, {Callee, self()}),
+            erase(?CALL)
     end.
 
 %% ern_rt's settled/1 but its rows: the monitor and the alias gone, and the

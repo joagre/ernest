@@ -111,34 +111,21 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   fn costs 26.1 ns against the host's 13.4 where it cost 158.6, eight at once 12.7 a call where
   they cost 2,428, and a receive with an `after` 242 where it cost 339. The calls table stays, the
   reaper's index from a killed caller to its callee, for the next item.
-- **The call's records, designed together** (the bench's numbers of 2026-10-22, the log's *`make
-  bench` Read Against the Cost Rules*, and what the bookkeeping build found): a call writes two
-  rows, the callee's, by which a restart of the callee ends the call (§6.9), and the caller's, by
-  which the look sees a request in flight to a system process and the reaper drops the callee's
-  row and a peer's note when a caller is killed mid-call. The callee's row is the lock, eight
-  pairs going from 958 to 2,729 ns a call over all as it is added, and the two rows are about 650
-  of the 929 ns a single call adds to the host's 1,521. A §6.9 design question, discussed with the
-  user before anything is built: what record a call keeps and where, so that a restart finds the
-  calls it must end, a kill drops the dead caller's record without a scan that grows with other
-  processes' calls (CLAUDE.md's *Design*, *Defects and gaps*: no leak, no scan), and the look sees
-  the request in flight. Decided with the user on 2026-10-22 (the log's *The Sitting on §8.6's
-  Bookkeeping*, its paragraph on the call's records): the caller's row goes, the caller marking
-  its callee in its own dictionary, which the look, `Process.status` and the caller's own
-  cleanup read, and which the runtime's `kill`, through which every kill of a program's process
-  goes, a peer's included, reads before it kills, the victim suspended, to drop the callee's row
-  and a peer's note; the callee's row stays as the restart's record, its table made with the
-  host's write concurrency, measured in `call.txt` before and after. Two shapes refused in the
-  log: a restart that ends no call, and a callee keeping its own taken replies. Found before the
-  build, 2026-10-22: a kill from another node was the host's `exit/2` over the carrier, which no
-  runtime function on the victim's node sees, so the mark could not be read and §8.7's second
-  note, "its caller ended", would go unsent; so a `kill` of a process of another node is a frame
-  of the runtime's own, the fifteenth, which the victim's node carries out as its own `kill`
-  (§8.7's *What passes*), §6.9 unchanged. §6.6, §6.9 and §8.6 state the promises and not the
-  rows. The item closes only after a reading of the built frame against §8.7 whole, its *Calls*,
-  *A compute* and *What passes* paragraphs and the order it promises, since the frame was
-  decided on a reading of minutes; and only on `call.txt`'s number for the single pair, a
-  constant that is no fraction of the host's call reopening the §6.9 question. About a day with
-  the tests.
+- **The call's records, designed together**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its paragraphs on the call's records and on a kill from another node, and the
+  *Built* paragraphs after them): the calls table went for a `CALL` key in the caller's
+  dictionary, which the look, `Process.status` and every kill read; every end the runtime gives
+  a process from outside goes through `killed/2`, a process of its own that suspends the victim,
+  since two processes suspending each other hang; a kill of a process of another node is §8.7's
+  fifteenth frame, read against §8.7 whole and found to keep it; and the callee's row took the
+  host's write concurrency. `Address.call` went from 2,332 to 2,258 ns against the host's 1,503
+  and 1,540, and eight pairs from 2,201 to 1,676 against 866 and 871. It closes on two decisions
+  for the user: a kill costs its killer 0.7 to 1.0 µs against the host's `exit/2` at 0.25, a
+  multiple §10's fraction does not allow, for which a sentence in §10 stating a kill's cost as a
+  spawn's is stated is recommended; and the single pair's 718 ns, 0.47 of the host's call and not
+  the third the sitting expected, the callee's row its larger part, which is recommended not to
+  reopen the §6.9 question. The eight pairs' callee's row, about 600 ns over all under eight
+  writers, is a measurement of its own, planned with the decision it would change.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second

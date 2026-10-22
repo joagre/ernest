@@ -2176,8 +2176,9 @@ standard_library_unchecked_test() ->
 %% test, 2026-10-16, written after the fix: once a function that receives
 %% nothing could print, the request was made after its call was noted, and
 %% the call it made took the caller's row, so that the outer call's stayed
-%% in the table of callees. It does not cover a call that a monitor's wrap
-%% makes, whose process is its own.
+%% in the table of callees. The calls held are the callees' rows and the
+%% caller's CALL key (report §8.6). It does not cover a call that a
+%% monitor's wrap makes, whose process is its own.
 nested_call_is_settled_test() ->
     {ok, Output} = run(
         "type Msg = Get(Reply(Int))\n"
@@ -2198,7 +2199,8 @@ nested_call_is_settled_test() ->
     ?assertEqual(<<"asking\nadapted\n#(Some(7), 7, 0)\n">>, Output).
 
 %% The foreign side of the tests above.
-calls_held() -> ets:info(ern_calls, size) + ets:info(ern_callees, size).
+calls_held() ->
+    ets:info(ern_callees, size) + case get('$ern_call') of undefined -> 0; _ -> 1 end.
 pair() -> {1, 2}.
 funs() -> [fun(X) -> X + 1 end, fun(_) -> not_an_int end].
 opt(0) -> {'Some', 3};

@@ -1,13 +1,14 @@
 %% The waits the tests share, each on what it means rather than on a time
 %% (CLAUDE.md, *No fixed sleep*): a process in a state, blocked in a receive
-%% among them, a process having called a function or returned from it, the
-%% runtime's reaper having looked for a deadlock, and the deliveries to a
-%% process having ended. All but the last read what the host reports of a
-%% process by tracing it, and stop tracing when they return.
+%% or in a call among them, a process having called a function or returned
+%% from it, the runtime's reaper having looked for a deadlock, and the
+%% deliveries to a process having ended. All but the last read what the
+%% host reports of a process by tracing it, and stop tracing when they
+%% return.
 -module(ern_waits).
 
--export([until/2, waiting/1, running/1, called/3, returned/3, looked/1, delivered/1,
-         forever/0]).
+-export([until/2, waiting/1, running/1, calling/1, called/3, returned/3, looked/1,
+         delivered/1, forever/0]).
 
 %% Until Test, asked of Pid's state, holds, or Pid has ended: Test is asked
 %% at first and again each time the host schedules Pid out, which is when
@@ -57,6 +58,18 @@ waiting(Pid) ->
 -spec running(pid()) -> ok | ended.
 running(Pid) ->
     until(Pid, fun() -> erlang:process_info(Pid, status) =/= {status, waiting} end).
+
+%% Report §6.6, §8.6: until Pid waits for a call's answer, which the host
+%% shows as the status `waiting` with the call under its CALL key, or has
+%% ended.
+-spec calling(pid()) -> ok | ended.
+calling(Pid) ->
+    until(Pid, fun() ->
+                   case erlang:process_info(Pid, [status, {dictionary, '$ern_call'}]) of
+                       [{status, waiting}, {_, {_, _}}] -> true;
+                       _ -> false
+                   end
+               end).
 
 %% Until Pid has called Module:Function/Arity Count times from now, which
 %% the host shows by tracing its calls, local ones among them.

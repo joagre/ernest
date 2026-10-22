@@ -229,7 +229,7 @@ fault_reports_test() ->
 flush() ->
     receive Message -> [Message | flush()] after 0 -> [] end.
 
-%% report §6.6, §6.9, §8.6: a call ends with the row, the monitor and the
+%% report §6.6, §6.9, §8.6: a call ends with the key, the monitor and the
 %% alias it made, and the timed wait it marked, however it ends: its message's
 %% function faulting, or its callee answering with a fault, as a system
 %% process does. A regression test: in a process restarted in place they
@@ -254,8 +254,8 @@ call_leaves_nothing_test() ->
                                     ern_rt:call(Faulting, fun(Reply) -> {ask, Reply} end, 1000);
                                 2 ->
                                     {monitors, Monitors} = process_info(self(), monitors),
-                                    Self ! {left, {ets:lookup(ern_calls, self()),
-                                                   Monitors, get('$ern_timed')}},
+                                    Self ! {left, {get('$ern_call'), Monitors,
+                                                   get('$ern_timed')}},
                                     ern_rt:send(EntryProcess, done)
                             end
                         end,
@@ -263,7 +263,64 @@ call_leaves_nothing_test() ->
                                 <<"M.worker:2">>),
                receive done -> ok end
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
-    ?assertEqual({[], [], undefined}, wait(left)).
+    ?assertEqual({undefined, [], undefined}, wait(left)).
+
+%% report §6.6, §6.9, §8.6: a call's CALL key, and the callee's row, go
+%% however the call ends: answered, its time run out, its callee ended or
+%% restarted while it waits, callForever answered and its callee's end; and
+%% a restart asked of the caller while it waits, which its new run reads.
+%% A regression test, written after the code; a fault's paths are
+%% call_leaves_nothing_test's, and a compute's compute_caller_test's
+call_key_goes_by_every_path_test() ->
+    Self = self(),
+    Left = fun() -> {get('$ern_call'), [Caller || {{_, Caller}, _} <- ets:tab2list(ern_callees),
+                                                  Caller =:= self()]}
+           end,
+    Ask = fun(Reply) -> {ask, Reply} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Answering = ern_rt:spawn(fun Answer() ->
+                                            receive {ask, Reply} -> ern_rt:answer(Reply, 1) end,
+                                            Answer()
+                                        end, <<"Main.main:2">>),
+               Silent = ern_rt:spawn(fun waiting/0, <<"Main.main:3">>),
+               Ending = fun() -> receive {ask, _} -> ok end end,
+               Restarting = ern_rt:spawn(ern_rt:restarting('Unlimited',
+                                                          fun() ->
+                                                              receive {ask, _} -> ok end,
+                                                              ern_rt:fault(<<"asked">>)
+                                                          end), <<"Main.main:5">>),
+               Answered = {ern_rt:call(Answering, Ask, 600000), Left()},
+               TimedOut = {ern_rt:call(Silent, Ask, 0), Left()},
+               Ended = {ern_rt:call(ern_rt:spawn(Ending, <<"Main.main:4">>), Ask, 600000), Left()},
+               Restarted = {ern_rt:call(Restarting, Ask, 600000), Left()},
+               Forever = {ern_rt:call_forever(Answering, Ask), Left()},
+               ForeverEnded = {try ern_rt:call_forever(ern_rt:spawn(Ending, <<"Main.main:4">>), Ask)
+                               catch throw:{ern, fault, Cause} -> Cause
+                               end, Left()},
+               Main = erlang:self(),
+               Asked = fun() ->
+                           case get(runs) of
+                               undefined ->
+                                   put(runs, 1),
+                                   Main ! {asking, erlang:self()},
+                                   ern_rt:call(Silent, Ask, 600000);
+                               1 ->
+                                   Main ! {asked, Left()}
+                           end
+                       end,
+               _ = ern_rt:spawn(ern_rt:restarting('Unlimited', Asked), <<"Main.main:6">>),
+               Asking = receive {asking, Pid} -> Pid end,
+               ok = ern_waits:calling(Asking),
+               true = ern_rt:ask_restart(Asking),
+               AskedAgain = receive {asked, AskedLeft} -> AskedLeft end,
+               Self ! {left, [Answered, TimedOut, Ended, Restarted, Forever, ForeverEnded,
+                              AskedAgain]},
+               lists:foreach(fun ern_rt:kill/1, [Answering, Silent, Restarting])
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    None = {undefined, []},
+    ?assertEqual([{{'Some', 1}, None}, {'None', None}, {'None', None}, {'None', None}, {1, None},
+                  {<<"callee returned without answering">>, None}, None], wait(left)).
 
 %% report §8.6: a system process that has died can deliver nothing, so it
 %% does not keep a deadlock from being found. A regression test: the
@@ -1363,10 +1420,11 @@ deliveries_to_an_ended_caller() ->
     ?assertEqual(none, receive delivered -> delivered after 0 -> none end).
 
 %% report §6.9, §6.6: a delivery ended with its recipient while its wrap
-%% waits in a call ends the call with it: the call's rows go, as a
-%% process's go at its end. A regression test, written after the code,
-%% found by the read-back of finding D1's build: a delivery has no row, so
-%% its end left the call's rows for as long as the callee lived
+%% waits in a call ends the call with it: the callee's row goes, as a
+%% killed process's goes (ern_rt:killed/2). A regression test, written
+%% after the code, found by the read-back of finding D1's build: a delivery
+%% has no row, so its end left the call's rows for as long as the callee
+%% lived
 delivery_ends_its_call_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -1384,7 +1442,7 @@ delivery_ends_its_call_test() ->
                                             receive stop -> ok end
                                         end, <<"Main.main:5">>),
                Delivery = receive {calling, Pid} -> Pid end,
-               ok = ern_waits:until(Delivery, fun() -> ets:member(ern_calls, Delivery) end),
+               ok = ern_waits:calling(Delivery),
                MonitorRef = erlang:monitor(process, Delivery),
                Recipient ! stop,
                receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end,
@@ -1392,10 +1450,142 @@ delivery_ends_its_call_test() ->
                %% answers a later spawn
                _ = ern_rt:spawn(fun() -> ok end, <<"Main.main:12">>),
                ern_rt:untimed(),
-               Self ! {calls, {ets:lookup(ern_calls, Delivery),
-                               ets:match_object(ern_callees, {{'_', Delivery}, '_'})}}
+               Self ! {calls, ets:match_object(ern_callees, {{'_', Delivery}, '_'})}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({[], []}, wait(calls)).
+    ?assertEqual([], wait(calls)).
+
+%% report §6.6, §6.9, §8.7: a caller killed while it waits in a call
+%% leaves no record of the call: the callee's row goes before the caller's
+%% Down is told, whether the prelude's kill ends it or a peer's frame does,
+%% which this node carries out as its own kill (ern_peer:frame/2), and the
+%% callee lives on, waiting for ever in a call of its own on itself, whose
+%% row stays. A regression test, written after the code; the second
+%% note a kill sends for a callee of another node is compute_caller_test's
+%% and kill_frame_test's (ern_peer_tests), with a gateway of this host's
+%% standing in for the peer's
+killed_caller_leaves_no_call_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               %% the waits below count as timed, so that they are no
+               %% deadlock (§8.6)
+               ern_rt:timed(),
+               Callee = ern_rt:spawn(fun ern_waits:forever/0, <<"Main.main:2">>),
+               Calling = fun() -> ern_rt:call_forever(Callee, fun(Reply) -> {never, Reply} end) end,
+               [Killed, Framed] = Callers = [ern_rt:spawn(Calling, <<"Main.main:3">>)
+                                             || _ <- [1, 2]],
+               lists:foreach(fun(Caller) -> ok = ern_waits:calling(Caller) end, Callers),
+               Noted = [Caller || {{Called, Caller}, _} <- ets:tab2list(ern_callees),
+                                  Called =:= ern_rt:process_of(Callee), Caller =/= Called],
+               MonitorRefs = [erlang:monitor(process, Caller) || Caller <- Callers],
+               'Unit' = ern_rt:kill(Killed),
+               ok = ern_peer:frame(self(), {kill, Framed}),
+               Reasons = [receive {'DOWN', MonitorRef, process, _, Reason} -> Reason end
+                          || MonitorRef <- MonitorRefs],
+               Self ! {left, {lists:sort(Noted) =:= lists:sort(Callers), Reasons,
+                              [Called || {{Called, _}, _} <- ets:tab2list(ern_callees),
+                                         Called =/= ern_rt:process_of(Callee),
+                                         Called =/= erlang:self()],
+                              ets:member(ern_callees, {Callee, Callee})}},
+               ern_rt:untimed(),
+               ern_rt:kill(Callee)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({true, [{ern, killed}, {ern, killed}], [], true}, wait(left)).
+
+%% report §8.6, §6.6, §11.2: a deadlock's fault, which the runtime gives
+%% the process that runs from outside it, as `ern test` gives a test's,
+%% ends the call that process waits in: the callee's row is gone when its
+%% Down is told, so that the launch goes on with no row of it. Here the
+%% program's other processes wait on, each in a call of its own on itself,
+%% so the next look faults the entry process. A regression test, written
+%% after the code
+deadlock_fault_ends_its_call_test() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Callee = ern_rt:spawn(fun ern_waits:forever/0, <<"Main.main:2">>),
+                    Calling = fun() ->
+                                  ern_rt:call_forever(Callee, fun(Reply) -> {never, Reply} end)
+                              end,
+                    Caller = ern_rt:spawn(Calling, <<"Main.main:3">>),
+                    ok = ern_rt:deadlock_victim(ern_rt:process_of(Caller)),
+                    Told = fun(Down) ->
+                               Rows = [Row || {{_, Waiting}, _} = Row <- ets:tab2list(ern_callees),
+                                              Waiting =:= Caller],
+                               Self ! {down, {Down, Rows}},
+                               Down
+                           end,
+                    'Unit' = ern_rt:monitor(Caller, Told),
+                    ern_waits:forever()
+                end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome),
+    ?assertMatch({{'Down', _, {'Fault', <<"deadlock">>}, <<"Main.main:3">>}, []}, wait(down)).
+
+%% report §6.9, §8.6: two processes that kill each other at once both end,
+%% killed or returned, and so does each kill of one that has ended, or that
+%% another kill ends first, two thousand pairs over, each process killing
+%% the other twice; the kills hold no source once they are done, so that the program,
+%% its entry process then waiting as Ernest waits, ends in a deadlock. A
+%% regression test, written after the code: a kill that suspended its
+%% victim from the killing process itself hung about one pair in two
+%% thousand, each process suspended by the other for ever; a hang rarer
+%% than that it may not show
+kills_of_each_other_end_test() ->
+    Quiet = #{stdout => fun(_) -> ok end},
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    ern_rt:timed(),
+                    Killing = fun() ->
+                                  receive {kill, Other} -> ok end,
+                                  ern_rt:kill(Other),
+                                  ern_rt:kill(Other)
+                              end,
+                    lists:foreach(fun(_) ->
+                                      [First, Second] = Pair = [ern_rt:spawn(Killing, <<"M.k:1">>)
+                                                                || _ <- [1, 2]],
+                                      MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pair],
+                                      First ! {kill, Second},
+                                      Second ! {kill, First},
+                                      [receive {'DOWN', MonitorRef, process, _, _} -> ok end
+                                       || MonitorRef <- MonitorRefs]
+                                  end, lists:seq(1, 2000)),
+                    ern_rt:untimed(),
+                    ern_waits:forever()
+                end, <<"main">>, Quiet),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
+
+%% report §8.6, §6.6, §8.2: a call waiting on a system process is a
+%% pending I/O, which the look reads from the caller's CALL key: here
+%% standard output's process holds a write without answering, waiting in
+%% the run's own function with nothing in its mailbox, and the program, its
+%% one process waiting for the answer, is no deadlock while the reaper
+%% looks twice; then the write is let go and the program ends. A
+%% regression test, written after the code: it does not show a request in
+%% transit, which no test can hold there
+system_call_is_no_deadlock_test() ->
+    Holder = spawn(fun() ->
+                       receive {writing, Stdout} -> ok end,
+                       ern_waits:looked(2),
+                       Stdout ! written
+                   end),
+    Write = fun(_) ->
+                Holder ! {writing, self()},
+                receive written -> ok end
+            end,
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           ern_rt:call_forever(ern_rt:system_process(stdout),
+                                               fun(Reply) -> {'Write', <<"x">>, Reply} end)
+                       end, <<"main">>, #{stdout => Write})).
+
+%% report §8.7, §6.9: a kill of a process of another node is a frame to
+%% that node's gateway, which vanishes as a send does where the node cannot
+%% be reached: here a node no connection names, from a program that is no
+%% node. A regression test, written after the code
+kill_out_of_reach_vanishes_test() ->
+    Far = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+    ?assertEqual(ok, ern_rt:run_main(fun() -> 'Unit' = ern_rt:kill(Far) end, <<"main">>,
+                                     #{stdout => fun(_) -> ok end})).
 
 %% report §6.9, §6.5, Appendix E.18, E.21: a monitor's wrap acts for the
 %% process it delivers to: Process.current there is that process; a socket

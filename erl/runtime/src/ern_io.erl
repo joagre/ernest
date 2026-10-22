@@ -9,7 +9,7 @@
 
 %% Report §8.6: Io.debug writes through standard error's process and waits
 %% until it is written, a call to a system process, which the look counts
-%% as one (ern_rt:calling_the_system/0); Io.show waits on no process.
+%% as one (ern_rt:calling_the_system/2); Io.show waits on no process.
 
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).

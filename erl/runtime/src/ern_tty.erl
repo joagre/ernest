@@ -205,14 +205,15 @@ subscribe(Address, Subscribers, Before, After) ->
     end.
 
 %% The subscription of Pid, its courier ended and waited for, so that no
-%% key it carried arrives after, and its monitor of Pid with it.
+%% key it carried arrives after, and its monitor of Pid with it; a call
+%% the subscriber's wrap makes in it ends with it (ern_rt:killed/2).
 unsubscribe(Pid, Subscribers, Reader) ->
     case lists:keyfind(Pid, 1, Subscribers) of
         {Pid, Courier, MonitorRef} ->
             erlang:demonitor(MonitorRef, [flush]),
             CourierMonitorRef = erlang:monitor(process, Courier),
             erlang:unlink(Courier),
-            exit(Courier, kill),
+            ern_rt:killed(Courier, kill),
             receive {'DOWN', CourierMonitorRef, process, Courier, _} -> ok end;
         false ->
             ok

@@ -463,8 +463,10 @@ drop_utilization(Node) ->
 %% its process ended; a message to an adapted address this node made, the
 %% address and the message, which the worker hands to the process it keeps
 %% for the address (ern_rt:kept/1), so that it goes on with the next frame
-%% while the function is applied. A find, a spawn or a compute is asked of
-%% the run in progress, and one that comes while none is answers
+%% while the function is applied; and a kill of a process of this node,
+%% which this node carries out as its own kill (ern_rt:kill/1), one of a
+%% process that has ended doing nothing. A find, a spawn or a compute is
+%% asked of the run in progress, and one that comes while none is answers
 %% `Unreachable`: between two runs of `ern test` over a directory, in one
 %% host, and as a run ends (ern_rt:asked_of_run/1). Any other frame is one
 %% the gateway cannot read; the gateway answers a utilization itself, and
@@ -533,6 +535,9 @@ frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
 frame(_From, {adapted, {adapted, Function, _Target, Maker, Launch} = Address, Message})
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node(), is_reference(Launch) ->
     {adapted, Address, Message};
+frame(_From, {kill, Pid}) when is_pid(Pid), node(Pid) =:= node() ->
+    'Unit' = ern_rt:kill(Pid),
+    ok;
 frame(_From, _Body) ->
     unreadable.
 

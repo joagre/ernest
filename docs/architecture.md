@@ -158,8 +158,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | Table | Owner | Row, keyed by its first element | Holds |
 |---|---|---|---|
 | `ern_processes` | `ern_rt` | `{Pid, Site, SpawnOrder, Root, Peer}` | each process the runtime started or adopted |
-| `ern_calls` | `ern_rt` | `{Caller, Callee, Reply}` | each pending call (§6.6) |
-| `ern_callees` | `ern_rt` | `{{Callee, Caller}, Reply}`, ordered | the same calls by callee, which a restart reads (§6.9) |
+| `ern_callees` | `ern_rt` | `{{Callee, Caller}, Reply}`, ordered, with the host's write concurrency | each pending call on a process of the node, which a restart reads (§6.9) |
 | `ern_faults` | `ern_rt` | `{Subscriber, Address}` | the subscriptions to faults (E.21) |
 | `ern_terminating` | `ern_rt` | `{Subscriber, Address, Told}` | the subscriptions to the program's end (E.23) |
 | `ern_held` | `ern_rt` | `{{source, Holder}, Count}` and `{{opened, Pid}}` | the sources, and the processes a system module opened (§8.6) |
@@ -177,7 +176,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
 | `ern_shell` | `ern_shell`, held by the runner | `{Key, Value}` | the session as it stands, and what its inputs and loads leave (§11.2) |
 
-`run_main` makes `ern_rt`'s fourteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/5` keeps the running test in a table of its own.
+`run_main` makes `ern_rt`'s thirteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/5` keeps the running test in a table of its own.
 
 ### The processes
 
@@ -211,15 +210,17 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 - A call (§6.6) is `call/3,4` and `call_forever/2,3`; a compute (§8.7) is `compute/3`, its process on the peer running `computing/2`.
 - `restarting/2` runs a restarting function, and `fresh_run/0` begins a new run (§6.9). `ask_restart/1`, `start_cause/0` and `spawn_order/1` are `Supervisor`'s shims (E.22).
 - A time is a deadline on the monotonic clock, `deadline/1` and `remaining/1` (§6.3). The clock holds the alarms, setting those at a time again when the host's time offset changes (`set_again/1`, E.15).
-- `Process.status` reads `ern_processes`, the host's status and `ern_calls` (E.21).
+- A caller keeps its call under its `CALL` key, its callee and the reply, put before the request is sent and erased once the call's records are dropped (`pending/2`, `uncalled/0`); the callee's row is written for a callee of the node, and a note to its gateway for one of another node (§6.6, §8.7).
+- Every end the runtime gives a process from outside it but the program's end goes through `killed/2`: a process of its own suspends the victim, reads its `CALL` key, drops the call's records and ends it, a source while it works, so that two processes killing each other cannot each suspend the other. A `kill` of a process of another node is a frame to that node's gateway, which carries it out so (§6.9, §8.7).
+- `Process.status` reads `ern_processes`, the host's status and the process's `CALL` key (E.21).
 
 ### The reaper
 
 - It monitors every process a program spawns, every listener, socket and running program a system module opens (`opened/3`), and every process a `monitor` names that it did not start (§6.9).
 - Each `Down` is delivered by `wrapped/3`, a delivery. Where the reaper learns of a process's end, it ends every delivery to it (`abandoned/1`).
 - It looks for a deadlock (`look/0`, §8.6) after `LOOK_SOON` or `LOOK_LATER` milliseconds without a message. It does not look on a node or while the shell holds the terminal.
-- Sources (§8.6) are counted where they begin: the clock's alarms, `stdin`'s requests, the terminal's subscriptions, the reaper's own monitors, and a call's `ern_calls` row.
-- What the look needs of a process, the process keeps in its own dictionary, under the look's keys, and the look reads it with the process's top frame once every process waits (`still/1`): a receive with a deadline is `TIMED` (`timed/0`, `untimed/0`), and a process inside foreign code where its stack cannot show it is `FOREIGN` (`entered_foreign/0`, `left_foreign/0`), while a function given to foreign code runs (the wrapper `ern_emitter`'s `called/2` writes) and while the runtime waits on a peer, a port, the code table's holder, a restart's answers, `Code.load`'s evaluation or the program's end. A function on top of the stack that is neither a unit's nor of the toolchain's own (`is_ernest/1`, `own_modules/0`) is the host's, a receive inside foreign code; a foreign call writes nothing.
+- Sources (§8.6) are counted where they begin: the clock's alarms, `stdin`'s requests, the terminal's subscriptions, the reaper's own monitors, and a kill under way (`killed/2`).
+- What the look needs of a process, the process keeps in its own dictionary, under the look's keys, and the look reads it with the process's top frame once every process waits (`still/1`): a receive with a deadline is `TIMED` (`timed/0`, `untimed/0`), a call to a system process, a listener, a socket or a running program is a pending I/O by its `CALL` key (`calling_the_system/2`), and a process inside foreign code where its stack cannot show it is `FOREIGN` (`entered_foreign/0`, `left_foreign/0`), while a function given to foreign code runs (the wrapper `ern_emitter`'s `called/2` writes) and while the runtime waits on a peer, a port, the code table's holder, a restart's answers, `Code.load`'s evaluation or the program's end. A function on top of the stack that is neither a unit's nor of the toolchain's own (`is_ernest/1`, `own_modules/0`) is the host's, a receive inside foreign code; a foreign call writes nothing.
 - Faults are reported by `report/5` (E.21), to the run's `faults` function and each subscriber in `ern_faults`. `run_main` sets the host's backtrace depth to 64, of which a trace shows twelve (E.21, E.28). A fault the runtime gives a waiting process, a deadlock, carries the process's stack as `found_fault/2` finds it (§7.3).
 
 ### The runner

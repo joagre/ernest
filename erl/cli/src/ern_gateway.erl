@@ -7,10 +7,11 @@
 %% and ends once it holds no frame and no process kept for an address, so
 %% that a peer's messages to one address keep their order across a loss
 %% (§6.4, §6.5). Through it go what needs a process on the receiving node:
-%% a spawn and its answer, a compute, a find, and a message to an adapted
-%% address, each read by ern_peer:frame/2, a spawn or a compute of a
-%% function the node lacks handed on to the node's exchange (ern_exchange),
-%% which the worker tells of the loss too, and a message to an adapted
+%% a spawn and its answer, a compute, a find, a message to an adapted
+%% address and a kill of a process of the node, each read by
+%% ern_peer:frame/2, a spawn or a compute of a function the node lacks
+%% handed on to the node's exchange (ern_exchange), which the worker tells
+%% of the loss too, and a message to an adapted
 %% address handed to the process the worker keeps for the address (§6.5,
 %% ern_rt:kept/1), which applies its function; a frame it cannot read is
 %% faulty, and the node ends that peer's connection. The exchange's four
@@ -36,12 +37,12 @@
 %% since a connection's end is said by the frames that came before it: a
 %% peer that told this node it ends ended, and one that did not was lost. A
 %% frame is {ern_frame, From, Body}, From the process on the peer that sent
-%% it, whose node is the frame's peer; fourteen bodies are the runtime's
+%% it, whose node is the frame's peer; fifteen bodies are the runtime's
 %% frames, an adapted address's message, a spawn and its answer, a compute,
-%% a find, a utilization and a telling, the call's two notes, a node's end,
-%% and the exchange's `reach_request`, `reach`, `lacks` and `code_frame`. A
-%% message to the gateway that names no process of another node names no
-%% connection to end, and is dropped, which the node says.
+%% a find, a utilization and a telling, the call's two notes, a kill, a
+%% node's end, and the exchange's `reach_request`, `reach`, `lacks` and
+%% `code_frame`. A message to the gateway that names no process of another
+%% node names no connection to end, and is dropped, which the node says.
 -module(ern_gateway).
 
 -export([start/0, reloaded/0, departing/0, work/2, outcome/2]).
