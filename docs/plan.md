@@ -115,19 +115,27 @@ the order they are built; the report's sections change as each build starts.
   runtime's lists of waiting functions go, and each slow wait of the runtime's own, a peer's find,
   a compute, a restart's fresh run, the code table's making, marks itself with the callback's key.
   With that the row's two count columns, `in_foreign`, the emitter's fun around a foreign call and
-  its decision by the lists, the error handler's count of a code load, and the calls table go.
-  About two days with the tests.
-- **The restart's callees row**, decided on the bench's numbers of 2026-10-22 (the log's *`make
-  bench` Read Against the Cost Rules*): a call writes it so that a restart of the callee ends the
-  call (§6.9), the one shared write a call keeps once the caller's row and the count are marks.
-  Both of the plan's cases showed: the row is the lock, eight pairs going from 958 to 2,729 ns a
-  call over all as it is added, and it is 270 of the 929 ns a single call adds to the host's
-  1,521. Decided, the user to amend: the table is made with the host's write concurrency, since
-  what a single call keeps after the marks, the row, the deadline's slicing and the compiled code,
-  is a fraction of the host's call, and the trial on the processes table had the host's option
-  cost one process about 120 ns more and eight a twentieth; measured in `call.txt` before and
-  after, and only a constant that is no fraction after it opens a §6.9 question of a local record
-  of a callee's callers.
+  its decision by the lists, and the error handler's count of a code load go. The calls table
+  does not: the build found it is also the reaper's index from a killed caller to its callee, by
+  which the callee's row and a peer's note are dropped when a caller dies mid-call, and a killed
+  process runs no `after` and keeps no dictionary, so a mark in the caller's state cannot serve
+  that reader; the call's records are decided together in the next item. About two days with the
+  tests.
+- **The call's records, designed together** (the bench's numbers of 2026-10-22, the log's *`make
+  bench` Read Against the Cost Rules*, and what the bookkeeping build found): a call writes two
+  rows, the callee's, by which a restart of the callee ends the call (§6.9), and the caller's, by
+  which the look sees a request in flight to a system process and the reaper drops the callee's
+  row and a peer's note when a caller is killed mid-call. The callee's row is the lock, eight
+  pairs going from 958 to 2,729 ns a call over all as it is added, and the two rows are about 650
+  of the 929 ns a single call adds to the host's 1,521. A §6.9 design question, discussed with the
+  user before anything is built: what record a call keeps and where, so that a restart finds the
+  calls it must end, a kill drops the dead caller's record without a scan that grows with other
+  processes' calls (CLAUDE.md's *Design*, *Defects and gaps*: no leak, no scan), and the look sees
+  the request in flight; the look's part may be a mark, as the timed receive's is, where the
+  kill's part is served otherwise. The plain fallback for the lock alone is the host's write
+  concurrency on the callees table, which the trial on the processes table had cost one process
+  about 120 ns more and eight a twentieth; measured in `call.txt` before and after whatever is
+  built.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
