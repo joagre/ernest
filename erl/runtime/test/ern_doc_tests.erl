@@ -1,7 +1,10 @@
 %% The documentation rules of report §2.2 and Appendix E.0 shape rule 6, checked
 %% over every standard library module written in Ernest, every library
 %% under src/libs/, which keeps the standard library's discipline (plan, MVP
-%% 2.7), and the fictive module that docs/module_doc_template.md shows.
+%% 2.7), and the fictive module that docs/module_doc_template.md shows. The
+%% examples are run by `ern test` alone (report §11.2): the library's by
+%% `make test-library`, and the template's and the prelude's page's here,
+%% which no build of the library holds.
 -module(ern_doc_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -24,31 +27,12 @@ modules() ->
 stdlib_present_test() ->
     ?assert(length(modules()) >= 2).
 
-%% report §2.2, Appendix E.0 shape rule 6: every fenced Ernest block in a module's
-%% doc blocks type-checks against the module as the body of a lambda, and
-%% one that ends in `// => v` is run and its Io.show rendering compared
-%% with v, so an example cannot rot
-doc_examples_test_() ->
-    %% a module of many examples takes seconds where the suite's other
-    %% hosts run beside it, so each has the prelude's time and not the
-    %% five seconds a test has unsaid
-    [{atom_to_list(hd(Namespace)), {timeout, 60, fun() -> examples(Namespace, File) end}}
-     || {Namespace, File} <- modules()].
-
-examples(Namespace, File) ->
-    {ok, Source} = file:read_file(File),
-    {ok, Declarations} = ern_parser:parse_string(Source),
-    check_examples(Namespace, Source, docs(Declarations, outside, [])).
-
 %% report §9, Appendix E.0 shape rule 6: the prelude's page is documented as a
-%% module's is, so its examples type-check and those with `// => v` run,
-%% and every function it documents is called by one of them
-prelude_examples_test_() ->
-    {timeout, 60,
-     fun() -> check_examples(['Docprelude'], <<>>, [{Doc, outside} || Doc <- prelude_docs()]) end}.
-
+%% module's is, so it holds examples, and every function it documents is
+%% called by one of them
 prelude_called_test() ->
     Fences = iolist_to_binary([Block || Doc <- prelude_docs(), Block <- fences(Doc)]),
+    ?assertNotEqual(<<>>, Fences),
     Functions = [ern_namespace:text(QualifiedName)
                  || {QualifiedName, Text, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
                     hd(QualifiedName) =/= 'Sys',
@@ -61,179 +45,69 @@ prelude_docs() ->
     {docs_v1, _, _, _, #{<<"en">> := ModuleDoc}, _, Entries} = ern_prelude:docs(),
     [ModuleDoc | [Doc || {_, _, _, #{<<"en">> := Doc}, _} <- Entries]].
 
-%% Appendix E.0 shape rule 6: each example type-checks where a programmer writes
-%% it, in a module of its own that uses the documented one, so that a name
-%% the module keeps private, or writes unqualified, is refused; the example
-%% of a declaration the module keeps private speaks to the module's own
-%% reader, and is checked inside it. A regression test: every example was
-%% checked inside the module, where `Terminal.size`'s `Size` passed
-check_examples(Namespace, Source, Docs) ->
-    Blocks = [{split_result(Block), Where} || {Doc, Where} <- Docs, Block <- fences(Doc)],
-    ?assert(Blocks =/= []),
-    Numbered = lists:zip(lists:seq(1, length(Blocks)), [Block || {Block, _} <- Blocks]),
-    Libraries = libraries(Namespace),
-    {ok, _, Own, _} = checked(Namespace, Source, Libraries),
-    lists:foreach(fun({{Number, {Body, _}}, Where}) ->
-                      {Declared, Expression} = declared(Body),
-                      Example = <<Declared/binary, "fn docExample",
-                                  (integer_to_binary(Number))/binary, "() = fn() = {\n",
-                                  Expression/binary, "\n}\n">>,
-                      Checked = case Where of
-                                    outside ->
-                                        {ok, Declarations} = ern_parser:parse_string(Example),
-                                        ern_typecheck:check(['Docexample'], Declarations,
-                                                            [Own | Libraries]);
-                                    inside ->
-                                        checked(Namespace, <<Source/binary, "\n", Example/binary>>,
-                                                Libraries)
-                                end,
-                      ?assertMatch({{ok, _, _, _}, _}, {Checked, {Namespace, Number, Body}})
-                  end, lists:zip(Numbered, [Where || {_, Where} <- Blocks])),
-    %% Appendix E.0 shape rule 6, report §4.2: an example of an exported
-    %% declaration runs in a module of its own that uses the documented
-    %% one, as a programmer writes it there, qualified; one of a private
-    %% declaration runs inside the module, which names its own plain
-    WithResult = [{Number, Body, Value, Where}
-                  || {{Number, {Body, Value}}, Where}
-                         <- lists:zip(Numbered, [Where || {_, Where} <- Blocks]),
-                     Value =/= none],
-    Inside = [{Number, Body, Value} || {Number, Body, Value, inside} <- WithResult],
-    Outside = [{Number, Body, Value} || {Number, Body, Value, outside} <- WithResult],
-    Text = iolist_to_binary([Source, "\n", example_fns(Inside), example_mains(Namespace, Inside)]),
-    {ok, Typed, Interface, Env} = checked(Namespace, Text, Libraries),
-    {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
-    Original = code:which(ErlangModule),
-    {module, ErlangModule} = code:load_binary(ErlangModule, "doc examples", Beam),
-    %% report §11.1: a module that uses another is compiled against its
-    %% interface as compiled, which holds its definitions' hashes
-    {ok, #{interface := Compiled}} = ern_interface:read(Beam),
-    %% Appendix E.0 shape rule 6: an example whose declarations stand before
-    %% it runs in a module of its own, so that two examples of a page may
-    %% declare one name
-    {Plain, Declaring} = lists:partition(fun({_, Body, _}) -> declared(Body) =:= {<<>>, Body} end,
-                                         Outside),
-    ExampleModules = [{example_module(['Docexample'], Plain, [Compiled | Libraries]), Plain}
-                      | [{example_module([list_to_atom("Docexample" ++ integer_to_list(Number))],
-                                         [Example], [Compiled | Libraries]),
-                          [Example]}
-                         || {Number, _, _} = Example <- Declaring]],
-    try
-        %% Appendix E.0 shape rule 6: each example runs on its own, and the value
-        %% it ends with is the last line it prints; what it prints itself,
-        %% as an example of `forEach` does, comes before and is not compared
-        lists:foreach(fun({Number, _, Value}) ->
-                          run_example(ErlangModule, [ErlangModule], Number, Value)
-                      end, Inside),
-        [run_example(ExampleModule, [ErlangModule, ExampleModule], Number, Value)
-         || {ExampleModule, Examples} <- ExampleModules, {Number, _, Value} <- Examples]
-    after
-        restore(ErlangModule, Original),
-        [restore(ExampleModule, non_existing) || {ExampleModule, _} <- ExampleModules]
-    end.
+%% report §11.2, Appendix E.0 shape rule 6: the template's examples run under
+%% `ern test`, the one checker of the examples, the private declaration's
+%% inside the module, and each passes. A regression test, written after the
+%% code: this module ran every example itself until `ern test` was their
+%% one checker; it does not cover an example that fails, which the CLI's
+%% tests of `ern test` do
+template_examples_test_() ->
+    {timeout, 60, fun template_examples/0}.
 
-%% The examples with a result, each a function of its own, its
-%% declarations before it.
-example_fns(Examples) ->
-    [begin
-         {Declared, Expression} = declared(Body),
-         <<Declared/binary, "export fn docExample", (integer_to_binary(Number))/binary, "() = {\n",
-           Expression/binary, "\n}\n">>
-     end || {Number, Body, _} <- Examples].
+template_examples() ->
+    Dir = tmp(),
+    Programs = filename:join(?ROOT, "test/fixtures/programs"),
+    Template = filename:join(Programs, "template.ern"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Programs, "--build-root", Dir,
+                                 Template])),
+    {ok, Source} = file:read_file(Template),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    passed(filename:join(Dir, "template.erc"),
+           [Block || Doc <- docs(Declarations), Block <- fences(Doc)]).
 
-%% Appendix E.0 shape rule 6: an example is an expression, which
-%% declarations may stand before, as in a module, where the call needs one,
-%% a `fn` that `Code.running` names (Appendix E.28): the paragraphs before
-%% its last blank line, where they parse as a module's declarations, each
-%% line ending, and the expression after them; else no declaration and the
-%% whole example.
-declared(Body) ->
-    case string:split(Body, <<"\n\n">>, trailing) of
-        [Declared, Expression] ->
-            case ern_parser:parse_string(Declared) of
-                {ok, [_ | _]} -> {<<Declared/binary, "\n">>, Expression};
-                _ -> {<<>>, Body}
-            end;
-        _ ->
-            {<<>>, Body}
-    end.
+%% report §11.2, §9, §11.4, Appendix E.0 shape rule 6: the prelude's page's
+%% examples, which no module's `.erc` holds, run under `ern test` as the
+%% examples of a module's own doc block, each a program of its own, and
+%% each passes. A regression test, written after the code, as the
+%% template's; a case is named by its number on the page and not by the
+%% declaration it documents, and the blocks are read from the prelude's
+%% documentation, not from the page `ern doc` writes of it
+prelude_examples_test_() ->
+    {timeout, 60, fun prelude_examples/0}.
 
-%% Each example's value printed as `Io.show` writes it, by a main of its
-%% own; the module Io names its own functions plain (report §4.2).
-example_mains(Namespace, Examples) ->
-    Print = case Namespace of
-                ['Io'] -> "println(show(";
-                _ -> "Io.println(Io.show("
-            end,
-    [iolist_to_binary(["export fn docMain", integer_to_list(Number),
-                       "() : Unit receiving Never =\n    ", Print, "docExample",
-                       integer_to_list(Number), "()))\n"])
-     || {Number, _, _} <- Examples].
+prelude_examples() ->
+    Dir = tmp(),
+    Blocks = [Block || Doc <- prelude_docs(), Block <- fences(Doc)],
+    Fenced = [["///\n/// ```ernest\n",
+               [["///", [[" ", Line] || Line =/= <<>>], "\n"]
+                || Line <- binary:split(Block, <<"\n">>, [global])],
+               "/// ```\n"]
+              || Block <- Blocks],
+    Page = filename:join([Dir, "src", "prelude_page.ern"]),
+    ok = filelib:ensure_dir(Page),
+    ok = file:write_file(Page, ["/// The prelude's page's examples, in its order.\n", Fenced,
+                                "\nlet page = Unit\n"]),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    passed(Dir ++ "/build/prelude_page.erc", Blocks).
 
-%% A module the outside examples run in, of the namespace Namespace,
-%% compiled and loaded against the documented module's interface and the
-%% libraries'.
-example_module(Namespace, Examples, Interfaces) ->
-    Text = iolist_to_binary([example_fns(Examples), example_mains(Namespace, Examples)]),
-    {ok, Declarations} = ern_parser:parse_string(Text),
-    {ok, Typed, Interface, Env} = ern_typecheck:check(Namespace, Declarations, Interfaces),
-    {ok, ExampleModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
-    {module, ExampleModule} = code:load_binary(ExampleModule, "doc examples", Beam),
-    ExampleModule.
-
-run_example(ErlangModule, Initialized, Number, Expected) ->
-    %% Appendix E.0 shape rule 6: an example may touch the file system, so each
-    %% runs in a directory of its own, removed afterwards
-    {ok, Cwd} = file:get_cwd(),
-    Dir = filename:join(["/tmp", "ern_doc_" ++ os:getpid() ++ "_"
-                                 ++ integer_to_list(erlang:unique_integer([positive]))]),
+%% A directory of the test's own, under the run's, which `make` removes
+%% when the run ends (erl/app.mk).
+tmp() ->
+    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+    Dir = filename:join(Base, "ern_doc_" ++ os:getpid() ++ "_"
+                              ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
-    ok = file:set_cwd(Dir),
-    try
-        run_example_here(ErlangModule, Initialized, Number, Expected)
-    after
-        file:set_cwd(Cwd),
-        file:del_dir_r(Dir)
-    end.
+    Dir.
 
-%% The example run in the working directory.
-run_example_here(ErlangModule, Initialized, Number, Expected) ->
-    Main = list_to_atom("docMain" ++ integer_to_list(Number)),
-    Self = self(),
-    _ = collect(out, []),
-    %% report §8.5: each module's top-level bindings, the documented
-    %% module's before the examples' that read them
-    Init = fun() -> [Module:'$init'() || Module <- Initialized,
-                                         erlang:function_exported(Module, '$init', 0)],
-                    ok
-           end,
-    %% the value goes to stdout, what the example prints itself may go to
-    %% either sink, and the two are separate processes, so only stdout's
-    %% last line is the value
-    %% report §11.1: the unit names its functions by their position
-    MainFunction = ern_named:function(ErlangModule, Main),
-    Result = ern_rt:run_main(MainFunction, atom_to_binary(Main),
-                             #{init => Init, stdout => fun(Bytes) -> Self ! {out, Bytes} end,
-                               stderr => fun(Bytes) -> Self ! {err, Bytes} end}),
-    ?assertEqual(ok, Result),
-    Lines = binary:split(iolist_to_binary(collect(out, [])), <<"\n">>, [global, trim]),
-    _ = collect(err, []),
-    ?assertEqual(iolist_to_binary(Expected), lists:last(Lines)).
-
-collect(Tag, Acc) ->
-    receive {Tag, Bytes} -> collect(Tag, [Bytes | Acc])
-    after 0 -> lists:reverse(Acc)
-    end.
-
-%% A standard library module's own beam comes back after its examples ran.
-restore(ErlangModule, Original) when is_list(Original) ->
-    code:purge(ErlangModule),
-    {ok, Beam} = file:read_file(Original),
-    {module, ErlangModule} = code:load_binary(ErlangModule, Original, Beam),
-    code:purge(ErlangModule);
-restore(ErlangModule, _) ->
-    code:purge(ErlangModule),
-    code:delete(ErlangModule),
-    code:purge(ErlangModule).
+%% Report §11.2, §11.8: `ern test` of the compiled module passes, a case for
+%% each of the examples, Blocks, as the lines it writes say, which EUnit's
+%% group leader holds.
+passed(Erc, Blocks) ->
+    ?assertNotEqual([], Blocks),
+    ?assertEqual(0, ern_cli:ern(["test", Erc])),
+    group_leader() ! {get_output, self()},
+    Output = receive {output, Captured} -> iolist_to_binary(Captured) end,
+    ?assertEqual(length(Blocks), length(binary:matches(Output, <<": passed\n">>))).
 
 %% Appendix E, Appendix G, report §11.5, §3.9: every listed function's type
 %% is the type its module's interface prints, its inferred restrictions
@@ -288,21 +162,6 @@ libraries(Namespace) ->
                   {ok, Bytes} <- [file:read_file(File)],
                   {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)],
                   Interface#interface.namespace =/= Namespace].
-
-checked(Namespace, Text, Libraries) ->
-    case ern_parser:parse_string(Text) of
-        {ok, Declarations} -> ern_typecheck:check(Namespace, Declarations, Libraries);
-        {error, Diagnostic} -> {error, [Diagnostic]}
-    end.
-
-%% An example's body and the value its last line `// => v` promises, or none.
-split_result(Block) ->
-    Lines = binary:split(Block, <<"\n">>, [global]),
-    case lists:last(Lines) of
-        <<"// => ", Value/binary>> ->
-            {iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))), Value};
-        _ -> {Block, none}
-    end.
 
 %% Appendix E.0 shape rule 6, docs/release_review.md step 5: the module's
 %% doc block ends with `since v`, and a declaration may state its own. A
@@ -465,9 +324,9 @@ documented(File) ->
                                                         exported_declaration(Declaration) =:= true,
                                                         doc_of(Declaration) =:= undefined]).
 
-%% Appendix E.0 shape rule 6: every exported function is called by an example on
-%% the page, the module's or its own; an operator member, used infix, is
-%% not a call and is not looked for
+%% Appendix E.0 shape rule 6: a module's page holds examples, and every
+%% exported function is called by one, the module's or its own; an operator
+%% member, used infix, is not a call and is not looked for
 doc_coverage_test_() ->
     [{atom_to_list(hd(Namespace)), fun() ->
                                        coverage(Namespace, File)
@@ -477,6 +336,7 @@ coverage(Namespace, File) ->
     {ok, Source} = file:read_file(File),
     {ok, Declarations} = ern_parser:parse_string(Source),
     Examples = iolist_to_binary([Block || Doc <- docs(Declarations), Block <- fences(Doc)]),
+    ?assertNotEqual(<<>>, Examples),
     Prefix = ern_namespace:text(Namespace),
     Fns = [local_name(MemberOf, Name)
            || #fn_declaration{export = true, member_of = MemberOf, name = Name} <- Declarations,
@@ -564,24 +424,16 @@ doc_of(#field{doc = Doc}) -> Doc;
 doc_of(_) -> none.
 
 %% Every doc text in an AST.
-docs(Node) ->
-    [Doc || {Doc, _} <- docs(Node, outside, [])].
-
-%% Every doc text in an AST, with where its examples are checked: outside
-%% the module, or inside it within a declaration the module keeps private.
-docs(Node, Where, Acc) when is_tuple(Node) ->
-    Where1 = case exported_declaration(Node) of
-                 false -> inside;
-                 _ -> Where
-             end,
-    Acc1 = case doc_of(Node) of
-               Doc when is_binary(Doc) -> [{Doc, Where1} | Acc];
-               _ -> Acc
-           end,
-    lists:foldl(fun(Child, Found) -> docs(Child, Where1, Found) end, Acc1, tuple_to_list(Node));
-docs(Nodes, Where, Acc) when is_list(Nodes) ->
-    lists:foldl(fun(Child, Found) -> docs(Child, Where, Found) end, Acc, Nodes);
-docs(_, _Where, Acc) -> Acc.
+docs(Node) when is_tuple(Node) ->
+    Own = case doc_of(Node) of
+              Doc when is_binary(Doc) -> [Doc];
+              _ -> []
+          end,
+    Own ++ docs(tuple_to_list(Node));
+docs(Nodes) when is_list(Nodes) ->
+    lists:append([docs(Child) || Child <- Nodes]);
+docs(_) ->
+    [].
 
 fences(Doc) ->
     case re:run(Doc, "```ernest\\n(.*?)\\n```",

@@ -1882,6 +1882,23 @@ private_doc_example_test() ->
                              "/src/doubles.ern, which no longer exists\n"]),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Gone)).
 
+%% report §11.2, §4.2: a private declaration's doc example in Io itself is
+%% compiled inside Io with `Io.show` written plain, as Io writes its own
+%% declaration where no binding hides it, and checks there. A regression
+%% test, written after the code, for what ern_doc_tests wrote and `ern
+%% test` did not: the example's module named `Io.show` qualified, which Io
+%% refuses. It does not cover the example's run, since a module of a
+%% standard library namespace is built in the library's source root alone,
+%% which holds no private declaration with an example
+private_io_example_test() ->
+    {ok, Source} = file:read_file("../../../src/stdlib/io.ern"),
+    {Text, <<"\"1\"">>} = ern_examples:module_text(['Io'], <<Source/binary, "\n">>,
+                                                     <<"show(1)\n// => \"1\"">>),
+    {ok, Declarations} = ern_parser:parse_string(iolist_to_binary(Text)),
+    ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Io'], Declarations, [])),
+    {Outside, _} = ern_examples:module_text(['$Example1'], <<>>, <<"1\n// => 1">>),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(Outside), <<"= Io.show(docExample())">>)).
+
 %% report §11.2, §4.4, §11.4: an abstract type's constructors' and fields'
 %% doc examples run, compiled inside the module, where the constructor is
 %% visible, after the type's own, which is compiled outside it; the page

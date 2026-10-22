@@ -101,12 +101,16 @@ Beyond what the README's *Installing* needs, `make test-full` needs python3, whi
 make              build the helper, compile every application into its ebin/, then
                   src/stdlib/, src/libs/, src/shell/ and tools/, and write each manual page
                   that is missing or older than what it is made from
-make test         build, then the unit tests of every application and the document
-                  and style tests, side by side: the light run, a minute or two
+make test         build, then the unit tests of every application, the library's doc
+                  examples, and the document and style tests, side by side: the light
+                  run, about a minute
 make test-full    build, then the unit tests, then every area below, one after another, each
                   running its own tests as many at once as the host has schedulers: the whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=checker for one
+make test-library  the doc examples of the standard library and the libraries, with the
+                  libraries' own tests, run by ern test over build/stdlib and build/libs,
+                  each example a program of its own; one line where all pass
 make test-programs  the five parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
                   signals, the streams, Os and the libraries' tests, that the
@@ -248,7 +252,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the Erlang of one application | `make test-erl APP=<app>`, then `make test`; the parser and the formatter `make test-grammar` too, the checker and the emitter `make test-typed` |
 | the runtime | `make test`, `make test-integration` |
 | nodes, or the deployment guide | `make test`, `make test-nodes`, `make test-deployment` |
-| the standard library, or a library under `src/libs/` | `make test`, `make test-integration` |
+| the standard library, or a library under `src/libs/` | `make test-library`, then `make test`, `make test-integration` |
 | the shell | `make test`, `make test-shell` |
 | the installation, the release, or the manual pages | `make test-install`, which runs `test-manual` first; the pages alone `make test-manual` |
 | the Emacs mode | `make test-emacs` |

@@ -346,6 +346,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 ### The documents
 
 - **Documentation**: the CLI's tests hold `docs/module_doc_template.md` equal to `ern doc`'s page for `test/fixtures/programs/template.ern`. `erl/runtime/test/ern_doc_tests.erl` checks the documentation of the template, `src/stdlib/` and `src/libs/`.
+- **The examples**: `ern test` is their one checker. `make test-library` runs it over `build/stdlib` and `build/libs`, and `ern_doc_tests` over a build of the template and over the prelude's page, whose examples it writes into a module's doc block, since no `.erc` holds them.
 - **Style**: `test/ern_style_tests.erl` checks `docs/style.md`'s tested rules, `ern format`'s layout over every module and every Ernest block of the report and the guide, and the Emacs mode's word lists against the lexer and the parser.
 - **Citations**: `test/ern_docs_tests.erl` (`make xref`) resolves every section citation, holds the contents lists equal to the headings, and checks the backticked paths of the documents that say where things are. It and the style tests read the repository through `test/ern_repository.erl`.
 - **The guide and the report**: `test/ern_guide_tests.erl` compiles every `ernest` block, runs every program a console shows, checks every `ernest-rejected` block's error, and replays every shell session, in the guide, the report and the README. It checks `docs/diagnostics.md` the same way.

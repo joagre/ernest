@@ -178,11 +178,17 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   its own would name it and replace the lookup by value and the code's first-line table, a change
   to §11.1's names of a unit's functions, recorded in the log for the review before 0.5.0 (MVP
   3.9) as a simplification to weigh there.
-- **One checker of the library's examples** (principle 2): `ern_doc_tests` runs every library
-  example in a launch of its own, about a minute of `make test-full`, and `ern test build/stdlib
-  build/libs` now runs the same examples the same way in about 10 s. The Makefile runs `ern test`
-  over the two builds, and the Erlang test keeps only what `ern test` cannot check, if anything;
-  about half a day with the Makefile's targets.
+- **One checker of the library's examples**, built 2026-10-22 (the log's *What the Feedback
+  Left*, its *Built* paragraphs on one checker): `make test-library` runs `ern test` over
+  `build/stdlib` and `build/libs`, in the light run and the full, and `ern_doc_tests` keeps the
+  documents' rules and runs `ern test` over the template and the prelude's page, which neither
+  build holds. The Erlang test checked nothing more but a page holding an example, now a rule of the
+  documents, and `show` written plain inside `Io`, where `ern test` wrote `Io.show`, which §4.2
+  refuses there, fixed. `ern_doc_tests` took 11.2 s and not a minute, so nothing went faster: the
+  light run went from 48.9 s to 54.0, its last job the CLI's tests in one host, which the
+  target's load slows, and `make test-full` from 587.7 s to 599.1. A decision for the user in
+  this milestone: the CLI's tests in three hosts, as the emitter's and the runtime's are, which
+  took the light run to 48.4 s.
 - **The launch's start** (found 2026-10-21 building the doc examples' launch; CLAUDE.md's *The
   tools are fast*): inside `ern test`'s host a launch took about 7.25 ms before its initializers
   ran, read as some 23 `persistent_term` updates at about 0.25 ms each; the bench's row of a bare

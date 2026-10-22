@@ -212,16 +212,18 @@ unicode:
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
 # The tests by area (plan, MVP 2.6), in two runs (MVP 3.9). `make test` is
-# the light run, for every commit: the applications' unit tests, and the
-# tests of the documents and the style. `make test-full` is every area, for
-# the commit that closes a plan item and for a release. The light run and
-# the full run's first phase run their jobs side by side, as many at once
-# as the host has cores, each job's output together as it ends. One make
-# runs each phase, since a make started with a -j of its own runs apart from
-# the count. In the full run the unit tests run first, with the jobs that
-# start no host: EUnit gives a test with no time of its own five seconds,
-# which the load of the areas that start hosts would take from them. Make
-# starts those jobs in the order given, so the longest come first. The
+# the light run, for every commit: the applications' unit tests, the
+# library's examples, and the tests of the documents and the style. `make
+# test-full` is every area, for the commit that closes a plan item and for
+# a release. The light run and the full run's first phase run their jobs
+# side by side, as many at once as the host has cores, each job's output
+# together as it ends. One make runs each phase, since a make started with
+# a -j of its own runs apart from the count, and takes `all` as made (-o),
+# since the run made it before the phase. In the full run the unit tests
+# run first, with the jobs that start no host: EUnit gives a test with no
+# time of its own five seconds, which the load of the areas that start
+# hosts would take from them. Make starts those jobs in the order given, so
+# the longest come first. The
 # areas that start hosts then run one after another, each whatever the one
 # before it ended with: each runs its own tests side by side, as many at
 # once as the host has schedulers (test/Makefile), which is what the host
@@ -233,14 +235,14 @@ unicode:
 # worked on (docs/development.md, *Building*).
 test: all
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
-	@$(MAKE) -s -j$(JOBS) -O $(APP_JOBS) test-docs
+	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs
 
 test-full: all
 	@$(MAKE) -s -C test beams
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
-	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs test-grammar \
-	  test-typed
-	@$(MAKE) -s -j1 -k test-shell $(PROGRAM_PARTS)
+	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
+	  test-docs test-grammar test-typed
+	@$(MAKE) -s -j1 -k -o all test-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=checker. The runtime's tests are compiled first, since the
@@ -268,6 +270,21 @@ APP_JOBS = $(APP_PARTS) $(filter-out $(SPLIT_APPS:%=test-app-%),$(APP_TESTS))
 $(APP_PARTS): test-app-%:
 	@$(MAKE) -s -C erl/$(firstword $(subst -, ,$*))/src test PARTS=3 \
 	  PART=$(lastword $(subst -, ,$*))
+
+# The library's doc examples, the standard library's and the libraries',
+# with the libraries' own tests, each a case `ern test` runs over the
+# library's build, an example a program of its own (report §11.2, Appendix
+# E.0 shape rule 6): one line where every case passed, and all `ern test`
+# wrote where one did not.
+test-library: all
+	@out=$$(mktemp "$${TMPDIR:-/tmp}/ern_library_XXXXXX") || exit 1; \
+	  bin/ern test build/stdlib > "$$out" 2>&1; stdlib=$$?; \
+	  bin/ern test build/libs >> "$$out" 2>&1; libs=$$?; \
+	  if [ $$stdlib -eq 0 ] && [ $$libs -eq 0 ]; then \
+	    echo "  All $$(grep -c ': passed$$' "$$out") cases of build/stdlib and build/libs passed."; \
+	    status=0; \
+	  else cat "$$out"; status=1; fi; \
+	  rm -f "$$out"; exit $$status
 
 # The areas under test/: the programs in five parts, the documents and the
 # style, the guide's examples, the grammar with the programs generated from
@@ -475,7 +492,8 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 .PHONY: all $(APP_BUILDS) stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
         man $(PAGES) \
         test test-full test-erl \
-        test-programs $(PROGRAM_PARTS) test-docs test-guide test-grammar test-typed test-shell \
+        test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-grammar \
+        test-typed test-shell \
         load service bench bench-machines bench-pick \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \

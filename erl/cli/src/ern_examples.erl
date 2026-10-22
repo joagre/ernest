@@ -5,7 +5,7 @@
 %% directory of its own.
 -module(ern_examples).
 
--export([cases/4, in_directory/2, unload/1]).
+-export([cases/4, in_directory/2, unload/1, module_text/3]).
 
 -export_type([example/0, load/0]).
 
@@ -260,20 +260,12 @@ fences(Doc) ->
 %% first of its errors, or with the refusal of a module it names that the
 %% run would refuse; one that ends in `// => v` runs, and fails where
 %% `Io.show` of its value is not `v`; one without the line passes where it
-%% compiles. An example's function is checked as a lambda's body where it
-%% runs nothing, so that it may receive, and one that runs has the mailbox
-%% type Never, as an entry point's left open has (report §8.1).
+%% compiles (module_text/3).
 example(Name, _Block, {error, Text}, _Naming) ->
     {{failed(Name, Text), []}, none};
 example(Name, Block, #example_module{namespace = Namespace, before = Before, build = Build,
                                      unit = Unit} = Module, Naming) ->
-    {Body, Value} = split_result(Block),
-    {Declared, Expression} = declared(Body),
-    Text = case Value of
-               none -> [Before, Declared, "fn docExample() = fn() = {\n", Expression, "\n}\n"];
-               _ -> [Before, Declared, "fn docExample() = {\n", Expression, "\n}\n\n"
-                     "export fn docShown() : String receiving Never = Io.show(docExample())\n"]
-           end,
+    {Text, Value} = module_text(Namespace, Before, Block),
     case {checked(iolist_to_binary(Text), Module, Naming), Value} of
         {{error, [#diagnostic{message = Message} | _]}, _} ->
             {{failed(Name, Message), []}, none};
@@ -291,6 +283,32 @@ example(Name, Block, #example_module{namespace = Namespace, before = Before, bui
                     {{failed(Name, Refusal), []}, none}
             end
     end.
+
+%% Report §11.2, Appendix E.0 shape rule 6: the text of the module, of the
+%% namespace Namespace, that an example, Block, is compiled in, after
+%% Before, and the value its last line `// => v` promises, or none. The
+%% example is the body of `docExample`, its declarations before it. One
+%% without a value is a lambda's body, since it runs nothing, so that it
+%% may receive; one with a value runs, shown by `docShown`, which calls
+%% `Io.show` as the module writes it (shown/1) and has the mailbox type
+%% Never, as an entry point's left open has (report §8.1).
+-spec module_text([atom()], binary(), binary()) -> {iodata(), binary() | none}.
+module_text(Namespace, Before, Block) ->
+    {Body, Value} = split_result(Block),
+    {Declared, Expression} = declared(Body),
+    Text = case Value of
+               none -> [Before, Declared, "fn docExample() = fn() = {\n", Expression, "\n}\n"];
+               _ -> [Before, Declared, "fn docExample() = {\n", Expression, "\n}\n\n"
+                     "export fn docShown() : String receiving Never = ", shown(Namespace),
+                     "(docExample())\n"]
+           end,
+    {Text, Value}.
+
+%% Report §4.2: `Io.show` as the example's module writes it, plain within
+%% Io itself, which writes its own declaration qualified only where a
+%% binding hides it.
+shown(['Io']) -> "show";
+shown(_) -> "Io.show".
 
 %% The build an example is compiled with: inside its module, the module's
 %% unit named as a version is, the first name with `$` and a number the
