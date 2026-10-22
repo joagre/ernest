@@ -63,7 +63,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.2 | code with a spawn: the exchange, the bare node, every unit held for the node's life, and `Code`; then a release, Ernest 0.4.0, the first with nodes | the code by 2026-10-15; the release 2026-10-18 | tag `v0.4.0` | [`mvp3.2.md`](proposals/nodes_and_code/mvp3.2.md); *The Feedback Pass Before MVP 3.2*, *The Typed-Channels Example*, *The Service Named*, *Names Read as a Newcomer Reads Them*, *The Report for Code with a Spawn*, *Placing Work by Name*, *American English Throughout*, *The Pages Written From `main`*, *Pages Written Where Out of Date*, *The Tools Measured*, *The Tools Measured Again*, *The Repository Laid Out Again*, *The Layout Completed*, *Tables in `libs/markdown`*, *The Programs Tests' Bounds*, *The Design Notes Leave the Proposals*, *The Examples Are Programs*, *The Runtime's Own Processes*, *The Shell on a Private Type*, *Before the Tag, the Last Builds*, *Ernest 0.4.0 Ends MVP 3.2*, *The Release Review Before 0.4.0* |
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
-| MVP 3.29 | the bookkeeping behind §8.6 at no cost to a hot path, the foreign call's count and the timed receive's first; the trace of a foreign return; a top-level `let`'s read; one checker of the library's examples; the launch's start; `make bench` read against the cost rules, with a memory of its last run; and deadlock detection among *Why Ernest*'s claims | made 2026-10-21 from MVP 3.28's measurement, its aim set 2026-10-22 | | below |
+| MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count a stack read, the timed receive's and the call's marks, the restart's row measured; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; the launch's start; `make bench` with a memory of its last run; and deadlock detection among *Why Ernest*'s claims | made 2026-10-21 from MVP 3.28's measurement; the sitting held 2026-10-22 | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -74,62 +74,64 @@ finished milestone is a row of the table below, its reasons in the log entries t
 
 ---
 
-## MVP 3.29 (the bookkeeping behind §8.6, and the foreign call), a sitting and then a build
+## MVP 3.29 (the bookkeeping behind §8.6, and the foreign call), the sitting held and then the builds
 
 Made 2026-10-21 from what MVP 3.28's foreign call measurement found (the log's *The Foreign Call
-Measured*), and given its aim on 2026-10-22: what §8.6's deadlock detection keeps of what can
-deliver costs no hot path anything, since the look runs only when a program seems idle and the
-bookkeeping is what a program pays. Two writes stand on a hot path today, the foreign call's count
-and the timed receive's, each two writes to the processes table under its one lock; what else was
-found measuring the foreign call stands here as items of its own; and the claim goes to *Why
-Ernest*. Deadlock detection stays, since the runtime owns every source of a message, which is why
-Ernest can decide what no other language on the host can; what is weighed is what it costs.
+Measured*), and decided in a sitting with the user on 2026-10-22 (the log's *The Sitting on
+§8.6's Bookkeeping*). The rule the sitting set: deadlock detection stays, since the runtime owns
+every source of a message, which is what lets Ernest decide what no other language on the host
+can; and what the look needs of a process, the process marks in its own state and the look reads
+when the program seems idle, so that no operation writes a shared row for it and a hot path pays
+nothing. Against a call that answers at once there is no fraction but nothing. The items follow in
+the order they are built; the report's sections change as each build starts.
 
-- **The sitting**, with the user, over the log's *The Foreign Call Measured* and *Deadlock Is
-  Quiescence*. What the count is for: foreign code may block in a receive of its own, a
-  `gen_server:call` behind a library, which the host shows as waiting, and the look must not read
-  that as a deadlock; so a foreign function's `receiving` decides nothing here, since not
-  delivering is not the same as not blocking, and the standard library already pays no count but
-  for the functions its runtime modules list as waiting. The leading option: the call writes
-  nothing, and the look, which reads every live process's status when nothing else can deliver,
-  reads its stack too and takes a frame outside Ernest's units as foreign code in progress; a
-  foreign function that calls back into Ernest code that receives shows the Ernest frame on top
-  and the foreign one beneath, which a walk of the stack finds. To verify in the sitting: that the
-  three cases, an Ernest receive, a foreign block and a callback's receive, read apart reliably;
-  then the timed receive the same way, or in the process's own dictionary. The fallback: each
-  process keeps its counts in a counters array of the host's, made at its first count and named in
-  its row, about 20 ns and no shared write. Then every other write a process makes to the shared
-  table, and what a fraction means against a 7 ns call. The feedback's program is measured (the
-  log's entry, its last paragraphs): the runtime's wrapper adds 155 ns whatever the arguments, and
-  the library's own Ernest around the call adds 240 more, 144 of them four reads of a top-level
-  `let`, the item below.
-- **`make bench` read against the cost rules** (decided with the user 2026-10-22; CLAUDE.md's
-  *Design*), after the sitting, since the sitting decides what the new rows must show. Today the
-  bench measures what happened to be measured, the spawn, the monitor, `restarting`, six list
-  operations and the foreign call, keeps no memory of its last run, so that the rows that grew
-  since MVP 3.1 were found by a reader with the log open, and three of this milestone's numbers
-  are scratch scripts no command reruns. The item: every promise of the cost rules has a row, a
-  constant's read, a launch's start, a timed receive, a message to a system process and a
-  process's row at its start and end among them; the three scratch measurements, the count under
-  contention, the feedback's program and the launch's pieces, become rows; and a run keeps the
-  last run beside it and names every row that moved by more than the noise, about a fifth on this
-  machine (the log's *The Rows That Grew*). Run once before the sitting's build and once after,
-  so that the milestone's log entry closes on the tool's numbers; about a day.
-- **The bookkeeping built as the sitting decides**, and `make bench`'s `foreign.txt` gains a row
-  of eight processes making foreign calls at once, which today runs at a thirteenth of one
-  process's rate; about half a day.
-- **The trace of a foreign return that fails its check** (left 2026-10-21 in *Every Fault Carries
-  a Trace*'s read-back): the boundary's check runs after the foreign function's tail call, so the
-  fault's trace holds no frame of the foreign function. Decided in the sitting, since what wraps
-  the call decides whether the frame can be kept: the plain form kept and said in the log, or the
-  frame added where the wrapper's change gives a place for it.
-- **A top-level `let`'s read** (found 2026-10-22 measuring the feedback's program; CLAUDE.md's
-  *Design*, a fraction): every use of a top-level `let` reads a persistent term by a tuple key,
-  `{ern@epx, '$38'}`, 36 ns against 2 for a literal and 13 for an atom key, and the library's
-  `coordinate` reads its `limit` twice a call. The emitter knows at compile time when a `let` is a
-  literal. To decide: what a `let` compiles to, a literal written where its value is one, and
-  what a non-literal `let`, a list or a map, costs and should; measured first in a bench row;
-  about a day.
+- **The sitting**, held 2026-10-22, six questions each with its verdict in the log entry: the
+  foreign call's count becomes a read of the waiting process's stack at the look; the timed
+  receive's count a mark in the process's dictionary; the call's row for the look the same mark,
+  the restart's row kept and measured; a fraction of a call that answers at once is nothing; a
+  top-level `let` that is a ground term compiles to the term; and the cause of a foreign return
+  that fails its check names the function, the trace unchanged. Priority messages (OTP 28) were
+  set aside: they reach a process that is receiving and the look's problem is one that is not;
+  where they would apply is the call's wait reading the caller's mailbox for a restart, which
+  stands as the log's *Nothing Waits for a Program* records it, unplanned.
+- **`make bench` read against the cost rules** (CLAUDE.md's *Design*), first, since the sitting's
+  builds are decided on its numbers. Today the bench measures what happened to be measured, keeps
+  no memory of its last run, so that the rows that grew since MVP 3.1 were found by a reader with
+  the log open, and three of this milestone's numbers are scratch scripts no command reruns. The
+  item: every promise of the cost rules has a row, a constant's read, a bare launch, a timed
+  receive, a message to a system process and a process's row at its start and end among them; the
+  call measured piece by piece as the foreign call was, its monitor, its rows, its timed count,
+  its check and its wait, each with one caller and with eight pairs, since eight pairs run today
+  at 5,008 ns a call over all against the host's 818 and one pair's 2,475; the foreign call and
+  the count with eight processes at once; and a run keeps the last run beside it and names every
+  row that moved by more than the noise, about a fifth on this machine (the log's *The Rows That
+  Grew*). About a day.
+- **The bookkeeping built on the rule**, §8.6 first. The look reads each waiting process's stack
+  and takes a frame of a module that is no unit's, `ern@` and `ern$`, and none of the runtime's
+  own, `ern_`, or of a runtime function its module lists as waiting, as foreign code in progress;
+  verified before the build by a scratch program on three facts, that an Ernest receive, a
+  foreign block and a callback's receive read apart, that the host's stack depth reaches the
+  foreign frame under a callback or is raised without lengthening a fault's trace, and that no
+  runtime function blocks in a host receive unlisted. The timed receive marks the process's
+  dictionary in and out, and a call marks its callee there for the look's request in flight. With
+  that the row's two count columns, `in_foreign`, the emitter's fun around a foreign call and its
+  decision by the waiting lists, the error handler's count of a code load, and the calls table go.
+  Fallback where a fact fails: the foreign call marks the dictionary as the timed receive does, 24
+  ns, one mechanism for both. About two days with the tests.
+- **The restart's callees row**, decided on the bench's numbers: a call writes it so that a
+  restart of the callee ends the call (§6.9), the one shared write a call keeps. Where the eight
+  pairs show the lock, the table is made with the host's write concurrency; where the single
+  call's constant shows, that is a §6.9 question of its own, designed before anything is built.
+- **A top-level `let` that is a ground term**, §11.1 first: a binding whose initializer is a
+  literal, or a constructor, tuple or list of literals, is compiled to the term at each read,
+  which the host keeps in its literal area, 2 ns against the persistent term's 36 by a tuple key;
+  any other binding is read as today. A second path kept on a number, said so in the log; the
+  bench's row of a ground read and a computed read before and after. About half a day.
+- **The cause of a foreign return that fails its check names the function**, §7.4 first: `the
+  return of foreign function m:f/n does not match Int`, and an argument foreign code gives an
+  Ernest function `an argument of f from foreign code does not match Int`; the reply's cause
+  stays, since no function gave it. The trace is unchanged: the function has returned when the
+  check runs, and a frame written in would lie. About an hour with the tests.
 - **One checker of the library's examples** (principle 2): `ern_doc_tests` runs every library
   example in a launch of its own, about a minute of `make test-full`, and `ern test build/stdlib
   build/libs` now runs the same examples the same way in about 10 s. The Makefile runs `ern test`
@@ -141,14 +143,14 @@ Ernest can decide what no other language on the host can; what is weighed is wha
   launch's and the reporter's terms, the end's two erases and the bindings of the six library
   modules that hold addresses, each of which waits about 0.25 ms for the host's schedulers. Its
   shape: fewer terms, one for the launch's processes, and the bindings that hold addresses written
-  once for the host; measured in a bench row of a bare launch; about a day.
-- **Deadlock detection among *Why Ernest*'s claims** (decided with the user 2026-10-22): a sixth
-  claim in `guide/why.md`, with no program, and its line in the README's list: a program that
-  waits forever ends with `Fault("deadlock")`, which no other language on the host can decide,
-  since Ernest's runtime owns every source of a message, a typed mailbox, a process it spawned, a
-  system process that counts what it holds, and a node turned off since a peer can reach it (§8.6;
-  the log's *Deadlock Is Quiescence*). Written after the sitting, so that the claim states what it
-  costs a program: nothing on a hot path, and a look when the program seems idle.
+  once for the host; measured in the bench's row of a bare launch; about a day.
+- **Deadlock detection among *Why Ernest*'s claims**, last: a sixth claim in `guide/why.md`, with
+  no program, and its line in the README's list: a program that waits forever ends with
+  `Fault("deadlock")`, which no other language on the host can decide, since Ernest's runtime
+  owns every source of a message, a typed mailbox, a process it spawned, a system process that
+  counts what it holds, and a node turned off since a peer can reach it (§8.6; the log's *Deadlock
+  Is Quiescence*); and what it costs a program, a mark in its own state and a look when it is
+  idle, which the builds above make true before the claim is written.
 
 ## MVP 3.3 (the tour)
 
