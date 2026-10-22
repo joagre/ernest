@@ -100,6 +100,13 @@ milestone closed, and from what the user's new machine asks for on its first day
   adapter and taken apart by the program; the host's own `maps:find/2` and a `case`, which answer
   as `Map.get` does, cost 1.2 times it. The number confirms the plain form, the type being the
   operation's, and is written once.
+- **The bench's parts as targets** (decided with the user 2026-10-22; CLAUDE.md's *The tools are
+  fast*): `make bench` whole takes twelve minutes, and an item touches one or two of its parts.
+  Each part gets a target, `make bench-call`, `bench-foreign`, `bench-language` and the rest, which
+  runs it and compares its tables alone, the comparison's memory kept per table and not per run,
+  so that a partial run updates and compares what it wrote; `make bench` whole stays the closing
+  run before a commit that closes an item, as `make test-full` stands to an area's own target, and
+  no second umbrella is added. About an hour, with docs/development.md's line.
 - **The first day of the new machine** (a 12-core AMD with 64 GB, expected about 2026-11-12):
   its line in `test/machines/machines.txt` beside bee and xena; one `make bench` before any code
   changes, kept as the release's reference with `make bench-release`, since every number in the
