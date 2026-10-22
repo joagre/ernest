@@ -8755,6 +8755,36 @@ The calls table stays. The build found it is also the reaper's index from a kill
 
 **Left, 2026-10-22: a lambda inside a binding's value.** Given to foreign code and failing a check, such a lambda is named as the host names it, `ern@main:-$init/0-fun-0-/1`, since every initializer runs in one function of the unit and a trace tells them apart only by line. Left: the name is true and the frame beneath names the binding, so principle 1 is weighed and not broken. The shape that would name it, each initializer compiled to a function of its own, would also replace the lookup of a binding by its value and the code's table of first lines, a simplification of §11.1's naming of a unit's functions for the review before 0.5.0 to weigh.
 
+**Measured 2026-10-22, the callee's table under eight writers.** A scratch program measured the plan's three kinds of `ern_callees` on the laptop, nothing else running, the load average 0.2 to 2.3 before each run but one that followed another at once. It ran `call/4` whole as `call.txt`'s model does, its row written and deleted by the kind, against the compiled counter, beside the host's call and `Address.call` itself. The kinds: the ordered set by callee and caller with the host's write concurrency, as it is, with `auto` and with none; a bag by the callee, `{Callee, Caller, Reply}`, left by `delete_object`, with write concurrency and with none; and the plain set by callee and caller with write concurrency, refused since a restart would read it by a select over every row, measured as the floor. Each number is the median of seven interleaved runs, each column from one run. The model of the ordered set measured as `Address.call` in every shape, 2,375 against 2,386 with one pair.
+
+| A call, ns over all callers | one pair | eight pairs | eight of one | 100 of one | 1,000 of one |
+|---|---:|---:|---:|---:|---:|
+| the host's call | 1,620 | 836 | 1,712 | 1,636 | 2,176 |
+| `Address.call` as it is | 2,386 | 1,654 | 2,173 | 1,737 | 2,126 |
+| ordered set, write concurrency | 2,375 | 1,678 | 2,231 | 1,722 | 2,220 |
+| ordered set, none | 2,172 | 3,251 | 2,174 | 5,451 | 6,165 |
+| bag by the callee, write concurrency | 2,292 | 1,343 | 2,167 | 9,418 | 117,877 |
+| bag by the callee, none | 2,175 | 2,907 | 2,154 | 9,675 | 118,487 |
+| set, write concurrency, refused | 2,465 | 1,314 | 1,981 | 1,743 | 1,980 |
+
+| The row written and deleted alone, ns over all processes | one | eight, eight callees | eight, one callee | one, 100 pending | one, 1,000 pending |
+|---|---:|---:|---:|---:|---:|
+| ordered set, write concurrency | 407 | 882 | 881 | 670 | 921 |
+| ordered set, none | 263 | 2,934 | 3,120 | 563 | 685 |
+| bag by the callee, write concurrency | 425 | 310 | 3,026 | 1,367 | 11,102 |
+| bag by the callee, none | 293 | 2,703 | 2,939 | 1,282 | 10,740 |
+| set, write concurrency, refused | 433 | 319 | 324 | 444 | 465 |
+
+`auto` measured as `true` on the ordered set, 1,676 under eight pairs against 1,678. On the bag it measured 2,423 against 2,167 in the call with eight callers of one callee, and within a twentieth of it in the other two. A duplicate bag grew as the bag, 1,269 with 100 pending, and the host's decentralized counters on the bag changed nothing in the call.
+
+The restart's read of eight callers is the bag's lookup at 455 ns against the ordered set's prefix select at 1,808, and of a hundred 4,314 against 16,501. Beside a thousand rows of other callees the set's select over every row takes 37,895 where the ordered set's takes 2,522, the scan the rule refuses.
+
+**Decided: the ordered set stays.** The bag beat it under eight pairs by a fifth, 1,343 to 1,356 against 1,678 to 1,761 in three runs, the floor's own number. With one pair and with eight callers of one callee every kind with write concurrency measured within the noise. But a bag's write and its `delete_object` walk the callee's rows under the lock of the callee's key, so the call's cost grows with the callers waiting on the same callee. A hundred callers of one callee pay 5.8 times the host's call and a thousand 54 times, where the ordered set holds at 1.1 and 1.0. That is no fraction of the host's call, and it is paid where a server is busiest, growing as its callers wait. The runtime is unchanged but the table's comment, which says why it is no bag. The cost rule decided.
+
+**Write concurrency keeps its place.** Without it the ordered set pays 200 ns less with one pair, twice as much under eight pairs and 3.3 times the host's call in a crowd of a hundred. `true` stays, `auto` measuring the same.
+
+**What it leaves.** Under eight pairs the ordered set's call stays at 2.0 times the host's against the floor's 1.6, about 350 ns a call over all, which of the three kinds only the one whose restart reads every row reaches. The number decides nothing more, and the item closes (CLAUDE.md's measurement rule).
+
 **Set aside: priority messages.** OTP 28's priority messages let a process take a message ahead of its queue through an alias made for it. The look's problem is the other direction, knowing something of a process that is not receiving at all, so they do not touch the bookkeeping. Where they apply is the call's wait reading the caller's whole mailbox so that a restart is taken during the call, whose cost grows with the messages waiting (*Nothing Waits for a Program*); that touches §6.9's ordering promises and would need its own reading of the report, and the user set it aside, unplanned.
 
 **What it does to the code.** Gone: the row's two count columns and the select over them, `in_foreign` and the fun the emitter allocates for it, the emitter's decision of which calls to wrap by the waiting lists, the error handler's count of a code load, the calls table, and the doc test's example runner once `ern test` is the one checker. Come: one classifier at the look over a waiting process's stack, and one read of its dictionary. Three mechanisms become one in one function, which is the simplification that matters more than the count; the ground `let` is the one special case kept on a number.

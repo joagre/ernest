@@ -3003,8 +3003,11 @@ make_tables() ->
 %% The callees' and the deliveries' rows are ordered, so that a process
 %% reads its own by their key's prefix. Every call writes a callee's row
 %% and deletes it (pending/2, uncalled/2), so its table takes the host's
-%% write concurrency, which lets calls on one node write it at once
-%% (the log's *The Sitting on §8.6's Bookkeeping*).
+%% write concurrency, which lets calls on one node write it at once. A bag
+%% by the callee, which a restart would read by one lookup, walks the
+%% callee's rows at each write and delete, so that a crowd of callers
+%% makes each call to it many times the host's (the log's *The Sitting on
+%% §8.6's Bookkeeping*, its *Measured* paragraphs).
 table_options(?CALLEES) -> [ordered_set, {write_concurrency, true}];
 table_options(?DELIVERIES) -> [ordered_set];
 table_options(?OFFERS) -> [ordered_set];
