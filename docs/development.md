@@ -175,7 +175,9 @@ make bench        what each of a few operations costs in Ernest beside the same
                   row of every table but the library's that moved by more than a fifth
                   against the last run, whose tables test/build/bench/last/ keeps,
                   printed and written to moved.txt; about eleven minutes; not part of
-                  make test-full
+                  make test-full. A row is for a number a later change could move, a
+                  promise of CLAUDE.md's cost rules or a construct the emitter writes
+                  code for; a number measured once to settle a design is the log's
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk

@@ -167,8 +167,9 @@ the order they are built; the report's sections change as each build starts.
   the counter server for processes and calls, each a ratio a reader can take in, the construct rows
   saying where a ratio comes from. Against the host's own Erlang alone, not another language on
   the host, since that would measure their compilers. A construct that shows a multiple is a
-  finding for an item of its own, never this one's tail. About two days, and the entry the claim
-  below cites.
+  finding for an item of its own, never this one's tail. Both are parts of `make bench`,
+  `language.txt` and `programs.txt`, the Erlang twins fixtures under the test tree, so that the
+  comparison watches them; about two days, and the entry the claim below cites.
 - **Deadlock detection among *Why Ernest*'s claims**, last: a sixth claim in `guide/why.md`, with
   no program, and its line in the README's list: a program that waits forever ends with
   `Fault("deadlock")`, which no other language on the host can decide, since Ernest's runtime
