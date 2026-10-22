@@ -176,8 +176,11 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   Int`, a lambda or a local fn named by the top-level declaration it is written in. A function
   value foreign code gave is named as the host names it, and its raise is now a foreign
   function's. The reply's cause and every trace stay. A lambda inside a top-level binding's value
-  keeps the host's name: compiling each initializer to a function of its own would name it, a
-  change to §11.1's names of a unit's functions that is the user's to decide.
+  keeps the host's name, decided 2026-10-22 and left: the name is true and a frame beneath names
+  the binding (principle 1 weighed and not broken); compiling each initializer to a function of
+  its own would name it and replace the lookup by value and the code's first-line table, a change
+  to §11.1's names of a unit's functions, recorded in the log for the review before 0.5.0 (MVP
+  3.9) as a simplification to weigh there.
 - **One checker of the library's examples** (principle 2): `ern_doc_tests` runs every library
   example in a launch of its own, about a minute of `make test-full`, and `ern test build/stdlib
   build/libs` now runs the same examples the same way in about 10 s. The Makefile runs `ern test`
